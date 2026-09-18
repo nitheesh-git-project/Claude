@@ -65,7 +65,7 @@ console.log("\n=== F-01 verdict ===");
 for (const t of ["communication_flags", "risk_signals", "risk_reviews", "care_plans", "care_plan_versions", "contact_reveal_log"]) {
   const b = before[t], a = after[t];
   const cleared = a === 0;
-  console.log(`  ${t.padEnd(24)} ${String(b).padStart(4)} -> ${String(a).padStart(4)}  ${b === 0 ? "(was already empty — inconclusive)" : cleared ? "CLEARED" : "*** SURVIVED THE RESET ***"}`);
+  console.log(`  ${t.padEnd(24)} ${String(b).padStart(4)} -> ${String(a).padStart(4)}  ${b === 0 ? "(was already empty - inconclusive)" : cleared ? "CLEARED" : "*** SURVIVED THE RESET ***"}`);
 }
 const { data: admins } = await admin.from("profiles").select("id").eq("role", "admin");
 console.log(`\nadmins surviving: ${admins?.length ?? 0}`);

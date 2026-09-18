@@ -51,11 +51,11 @@ export default function TherapistContactEditForm({
     return (
       <div className="text-xs space-y-1">
         <p>
-          <span className="text-slate-400">Email:</span>{" "}
+          <span className="text-slate-500">Email:</span>{" "}
           <span className="font-semibold text-slate-800">{optimisticContact.email}</span>
         </p>
         <p>
-          <span className="text-slate-400">Phone:</span>{" "}
+          <span className="text-slate-500">Phone:</span>{" "}
           <span className="font-semibold text-slate-800">
             {optimisticContact.phone || "Not set"}
           </span>
@@ -78,18 +78,18 @@ export default function TherapistContactEditForm({
   return (
     <div className="text-xs space-y-2">
       {error && <p className="text-red-600">{error}</p>}
-      <div>
-        <label className="block font-semibold mb-1">Email</label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Email</span>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-        <p className="text-[10px] text-slate-400 mt-1">
+        <p className="text-[10px] text-slate-500 mt-1">
           Changing this also changes their sign-in email.
         </p>
-      </div>
+      </label>
       <PhoneNumberField value={phone} onChange={setPhone} label="Phone" />
       <div className="flex gap-2">
         <button

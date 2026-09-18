@@ -47,7 +47,7 @@ export default function ReferralCapacityNoteForm({
         </span>
         <button
           onClick={() => setEditing(true)}
-          className="text-slate-400 hover:text-slate-700 font-semibold"
+          className="text-slate-500 hover:text-slate-700 font-semibold"
         >
           Edit
         </button>
@@ -68,7 +68,7 @@ export default function ReferralCapacityNoteForm({
         type="text"
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        placeholder="e.g. no capacity right now — will follow up"
+        placeholder="e.g. no capacity right now - will follow up"
         maxLength={200}
         className="p-2 rounded-lg border border-slate-300 text-xs flex-1 min-w-[200px]"
       />
@@ -85,7 +85,7 @@ export default function ReferralCapacityNoteForm({
           setNote(optimisticNote ?? "");
           setError(null);
         }}
-        className="text-slate-400 hover:text-slate-700 font-semibold"
+        className="text-slate-500 hover:text-slate-700 font-semibold"
       >
         Cancel
       </button>

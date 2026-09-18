@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { MEET_SPACE_SETTINGS_SCOPE } from "@/lib/googleMeetSpace";
 
 /**
@@ -39,7 +41,58 @@ export type GoogleConnectionStatus =
   // known fix (re-authorize) from a transient network or Google-side fault,
   // because telling an owner to re-run a script over a blip wastes their
   // afternoon and teaches them to ignore the panel.
-  | { state: "broken"; deadToken: boolean; detail: string };
+  | {
+      state: "broken";
+      deadToken: boolean;
+      detail: string;
+      /** What the server is actually holding, for the one question the error
+       *  itself cannot answer. See describeCredential below. */
+      credential: CredentialShape | null;
+      /** The OAuth client the refused token was presented to. A refresh token
+       *  is bound to the client that minted it, so a production deployment
+       *  carrying a different client id is refused with `invalid_grant` for a
+       *  perfectly good token -- same error, entirely different fix. */
+      clientId: string | null;
+    };
+
+/**
+ * Enough about the stored credential to tell three failures apart, and not one
+ * character more of it.
+ *
+ * `invalid_grant` is returned for a token that has genuinely died **and** for a
+ * server that is simply still holding the previous value -- somebody pasted a
+ * new token into their hosting provider, redeployed, and met the identical red
+ * card. The error cannot distinguish them and neither could this screen, so the
+ * owner's only move was to paste it again and hope.
+ *
+ * Three facts settle it without printing a secret:
+ *   length      -- compared against the value they pasted, by eye
+ *   fingerprint -- changes when the value changes, so "did this deploy pick it
+ *                  up?" is answerable by reloading and looking
+ *   padded      -- a trailing newline survives a paste into most dashboards and
+ *                  Google refuses it every time. This one needs no comparison
+ *                  at all: it is a finding on its own.
+ *
+ * The fingerprint is the first 8 hex of SHA-256 over the **raw** value, not a
+ * trimmed one -- trimming first would hide exactly the whitespace difference
+ * `padded` exists to catch, and make two different values print the same
+ * fingerprint. Eight hex of a hash over a 100-character high-entropy secret
+ * identifies it without revealing any of it.
+ */
+export type CredentialShape = {
+  length: number;
+  fingerprint: string;
+  padded: boolean;
+};
+
+export function describeCredential(raw: string | undefined | null): CredentialShape | null {
+  if (!raw) return null;
+  return {
+    length: raw.length,
+    fingerprint: createHash("sha256").update(raw).digest("hex").slice(0, 8),
+    padded: raw.trim() !== raw,
+  };
+}
 
 const REQUIRED_ENV = [
   "GOOGLE_CALENDAR_CLIENT_ID",
@@ -135,6 +188,8 @@ async function probe(): Promise<GoogleConnectionStatus> {
         state: "broken",
         deadToken,
         detail: body.error_description || body.error || `HTTP ${res.status}`,
+        credential: describeCredential(process.env.GOOGLE_CALENDAR_REFRESH_TOKEN),
+        clientId: process.env.GOOGLE_CALENDAR_CLIENT_ID ?? null,
       };
     }
 
@@ -146,7 +201,16 @@ async function probe(): Promise<GoogleConnectionStatus> {
     // A timeout or a DNS failure is not a dead token, and must not be
     // reported as one.
     const detail = err instanceof Error ? err.message : String(err);
-    return { state: "broken", deadToken: false, detail };
+    // A timeout says nothing about the stored value, so the shape is reported
+    // here too rather than left null -- it is the same environment either way,
+    // and an owner mid-redeploy is exactly who reads this card.
+    return {
+      state: "broken",
+      deadToken: false,
+      detail,
+      credential: describeCredential(process.env.GOOGLE_CALENDAR_REFRESH_TOKEN),
+      clientId: process.env.GOOGLE_CALENDAR_CLIENT_ID ?? null,
+    };
   } finally {
     clearTimeout(timer);
   }

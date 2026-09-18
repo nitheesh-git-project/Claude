@@ -27,6 +27,60 @@ const ALL_WELL: SystemHealthInput = {
 };
 
 describe("buildSystemHealth", () => {
+  // Google answers `invalid_grant` for a permission that has died AND for a
+  // server still holding the value somebody just replaced. The steps on the
+  // card fix only the first, so an owner meeting the second pastes the token
+  // again and again. These lines are what tells the two apart.
+  describe("the Google card's evidence", () => {
+    const brokenWith = (
+      credential: { length: number; fingerprint: string; padded: boolean } | null,
+      clientId: string | null
+    ): SystemHealthInput => ({
+      ...ALL_WELL,
+      google: { state: "broken", deadToken: true, detail: "invalid_grant", credential, clientId },
+    });
+
+    const google = (input: SystemHealthInput) =>
+      buildSystemHealth(input).find((c) => c.id === "google")!;
+
+    it("names the fingerprint of the value the server is actually using", () => {
+      const check = google(brokenWith({ length: 103, fingerprint: "a1b2c3d4", padded: false }, null));
+      expect(check.evidence.join(" ")).toContain("a1b2c3d4");
+      expect(check.evidence.join(" ")).toContain("103 characters");
+    });
+
+    it("states padding on its own line, because that one needs no comparison", () => {
+      const clean = google(brokenWith({ length: 103, fingerprint: "a1b2c3d4", padded: false }, null));
+      const padded = google(brokenWith({ length: 104, fingerprint: "e5f6a7b8", padded: true }, null));
+      expect(padded.evidence.length).toBe(clean.evidence.length + 1);
+      expect(padded.evidence.join(" ")).toMatch(/space or a line break/i);
+      expect(clean.evidence.join(" ")).not.toMatch(/space or a line break/i);
+    });
+
+    it("names the OAuth client, the other cause of the same error", () => {
+      const check = google(brokenWith(null, "680744084391-abc.apps.googleusercontent.com"));
+      expect(check.evidence.join(" ")).toContain("680744084391-abc.apps.googleusercontent.com");
+    });
+
+    it("says nothing rather than guessing when the shape is unknown", () => {
+      expect(google(brokenWith(null, null)).evidence).toEqual([]);
+    });
+
+    it("carries the evidence into the text the Copy button produces", () => {
+      const check = google(brokenWith({ length: 103, fingerprint: "a1b2c3d4", padded: true }, "client-x"));
+      const copied = copyTextFor(check);
+      expect(copied).toContain("a1b2c3d4");
+      expect(copied).toContain("client-x");
+      // Above the steps: where evidence exists, it decides whether those
+      // steps are the right ones at all.
+      expect(copied.indexOf("What the app can see:")).toBeLessThan(copied.indexOf("Steps:"));
+    });
+
+    it("leaves every healthy check with no evidence at all", () => {
+      expect(buildSystemHealth(ALL_WELL).every((c) => c.evidence.length === 0)).toBe(true);
+    });
+  });
+
   it("reports every check healthy when nothing is wrong", () => {
     const checks = buildSystemHealth(ALL_WELL);
     expect(checks).toHaveLength(5);
@@ -51,7 +105,7 @@ describe("buildSystemHealth", () => {
   it("gives steps for every status that asks for a person", () => {
     const broken: SystemHealthInput = {
       webhookSecretConfigured: false,
-      google: { state: "broken", deadToken: true, detail: "invalid_grant" },
+      google: { state: "broken", deadToken: true, detail: "invalid_grant", credential: null, clientId: null },
       syncIssues: [{ autoRetryExhausted: true }],
       waitingRoomIssues: [{ autoRetryExhausted: true }],
       accounting: {
@@ -117,7 +171,7 @@ describe("buildSystemHealth", () => {
   it("sends the owner to the Google panel when links fail with a dead credential", () => {
     const sync = buildSystemHealth({
       ...ALL_WELL,
-      google: { state: "broken", deadToken: true, detail: "invalid_grant" },
+      google: { state: "broken", deadToken: true, detail: "invalid_grant", credential: null, clientId: null },
       syncIssues: [{ autoRetryExhausted: false }, { autoRetryExhausted: false }],
     }).find((c) => c.id === "sync")!;
     expect(sync.status).toBe("broken");
@@ -264,7 +318,7 @@ describe("healthBannerText", () => {
       buildSystemHealth({
         ...ALL_WELL,
         webhookSecretConfigured: false,
-        google: { state: "broken", deadToken: true, detail: "invalid_grant" },
+        google: { state: "broken", deadToken: true, detail: "invalid_grant", credential: null, clientId: null },
       })
     )!;
     expect(banner.title).toBe("Payment Confirmations and Google Connection need you");
@@ -292,7 +346,7 @@ describe("copyTextFor", () => {
   it("carries the status, the headline and every step", () => {
     const check = buildSystemHealth({ ...ALL_WELL, webhookSecretConfigured: false })[0];
     const text = copyTextFor(check);
-    expect(text).toContain("Payment Confirmations — Needs you now");
+    expect(text).toContain("Payment Confirmations - Needs you now");
     expect(text).toContain(check.headline);
     for (const step of check.fix) expect(text).toContain(step);
     expect(text).toContain("1.");

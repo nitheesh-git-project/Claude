@@ -10,6 +10,7 @@ import {
 } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 import {
   BOOKING_LEAD_TIME_HOURS, BOOKING_LEAD_TIME_MS,
   isWholeHourSlot,
@@ -22,7 +23,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { referralId, therapistId, slotDateTime } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    referralId?: string;
+    therapistId?: string;
+    slotDateTime?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { referralId, therapistId, slotDateTime } = body;
   if (!referralId || !therapistId || !slotDateTime) {
     return NextResponse.json(
       { error: "Missing referralId, therapistId, or slotDateTime" },
@@ -80,7 +87,7 @@ export async function POST(request: NextRequest) {
   }
 
   // The route previously wrote straight to this id with no existence
-  // check at all — a bad/stale referralId would silently "succeed" with
+  // check at all - a bad/stale referralId would silently "succeed" with
   // nothing actually written. Reading it first (and using its captured
   // fields to roll back below if needed) closes that too.
   const { data: referral } = await admin
@@ -137,7 +144,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Re-check for a conflict now that the write has landed — the earlier
+  // Re-check for a conflict now that the write has landed - the earlier
   // check and this write aren't atomic, so two concurrent assignments of
   // the same therapist to overlapping slots could both pass the earlier
   // check before either write committed.
@@ -148,13 +155,13 @@ export async function POST(request: NextRequest) {
   //
   // The referral half needs a tiebreak instead of a plain re-check. Two
   // referrals assigned to the same therapist/slot at once both write, then
-  // both land here — a plain "does a conflicting invite_sent referral
+  // both land here - a plain "does a conflicting invite_sent referral
   // exist" re-check sees the OTHER row as a conflict from BOTH sides, so
   // both would roll back and the admin would have to retry blind instead
   // of exactly one assignment landing. findTieBrokenReferralConflict
   // applies the same deterministic rule (earlier created_at wins, ties
   // broken by id) from both requests' perspectives, so exactly one of them
-  // finds no disqualifying conflict and keeps its assignment — the other
+  // finds no disqualifying conflict and keeps its assignment - the other
   // sees a real conflict against the winner and rolls back as before.
   const conflictAfterWrite =
     (await findConflictingAppointmentOnly(admin, therapistId, new Date(slotDateTime).toISOString(), BASE_DURATION_MINUTES, {
@@ -181,7 +188,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "This therapist was just double-booked by a concurrent assignment — please try again or pick a different therapist/time.",
+          "This therapist was just double-booked by a concurrent assignment - please try again or pick a different therapist/time.",
       },
       { status: 409 }
     );

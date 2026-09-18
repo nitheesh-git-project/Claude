@@ -161,7 +161,7 @@ export type ConditionProfileStatus = "not_started" | "draft" | "pending_review" 
 
 export const CONDITION_STATUS_LABEL: Record<ConditionProfileStatus, string> = {
   not_started: "Not started",
-  draft: "Draft — not submitted",
+  draft: "Draft - not submitted",
   pending_review: "Pending admin review",
   active: "Complete",
 };
@@ -220,7 +220,7 @@ export function formatAreaPainForText(
 ): string[] {
   return entries.map((e) => {
     const side = e.side !== "na" ? ` (${e.side})` : "";
-    const note = e.note ? ` — “${e.note}”` : "";
+    const note = e.note ? ` - “${e.note}”` : "";
     return `${regionLabel(e.region)}${side}: ${e.pain}/10${note}`;
   });
 }
@@ -333,4 +333,63 @@ export function patientIntakeGate(profile: {
   if (!hasRecord) return { canEdit: false, reason: "awaiting_therapist" };
   if (profile?.status === "pending_review") return { canEdit: false, reason: "pending_review" };
   return { canEdit: true, reason: "editable" };
+}
+
+/**
+ * Whether a submission would leave the record exactly as it already is.
+ *
+ * This exists because of a real double-audit bug, and the mechanism is worth
+ * keeping written down. `/api/therapist/condition-profile/onboard` claims the
+ * record with a compare-and-swap so only the caller whose write lands writes
+ * the audit row -- but it has two paths, an INSERT when no record exists and
+ * an UPDATE when one does, and they guard different races. Ten concurrent
+ * taps split across them: the callers that read before the row existed race
+ * on the insert (one wins), and the callers that read after it race on the
+ * update (one wins). Two winners, so the admin's Review History showed the
+ * onboarding **twice** -- the same bug the CAS was added to fix, reduced from
+ * ten to two rather than to one. `e2e/health-profile.spec.ts` SPAM-001 is
+ * what catches it.
+ *
+ * Which path a request took is not the honest test, though. The question is
+ * whether it changed anything clinical, and an identical resubmission has
+ * not: that caller's intent is already satisfied, so it should write nothing
+ * at all -- no record update, no history entry. That is the same reasoning
+ * the credit ledger's idempotency keys follow: key the decision on the thing
+ * that happened, never on who got there first.
+ *
+ * Deliberately compares only what a reader of the record would call a
+ * change. `updated_at`, `last_submitted_by` and `last_submitted_role` are
+ * bookkeeping and are identical on a double-tap anyway, so including them
+ * would make every comparison differ and defeat the check.
+ */
+export function isSameIntakeSubmission(
+  current: {
+    specialty: ConditionSpecialty;
+    status: string;
+    data: Record<string, string>;
+    triageData: Record<string, string>;
+  },
+  incoming: {
+    specialty: ConditionSpecialty;
+    data: Record<string, string>;
+    triageData: Record<string, string>;
+  }
+): boolean {
+  // Anything other than a live record is a change worth making: a draft
+  // becoming active is exactly what onboarding does.
+  if (current.status !== "active") return false;
+  if (current.specialty !== incoming.specialty) return false;
+  return (
+    sameStringMap(current.data, incoming.data) &&
+    sameStringMap(current.triageData, incoming.triageData)
+  );
+}
+
+/** Key-by-key equality over a flat string map. `data` and `triage_data` are
+ *  both flat by design (see the globally-unique-keys rule), so there is no
+ *  nesting to recurse into and JSON.stringify's key ordering cannot bite. */
+function sameStringMap(a: Record<string, string>, b: Record<string, string>): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) if ((a[k] ?? "") !== (b[k] ?? "")) return false;
+  return true;
 }

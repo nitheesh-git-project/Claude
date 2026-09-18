@@ -31,7 +31,7 @@ import {
 // on demand rather than carried in every admin's dashboard render.
 
 const LOADED_NOTE =
-  "Filters, the count and both exports run over everything loaded here — load older entries first if you are looking further back.";
+  "Filters, the count and both exports run over everything loaded here - load older entries first if you are looking further back.";
 
 export default function AdminLogsTab({
   rows,
@@ -166,7 +166,7 @@ export default function AdminLogsTab({
             <label className="relative min-w-[220px] flex-1">
               <i
                 aria-hidden
-                className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400"
+                className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-500"
               />
               <input
                 type="search"
@@ -243,7 +243,7 @@ export default function AdminLogsTab({
                 Clear filters
               </button>
             )}
-            <span className="ml-auto text-[11px] text-slate-400">
+            <span className="ml-auto text-[11px] text-slate-500">
               {filtered.length} of {all.length} loaded
             </span>
           </div>
@@ -296,11 +296,11 @@ export default function AdminLogsTab({
                         )}
                       </span>
                     </td>
-                    <td className="py-2 pr-3 text-slate-500">{r.targetLabel ?? "—"}</td>
+                    <td className="py-2 pr-3 text-slate-500">{r.targetLabel ?? "-"}</td>
                     <td className="whitespace-nowrap py-2 pr-3 text-right font-semibold tabular-nums text-slate-800">
                       {r.amountPaise != null
                         ? `₹${(r.amountPaise / 100).toLocaleString("en-IN")}`
-                        : "—"}
+                        : "-"}
                     </td>
                   </tr>
                 ))}
@@ -328,11 +328,11 @@ export default function AdminLogsTab({
               {loading ? "Loading older entries…" : "Load older entries"}
             </button>
           ) : (
-            <p className="text-[11px] text-slate-400">
-              That is the whole log — there is nothing older to load.
+            <p className="text-[11px] text-slate-500">
+              That is the whole log - there is nothing older to load.
             </p>
           )}
-          <p className="mt-2 text-[11px] text-slate-400">{LOADED_NOTE}</p>
+          <p className="mt-2 text-[11px] text-slate-500">{LOADED_NOTE}</p>
         </div>
       </div>
 

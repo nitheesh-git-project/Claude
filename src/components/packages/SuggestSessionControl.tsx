@@ -232,7 +232,7 @@ export default function SuggestSessionControl({
           </p>
           {hours.length === 0 ? (
             <p className="text-[11px] text-slate-500">
-              No times left on this date — pick another day.
+              No times left on this date - pick another day.
             </p>
           ) : (
             <div className={BOOKING_OPTION_GRID_COMPACT}>
@@ -257,7 +257,7 @@ export default function SuggestSessionControl({
 
       <label className="mt-2 block">
         <span className="mb-1 block text-[11px] font-semibold text-slate-700">
-          Note <span className="font-normal text-slate-400">(optional)</span>
+          Note <span className="font-normal text-slate-500">(optional)</span>
         </span>
         <input
           type="text"

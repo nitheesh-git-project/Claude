@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useId, useEffect, useRef, useState, useTransition } from "react";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import { payForCarePlan } from "@/lib/carePlanPayment";
@@ -75,6 +75,7 @@ export default function CarePlanOfferCard({
   const [error, setError] = useState<string | null>(null);
   const [paid, setPaid] = useState<{ purchaseId: string | null } | null>(null);
   const [decliningOpen, setDecliningOpen] = useState(false);
+  const declineReasonId = useId();
   const [declineReason, setDeclineReason] = useState("");
   const [isPending, startTransition] = useTransition();
   const [paying, setPaying] = useState(false);
@@ -114,25 +115,43 @@ export default function CarePlanOfferCard({
   // "no quote yet" instead of an effect writing state synchronously to
   // clear it -- which is a cascading render, and would also blink the total
   // away for a frame while the same answer was refetched.
-  type QuoteResult = { travelFeePaise: number } | "unserviceable";
+  // "unknown" is the fourth state and it is not a formality. The `.then`
+  // below treated any body without a `serviceable` field as a *negative*, so
+  // a rate-limited or failed lookup told the patient "We don't visit that
+  // pincode yet" and disabled the pay button -- a refused sale on a
+  // programme their own clinician recommended, over a lookup that never
+  // answered. The `.catch` beside it already had this right ("a failed quote
+  // must not block the purchase"); only the HTTP-error path did not.
+  type QuoteResult = { travelFeePaise: number } | "unserviceable" | "unknown";
   const [quoted, setQuoted] = useState<{ pincode: string; result: QuoteResult } | null>(null);
   const pincodeReady = /^\d{6}$/.test(pincode);
-  const quote: { state: "idle" | "loading" } | { state: "unserviceable" } | { state: "ready"; travelFeePaise: number } =
+  const quote:
+    | { state: "idle" | "loading" | "unserviceable" | "unknown" }
+    | { state: "ready"; travelFeePaise: number } =
     !offer.isHomeVisit || !pincodeReady
       ? { state: "idle" }
       : quoted?.pincode !== pincode
         ? { state: "loading" }
         : quoted.result === "unserviceable"
           ? { state: "unserviceable" }
-          : { state: "ready", travelFeePaise: quoted.result.travelFeePaise };
+          : quoted.result === "unknown"
+            ? { state: "unknown" }
+            : { state: "ready", travelFeePaise: quoted.result.travelFeePaise };
 
   useEffect(() => {
     if (!offer.isHomeVisit || !pincodeReady) return;
     let cancelled = false;
-    fetch(`/api/home-visit/check-area?pincode=${pincode}`)
-      .then((r) => r.json())
-      .then((data) => {
+    (async () => {
+      try {
+        const r = await fetch(`/api/home-visit/check-area?pincode=${pincode}`);
+        const data = await r.json().catch(() => null);
         if (cancelled) return;
+        // Only a 200 carries an answer. A 429 or a 500 means we did not find
+        // out, which is a different thing from finding out we do not go there.
+        if (!r.ok) {
+          setQuoted({ pincode, result: "unknown" });
+          return;
+        }
         setQuoted({
           pincode,
           result:
@@ -140,12 +159,13 @@ export default function CarePlanOfferCard({
               ? { travelFeePaise: data.travelFeePaise }
               : "unserviceable",
         });
-      })
-      .catch(() => {
+      } catch {
         // A failed quote must not block the purchase: the server resolves
         // the real figure at checkout regardless. The button falls back to
         // saying "Accept & pay" with no number rather than the wrong one.
-      });
+        if (!cancelled) setQuoted({ pincode, result: "unknown" });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -279,25 +299,25 @@ export default function CarePlanOfferCard({
       {snapshot && (
         <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <dt className="text-[11px] text-slate-400">Sessions</dt>
+            <dt className="text-[11px] text-slate-500">Sessions</dt>
             <dd className="text-sm font-bold text-slate-900">{snapshot.sessionCount}</dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-400">Price</dt>
+            <dt className="text-[11px] text-slate-500">Price</dt>
             <dd className="text-sm font-bold text-slate-900">
               {formatInr(snapshot.pricePaise)}
             </dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-400">How often</dt>
+            <dt className="text-[11px] text-slate-500">How often</dt>
             <dd className="text-sm font-bold text-slate-900">
               {offer.frequencyPerWeek ? `${offer.frequencyPerWeek} a week` : "Flexible"}
             </dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-400">Each session</dt>
+            <dt className="text-[11px] text-slate-500">Each session</dt>
             <dd className="text-sm font-bold text-slate-900">
-              {snapshot.sessionDurationMinutes ? `${snapshot.sessionDurationMinutes} min` : "—"}
+              {snapshot.sessionDurationMinutes ? `${snapshot.sessionDurationMinutes} min` : "-"}
             </dd>
           </div>
         </dl>
@@ -346,7 +366,7 @@ export default function CarePlanOfferCard({
                   <span className="text-slate-700">
                     {a.label ? <span className="font-semibold">{a.label} · </span> : null}
                     {a.line1}
-                    {a.city ? `, ${a.city}` : ""} — {a.pincode}
+                    {a.city ? `, ${a.city}` : ""} - {a.pincode}
                   </span>
                 </label>
               ))}
@@ -375,6 +395,14 @@ export default function CarePlanOfferCard({
             </p>
           )}
 
+          {quote.state === "unknown" && (
+            <p className="mt-3 text-xs text-slate-500">
+              We couldn&apos;t work out the travel fee for this address just now, so
+              it isn&apos;t in the total below. You&apos;ll see the full figure before
+              you pay.
+            </p>
+          )}
+
           {snapshot && quote.state === "ready" && (
             <dl className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-xs">
               <div className="flex justify-between">
@@ -397,7 +425,7 @@ export default function CarePlanOfferCard({
               <div className="flex justify-between border-t border-slate-100 pt-1">
                 <dt className="font-semibold text-slate-700">Total</dt>
                 <dd className="font-bold text-slate-900">
-                  {chargeablePaise !== null ? formatInr(chargeablePaise) : "—"}
+                  {chargeablePaise !== null ? formatInr(chargeablePaise) : "-"}
                 </dd>
               </div>
             </dl>
@@ -433,10 +461,11 @@ export default function CarePlanOfferCard({
 
           {decliningOpen && (
             <div className="rounded-xl border border-slate-200 p-3">
-              <label className="block text-xs font-semibold text-slate-700">
+              <label htmlFor={declineReasonId} className="block text-xs font-semibold text-slate-700">
                 Anything you want your therapist to know? Optional.
               </label>
               <textarea
+                id={declineReasonId}
                 value={declineReason}
                 maxLength={500}
                 rows={2}
@@ -545,7 +574,7 @@ function PaidAndUnscheduled({
         </span>
         <div className="min-w-0">
           <h2 className="font-display text-lg font-bold text-slate-900">
-            Payment received — {sessionCount} {noun}
+            Payment received - {sessionCount} {noun}
             {sessionCount === 1 ? "" : "s"}{" "}
             {sessionCount === 1 ? "is" : "are"} yours
           </h2>

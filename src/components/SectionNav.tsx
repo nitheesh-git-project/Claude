@@ -100,7 +100,7 @@ export default function SectionNav({ items }: { items: SectionNavItem[] }) {
             onClick={() => scrollToSection(item.id)}
             aria-current={active ? "true" : undefined}
             className={`group relative flex items-center gap-3 rounded-full py-1.5 pl-1.5 pr-1.5 text-left transition-colors ${
-              active ? "text-teal-800" : "text-slate-400 hover:text-teal-700"
+              active ? "text-teal-800" : "text-slate-500 hover:text-teal-700"
             }`}
           >
             {active && (
@@ -114,7 +114,7 @@ export default function SectionNav({ items }: { items: SectionNavItem[] }) {
               className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors ${
                 active
                   ? "border-teal-600 bg-teal-600 text-white"
-                  : "border-slate-200 bg-white/80 text-slate-400 backdrop-blur-sm group-hover:border-teal-300 group-hover:text-teal-600"
+                  : "border-slate-200 bg-white/80 text-slate-500 backdrop-blur-sm group-hover:border-teal-300 group-hover:text-teal-600"
               }`}
             >
               <i aria-hidden="true" className={`fa-solid ${item.icon} text-xs`} />

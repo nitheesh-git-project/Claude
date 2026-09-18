@@ -24,7 +24,7 @@ export default function TherapistRevenueShareForm({
 
   function handleSave() {
     if (value.trim() === "") {
-      setError("Enter a percentage — leave it blank only if you want to cancel.");
+      setError("Enter a percentage - leave it blank only if you want to cancel.");
       return;
     }
     setError(null);
@@ -56,7 +56,7 @@ export default function TherapistRevenueShareForm({
             <strong className="text-slate-900">{100 - optimisticPercent}%</strong>.
           </p>
         ) : (
-          <p className="text-slate-400">Not set yet — payouts can&apos;t be calculated.</p>
+          <p className="text-slate-500">Not set yet - payouts can&apos;t be calculated.</p>
         )}
         <button
           onClick={() => {
@@ -76,8 +76,8 @@ export default function TherapistRevenueShareForm({
     <div className="text-xs space-y-2">
       {error && <p className="text-red-600">{error}</p>}
       <div className="flex items-end gap-3">
-        <div>
-          <label className="block font-semibold mb-1">Therapist %</label>
+        <label className="block">
+          <span className="block font-semibold mb-1">Therapist %</span>
           <input
             type="number"
             min={0}
@@ -87,11 +87,11 @@ export default function TherapistRevenueShareForm({
             onChange={(e) => setValue(e.target.value)}
             className="w-24 p-2 rounded-lg border border-slate-300"
           />
-        </div>
+        </label>
         <div>
-          <label className="block font-semibold mb-1 text-slate-400">Company %</label>
+          <label className="block font-semibold mb-1 text-slate-500">Company %</label>
           <div className="w-24 p-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-500">
-            {companyPercent !== null ? `${companyPercent}%` : "—"}
+            {companyPercent !== null ? `${companyPercent}%` : "-"}
           </div>
         </div>
       </div>

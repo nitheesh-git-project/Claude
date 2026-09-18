@@ -44,7 +44,7 @@ export default function PatientNotesForm({
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={4}
-        placeholder="Private notes about this patient — never shown to them."
+        placeholder="Private notes about this patient - never shown to them."
         className="w-full p-2.5 rounded-lg border border-slate-300"
       />
       <button
@@ -59,7 +59,7 @@ export default function PatientNotesForm({
           {savedNote}
         </p>
       ) : (
-        <p className="text-slate-400">No notes saved yet.</p>
+        <p className="text-slate-500">No notes saved yet.</p>
       )}
     </div>
   );

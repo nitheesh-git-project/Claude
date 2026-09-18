@@ -26,13 +26,13 @@ export default function AccountSecuritySection({ email }: { email: string }) {
   return (
     <div className="text-xs space-y-3">
       <p>
-        <span className="text-slate-400">Email:</span>{" "}
+        <span className="text-slate-500">Email:</span>{" "}
         <span className="font-semibold text-slate-700">{email}</span>
       </p>
       {error && <p className="text-red-600">{error}</p>}
       {sent ? (
         <p className="text-teal-700 bg-teal-50 border border-teal-200 rounded-lg p-3">
-          Check your inbox — we&apos;ve sent a link to {email} to set a new
+          Check your inbox - we&apos;ve sent a link to {email} to set a new
           password.
         </p>
       ) : (
@@ -45,8 +45,8 @@ export default function AccountSecuritySection({ email }: { email: string }) {
           {sending ? "Sending..." : "Send Password Reset Email"}
         </button>
       )}
-      <p className="text-[11px] text-slate-400">
-        To change your email address, please contact us — this keeps your
+      <p className="text-[11px] text-slate-500">
+        To change your email address, please contact us - this keeps your
         sign-in secure.
       </p>
     </div>

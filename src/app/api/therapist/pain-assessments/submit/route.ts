@@ -17,7 +17,7 @@ import { guardCommunication } from "@/lib/communicationFlags";
 type AnswerInput = { key: string; value: string };
 
 // Therapist posts one region's clinical exam findings. Unlike the general
-// intake, this does NOT queue for admin review — it's the therapist's own
+// intake, this does NOT queue for admin review - it's the therapist's own
 // clinical judgement, live immediately (see schema.sql's section comment).
 //
 // Gated on being *assigned* to the patient rather than on an approved
@@ -27,7 +27,7 @@ type AnswerInput = { key: string; value: string };
 // pain_assessments_insert_assigned_therapist as defence in depth.
 //
 // Rows are append-only: a re-assessment is a new row, never an edit, so the
-// Pain Map can show a trend against the previous visit — and a mistaken
+// Pain Map can show a trend against the previous visit - and a mistaken
 // entry is corrected by recording a truer one, not by erasing it.
 export async function POST(request: NextRequest) {
   // Who is asking, before anything the caller sent is looked at. An
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 
   if (!(await isProfileActiveAndApproved(user.id))) {
     return NextResponse.json(
-      { error: "Your account is not active — it is either awaiting admin approval or has been suspended." },
+      { error: "Your account is not active - it is either awaiting admin approval or has been suspended." },
       { status: 403 }
     );
   }
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
   // Build the region's current question set (code defaults + any admin
   // overrides) and snapshot the exact wording shown at submit time into
-  // each answer row — see pain_assessments.answers' column comment in
+  // each answer row - see pain_assessments.answers' column comment in
   // schema.sql for why this must never be re-derived from the live
   // template later.
   const { data: overrideRows } = await admin

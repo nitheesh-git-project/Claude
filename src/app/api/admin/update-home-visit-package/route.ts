@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { writeCatalogFocal } from "@/lib/catalogImageServer";
+import { writeCatalogFeatured } from "@/lib/catalogFeaturedServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import {
   validateHomeVisitPackagePayload,
@@ -58,14 +59,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Its own call, per the migration-dependent-column rule: a database
+  // without these columns loses the cover position, never the whole save.
+  await writeCatalogFocal(admin, "home_visit_packages", id, body.imageFocalX, body.imageFocalY);
+  await writeCatalogFeatured(admin, "home_visit_packages", id, body.featured);
+
+  // After the isolated writes, not before them. /home-visit is ISR-cached,
+  // so revalidating first rebuilt the page from the row as it was a moment
+  // earlier -- the new cover position, and now the curation, would not
+  // appear for five minutes and the save would read as having silently
+  // failed. That is the exact failure the revalidate exists to prevent.
   revalidatePath("/home-visit");
 
   // Catalog rows decide what is sold and at what price, so every
   // create/update/delete belongs in the same log every other admin
   // action is read from.
-  // Its own call, per the migration-dependent-column rule: a database
-  // without these columns loses the cover position, never the whole save.
-  await writeCatalogFocal(admin, "home_visit_packages", id, body.imageFocalX, body.imageFocalY);
 
   await recordAdminActivity(admin, adminUser.id, {
     action: "catalog.update",

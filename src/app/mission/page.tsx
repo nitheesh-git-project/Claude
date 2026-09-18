@@ -11,7 +11,7 @@ import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
 import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
-import { MISSION, VISION, PRINCIPLES, COMMITMENTS } from "@/lib/mission";
+import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
 
 export const metadata: Metadata = {
   title: "Our Mission | Dr. Pooja's Physio",
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     "Why this practice exists, the four things we promise every patient, and the three things we will not do.",
 };
 
-// No per-user content — cache and revalidate on a timer like the rest of the
+// No per-user content - cache and revalidate on a timer like the rest of the
 // public site.
 export const revalidate = 300;
 
@@ -48,7 +48,7 @@ export default async function MissionPage() {
     avatar_url: avatarById.get(t.id) ?? null,
   }));
 
-  // Real, aggregated rating data — never individual reviews or names, see the
+  // Real, aggregated rating data - never individual reviews or names, see the
   // schema comment on public_rating_summary. It sits under the mission
   // because a promise is worth more next to a number nobody curated.
   const { data: ratingSummary } = await supabase
@@ -59,12 +59,30 @@ export default async function MissionPage() {
 
   const homeVisitEnabled = await readHomeVisitEnabled();
 
+  // The two lines this page is built around. Read on its own like the flag
+  // above, and falling back to the wording in mission.ts, so a database that
+  // has not run the migration renders exactly what it rendered before.
+  const { mission, vision } = await readMissionCopy();
+
+  // The promises and the limits, as an admin may have rewritten them. Falls
+  // back to the arrays in mission.ts when the table is empty, so this page
+  // never renders a heading with nothing under it.
+  const { promises, limits } = await readMissionPrinciples();
+
   // Only sections that render: the testimonial band is admin-controlled, so
   // its rail entry is conditional. Order matches the DOM.
   const sectionNavItems: SectionNavItem[] = [
     { id: "why-we-exist", label: "Why We Exist", icon: "fa-bullseye" },
-    { id: "what-we-promise", label: "What We Promise", icon: "fa-handshake" },
-    { id: "what-we-wont-do", label: "What We Won't Do", icon: "fa-hand" },
+    // Both bands are admin-managed now, so their rail entries are conditional
+    // for the same reason the testimonial one is -- an entry has to match a
+    // section that renders, in DOM order, or the scroll arrow walks to a
+    // section that is not there.
+    ...(promises.length > 0
+      ? [{ id: "what-we-promise", label: "What We Promise", icon: "fa-handshake" }]
+      : []),
+    ...(limits.length > 0
+      ? [{ id: "what-we-wont-do", label: "What We Won't Do", icon: "fa-hand" }]
+      : []),
     ...(testimonials.length > 0
       ? [{ id: "patient-stories", label: "Patient Stories", icon: "fa-star" }]
       : []),
@@ -102,7 +120,7 @@ export default async function MissionPage() {
                 Mission
               </p>
               <p className="font-display mt-4 text-lg font-semibold leading-relaxed tracking-[-0.01em] text-slate-900 sm:text-xl">
-                {MISSION}
+                {mission}
               </p>
             </div>
           </Reveal>
@@ -112,45 +130,53 @@ export default async function MissionPage() {
                 Vision
               </p>
               <p className="font-display mt-4 text-lg font-semibold leading-relaxed tracking-[-0.01em] text-slate-900 sm:text-xl">
-                {VISION}
+                {vision}
               </p>
             </div>
           </Reveal>
         </div>
       </Section>
 
-      <Section
-        id="what-we-promise"
-        eyebrow="What we promise"
-        title="Four things, every patient"
-        lede="Rules the platform enforces, not intentions."
-      >
-        <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {PRINCIPLES.map((item) => (
-            <StaggerItem key={item.key} className="h-full">
-              <IconCard icon={item.icon} title={item.title} body={item.body} />
-            </StaggerItem>
-          ))}
-        </Stagger>
-      </Section>
+      {/* The heading does not count the cards: an admin can add a fifth
+          promise or hide one, and "Four things, every patient" over three
+          cards is the "never tell someone something that is not so" rule
+          broken by a number nobody remembered to change. */}
+      {promises.length > 0 && (
+        <Section
+          id="what-we-promise"
+          eyebrow="What we promise"
+          title="What every patient gets"
+          lede="Rules the platform enforces, not intentions."
+        >
+          <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {promises.map((item) => (
+              <StaggerItem key={item.key} className="h-full">
+                <IconCard icon={item.icon} title={item.title} body={item.body} />
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </Section>
+      )}
 
       {/* The limits, stated on the page rather than buried in the FAQ. A
           clinic that names what it will not do is more believable than one
           claiming everything. */}
-      <Section
-        id="what-we-wont-do"
-        tone="tint"
-        eyebrow="And what we won't do"
-        title="The limits, stated up front"
-      >
-        <Stagger className="grid gap-5 md:grid-cols-3">
-          {COMMITMENTS.map((item) => (
-            <StaggerItem key={item.key} className="h-full">
-              <IconCard icon={item.icon} title={item.title} body={item.body} tone="slate" />
-            </StaggerItem>
-          ))}
-        </Stagger>
-      </Section>
+      {limits.length > 0 && (
+        <Section
+          id="what-we-wont-do"
+          tone="tint"
+          eyebrow="And what we won't do"
+          title="The limits, stated up front"
+        >
+          <Stagger className="grid gap-5 md:grid-cols-3">
+            {limits.map((item) => (
+              <StaggerItem key={item.key} className="h-full">
+                <IconCard icon={item.icon} title={item.title} body={item.body} tone="slate" />
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </Section>
+      )}
 
       {testimonials.length > 0 && (
         <Section

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // Self-serve mirror of /api/admin/decline-referral, scoped to the caller's
 // own hospital_id instead of admin-only. Same atomic guard: only while
@@ -16,6 +18,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // `approved` / `active` are enforced in two places, and both have to
+  // stay: src/proxy.ts for dashboard navigation, and here, because a valid
+  // session cookie reaches this route without passing the proxy at all.
+  // This route had only the first.
+  if (!(await isProfileActiveAndApproved(user.id))) {
+    return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
@@ -25,7 +35,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { referralId } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    referralId?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { referralId } = body;
   if (!referralId) {
     return NextResponse.json({ error: "Missing referralId" }, { status: 400 });
   }

@@ -1,7 +1,7 @@
 "use client";
 
 // Last resort: this catches a throw in the root layout itself, which is the
-// one failure the ordinary error boundary cannot handle — at that point no
+// one failure the ordinary error boundary cannot handle - at that point no
 // layout has rendered, so this file has to supply its own <html> and <body>
 // and cannot rely on a font variable, a stylesheet class, or an icon font
 // existing. Everything here is inline for that reason.
@@ -33,7 +33,7 @@ export default function GlobalError({
             Something went wrong
           </h1>
           <p style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#64748b" }}>
-            The site failed to load. Please try again — if it keeps happening, let the
+            The site failed to load. Please try again - if it keeps happening, let the
             clinic know.
           </p>
           <button

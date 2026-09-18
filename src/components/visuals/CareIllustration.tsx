@@ -7,7 +7,7 @@
  * These are deliberately illustrative rather than photographic. Stock
  * photography of models posing as patients tends to *reduce* trust on a
  * clinical site, and it can't be verified. Each illustration is a single
- * inline SVG — no network request, no layout shift, and it inherits
+ * inline SVG - no network request, no layout shift, and it inherits
  * currentColor so one component covers light and dark placements.
  *
  * To swap in real photography later, render <CareIllustration> and a

@@ -104,12 +104,16 @@ export default function CatalogImageField({
   }
 
   return (
-    <div>
-      <label className="mb-1.5 block text-xs font-semibold text-slate-700">{label}</label>
+    // Deliberately not a wrapping <label>: the visible controls here are
+    // buttons that open this input programmatically, and a label wrapping
+    // them would make every one of those buttons a second file picker.
+    <div className="block">
+      <span className="mb-1.5 block text-xs font-semibold text-slate-700">{label}</span>
 
       <input
         ref={inputRef}
         type="file"
+        aria-label={label}
         accept={CATALOG_IMAGE_TYPES.join(",")}
         className="hidden"
         onChange={(e) => {
@@ -137,7 +141,7 @@ export default function CatalogImageField({
               <p className="text-[11px] text-slate-500">
                 {hasCustomFocal({ image_focal_x: focalX, image_focal_y: focalY })
                   ? `Positioned at ${focalX}% ${focalY}%`
-                  : "Centred — not positioned yet"}
+                  : "Centred - not positioned yet"}
               </p>
             </div>
           </div>
@@ -179,7 +183,7 @@ export default function CatalogImageField({
           {uploading ? (
             <Spinner />
           ) : (
-            <i aria-hidden className="fa-solid fa-arrow-up-from-bracket text-lg text-slate-400" />
+            <i aria-hidden className="fa-solid fa-arrow-up-from-bracket text-lg text-slate-500" />
           )}
           <span className="text-xs font-semibold text-slate-700">
             {uploading ? "Uploading…" : "Upload an image"}
@@ -311,7 +315,7 @@ function PositionDialog({
 
         {/* The argument for a focal point rather than a crop, made visible: one
             position, correct in every shape this photograph is used at. */}
-        <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           The same position, everywhere it appears
         </p>
         <div className="mt-2 grid grid-cols-3 gap-2">

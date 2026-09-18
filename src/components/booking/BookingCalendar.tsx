@@ -125,7 +125,7 @@ export default function BookingCalendar({
           <div
             key={day}
             aria-hidden="true"
-            className={`text-center font-bold uppercase tracking-wide text-slate-400 ${
+            className={`text-center font-bold uppercase tracking-wide text-slate-500 ${
               compact ? "text-[9px]" : "text-[10px] py-1"
             }`}
           >
@@ -138,8 +138,23 @@ export default function BookingCalendar({
           is ever selected, so a 6px gap on phones is enough for the ring to
           sit in clear space without stealing width from the cells; desktop
           has room for a full 8px. */}
+      {/* A group of buttons, not `role="grid"`.
+          
+          It used to claim grid, and a grid promises two-dimensional arrow-key
+          navigation -- which this component has never implemented: there is no
+          keydown handler, no roving tabindex, and every cell is a real button
+          that Tab reaches and Enter activates. Claiming the role told a screen
+          reader to expect arrow keys that do nothing, and put `role="gridcell"`
+          children under a grid with no `role="row"` between them, which axe
+          reports as two separate critical failures.
+          
+          A group of toggle buttons is what this actually is, so that is what it
+          says now. Selection moves from `aria-selected` (only meaningful inside
+          grid/listbox roles) to `aria-pressed`, which is what a toggle button
+          uses. Nothing about the keyboard behaviour changes, because nothing
+          about it was ever grid-like. */}
       <div
-        role="grid"
+        role="group"
         aria-label={gridLabel}
         className={`grid grid-cols-7 ${compact ? "gap-1" : "gap-1.5 sm:gap-2"}`}
       >
@@ -154,9 +169,8 @@ export default function BookingCalendar({
             <motion.button
               key={cell.dateKey}
               type="button"
-              role="gridcell"
               disabled={!cell.bookable}
-              aria-selected={selected}
+              aria-pressed={selected}
               aria-label={formatDateKeyLong(cell.dateKey)}
               onClick={() => onSelect(cell.dateKey)}
               // Shares the exact state palette of the time/language cells

@@ -27,7 +27,7 @@ function formatInr(paise: number) {
 }
 
 function RatingStars({ rating }: { rating: number | null }) {
-  if (rating === null) return <span className="text-slate-400">Not rated</span>;
+  if (rating === null) return <span className="text-slate-500">Not rated</span>;
   return (
     <span className="text-amber-500">
       {"★".repeat(rating)}
@@ -98,7 +98,7 @@ function TherapistSessionList({
               )}
             </div>
             <p className="text-slate-500">
-              {category?.title ?? "Uncategorized"} — {formatSlotTime(a.slot_time, null)}
+              {category?.title ?? "Uncategorized"} - {formatSlotTime(a.slot_time, null)}
             </p>
             <div className="flex items-center gap-4 text-slate-500">
               <span>
@@ -217,12 +217,12 @@ export default function AdminPayoutsTab({
             · Net payable: <strong className="text-teal-700">{formatInr(totalNetPayablePaise)}</strong>
           </p>
         </div>
-        <p className="text-[11px] text-slate-400 mb-4">
-          All-time, not date-filtered — a payout balance can&apos;t depend on which dates happen
+        <p className="text-[11px] text-slate-500 mb-4">
+          All-time, not date-filtered - a payout balance can&apos;t depend on which dates happen
           to be in view. Revenue billed counts a session once the patient pays; a therapist&apos;s
           share is only earned once they have actually delivered it, matching how payouts settle.
           Net payable subtracts any cash the therapist is currently holding from home-visit
-          collections — that is the figure the Pay button transfers, and settling records that
+          collections - that is the figure the Pay button transfers, and settling records that
           cash as remitted.
         </p>
 
@@ -250,7 +250,7 @@ export default function AdminPayoutsTab({
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-left text-slate-400 border-b border-slate-200">
+              <tr className="text-left text-slate-500 border-b border-slate-200">
                 <th className="pb-2 pr-3 font-semibold">Therapist</th>
                 <th className="pb-2 pr-3 font-semibold text-right">Completed</th>
                 <th className="pb-2 pr-3 font-semibold text-right">Upcoming</th>
@@ -280,14 +280,14 @@ export default function AdminPayoutsTab({
                       <td className="py-2.5 pr-3 text-right text-slate-700">{summary.upcomingCount}</td>
                       <td className="py-2.5 pr-3 text-right text-slate-700">{formatInr(summary.revenuePaise)}</td>
                       <td className="py-2.5 pr-3 text-right text-slate-700">
-                        {shareUnset ? "—" : formatInr(summary.cutPaise)}
+                        {shareUnset ? "-" : formatInr(summary.cutPaise)}
                       </td>
                       <td className="py-2.5 pr-3 text-right text-slate-700">
-                        {shareUnset ? "—" : formatInr(summary.profitPaise)}
+                        {shareUnset ? "-" : formatInr(summary.profitPaise)}
                       </td>
                       <td className="py-2.5 pr-3">
                         {shareUnset ? (
-                          <span className="font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
+                          <span className="font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">
                             No share set
                           </span>
                         ) : summary.owedPaise <= 0 ? (

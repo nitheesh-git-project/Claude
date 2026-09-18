@@ -85,9 +85,9 @@ export default function PatientPackageWidget({
               <div className="space-y-2 p-4 text-xs">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-bold text-slate-900">{p.title}</p>
-                  <span className="shrink-0 capitalize text-[11px] font-semibold text-slate-400">{p.status}</span>
+                  <span className="shrink-0 capitalize text-[11px] font-semibold text-slate-500">{p.status}</span>
                 </div>
-                {p.purchaseCode && <p className="font-mono text-slate-400">{p.purchaseCode}</p>}
+                {p.purchaseCode && <p className="font-mono text-slate-500">{p.purchaseCode}</p>}
 
                 <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full bg-teal-600" style={{ width: `${progressPercent}%` }} />
@@ -107,11 +107,11 @@ export default function PatientPackageWidget({
                     <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 font-semibold text-amber-800">
                       <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
                       {daysLeft <= 0
-                        ? "Expires today — schedule your remaining sessions now"
+                        ? "Expires today - schedule your remaining sessions now"
                         : `Only ${daysLeft} day${daysLeft === 1 ? "" : "s"} left to use ${counts.pending} remaining session${counts.pending === 1 ? "" : "s"}`}
                     </p>
                   ) : (
-                    <p className="text-slate-400">{daysLeft} day{daysLeft === 1 ? "" : "s"} left</p>
+                    <p className="text-slate-500">{daysLeft} day{daysLeft === 1 ? "" : "s"} left</p>
                   )
                 )}
 

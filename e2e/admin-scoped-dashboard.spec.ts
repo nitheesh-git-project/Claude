@@ -83,6 +83,26 @@ const DASHBOARD_NAME: Record<string, string> = {
   clinical: "Clinical",
 };
 
+/** A WebSocket-connection console error naming a host this sandbox blocks.
+ *
+ *  The browser here reaches Supabase through an egress proxy whose CA it does
+ *  not trust for WebSockets (`ERR_CERT_AUTHORITY_INVALID`), and an offline
+ *  sandbox gives `ERR_CONNECTION_RESET` instead -- either way it is the
+ *  environment, not the app. Matched on the URL's host rather than on the
+ *  error text, so a genuine app-origin socket failure is never swallowed.
+ */
+function isBlockedExternalSocketError(text: string): boolean {
+  if (!/WebSocket connection to/.test(text)) return false;
+  const url = text.match(/wss?:\/\/[^'"\s]+/)?.[0];
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname;
+    return host !== "localhost" && host !== "127.0.0.1" && host !== "::1";
+  } catch {
+    return false;
+  }
+}
+
 test.describe("Suite S: scoped admin dashboards", () => {
   for (const scope of ["operations", "finance", "clinical"]) {
     test(`S-00${["operations", "finance", "clinical"].indexOf(scope) + 1}: a ${scope} admin opens on their own work, with nowhere dead to tap`, async ({
@@ -197,17 +217,29 @@ test.describe("Suite S: scoped admin dashboards", () => {
       page.on("requestfailed", (req) => {
         const host = new URL(req.url()).hostname;
         if (host === "localhost" || host === "127.0.0.1") {
-          consoleErrors.push(`request failed: ${req.url()} — ${req.failure()?.errorText}`);
+          consoleErrors.push(`request failed: ${req.url()} - ${req.failure()?.errorText}`);
         } else {
           blockedExternal.push(req.url());
         }
       });
       page.on("console", (m) => {
+        if (m.type() !== "error") return;
+        const text = m.text();
         // "Failed to load resource" is the console half of a requestfailed
         // that the listener above has already judged on its host.
-        if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) {
-          consoleErrors.push(m.text());
+        if (text.startsWith("Failed to load resource")) return;
+        // A WebSocket that never opens arrives on the console channel only --
+        // it is not a `requestfailed` -- so the host split above never saw
+        // it, and RealtimeRefresh's socket dying took this test red on every
+        // run in a sandbox that cannot reach Supabase from the browser. The
+        // same host rule is applied here rather than ignoring the message
+        // wholesale: a socket to the app's own origin failing is a real
+        // fault and still fails this test.
+        if (isBlockedExternalSocketError(text)) {
+          blockedExternal.push(text);
+          return;
         }
+        consoleErrors.push(text);
       });
       page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
 

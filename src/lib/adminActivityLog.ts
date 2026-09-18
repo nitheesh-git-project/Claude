@@ -73,6 +73,18 @@ export type AdminActivityAction =
   | "cash.mark_refund_returned"
   | "expense.create"
   | "expense.delete"
+  // The three figures the Business Health screen cannot derive: what was put
+  // into the business, what was spent on advertising, and what the clinic
+  // owns and owes. Each one moves a headline figure an owner quotes at a bank
+  // -- an investment changes the return on investment, a balance changes
+  // whether the clinic reads as solvent -- so they are audited like any other
+  // money write. See isMoneyAction, which counts all six.
+  | "finance.investment_save"
+  | "finance.investment_delete"
+  | "finance.campaign_save"
+  | "finance.campaign_delete"
+  | "finance.balance_save"
+  | "finance.balance_delete"
   // A campaign an admin sets up decides what every patient who types its
   // name pays, so creating or re-pricing one moves more money than most
   // single refunds do -- see isMoneyAction, which counts all three.
@@ -99,6 +111,14 @@ export type AdminActivityAction =
   | "referral.decline"
   // configuration
   | "setting.update"
+  // The promises and the limits on the mission page. Their own actions rather
+  // than setting.update, because these are rows somebody wrote rather than a
+  // column somebody set, and the reader's question is "who changed what this
+  // clinic promises".
+  | "mission_principle.create"
+  | "mission_principle.update"
+  | "mission_principle.delete"
+  | "mission_principle.reorder"
   // Everything below closes a gap the QA re-audit found: the rule above is
   // "every mutating admin route records what happened", and a quarter of them
   // did not. None of these moves money, but each one changes something a
@@ -224,6 +244,12 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "promo.update": "Changed a promo code",
   "promo.delete": "Deleted a promo code",
   "expense.delete": "Removed a cost",
+  "finance.investment_save": "Recorded an investment",
+  "finance.investment_delete": "Removed an investment",
+  "finance.campaign_save": "Recorded advertising spend",
+  "finance.campaign_delete": "Removed an advertising campaign",
+  "finance.balance_save": "Recorded what the clinic owns or owes",
+  "finance.balance_delete": "Removed an entry from what the clinic owns or owes",
   "therapist.set_revenue_share": "Changed therapist revenue share",
   "therapist.set_weekly_schedule": "Changed therapist working hours",
   "therapist.set_schedule_exception": "Set a schedule exception",
@@ -235,6 +261,10 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "referral.assign": "Assigned referral",
   "referral.decline": "Declined referral",
   "setting.update": "Changed a setting",
+  "mission_principle.create": "Added a promise or limit",
+  "mission_principle.update": "Edited a promise or limit",
+  "mission_principle.delete": "Removed a promise or limit",
+  "mission_principle.reorder": "Reordered the promises or limits",
   "patient.update_contact": "Changed a patient's contact details",
   "patient.update_notes": "Edited notes on a patient",
   "therapist.update_contact": "Changed a therapist's contact details",
@@ -273,6 +303,7 @@ export function isMoneyAction(action: string): boolean {
     action.startsWith("refund") ||
     action.startsWith("cash.") ||
     action.startsWith("expense.") ||
+    action.startsWith("finance.") ||
     action.startsWith("promo.") ||
     action === "session.mark_paid_cash" ||
     action === "hospital.set_revenue_share" ||

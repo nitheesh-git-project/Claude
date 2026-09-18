@@ -11,6 +11,9 @@ import {
   MIN_SPLASH_HOLD_SECONDS,
 } from "@/lib/splashScreen";
 import { isContactScanMode } from "@/lib/adminSettings";
+import { MAX_MISSION_LENGTH, MAX_VISION_LENGTH } from "@/lib/mission";
+import { isRunRateBasis } from "@/lib/financeMetrics";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
@@ -61,6 +64,10 @@ const ALLOWED_COLUMNS = new Set([
   "home_visit_travel_buffer_minutes",
   "home_visit_page_heading",
   "home_visit_page_subheading",
+  // Why the practice exists, and what it looks like if it succeeds. Blank
+  // means "use the line in src/lib/mission.ts" -- see below.
+  "mission_statement",
+  "vision_statement",
   // The online twins of home_visit_lead_time_hours /
   // home_visit_cancellation_refund_hours. Same rule, same level of control:
   // changing the online refund window used to need a deploy.
@@ -68,6 +75,17 @@ const ALLOWED_COLUMNS = new Set([
   "online_cancellation_refund_hours",
   // Drives the automatic payment-fee cost line on the Money screens.
   "payment_gateway_fee_percent",
+  // How Business Health reads the same money: which cost lines count as the
+  // cost of delivering a session, whether the balances this app knows join
+  // the working-capital snapshot, what a session is assumed to sell for and
+  // cost when modelling, and how a period is stretched to a year.
+  "finance_cogs_therapist_share",
+  "finance_cogs_partner_share",
+  "finance_cogs_payment_fees",
+  "finance_include_app_balances",
+  "finance_break_even_price_paise",
+  "finance_break_even_variable_cost_paise",
+  "finance_run_rate_basis",
   // How long the post-logout banner stays up. 0 = until dismissed.
   "farewell_banner_seconds",
   "journey_step_seconds",
@@ -125,6 +143,13 @@ const HOME_VISIT_COPY_FIELDS = new Set([
 const MAX_HOME_VISIT_HEADING_LENGTH = 120;
 const MAX_HOME_VISIT_SUBHEADING_LENGTH = 300;
 
+// The mission and the vision. Blank is a real value, as it is for
+// splash_brand_line: it means "use the line in src/lib/mission.ts", which is
+// how an admin undoes an edit without retyping the original out of a code
+// file they cannot read. The caps match the columns' own check constraints,
+// so a value the database would reject is refused here with a sentence.
+const MISSION_COPY_FIELDS = new Set(["mission_statement", "vision_statement"]);
+
 // Writes one Feature Control column on the site_settings singleton row --
 // same table/pattern as /api/admin/set-ratings-visible-publicly, just
 // generalized to any of this feature's columns instead of one dedicated
@@ -135,7 +160,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { key, value } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    key?: string;
+    value?: unknown;
+  }>(request);
+  if (parseError) return parseError;
+  const { key, value } = body;
   if (typeof key !== "string" || !ALLOWED_COLUMNS.has(key)) {
     return NextResponse.json({ error: "Unknown setting key" }, { status: 400 });
   }
@@ -153,10 +183,43 @@ export async function POST(request: NextRequest) {
       key === "entitlement_ledger_authoritative" ||
       key === "contact_masking_enabled" ||
       key === "risk_signals_enabled" ||
+      key === "finance_cogs_therapist_share" ||
+      key === "finance_cogs_partner_share" ||
+      key === "finance_cogs_payment_fees" ||
+      key === "finance_include_app_balances" ||
       key === "splash_enabled") &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
+  }
+  // The two break-even overrides are the only settings in this file where
+  // **null is the value**: it means "work it out from the sessions in view",
+  // which is the default reading and the one an owner returns to when they
+  // stop modelling. Refusing null would leave no way back from a figure typed
+  // in once.
+  if (
+    key === "finance_break_even_price_paise" ||
+    key === "finance_break_even_variable_cost_paise"
+  ) {
+    const cleared = value === null;
+    if (
+      !cleared &&
+      (typeof value !== "number" ||
+        !Number.isInteger(value) ||
+        value < 0 ||
+        value > 10_000_000_000_00)
+    ) {
+      return NextResponse.json(
+        { error: "Enter an amount, or clear it to work it out from your own sessions." },
+        { status: 400 }
+      );
+    }
+  }
+  if (key === "finance_run_rate_basis" && !isRunRateBasis(value)) {
+    return NextResponse.json(
+      { error: "Pick how a period is stretched to a year." },
+      { status: 400 }
+    );
   }
   // Matches the column's own check constraint, so a value the database
   // would reject is refused here with a sentence rather than a 500.
@@ -361,7 +424,7 @@ export async function POST(request: NextRequest) {
     }
     if (languages.length === 0) {
       return NextResponse.json(
-        { error: "Keep at least one language — booking needs something to offer." },
+        { error: "Keep at least one language - booking needs something to offer." },
         { status: 400 }
       );
     }
@@ -460,6 +523,21 @@ export async function POST(request: NextRequest) {
     nextValue = value.trim();
   }
 
+  if (MISSION_COPY_FIELDS.has(key)) {
+    if (typeof value !== "string") {
+      return NextResponse.json({ error: "value must be text" }, { status: 400 });
+    }
+    const maxLength =
+      key === "mission_statement" ? MAX_MISSION_LENGTH : MAX_VISION_LENGTH;
+    if (value.trim().length > maxLength) {
+      return NextResponse.json(
+        { error: `Please keep this to ${maxLength} characters or fewer.` },
+        { status: 400 }
+      );
+    }
+    nextValue = value.trim();
+  }
+
   if (key === "contact_email") {
     if (typeof value !== "string" || !EMAIL_RE.test(value.trim())) {
       return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
@@ -508,6 +586,15 @@ export async function POST(request: NextRequest) {
   // the old one keep running for up to five minutes.
   if (key === "journey_step_seconds") {
     revalidatePath("/");
+  }
+
+  // The mission band on the home page and the whole top of /mission read
+  // these, and both pages are ISR-cached (revalidate = 300). Without this an
+  // owner rewords the sentence the site leads with and watches the old one
+  // stay up for five minutes, which reads as a save that failed.
+  if (MISSION_COPY_FIELDS.has(key)) {
+    revalidatePath("/");
+    revalidatePath("/mission");
   }
 
   // Brand & Contact Details render in the Navbar/Footer, which sit in the

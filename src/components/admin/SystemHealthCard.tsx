@@ -46,13 +46,13 @@ const TONE: Record<HealthStatus, { pill: string; card: string; icon: string; dot
     pill: "neutral",
     card: "border-slate-200 bg-white",
     icon: "fa-circle-minus",
-    dot: "text-slate-400",
+    dot: "text-slate-500",
   },
   unknown: {
     pill: "neutral",
     card: "border-slate-200 bg-white",
     icon: "fa-circle-question",
-    dot: "text-slate-400",
+    dot: "text-slate-500",
   },
 };
 
@@ -112,6 +112,19 @@ export default function SystemHealthCard({
           <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-slate-600">
             {check.headline}
           </p>
+          {/* Facts the failure itself withholds, above the steps rather than
+              below them: where these exist at all, they are what decides
+              whether those steps are the right ones. */}
+          {check.evidence.length > 0 && (
+            <ul className="mt-2 max-w-xl space-y-1">
+              {check.evidence.map((line, i) => (
+                <li key={i} className="flex gap-2 text-[11px] leading-relaxed text-slate-600">
+                  <i aria-hidden className="fa-solid fa-magnifying-glass mt-0.5 text-[9px] text-slate-500" />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <button
           type="button"
@@ -166,7 +179,7 @@ export default function SystemHealthCard({
       {children && <div className="border-t border-slate-200 px-5 py-4 sm:px-6">{children}</div>}
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 px-5 py-2.5 sm:px-6">
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-slate-500">
           {ago ? `Checked ${ago}` : "\u00a0"}
         </p>
         {check.status !== "healthy" && (

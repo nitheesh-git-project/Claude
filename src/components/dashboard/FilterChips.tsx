@@ -42,12 +42,12 @@ export default function FilterChips<T extends string>({
           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
             value === choice.key
               ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-500 hover:text-slate-800"
+              : "text-slate-600 hover:text-slate-900"
           }`}
         >
           {choice.label}
           {choice.count !== undefined && (
-            <span className={value === choice.key ? "ml-1.5 text-slate-400" : "ml-1.5 text-slate-400"}>
+            <span className="ml-1.5 text-slate-600">
               {choice.count}
             </span>
           )}

@@ -94,7 +94,7 @@ export default function DataExportButtons<T>({
   return (
     <div className="flex items-center gap-3">
       {error && <span className="text-[11px] font-medium text-red-600">{error}</span>}
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Download</span>
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Download</span>
       <button
         type="button"
         onClick={handleCsv}

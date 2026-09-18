@@ -61,7 +61,7 @@ function NotificationBanner({ request }: { request: CompletedRequest }) {
   return (
     <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
       <p className="text-xs text-teal-900">
-        💰 Payment initiated — your payout request for{" "}
+        💰 Payment initiated - your payout request for{" "}
         <strong>{formatInr(request.requestedAmountPaise)}</strong> (requested on{" "}
         {formatDate(request.requestedAt)}) is being processed by admin.
       </p>
@@ -176,7 +176,7 @@ export default function TherapistEarningsTab({
         <div>
           <p className="text-xs text-slate-500">Pending Payout</p>
           <p className="text-2xl font-bold text-slate-900">{formatInr(pendingOwedPaise)}</p>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-[11px] text-slate-500 mt-1">
             What you&apos;ve earned from completed sessions that haven&apos;t been settled yet.
           </p>
           {requestStatus === "reviewing" && (
@@ -197,12 +197,13 @@ export default function TherapistEarningsTab({
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h2 className="font-display font-bold text-lg text-slate-800">
             Sessions
-            <span className="ml-2 text-xs font-normal text-slate-400">
+            <span className="ml-2 text-xs font-normal text-slate-500">
               {filteredRows.length} session{filteredRows.length === 1 ? "" : "s"}
             </span>
           </h2>
           <div className="flex items-center gap-2 flex-wrap">
             <input
+              aria-label="Filter by session ID"
               type="text"
               value={sessionCodeFilter}
               onChange={(e) => setSessionCodeFilter(e.target.value)}
@@ -210,6 +211,7 @@ export default function TherapistEarningsTab({
               className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-40"
             />
             <select
+              aria-label="Filter by patient"
               value={patientFilter}
               onChange={(e) => setPatientFilter(e.target.value)}
               className="p-2 rounded-lg border border-slate-300 text-xs"
@@ -222,6 +224,7 @@ export default function TherapistEarningsTab({
               ))}
             </select>
             <select
+              aria-label="Filter by treatment category"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="p-2 rounded-lg border border-slate-300 text-xs"
@@ -234,6 +237,7 @@ export default function TherapistEarningsTab({
               ))}
             </select>
             <select
+              aria-label="Filter by session status"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
               className="p-2 rounded-lg border border-slate-300 text-xs"
@@ -249,7 +253,7 @@ export default function TherapistEarningsTab({
               className="p-2 rounded-lg border border-slate-300 text-xs"
               aria-label="From date"
             />
-            <span className="text-slate-400 text-xs">to</span>
+            <span className="text-slate-500 text-xs">to</span>
             <input
               type="date"
               value={toDate}
@@ -271,7 +275,7 @@ export default function TherapistEarningsTab({
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-left text-slate-400 border-b border-slate-200">
+              <tr className="text-left text-slate-500 border-b border-slate-200">
                 <th className="pb-2 pr-3 font-semibold">Date</th>
                 <th className="pb-2 pr-3 font-semibold">Session ID</th>
                 <th className="pb-2 pr-3 font-semibold">Patient</th>
@@ -284,7 +288,7 @@ export default function TherapistEarningsTab({
             <tbody>
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-slate-400">
+                  <td colSpan={7} className="py-6 text-center text-slate-500">
                     No sessions match these filters.
                   </td>
                 </tr>
@@ -292,7 +296,7 @@ export default function TherapistEarningsTab({
                 pageRows.map((r) => (
                   <tr key={r.id} className="border-b border-slate-100">
                     <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">{formatDate(r.date)}</td>
-                    <td className="py-2.5 pr-3 text-slate-400 font-mono">{r.sessionCode ?? "—"}</td>
+                    <td className="py-2.5 pr-3 text-slate-500 font-mono">{r.sessionCode ?? "-"}</td>
                     <td className="py-2.5 pr-3 font-bold text-slate-900">{r.patientName}</td>
                     <td className="py-2.5 pr-3 text-slate-500">{r.categoryTitle}</td>
                     <td className="py-2.5 pr-3 text-right text-slate-700">{formatInr(r.feePaise)}</td>
@@ -304,7 +308,7 @@ export default function TherapistEarningsTab({
                         className={`font-semibold px-2.5 py-1 rounded-full ${
                           r.status === "paid_out"
                             ? "text-green-700 bg-green-50"
-                            : "text-slate-500 bg-slate-100"
+                            : "text-slate-600 bg-slate-100"
                         }`}
                       >
                         {r.status === "paid_out" ? "Paid Out" : "Pending"}

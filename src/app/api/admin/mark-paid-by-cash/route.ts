@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("money");
@@ -11,7 +12,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { appointmentId } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    appointmentId?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { appointmentId } = body;
   if (!appointmentId) {
     return NextResponse.json({ error: "Missing appointmentId" }, { status: 400 });
   }
@@ -70,7 +75,7 @@ export async function POST(request: NextRequest) {
   }
   if (!claimed) {
     return NextResponse.json(
-      { error: "This session's status changed — please refresh and try again." },
+      { error: "This session's status changed - please refresh and try again." },
       { status: 409 }
     );
   }

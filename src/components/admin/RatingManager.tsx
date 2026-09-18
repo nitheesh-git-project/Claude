@@ -69,24 +69,24 @@ export default function RatingManager({
       </div>
       {error && <p className="text-[11px] text-red-600 mb-2">{error}</p>}
       {average === null ? (
-        <p className="text-xs text-slate-400 py-2">No ratings yet.</p>
+        <p className="text-xs text-slate-500 py-2">No ratings yet.</p>
       ) : (
         <p className="text-2xl font-bold text-slate-900">
           {average.toFixed(1)}{" "}
-          <span className="text-sm font-semibold text-slate-400">
+          <span className="text-sm font-semibold text-slate-500">
             ({count} rating{count === 1 ? "" : "s"})
           </span>
         </p>
       )}
       {excludedCount > 0 && (
         <p className="text-[11px] text-amber-600 mt-1">
-          {excludedCount} rating{excludedCount === 1 ? "" : "s"} excluded from this average —
+          {excludedCount} rating{excludedCount === 1 ? "" : "s"} excluded from this average -
           still visible on its own session below.
         </p>
       )}
       {onToggleVisible && optimisticVisible === false && visible !== undefined && (
-        <p className="text-[11px] text-slate-400 mt-1">
-          Hidden from public pages — only visible here to admin.
+        <p className="text-[11px] text-slate-500 mt-1">
+          Hidden from public pages - only visible here to admin.
         </p>
       )}
     </div>

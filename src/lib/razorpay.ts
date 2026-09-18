@@ -113,7 +113,7 @@ export async function payForAppointment({
     if (orderData.alreadyPaid) {
       // A prior checkout attempt for this same appointment already
       // succeeded with Razorpay (the browser likely closed before our own
-      // /verify callback landed) — the server has just recorded that
+      // /verify callback landed) - the server has just recorded that
       // payment, so there's nothing left to check out for.
       onSuccess();
       return;
@@ -158,7 +158,7 @@ export async function payForAppointment({
           }
         } catch {
           onError(
-            `Payment received but we couldn't verify it — please check your connection and contact us with payment ID ${response.razorpay_payment_id} if this doesn't resolve.`
+            `Payment received but we couldn't verify it - please check your connection and contact us with payment ID ${response.razorpay_payment_id} if this doesn't resolve.`
           );
         }
       },

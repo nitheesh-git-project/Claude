@@ -44,7 +44,7 @@ export type CatalogCardData = {
   imageUrl: string | null;
   focalX?: number | null;
   focalY?: number | null;
-  /** Small pill over the cover — a condition type, or an admin's badge. */
+  /** Small pill over the cover - a condition type, or an admin's badge. */
   badge?: string | null;
   /** Draws the teal ring. Admin-set, and only ever on one or two rows. */
   highlight?: boolean;
@@ -180,7 +180,7 @@ export default function CatalogCard({
             {rupees(data.pricePaise)}
           </span>
           {data.compareAtPaise != null && data.compareAtPaise > data.pricePaise && (
-            <span className="text-xs text-slate-400 line-through">
+            <span className="text-xs text-slate-500 line-through">
               {rupees(data.compareAtPaise)}
             </span>
           )}

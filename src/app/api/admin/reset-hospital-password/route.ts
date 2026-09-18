@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 function generatePassword() {
   return crypto.randomBytes(9).toString("base64url");
@@ -14,7 +15,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { hospitalId } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    hospitalId?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { hospitalId } = body;
   if (!hospitalId) {
     return NextResponse.json({ error: "Missing hospitalId" }, { status: 400 });
   }
@@ -45,7 +50,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Kept visible to admins (not shown just once) so they can walk the
-  // hospital contact through logging in over a support call — matches the
+  // hospital contact through logging in over a support call - matches the
   // patient/therapist reset routes, which this one was missing before.
   await admin.from("hospital_admin_notes").upsert({
     hospital_id: hospitalId,

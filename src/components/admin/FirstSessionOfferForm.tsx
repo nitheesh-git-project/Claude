@@ -106,10 +106,10 @@ export default function FirstSessionOfferForm({
           <h3 className="font-bold text-sm text-slate-800">First session offer</h3>
           <p className="text-xs text-slate-500 mt-1 max-w-md">
             What a patient pays for their very first session with the clinic. Applies to a video
-            consultation only, once per patient — the server checks whether they have ever paid
+            consultation only, once per patient - the server checks whether they have ever paid
             for a session before, so it cannot be claimed twice or asked for.
           </p>
-          <p className="text-xs text-slate-400 mt-2 max-w-md">
+          <p className="text-xs text-slate-500 mt-2 max-w-md">
             Home visits and programmes are never discounted by this: a programme comes from a
             therapist&apos;s recommendation, and a visit&apos;s travel fee is money that goes
             straight to the therapist.

@@ -6,6 +6,7 @@ import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
 import { confirmPaidAppointment } from "@/lib/confirmPaidAppointment";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 import { approvePatientForGenuinePaymentAttempt } from "@/lib/supabase/requireActiveProfile";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
 
@@ -20,12 +21,14 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
-  const {
-    appointmentId,
-    razorpay_order_id,
-    razorpay_payment_id,
-    razorpay_signature,
-  } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    appointmentId?: string;
+    razorpay_order_id?: string;
+    razorpay_payment_id?: string;
+    razorpay_signature?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { appointmentId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
 
   if (!appointmentId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
     return NextResponse.json({ error: "Missing payment details" }, { status: 400 });
@@ -80,7 +83,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (outcome.error) {
-    // The payment itself succeeded with Razorpay at this point — never tell
+    // The payment itself succeeded with Razorpay at this point - never tell
     // the patient it failed. Surface it as a verification failure instead so
     // the existing "contact us with payment ID X" fallback UI kicks in,
     // rather than silently showing a false "Payment Confirmed" screen while
@@ -94,7 +97,7 @@ export async function POST(request: NextRequest) {
 
   if (!outcome.claimed) {
     // The appointment's status changed between checkout and this callback
-    // (almost certainly: it was cancelled) — but Razorpay has genuinely
+    // (almost certainly: it was cancelled) - but Razorpay has genuinely
     // already charged the patient by this point, so the payment must not
     // simply vanish even though the booking itself can't be resurrected.
     // Record the charge without touching status, so it's visible on the
@@ -116,7 +119,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(
       {
-        error: `This booking is no longer active (it may have been cancelled) — we've recorded your payment for manual review and will follow up. Please also contact us with payment ID ${razorpay_payment_id}.`,
+        error: `This booking is no longer active (it may have been cancelled) - we've recorded your payment for manual review and will follow up. Please also contact us with payment ID ${razorpay_payment_id}.`,
       },
       { status: 409 }
     );

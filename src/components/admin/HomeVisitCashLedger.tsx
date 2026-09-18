@@ -2,7 +2,7 @@
 
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { useConfirm } from "@/lib/useConfirm";
@@ -112,6 +112,8 @@ function CorrectCashButton({
   appointmentId: string;
   amountPaise: number;
 }) {
+  const amountId = useId();
+  const reasonId = useId();
   const [open, setOpen] = useState(false);
   const [rupees, setRupees] = useState(String(Math.round(amountPaise / 100)));
   const [reason, setReason] = useState("");
@@ -155,20 +157,22 @@ function CorrectCashButton({
 
   return (
     <div className="w-full rounded-lg border border-slate-200 bg-white p-2.5">
-      <label className="block text-[11px] font-semibold text-slate-700">
+      <label htmlFor={amountId} className="block text-[11px] font-semibold text-slate-700">
         Amount actually collected (₹)
       </label>
       <input
+        id={amountId}
         type="number"
         min={0}
         value={rupees}
         onChange={(e) => setRupees(e.target.value)}
         className="mt-1 w-32 rounded-lg border border-slate-300 p-1.5 text-xs"
       />
-      <label className="mt-2 block text-[11px] font-semibold text-slate-700">
+      <label htmlFor={reasonId} className="mt-2 block text-[11px] font-semibold text-slate-700">
         Why is this being corrected?
       </label>
       <textarea
+        id={reasonId}
         rows={2}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
@@ -237,14 +241,14 @@ function TherapistCashCard({
           >
             Holding {formatInr(summary.heldPaise)}
           </span>
-          <span className="text-slate-400">Remitted {formatInr(summary.remittedPaise)}</span>
+          <span className="text-slate-500">Remitted {formatInr(summary.remittedPaise)}</span>
         </div>
       </div>
 
       {ageDays !== null && (
-        <p className={`mt-1 ${ageDays >= 7 ? "font-semibold text-red-600" : "text-slate-400"}`}>
+        <p className={`mt-1 ${ageDays >= 7 ? "font-semibold text-red-600" : "text-slate-500"}`}>
           Oldest uncollected: {ageDays} day{ageDays === 1 ? "" : "s"} ago
-          {ageDays >= 7 && " — follow up"}
+          {ageDays >= 7 && " - follow up"}
         </p>
       )}
 
@@ -257,7 +261,7 @@ function TherapistCashCard({
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-2.5"
             >
               <span className="text-slate-600">
-                <span className="font-mono">{v.session_code ?? "—"}</span>
+                <span className="font-mono">{v.session_code ?? "-"}</span>
                 {v.slot_time && ` · ${formatSlotTime(v.slot_time, v.timezone)}`}
                 {" · "}
                 <span className="font-semibold text-slate-800">
@@ -331,7 +335,7 @@ export default function HomeVisitCashLedger({
           </p>
           <p className="mt-1 text-xs text-red-700">
             These visits were cancelled after cash was already collected. There is no automatic way
-            to return cash — hand it back to the patient, then clear it below.
+            to return cash - hand it back to the patient, then clear it below.
           </p>
           <ul className="mt-3 space-y-2">
             {refundPage.map((v) => (
@@ -340,7 +344,7 @@ export default function HomeVisitCashLedger({
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-2.5 text-xs"
               >
                 <span className="text-slate-700">
-                  <span className="font-mono">{v.session_code ?? "—"}</span> · {v.patientName} ·{" "}
+                  <span className="font-mono">{v.session_code ?? "-"}</span> · {v.patientName} ·{" "}
                   <span className="font-semibold">{formatInr(v.refund_amount_paise ?? v.cash_collected_amount_paise ?? 0)}</span>
                 </span>
                 <MarkRefundReturnedButton

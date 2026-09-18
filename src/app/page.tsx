@@ -4,13 +4,18 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { Reveal, MotionButton } from "@/components/motion/primitives";
 import JourneySteps from "@/components/home/JourneySteps";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
+// ProgressLink, not next/link: a plain Link click never touches useRouter,
+// so the teal progress bar would not fire on the way to /conditions.
+import Link from "@/components/system/ProgressLink";
 import ProgramCards from "@/components/catalog/ProgramCards";
+import { pickFeatured } from "@/lib/catalogFeatured";
 import PageHero from "@/components/marketing/PageHero";
 import TrustBar from "@/components/marketing/TrustBar";
 import Section from "@/components/marketing/Section";
 import SplitFeature from "@/components/marketing/SplitFeature";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
 import MissionPreview from "@/components/marketing/MissionPreview";
+import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
 import Testimonials, {
   type PublicTestimonial,
 } from "@/components/marketing/Testimonials";
@@ -18,7 +23,7 @@ import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
 import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
 
-// This page has no per-user content — it can be cached and revalidated
+// This page has no per-user content - it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
 export const revalidate = 300;
 
@@ -39,7 +44,7 @@ export default async function Home() {
     .order("id", { ascending: true });
 
   // "From ₹X" in the hero should track whatever admins actually configure
-  // in Site Content, not a stale constant — falls back to the flat fee
+  // in Site Content, not a stale constant - falls back to the flat fee
   // only in the unlikely event no categories are active at all.
   const startingPricePaise =
     categories && categories.length > 0
@@ -66,6 +71,16 @@ export default async function Home() {
     .select("home_visit_enabled")
     .maybeSingle();
   const homeVisitEnabled = homeVisitRow?.home_visit_enabled === true;
+
+  // The mission and the vision, as an admin may have rewritten them. Its own
+  // read for the same reason, and it falls back to the lines in mission.ts
+  // rather than to blanks -- an empty mission card reads as a broken page on
+  // the one band whose job is to say who this clinic is.
+  const missionCopy = await readMissionCopy();
+
+  // The promise titles the mission band links through with. Same fallback, so
+  // a database without the table shows the four this repository ships.
+  const { promises } = await readMissionPrinciples();
 
   // No programme catalog on the public site. A course of treatment is a
   // clinical recommendation a therapist writes after a session they ran, so
@@ -101,11 +116,31 @@ export default async function Home() {
     ])
   );
 
-  const programs = (categories ?? []).map((c) => ({
+  // Which four lead the page. Its own call for the third time on this row,
+  // and for the same reason: `featured` is newer than the focal columns, so
+  // folding it in would cost the photographs as well as the curation on a
+  // database mid-migration. Absent, every row reads as not featured and
+  // pickFeatured falls through to the first four -- exactly what this page
+  // showed before the column existed.
+  const { data: categoryFeatured } = await supabase
+    .from("treatment_categories")
+    .select("id, featured");
+  const featuredByCategoryId = new Map(
+    (categoryFeatured ?? []).map((row) => [row.id, row.featured])
+  );
+
+  const allPrograms = (categories ?? []).map((c) => ({
     ...c,
     image_url: imageByCategoryId.get(c.id) ?? null,
     ...(focalByCategoryId.get(c.id) ?? {}),
+    featured: featuredByCategoryId.get(c.id) ?? false,
   }));
+
+  // The home page leads with four and sends the rest to /conditions, which
+  // still lists everything. Before this it printed all ten, so the page
+  // whose job is to say what this clinic *is* spent most of its length being
+  // an index of itself.
+  const { shown: programs, hasMore: hasMoreConditions } = pickFeatured(allPrograms);
 
   const { data: testimonialRows } = await supabase
     .from("testimonials")
@@ -129,7 +164,7 @@ export default async function Home() {
     avatar_url: avatarById.get(t.id) ?? null,
   }));
 
-  // Real, aggregated patient rating data (never individual reviews/names —
+  // Real, aggregated patient rating data (never individual reviews/names -
   // see the schema comment on public_rating_summary for why) surfaced
   // alongside the hand-curated testimonials above.
   const { data: ratingSummary } = await supabase
@@ -171,7 +206,12 @@ export default async function Home() {
         eyebrow="Licensed physiotherapy"
         title={
           <>
-            Physiotherapy at home
+            {/* The trailing space is load-bearing. The second line is its own
+                block, so the two never touch on screen -- but the h1's text
+                content is what a screen reader reads out and what anything
+                extracting the page's headline gets, and without it the one
+                line this whole site is judged by said "at homeover video". */}
+            Physiotherapy at home{" "}
             <span className="block bg-gradient-to-r from-teal-700 to-emerald-500 bg-clip-text text-transparent">
               over video, or in person
             </span>
@@ -180,18 +220,35 @@ export default async function Home() {
         subtitle="A licensed physiotherapist watches how you move, then builds your plan."
         primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
         secondary={{ href: "/how-it-works", label: "See how it works", icon: "fa-circle-play" }}
+        // Both of the first two are facts the product can stand behind: the
+        // assessment length, and the lowest price in the live catalogue. The
+        // third is the real rating when there is one -- and nothing at all
+        // when there is not.
+        //
+        // It used to fall back to "100+ Patients treated", which no row in
+        // this database supports and which, on a clinic with no patients
+        // yet, was simply untrue -- printed under a headline about licensed
+        // care, in the three figures a visitor reads before deciding whether
+        // to trust it. `hasRealRatings` exists precisely so an invented
+        // rating is never quoted; quoting an invented patient count beside
+        // it gave that check nothing to do. The same rule the testimonials
+        // band follows: `public_rating_summary` is the only place a real
+        // number is quoted, and the honest alternative to a number you do
+        // not have is no number.
         stats={[
           { value: "60 min", label: "One-to-one assessment" },
           {
             value: `₹${(startingPricePaise / 100).toLocaleString("en-IN")}`,
             label: "Starting per session",
           },
-          hasRealRatings
-            ? {
-                value: `★ ${Number(ratingSummary.avg_rating).toFixed(1)}`,
-                label: `From ${ratingSummary.rating_count} sessions`,
-              }
-            : { value: "100+", label: "Patients treated" },
+          ...(hasRealRatings
+            ? [
+                {
+                  value: `★ ${Number(ratingSummary.avg_rating).toFixed(1)}`,
+                  label: `From ${ratingSummary.rating_count} sessions`,
+                },
+              ]
+            : []),
         ]}
         photoId="hero-therapy"
         alt="A patient smiling as she works through her exercises at home, laptop open in front of her"
@@ -257,13 +314,17 @@ export default async function Home() {
       <Section
         id="our-mission"
         // A connector band, so it takes the same floating-panel treatment as
-        // the explore grid at the foot of the page — and it keeps this from
+        // the explore grid at the foot of the page - and it keeps this from
         // running into the white "what we treat" band directly below.
         tone="panel"
         eyebrow="Our mission"
         title="Why we do this"
       >
-        <MissionPreview />
+        <MissionPreview
+          mission={missionCopy.mission}
+          vision={missionCopy.vision}
+          promises={promises}
+        />
       </Section>
 
       {/* Breadth of care, as six photographs. The old version of this band
@@ -292,7 +353,7 @@ export default async function Home() {
         </Reveal>
       </Section>
 
-      {/* CONDITIONS — admin-controlled content, so the layout stays generic
+      {/* CONDITIONS - admin-controlled content, so the layout stays generic
           and simply adapts to whatever categories are configured. */}
       {categories && categories.length > 0 && (
         <Section
@@ -302,6 +363,20 @@ export default async function Home() {
           lede="Same 60-minute assessment. Different protocol."
         >
           <ProgramCards programs={programs} />
+          {/* Only when there is genuinely more to see: a button opening a
+              list identical to the one above it is a dead end with a label
+              on it. /conditions is unchanged and still shows everything. */}
+          {hasMoreConditions && (
+            <div className="mt-8 flex justify-center">
+              <Link
+                href="/conditions"
+                className="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-white px-5 py-3 text-sm font-bold text-teal-700 shadow-sm transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+              >
+                See all conditions we treat
+                <i aria-hidden className="fa-solid fa-arrow-right text-xs" />
+              </Link>
+            </div>
+          )}
         </Section>
       )}
 

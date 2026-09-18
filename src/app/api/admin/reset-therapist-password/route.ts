@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 function generatePassword() {
   return crypto.randomBytes(9).toString("base64url");
@@ -14,7 +15,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { therapistId } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    therapistId?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { therapistId } = body;
   if (!therapistId) {
     return NextResponse.json({ error: "Missing therapistId" }, { status: 400 });
   }
@@ -42,7 +47,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Kept visible to admins (not shown just once) so they can walk the
-  // therapist through logging in over a support call — cleared
+  // therapist through logging in over a support call - cleared
   // automatically once they set their own password via forgot-password.
   await admin.from("therapist_admin_notes").upsert({
     therapist_id: therapistId,

@@ -44,12 +44,12 @@ export default function OrthoSnapshotStrip({ snapshot, showProgress = true }: { 
   const cells: StatCell[] = [
     {
       label: "You said",
-      value: selfSeverity === null ? "—" : String(selfSeverity),
+      value: selfSeverity === null ? "-" : String(selfSeverity),
       unit: selfSeverity === null ? undefined : "/ 10",
       note:
         selfSeverity === null
           ? "Not answered yet"
-          : `${SELF_SEVERITY_WORD(selfSeverity)} — your own words. Lower is better`,
+          : `${SELF_SEVERITY_WORD(selfSeverity)} - your own words. Lower is better`,
       accent: "bg-teal-500",
     },
     {
@@ -61,7 +61,7 @@ export default function OrthoSnapshotStrip({ snapshot, showProgress = true }: { 
     },
     {
       label: "Your therapist measured",
-      value: clinicalPercent === null ? "—" : formatPainOutOfTen(clinicalPercent),
+      value: clinicalPercent === null ? "-" : formatPainOutOfTen(clinicalPercent),
       note:
         clinicalPercent === null
           ? "Fills in after your therapist examines you"

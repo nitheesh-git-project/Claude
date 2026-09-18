@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
+import { rateLimitNotice } from "@/lib/rateLimit";
 
 const SOURCES = ["Ads", "Friends", "Hospitals", "Other"];
 
@@ -12,7 +12,6 @@ export default function HospitalInquiryForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
-  const supabase = createClient();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -26,18 +25,40 @@ export default function HospitalInquiryForm() {
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const { error } = await supabase.from("b2b_leads").insert({
-      name: formData.get("name") as string,
-      phone: formData.get("phone") as string,
-      email: formData.get("email") as string,
-      source: formData.get("source") as string,
-      org_details: (formData.get("org_details") as string) || null,
-    });
 
-    setLoading(false);
-    if (error) {
-      setError("Could not submit your inquiry. Please try again.");
+    // Posts to a route rather than inserting straight into b2b_leads. The
+    // table's public insert policy is gone: a browser-side insert cannot be
+    // rate limited, and this form is the one on the site with no account
+    // behind it.
+    try {
+      const res = await fetch("/api/hospitals/inquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.get("name"),
+          phone: formData.get("phone"),
+          email: formData.get("email"),
+          source: formData.get("source"),
+          orgDetails: formData.get("org_details") || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          rateLimitNotice(
+            data.error ?? "Could not submit your inquiry. Please try again.",
+            data.retryAfterSeconds
+          )
+        );
+        return;
+      }
+    } catch {
+      // A request that dies on a bad connection has to say so -- left
+      // unhandled it put nothing on screen and read as a dead button.
+      setError("Could not reach us just now. Please check your connection and try again.");
       return;
+    } finally {
+      setLoading(false);
     }
     setSubmitted(true);
   }
@@ -67,8 +88,8 @@ export default function HospitalInquiryForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-3 text-xs">
-        <div>
-          <label className="block font-semibold mb-1">Your Name</label>
+        <label className="block">
+          <span className="block font-semibold mb-1">Your Name</span>
           <input
             type="text"
             name="name"
@@ -76,10 +97,10 @@ export default function HospitalInquiryForm() {
             required
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
-        </div>
+        </label>
         <PhoneNumberField value={phone} onChange={setPhone} required />
-        <div>
-          <label className="block font-semibold mb-1">Email Address</label>
+        <label className="block">
+          <span className="block font-semibold mb-1">Email Address</span>
           <input
             type="email"
             name="email"
@@ -87,11 +108,11 @@ export default function HospitalInquiryForm() {
             required
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
-        </div>
-        <div>
-          <label className="block font-semibold mb-1">
+        </label>
+        <label className="block">
+          <span className="block font-semibold mb-1">
             How did you hear about us?
-          </label>
+          </span>
           <select
             name="source"
             required
@@ -107,19 +128,19 @@ export default function HospitalInquiryForm() {
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="block font-semibold mb-1">
+        </label>
+        <label className="block">
+          <span className="block font-semibold mb-1">
             Official Details{" "}
-            <span className="font-normal text-slate-400">(optional)</span>
-          </label>
+            <span className="font-normal text-slate-500">(optional)</span>
+          </span>
           <textarea
             name="org_details"
             rows={2}
             placeholder="Hospital/clinic name, role, official email..."
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
-        </div>
+        </label>
         <button
           type="submit"
           disabled={loading}

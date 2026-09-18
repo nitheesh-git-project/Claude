@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 function generatePassword() {
   return crypto.randomBytes(9).toString("base64url");
@@ -14,7 +15,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { patientId } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    patientId?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { patientId } = body;
   if (!patientId) {
     return NextResponse.json({ error: "Missing patientId" }, { status: 400 });
   }
@@ -42,7 +47,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Kept visible to admins (not shown just once) so they can walk the
-  // patient through logging in over a support call — cleared automatically
+  // patient through logging in over a support call - cleared automatically
   // once the patient sets their own password via the forgot-password flow.
   await admin.from("patient_admin_notes").upsert({
     patient_id: patientId,

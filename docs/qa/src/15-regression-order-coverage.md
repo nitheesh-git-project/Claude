@@ -4,7 +4,7 @@
 
 Each journey is an end-to-end run through the product, executed in one sitting. Run all four before a release.
 
-### `REG-J1` — The core money journey · P0
+### `REG-J1` - The core money journey · P0
 
 ```
 SETUP-RESET-001
@@ -24,7 +24,7 @@ SETUP-RESET-001
 
 **Pass criterion.** Both money identities hold at the end, every cross-role check agrees, and the log contains every mutating action including `payout.settle`.
 
-### `REG-J2` — The home-visit and cash journey · P0
+### `REG-J2` - The home-visit and cash journey · P0
 
 ```
 ADM-SET-013 (home visits on) → SETUP-AREA-001 → SETUP-HVPKG-001
@@ -39,7 +39,7 @@ ADM-SET-013 (home visits on) → SETUP-AREA-001 → SETUP-HVPKG-001
   → ADM-SET-013 again (switch off → the recommendation stops being purchasable)
 ```
 
-### `REG-J3` — The partner journey · P0
+### `REG-J3` - The partner journey · P0
 
 ```
 HOS-LEAD-001 → HOS-AUTH-002 (provision) → HOS-AUTH-001
@@ -52,7 +52,7 @@ HOS-LEAD-001 → HOS-AUTH-002 (provision) → HOS-AUTH-001
   → HOS-SEC-001..004 (isolation)
 ```
 
-### `REG-J4` — The clinical journey · P0
+### `REG-J4` - The clinical journey · P0
 
 ```
 THR-HP-001 (triage, ortho) → THR-HP-002 (first fill, live)
@@ -68,10 +68,10 @@ THR-HP-001 (triage, ortho) → THR-HP-002 (first fill, live)
   → XR-HP-001
 ```
 
-### `REG-J5` — Security sweep · P0
+### `REG-J5` - Security sweep · P0
 Run **all** of §18 in one pass, then `ADM-SET-027`'s full table.
 
-### `REG-J6` — Payment integrity sweep · P0
+### `REG-J6` - Payment integrity sweep · P0
 Run **all** of §16.3 in one pass.
 
 ---
@@ -115,9 +115,9 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | # | Phase | Tests | Notes |
 | --- | --- | --- | --- |
 | 1 | **Reset** | `SETUP-RESET-001`, `SETUP-RESET-003` | Must be first. Confirm an admin survives. |
-| 1b | **Reset, scope gate** | `SETUP-RESET-002` | **Runs after `ADM-SET-026` in phase 2**, not here: it signs in as the Operations admin, and a freshly reset database has only the one admin made by hand in Supabase. Run it as soon as that account exists — the wipe it attempts must be refused, so it costs nothing to run late. |
-| 2 | **Admin & catalog setup** | `ADM-CAT-001`, `ADM-CAT-005`, `ADM-CAT-010`, `SETUP-HVPKG-001`, `ADM-SET-026` → then `SETUP-RESET-002` | Nothing downstream works without a catalog. `ADM-SET-026` shows each new admin's password **once** — copy all three before leaving the screen. |
-| 3 | **Create users** | `PAT-AUTH-002`, `THR-AUTH-001`, `HOS-LEAD-001` → `HOS-AUTH-002` | Patient A is created *inside* `PAT-BOOK-003`, deliberately — that is the guest path. **Run these through the UI the first time**: they are the sign-up, application and onboarding flows, and `npm run seed:qa` is not a substitute for testing them. Use the seeder afterwards, to put the same accounts back after every later reset (§6.2). |
+| 1b | **Reset, scope gate** | `SETUP-RESET-002` | **Runs after `ADM-SET-026` in phase 2**, not here: it signs in as the Operations admin, and a freshly reset database has only the one admin made by hand in Supabase. Run it as soon as that account exists - the wipe it attempts must be refused, so it costs nothing to run late. |
+| 2 | **Admin & catalog setup** | `ADM-CAT-001`, `ADM-CAT-005`, `ADM-CAT-010`, `SETUP-HVPKG-001`, `ADM-SET-026` → then `SETUP-RESET-002` | Nothing downstream works without a catalog. `ADM-SET-026` shows each new admin's password **once** - copy all three before leaving the screen. |
+| 3 | **Create users** | `PAT-AUTH-002`, `THR-AUTH-001`, `HOS-LEAD-001` → `HOS-AUTH-002` | Patient A is created *inside* `PAT-BOOK-003`, deliberately - that is the guest path. **Run these through the UI the first time**: they are the sign-up, application and onboarding flows, and `npm run seed:qa` is not a substitute for testing them. Use the seeder afterwards, to put the same accounts back after every later reset (§6.2). |
 | 4 | **Approve users** | `ADM-APPR-001..004` | |
 | 5 | **Configure availability** | `THR-AVAIL-001..007`, `ADM-ROST-001..005` | |
 | 6 | **Booking** | `PAT-BOOK-001..017`, `PAT-HV-001..007` | Time-simulation scenarios TIME-A…D. |
@@ -131,15 +131,15 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | 14 | **Configuration dependencies** | §15.4, all 46 rows | Restore every setting afterwards. |
 | 15 | **Security** | §18 in full | |
 | 16 | **UX / mobile / a11y** | §19 | |
-| 17 | **Error / loading / empty** | §20 | Empty states are easiest right after a reset — consider running `ERR-EMPTY-001` in phase 1. |
+| 17 | **Error / loading / empty** | §20 | Empty states are easiest right after a reset - consider running `ERR-EMPTY-001` in phase 1. |
 | 18 | **Cross-role** | §21 | |
 | 19 | **Final regression** | `REG-J1..J6` | |
 
 ### 23.3 Tests that must be run on a fresh database
 
-`SETUP-RESET-001`, `ERR-EMPTY-001`, `PAT-EMPTY-001`, and any test that books a **fixed** future slot. A rerun on a dirty database will refuse the booking as a clash — **that refusal is correct behaviour**.
+`SETUP-RESET-001`, `ERR-EMPTY-001`, `PAT-EMPTY-001`, and any test that books a **fixed** future slot. A rerun on a dirty database will refuse the booking as a clash - **that refusal is correct behaviour**.
 
-### 23.4 Tests that change global state — restore afterwards
+### 23.4 Tests that change global state - restore afterwards
 
 | Test | Restore |
 | --- | --- |
@@ -159,28 +159,28 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 
 | Area | Patient | Therapist | Hospital | Admin | Finance | Security | Mobile |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Registration / login | `PAT-AUTH-001..006` | `THR-AUTH-001..003` | `HOS-AUTH-001..003` | `SETUP-RESET-001` | — | `SEC-AUTH-004..007` | `UX-MOB-002` |
-| Approval gates | `PAT-AUTH-003` | `THR-AUTH-002` | `HOS-AUTH-003` | `ADM-APPR-001..004` | — | `SEC-AUTH-006` | — |
-| Booking (video) | `PAT-BOOK-001..017` | `THR-SESS-001` | — | `ADM-NEWB-001`, `ADM-SESS-002` | `FIN-SUM-002` | `PAT-BOOK-012`, `SEC-TAMPER-001` | `UX-MOB-001` |
+| Registration / login | `PAT-AUTH-001..006` | `THR-AUTH-001..003` | `HOS-AUTH-001..003` | `SETUP-RESET-001` | - | `SEC-AUTH-004..007` | `UX-MOB-002` |
+| Approval gates | `PAT-AUTH-003` | `THR-AUTH-002` | `HOS-AUTH-003` | `ADM-APPR-001..004` | - | `SEC-AUTH-006` | - |
+| Booking (video) | `PAT-BOOK-001..017` | `THR-SESS-001` | - | `ADM-NEWB-001`, `ADM-SESS-002` | `FIN-SUM-002` | `PAT-BOOK-012`, `SEC-TAMPER-001` | `UX-MOB-001` |
 | Booking (home visit) | `PAT-HV-001..007` | `THR-SESS-007` | `HOS-REF-002` | `ADM-CAT-010`, `ADM-SET-014` | `FIN-PAY-003` | `PAT-HV-005` | `UX-MOB-001` |
-| Payment | `PAT-PAY-001..005` | — | — | `FIN-TXN-001` | §16.3 in full | `PAY-AMT-001/002` | `UX-MOB-001` |
-| Refunds | `PAT-CANCEL-001..003` | — | `HOS-MONEY-001` | `ADM-SESS-004` | `FIN-REF-001..004` | — | — |
-| Sessions lifecycle | `PAT-SESS-001..006` | `THR-SESS-001..008` | — | `ADM-SESS-001..004`, `ADM-SCHED-001` | `FIN-SUM-002` | `THR-SEC-002` | `UX-MOB-002` |
-| Availability / roster | — | `THR-AVAIL-001..008` | — | `ADM-ROST-001..005` | — | `THR-SEC-001`, `ADM-ROST-005` | — |
-| Health profile | `PAT-HP-001..005` | `THR-HP-001..006` | `HOS-SEC-002` | `ADM-PEOP-004`, `ADM-SET-020` | — | `SEC-DATA-001` | `UX-MOB-004` |
-| Documents | `PAT-DOC-001..003` | (read) | `HOS-SEC-002` | (read) | — | `SEC-DATA-004` | `UX-MOB-003` |
-| Care plans | `PAT-CARE-001..004`, `PAT-SCHED-001..003` | `THR-CARE-001..008` | — | `ADM-CARE-001..008` | `PAY-AMT-002` | `THR-CARE-002` | — |
-| Suggested sessions | `PAT-SUGG-001..005` | `THR-SUGG-001..002` | — | `ADM-SET-018` | — | `PAT-SUGG-004` | — |
-| Session credits | `PAT-PKG-001..004` | (view) | — | `ADM-CAT-014/015`, `ADM-SET-019` | `FIN-REF-004` | `SEC-TAMPER-003`, `PAY-CONC-001` | — |
-| Referrals | `HOS-REF-006` | — | `HOS-REF-001..007` | `ADM-PEOP-008` | `HOS-MONEY-001..003` | `HOS-SEC-001` | — |
-| Earnings / payouts | — | `THR-EARN-001..004` | `HOS-MONEY-001..003` | `FIN-PAY-001..006` | `FIN-PAY-001..006` | `SEC-ADMIN-001` | — |
-| Catalog | (reads) | (reads) | — | `ADM-CAT-001..015` | `ADM-CAT-006` | `ADM-SET-028` | `UX-MOB-005` |
-| Settings | — | — | — | `ADM-SET-001..035` | `FIN-COST-002` | `ADM-SET-025..028` | — |
-| Contact controls | `THR-LEAK-005` | `THR-LEAK-001..007`, `THR-SESS-003/004` | — | `ADM-SET-029` | — | `SEC-DATA-005` | — |
-| Risk | — | — | — | `ADM-RISK-001..004` | — | `ADM-RISK-003`, `ADM-RISK-004` | — |
-| Audit log | — | — | — | `ADM-SET-033` | `XR-PAYOUT-001` | `ADM-SET-033` | — |
-| Public site | `PUB-*` | — | `HOS-LEAD-001` | `ADM-SET-004..008` | — | `SEC-ROUTE-004` | `UX-MOB-001` |
-| Debug bar | `DBG-TIME-001` | — | — | `SETUP-RESET-001..003`, `DBG-NAV-001` | — | `SETUP-RESET-002/003` | — |
+| Payment | `PAT-PAY-001..005` | - | - | `FIN-TXN-001` | §16.3 in full | `PAY-AMT-001/002` | `UX-MOB-001` |
+| Refunds | `PAT-CANCEL-001..003` | - | `HOS-MONEY-001` | `ADM-SESS-004` | `FIN-REF-001..004` | - | - |
+| Sessions lifecycle | `PAT-SESS-001..006` | `THR-SESS-001..008` | - | `ADM-SESS-001..004`, `ADM-SCHED-001` | `FIN-SUM-002` | `THR-SEC-002` | `UX-MOB-002` |
+| Availability / roster | - | `THR-AVAIL-001..008` | - | `ADM-ROST-001..005` | - | `THR-SEC-001`, `ADM-ROST-005` | - |
+| Health profile | `PAT-HP-001..005` | `THR-HP-001..006` | `HOS-SEC-002` | `ADM-PEOP-004`, `ADM-SET-020` | - | `SEC-DATA-001` | `UX-MOB-004` |
+| Documents | `PAT-DOC-001..003` | (read) | `HOS-SEC-002` | (read) | - | `SEC-DATA-004` | `UX-MOB-003` |
+| Care plans | `PAT-CARE-001..004`, `PAT-SCHED-001..003` | `THR-CARE-001..008` | - | `ADM-CARE-001..008` | `PAY-AMT-002` | `THR-CARE-002` | - |
+| Suggested sessions | `PAT-SUGG-001..005` | `THR-SUGG-001..002` | - | `ADM-SET-018` | - | `PAT-SUGG-004` | - |
+| Session credits | `PAT-PKG-001..004` | (view) | - | `ADM-CAT-014/015`, `ADM-SET-019` | `FIN-REF-004` | `SEC-TAMPER-003`, `PAY-CONC-001` | - |
+| Referrals | `HOS-REF-006` | - | `HOS-REF-001..007` | `ADM-PEOP-008` | `HOS-MONEY-001..003` | `HOS-SEC-001` | - |
+| Earnings / payouts | - | `THR-EARN-001..004` | `HOS-MONEY-001..003` | `FIN-PAY-001..006` | `FIN-PAY-001..006` | `SEC-ADMIN-001` | - |
+| Catalog | (reads) | (reads) | - | `ADM-CAT-001..015` | `ADM-CAT-006` | `ADM-SET-028` | `UX-MOB-005` |
+| Settings | - | - | - | `ADM-SET-001..035` | `FIN-COST-002` | `ADM-SET-025..028` | - |
+| Contact controls | `THR-LEAK-005` | `THR-LEAK-001..007`, `THR-SESS-003/004` | - | `ADM-SET-029` | - | `SEC-DATA-005` | - |
+| Risk | - | - | - | `ADM-RISK-001..004` | - | `ADM-RISK-003`, `ADM-RISK-004` | - |
+| Audit log | - | - | - | `ADM-SET-033` | `XR-PAYOUT-001` | `ADM-SET-033` | - |
+| Public site | `PUB-*` | - | `HOS-LEAD-001` | `ADM-SET-004..008` | - | `SEC-ROUTE-004` | `UX-MOB-001` |
+| Debug bar | `DBG-TIME-001` | - | - | `SETUP-RESET-001..003`, `DBG-NAV-001` | - | `SETUP-RESET-002/003` | - |
 
 ### 24.2 Route coverage
 
@@ -188,7 +188,7 @@ Every route in §3 is mapped to at least one test in its own table's rightmost c
 
 ### 24.3 Admin screen coverage
 
-All **31** screens have at least one dedicated test — see the §3.6 table. Every screen with a mutating control also has a negative and an authorization test.
+All **31** screens have at least one dedicated test - see the §3.6 table. Every screen with a mutating control also has a negative and an authorization test.
 
 ### 24.4 Configuration coverage
 
@@ -221,7 +221,7 @@ Every protected action has both an authorized case and an unauthorized one. The 
 | Item | Why | What to do instead |
 | --- | --- | --- |
 | Real email delivery | All fixtures use the reserved `.test` TLD, and the product sends no transactional email of its own (the Google Calendar invite is the only outbound notification) | Verify the request succeeded and the reset landing page renders |
-| Google Calendar/Meet against a real calendar | Needs live Google credentials and a real calendar | Test the **failure and retry** path instead (`ADM-SESS-003`) — that is the behaviour that matters |
+| Google Calendar/Meet against a real calendar | Needs live Google credentials and a real calendar | Test the **failure and retry** path instead (`ADM-SESS-003`) - that is the behaviour that matters |
 | Live Razorpay settlement, chargebacks, real bank refunds | Test mode does not settle | Verify the local state transitions and the gateway's own test dashboard |
 | Server-clock-dependent gates under simulation | The simulated clock is client-side only, by design | Use real near-future slots (§7.2) |
 | `next start` ISR behaviour matching fixtures | Public pages cache for 300 s | Run against `next dev`; if you must use `next start`, wait out or trigger revalidation |
@@ -233,7 +233,7 @@ Every protected action has both an authorized case and an unauthorized one. The 
 
 ## 25. Questions and clarifications before execution
 
-These are **product decisions**, not gaps in the inspection. In each case the code's current behaviour is established and stated, and the test asserts exactly that behaviour — but whether it is the *intended* behaviour is a call only the product owner can make. Confirm each before executing the affected tests; if a decision changes the answer, the named test changes with it. **Nothing here is invented behaviour.**
+These are **product decisions**, not gaps in the inspection. In each case the code's current behaviour is established and stated, and the test asserts exactly that behaviour - but whether it is the *intended* behaviour is a call only the product owner can make. Confirm each before executing the affected tests; if a decision changes the answer, the named test changes with it. **Nothing here is invented behaviour.**
 
 1. **Duplicate referral prevention (affects `HOS-REF-003`).** Established from the schema: `patient_referrals` carries **no uniqueness constraint** on hospital + patient name, so a hospital that genuinely re-types the same referral creates a **second row**. Only the double-tap case is defended, by the form's own submit guard. **Decision needed:** is a genuine re-submission meant to be blocked at the database, de-duplicated on the admin's side, or simply left visible in the queue for a human to decline? The test currently asserts the last of these, because that is what the code does today.
 
@@ -245,7 +245,7 @@ These are **product decisions**, not gaps in the inspection. In each case the co
 
 5. **`plan_conversion_low` and `post_consultation_dropout` (affects `ADM-RISK-001`).** Both ship **disabled** because a threshold invented before the clinic has a baseline fires on everyone or on nobody. **Question:** should this release enable them with a provisional threshold, or leave them off? The tests currently assert they are off.
 
-6. **Refund of a partially delivered home-visit package (affects `FIN-REF-004`).** The session-package rule ("void what is available, never what is consumed") is explicit. The equivalent for a **cash** home-visit package, where no online payment exists to reverse, resolves to `manual_pending`. **Question:** confirm the intended split when a cash home-visit package is partly delivered — how much is expected back at the door?
+6. **Refund of a partially delivered home-visit package (affects `FIN-REF-004`).** The session-package rule ("void what is available, never what is consumed") is explicit. The equivalent for a **cash** home-visit package, where no online payment exists to reverse, resolves to `manual_pending`. **Question:** confirm the intended split when a cash home-visit package is partly delivered - how much is expected back at the door?
 
 7. **Reassigning a programme's therapist mid-course (affects `ADM-CAT-014`).** Reassignment touches **future** sessions only. **Question:** should the patient be notified, and if so through which surface? The plan currently asserts only the data outcome.
 
@@ -282,11 +282,11 @@ Additional notes:
 
 **Before filing, rule out these five known-correct behaviours:**
 
-1. A booking refused as a clash on a **second consecutive run** — leftover state, not a bug.
-2. A **server-side** time gate refusing an action under a simulated clock — the simulation is client-side by design.
-3. A fixture missing from a **public page under `next start`** — ISR caches for 300 seconds.
-4. A `?therapist=` chip missing in a **network-isolated sandbox** — the browser needs egress.
-5. `/home-visit` returning **404** while the master switch is off — that is the feature.
+1. A booking refused as a clash on a **second consecutive run** - leftover state, not a bug.
+2. A **server-side** time gate refusing an action under a simulated clock - the simulation is client-side by design.
+3. A fixture missing from a **public page under `next start`** - ISR caches for 300 seconds.
+4. A `?therapist=` chip missing in a **network-isolated sandbox** - the browser needs egress.
+5. `/home-visit` returning **404** while the master switch is off - that is the feature.
 
 ---
 
@@ -306,7 +306,7 @@ Sign off each line before release.
 - [ ] At least two `full`-scope admins exist
 
 **Pre-launch removals**
-- [ ] **The Debug Bar is deleted** — not merely switched off. It is a public flag, and the bar names `/admin/login` and `/admin/dashboard`
+- [ ] **The Debug Bar is deleted** - not merely switched off. It is a public flag, and the bar names `/admin/login` and `/admin/dashboard`
 - [ ] The five seeded testimonials are replaced with real, consented ones, or removed
 - [ ] Stock photography under `public/photos/` is replaced with the clinic's own, keeping the aspect ratios
 
@@ -334,4 +334,4 @@ Sign off each line before release.
 - [ ] Every dashboard offers **Back to Home** in all three sidebar renders
 
 **Documentation**
-- [ ] `README.md`, `AGENTS.md` and `CLAUDE.md` describe the shipped behaviour — routes, roles, environment variables, npm scripts, and every documented rule (booking lead time, refund window, payment verification, Meet sync, payout maths)
+- [ ] `README.md`, `AGENTS.md` and `CLAUDE.md` describe the shipped behaviour - routes, roles, environment variables, npm scripts, and every documented rule (booking lead time, refund window, payment verification, Meet sync, payout maths)

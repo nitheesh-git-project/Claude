@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeNetPayout } from "@/lib/therapistCashLedger";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // "online" here means the admin already sent the money themselves (UPI,
 // bank transfer) outside the platform and is logging it after the fact --
@@ -18,7 +19,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { therapistId, method, note } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    therapistId?: string;
+    method?: string;
+    note?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { therapistId, method, note } = body;
   if (!therapistId || !method) {
     return NextResponse.json(
       { error: "Missing therapistId or method" },
@@ -27,7 +34,7 @@ export async function POST(request: NextRequest) {
   }
   if (!IMPLEMENTED_METHODS.includes(method)) {
     return NextResponse.json(
-      { error: "Online payouts aren't available yet — use cash for now." },
+      { error: "Online payouts aren't available yet - use cash for now." },
       { status: 400 }
     );
   }
@@ -51,7 +58,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // status: 'completed' matters, not just payment_status: 'paid' — a
+  // status: 'completed' matters, not just payment_status: 'paid' - a
   // still-upcoming session that happens to already be paid for hasn't been
   // delivered yet, and settling its payout early would then block the
   // patient from cancelling/refunding it (cancelAppointmentAndRefund
@@ -124,13 +131,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Atomic per-row claim, same pattern as cancelAppointmentAndRefund and
-  // complete-session — the plain unconditional update this used to be let
+  // complete-session - the plain unconditional update this used to be let
   // two concurrent settle requests (two admins, or one admin with two open
   // tabs) both read the same unsettled set and both write payout data for
   // it. Both would then report "settled ₹X" back to their respective
   // admins, and since this route's whole point is telling an admin how
   // much *cash* to physically hand the therapist, that means real money
-  // paid out twice for the same sessions — with no trace afterward, since
+  // paid out twice for the same sessions - with no trace afterward, since
   // the second write just silently overwrote the first's record.
   // Guarding the write on therapist_payout_paid_at still being null closes
   // that: a losing claim settles nothing, and the response reflects
@@ -177,7 +184,7 @@ export async function POST(request: NextRequest) {
     // comment for why that's an accepted, harmless no-op rather than
     // something worth an extra round trip to clean up.
     return NextResponse.json(
-      { error: "This payout was already settled — please refresh." },
+      { error: "This payout was already settled - please refresh." },
       { status: 409 }
     );
   }
@@ -191,7 +198,7 @@ export async function POST(request: NextRequest) {
   // money the therapist has, in effect, already taken at the door.
   const noteWithCashContext =
     net.cashHeldPaise > 0
-      ? `${note ? `${note} — ` : ""}Gross owed ₹${(grossSettledPaise / 100).toLocaleString(
+      ? `${note ? `${note} - ` : ""}Gross owed ₹${(grossSettledPaise / 100).toLocaleString(
           "en-IN"
         )}, netted against ₹${(net.cashHeldPaise / 100).toLocaleString(
           "en-IN"
@@ -240,7 +247,7 @@ export async function POST(request: NextRequest) {
       .is("cash_remitted_at", null);
     if (remitError) {
       console.error(
-        "Payout settled but cash could not be marked remitted — reconcile by hand",
+        "Payout settled but cash could not be marked remitted - reconcile by hand",
         { batchId: batch.id, therapistId, cashHeldIds },
         remitError
       );
@@ -270,7 +277,7 @@ export async function POST(request: NextRequest) {
 
   // The client's confirm dialog shows the balance as of page load, which
   // can be stale by the time this actually runs (e.g. a new payment landed,
-  // or a concurrent request already claimed some of these sessions) — this
+  // or a concurrent request already claimed some of these sessions) - this
   // route reports back only what THIS request genuinely claimed, not an
   // echo of what the client asked for.
   return NextResponse.json({

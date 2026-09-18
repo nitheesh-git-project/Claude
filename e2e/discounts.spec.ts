@@ -185,7 +185,7 @@ test.describe("Acquisition discounts", () => {
     await ctx.dispose();
   });
 
-  test("DSC-004: a paid session cannot be discounted — that is a refund", async () => {
+  test("DSC-004: a paid session cannot be discounted - that is a refund", async () => {
     const appointmentId = await freshBooking();
     await admin
       .from("appointments")

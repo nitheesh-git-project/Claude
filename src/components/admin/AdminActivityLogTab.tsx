@@ -107,8 +107,8 @@ export default function AdminActivityLogTab({
           <h2 className="font-display font-bold text-lg text-slate-800">Activity Log</h2>
           <p className="mt-1 text-xs text-slate-500">
             {scopeNote
-              ? "Every action your desk took from this dashboard. Append-only — nothing here can be edited."
-              : "Every action an admin took from this dashboard. Append-only — nothing here can be edited."}
+              ? "Every action your desk took from this dashboard. Append-only - nothing here can be edited."
+              : "Every action an admin took from this dashboard. Append-only - nothing here can be edited."}
           </p>
           {scopeNote && (
             <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
@@ -132,6 +132,7 @@ export default function AdminActivityLogTab({
 
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
         <select
+          aria-label="Filter by admin"
           value={actorFilter}
           onChange={(e) => setActorFilter(e.target.value)}
           className="rounded-lg border border-slate-300 bg-white p-2 text-xs"
@@ -169,7 +170,7 @@ export default function AdminActivityLogTab({
           />
           Money only
         </label>
-        <span className="ml-auto text-[11px] text-slate-400">
+        <span className="ml-auto text-[11px] text-slate-500">
           {filtered.length} of {rows.length}
         </span>
       </div>
@@ -218,11 +219,11 @@ export default function AdminActivityLogTab({
                       )}
                     </span>
                   </td>
-                  <td className="py-2 pr-3 text-slate-500">{r.targetLabel ?? "—"}</td>
+                  <td className="py-2 pr-3 text-slate-500">{r.targetLabel ?? "-"}</td>
                   <td className="whitespace-nowrap py-2 pr-3 text-right font-semibold tabular-nums text-slate-800">
                     {r.amountPaise != null
                       ? `₹${(r.amountPaise / 100).toLocaleString("en-IN")}`
-                      : "—"}
+                      : "-"}
                   </td>
                 </tr>
               ))}

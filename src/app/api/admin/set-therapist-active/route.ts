@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { revokeAllSessions, SESSION_REVOKE_WARNING } from "@/lib/supabase/revokeSessions";
 import { revalidatePath } from "next/cache";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -10,7 +12,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { therapistId, active } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    therapistId?: string;
+    active?: boolean;
+  }>(request);
+  if (parseError) return parseError;
+  const { therapistId, active } = body;
   if (!therapistId || typeof active !== "boolean") {
     return NextResponse.json(
       { error: "Missing therapistId or active" },
@@ -42,11 +49,25 @@ export async function POST(request: NextRequest) {
   // public page renders must invalidate that page.
   revalidatePath("/team");
 
+  // Suspending writes `active = false`, which src/proxy.ts and
+  // requireActiveProfile both refuse on -- but those are this app, and a
+  // session cookie reaches PostgREST without passing either. An account
+  // that has been suspended must not still be signed in anywhere.
+  let sessionsRevoked = true;
+  if (!active) {
+    const revoke = await revokeAllSessions(admin, therapistId);
+    sessionsRevoked = revoke.revoked;
+  }
+
   await recordAdminActivity(admin, adminUser.id, {
     action: "account.set_active",
     targetId: therapistId,
-    details: { role: "therapist", active },
+    details: { role: "therapist", active, sessionsRevoked },
   });
 
-  return NextResponse.json({ success: true, active });
+  return NextResponse.json({
+    success: true,
+    active,
+    ...(sessionsRevoked ? {} : { warning: SESSION_REVOKE_WARNING }),
+  });
 }

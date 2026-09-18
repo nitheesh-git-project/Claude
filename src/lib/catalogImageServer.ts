@@ -7,8 +7,8 @@ import { clampFocal } from "@/lib/catalogImage";
  * `image_focal_x` / `image_focal_y` are the newest columns on the three
  * catalog tables, so they follow the same rule `treatment_categories.specialty`
  * does: written in an isolated call rather than folded into the row above it.
- * A database one apply behind would otherwise refuse the *entire* edit —
- * price, title, everything — rather than losing one optional position, and an
+ * A database one apply behind would otherwise refuse the *entire* edit -
+ * price, title, everything - rather than losing one optional position, and an
  * admin would be told their catalogue could not be saved with nothing on
  * screen explaining why.
  *
@@ -32,6 +32,6 @@ export async function writeCatalogFocal(
       })
       .eq("id", rowId);
   } catch {
-    // Swallowed on purpose — see above.
+    // Swallowed on purpose - see above.
   }
 }

@@ -3,6 +3,7 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import TreatmentCategoryForm from "./TreatmentCategoryForm";
+import { countFeatured, FEATURED_LIMIT } from "@/lib/catalogFeatured";
 import { useConfirm } from "@/lib/useConfirm";
 import { isOrderChanged, moveIdOnePlace } from "@/lib/listOrdering";
 import Modal from "@/components/admin/Modal";
@@ -12,6 +13,7 @@ type Category = {
   title: string;
   description: string | null;
   image_url: string | null;
+  featured?: boolean | null;
   points: string[];
   price_paise: number;
   duration_minutes: number;
@@ -226,7 +228,7 @@ export default function TreatmentCategoryManager({
   }
 
   // Always append at the very end (max existing order + 1) rather than
-  // source.display_order + 1 — the latter can collide with whatever category
+  // source.display_order + 1 - the latter can collide with whatever category
   // already occupies that number.
   const nextDisplayOrder =
     categories.reduce((max, c) => Math.max(max, c.display_order), 0) + 1;
@@ -241,8 +243,23 @@ export default function TreatmentCategoryManager({
     setDuplicateFrom(null);
   }
 
+  // Says where the four come from, at the screen that sets them. Without
+  // it, an admin who ticks six sees four on the live site and has no way to
+  // tell whether the other two failed to save.
+  const featuredCount = countFeatured(categories);
+
   return (
     <div className="space-y-3">
+      <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+        The home page leads with{" "}
+        <strong className="font-semibold">{FEATURED_LIMIT} conditions</strong> and links
+        to the full list on /conditions.{" "}
+        {featuredCount === 0
+          ? "None are ticked, so it shows the first four in this order."
+          : featuredCount <= FEATURED_LIMIT
+            ? `${featuredCount} ticked.`
+            : `${featuredCount} ticked - the first ${FEATURED_LIMIT} in this order are the ones shown.`}
+      </p>
       {moveError && (
         <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
           {moveError}
@@ -250,7 +267,7 @@ export default function TreatmentCategoryManager({
       )}
       {visibleCategories.length === 0 && !addingNew ? (
         <p className="text-xs text-slate-500 py-4 text-center">
-          No condition categories yet — add one below.
+          No condition categories yet - add one below.
         </p>
       ) : (
         <ul className="space-y-3">
@@ -286,7 +303,7 @@ export default function TreatmentCategoryManager({
                     className={`font-semibold px-2.5 py-1 rounded-full ${
                       cat.active
                         ? "text-teal-700 bg-teal-50"
-                        : "text-slate-500 bg-slate-100"
+                        : "text-slate-600 bg-slate-100"
                     }`}
                   >
                     {cat.active ? "Active" : "Inactive"}
@@ -343,7 +360,7 @@ export default function TreatmentCategoryManager({
           {isDirty && !isSavePending && (
             <>
               <span className="text-[11px] font-semibold text-amber-700">
-                Not saved yet — the public pages still show the old order.
+                Not saved yet - the public pages still show the old order.
               </span>
               <button
                 onClick={discardOrder}
@@ -355,7 +372,7 @@ export default function TreatmentCategoryManager({
           )}
           {savedNotice && !isDirty && !isSavePending && (
             <span className="text-[11px] font-semibold text-teal-700">
-              Order saved — live on the site.
+              Order saved - live on the site.
             </span>
           )}
         </div>

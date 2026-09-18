@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // Excludes (or re-includes) one side's rating on one session from every
 // computed average, without touching the rating or feedback text itself --
@@ -14,7 +15,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { appointmentId, role, excluded } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    appointmentId?: string;
+    role?: string;
+    excluded?: unknown;
+  }>(request);
+  if (parseError) return parseError;
+  const { appointmentId, role, excluded } = body;
   if (!appointmentId || (role !== "patient" && role !== "therapist") || typeof excluded !== "boolean") {
     return NextResponse.json(
       { error: "Missing appointmentId, invalid role, or missing excluded" },

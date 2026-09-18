@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 
 type Step = {
-  targetId?: string; // DOM id (see DashboardShell's `nav-${item.id}`) — omitted for the intro step
+  targetId?: string; // DOM id (see DashboardShell's `nav-${item.id}`) - omitted for the intro step
   title: string;
   body: string;
   ctaHref?: string; // optional direct link out of the tour, for a step worth acting on right away
@@ -14,7 +14,7 @@ type Step = {
 const STEPS: Step[] = [
   {
     title: "Welcome to your dashboard",
-    body: "A quick tour of what's here — Skip anytime, this only shows once.",
+    body: "A quick tour of what's here - Skip anytime, this only shows once.",
   },
   { targetId: "nav-sessions", title: "Your Sessions", body: "Book, join, and review your appointments." },
   {
@@ -25,7 +25,7 @@ const STEPS: Step[] = [
   {
     targetId: "nav-health-profile",
     title: "Health Profile",
-    body: "Your condition, your therapist's findings, and any scans you upload — all in one place.",
+    body: "Your condition, your therapist's findings, and any scans you upload - all in one place.",
     ctaHref: "/patient/dashboard/health-profile",
     ctaLabel: "Fill it in now",
   },
@@ -34,7 +34,7 @@ const STEPS: Step[] = [
 
 type Rect = { top: number; left: number; width: number; height: number };
 
-// Guided spotlight tour on a patient's first dashboard visit — steps
+// Guided spotlight tour on a patient's first dashboard visit - steps
 // through the actual sidebar nav items (see DashboardShell's `nav-${id}`
 // ids) rather than a static "here's what's here" list. Skippable at any
 // point (see the onboarding product decision); dismissing either way marks
@@ -57,7 +57,7 @@ export default function OnboardingTour({
   const router = useRouter();
 
   // Starts as the full list so server and client render the same thing on
-  // first hydration (no document access here) — the effect below narrows
+  // first hydration (no document access here) - the effect below narrows
   // it to only steps whose target actually exists right now (a new
   // patient might not have a programme yet, so "Your Programmes" may not
   // be in the sidebar at all) in a normal post-mount client update.

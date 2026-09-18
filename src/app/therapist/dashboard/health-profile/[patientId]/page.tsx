@@ -55,11 +55,11 @@ export default async function TherapistPatientHealthProfilePage({
 
   // Reads rely on RLS (condition_profiles_select_assigned_therapist /
   // pain_assessments_select_assigned_therapist in schema.sql) rather than
-  // an app-level role check — a row coming back at all is the
+  // an app-level role check - a row coming back at all is the
   // authorization, same reasoning as /api/packages/purchase-detail. The
   // one exception is the patient's own profile row (name/email): profiles
   // has no RLS policy letting a therapist read a *patient's* row directly
-  // (only their own, or admin — same gap the main therapist dashboard's
+  // (only their own, or admin - same gap the main therapist dashboard's
   // appointment-patient lookup already works around via the admin
   // client), so that one lookup is admin-client + an explicit
   // isTherapistAssignedToPatient gate below instead of relying on RLS.
@@ -172,7 +172,7 @@ export default async function TherapistPatientHealthProfilePage({
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
   const currentData = (conditionProfile?.data ?? {}) as Record<string, string>;
   // Same resume-priority behavior as the patient's own Health Profile
-  // page — see that page's comment.
+  // page - see that page's comment.
   const draftData = (conditionProfile?.draft_data ?? null) as Record<string, string> | null;
   const hasDraft = !!draftData && Object.values(draftData).some(Boolean);
   const formInitialData = hasDraft
@@ -185,8 +185,8 @@ export default async function TherapistPatientHealthProfilePage({
   // Editing the intake is editing the patient's own account of their
   // history, so it still queues behind an admin-approved grant. Recording a
   // Pain Map exam is the therapist's own observation from a session they
-  // ran — the same thing a session note is, and session notes have never
-  // needed a grant — so being assigned to the patient is the whole
+  // ran - the same thing a session note is, and session notes have never
+  // needed a grant - so being assigned to the patient is the whole
   // requirement. Reaching this page at all already means assigned, but the
   // flag is passed explicitly rather than assumed.
   const canEditIntake = grant?.status === "approved";
@@ -262,7 +262,7 @@ export default async function TherapistPatientHealthProfilePage({
         <SurfaceCard
           title="Test reports and scans"
           icon="fa-folder-open"
-          subtitle="Uploaded by the patient. Worth opening before the session — these are the films and results another clinician has already taken."
+          subtitle="Uploaded by the patient. Worth opening before the session - these are the films and results another clinician has already taken."
         >
           <MedicalDocumentsPanel
             documents={(medicalDocuments ?? []) as MedicalDocumentRow[]}
@@ -274,7 +274,7 @@ export default async function TherapistPatientHealthProfilePage({
         <SurfaceCard
           title="Session notes"
           icon="fa-file-lines"
-          subtitle="What was treated, how they responded, and the plan — written after each session. Only you and the clinic's admin can read this; the patient never sees it."
+          subtitle="What was treated, how they responded, and the plan - written after each session. Only you and the clinic's admin can read this; the patient never sees it."
         >
           <SessionNoteHistory
             notes={notes}
@@ -346,7 +346,7 @@ export default async function TherapistPatientHealthProfilePage({
               currentData={currentData}
               formInitialData={formInitialData}
               locked={status === "pending_review"}
-              lockedMessage="A submission for this patient is already waiting on admin review — one at a time."
+              lockedMessage="A submission for this patient is already waiting on admin review - one at a time."
             />
           ) : (
             // Read-only until an access grant is approved -- the same
@@ -386,7 +386,7 @@ export default async function TherapistPatientHealthProfilePage({
               <p className="mt-1 text-xs text-slate-500">
                 These are the patient&apos;s own words about their history, so editing them on their
                 behalf needs an admin to approve it first. Recording your own exam findings does
-                not, and neither does changing the condition type — those are your clinical
+                not, and neither does changing the condition type - those are your clinical
                 judgement from a session you ran.
               </p>
               {(!grant || grant.status === "declined" || grant.status === "revoked") && (

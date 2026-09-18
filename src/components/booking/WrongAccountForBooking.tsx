@@ -50,7 +50,7 @@ const COPY: Record<
   hospital: {
     label: "a hospital partner",
     noun: "hospital partner",
-    body: "Partners don't book sessions directly — you refer a patient and we take it from there, or share your referral code so they can book themselves.",
+    body: "Partners don't book sessions directly - you refer a patient and we take it from there, or share your referral code so they can book themselves.",
     action: {
       href: "/dashboard?hash=refer",
       label: "Refer a patient",
@@ -60,7 +60,7 @@ const COPY: Record<
   admin: {
     label: "an admin",
     noun: "admin",
-    body: "To book for a patient, use New Booking under Sessions in the dashboard — it books on their behalf and can override the lead time. Finance access reads sessions without changing them, so it books through a colleague instead.",
+    body: "To book for a patient, use New Booking under Sessions in the dashboard - it books on their behalf and can override the lead time. Finance access reads sessions without changing them, so it books through a colleague instead.",
     action: {
       // The tab as well as the section. Without it `findTab` resolves to the
       // section's first screen -- the Schedule calendar -- so the one button
@@ -144,7 +144,7 @@ export default function WrongAccountForBooking({
             drops the whitespace either side of the interpolation here, which
             rendered as "your therapistsession". */}
         <span>
-          {`Signing out ends your ${copy.noun} session — you'll need to log back in to return to it.`}
+          {`Signing out ends your ${copy.noun} session - you'll need to log back in to return to it.`}
         </span>
       </p>
     </div>

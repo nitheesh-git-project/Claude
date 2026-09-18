@@ -206,7 +206,7 @@ export function applyGoodwillDiscount(
   // deliberately. The standing offer is a configuration value, so a
   // misconfigured 100%-off is floored to the minimum charge rather than
   // breaking checkout. A goodwill amount is a number a person typed into a
-  // box with the session's price on screen beside it — so an amount larger
+  // box with the session's price on screen beside it - so an amount larger
   // than the price is a typo (2400 for 240), and quietly charging ₹1
   // because of it is far worse than saying no.
   if (Math.floor(goodwillPaise) >= listPricePaise) return none;
@@ -294,7 +294,7 @@ export function describeDiscount(
 ): string | null {
   if (!source || discountPaise <= 0) return null;
   const rupees = `₹${(discountPaise / 100).toLocaleString("en-IN")}`;
-  return `${DISCOUNT_SOURCE_LABELS[source]} — ${rupees} off`;
+  return `${DISCOUNT_SOURCE_LABELS[source]} - ${rupees} off`;
 }
 
 /**

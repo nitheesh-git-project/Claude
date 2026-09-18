@@ -4,6 +4,8 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { writeCatalogFocal } from "@/lib/catalogImageServer";
+import { writeCatalogFeatured } from "@/lib/catalogFeaturedServer";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -11,19 +13,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const {
-    title,
-    description,
-    imageUrl,
-    imageFocalX,
-    imageFocalY,
-    points,
-    priceInr,
-    durationMinutes,
-    ctaLabel,
-    specialty,
-    displayOrder,
-  } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    title?: string;
+    description?: string;
+    imageUrl?: string;
+    imageFocalX?: number;
+    imageFocalY?: number;
+    featured?: boolean;
+    points?: unknown;
+    priceInr?: number;
+    durationMinutes?: number;
+    ctaLabel?: string;
+    specialty?: unknown;
+    displayOrder?: number;
+  }>(request);
+  if (parseError) return parseError;
+  const { title, description, imageUrl, imageFocalX, imageFocalY, featured, points, priceInr, durationMinutes, ctaLabel, specialty, displayOrder } = body;
 
   if (!title || priceInr === undefined || durationMinutes === undefined) {
     return NextResponse.json(
@@ -78,6 +83,7 @@ export async function POST(request: NextRequest) {
 
   await writeSpecialty(admin, data.id, specialty);
   await writeCatalogFocal(admin, "treatment_categories", data.id, imageFocalX, imageFocalY);
+  await writeCatalogFeatured(admin, "treatment_categories", data.id, featured);
 
   // Catalog rows decide what is sold and at what price, so every
   // create/update/delete belongs in the same log every other admin

@@ -45,7 +45,7 @@ const SOLUTION = [
   {
     icon: "fa-chart-line",
     title: "Progress reported back",
-    body: "Range of motion, adherence, milestones — sent to you.",
+    body: "Range of motion, adherence, milestones - sent to you.",
   },
   {
     icon: "fa-earth-asia",

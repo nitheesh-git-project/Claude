@@ -10,7 +10,7 @@ const RESPONSE_TONE: Record<string, string> = {
 };
 
 /**
- * A patient's session notes, newest first — the prep material a therapist
+ * A patient's session notes, newest first - the prep material a therapist
  * reads before the next visit, and what an admin sees when auditing care.
  *
  * Read-only and clinician-only. This component must never be rendered on
@@ -69,7 +69,7 @@ export default function SessionNoteHistory({
                   <StatusPill tone={RESPONSE_TONE[response] ?? "neutral"}>{response}</StatusPill>
                 )}
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500">
                 {therapistNameById?.get(note.therapist_id) ?? "Therapist"}
                 {note.updated_at ? " · edited" : ""}
               </p>
@@ -81,7 +81,7 @@ export default function SessionNoteHistory({
                 if (!value) return null;
                 return (
                   <div key={field.key}>
-                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                       {field.shortLabel}
                     </dt>
                     <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-700">{value}</dd>
@@ -90,7 +90,7 @@ export default function SessionNoteHistory({
               })}
               {note.free_text && (
                 <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Notes
                   </dt>
                   <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-700">{note.free_text}</dd>

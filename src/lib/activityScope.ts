@@ -106,6 +106,12 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "cash.mark_refund_returned": "money",
   "expense.create": "money",
   "expense.delete": "money",
+  "finance.investment_save": "money",
+  "finance.investment_delete": "money",
+  "finance.campaign_save": "money",
+  "finance.campaign_delete": "money",
+  "finance.balance_save": "money",
+  "finance.balance_delete": "money",
   "promo.create": "money",
   "promo.update": "money",
   "promo.delete": "money",
@@ -130,6 +136,10 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
 
   // settings
   "setting.update": "settings",
+  "mission_principle.create": "settings",
+  "mission_principle.update": "settings",
+  "mission_principle.delete": "settings",
+  "mission_principle.reorder": "settings",
   "session.open_meet_access": "settings",
   "session.retry_meet_sync": "settings",
   "clinical_questions.update_intake": "settings",

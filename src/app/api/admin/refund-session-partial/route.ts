@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Another refund on this session landed first — nothing was refunded. Refresh and check what is still refundable.",
+          "Another refund on this session landed first - nothing was refunded. Refresh and check what is still refundable.",
       },
       { status: 409 }
     );
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
       );
     }
     return NextResponse.json(
-      { error: "Razorpay refused the refund. Nothing was refunded — check Razorpay and retry." },
+      { error: "Razorpay refused the refund. Nothing was refunded - check Razorpay and retry." },
       { status: 502 }
     );
   }

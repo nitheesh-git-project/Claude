@@ -35,7 +35,7 @@ const CARE_STATUS_LABELS: Record<string, string> = {
 };
 
 const CARE_STATUS_STYLES: Record<string, string> = {
-  not_started: "text-slate-500 bg-slate-100",
+  not_started: "text-slate-600 bg-slate-100",
   pending: "text-amber-700 bg-amber-100",
   approved: "text-teal-700 bg-teal-50",
   rejected: "text-red-700 bg-red-100",
@@ -109,8 +109,9 @@ export default function AdminPeopleDirectory({
     <div>
       <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+          <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
           <input
+            aria-label="Search people by name, email or ID"
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -119,6 +120,7 @@ export default function AdminPeopleDirectory({
           />
         </div>
         <select
+          aria-label="Filter by account status"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
@@ -130,6 +132,7 @@ export default function AdminPeopleDirectory({
         </select>
         {hasCareStatus && (
           <select
+            aria-label="Filter by care status"
             value={careFilter}
             onChange={(e) => setCareFilter(e.target.value)}
             className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
@@ -176,18 +179,18 @@ export default function AdminPeopleDirectory({
               {badge(p) && <span className="absolute top-2 right-2">{badge(p)}</span>}
               <AvatarThumbnail url={p.avatar_url} name={p.full_name ?? "U"} size={56} />
               <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">{p.full_name}</p>
-              {p.code && <p className="text-slate-400 text-[10px] font-mono">{p.code}</p>}
+              {p.code && <p className="text-slate-500 text-[10px] font-mono">{p.code}</p>}
               <p className="text-slate-500 text-[11px] line-clamp-1">{p.subtitle}</p>
               {p.careStatus && (
                 <span
                   className={`mt-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${
-                    CARE_STATUS_STYLES[p.careStatus] ?? "text-slate-500 bg-slate-100"
+                    CARE_STATUS_STYLES[p.careStatus] ?? "text-slate-600 bg-slate-100"
                   }`}
                 >
                   {CARE_STATUS_LABELS[p.careStatus] ?? p.careStatus}
                 </span>
               )}
-              <p className="text-slate-400 text-[10px] mt-1">Joined {formatIST(p.created_at)}</p>
+              <p className="text-slate-500 text-[10px] mt-1">Joined {formatIST(p.created_at)}</p>
             </Link>
           ))}
         </div>
@@ -206,7 +209,7 @@ export default function AdminPeopleDirectory({
             <tbody>
               {pageRows.map((p) => (
                 <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                  <td className="py-2 pr-3 text-slate-400 font-mono">{p.code ?? "—"}</td>
+                  <td className="py-2 pr-3 text-slate-500 font-mono">{p.code ?? "-"}</td>
                   <td className="py-2 pr-3">
                     <Link
                       href={`${basePath}/${p.id}`}
@@ -217,7 +220,7 @@ export default function AdminPeopleDirectory({
                     </Link>
                   </td>
                   <td className="py-2 pr-3 text-slate-500">{p.subtitle}</td>
-                  <td className="py-2 pr-3">{badge(p) ?? <span className="text-slate-400">Active</span>}</td>
+                  <td className="py-2 pr-3">{badge(p) ?? <span className="text-slate-500">Active</span>}</td>
                   <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{formatIST(p.created_at)}</td>
                 </tr>
               ))}

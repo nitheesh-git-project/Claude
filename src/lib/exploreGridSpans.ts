@@ -13,7 +13,7 @@
  * would land the gap somewhere else entirely.
  *
  * **Six columns at the large breakpoint, not three.** A tile normally spans
- * two of them, which is the same three-across layout — but it means a row
+ * two of them, which is the same three-across layout - but it means a row
  * with two tiles left over can give each of them half the row. In a literal
  * three-column grid those two would have to be 1.5 columns each, which is
  * not a thing, so the only options would be a gap or a full-width pair.

@@ -231,8 +231,8 @@ export default function AdminNewBookingTab({
               </option>
             ))}
           </select>
-          <p className="mt-1 text-[11px] text-slate-400">
-            A clash with the therapist&apos;s existing sessions is refused — the same check a
+          <p className="mt-1 text-[11px] text-slate-500">
+            A clash with the therapist&apos;s existing sessions is refused - the same check a
             patient&apos;s own booking goes through.
           </p>
         </div>
@@ -249,7 +249,7 @@ export default function AdminNewBookingTab({
                 className="mt-0.5"
               />
               <span>
-                <strong>Unpaid</strong> — the patient still owes for this session.
+                <strong>Unpaid</strong> - the patient still owes for this session.
               </span>
             </label>
             <label className="flex items-start gap-2 text-xs text-slate-700">
@@ -261,7 +261,7 @@ export default function AdminNewBookingTab({
                 className="mt-0.5"
               />
               <span>
-                <strong>Already paid offline</strong> — records{" "}
+                <strong>Already paid offline</strong> - records{" "}
                 {selectedCategory
                   ? `₹${(selectedCategory.price_paise / 100).toLocaleString("en-IN")}`
                   : "the category price"}{" "}
@@ -320,8 +320,8 @@ export default function AdminNewBookingTab({
           >
             {isPending ? "Booking…" : "Create booking"}
           </button>
-          <p className="text-[11px] text-slate-400">
-            Home visits need an address and a serviceable pincode — book those from the
+          <p className="text-[11px] text-slate-500">
+            Home visits need an address and a serviceable pincode - book those from the
             patient&apos;s own flow for now.
           </p>
         </div>

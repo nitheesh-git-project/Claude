@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -11,7 +12,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { therapistId, phone, email } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    therapistId?: string;
+    phone?: string;
+    email?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { therapistId, phone, email } = body;
   if (!therapistId || !email || !EMAIL_RE.test(email)) {
     return NextResponse.json(
       { error: "Missing therapistId or a valid email" },
@@ -32,7 +39,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Therapist not found" }, { status: 404 });
   }
 
-  // profiles.email is a copy for display/lookup — auth.users.email is what
+  // profiles.email is a copy for display/lookup - auth.users.email is what
   // actually gates sign-in, so both have to move together or the therapist
   // ends up locked out (dashboard shows their new email, but they can only
   // still log in with the old one).

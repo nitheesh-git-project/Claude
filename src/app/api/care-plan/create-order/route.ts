@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   // not a fake signup.
   if (!(await isProfileActive(user.id))) {
     return NextResponse.json(
-      { error: "Your account is not active — it may have been suspended." },
+      { error: "Your account is not active - it may have been suspended." },
       { status: 403 }
     );
   }

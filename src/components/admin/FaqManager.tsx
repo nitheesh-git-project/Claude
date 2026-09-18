@@ -89,7 +89,7 @@ export default function FaqManager({ faqs }: { faqs: Faq[] }) {
         />
       )}
       {faqs.length === 0 && !addingNew ? (
-        <p className="text-xs text-slate-500 py-4 text-center">No FAQs yet — add one below.</p>
+        <p className="text-xs text-slate-500 py-4 text-center">No FAQs yet - add one below.</p>
       ) : (
         <ul className="space-y-3">
           {pageFaqs.map((f) =>
@@ -103,7 +103,7 @@ export default function FaqManager({ faqs }: { faqs: Faq[] }) {
                   <p className="font-bold text-slate-900">{f.question}</p>
                   <span
                     className={`font-semibold px-2.5 py-1 rounded-full ${
-                      f.active ? "text-teal-700 bg-teal-50" : "text-slate-500 bg-slate-100"
+                      f.active ? "text-teal-700 bg-teal-50" : "text-slate-600 bg-slate-100"
                     }`}
                   >
                     {f.active ? "Active" : "Inactive"}
@@ -111,7 +111,7 @@ export default function FaqManager({ faqs }: { faqs: Faq[] }) {
                 </div>
                 <p className="text-slate-600 leading-relaxed">{f.answer}</p>
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                  <p className="text-slate-400">Order: {f.display_order}</p>
+                  <p className="text-slate-500">Order: {f.display_order}</p>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setEditingId(f.id)}

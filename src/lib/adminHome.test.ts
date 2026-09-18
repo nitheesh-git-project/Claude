@@ -112,7 +112,7 @@ describe("buildAdminHome", () => {
   it("says a balance it could not compute is missing rather than zero", () => {
     const home = buildAdminHome("finance", { ...BUSY, owedToTherapistsPaise: null });
     const owed = home.cells.find((c) => c.label === "Owed to therapists");
-    expect(owed?.value).toBe("—");
+    expect(owed?.value).toBe("-");
     // ...and not "₹0", which is a real answer meaning nothing is owed.
     expect(owed?.value).not.toBe("₹0");
   });
@@ -210,7 +210,7 @@ describe("orderQueueGroups", () => {
     expect(orderQueueGroups(GROUPS, "full")).toEqual(GROUPS);
   });
 
-  it("removes nothing — ordering is emphasis, not permission", () => {
+  it("removes nothing - ordering is emphasis, not permission", () => {
     // What a scope may work is the routes' decision. A UI that hid a
     // reachable queue would be a second permission model, disagreeing with
     // the first the day either one changes.

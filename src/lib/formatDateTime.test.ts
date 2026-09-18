@@ -44,9 +44,9 @@ describe("clinic time", () => {
   // screen.
   it("renders a dash for anything it cannot read", () => {
     for (const bad of [null, undefined, "", "not a date"]) {
-      expect(formatClinicDate(bad)).toBe("—");
-      expect(formatClinicDateTime(bad)).toBe("—");
-      expect(formatClinicTime(bad)).toBe("—");
+      expect(formatClinicDate(bad)).toBe("-");
+      expect(formatClinicDateTime(bad)).toBe("-");
+      expect(formatClinicTime(bad)).toBe("-");
     }
   });
 

@@ -110,7 +110,7 @@ export default function GetStartedPage() {
             Which of these is you?
           </h1>
           <p className="mt-4 text-base text-slate-600">
-            Four ways into the platform — pick the one that matches where you
+            Four ways into the platform - pick the one that matches where you
             are right now.
           </p>
         </Reveal>

@@ -13,13 +13,13 @@ import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 export const metadata: Metadata = {
   title: "Our Team | Dr. Pooja's Physio",
   description:
-    "Meet the licensed physiotherapists who deliver every session — tap a profile to read their background and request them for your booking.",
+    "Meet the licensed physiotherapists who deliver every session - tap a profile to read their background and request them for your booking.",
 };
 
-// No per-user content on this page — cache and revalidate on a timer
+// No per-user content on this page - cache and revalidate on a timer
 // instead of hitting Supabase on every single visit. Reads from the
 // public_therapist_profiles view, which already excludes anything
-// non-public (email, phone, etc.) — see schema.sql.
+// non-public (email, phone, etc.) - see schema.sql.
 export const revalidate = 300;
 
 // languages/public_display_note are new/migration-dependent columns on the
@@ -105,7 +105,7 @@ export default async function TeamPage() {
       >
         {!therapists || therapists.length === 0 ? (
           <p className="py-12 text-center text-sm text-slate-500">
-            Our specialist roster is being updated — check back shortly.
+            Our specialist roster is being updated - check back shortly.
           </p>
         ) : (
           <TeamTherapistPopup therapists={therapists} />

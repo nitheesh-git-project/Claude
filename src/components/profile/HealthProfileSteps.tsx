@@ -45,7 +45,7 @@ const STEP_THREE_BY_SPECIALTY: Record<ConditionSpecialty, Step> = {
   neuro: {
     icon: "fa-notes-medical",
     title: "Your therapist tracks your progress",
-    body: "How much you can manage on your own is re-asked over time — that is the line you will watch move.",
+    body: "How much you can manage on your own is re-asked over time - that is the line you will watch move.",
   },
   pediatrics: {
     icon: "fa-child-reaching",
@@ -79,7 +79,7 @@ export default function HealthProfileSteps({
               <span className="font-semibold text-slate-700">
                 {index + 1}. {step.title}
               </span>{" "}
-              — {step.body}
+              - {step.body}
             </li>
           ))}
         </ol>

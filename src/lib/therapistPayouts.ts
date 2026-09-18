@@ -1,8 +1,8 @@
-// Pure aggregation for the admin Payouts tab — kept separate from
+// Pure aggregation for the admin Payouts tab - kept separate from
 // AdminPayoutsTab.tsx so the math can be unit-tested without rendering,
 // matching adminMetrics.ts's own convention. Deliberately NOT wired into
 // the existing per-therapist detail page (therapists/[id]/page.tsx), which
-// already has its own inline, already-verified version of this same math —
+// already has its own inline, already-verified version of this same math -
 // touching working, tested code for the sake of sharing ~10 lines wasn't
 // worth the regression risk.
 

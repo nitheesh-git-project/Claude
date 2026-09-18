@@ -80,14 +80,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "This session is already paid for. Refund it instead — a discount after the money has moved would leave the record disagreeing with the payment.",
+          "This session is already paid for. Refund it instead - a discount after the money has moved would leave the record disagreeing with the payment.",
       },
       { status: 409 }
     );
   }
   if (appointment.status === "cancelled") {
     return NextResponse.json(
-      { error: "This session is cancelled — there is nothing to discount." },
+      { error: "This session is cancelled - there is nothing to discount." },
       { status: 409 }
     );
   }

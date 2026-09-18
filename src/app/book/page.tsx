@@ -51,7 +51,7 @@ export default async function BookPage() {
             Book Your Session
           </h1>
           <p className="text-slate-600 text-sm mt-1.5">
-            A few quick steps — pick a time, tell us what&apos;s going on, and
+            A few quick steps - pick a time, tell us what&apos;s going on, and
             you&apos;re booked.
           </p>
         </Reveal>

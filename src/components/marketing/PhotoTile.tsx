@@ -3,15 +3,15 @@ import Link from "next/link";
 import { photo, type PhotoId } from "@/lib/marketingPhotos";
 
 /**
- * A photograph that is also a link — the unit the redesigned pages are built
+ * A photograph that is also a link - the unit the redesigned pages are built
  * from.
  *
  * The whole card is one `<Link>` and the "action" line is a span styled to
  * look like one, never a nested anchor: a link inside a link is invalid
  * markup and each browser resolves the click differently. Where a card needs
  * a *second* destination (the catalog cards, which open a dialog and also
- * link to checkout) that already has its own component — see
- * `ProgramCards` — and this one deliberately stays single-purpose.
+ * link to checkout) that already has its own component - see
+ * `ProgramCards` - and this one deliberately stays single-purpose.
  *
  * `blurb` is one line by contract. These grids exist to let someone scan six
  * things in a few seconds; a card that needs a paragraph belongs in a band of
@@ -39,7 +39,7 @@ export default function PhotoTile({
   /**
    * Photo beside the text instead of above it, filling a whole grid row.
    * Used for the one card in a grid that is the action rather than another
-   * page to read — a lone tile left over on the last row reads as a mistake,
+   * page to read - a lone tile left over on the last row reads as a mistake,
    * and this makes the odd one out look deliberate.
    */
   wide?: boolean;

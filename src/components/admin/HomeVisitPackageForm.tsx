@@ -20,6 +20,7 @@ export type HomeVisitPackage = {
   benefits: string[];
   badge_label: string | null;
   highlight: boolean;
+  featured?: boolean | null;
   terms: string | null;
   visit_count: number;
   price_paise: number;
@@ -48,7 +49,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <label className="block">
       <span className="text-[11px] font-semibold text-slate-600">{label}</span>
       {children}
-      {hint && <span className="block text-[10px] text-slate-400 mt-1">{hint}</span>}
+      {hint && <span className="block text-[10px] text-slate-500 mt-1">{hint}</span>}
     </label>
   );
 }
@@ -74,7 +75,7 @@ function Check({
       />
       <span>
         <span className="text-[11px] font-semibold text-slate-700">{label}</span>
-        {hint && <span className="block text-[10px] text-slate-400">{hint}</span>}
+        {hint && <span className="block text-[10px] text-slate-500">{hint}</span>}
       </span>
     </label>
   );
@@ -105,6 +106,7 @@ export default function HomeVisitPackageForm({
   const [benefitsText, setBenefitsText] = useState((pkg?.benefits ?? []).join("\n"));
   const [badgeLabel, setBadgeLabel] = useState(pkg?.badge_label ?? "");
   const [highlight, setHighlight] = useState(pkg?.highlight ?? false);
+  const [featured, setFeatured] = useState(pkg?.featured === true);
   const [terms, setTerms] = useState(pkg?.terms ?? "");
 
   const [visitCount, setVisitCount] = useState(pkg ? String(pkg.visit_count) : "1");
@@ -167,6 +169,7 @@ export default function HomeVisitPackageForm({
       benefits,
       badgeLabel: badgeLabel || null,
       highlight,
+      featured,
       terms: terms || null,
       visitCount,
       priceInr,
@@ -241,7 +244,7 @@ export default function HomeVisitPackageForm({
       <div className="grid sm:grid-cols-3 gap-3">
         <Field
           label="Visits Included"
-          hint="Set 1 to sell a single one-off home visit — there is no separate single-visit product."
+          hint="Set 1 to sell a single one-off home visit - there is no separate single-visit product."
         >
           <input
             type="number"
@@ -345,7 +348,7 @@ export default function HomeVisitPackageForm({
       <div className="grid sm:grid-cols-3 gap-3">
         <Field label="Condition Category" hint="Optional grouping only.">
           <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputCls()}>
-            <option value="">— None —</option>
+            <option value="">- None -</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.title}
@@ -379,7 +382,7 @@ export default function HomeVisitPackageForm({
           checked={travelFeeIncluded}
           onChange={setTravelFeeIncluded}
           label="Travel fee included in price"
-          hint="On: the price above is all the patient pays, and the area's travel fee is not added at checkout. The therapist is still paid that fee either way — this only changes what the patient is quoted."
+          hint="On: the price above is all the patient pays, and the area's travel fee is not added at checkout. The therapist is still paid that fee either way - this only changes what the patient is quoted."
         />
         <Check
           checked={therapistLocked}
@@ -387,7 +390,23 @@ export default function HomeVisitPackageForm({
           label="Lock to one therapist"
           hint="Every visit in the programme goes to whoever takes the first one."
         />
-        <Check checked={highlight} onChange={setHighlight} label="Feature this package" />
+        {/* Renamed from "Feature this package". `highlight` draws the teal
+            ring on the card -- emphasis -- while `featured` decides which
+            four lead the page. Two controls called Feature, meaning
+            different things, is the one-word-one-concept rule broken in the
+            place an admin would actually meet it. */}
+        <Check
+          checked={highlight}
+          onChange={setHighlight}
+          label="Highlight with a ring"
+          hint="Draws a teal border around the card wherever it appears."
+        />
+        <Check
+          checked={featured}
+          onChange={setFeatured}
+          label="Lead with this on the Home Visit page"
+          hint="That page leads with four visits and reveals the rest on a tap. With none ticked it shows the first four, so it is never empty."
+        />
         <Check checked={active} onChange={setActive} label="Active" hint="Off hides it everywhere." />
         <Check
           checked={visibleOnHomeVisitPage}

@@ -69,6 +69,26 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     describe: () => "The Home Visit page subheading is updated.",
   },
 
+  // --- What the site says about itself ------------------------------------
+  // Blank is a real value for both, so the sentence has to distinguish "you
+  // rewrote it" from "you cleared it and it is back to the wording it
+  // shipped with" -- otherwise clearing the box confirms an edit that is
+  // really an undo.
+  mission_statement: {
+    kind: "text",
+    describe: (value) =>
+      value.trim().length > 0
+        ? "Your mission is updated. It shows on the Home page and Our Mission."
+        : "Your mission is back to the wording the site shipped with.",
+  },
+  vision_statement: {
+    kind: "text",
+    describe: (value) =>
+      value.trim().length > 0
+        ? "Your vision is updated. It shows on the Home page and Our Mission."
+        : "Your vision is back to the wording the site shipped with.",
+  },
+
   // --- Booking a single session -----------------------------------------
   online_booking_lead_time_hours: {
     kind: "number",
@@ -262,6 +282,57 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
       v === 0
         ? "The greeting now shows on a first load only."
         : `A tab away for more than ${plural(v, "minute", "minutes")} is now greeted again.`,
+  },
+
+  // --- Business Health ---------------------------------------------------
+  //
+  // These four switches change a *reading* of money that has already moved,
+  // never the money itself -- so each sentence says which figure now reads
+  // differently, rather than implying anything was charged or paid.
+  finance_cogs_therapist_share: {
+    kind: "boolean",
+    on: "Therapists' share now counts as a cost of delivering a session, so it comes off gross profit.",
+    off: "Therapists' share now counts as an overhead. Gross profit goes up; what you finally keep does not change.",
+  },
+  finance_cogs_partner_share: {
+    kind: "boolean",
+    on: "Partners' share now counts as a cost of delivering a session, so it comes off gross profit.",
+    off: "Partners' share now counts as an overhead. Gross profit goes up; what you finally keep does not change.",
+  },
+  finance_cogs_payment_fees: {
+    kind: "boolean",
+    on: "Payment fees now count as a cost of delivering a session, so they come off gross profit.",
+    off: "Payment fees now count as an overhead. Gross profit goes up; what you finally keep does not change.",
+  },
+  finance_include_app_balances: {
+    kind: "boolean",
+    on: "Working capital now includes what therapists are owed, cash they are holding, refunds to hand back and sessions paid for but not used.",
+    off: "Working capital now shows only the figures you entered yourself.",
+  },
+  finance_break_even_price_paise: {
+    kind: "number",
+    describe: (v) =>
+      v === 0
+        ? "Break-even is back to using what your own sessions actually sold for."
+        : `Break-even now assumes a session sells for ₹${(v / 100).toLocaleString("en-IN")}.`,
+  },
+  finance_break_even_variable_cost_paise: {
+    kind: "number",
+    describe: (v) =>
+      v === 0
+        ? "Break-even is back to using what your own sessions actually cost to deliver."
+        : `Break-even now assumes a session costs ₹${(v / 100).toLocaleString("en-IN")} to deliver.`,
+  },
+  finance_run_rate_basis: {
+    kind: "text",
+    describe: (v) =>
+      v === "weekly"
+        ? "Run rate now reads this period as a week and multiplies by 52."
+        : v === "monthly"
+        ? "Run rate now reads this period as a month and multiplies by 12."
+        : v === "quarterly"
+        ? "Run rate now reads this period as a quarter and multiplies by 4."
+        : "Run rate now stretches whatever dates you pick out to a full year.",
   },
 };
 

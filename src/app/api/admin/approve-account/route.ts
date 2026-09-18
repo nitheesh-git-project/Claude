@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // Approves a pending self-serve signup. Handles both roles that go through
 // the approval gate -- therapist applications and, since patients now wait
@@ -15,7 +16,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { userId } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    userId?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { userId } = body;
   if (!userId) {
     return NextResponse.json({ error: "Missing userId" }, { status: 400 });
   }

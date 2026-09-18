@@ -16,14 +16,14 @@ export default async function HospitalDashboardPage() {
     <HospitalDashboardShell
       data={d}
       title={`Welcome, ${d.profile?.organization_name ?? d.profile?.full_name ?? "Partner"}`}
-      subtitle={`Referral code: ${d.profile?.referral_code ?? "—"}`}
+      subtitle={`Referral code: ${d.profile?.referral_code ?? "-"}`}
     >
         <DashboardOverview
           greeting="Your partnership at a glance"
           headline={
             d.pendingReferrals > 0
               ? `${d.pendingReferrals} referral${d.pendingReferrals === 1 ? "" : "s"} with the clinic right now.`
-              : "Everything you've sent has been actioned — refer another patient whenever you're ready."
+              : "Everything you've sent has been actioned - refer another patient whenever you're ready."
           }
           cells={d.overviewCells}
           feed={d.hospitalFeed}

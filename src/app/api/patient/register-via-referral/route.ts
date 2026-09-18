@@ -2,9 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { findAreaForPincode } from "@/lib/homeVisitAreas";
+import { enforceRateLimit } from "@/lib/rateLimitServer";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
-  const { token, fullName, email, password } = await request.json();
+  // Counted before the body is parsed, so a refused caller never gets
+  // to drive this route's work.
+  const limited = await enforceRateLimit(request, "registration");
+  if (limited) return limited;
+
+  const { data: body, error: parseError } = await parseJsonBody<{
+    token?: string;
+    fullName?: string;
+    email?: string;
+    password?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { token, fullName, email, password } = body;
   if (!token || !fullName || !email || !password) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
@@ -12,7 +26,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
 
   // Atomically claim the referral by flipping its status in the same
-  // statement that checks it's still "invite_sent" — the update's WHERE
+  // statement that checks it's still "invite_sent" - the update's WHERE
   // clause is evaluated and applied under a row lock in Postgres, so if
   // the same link is submitted twice at once (e.g. opened in two tabs),
   // only one request can win this update; the other gets 0 rows back
@@ -43,7 +57,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (createError || !created.user) {
-    // Account creation failed after the claim — release it so the same
+    // Account creation failed after the claim - release it so the same
     // link can be retried instead of being permanently burned.
     await admin
       .from("patient_referrals")
@@ -58,7 +72,7 @@ export async function POST(request: NextRequest) {
   // approved: true is set here because self-serve patient signups now start
   // unapproved and wait on the admin (same gate therapist applications go
   // through). A hospital-referred patient has already been vetted by the
-  // admin — they assigned the therapist and issued this invite link — so
+  // admin - they assigned the therapist and issued this invite link - so
   // making them wait again would strand a patient who is about to pay for a
   // session that's already scheduled.
   const { error: attributionError } = await admin
@@ -67,7 +81,7 @@ export async function POST(request: NextRequest) {
     .eq("id", created.user.id);
   if (attributionError) {
     // Not fatal to the patient's flow, but would silently break revenue
-    // attribution for this hospital if it happened — worth knowing about.
+    // attribution for this hospital if it happened - worth knowing about.
     console.error("Failed to set referred_by_hospital_id for", created.user.id, attributionError);
   }
 
@@ -76,7 +90,7 @@ export async function POST(request: NextRequest) {
   // it never goes through bookHomeVisitSession -- the address and travel
   // fee are snapshotted here directly, same fields, same reasoning: an
   // appointment must carry its own copy so a later edit to the source
-  // (here, the referral row itself, which admin can't even edit — but the
+  // (here, the referral row itself, which admin can't even edit - but the
   // pattern still holds) can't silently rewrite a visit already delivered.
   const isHomeVisit = referral.visit_mode === "home_visit";
   let travelFeePaise = 0;
@@ -91,7 +105,7 @@ export async function POST(request: NextRequest) {
     areaId = area?.id ?? null;
   }
 
-  // Left as "requested"/unpaid on purpose — the therapist and slot are
+  // Left as "requested"/unpaid on purpose - the therapist and slot are
   // already arranged, but the session isn't confirmed until the patient
   // actually pays. Payment verification (see /api/razorpay/verify) flips
   // this to "confirmed" once payment_status is set to "paid".
@@ -121,7 +135,7 @@ export async function POST(request: NextRequest) {
 
   if (appointmentError || !appointment) {
     // The account was already created at this point, so don't leave the
-    // patient stuck with no explanation — they can sign in and contact
+    // patient stuck with no explanation - they can sign in and contact
     // support even though there's nothing to pay for yet.
     console.error("Failed to create appointment for referral", referral.id, appointmentError);
     return NextResponse.json(
@@ -137,7 +151,7 @@ export async function POST(request: NextRequest) {
   // book (patient_referrals.address was otherwise dead data, never read
   // again after conversion) so a future home-visit booking or programme
   // doesn't start from a blank form. Never blocks the flow the patient is
-  // already through — the appointment's own snapshot above is what
+  // already through - the appointment's own snapshot above is what
   // actually governs this first visit regardless of whether this succeeds.
   if (isHomeVisit && referral.address && referral.pincode) {
     const { error: addressError } = await admin.from("patient_addresses").insert({

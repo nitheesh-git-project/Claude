@@ -38,7 +38,7 @@ import stepProgress from "../../public/photos/step-progress.jpg";
  * whole job is now carried by its imagery that is the difference between a
  * page that assembles itself and one that flashes empty boxes.
  *
- * Pages never import a file directly — they name a PhotoId, which is what
+ * Pages never import a file directly - they name a PhotoId, which is what
  * lets `marketingNav.ts` be plain typed data instead of a module full of
  * imports, and what makes a missing photo a compile error rather than a
  * broken image in production.

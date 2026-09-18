@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     );
   }
   // Always a fresh assignment (no existing state to preserve), so a
-  // suspended therapist is a hard block here — unlike update-appointment,
+  // suspended therapist is a hard block here - unlike update-appointment,
   // which has to tolerate re-saving a session that's already assigned to
   // one.
   if (!therapist.active) {
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Only flip to "confirmed" once the patient has actually paid — otherwise
+  // Only flip to "confirmed" once the patient has actually paid - otherwise
   // assigning a therapist would silently confirm an unpaid booking. If it's
   // still unpaid, the therapist is assigned but status stays "requested";
   // /api/razorpay/verify auto-confirms it the moment payment succeeds.
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Re-check for a conflict now that the write has landed — the earlier
+  // Re-check for a conflict now that the write has landed - the earlier
   // check and this write aren't atomic, so two concurrent assignments of
   // the same therapist to overlapping slots could both pass the earlier
   // check before either write committed, double-booking that therapist.
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "This therapist was just double-booked by a concurrent assignment — please try again or pick a different therapist/time.",
+            "This therapist was just double-booked by a concurrent assignment - please try again or pick a different therapist/time.",
         },
         { status: 409 }
       );

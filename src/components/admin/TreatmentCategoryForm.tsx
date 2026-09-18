@@ -21,6 +21,7 @@ type Category = {
   cta_label: string;
   display_order: number;
   active: boolean;
+  featured?: boolean | null;
   /** Which of the three condition types this belongs to. Migration-dependent
    *  and optional on the type, so a caller reading it from a database
    *  without the column hands through undefined rather than failing. */
@@ -78,6 +79,7 @@ export default function TreatmentCategoryForm({
     defaults ? String(defaults.display_order) : newOrderDefault
   );
   const [active, setActive] = useState(defaults?.active ?? true);
+  const [featured, setFeatured] = useState(defaults?.featured === true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -106,6 +108,7 @@ export default function TreatmentCategoryForm({
       specialty: specialty || null,
       displayOrder,
       active,
+      featured,
     };
 
     const res = await fetch(
@@ -144,26 +147,26 @@ export default function TreatmentCategoryForm({
       className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 text-xs"
     >
       {error && <p className="text-red-600">{error}</p>}
-      <div>
-        <label className="block font-semibold mb-1">Category Name</label>
+      <label className="block">
+        <span className="block font-semibold mb-1">Category Name</span>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-      </div>
-      <div>
-        <label className="block font-semibold mb-1">
-          Description <span className="font-normal text-slate-400">(optional)</span>
-        </label>
+      </label>
+      <label className="block">
+        <span className="block font-semibold mb-1">
+          Description <span className="font-normal text-slate-500">(optional)</span>
+        </span>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-      </div>
+      </label>
       <div>
         <CatalogImageField
           kind="category"
@@ -183,21 +186,21 @@ export default function TreatmentCategoryForm({
           blank, the card falls back to its illustration.
         </p>
       </div>
-      <div>
-        <label className="block font-semibold mb-1">
+      <label className="block">
+        <span className="block font-semibold mb-1">
           Tick Points{" "}
-          <span className="font-normal text-slate-400">(one per line)</span>
-        </label>
+          <span className="font-normal text-slate-500">(one per line)</span>
+        </span>
         <textarea
           value={pointsText}
           onChange={(e) => setPointsText(e.target.value)}
           rows={4}
           className="w-full p-2 rounded-lg border border-slate-300"
         />
-      </div>
+      </label>
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block font-semibold mb-1">Price (₹)</label>
+        <label className="block">
+          <span className="block font-semibold mb-1">Price (₹)</span>
           <input
             type="number"
             min={1}
@@ -207,9 +210,9 @@ export default function TreatmentCategoryForm({
             required
             className="w-full p-2 rounded-lg border border-slate-300"
           />
-        </div>
-        <div>
-          <label className="block font-semibold mb-1">Session Length (min)</label>
+        </label>
+        <label className="block">
+          <span className="block font-semibold mb-1">Session Length (min)</span>
           <input
             type="number"
             min={1}
@@ -219,11 +222,11 @@ export default function TreatmentCategoryForm({
             required
             className="w-full p-2 rounded-lg border border-slate-300"
           />
-        </div>
+        </label>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block font-semibold mb-1">Order</label>
+        <label className="block">
+          <span className="block font-semibold mb-1">Order</span>
           <input
             type="number"
             step="1"
@@ -232,16 +235,16 @@ export default function TreatmentCategoryForm({
             required
             className="w-full p-2 rounded-lg border border-slate-300"
           />
-        </div>
-        <div>
-          <label className="block font-semibold mb-1">Button Text</label>
+        </label>
+        <label className="block">
+          <span className="block font-semibold mb-1">Button Text</span>
           <input
             value={ctaLabel}
             onChange={(e) => setCtaLabel(e.target.value)}
             placeholder="Book Assessment"
             className="w-full p-2 rounded-lg border border-slate-300"
           />
-        </div>
+        </label>
       </div>
       {/* Nothing a patient sees. It groups this condition in the picker a
           therapist uses to recommend treatment, so a clinician chooses a
@@ -276,6 +279,22 @@ export default function TreatmentCategoryForm({
           className="w-4 h-4 accent-teal-600"
         />
         Active (visible to patients)
+      </label>
+      <label className="flex items-start gap-2 font-semibold">
+        <input
+          type="checkbox"
+          checked={featured}
+          onChange={(e) => setFeatured(e.target.checked)}
+          className="mt-0.5 w-4 h-4 accent-teal-600"
+        />
+        <span>
+          Feature on the home page
+          <span className="block text-[11px] font-normal text-slate-500">
+            The home page leads with four conditions and links to the full list. Tick
+            the ones you sell most. With none ticked it shows the first four in this
+            order, so the page is never empty.
+          </span>
+        </span>
       </label>
       <div className="flex gap-2">
         {onCancel && (

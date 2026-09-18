@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { revokeAllSessions, SESSION_REVOKE_WARNING } from "@/lib/supabase/revokeSessions";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 
@@ -97,12 +98,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Suspending writes `active = false`, which src/proxy.ts and
+  // requireActiveProfile both refuse on -- but those are this app, and a
+  // session cookie reaches PostgREST without passing either. An account
+  // that has been suspended must not still be signed in anywhere.
+  let sessionsRevoked = true;
+  if (!active) {
+    const revoke = await revokeAllSessions(admin, userId);
+    sessionsRevoked = revoke.revoked;
+  }
+
   await recordAdminActivity(admin, context.id, {
     action: "account.set_active",
     targetId: userId,
     targetLabel: target.full_name,
-    details: { role: "admin", active },
+    details: { role: "admin", active, sessionsRevoked },
   });
 
-  return NextResponse.json({ success: true, active });
+  return NextResponse.json({
+    success: true,
+    active,
+    ...(sessionsRevoked ? {} : { warning: SESSION_REVOKE_WARNING }),
+  });
 }

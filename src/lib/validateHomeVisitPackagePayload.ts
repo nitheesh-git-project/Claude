@@ -32,6 +32,12 @@ export type HomeVisitPackagePayload = {
   benefits?: string[];
   badgeLabel?: string | null;
   highlight?: boolean;
+  /** Deliberately NOT turned into a column here: `featured` is the newest
+   *  column on this table and goes through `writeCatalogFeatured`'s own
+   *  isolated call, so a database one apply behind loses the flag rather
+   *  than the whole edit. Declared so the field is typed rather than
+   *  arriving as a stray key. */
+  featured?: boolean;
   terms?: string | null;
   visitCount?: number | string;
   priceInr?: number | string;

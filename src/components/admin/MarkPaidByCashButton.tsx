@@ -51,7 +51,7 @@ export default function MarkPaidByCashButton({ appointmentId }: { appointmentId:
       {error && <span className="text-[11px] text-red-600">{error}</span>}
       {confirmOpen && (
         <ConfirmDialog
-          message="Mark this session as paid by cash? This records the payment and confirms the session (if a therapist is already assigned) — only do this after you've actually received the cash."
+          message="Mark this session as paid by cash? This records the payment and confirms the session (if a therapist is already assigned) - only do this after you've actually received the cash."
           confirmLabel="Mark Paid"
           confirming={isPending}
           onConfirm={handleConfirm}

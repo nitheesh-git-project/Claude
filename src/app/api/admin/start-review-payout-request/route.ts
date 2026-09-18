@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   }
   if (!updated) {
     return NextResponse.json(
-      { error: "This request is no longer pending — please refresh." },
+      { error: "This request is no longer pending - please refresh." },
       { status: 409 }
     );
   }

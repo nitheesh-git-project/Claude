@@ -94,7 +94,7 @@ export async function payForCarePlan({
           }
         } catch {
           onError(
-            `Payment received but we couldn't verify it — please check your connection and contact us with payment ID ${response.razorpay_payment_id} if this doesn't resolve.`
+            `Payment received but we couldn't verify it - please check your connection and contact us with payment ID ${response.razorpay_payment_id} if this doesn't resolve.`
           );
         }
       },

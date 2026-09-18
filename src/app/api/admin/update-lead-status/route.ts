@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 const ALLOWED_STATUSES = ["new", "contacted", "declined"];
 
@@ -11,7 +12,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { leadId, status } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    leadId?: string;
+    status?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { leadId, status } = body;
   if (!leadId || !status || !ALLOWED_STATUSES.includes(status)) {
     return NextResponse.json(
       { error: "Missing leadId or invalid status" },
@@ -21,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Onboarded leads carry a hospital account already — status shouldn't be
+  // Onboarded leads carry a hospital account already - status shouldn't be
   // hand-edited back to "new"/"declined" once that's happened.
   const { data: lead } = await admin
     .from("b2b_leads")

@@ -67,7 +67,7 @@ export type HealthProfilePdfInput = {
     answers: Record<string, string> | null;
     created_at: string;
   }[];
-  /** Admin-edited question wording, keyed by region — the same key can
+  /** Admin-edited question wording, keyed by region - the same key can
    *  carry different wording in two regions, so these can never be
    *  flattened into one list. */
   painMapOverridesByRegion: Record<string, QuestionOverrideRow[]>;

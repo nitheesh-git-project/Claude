@@ -113,11 +113,11 @@ export default function SessionFilterList({
               aria-pressed={when === key}
               onClick={() => setWhen(key)}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                when === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                when === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
               }`}
             >
               {WHEN_LABEL[key]}
-              <span className="ml-1.5 text-[10px] font-bold text-slate-400">{counts[key]}</span>
+              <span className="ml-1.5 text-[10px] font-bold text-slate-600">{counts[key]}</span>
             </button>
           ))}
         </div>
@@ -137,7 +137,7 @@ export default function SessionFilterList({
                 aria-pressed={mode === key}
                 onClick={() => setMode(key)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                  mode === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  mode === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 {label}

@@ -50,7 +50,7 @@ export default function BookingLanguagesSection({
     // Mirrors the server's own guard -- caught here too so admin gets the
     // message without a round trip.
     if (draft.length === 0) {
-      setError("Keep at least one language — booking needs something to offer.");
+      setError("Keep at least one language - booking needs something to offer.");
       return;
     }
     startTransition(async () => {
@@ -69,14 +69,14 @@ export default function BookingLanguagesSection({
       <h3 className="font-bold text-sm text-slate-800">Booking Languages</h3>
       <p className="text-xs text-slate-500 mt-1 max-w-md">
         The preferred-language options patients choose from in Step 1 of booking.
-        Added languages appear there immediately — the booking page keeps no list
+        Added languages appear there immediately - the booking page keeps no list
         of its own.
       </p>
 
       <div className="flex flex-wrap gap-2 mt-4">
         {draft.length === 0 ? (
-          <p className="text-xs text-slate-400">
-            No languages yet — add at least one before saving.
+          <p className="text-xs text-slate-500">
+            No languages yet - add at least one before saving.
           </p>
         ) : (
           draft.map((language) => (
@@ -89,7 +89,7 @@ export default function BookingLanguagesSection({
                 type="button"
                 onClick={() => removeLanguage(language)}
                 aria-label={`Remove ${language}`}
-                className="w-6 h-6 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                className="w-6 h-6 rounded-md text-slate-500 hover:text-red-600 hover:bg-red-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
               >
                 <i className="fa-solid fa-xmark text-[11px]" aria-hidden="true"></i>
               </button>

@@ -170,7 +170,7 @@ export function describeRefundForPatient(
     };
   }
   if (admin.state === "failed") {
-    return { ...admin, label: "Refund didn't go through — please contact us" };
+    return { ...admin, label: "Refund didn't go through - please contact us" };
   }
   return admin;
 }

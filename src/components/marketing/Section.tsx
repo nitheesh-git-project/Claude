@@ -6,7 +6,7 @@ import { Reveal } from "@/components/motion/primitives";
  * The redesign's core rule is one idea per band, so this component only
  * accepts one idea's worth of framing: an eyebrow, a heading of a few words
  * and at most one sentence under it. There is deliberately no slot for a
- * second paragraph — the feedback that started this rewrite was that
+ * second paragraph - the feedback that started this rewrite was that
  * visitors could not tell what the site was, and the cause was every section
  * arriving with three paragraphs of preamble before the thing itself.
  *

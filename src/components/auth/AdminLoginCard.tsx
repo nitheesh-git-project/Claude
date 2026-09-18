@@ -32,7 +32,7 @@ export default function AdminLoginCard() {
     // Left in the loading state deliberately -- a hard navigation is about
     // to replace this page, so resetting it first just flashes the button
     // back to "Sign In" for however long that navigation takes. Hard nav,
-    // not router.push — a client-side soft nav can race the just-set auth
+    // not router.push - a client-side soft nav can race the just-set auth
     // cookies, so the proxy's next check reads a stale session and bounces
     // back to /admin/login without ever showing an error, leaving the
     // button looking like it silently failed.
@@ -49,7 +49,7 @@ export default function AdminLoginCard() {
           Admin Login
         </h1>
         <p className="text-xs text-slate-500 text-center mt-1">
-          Restricted access — authorized administrators only
+          Restricted access - authorized administrators only
         </p>
 
         {error && (

@@ -189,7 +189,7 @@ export default function AdminLogRetentionTab() {
         <p className="mt-1 text-xs text-slate-500">
           The log keeps every action for ever unless you clear it. Clearing removes
           entries older than a cutoff you choose, and never anything from the last{" "}
-          {MIN_RETENTION_DAYS} days — so the record of what happened recently, including
+          {MIN_RETENTION_DAYS} days - so the record of what happened recently, including
           this clearing, cannot be removed by it.
         </p>
 
@@ -248,7 +248,7 @@ export default function AdminLogRetentionTab() {
 
           <Step n={3} title="Download a copy first">
             {!countedForThis || countedForThis.count === 0 ? (
-              <p className="text-xs text-slate-400">Count them first.</p>
+              <p className="text-xs text-slate-500">Count them first.</p>
             ) : !archivedForThis ? (
               <button
                 type="button"
@@ -267,7 +267,7 @@ export default function AdminLogRetentionTab() {
                     <>
                       {" "}
                       That is fewer than the {countedForThis.count.toLocaleString("en-IN")}{" "}
-                      counted — this screen fetches at most{" "}
+                      counted - this screen fetches at most{" "}
                       {ARCHIVE_MAX_ENTRIES.toLocaleString("en-IN")} entries at a
                       time. Clear in smaller steps, or take a copy from the database.
                     </>
@@ -275,13 +275,13 @@ export default function AdminLogRetentionTab() {
                 </p>
                 <DataExportButtons
                   filename={`admin-logs-before-${days}-days`}
-                  title="Admin activity log — archive"
+                  title="Admin activity log - archive"
                   subtitle={`Every entry older than ${days} days, as at the moment this was prepared.`}
                   rows={archivedForThis.rows}
                   columns={archiveColumns}
                   onExported={() => setExported(true)}
                 />
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-500">
                   {exported
                     ? "Copy downloaded. You can clear these entries now."
                     : "Download one of these before the Clear button unlocks."}
@@ -310,7 +310,7 @@ export default function AdminLogRetentionTab() {
                 Clear entries older than {days} days
               </button>
             </div>
-            <p className="mt-2 text-[11px] text-slate-400">
+            <p className="mt-2 text-[11px] text-slate-500">
               Type {CLEAR_CONFIRM_PHRASE} to confirm. This cannot be undone, and the
               clearing is recorded in the log with the cutoff and the number removed.
             </p>
