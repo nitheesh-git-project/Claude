@@ -55,7 +55,17 @@ Two rules shape almost everything on the patient's screens:
 **Preconditions.** `PAT-AUTH-002` complete; Patient B not yet approved.
 **Steps**
 1. Signed in as Patient B, type `/patient/dashboard` directly in the address bar and press Enter.
-2. Then call the API directly. In a terminal, with Patient B's session cookie: `curl -i -X POST http://localhost:3000/api/appointments/create -H 'Content-Type: application/json' -b '<patient B cookie>' -d '{"slotTime":"2026-12-01T10:00:00.000Z"}'`
+2. Then call the API directly, still signed in as Patient B. **No terminal and no cookie-copying needed** - the browser's own console sends the session cookie for you, because the request is same-origin. Press **F12** (macOS: **Cmd+Option+I**), open the **Console** tab, paste this and press Enter:
+
+```js
+await fetch("/api/appointments/create", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ slotTime: "2026-12-01T10:30:00.000Z" })
+}).then(async r => ({ status: r.status, body: await r.json() }))
+```
+
+> **Why 10:30Z and not 10:00Z.** A slot must start on the hour **in the booking's own timezone**, and with no `timezone` in the body that is `Asia/Kolkata`. `10:00:00.000Z` is 15:30 IST and is refused with `400 {"error":"Sessions start on the hour. Pick a time like 6:00 or 7:00."}` - a real rule firing, not this test's subject. `10:30:00.000Z` is 16:00 IST. See §5.1a for the console recipe and its four gotchas.
 
 **Expected Result.** Step 1 redirects to **`/pending-approval`**. Step 2 returns **HTTP 200** and creates a `requested`/`unpaid` appointment - this is correct: `/api/appointments/create` gates on `isProfileActive`, **not** approval, because an unapproved self-signup patient must be able to hold the row they are about to pay for. It grants nothing on its own. **What must be refused is a suspended account** - see `SEC-AUTH-006`.
 **Cleanup.** Delete the stray appointment from Sessions → All Sessions, or leave it as a fixture for `ADM-SESS-002`.
@@ -257,6 +267,26 @@ It must **never** be worded as a confirmed booking with that therapist.
 ---
 
 ### 11.3 The booking wizard - negative, boundary and duplicate
+
+#### `PAT-BOOK-018` - The way out of the wizard follows the account · P1
+
+**Feature.** One exit link sits **outside** the wizard, below it and clear of Back/Continue, so it shows in every state the wizard can be in - loading, part-filled, wrong account, paid - without being repeated four times and without being hit by mistake. Its label and destination follow **who is signed in**, not where they came from: it used to always read **Back to Home**, which is right for a visitor who arrived from the marketing site and wrong for the commonest case by far - a patient who came from their own dashboard to book, and was then sent to the public site to find their way back.
+
+**Steps**
+1. **Signed out**, open `/book`. Read the link at the foot. Tap it.
+2. Signed out, open `/book-home-visit`. Read the link. Tap it.
+3. Sign in as **Patient A** (approved). Open `/book` and read the link, then tap it.
+4. Sign in as a patient who is **not yet approved** (Patient B before `ADM-APPR-001`). Open `/book`, get as far as step 3, and read the link.
+5. As Patient A, start the wizard, reach Step 3, then tap the link without paying.
+6. As **Therapist A**, open `/book` - the wrong-account panel renders instead of the form. Read the link.
+
+**Expected Result**
+* Step 1: **`Back to Home`**, landing on `/`. Step 2: **`Back to Home Visit`**, landing on `/home-visit` - each wizard names where a signed-out visitor came in from.
+* Step 3: **`Back to Dashboard`**, landing on the patient's own dashboard. Not the marketing site.
+* Step 4: **`Approval pending`**, landing on `/pending-approval`. This is the case the label exists for - sending an unapproved patient to a dashboard they would bounce off is worse than not offering the link at all. A **suspended** account reads `Account suspended`.
+* Step 5: the draft is abandoned exactly as `PAT-BOOK-016` describes - **no appointment row, no order, no money**.
+* Step 6: the link renders **on the wrong-account panel too**, with that account's own destination. Every state of the wizard has a way out.
+* The destination is the **direct** path, never `/dashboard` - that route resolves the role server-side and would make the label a guess. The same rule feeds the public navbar, so the two cannot grow different answers.
 
 #### `PAT-BOOK-010` - Step 1 validation · P1
 
@@ -646,6 +676,14 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 #### `PAT-ADDR-001` - Address book · P2
 **Steps.** In **My Addresses**, add the Patient A address, then add a second, then remove the second.
 **Expected Result.** Both are saved and selectable at home-visit checkout. Removing one does **not** alter any visit already booked - a visit's address is snapshotted onto the appointment at purchase.
+
+#### `PAT-LOAD-001` - Every patient screen says what it is loading · P2
+
+**Feature.** Each screen in the portal has its own loading state, named for the screen rather than a bare spinner, and each keeps the sidebar. The patient dashboard renders its sidebar **per page** rather than in a layout, so a skeleton that forgot it blanks the chrome on every navigation - which reads as the app losing its place.
+
+**Steps.** In DevTools → **Network**, set throttling to **Slow 3G**. Then move through the sidebar: Overview, Book a Session, Suggested Sessions, Sessions, Programmes, Payments, Health Profile, Edit Profile.
+**Expected Result.** Each shows a skeleton with its own label while it loads - `Loading your dashboard`, `Loading booking`, `Loading suggested sessions`, `Loading your sessions`, `Loading your programmes`, `Loading your payments`, `Loading your health profile`, `Loading your profile`. **The sidebar stays on screen throughout**, and the teal progress bar runs above the chrome. No screen flashes empty white, and none shows another screen's label.
+**Note.** Entries hidden for this patient (Programmes and Payments before they own one - see `PAT-EMPTY-001`) are simply not in the sidebar to tap; that is not a missing loading state.
 
 #### `PAT-EMPTY-001` - Empty states across the patient portal · P2
 **Preconditions.** A freshly approved patient with nothing at all.
