@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, status, payment_status, category_id, therapist_id, patient_id, slot_time, duration_minutes, timezone"
+      "id, status, payment_status, category_id, therapist_id, patient_id, slot_time, duration_minutes, timezone, discount_paise, discount_source, list_price_paise"
     )
     .eq("id", appointmentId)
     .maybeSingle();
@@ -40,15 +40,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This session was cancelled" }, { status: 400 });
   }
 
-  let amountPaise = SESSION_FEE_PAISE;
+  let listPricePaise = SESSION_FEE_PAISE;
   if (appointment.category_id) {
     const { data: category } = await admin
       .from("treatment_categories")
       .select("price_paise")
       .eq("id", appointment.category_id)
       .maybeSingle();
-    if (category) amountPaise = category.price_paise;
+    if (category) listPricePaise = category.price_paise;
   }
+
+  // A discount an admin already wrote onto this booking is money that was
+  // never going to be handed over. This route used to record the full list
+  // price regardless, so a goodwill adjustment applied and then collected in
+  // cash overstated both the cash ledger and gross revenue by exactly the
+  // amount given away -- and left the four discount facts describing a
+  // reduction the recorded amount did not reflect. `/api/razorpay/create-
+  // order` has always resolved the same adjustment; this is the same answer
+  // on the path where no gateway is involved.
+  const discountPaise = Math.max(0, appointment.discount_paise ?? 0);
+  const amountPaise = Math.max(0, listPricePaise - discountPaise);
 
   // Same "confirm now if a therapist is already assigned" reasoning as
   // /api/razorpay/verify -- payment was the only thing this booking was
@@ -61,6 +72,11 @@ export async function POST(request: NextRequest) {
       payment_status: "paid",
       payment_method: "cash",
       amount_paid_paise: amountPaise,
+      // Written even when nothing came off, so a booking collected at list
+      // price is distinguishable from one recorded before this did it --
+      // the same four-facts rule create-order follows.
+      list_price_paise: listPricePaise,
+      discount_paise: discountPaise,
       paid_at: new Date().toISOString(),
       ...(shouldAutoConfirm ? { status: "confirmed" } : {}),
     })

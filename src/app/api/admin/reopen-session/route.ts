@@ -65,11 +65,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { error } = await admin
+  const { data: reopened, error } = await admin
     .from("appointments")
     .update({
       status: "confirmed",
       no_show: false,
+      // Stamped by complete-session and cleared nowhere, so a reopened
+      // session went on carrying the time of the completion that was just
+      // undone -- a row reading 'confirmed' with a completion time on it.
+      // `early_completion` reads this column, so leaving it set means a
+      // premature Done that an admin reopened keeps the evidence of the
+      // mistake and none of the correction.
+      completed_at: null,
       patient_rating: null,
       patient_feedback: null,
       patient_feedback_at: null,
@@ -79,10 +86,23 @@ export async function POST(request: NextRequest) {
       therapist_feedback_at: null,
       therapist_rating_excluded: false,
     })
-    .eq("id", appointmentId);
+    .eq("id", appointmentId)
+    // Atomic claim, the same shape complete-session and
+    // cancelAppointmentAndRefund use. The status check above and this write
+    // are not one operation, so an unconditional update lets two admins both
+    // pass it and the second wipe ratings that were resubmitted between them.
+    .eq("status", "completed")
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!reopened) {
+    return NextResponse.json(
+      { error: "This session was already updated - please refresh and try again." },
+      { status: 409 }
+    );
   }
 
   // Reopening undoes a completion, which is what makes a session
