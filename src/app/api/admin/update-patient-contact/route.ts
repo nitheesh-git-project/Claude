@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -11,7 +12,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { patientId, phone, email } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    patientId?: string;
+    phone?: string;
+    email?: string;
+  }>(request);
+  if (parseError) return parseError;
+  const { patientId, phone, email } = body;
   if (!patientId || !email || !EMAIL_RE.test(email)) {
     return NextResponse.json(
       { error: "Missing patientId or a valid email" },

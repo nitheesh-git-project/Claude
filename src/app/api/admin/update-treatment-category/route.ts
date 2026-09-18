@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { writeCatalogFocal } from "@/lib/catalogImageServer";
 import { writeCatalogFeatured } from "@/lib/catalogFeaturedServer";
+import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -12,22 +13,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const {
-    id,
-    title,
-    description,
-    imageUrl,
-    imageFocalX,
-    imageFocalY,
-    featured,
-    points,
-    priceInr,
-    durationMinutes,
-    ctaLabel,
-    specialty,
-    displayOrder,
-    active,
-  } = await request.json();
+  const { data: body, error: parseError } = await parseJsonBody<{
+    id?: string;
+    title?: string;
+    description?: string;
+    imageUrl?: string;
+    imageFocalX?: number;
+    imageFocalY?: number;
+    featured?: boolean;
+    points?: unknown;
+    priceInr?: number;
+    durationMinutes?: number;
+    ctaLabel?: string;
+    specialty?: unknown;
+    displayOrder?: number;
+    active?: boolean;
+  }>(request);
+  if (parseError) return parseError;
+  const { id, title, description, imageUrl, imageFocalX, imageFocalY, featured, points, priceInr, durationMinutes, ctaLabel, specialty, displayOrder, active } = body;
 
   if (!id || !title || priceInr === undefined || durationMinutes === undefined) {
     return NextResponse.json(

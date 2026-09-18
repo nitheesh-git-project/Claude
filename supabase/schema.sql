@@ -10676,3 +10676,251 @@ grant execute on function public.revoke_user_sessions(uuid) to service_role;
 alter default privileges in schema public revoke execute on functions from public;
 alter default privileges in schema public revoke execute on functions from anon;
 alter default privileges in schema public revoke execute on functions from authenticated;
+
+-- ---------------------------------------------------------------------
+-- Rate limiting.
+--
+-- 173 route handlers and nothing throttled: an unauthenticated lookup that
+-- returns a referred patient's name and medical issue, hospital referral
+-- code enumeration, a public insert with no ceiling on it, and unlimited
+-- attempts at everything else.
+--
+-- Postgres rather than Redis, deliberately. This deployment has no cron and
+-- no worker (see the no-cron rule in AGENTS.md), and adding Upstash would
+-- mean a dependency, an account and two more secrets before a single
+-- request could be refused. The database is already the one piece of state
+-- every serverless instance shares, so an in-memory counter would reset on
+-- each cold start and disagree between concurrent instances, which is the
+-- same as not having one.
+--
+-- A fixed window, not a sliding one. The window is derived from the clock
+-- rather than stored as an expiry, for the reason a pending session
+-- suggestion writes no "expired" status: a row recording the passage of
+-- time needs a sweep, and there is nothing here to run one. A counter for a
+-- window that has passed is simply never read again -- and is deleted by
+-- the next call for its own bucket, which is what keeps this table at one
+-- row per *active* bucket instead of growing for ever. That per-bucket
+-- delete is the whole of the cleanup; there is no global sweep to forget to
+-- schedule.
+-- ---------------------------------------------------------------------
+create table if not exists rate_limit_counters (
+  bucket text not null,
+  window_start timestamptz not null,
+  count integer not null default 0,
+  primary key (bucket, window_start)
+);
+
+alter table rate_limit_counters enable row level security;
+
+-- No policies at all, the same shape as the four *_admin_notes tables: the
+-- service role is the only caller and a browser has no business reading
+-- what anybody's remaining allowance is.
+revoke all on rate_limit_counters from anon, authenticated;
+
+/**
+ * Counts one hit against a bucket and says whether it is allowed.
+ *
+ * The insert-on-conflict is what makes this safe under concurrency: the
+ * unique index serialises two simultaneous calls for the same bucket, so the
+ * count cannot be read-then-written by both and land at one. That is the
+ * same reasoning as `claim_promo_code` taking a row lock rather than
+ * counting a moment earlier -- a cap of 5 has to mean 5 while five requests
+ * are in flight.
+ *
+ * It counts the hit even when the hit is refused. A limiter that stops
+ * counting at the cap lets a caller who keeps trying reset their own window
+ * by never letting it close, and the `retry_after_seconds` it reports would
+ * then be wrong in the caller's favour.
+ */
+create or replace function public.check_rate_limit(
+  p_bucket text,
+  p_limit integer,
+  p_window_seconds integer
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_window_start timestamptz;
+  v_count integer;
+begin
+  if p_bucket is null or p_bucket = '' then
+    raise exception 'check_rate_limit: p_bucket is required';
+  end if;
+  if p_limit is null or p_limit < 1 then
+    raise exception 'check_rate_limit: p_limit must be at least 1';
+  end if;
+  if p_window_seconds is null or p_window_seconds < 1 then
+    raise exception 'check_rate_limit: p_window_seconds must be at least 1';
+  end if;
+
+  -- The window the clock is currently in, floored to a multiple of its own
+  -- length so every caller in the same window agrees on which row is theirs.
+  v_window_start := to_timestamp(
+    floor(extract(epoch from clock_timestamp()) / p_window_seconds) * p_window_seconds
+  );
+
+  insert into rate_limit_counters (bucket, window_start, count)
+  values (p_bucket, v_window_start, 1)
+  on conflict (bucket, window_start)
+    do update set count = rate_limit_counters.count + 1
+  returning count into v_count;
+
+  -- This bucket's older windows are dead the moment a newer one exists, and
+  -- deleting them here is what bounds the table without a sweep.
+  delete from rate_limit_counters
+  where bucket = p_bucket and window_start < v_window_start;
+
+  return jsonb_build_object(
+    'allowed', v_count <= p_limit,
+    'count', v_count,
+    'limit', p_limit,
+    -- Whole seconds, rounded up: a Retry-After of 0 invites an immediate
+    -- retry that is certain to be refused again.
+    'retry_after_seconds',
+      greatest(1, ceil(extract(epoch from (v_window_start + make_interval(secs => p_window_seconds)) - clock_timestamp()))::integer)
+  );
+end;
+$$;
+
+revoke all on function public.check_rate_limit(text, integer, integer) from public, anon, authenticated;
+grant execute on function public.check_rate_limit(text, integer, integer) to service_role;
+
+-- ---------------------------------------------------------------------
+-- b2b_leads is no longer writable from a browser.
+--
+-- The Hospitals page's partnership form inserted straight into this table
+-- with the publishable anon key, under `for insert with check (true)`. That
+-- made it the one public write in the app with no server-side door -- so no
+-- validation beyond the form's own JavaScript, no audit, and nothing that
+-- could rate limit it, since a limiter needs a route to sit in. Nothing in
+-- this deployment sweeps the table either, so a script could grow it
+-- without bound.
+--
+-- `/api/hospitals/inquiry` is that door now, rate limited on the same
+-- `publicWrite` allowance as the home-visit waitlist, and this is the same
+-- move `appointments_insert_own` got when the booking insert moved
+-- server-side: drop the policy and the grant at the end of the file rather
+-- than editing the original statements, so the file stays re-runnable and
+-- still reads as a history.
+-- ---------------------------------------------------------------------
+drop policy if exists "b2b_leads_insert_public" on b2b_leads;
+revoke insert on b2b_leads from anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- The remaining evidence tables are append-only by trigger, not by hope.
+--
+-- `session_credit_ledger` carries this rule with its reasoning spelled out:
+-- "The revoke covers a browser session; every route in this app writes with
+-- the service-role client, which bypasses RLS entirely. For a table whose
+-- whole value is that it cannot be rewritten, 'no route updates it' is not
+-- the same guarantee as 'an update raises'." Eight tables were given that
+-- guard. Four were not, and an audit found the gap by simply issuing the
+-- UPDATE: `admin_activity_log` -- the audit trail the whole Logs section is
+-- built on, the record of who impersonated whom, who settled which payout
+-- and who cleared the log -- accepted a rewrite and changed a row.
+--
+-- Each guard below permits exactly the one mutation its table legitimately
+-- needs and refuses everything else, the same shape
+-- `care_plan_versions_is_append_only` uses for `is_current`.
+-- ---------------------------------------------------------------------
+
+-- The audit trail. Rows are written by recordAdminActivity and removed only
+-- by purge_admin_activity_log, which is the retention clear and is itself
+-- logged outside its own reach -- so DELETE stays allowed and UPDATE never
+-- is. Nothing in `src/` updates this table; the only writer is an insert.
+create or replace function public.admin_activity_log_is_append_only()
+returns trigger
+language plpgsql
+as $$
+begin
+  raise exception
+    'admin_activity_log is append-only: an entry may be written and (past the retention floor) purged, never edited';
+end;
+$$;
+
+drop trigger if exists trg_admin_activity_log_append_only on admin_activity_log;
+create trigger trg_admin_activity_log_append_only
+  before update on admin_activity_log
+  for each row execute function public.admin_activity_log_is_append_only();
+
+-- What a session note used to say. Written once when an edit replaces it;
+-- nothing may revise the revision, or the edit history is not a history.
+create or replace function public.session_note_revisions_is_append_only()
+returns trigger
+language plpgsql
+as $$
+begin
+  raise exception 'session_note_revisions is append-only: it is the record of what a note used to say';
+end;
+$$;
+
+drop trigger if exists trg_session_note_revisions_append_only on session_note_revisions;
+create trigger trg_session_note_revisions_append_only
+  before update or delete on session_note_revisions
+  for each row execute function public.session_note_revisions_is_append_only();
+
+-- The webhook dedup record. `processed_at` and `processing_error` are set
+-- after the work, so UPDATE is allowed -- but only for those two columns.
+-- The identity of the event is what makes the unique index a deduplication,
+-- and a DELETE would let a retry be processed a second time, which is the
+-- one thing this table exists to prevent.
+create or replace function public.payment_webhook_events_identity_frozen()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'payment_webhook_events rows are not deletable: the row IS the deduplication';
+  end if;
+  if new.razorpay_event_id is distinct from old.razorpay_event_id
+     or new.razorpay_order_id is distinct from old.razorpay_order_id
+     or new.razorpay_payment_id is distinct from old.razorpay_payment_id
+     or new.payload is distinct from old.payload
+     or new.event_type is distinct from old.event_type then
+    raise exception 'payment_webhook_events: only processed_at and processing_error may change';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_payment_webhook_events_identity on payment_webhook_events;
+create trigger trg_payment_webhook_events_identity
+  before update or delete on payment_webhook_events
+  for each row execute function public.payment_webhook_events_identity_frozen();
+
+-- `payments` is the record of money that moved. record_payment_capture
+-- legitimately moves a row from created to captured, so UPDATE stays open --
+-- but a captured payment is never deleted, and its identity never changes.
+-- The unique indexes on the two Razorpay ids are described in AGENTS.md as
+-- the point of the table; this stops the row they protect being removed.
+create or replace function public.payments_not_deletable()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'payments rows are not deletable: this is the record money moved';
+  end if;
+  if new.razorpay_order_id is distinct from old.razorpay_order_id then
+    raise exception 'payments.razorpay_order_id is frozen';
+  end if;
+  if old.razorpay_payment_id is not null
+     and new.razorpay_payment_id is distinct from old.razorpay_payment_id then
+    raise exception 'payments.razorpay_payment_id is frozen once captured';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_payments_not_deletable on payments;
+create trigger trg_payments_not_deletable
+  before update or delete on payments
+  for each row execute function public.payments_not_deletable();
+
+revoke all on function public.admin_activity_log_is_append_only() from public, anon, authenticated;
+revoke all on function public.session_note_revisions_is_append_only() from public, anon, authenticated;
+revoke all on function public.payment_webhook_events_identity_frozen() from public, anon, authenticated;
+revoke all on function public.payments_not_deletable() from public, anon, authenticated;

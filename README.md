@@ -1459,7 +1459,26 @@ same 12-hour lead-time rule as the patient's own `/book` picker, re-checked
 server-side. Referred patients carry
 `referred_by_hospital_id`, which drives the hospital's revenue share. The
 public `/hospitals` page also captures anonymous B2B leads into `b2b_leads`,
-which only the admin can read back.
+which only the admin can read back. That form posts to
+`/api/hospitals/inquiry` rather than inserting from the browser, so it can be
+validated and rate limited; the table's public insert policy is gone.
+
+**Rate limiting.** The public doors are throttled per caller, in Postgres
+(`src/lib/rateLimit.ts`, `check_rate_limit()` in `supabase/schema.sql`) —
+there is no worker in this deployment and an in-memory counter would reset on
+every cold start. Ten routes are covered: the referral preview and referral
+code lookups, pincode serviceability, the home-visit waitlist, the hospital
+inquiry, registration via referral, and the four quote/checkout routes, which
+key on the signed-in account rather than an IP. A refused caller gets `429`
+with `Retry-After`, and the screen tells them roughly when they can try again
+rather than "a few minutes". The count happens after the request's shape is
+checked, so a corrected typo does not spend an allowance meant for abuse. It
+fails open if its own query fails, so a database blip cannot take down
+checkout, and a `429` is never read as a negative answer — a throttled
+serviceability or link check says "we couldn't check", never "you aren't
+served" or "that link has expired". Sign-up and sign-in call Supabase Auth directly
+from the browser, so their limits are configured in the Supabase dashboard
+rather than here.
 
 **Admin-managed content.** Treatment categories (with ordering), FAQs,
 testimonials, feature toggles (Meet on/off, join without

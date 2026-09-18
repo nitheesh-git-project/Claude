@@ -7,6 +7,7 @@ import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import {
   findMissingRequiredKeys,
   intakeVersionForSpecialty,
+  isSameIntakeSubmission,
   mergeSpecialtyAnswers,
   questionKeysForSpecialty,
 } from "@/lib/conditionIntake";
@@ -189,6 +190,42 @@ export async function POST(request: NextRequest) {
   // Only the caller whose write actually lands claims the row, and only
   // the claimant writes the audit entry. Same shape as the therapist_id
   // claim in /api/admin/assign-appointment.
+  // An identical resubmission writes nothing at all.
+  //
+  // The CAS below guards two races separately -- concurrent inserts, and
+  // concurrent updates -- and a burst of taps splits across both, so one
+  // caller wins the insert and another wins the first update. Both then
+  // claimed, and the admin's Review History showed one onboarding twice.
+  // Which path a request took is not the honest test; whether it changed
+  // anything clinical is. See isSameIntakeSubmission, and SPAM-001.
+  //
+  // triage_data is read on its own rather than added to
+  // loadConditionProfileCore's shared select: it is one more
+  // migration-dependent column, and a shared read that fails would cost
+  // every caller of that helper rather than this one comparison.
+  if (existing.exists) {
+    const { data: triageRow } = await admin
+      .from("patient_condition_profiles")
+      .select("triage_data")
+      .eq("patient_id", patientId)
+      .maybeSingle();
+    const currentTriage =
+      (triageRow?.triage_data as Record<string, string> | null) ?? {};
+    if (
+      isSameIntakeSubmission(
+        {
+          specialty: existing.specialty,
+          status: existing.status,
+          data: existing.data,
+          triageData: currentTriage,
+        },
+        { specialty, data: mergedData, triageData }
+      )
+    ) {
+      return NextResponse.json({ success: true, specialty });
+    }
+  }
+
   let claimed = false;
   if (existing.exists) {
     const { data: won, error: updateError } = await admin
