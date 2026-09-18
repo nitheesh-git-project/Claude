@@ -29,6 +29,20 @@ phrase, and it records itself. Nothing here can be edited, and there is still
 no update path. Operations, Finance and Clinical cannot open Logs; they read
 their own desk's work on Today → Activity. See the log rule in `AGENTS.md`.
 
+**Suspension reaches the database, not only the app.** `profiles.active` is
+read by `src/proxy.ts` and `requireActiveProfile`, and both are this
+application -- a session cookie reaches PostgREST without passing either, and
+Supabase keeps rotating the refresh token, so flipping the column alone left a
+suspended admin reading every patient record indefinitely. `is_admin()`
+refuses a suspended admin now, all eighteen admin policies that inlined their
+own copy of that check call the function instead, and the four `set-*-active`
+routes end the account's sessions through `revoke_user_sessions(uuid)`. The
+same reasoning covers the functions themselves: a `security definer` function
+must be revoked from `public`, `anon` and `authenticated` -- naming only the
+last two leaves PUBLIC's implicit grant, which is how `record_payment_capture`
+and `grant_session_credits` came to be callable by anyone with the publishable
+anon key. See the three grant rules in `AGENTS.md`.
+
 An admin carries a scope (`full`, `operations`, `finance`, `clinical`) that
 decides which of those sections they open **and at what level** - `none`,
 `view` or `manage`, with `requireAdminScope` asking for `manage`, so a
@@ -375,7 +389,11 @@ Quick commands: `npm run dev`, `npm run build`, `npm run test` (Vitest over
 the dependency-free `src/lib` modules), `npm run verify` (lint + test +
 build), `npm run lint` (which also
 runs `npm run check:realtime`, the Supabase Realtime publication coverage
-check), `npm run seed:qa`, which recreates every account the manual test
+check, and `npm run check:grants`, which fails when a `security definer`
+function in `schema.sql` is not revoked from all three of `public`, `anon`
+and `authenticated` -- `scripts/check-live-grants.mjs` asks the running
+database the same question and is run by hand after a schema change),
+`npm run seed:qa`, which recreates every account the manual test
 plan names after a data reset has deleted them, and `npm run clean:e2e`,
 which clears the fixture rows earlier e2e runs left in the database -- a
 direct-insert purchase or appointment never claims `visits_used` and never

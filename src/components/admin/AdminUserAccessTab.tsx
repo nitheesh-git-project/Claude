@@ -198,6 +198,12 @@ function StatusToggle({ row, canManage }: { row: AdminRow; canManage: boolean })
     savingRef.current = true;
     setSaving(true);
     setError(null);
+    // Suspending also ends their sessions, and that half can fail on its own.
+    // Hoisted out of the try so the success toast below can carry it: the
+    // account is suspended either way, so it is a caveat on a success rather
+    // than an error, and a route returning it with no screen reading it would
+    // be worse than not returning it at all.
+    let sessionWarning: string | null = null;
     try {
       const res = await fetch("/api/admin/set-admin-active", {
         method: "POST",
@@ -210,6 +216,7 @@ function StatusToggle({ row, canManage }: { row: AdminRow; canManage: boolean })
         setError(data.error ?? "Could not change this.");
         return;
       }
+      if (typeof data.warning === "string") sessionWarning = data.warning;
     } catch {
       // A request that dies on a bad connection has to say so. Left
       // unhandled it threw inside the transition and put nothing on screen,
@@ -228,6 +235,7 @@ function StatusToggle({ row, canManage }: { row: AdminRow; canManage: boolean })
         ? `${row.fullName ?? "That admin"} can no longer sign in.`
         : `${row.fullName ?? "That admin"} can sign in again.`
     );
+    if (sessionWarning) show(sessionWarning, "error");
     router.refresh();
   }
 
