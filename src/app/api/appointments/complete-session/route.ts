@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { getAdminContext } from "@/lib/supabase/requireAdmin";
+import { scopeCanManage } from "@/lib/adminScope";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { mirrorConsume } from "@/lib/sessionCreditMirror";
@@ -65,7 +66,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
   }
 
-  const adminUser = await getAdminUser();
+  // `getAdminUser()` answered "is this anybody in the back office", which is
+  // the wrong question for this route: completing a session is the exact and
+  // only thing that makes a therapist's revenue share payable, so it is a
+  // Sessions write and has to ask for `manage` on Sessions the way every
+  // other one does. Finance holds Sessions at `view` on purpose -- they
+  // reconcile sessions without being able to change one -- and this route
+  // was letting them close a session, which creates the payout obligation
+  // they would then be reconciling, and does it exempt from the payment and
+  // join-window gates a therapist has to pass.
+  //
+  // Not `requireAdminScope("sessions")` itself, because this route is shared
+  // with the therapist who ran the session: it needs to tell "an admin who
+  // may not" apart from "not an admin at all", and only the second falls
+  // through to the owning-therapist check below.
+  const adminContext = await getAdminContext();
+  const adminUser =
+    adminContext && scopeCanManage(adminContext.scope, "sessions") ? adminContext : null;
   const isOwningTherapist = appointment.therapist_id === user.id;
   if (!adminUser && !isOwningTherapist) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

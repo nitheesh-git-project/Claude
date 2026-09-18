@@ -212,15 +212,33 @@ test.describe("Suite S: scoped admin dashboards", () => {
       // third environment note), so RealtimeRefresh's socket dies with
       // ERR_CONNECTION_RESET on every run and says nothing about the app.
       // A failed request to the app's own origin is a real fault and still
-      // fails this test.
+      // fails this test -- unless it is a prefetch the click spam itself
+      // cancelled, which the handler below is careful to tell apart.
       const blockedExternal: string[] = [];
       page.on("requestfailed", (req) => {
         const host = new URL(req.url()).hostname;
-        if (host === "localhost" || host === "127.0.0.1") {
-          consoleErrors.push(`request failed: ${req.url()} - ${req.failure()?.errorText}`);
-        } else {
+        if (host !== "localhost" && host !== "127.0.0.1") {
           blockedExternal.push(req.url());
+          return;
         }
+        // A cancelled request is not a failed one. `requestfailed` fires for
+        // both, and Next prefetches an RSC payload (`?_rsc=`) for every Link
+        // that enters the viewport -- then aborts the ones a navigation or a
+        // screen swap supersedes. Clicking the sidebar two dozen times
+        // without settling is exactly that, by design: this test spams it on
+        // purpose, so every run produces a handful of ERR_ABORTED prefetches
+        // and none of them describes anything a person would ever see. A
+        // genuine app-origin failure -- a 500, a connection reset, a script
+        // that did not load -- still fails this test, and so does an aborted
+        // request that is not a prefetch.
+        const errorText = req.failure()?.errorText ?? "";
+        const isSupersededPrefetch =
+          errorText === "net::ERR_ABORTED" && req.url().includes("_rsc=");
+        if (isSupersededPrefetch) {
+          blockedExternal.push(req.url());
+          return;
+        }
+        consoleErrors.push(`request failed: ${req.url()} - ${errorText}`);
       });
       page.on("console", (m) => {
         if (m.type() !== "error") return;
