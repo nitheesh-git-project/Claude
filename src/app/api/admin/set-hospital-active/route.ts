@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { revokeAllSessions, SESSION_REVOKE_WARNING } from "@/lib/supabase/revokeSessions";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 
@@ -50,12 +51,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Hospital not found" }, { status: 404 });
   }
 
+  // Suspending writes `active = false`, which src/proxy.ts and
+  // requireActiveProfile both refuse on -- but those are this app, and a
+  // session cookie reaches PostgREST without passing either. An account
+  // that has been suspended must not still be signed in anywhere.
+  let sessionsRevoked = true;
+  if (!active) {
+    const revoke = await revokeAllSessions(admin, hospitalId);
+    sessionsRevoked = revoke.revoked;
+  }
+
   await recordAdminActivity(admin, adminUser.id, {
     action: "hospital.set_active",
     targetId: hospitalId,
     targetLabel: updated.organization_name,
-    details: { active },
+    details: { active, sessionsRevoked },
   });
 
-  return NextResponse.json({ success: true, active });
+  return NextResponse.json({
+    success: true,
+    active,
+    ...(sessionsRevoked ? {} : { warning: SESSION_REVOKE_WARNING }),
+  });
 }

@@ -3,6 +3,7 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
+import { useToast } from "@/lib/toast";
 
 // Suspend or restore a hospital partner. The counterpart to
 // PatientActiveToggle / TherapistActiveToggle, which existed long before
@@ -28,6 +29,7 @@ export default function HospitalActiveToggle({
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { confirm, dialog } = useConfirm();
+  const { show } = useToast();
 
   async function handleToggle() {
     const nextActive = !optimisticActive;
@@ -47,6 +49,13 @@ export default function HospitalActiveToggle({
         body: JSON.stringify({ hospitalId, active: nextActive }),
       });
       if (res.ok) {
+        // Suspending also ends their sessions, and that half can fail on its
+        // own -- the account is suspended either way, so this is a warning
+        // rather than an error, and it has to reach the person who just
+        // clicked. A route returning it and no screen reading it would be
+        // worse than not returning it.
+        const data = await res.json().catch(() => ({}));
+        if (data.warning) show(data.warning, "error");
         router.refresh();
       } else {
         const data = await res.json().catch(() => ({}));

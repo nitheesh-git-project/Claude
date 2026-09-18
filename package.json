@@ -6,14 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "npm run check:realtime && eslint",
+    "lint": "npm run check:realtime && npm run check:grants && eslint",
     "check:realtime": "node scripts/check-realtime-coverage.mjs",
     "seed:qa": "node scripts/seed-qa-accounts.mjs",
     "clean:e2e": "node scripts/clean-e2e-residue.mjs",
     "test:e2e": "playwright test",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify": "npm run lint && npm run test && npm run build"
+    "verify": "npm run lint && npm run test && npm run build",
+    "check:grants": "node scripts/check-function-grants.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.3.1",

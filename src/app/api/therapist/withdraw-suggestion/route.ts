@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 
 // A therapist taking back a suggestion the patient hasn't answered yet.
 //
@@ -24,6 +25,14 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // `approved` / `active` are enforced in two places, and both have to
+  // stay: src/proxy.ts for dashboard navigation, and here, because a valid
+  // session cookie reaches this route without passing the proxy at all.
+  // This route had only the first.
+  if (!(await isProfileActiveAndApproved(user.id))) {
+    return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }
 
   const { data: body, error: parseError } = await parseJsonBody<{ suggestionId?: string }>(

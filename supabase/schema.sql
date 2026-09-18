@@ -10334,3 +10334,345 @@ $$;
 revoke all on function public.debug_reset_all_data() from public;
 revoke all on function public.debug_reset_all_data() from anon;
 revoke all on function public.debug_reset_all_data() from authenticated;
+
+-- ---------------------------------------------------------------------
+-- Function EXECUTE privileges: revoke from PUBLIC, not from anon and
+-- authenticated.
+--
+-- Postgres grants EXECUTE on every new function to PUBLIC, and both
+-- `anon` and `authenticated` inherit it. So
+-- `revoke execute on function f() from anon, authenticated` removes a
+-- grant those roles were never holding directly and leaves the PUBLIC
+-- one in place -- the function stays callable over PostgREST by anyone
+-- with the publishable anon key, which is in every page bundle. The
+-- revoke succeeds, the ACL looks touched, and nothing is actually
+-- protected. `debug_reset_all_data` above got this right; the eleven
+-- money functions below did not, and an audit found
+-- `record_payment_capture` (mark a booking paid) and
+-- `grant_session_credits` (mint sessions) reachable by `anon`.
+--
+-- Re-stated here rather than edited in place, per the append-only rule
+-- for this file. These are idempotent: revoking a privilege that is
+-- already gone is a no-op.
+-- ---------------------------------------------------------------------
+
+revoke all on function public.record_payment_capture(text, text, integer, jsonb) from public;
+revoke all on function public.session_credit_entry(uuid, text, integer, integer, integer, text, uuid, uuid, text, text) from public;
+revoke all on function public.grant_session_credits(uuid, integer, text, uuid, text, text) from public;
+revoke all on function public.reserve_session_credit(uuid, uuid, uuid, text) from public;
+revoke all on function public.consume_session_credit(uuid, uuid, text) from public;
+revoke all on function public.release_session_credit(uuid, uuid, text, text) from public;
+revoke all on function public.void_session_credits(uuid, text, text, uuid, text) from public;
+revoke all on function public.adjust_session_credits(uuid, integer, integer, integer, text, uuid, text) from public;
+revoke all on function public.verify_entitlement_balances() from public;
+revoke all on function public.ensure_entitlement_for_purchase(uuid, text) from public;
+
+-- The trigger functions. `handle_new_user` and `assign_session_code` run
+-- as triggers and are never called by name, so nothing loses a caller.
+revoke all on function public.handle_new_user() from public;
+revoke all on function public.assign_session_code() from public;
+
+-- Belt and braces for the ones whose PUBLIC grant was already absent, so
+-- this file states the intent rather than relying on it having been
+-- removed by hand at some point.
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from public;
+revoke all on function public.release_promo_code(uuid, uuid) from public;
+revoke all on function public.claim_invite(text, uuid) from public;
+revoke all on function public.claim_invite_half(uuid, uuid, text) from public;
+revoke all on function public.settle_invite_half(uuid, text) from public;
+revoke all on function public.grant_invite_reward(uuid, uuid) from public;
+revoke all on function public.ensure_invite_code(uuid, text) from public;
+revoke all on function public.purge_admin_activity_log(integer) from public;
+revoke all on function public.save_therapist_weekly_schedule(uuid, jsonb, bigint, uuid) from public;
+revoke all on function public.set_therapist_date_exception(uuid, date, jsonb, text, uuid) from public;
+revoke all on function public.lock_therapist_schedule_state(uuid, uuid) from public;
+
+-- Stop it recurring. Without this, the next `create function` in this
+-- file ships with the same PUBLIC grant and the next reviewer has to
+-- notice again.
+alter default privileges in schema public revoke execute on functions from public;
+
+-- `is_admin()` stays callable -- RLS policies invoke it as the querying
+-- role, so revoking PUBLIC here would break every policy that uses it.
+-- It is a `stable` read of one row keyed on `auth.uid()` and takes no
+-- argument, so there is nothing a caller can steer.
+
+-- ---------------------------------------------------------------------
+-- `is_admin()` refuses a suspended admin, matching the app.
+--
+-- `getAdminUser()` and the proxy's admin branch have always refused an
+-- admin whose `profiles.active` is false. This function did not, and it
+-- is what 23 RLS policies are written against -- so suspension was an
+-- application-layer rule only. A suspended admin calling PostgREST
+-- directly with the publishable anon key and their own still-valid
+-- access token passed every one of those policies and kept reading
+-- patient records, payments and the audit log.
+--
+-- It deliberately still does NOT check `approved`, for the reason
+-- documented beside `getAdminUser`: an admin is promoted by hand rather
+-- than through the signup queue, so gating on it would lock out the
+-- people it protects.
+--
+-- `is not false` rather than `= true`, so a row predating the column's
+-- default still reads as active.
+-- ---------------------------------------------------------------------
+create or replace function is_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from profiles
+    where id = auth.uid()
+      and role = 'admin'
+      and active is not false
+  );
+$$;
+
+-- ---------------------------------------------------------------------
+-- Every admin policy calls is_admin(); none of them inlines it.
+--
+-- Eighteen policies had a hand-written copy of the same EXISTS -- "a
+-- profiles row for auth.uid() whose role is 'admin'" -- instead of calling
+-- the function. While the function and the copies said the same thing that
+-- cost nothing, which is why it went unnoticed. The moment `is_admin()`
+-- learned to refuse a suspended admin, the eighteen did not, and the
+-- tables they guard are the worst possible list to have missed: the audit
+-- log, the impersonation record, the flagged-message and contact-reveal
+-- evidence trails, session notes, the risk queue, and all four finance
+-- tables. A suspended admin was refused `appointments` (which calls the
+-- function) and still read `admin_activity_log` (which did not) with the
+-- same token, in the same request batch -- found by testing the fix rather
+-- than by reading it.
+--
+-- Two of them are compound: the clinician policies on session_notes and
+-- session_note_revisions are "the treating therapist OR an admin", and
+-- only the admin disjunct is replaced. The rest are the bare EXISTS and
+-- become the call outright.
+--
+-- Rewritten under their own names with `drop policy if exists` first, per
+-- the re-runnability rule.
+-- ---------------------------------------------------------------------
+
+drop policy if exists "admin_activity_log_select_admin" on admin_activity_log;
+create policy "admin_activity_log_select_admin" on admin_activity_log
+  for select using (is_admin());
+
+drop policy if exists "admin_impersonation_sessions_select_admin" on admin_impersonation_sessions;
+create policy "admin_impersonation_sessions_select_admin" on admin_impersonation_sessions
+  for select using (is_admin());
+
+drop policy if exists "balance_sheet_entries_select_admin" on balance_sheet_entries;
+create policy "balance_sheet_entries_select_admin" on balance_sheet_entries
+  for select using (is_admin());
+
+drop policy if exists "business_expenses_select_admin" on business_expenses;
+create policy "business_expenses_select_admin" on business_expenses
+  for select using (is_admin());
+
+drop policy if exists "capital_investments_select_admin" on capital_investments;
+create policy "capital_investments_select_admin" on capital_investments
+  for select using (is_admin());
+
+drop policy if exists "care_plan_reviews_select_admin" on care_plan_reviews;
+create policy "care_plan_reviews_select_admin" on care_plan_reviews
+  for select using (is_admin());
+
+drop policy if exists "communication_flags_select_admin" on communication_flags;
+create policy "communication_flags_select_admin" on communication_flags
+  for select using (is_admin());
+
+drop policy if exists "contact_reveal_log_select_admin" on contact_reveal_log;
+create policy "contact_reveal_log_select_admin" on contact_reveal_log
+  for select using (is_admin());
+
+drop policy if exists "marketing_campaigns_select_admin" on marketing_campaigns;
+create policy "marketing_campaigns_select_admin" on marketing_campaigns
+  for select using (is_admin());
+
+drop policy if exists "mission_principles_select_admin" on mission_principles;
+create policy "mission_principles_select_admin" on mission_principles
+  for select using (is_admin());
+
+drop policy if exists "patient_invites_admin_select" on patient_invites;
+create policy "patient_invites_admin_select" on patient_invites
+  for select using (is_admin());
+
+drop policy if exists "promo_codes_admin_all" on promo_codes;
+create policy "promo_codes_admin_all" on promo_codes
+  for all using (is_admin()) with check (is_admin());
+
+drop policy if exists "risk_reviews_select_admin" on risk_reviews;
+create policy "risk_reviews_select_admin" on risk_reviews
+  for select using (is_admin());
+
+drop policy if exists "risk_rules_select_admin" on risk_rules;
+create policy "risk_rules_select_admin" on risk_rules
+  for select using (is_admin());
+
+drop policy if exists "risk_signals_select_admin" on risk_signals;
+create policy "risk_signals_select_admin" on risk_signals
+  for select using (is_admin());
+
+drop policy if exists "session_suggestions_admin_select" on session_suggestions;
+create policy "session_suggestions_admin_select" on session_suggestions
+  for select using (is_admin());
+
+-- Compound: the treating therapist, or an admin. Only the admin half moves.
+drop policy if exists "session_notes_select_clinician" on session_notes;
+create policy "session_notes_select_clinician" on session_notes
+  for select using (
+    exists (
+      select 1 from appointments a
+      where a.patient_id = session_notes.patient_id
+        and a.therapist_id = auth.uid()
+    )
+    or exists (
+      select 1 from patient_package_purchases pp
+      where pp.patient_id = session_notes.patient_id
+        and pp.locked_therapist_id = auth.uid()
+    )
+    or is_admin()
+  );
+
+drop policy if exists "session_note_revisions_select_clinician" on session_note_revisions;
+create policy "session_note_revisions_select_clinician" on session_note_revisions
+  for select using (
+    exists (
+      select 1 from session_notes n
+      where n.id = session_note_revisions.note_id
+        and (n.therapist_id = auth.uid() or is_admin())
+    )
+  );
+
+-- ---------------------------------------------------------------------
+-- Ending every session an account has, by id.
+--
+-- Suspending somebody wrote `profiles.active = false` and nothing else,
+-- and that column is read by src/proxy.ts and requireActiveProfile --
+-- both of which are this application. Neither runs when the suspended
+-- account talks to PostgREST directly with the publishable anon key and
+-- the token it already holds, and Supabase keeps rotating that account's
+-- refresh token, so "already holds" had no end date. `is_admin()` now
+-- refuses a suspended admin at the policy layer, which closes the reads;
+-- this closes the session itself.
+--
+-- It is a function rather than an API call because
+-- `auth.admin.signOut(jwt, scope)` takes the suspended person's **JWT**,
+-- which an admin route does not have and cannot get -- and the GoTrue
+-- admin endpoints that would do it by id (`/admin/users/{id}/sessions`,
+-- `/admin/users/{id}/logout`) both answer 404 on this project's version.
+-- Checked, rather than assumed.
+--
+-- What this can and cannot do is worth stating plainly: an access token
+-- is a signed JWT and stays valid until it expires however it was issued,
+-- so this stops *renewal* and caps the remaining exposure at the
+-- project's JWT lifetime (one hour by default). Shortening that lifetime
+-- in the Supabase dashboard is the other half and is not something a
+-- schema file can set.
+--
+-- `security definer` because `auth.sessions` and `auth.refresh_tokens`
+-- belong to `supabase_auth_admin` and the service role cannot reach them
+-- directly. Revoked from PUBLIC and granted to service_role alone, which
+-- is the only client that should ever call it.
+-- ---------------------------------------------------------------------
+create or replace function public.revoke_user_sessions(p_user_id uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_sessions integer;
+begin
+  if p_user_id is null then
+    raise exception 'revoke_user_sessions: p_user_id is required';
+  end if;
+
+  -- Refresh tokens first: a session row deleted while its token survived
+  -- would leave the token able to mint a new session.
+  delete from auth.refresh_tokens where user_id = p_user_id::text;
+  delete from auth.sessions where user_id = p_user_id;
+  get diagnostics v_sessions = row_count;
+
+  return v_sessions;
+end;
+$$;
+
+revoke all on function public.revoke_user_sessions(uuid) from public;
+grant execute on function public.revoke_user_sessions(uuid) to service_role;
+
+-- ---------------------------------------------------------------------
+-- The same revokes again, naming all three roles -- because "from public"
+-- alone is correct on THIS database and wrong on a fresh one.
+--
+-- `pg_default_acl` on this project carries, for role `postgres` in schema
+-- `public`:
+--
+--     postgres=X/postgres | anon=X/postgres
+--   | authenticated=X/postgres | service_role=X/postgres
+--
+-- That is Supabase's own default and it means a function created here
+-- gets **explicit** grants to anon and authenticated, not merely the
+-- implicit PUBLIC one. The two cases are different and both are real:
+--
+--   * The ledger and payment functions above predate that default and
+--     carried only the PUBLIC grant, so `revoke ... from public` closed
+--     them. Confirmed against the live database.
+--   * A fresh database applying this file creates the same functions
+--     anew, so they arrive with `anon=X` and `authenticated=X` written
+--     out -- and `revoke ... from public` removes neither. The hole
+--     would come straight back on the first rebuild, in a file that
+--     looks like it fixed it.
+--
+-- Naming all three is the only form that is correct in both. Revoking a
+-- privilege that was never granted is a no-op, so this is safe to re-run
+-- and safe on either shape of database. `revoke_user_sessions`, added
+-- above, is in the list because it was created after that default and
+-- did arrive with both grants -- caught by testing it as anon rather
+-- than by reading the file.
+-- ---------------------------------------------------------------------
+
+revoke all on function public.record_payment_capture(text, text, integer, jsonb) from public, anon, authenticated;
+revoke all on function public.session_credit_entry(uuid, text, integer, integer, integer, text, uuid, uuid, text, text) from public, anon, authenticated;
+revoke all on function public.grant_session_credits(uuid, integer, text, uuid, text, text) from public, anon, authenticated;
+revoke all on function public.reserve_session_credit(uuid, uuid, uuid, text) from public, anon, authenticated;
+revoke all on function public.consume_session_credit(uuid, uuid, text) from public, anon, authenticated;
+revoke all on function public.release_session_credit(uuid, uuid, text, text) from public, anon, authenticated;
+revoke all on function public.void_session_credits(uuid, text, text, uuid, text) from public, anon, authenticated;
+revoke all on function public.adjust_session_credits(uuid, integer, integer, integer, text, uuid, text) from public, anon, authenticated;
+revoke all on function public.verify_entitlement_balances() from public, anon, authenticated;
+revoke all on function public.ensure_entitlement_for_purchase(uuid, text) from public, anon, authenticated;
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from public, anon, authenticated;
+revoke all on function public.release_promo_code(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.claim_invite(text, uuid) from public, anon, authenticated;
+revoke all on function public.claim_invite_half(uuid, uuid, text) from public, anon, authenticated;
+revoke all on function public.settle_invite_half(uuid, text) from public, anon, authenticated;
+revoke all on function public.grant_invite_reward(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.ensure_invite_code(uuid, text) from public, anon, authenticated;
+revoke all on function public.purge_admin_activity_log(integer) from public, anon, authenticated;
+revoke all on function public.save_therapist_weekly_schedule(uuid, jsonb, bigint, uuid) from public, anon, authenticated;
+revoke all on function public.set_therapist_date_exception(uuid, date, jsonb, text, uuid) from public, anon, authenticated;
+revoke all on function public.lock_therapist_schedule_state(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.revoke_user_sessions(uuid) from public, anon, authenticated;
+revoke all on function public.debug_reset_all_data() from public, anon, authenticated;
+
+-- service_role is how every route in this app reaches these.
+grant execute on function public.revoke_user_sessions(uuid) to service_role;
+
+-- And the default itself, for all three, so the next function added to
+-- this file is closed on arrival rather than relying on somebody
+-- remembering a revoke. Every RPC this application makes goes through the
+-- service-role client, so nothing here is meant for anon or authenticated
+-- to call directly -- `is_admin()` is the one exception and it already
+-- exists, so an existing ACL is untouched by a default-privileges change.
+--
+-- A future function genuinely meant for a signed-in caller needs an
+-- explicit `grant execute ... to authenticated` after it. That is the
+-- right way round: a grant somebody wrote deliberately, rather than one
+-- that arrived on its own.
+alter default privileges in schema public revoke execute on functions from public;
+alter default privileges in schema public revoke execute on functions from anon;
+alter default privileges in schema public revoke execute on functions from authenticated;

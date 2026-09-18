@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
 
 // Called by the user themselves right after they set their own password via
 // the forgot-password flow, so an admin-issued temp password stops being
@@ -14,6 +15,14 @@ export async function POST() {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // `approved` / `active` are enforced in two places, and both have to
+  // stay: src/proxy.ts for dashboard navigation, and here, because a valid
+  // session cookie reaches this route without passing the proxy at all.
+  // This route had only the first.
+  if (!(await isProfileActive(user.id))) {
+    return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }
 
   const { data: profile } = await supabase

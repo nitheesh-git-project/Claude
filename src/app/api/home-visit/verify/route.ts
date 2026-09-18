@@ -10,6 +10,7 @@ import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import { normalizePincode } from "@/lib/homeVisitAreas";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
 import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
+import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
 
 const MAX_NOTES_LENGTH = 1000;
 
@@ -24,6 +25,14 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+
+  // `approved` / `active` are enforced in two places, and both have to
+  // stay: src/proxy.ts for dashboard navigation, and here, because a valid
+  // session cookie reaches this route without passing the proxy at all.
+  // This route had only the first.
+  if (!(await isProfileActive(user.id))) {
+    return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }
 
   const { data: body, error: parseError } = await parseJsonBody<{
