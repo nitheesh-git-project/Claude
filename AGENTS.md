@@ -1243,9 +1243,12 @@ client is the only writer and the log is append-only from any session.
   automatically by `src/lib/retryDueMeetSyncs.ts` (a lazy sweep at the top of
   the admin dashboard render - see the no-cron rule below), and retried by
   hand by the admin (`/api/admin/retry-meet-sync`). The automatic sweep is
-  capped three ways because, unlike the expiry sweeps, it makes outbound
+  capped four ways because, unlike the expiry sweeps, it makes outbound
   Google API calls from inside a page render: a wall-clock timeout per
-  attempt, a few appointments per sweep, and
+  attempt, a few appointments per sweep, a minute's minimum gap between
+  sweeps that do work - without which each attempt's own write to
+  `appointments` refreshed the dashboard that had just swept, and the row's
+  five attempts were gone inside a minute - and
   `appointments.google_calendar_sync_attempts` capping attempts per
   appointment so a permanently broken row (revoked credentials, deleted
   calendar) is not retried forever. Both the sweep and the manual Retry
@@ -2707,7 +2710,13 @@ client is the only writer and the log is append-only from any session.
   refresh *is* the work, so releasing the button early would leave it looking
   idle while what it was asked for was still running. It is disabled while
   pending, because stacking refreshes on the admin dashboard stacks ~40
-  queries a tap for no new answer.
+  queries a tap for no new answer. Where the shell counts changes rather than
+  rebuilding for them (the admin dashboard -- see the realtime rule below) it
+  also **says how many are waiting**: without that the button asks somebody
+  to guess whether there is anything to fetch. Its accessible name stays
+  "Refresh this screen" whatever the count, so a screen reader does not meet
+  a different control mid-action; the count is announced once by its own
+  `role="status"` region.
   `Spinner` (`src/components/system/Spinner.tsx`) is the app's only spinner,
   inheriting `currentColor` so one component works on the filled, outlined
   and text buttons alike. Before it, every busy state was a text swap, which
@@ -2771,6 +2780,56 @@ client is the only writer and the log is append-only from any session.
   `*_REALTIME_TABLES` arrays rather than inlining a third list - the coverage
   check reads them by that name - and add the matching `alter publication`
   to `schema.sql` in the same change.
+  **On the admin dashboard the channels count instead of rebuilding.** Both
+  are passed `mode="notify"`, `AdminShell` wraps itself in
+  `LiveUpdatesProvider` (`src/lib/liveUpdates.tsx`), and the header's Refresh
+  button turns teal and carries the number waiting. Two controls were
+  answering the same question and only one of them was asked: a rebuild here
+  is ~41 queries and every screen's markup, almost nothing arriving is a
+  change the reader is waiting on, and the page moved the list they were
+  reading while they read it. The other three dashboards keep
+  `mode="refresh"` -- a rebuild there is cheap and the reader usually *is*
+  waiting for that row (a patient watching for a therapist's suggested
+  time). What it costs is stated rather than hidden: a Today figure can be
+  minutes old, and the badge is the sentence saying so. The count clears on
+  **any** deliberate refresh, through `onLocalRefresh`, never on the button's
+  own click -- a control that mutates and refreshes would otherwise leave a
+  count standing for rows it had just fetched. `useLiveUpdates` answers 0
+  outside a provider rather than throwing, same posture as `useToast`, so
+  `RefreshButton` renders unchanged where nothing counts.
+  **A browser does not rebuild for its own work.** Most events reaching an
+  open admin dashboard are that dashboard's own writes coming back: a
+  control's route changes its row *and* writes an `admin_activity_log`
+  entry, and the control has already called `router.refresh()`. Those two
+  events then cost two more full rebuilds, the second of them up to the
+  catalog channel's 30 seconds later - by which time the admin has forgotten
+  the tap and reads it as the page reloading on its own. `useRouter().refresh()`
+  stamps `src/lib/refreshSignal.ts` before it starts, and `RealtimeRefresh`
+  drops a change that arrived **before** that stamp, since the fetch already
+  read it. Three details are load-bearing. It compares timestamps rather than
+  tagging events, which is what makes it work across both channels and across
+  every control in the app - none of which knows which rows its route
+  touched. It tests the **newest** waiting event, not the oldest, so a burst
+  whose tail landed after the local refresh still fires. And a *skipped* fire
+  does not start a cooldown: counting one would hold the next genuine change
+  off for up to 30 seconds for a rebuild that never happened. The suppression
+  is one-way - an event arriving *during* an in-flight refresh is newer than
+  its start and still fires - so what it can cost is a change by somebody
+  else landing in the moment before this browser refreshed for its own
+  reason, which that refresh read anyway.
+  **And a lazy sweep must not be able to refresh the render that started
+  it.** Anything running in the dashboard's `after()` that *writes* a table
+  on one of these channels closes a circle: render, write, realtime event,
+  render. Every such sweep therefore carries a minimum interval remembered
+  per server instance - `runRiskSweep`'s five minutes, and
+  `retryDueMeetSyncs` / `retryDueMeetAccess`'s one, claimed only once the
+  sweep has found work so an empty backlog never holds off the next one.
+  Without it the circle is bounded only by each row's attempt cap, which
+  bounds it by spending all five of an appointment's automatic retries inside
+  a minute and retiring it to "needs a person" before the transient failure
+  it was retrying could clear. `risk_signals` moved to the catalog channel in
+  the same change, for the same reason: it is written by that sweep and read
+  by a queue an admin opens deliberately.
 - **Every admin export offers CSV and PDF, from one column definition.**
   A call site passes `DataExportButtons` the rows it is already rendering
   plus `CsvColumn[]` - never a pre-built string - so the spreadsheet and
