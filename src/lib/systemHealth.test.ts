@@ -24,6 +24,7 @@ const ALL_WELL: SystemHealthInput = {
   waitingRoomIssues: [],
   accounting: CLEAN_ACCOUNTING,
   openAccessEnabled: true,
+  rateLimitIdentity: { observed: 12, identified: 12, anonymous: 0, allOneCaller: false },
 };
 
 describe("buildSystemHealth", () => {
@@ -83,7 +84,7 @@ describe("buildSystemHealth", () => {
 
   it("reports every check healthy when nothing is wrong", () => {
     const checks = buildSystemHealth(ALL_WELL);
-    expect(checks).toHaveLength(5);
+    expect(checks).toHaveLength(6);
     expect(checks.every((c) => c.status === "healthy")).toBe(true);
     // A healthy check must not ask the reader to do anything.
     expect(checks.every((c) => c.fix.length === 0)).toBe(true);
@@ -244,12 +245,99 @@ describe("buildSystemHealth", () => {
   });
 });
 
+  // The limiter allows a request it cannot attribute, which is right and is
+  // silent: without a forwarding header every public door is uncapped and
+  // nothing anywhere says so. These are the assertions that make the screen
+  // say it.
+  describe("the public doors check", () => {
+    const withIdentity = (
+      stats: SystemHealthInput["rateLimitIdentity"]
+    ) =>
+      buildSystemHealth({ ...ALL_WELL, rateLimitIdentity: stats }).find(
+        (c) => c.id === "rate_limits"
+      )!;
+
+    it("says it has not been able to judge yet rather than claiming all clear", () => {
+      expect(withIdentity(undefined).status).toBe("unknown");
+      expect(
+        withIdentity({ observed: 0, identified: 0, anonymous: 0, allOneCaller: false }).status
+      ).toBe("unknown");
+    });
+
+    it("is healthy once visitors are being told apart", () => {
+      const check = withIdentity({ observed: 30, identified: 30, anonymous: 0, allOneCaller: false });
+      expect(check.status).toBe("healthy");
+      expect(check.count).toBe(0);
+      expect(check.evidence).toEqual([]);
+    });
+
+    it("calls a deployment with no forwarding header 'off', not broken", () => {
+      // Nothing is failing -- the app is doing exactly what it was told, and
+      // the fix is one setting on the host. Painting it red is how red stops
+      // meaning anything.
+      const check = withIdentity({ observed: 30, identified: 0, anonymous: 30, allOneCaller: false });
+      expect(check.status).toBe("off");
+      expect(needsPerson(check.status)).toBe(false);
+      expect(check.fix.length).toBeGreaterThan(0);
+      expect(check.count).toBe(30);
+    });
+
+    it("treats a mixture as worth a look, since that one is a misconfiguration", () => {
+      const check = withIdentity({ observed: 30, identified: 20, anonymous: 10, allOneCaller: false });
+      expect(check.status).toBe("attention");
+      expect(check.count).toBe(10);
+    });
+
+    it("states the counts it judged on, and says they are this server's own", () => {
+      const check = withIdentity({ observed: 30, identified: 0, anonymous: 30, allOneCaller: false });
+      expect(check.evidence.join(" ")).toContain("30");
+      expect(check.evidence.join(" ").toLowerCase()).toContain("restarted");
+    });
+
+
+    it("flags every visitor arriving as one address, which looks healthy from the inside", () => {
+      // The failure a Node host actually produces: Next fills x-forwarded-for
+      // from the socket, so a proxy that does not forward the real address
+      // still yields an identifier -- its own -- and the whole internet then
+      // shares one allowance.
+      const check = withIdentity({
+        observed: 40,
+        identified: 40,
+        anonymous: 0,
+        allOneCaller: true,
+      });
+      expect(check.status).toBe("attention");
+      expect(check.count).toBe(40);
+      expect(check.fix.length).toBeGreaterThan(0);
+      expect(check.headline.toLowerCase()).toContain("same person");
+    });
+
+    it("never prints anybody's address, only the verdict", () => {
+      for (const stats of [
+        { observed: 40, identified: 40, anonymous: 0, allOneCaller: true },
+        { observed: 30, identified: 0, anonymous: 30, allOneCaller: false },
+      ] as const) {
+        const check = withIdentity(stats);
+        const text = [check.headline, ...check.fix, ...check.evidence].join(" ");
+        expect(text).not.toMatch(/\b\d{1,3}(\.\d{1,3}){3}\b/);
+      }
+    });
+
+    it("never quotes a header name at the owner in its headline", () => {
+      // The blurb rule: no jargon on the card. The header names belong in
+      // the steps, which is where somebody is already looking for one.
+      const check = withIdentity({ observed: 30, identified: 0, anonymous: 30, allOneCaller: false });
+      expect(check.headline.toLowerCase()).not.toContain("x-real-ip");
+      expect(check.headline.toLowerCase()).not.toContain("header");
+    });
+  });
+
 describe("summarizeHealth", () => {
   it("says all clear when every check is healthy", () => {
     const summary = summarizeHealth(buildSystemHealth(ALL_WELL));
     expect(summary.needsPerson).toBe(0);
     expect(summary.worst).toBe("healthy");
-    expect(summary.headline).toBe("All 5 checks healthy");
+    expect(summary.headline).toBe("All 6 checks healthy");
     expect(summary.attention).toHaveLength(0);
   });
 

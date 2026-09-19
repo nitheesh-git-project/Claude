@@ -20,7 +20,9 @@ Calendar/Meet (`googleapis`) · `motion` for animation · Font Awesome ·
 `libphonenumber-js` · `pdf-lib` (every PDF this app generates: the
 patient's health profile and the admin's table exports).
 
-Commands: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
+Commands: `npm run dev`, `npm run build`, `npm start`,
+`npm run start:cluster` (several workers on one port -- see the clustering
+rule under "Supabase clients"), `npm run lint`,
 `npm run test`, `npm run check:realtime`, `npm run check:grants`,
 `npm run test:e2e`,
 `npm run seed:qa` (recreate the QA fixture accounts after a data reset),
@@ -606,11 +608,49 @@ direction for "do we come to you") but answer **503 "we couldn't check"**
 rather than 403 "home visits aren't available", because those two send a
 patient to two different places.
 
-**One Node process renders everything, and that is the remaining ceiling.**
-With 200 concurrent visitors browsing the public pages (412 requests a
-second sustained, p95 549ms, no errors), one admin dashboard render goes
-from 4.0s to 15.9s -- the process sits at ~200% of the 4 CPUs available and
-the JS thread is the queue. Nothing in the app fixes that; run more workers.
+**One Node process renders everything, so production runs several.**
+`npm run start:cluster` (`scripts/start-cluster.mjs`) forks `WEB_CONCURRENCY`
+workers -- cores, capped at 4 -- on one port through `node:cluster`, which
+hands each accepted connection to a worker off the primary's shared handle,
+so nothing sits in front of it. `next start` still works and is still what a
+single-process host should run.
+
+It exists because the JS thread was the queue once the database was not:
+with 200 concurrent visitors browsing the public pages, one admin dashboard
+render went from 4.0s to 15.9s while Supabase held a flat ~290ms a query
+throughout. Four workers: the public site went from 395 to 580 requests a
+second and that same render to 11.3s.
+
+Two things are per **process**, not per server, and the script handles both
+rather than leaving them to be discovered:
+
+1. **The lazy sweeps' minimum intervals.** `retryDueMeetSyncs` and
+   `retryDueMeetAccess` hold a minute, `runRiskSweep` five, each in a
+   module-level timestamp whose comment says "per server instance". With N
+   workers the clinic can see up to N sweeps per window. Safe -- each claims
+   its rows before calling Google and each row carries its own attempt cap --
+   but it spends an appointment's automatic retries faster, which is why the
+   worker count is capped rather than set to one per core.
+2. **`SUPABASE_MAX_IN_FLIGHT`.** Left alone, four workers would carry four
+   times the measured socket budget. The script divides a 192-request budget
+   across the workers instead, and 192 rather than 96 is itself measured:
+   dividing 96 four ways gave each worker 24, which queued every ~56-query
+   batch two deep and pushed a *single* admin render on an idle server from
+   4.0s to 6.7s -- a regression handed to the quiet case to protect the busy
+   one. 4x48 gives 3.7s alone and 11.3s contended at 580 public rps; 4x96
+   gives 7.5s contended but drops the public site to 454 rps, so the default
+   takes the middle and an operator who would rather have the dashboard
+   raises the variable.
+
+**And the admin dashboard's own cost was measured rather than refactored.**
+The obvious suspects are its ~82 queries and the 34 screens it renders at
+once, and the second one is not where the time goes -- rendering only the
+active screen was measured at 1.7MB down to 135KB for 0.4s of wall clock.
+Clustered, it is 3.7s idle and 9-11s under a load no clinic this size will
+see, for a screen a handful of admins open. So the "every screen stays
+mounted" design stays, and the answer to a slow dashboard is another worker
+rather than a rewrite. Revisit if the number of concurrent admins grows, not
+before.
 
 ## Schema conventions
 
@@ -2508,7 +2548,7 @@ the JS thread is the queue. Nothing in the app fixes that; run more workers.
   advance). Offers carries a note saying where promo codes and goodwill
   live, because "where did the promo screen go" is the question a split
   otherwise creates.
-- **System Health is five checks in one shape, and every unhealthy one says
+- **System Health is six checks in one shape, and every unhealthy one says
   how to fix it.** The screen reports rather than sets, so it is not an
   `AdminFeatureControlTab` view -- `src/lib/systemHealth.ts` decides each
   check's status, its one-line headline, the numbered steps that fix it, and
@@ -2546,9 +2586,37 @@ the JS thread is the queue. Nothing in the app fixes that; run more workers.
      says "Checked 4 minutes ago". The relative time is rendered after mount,
      never on the server -- "4 minutes ago" computed server-side is already
      wrong in the browser, and rendering it in both is a hydration mismatch.
-  A sixth check is an entry in that module plus, if it has rows, a card body
-  in the tab -- never a new panel with its own shape. The two fix buttons
-  render only under `scopeCanManage(scope, "settings")`, matching the routes.
+  A seventh check is an entry in that module plus, if it has rows, a card
+  body in the tab -- never a new panel with its own shape. The two fix
+  buttons render only under `scopeCanManage(scope, "settings")`, matching the
+  routes.
+  **The sixth is Public doors, and it watches the limiter rather than a
+  backlog.** `enforceRateLimit` allows a request it cannot attribute, which
+  is correct and is silent: there is no 429, no log line and no counter row
+  to notice the absence by, so a deployment whose host does not forward the
+  visitor's address has every public cap switched off and nothing anywhere
+  says so. `rateLimitIdentifierStats()` counts what this server has actually
+  seen and the check states it. Three things about it are load-bearing:
+  1. **The failure that matters is not the one you would test for.** Next
+     fills `x-forwarded-for` in from the socket, so a request arriving
+     through a proxy that does not pass the original address still carries an
+     identifier -- the proxy's. Every visitor then shares one allowance,
+     thirty of them exhaust it and the thirty-first is refused for something
+     somebody else did, and from the inside that looks exactly like a working
+     limiter. So the check reports "every visitor is arriving as the same
+     person" as its own state, above a floor of `MIN_SAMENESS_OBSERVATIONS`
+     requests because below that it is just a quiet server.
+  2. **It is `off`, not `broken`, when nobody can be told apart.** Nothing is
+     failing: the app is doing what it was told, and the fix is one setting
+     on the host. Red here is how red stops meaning anything.
+  3. **The counter hangs off `globalThis`, and that is not a style choice.**
+     Next bundles the App Router per entry, so a module imported by both a
+     route handler and a page can exist twice in one process. Written as a
+     plain module variable the route incremented one copy and the dashboard
+     read the other, which never left zero -- the screen said "nothing has
+     used a capped page yet" after fifteen requests that had. It holds the
+     verdict and never an address: an IP belongs to a visitor, so only
+     "one caller or more than one" is kept.
 - **A count links to the rows it counted, never to the whole table.** A
   Today figure or queue row that opened an unfiltered list made the reader
   redo the filtering by hand and, worse, made the number look wrong.

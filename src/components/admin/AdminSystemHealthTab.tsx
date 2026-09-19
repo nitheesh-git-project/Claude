@@ -67,6 +67,7 @@ export default function AdminSystemHealthTab({
   googleCheckedAt,
   accounting,
   openAccessEnabled,
+  rateLimitIdentity,
   canFix,
   renderedAt,
 }: {
@@ -80,6 +81,15 @@ export default function AdminSystemHealthTab({
   googleCheckedAt: number | null;
   accounting: AccountingHealth;
   openAccessEnabled: boolean;
+  /** What the rendering server has seen about whether it can tell callers
+   *  apart. Read on the server and passed down, because the counter lives in
+   *  the route-handler module and this component is a client one. */
+  rateLimitIdentity?: {
+    observed: number;
+    identified: number;
+    anonymous: number;
+    allOneCaller: boolean;
+  };
   /** Whether this admin's scope may call the fix routes. Both are
    *  requireAdminScope("settings"), so a scope that only reads gets the
    *  findings without a button that would 403 with nothing to explain it. */
@@ -101,6 +111,7 @@ export default function AdminSystemHealthTab({
     waitingRoomIssues,
     accounting,
     openAccessEnabled,
+    rateLimitIdentity,
   });
   const summary = summarizeHealth(checks);
   const byId = (id: HealthCheck["id"]) => checks.find((c) => c.id === id)!;
@@ -253,6 +264,12 @@ export default function AdminSystemHealthTab({
       <SystemHealthCard check={byId("accounting")} checkedAt={renderedAt}>
         <AccountingFindings health={accounting} />
       </SystemHealthCard>
+
+      {/* No card body: this check has no rows behind it, only a count of
+          requests this server has already answered. Same shape as the
+          payments card above, which is the other check that reports a
+          configuration rather than a backlog. */}
+      <SystemHealthCard check={byId("rate_limits")} checkedAt={renderedAt} />
     </div>
   );
 }

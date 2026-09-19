@@ -72,7 +72,12 @@ retries a GET once on a transport error but never a write. `AdminDataLoadBanner`
 is the other half: a read that failed now says so on the screen instead of
 rendering as a read that came back empty, and the two routes that reported an
 unreadable `home_visit_enabled` as "home visits aren't available" answer 503
-"we couldn't check" instead. See the transport rule in `AGENTS.md`.
+"we couldn't check" instead. Settings -> System Health carries a sixth check,
+**Public doors**, for the limiter's own silent failure: a request nobody can
+be told apart from is allowed, so a host that forwards its own address rather
+than the visitor's leaves every public cap either off or shared between
+everybody, with no 429 and no log line to notice it by. See the transport
+rule in `AGENTS.md`.
 
 **Suspension reaches the database, not only the app.** `profiles.active` is
 read by `src/proxy.ts` and `requireActiveProfile`, and both are this
@@ -430,7 +435,10 @@ the one idempotent `record_payment_capture` function. Setting
 a patient who pays and closes the tab leaves a paid order against an unpaid
 booking.
 
-Quick commands: `npm run dev`, `npm run build`, `npm run test` (Vitest over
+Quick commands: `npm run dev`, `npm run build`, `npm run start:cluster`
+(production on several Node workers -- one process renders React on one
+thread, and under 200 concurrent visitors that thread, not Supabase, is what
+makes the admin dashboard slow), `npm run test` (Vitest over
 the dependency-free `src/lib` modules), `npm run verify` (lint + test +
 build), `npm run lint` (which also
 runs `npm run check:realtime`, the Supabase Realtime publication coverage

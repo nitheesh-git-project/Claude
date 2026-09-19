@@ -42,6 +42,7 @@ import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
 import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
 import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
+import { rateLimitIdentifierStats } from "@/lib/rateLimitServer";
 import { activityScopeNote, filterActivityForViewer } from "@/lib/activityScope";
 import { riskRulesForSections } from "@/lib/riskSignals";
 import { googleConnectionCheckedAt } from "@/lib/googleConnectionHealth";
@@ -2955,6 +2956,11 @@ export default async function AdminDashboardPage({
     </div>
   );
 
+  // In-process counters, not a query: whether this server can tell callers
+  // apart is a fact about the hosting rather than about any one request, so
+  // it costs nothing and is read where the health checks are built.
+  const rateLimitIdentity = rateLimitIdentifierStats();
+
   const settingsHealthTab = (
     <AdminSystemHealthTab
       syncIssues={googleMeetSyncIssues}
@@ -2966,6 +2972,7 @@ export default async function AdminDashboardPage({
       googleCheckedAt={googleConnectionCheckedAt()}
       accounting={accountingHealth}
       openAccessEnabled={adminSettings.meetOpenAccessEnabled}
+      rateLimitIdentity={rateLimitIdentity}
       canFix={scopeCanManage(viewerScope, "settings")}
       renderedAt={nowTimestamp()}
     />
@@ -3972,6 +3979,7 @@ export default async function AdminDashboardPage({
     waitingRoomIssues: meetWaitingRoomIssues,
     accounting: accountingHealth,
     openAccessEnabled: adminSettings.meetOpenAccessEnabled,
+    rateLimitIdentity,
   });
 
   const home = buildAdminHome(viewerScope, {
