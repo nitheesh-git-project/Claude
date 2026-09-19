@@ -213,7 +213,7 @@ Eight rows, with `plan_conversion_low` and `post_consultation_dropout` **disable
 Because conditions survive, you may already have some. Look at **Catalog → Conditions** and write down what is there.
 
 * **If the list is empty**, you will create all three at Step 2.1 and the run proceeds exactly as written.
-* **If rows already exist**, you will still create the three this run needs at Step 2.1. Leave the others alone; they cost nothing, and deleting them is its own test at Step 11.9.
+* **If rows already exist**, you will still create the three this run needs at Step 2.1. Leave the others alone; they cost nothing, and deleting them is its own test at Step 13.4.
 
 ---
 
@@ -478,6 +478,54 @@ You are not changing these yet - you are checking where they stand, so that a la
 | **Online Cancellation Refund Window** | Settings → Booking Rules | **24** hours | Step 10.2 depends on it. |
 
 **Also check, on any Settings screen you opened:** under the page heading there are **two lines** - one saying what the screen is in plain words, and a second starting **"For example:"**. A Settings screen whose heading is followed by "How the product behaves" and nothing else has lost its own description, which is a **P2**.
+
+---
+
+### Step 2.8 - Choose which four lead the home page
+
+The home page does not list every condition - it leads with **four** and sends
+the reader on for the rest. Which four is an admin's choice, not a count of
+what sells: a home page that rearranges itself when a booking lands has
+changed without anybody deciding, and a condition added today could never
+reach it until it had already sold.
+
+**First, look at it with nothing ticked.** Open `/` and read the "what we
+treat" band.
+
+**Expect.** Your first four conditions, in order, with a link on to
+`/conditions` for the rest. **An empty band is a P1** - nothing is ticked yet,
+and the fallback exists precisely so the band is never empty while somebody
+has not opened the screen.
+
+**Now choose.** In **Catalog → Conditions**, tick the feature control on
+`QA Neuro Rehabilitation` and untick the others. Save, then reload `/`.
+
+**Expect**
+
+* Only the ticked one leads, and the band still links on to `/conditions`,
+  which shows **everything**.
+* The cap is **stated on the screen that sets it**, so you know how many will
+  show before you reload the site.
+* Ticking more than the cap is **not an error** - it simply shows the first
+  of them.
+
+**Then do the same on Home Visit.** Tick one home-visit package and reload
+`/home-visit`.
+
+**Expect.** The page shows the ticked one and **reveals the rest in place**
+rather than linking somewhere - it *is* its own full list and has nowhere
+else to send anybody. A control that opens a list identical to the one above
+it is a dead end with a label on it.
+
+**And check the two controls are not the same control.** On the home-visit
+form there are two: one picks whether it leads the page, the other is
+**Highlight with a ring**, which is styling. They must read as different
+things. Two controls both called "Feature", meaning different things, in the
+one place an admin meets both, is a **P2**.
+
+**One more thing to check.** The patient dashboard's **Book a Session** screen
+still shows **everything**, ticked or not. That is the screen somebody opens
+*to* book, so trimming it hides what they came for.
 
 ---
 
@@ -1191,6 +1239,14 @@ The same row is rendered by four different people. They must agree.
 
 Restore the real note text afterwards.
 
+**Then edit the note and check the previous version was kept.** Change one
+sentence and save again.
+
+**Expect.** The edit lands, and what it replaced is **kept** rather than
+overwritten. Notes stay editable for **24 hours**; past that the submit route
+refuses the edit, whatever the screen offers. A note that can be silently
+rewritten days later is a clinical record with no history - **P1**.
+
 ---
 
 ### Step 5.7 - Check the patient's phone is masked
@@ -1226,7 +1282,40 @@ Clear explanation and a plan I can actually follow at home.
 
 ---
 
-### Step 5.9 - Checkpoint
+### Step 5.9 - Reopen a completed session
+
+Closing a session is what makes a therapist's share payable, so undoing it has
+to undo the whole of it.
+
+**Do this**
+
+1. As the admin, open the session Therapist A completed at Step 5.5 and reopen it.
+2. Read what the screen says will happen before confirming.
+3. Look at the session afterwards.
+4. Look at both ratings.
+
+**Expect**
+
+* The session returns to **confirmed**, and the record of *when* it was
+  completed is **cleared** with it. A row reading `confirmed` while still
+  carrying a completion time is a contradiction, and it is exactly the
+  evidence a risk detector should no longer be looking at - **P1**.
+* **Both sides' ratings are destroyed**, and you were told so before
+  confirming. The 4-star rating from Step 5.8 is gone.
+* The therapist's **Owed to you** figure falls back by that session's share.
+
+**Then have two admins reopen it at once**, in two browsers, and tap within a
+moment of each other.
+
+**Expect.** Exactly **one** of them does it. The second is refused or is a
+no-op rather than reopening an already-reopened session and destroying a
+rating somebody has since left again.
+
+Re-complete the session and re-rate it before moving on - Part 10 counts it.
+
+---
+
+### Step 5.10 - Checkpoint
 
 | | Should be |
 | --- | --- |
@@ -2331,7 +2420,54 @@ Leave the switch **off** when you are done, unless you were asked to leave it on
 
 ---
 
-### Step 10.11 - Checkpoint
+### Step 10.11 - Payment integrity
+
+Money can arrive twice, arrive late, or not really arrive at all. Three
+checks, all from the Razorpay dashboard's own webhook log.
+
+**An authorization is not a payment.** Razorpay can *authorize* a card - a
+hold - and capture it seconds later. A hold that is never captured is voided
+and refunded a few days on, so nothing may be fulfilled against one.
+
+**Do this.** From the Razorpay test dashboard, send a **`payment.authorized`**
+event for a booking that is still unpaid, then look at the booking.
+
+**Expect**
+
+* The booking is **still unpaid**. Nothing is confirmed, no calendar event is
+  made, no invite reward is settled.
+* The event **is** recorded in the webhook trail even so - the record is worth
+  more than the one saved delivery.
+* Then send **`payment.captured`** for the same order: *now* everything
+  happens. If the authorization alone marked it paid, that is a **P0** - the
+  app would be delivering care against money that can still evaporate, and
+  nothing walks it back.
+
+**A duplicate webhook changes nothing twice.**
+
+**Do this.** Re-send the same `payment.captured` event two or three times.
+
+**Expect.** One payment recorded, one booking confirmed, **one** calendar
+event. The second delivery finds the order already captured and does nothing.
+Two `payments` rows for one order, or two calendar invites reaching the
+patient, is a **P0**.
+
+**And the callback and the webhook must agree on the figure.** Pay for a
+**home visit** in the browser and let the callback confirm it, then read the
+recorded amount.
+
+**Expect.** It is the **whole** of what the gateway took - the visit **plus
+travel**, `₹2,649` at Step 8.1's prices - not the service line alone. One
+booking recorded two different ways depending on which arrived first is the
+disagreement this record exists to settle.
+
+**Finally, check the unmatched-payment alert.** Money's alerts strip counts
+payments attached to nothing. It should read **zero** unless you have
+deliberately made one.
+
+---
+
+### Step 10.12 - Checkpoint
 
 | | Should be |
 | --- | --- |
@@ -2564,7 +2700,34 @@ Unless you were asked to leave them on, return each to how Step 2.7 found it:
 
 ---
 
-### Step 11.9 - Checkpoint
+### Step 11.9 - A goodwill discount collected at the door
+
+This is the one combination where a discount meets cash, and it has been
+wrong before: the discount was given, and the full price was then recorded as
+the cash taken.
+
+**Do this**
+
+1. As a patient, book a **home visit** choosing **Pay at the visit** (as at
+   Step 8.4).
+2. As the admin, apply a goodwill discount of **₹300** to that visit with the
+   reason `Long wait for the first appointment.`
+3. As the admin, mark it **paid by cash**.
+4. Read three things: the amount recorded against the visit, the therapist's
+   **Cash Ledger** figure, and **Money → Summary**'s gross revenue.
+
+**Expect**
+
+* All three reflect the **discounted** figure. The discount facts on the row -
+  what the list price was, how much came off, which rule, and why - must
+  describe a reduction the recorded amount **actually shows**.
+* Recording the full price here overstates the cash ledger *and* gross revenue
+  by exactly the amount given away, and asks the therapist to hand over money
+  nobody collected. **P0.**
+
+---
+
+### Step 11.10 - Checkpoint
 
 | | Should be |
 | --- | --- |
@@ -2891,7 +3054,74 @@ const r = await fetch("/api/admin/stop-impersonation", { method: "POST" });
 
 ---
 
-### Step 12.11 - Checkpoint
+### Step 12.11 - Check the response headers
+
+Not everything that protects a patient is on screen. These ship on every
+response and cost nothing to check.
+
+**Do this.** Open any page, DevTools → **Network**, click the document request,
+and read **Response Headers**.
+
+**Expect** to find all of these:
+
+| Header | Should be |
+| --- | --- |
+| `X-Frame-Options` | `DENY` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | present |
+| `Strict-Transport-Security` | present (on an HTTPS deployment) |
+
+**Why each matters here.** Without the first, the admin dashboard and a
+patient's health profile can be framed by any site on the internet. Without
+the third, a referral token or an appointment id sitting in a URL travels to
+third parties as a full referrer.
+
+**One you should expect to see complaints about.** A content-security policy
+may be present in **report-only** form, logging violations without blocking
+them. That is deliberate: Razorpay's checkout injects its own script and
+frame, and a policy written blind takes down checkout, which is the one
+failure a payment screen must not have. Console warnings from a report-only
+policy are **not** a defect - note them and move on.
+
+---
+
+### Step 12.12 - A patient's route answers a patient
+
+Three routes on the patient dashboard used to answer a therapist or a hospital
+with a **200**. Nothing cross-account leaked - each acts on the caller's own
+row - which is exactly why it survived unnoticed.
+
+**Do this.** Sign in as **QA Therapist A**, then run:
+
+```js
+const routes = [
+  "/api/patient/dismiss-onboarding",
+  "/api/patient/previous-therapists",
+  "/api/patient/condition-profile/export",
+];
+console.table(await Promise.all(routes.map(async (route) => {
+  const r = await fetch(route, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 80) };
+})));
+```
+
+Repeat signed in as the **hospital**.
+
+**Expect.** Refused on every one, in both runs. The sharpest of the three is
+the export: a 200 there hands a non-patient a typeset PDF of an empty health
+record **named after them**.
+
+**And check the suspended case too.** Suspend that therapist, then re-run.
+Still refused - a suspended account must not keep acting as itself.
+
+---
+
+### Step 12.13 - Checkpoint
 
 | | Should be |
 | --- | --- |
@@ -3083,7 +3313,55 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.11 - Checkpoint
+### Step 13.11 - The mission, the vision, the promises and the limits
+
+These four blocks are what `/mission` **is**, and all of them are an admin's
+to write. They used to be constants only a developer could change, which made
+the copy most likely to be argued over the copy nobody in the clinic could
+touch.
+
+**Do this**
+
+1. Open **Settings → Public Site → Mission & Vision**.
+2. Replace the mission with `QA mission line for testing, replaced by the admin.`
+   and save.
+3. Open `/` and `/mission` **at once**, in another tab.
+4. Now **clear the box** entirely and save again.
+5. Reload both pages.
+
+**Expect**
+
+* Step 3: the new sentence is on **both** pages immediately. Both are cached,
+  and saving is supposed to clear that cache - a reworded mission that stays
+  old for five minutes reads as a save that failed.
+* The home page quotes the mission and the vision **in full** - they are two
+  sentences, and a paraphrase there would be the home page making a weaker
+  version of the same claim.
+* Step 5: **the original wording is back.** Blank is the undo, not an error -
+  it is how an admin restores a sentence they cannot read out of the source.
+* The form **warns** past about fifteen words and saves anyway; a genuinely
+  over-long value is refused by a character limit, which is about the card the
+  line renders in rather than about the writing.
+
+**Now the promises and the limits.** Both are lists of rows on the same
+screen.
+
+| Do this | Expect |
+| --- | --- |
+| Add a promise: title `QA promise`, a short body, pick an icon | It appears on `/mission`, and on the home page as a **title only**, linking through |
+| Reorder them with the arrows, then **Save order** | Nothing changes until you save; then the new order is live on both pages and **survives a reload** |
+| Switch every promise **off** | The whole band disappears from `/mission` - **and so does its entry in the section rail**. A rail entry pointing at a band that does not render sends the scroll arrow nowhere. |
+| **Delete** every promise | The **shipped wording comes back**. That is correct, and the screen says so - otherwise a delete whose visible effect is the original text reappearing reads as a failed delete. |
+| Switch the **limits** off while the promises stay on | Only the limits band goes. Writing one must never empty the other. |
+| Pick an icon | It is a **picker**, not a text box. Free text there is a way to put an empty square on the mission page, and a blank box does not say whether the icon or the row failed. |
+
+**And one wording check.** No heading on that page counts the cards - nothing
+reads "Four things, every patient" over three of them. That is a number
+somebody forgets to change, and it tells the reader something untrue.
+
+---
+
+### Step 13.12 - Checkpoint
 
 | | Should be |
 | --- | --- |

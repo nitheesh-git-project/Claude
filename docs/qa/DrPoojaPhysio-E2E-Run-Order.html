@@ -155,7 +155,7 @@ select count(*) from appointments;</code></pre>
 <hr>
 <h3>Step 1.4 - Note the two conditions the reset left you</h3>
 <p>Because conditions survive, you may already have some. Look at <strong>Catalog → Conditions</strong> and write down what is there.</p>
-<ul><li><strong>If the list is empty</strong>, you will create all three at Step 2.1 and the run proceeds exactly as written.</li><li><strong>If rows already exist</strong>, you will still create the three this run needs at Step 2.1. Leave the others alone; they cost nothing, and deleting them is its own test at Step 11.9.</li></ul>
+<ul><li><strong>If the list is empty</strong>, you will create all three at Step 2.1 and the run proceeds exactly as written.</li><li><strong>If rows already exist</strong>, you will still create the three this run needs at Step 2.1. Leave the others alone; they cost nothing, and deleting them is its own test at Step 13.4.</li></ul>
 <hr>
 <h2>3. Part 2 - Build the catalogue</h2>
 <p><strong>What this part does.</strong> Creates everything a patient can be sold: three conditions, three programmes, two home-visit packages and two service areas. Nothing before this point can be booked, because there is nothing to book against.</p>
@@ -228,6 +228,18 @@ select count(*) from appointments;</code></pre>
 <p>You are not changing these yet - you are checking where they stand, so that a later result is not a mystery.</p>
 <table><thead><tr><th>Setting</th><th>Where</th><th>Should read</th><th>Why it matters here</th></tr></thead><tbody><tr><td><strong>Therapist-Suggested Sessions</strong></td><td>Settings → Programmes &amp; Home Visits</td><td><strong>on</strong></td><td>Part 7 needs it. On a database that predates the change it may still be off - switch it on now if it is.</td></tr><tr><td><strong>Assign a Therapist Automatically</strong></td><td>Settings → Programmes &amp; Home Visits</td><td><strong>off</strong></td><td>Parts 4 and 5 expect a paid session to wait in the admin queue. Step 12.4 switches it on deliberately.</td></tr><tr><td><strong>Session Balances From The Ledger</strong></td><td>Settings → Programmes &amp; Home Visits</td><td><strong>off</strong></td><td>Step 10.8 flips it and checks the balances still agree.</td></tr><tr><td><strong>The clinic approves a recommendation</strong></td><td>Settings → Programmes &amp; Home Visits</td><td><strong>on</strong></td><td>Part 7 is written around the review queue.</td></tr><tr><td><strong>First session offer</strong></td><td>Settings → Offers &amp; Discounts</td><td><strong>off</strong></td><td>Part 4 expects the patient to be charged list price. Step 9.1 switches it on.</td></tr><tr><td><strong>Promo codes</strong></td><td>Money → Costs</td><td><strong>off</strong></td><td>Step 9.3 switches it on.</td></tr><tr><td><strong>Patient invites</strong></td><td>Settings → Offers &amp; Discounts</td><td><strong>off</strong></td><td>Step 9.5 switches it on.</td></tr><tr><td><strong>Online Booking Lead Time</strong></td><td>Settings → Booking Rules</td><td><strong>12</strong> hours</td><td>Every booking step assumes 12.</td></tr><tr><td><strong>Online Cancellation Refund Window</strong></td><td>Settings → Booking Rules</td><td><strong>24</strong> hours</td><td>Step 10.2 depends on it.</td></tr></tbody></table>
 <p><strong>Also check, on any Settings screen you opened:</strong> under the page heading there are <strong>two lines</strong> - one saying what the screen is in plain words, and a second starting <strong>&quot;For example:&quot;</strong>. A Settings screen whose heading is followed by &quot;How the product behaves&quot; and nothing else has lost its own description, which is a <strong>P2</strong>.</p>
+<hr>
+<h3>Step 2.8 - Choose which four lead the home page</h3>
+<p>The home page does not list every condition - it leads with <strong>four</strong> and sends the reader on for the rest. Which four is an admin&#x27;s choice, not a count of what sells: a home page that rearranges itself when a booking lands has changed without anybody deciding, and a condition added today could never reach it until it had already sold.</p>
+<p><strong>First, look at it with nothing ticked.</strong> Open <code>/</code> and read the &quot;what we treat&quot; band.</p>
+<p><strong>Expect.</strong> Your first four conditions, in order, with a link on to <code>/conditions</code> for the rest. <strong>An empty band is a P1</strong> - nothing is ticked yet, and the fallback exists precisely so the band is never empty while somebody has not opened the screen.</p>
+<p><strong>Now choose.</strong> In <strong>Catalog → Conditions</strong>, tick the feature control on <code>QA Neuro Rehabilitation</code> and untick the others. Save, then reload <code>/</code>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>Only the ticked one leads, and the band still links on to <code>/conditions</code>, which shows <strong>everything</strong>.</li><li>The cap is <strong>stated on the screen that sets it</strong>, so you know how many will show before you reload the site.</li><li>Ticking more than the cap is <strong>not an error</strong> - it simply shows the first of them.</li></ul>
+<p><strong>Then do the same on Home Visit.</strong> Tick one home-visit package and reload <code>/home-visit</code>.</p>
+<p><strong>Expect.</strong> The page shows the ticked one and <strong>reveals the rest in place</strong> rather than linking somewhere - it <em>is</em> its own full list and has nowhere else to send anybody. A control that opens a list identical to the one above it is a dead end with a label on it.</p>
+<p><strong>And check the two controls are not the same control.</strong> On the home-visit form there are two: one picks whether it leads the page, the other is <strong>Highlight with a ring</strong>, which is styling. They must read as different things. Two controls both called &quot;Feature&quot;, meaning different things, in the one place an admin meets both, is a <strong>P2</strong>.</p>
+<p><strong>One more thing to check.</strong> The patient dashboard&#x27;s <strong>Book a Session</strong> screen still shows <strong>everything</strong>, ticked or not. That is the screen somebody opens <em>to</em> book, so trimming it hides what they came for.</p>
 <hr>
 <h2>4. Part 3 - Create the people</h2>
 <p><strong>What this part does.</strong> Puts three therapists, one partner hospital and three scoped admins into an empty database, each through the door the application actually uses. Two of them self-register and wait for you to approve them; the hospital and the admins are minted from the back office.</p>
@@ -481,6 +493,8 @@ select count(*) from appointments;</code></pre>
 <p><strong>Then check the contact scanner on this field.</strong> Open the note again and try to save each of these:</p>
 <table><thead><tr><th>What you type</th><th>Expect</th></tr></thead><tbody><tr><td><code>Grade III PA mobilisation x3 sets, 30s hold. 10 reps, 2x daily. Order ref 90210.</code></td><td><strong>Saves normally.</strong> Clinical text full of numbers must not fire the scanner - a check that cries wolf is a check nobody reads.</td></tr><tr><td><code>Call me on 9876543210 before the session</code></td><td><strong>Saves, and is recorded.</strong> A phone number is flagged, not blocked. It appears on the admin&#x27;s flagged-messages panel.</td></tr><tr><td><code>Pay me directly on 9876543210@okhdfc, it&#x27;s cheaper</code></td><td><strong>Refused.</strong> A payment handle is blocked outright.</td></tr></tbody></table>
 <p>Restore the real note text afterwards.</p>
+<p><strong>Then edit the note and check the previous version was kept.</strong> Change one sentence and save again.</p>
+<p><strong>Expect.</strong> The edit lands, and what it replaced is <strong>kept</strong> rather than overwritten. Notes stay editable for <strong>24 hours</strong>; past that the submit route refuses the edit, whatever the screen offers. A note that can be silently rewritten days later is a clinical record with no history - <strong>P1</strong>.</p>
 <hr>
 <h3>Step 5.7 - Check the patient&#x27;s phone is masked</h3>
 <p><strong>Who you are.</strong> QA Therapist A.</p>
@@ -495,7 +509,17 @@ select count(*) from appointments;</code></pre>
 <p><strong>Expect.</strong> The rating saves. The therapist&#x27;s Overview header now reads <code>Your Rating: 4.0 (1 rating)</code> instead of <code>No ratings yet</code>.</p>
 <p><strong>Then, as the admin</strong>, hide that therapist&#x27;s rating from public pages and check <code>/team</code> no longer quotes it, and that the therapist&#x27;s own header gains <code> - hidden from public pages</code>. Put it back.</p>
 <hr>
-<h3>Step 5.9 - Checkpoint</h3>
+<h3>Step 5.9 - Reopen a completed session</h3>
+<p>Closing a session is what makes a therapist&#x27;s share payable, so undoing it has to undo the whole of it.</p>
+<p><strong>Do this</strong></p>
+<ol><li>As the admin, open the session Therapist A completed at Step 5.5 and reopen it.</li><li>Read what the screen says will happen before confirming.</li><li>Look at the session afterwards.</li><li>Look at both ratings.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>The session returns to <strong>confirmed</strong>, and the record of <em>when</em> it was completed is <strong>cleared</strong> with it. A row reading <code>confirmed</code> while still carrying a completion time is a contradiction, and it is exactly the evidence a risk detector should no longer be looking at - <strong>P1</strong>.</li><li><strong>Both sides&#x27; ratings are destroyed</strong>, and you were told so before confirming. The 4-star rating from Step 5.8 is gone.</li><li>The therapist&#x27;s <strong>Owed to you</strong> figure falls back by that session&#x27;s share.</li></ul>
+<p><strong>Then have two admins reopen it at once</strong>, in two browsers, and tap within a moment of each other.</p>
+<p><strong>Expect.</strong> Exactly <strong>one</strong> of them does it. The second is refused or is a no-op rather than reopening an already-reopened session and destroying a rating somebody has since left again.</p>
+<p>Re-complete the session and re-rate it before moving on - Part 10 counts it.</p>
+<hr>
+<h3>Step 5.10 - Checkpoint</h3>
 <table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Patient A&#x27;s session</td><td>Completed and paid, delivered by Therapist A</td></tr><tr><td>Session note</td><td>Written, clinician-only</td></tr><tr><td>Rating</td><td>4 stars, showing on the therapist&#x27;s header</td></tr><tr><td>Flagged message</td><td>One recorded, from Step 5.6</td></tr><tr><td>Contact reveal</td><td>One logged</td></tr></tbody></table>
 <hr>
 <h2>7. Part 6 - The health record</h2>
@@ -922,7 +946,20 @@ clinic share  = splittable net - therapists&#x27; share - partners&#x27; share</
 <ul><li>Each has a <strong>word</strong> as well as a colour: <code>Healthy</code>, <code>Needs a look</code>, <code>Needs you now</code>, <code>Not set up</code>, <code>Not checked</code>.</li><li><strong>`Not set up` and `Not checked` are not faults.</strong> An owner who never wired Google up has not got a problem, and painting that red is how red stops meaning anything.</li><li><strong>Anything not healthy carries numbered steps</strong> the owner could follow alone. A red card with no way out is a <strong>P1</strong>.</li><li>The teaching text is behind the <strong>(i)</strong>, not on the card.</li><li>The sidebar badge <strong>counts checks, not rows</strong> - so a failure with no rows behind it (a missing webhook secret, a dead Google credential) still badges 1 rather than 0.</li><li>A <strong>red</strong> check puts one line on the admin&#x27;s Today screen. An amber one does not - a banner that is usually there is a banner nobody reads.</li><li>The Google card prints <strong>when it was last checked</strong>, and that relative time is rendered after the page loads rather than on the server.</li></ul>
 <p><strong>One check worth reading closely.</strong> If <code>RAZORPAY_WEBHOOK_SECRET</code> is unset, System Health says so - and it matters: without it, a patient who pays and closes the tab leaves a paid order against an unpaid booking, and nothing else in the app will notice.</p>
 <hr>
-<h3>Step 10.11 - Checkpoint</h3>
+<h3>Step 10.11 - Payment integrity</h3>
+<p>Money can arrive twice, arrive late, or not really arrive at all. Three checks, all from the Razorpay dashboard&#x27;s own webhook log.</p>
+<p><strong>An authorization is not a payment.</strong> Razorpay can <em>authorize</em> a card - a hold - and capture it seconds later. A hold that is never captured is voided and refunded a few days on, so nothing may be fulfilled against one.</p>
+<p><strong>Do this.</strong> From the Razorpay test dashboard, send a <strong>`payment.authorized`</strong> event for a booking that is still unpaid, then look at the booking.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The booking is <strong>still unpaid</strong>. Nothing is confirmed, no calendar event is made, no invite reward is settled.</li><li>The event <strong>is</strong> recorded in the webhook trail even so - the record is worth more than the one saved delivery.</li><li>Then send <strong>`payment.captured`</strong> for the same order: <em>now</em> everything happens. If the authorization alone marked it paid, that is a <strong>P0</strong> - the app would be delivering care against money that can still evaporate, and nothing walks it back.</li></ul>
+<p><strong>A duplicate webhook changes nothing twice.</strong></p>
+<p><strong>Do this.</strong> Re-send the same <code>payment.captured</code> event two or three times.</p>
+<p><strong>Expect.</strong> One payment recorded, one booking confirmed, <strong>one</strong> calendar event. The second delivery finds the order already captured and does nothing. Two <code>payments</code> rows for one order, or two calendar invites reaching the patient, is a <strong>P0</strong>.</p>
+<p><strong>And the callback and the webhook must agree on the figure.</strong> Pay for a <strong>home visit</strong> in the browser and let the callback confirm it, then read the recorded amount.</p>
+<p><strong>Expect.</strong> It is the <strong>whole</strong> of what the gateway took - the visit <strong>plus travel</strong>, <code>₹2,649</code> at Step 8.1&#x27;s prices - not the service line alone. One booking recorded two different ways depending on which arrived first is the disagreement this record exists to settle.</p>
+<p><strong>Finally, check the unmatched-payment alert.</strong> Money&#x27;s alerts strip counts payments attached to nothing. It should read <strong>zero</strong> unless you have deliberately made one.</p>
+<hr>
+<h3>Step 10.12 - Checkpoint</h3>
 <table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Identities</td><td>Both hold exactly, on two ranges</td></tr><tr><td>Payout</td><td>One settled, cash netted off, those visits marked remitted</td></tr><tr><td>Costs</td><td>Three recorded, one correctly outside a this-month range</td></tr><tr><td>Business Health</td><td>Seven figures, with the three typed inputs in place</td></tr><tr><td>Ledger switch</td><td>Flipped and flipped back, no balance moved</td></tr><tr><td>Adjustments</td><td>One refused for a short reason, one applied</td></tr></tbody></table>
 <hr>
 <h2>12. Part 11 - The four ways money comes off</h2>
@@ -1004,7 +1041,14 @@ clinic share  = splittable net - therapists&#x27; share - partners&#x27; share</
 <p>Unless you were asked to leave them on, return each to how Step 2.7 found it:</p>
 <table><thead><tr><th>Setting</th><th>Back to</th></tr></thead><tbody><tr><td>First session offer</td><td><strong>off</strong></td></tr><tr><td>Promo codes</td><td><strong>off</strong></td></tr><tr><td>Patient invites</td><td><strong>off</strong></td></tr><tr><td>Any campaign you created</td><td>paused, not deleted, if it has been claimed</td></tr></tbody></table>
 <hr>
-<h3>Step 11.9 - Checkpoint</h3>
+<h3>Step 11.9 - A goodwill discount collected at the door</h3>
+<p>This is the one combination where a discount meets cash, and it has been wrong before: the discount was given, and the full price was then recorded as the cash taken.</p>
+<p><strong>Do this</strong></p>
+<ol><li>As a patient, book a <strong>home visit</strong> choosing <strong>Pay at the visit</strong> (as at Step 8.4).</li><li>As the admin, apply a goodwill discount of <strong>₹300</strong> to that visit with the reason <code>Long wait for the first appointment.</code></li><li>As the admin, mark it <strong>paid by cash</strong>.</li><li>Read three things: the amount recorded against the visit, the therapist&#x27;s <strong>Cash Ledger</strong> figure, and <strong>Money → Summary</strong>&#x27;s gross revenue.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>All three reflect the <strong>discounted</strong> figure. The discount facts on the row - what the list price was, how much came off, which rule, and why - must describe a reduction the recorded amount <strong>actually shows</strong>.</li><li>Recording the full price here overstates the cash ledger <em>and</em> gross revenue by exactly the amount given away, and asks the therapist to hand over money nobody collected. <strong>P0.</strong></li></ul>
+<hr>
+<h3>Step 11.10 - Checkpoint</h3>
 <table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Each of the four discounts</td><td>Applied once, refused where it should be</td></tr><tr><td>Stacking</td><td>Proved not to</td></tr><tr><td>Travel</td><td>Never discounted</td></tr><tr><td>Free booking</td><td>One, with no payment row and all four facts recorded</td></tr><tr><td>Money → Costs</td><td>Discounts given, split by rule, not deducted from profit</td></tr></tbody></table>
 <hr>
 <h2>13. Part 12 - Who may do what</h2>
@@ -1159,7 +1203,35 @@ console.table(await Promise.all(Object.entries(bodies).map(async ([name, body]) 
 ({ status: r.status, body: await r.text() });</code></pre>
 <p><strong>Expect.</strong> Whatever it answers, it must <strong>not</strong> name <code>/admin/dashboard</code> or <code>/admin/login</code> to a stranger. A route can leak the back office in what it <em>says</em> as well as in what it lets you do.</p>
 <hr>
-<h3>Step 12.11 - Checkpoint</h3>
+<h3>Step 12.11 - Check the response headers</h3>
+<p>Not everything that protects a patient is on screen. These ship on every response and cost nothing to check.</p>
+<p><strong>Do this.</strong> Open any page, DevTools → <strong>Network</strong>, click the document request, and read <strong>Response Headers</strong>.</p>
+<p><strong>Expect</strong> to find all of these:</p>
+<table><thead><tr><th>Header</th><th>Should be</th></tr></thead><tbody><tr><td><code>X-Frame-Options</code></td><td><code>DENY</code></td></tr><tr><td><code>X-Content-Type-Options</code></td><td><code>nosniff</code></td></tr><tr><td><code>Referrer-Policy</code></td><td><code>strict-origin-when-cross-origin</code></td></tr><tr><td><code>Permissions-Policy</code></td><td>present</td></tr><tr><td><code>Strict-Transport-Security</code></td><td>present (on an HTTPS deployment)</td></tr></tbody></table>
+<p><strong>Why each matters here.</strong> Without the first, the admin dashboard and a patient&#x27;s health profile can be framed by any site on the internet. Without the third, a referral token or an appointment id sitting in a URL travels to third parties as a full referrer.</p>
+<p><strong>One you should expect to see complaints about.</strong> A content-security policy may be present in <strong>report-only</strong> form, logging violations without blocking them. That is deliberate: Razorpay&#x27;s checkout injects its own script and frame, and a policy written blind takes down checkout, which is the one failure a payment screen must not have. Console warnings from a report-only policy are <strong>not</strong> a defect - note them and move on.</p>
+<hr>
+<h3>Step 12.12 - A patient&#x27;s route answers a patient</h3>
+<p>Three routes on the patient dashboard used to answer a therapist or a hospital with a <strong>200</strong>. Nothing cross-account leaked - each acts on the caller&#x27;s own row - which is exactly why it survived unnoticed.</p>
+<p><strong>Do this.</strong> Sign in as <strong>QA Therapist A</strong>, then run:</p>
+<pre><code>const routes = [
+  &quot;/api/patient/dismiss-onboarding&quot;,
+  &quot;/api/patient/previous-therapists&quot;,
+  &quot;/api/patient/condition-profile/export&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 80) };
+})));</code></pre>
+<p>Repeat signed in as the <strong>hospital</strong>.</p>
+<p><strong>Expect.</strong> Refused on every one, in both runs. The sharpest of the three is the export: a 200 there hands a non-patient a typeset PDF of an empty health record <strong>named after them</strong>.</p>
+<p><strong>And check the suspended case too.</strong> Suspend that therapist, then re-run. Still refused - a suspended account must not keep acting as itself.</p>
+<hr>
+<h3>Step 12.13 - Checkpoint</h3>
 <table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Four dashboards</td><td>Each leading with its own figure, naming itself twice, every action reachable</td></tr><tr><td>Route sweeps</td><td>403 across all three limited desks; 401/403 anonymously</td></tr><tr><td>Malformed bodies</td><td>4xx, never 500</td></tr><tr><td>Impersonation</td><td>One session, recorded with a reason, exited</td></tr><tr><td>Logs</td><td>Read, exported, clear refused inside 30 days</td></tr><tr><td>Rate limit</td><td>A 429 seen, worded without numbers or blame</td></tr></tbody></table>
 <hr>
 <h2>14. Part 13 - The site itself, and the small things</h2>
@@ -1228,7 +1300,17 @@ console.table(await Promise.all(Object.entries(bodies).map(async ([name, body]) 
 <p><strong>Then change its settings</strong> (Settings → Public Site → Opening Splash): the name line, the wording, the hold, and the away threshold. Set the away threshold to <code>0</code>.</p>
 <p><strong>Expect.</strong> <code>0</code> means <strong>first load only</strong>. There is deliberately no value meaning &quot;greet on every tab focus&quot; - that is the setting that would splash over a checkout.</p>
 <hr>
-<h3>Step 13.11 - Checkpoint</h3>
+<h3>Step 13.11 - The mission, the vision, the promises and the limits</h3>
+<p>These four blocks are what <code>/mission</code> <strong>is</strong>, and all of them are an admin&#x27;s to write. They used to be constants only a developer could change, which made the copy most likely to be argued over the copy nobody in the clinic could touch.</p>
+<p><strong>Do this</strong></p>
+<ol><li>Open <strong>Settings → Public Site → Mission &amp; Vision</strong>.</li><li>Replace the mission with <code>QA mission line for testing, replaced by the admin.</code> and save.</li><li>Open <code>/</code> and <code>/mission</code> <strong>at once</strong>, in another tab.</li><li>Now <strong>clear the box</strong> entirely and save again.</li><li>Reload both pages.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 3: the new sentence is on <strong>both</strong> pages immediately. Both are cached, and saving is supposed to clear that cache - a reworded mission that stays old for five minutes reads as a save that failed.</li><li>The home page quotes the mission and the vision <strong>in full</strong> - they are two sentences, and a paraphrase there would be the home page making a weaker version of the same claim.</li><li>Step 5: <strong>the original wording is back.</strong> Blank is the undo, not an error - it is how an admin restores a sentence they cannot read out of the source.</li><li>The form <strong>warns</strong> past about fifteen words and saves anyway; a genuinely over-long value is refused by a character limit, which is about the card the line renders in rather than about the writing.</li></ul>
+<p><strong>Now the promises and the limits.</strong> Both are lists of rows on the same screen.</p>
+<table><thead><tr><th>Do this</th><th>Expect</th></tr></thead><tbody><tr><td>Add a promise: title <code>QA promise</code>, a short body, pick an icon</td><td>It appears on <code>/mission</code>, and on the home page as a <strong>title only</strong>, linking through</td></tr><tr><td>Reorder them with the arrows, then <strong>Save order</strong></td><td>Nothing changes until you save; then the new order is live on both pages and <strong>survives a reload</strong></td></tr><tr><td>Switch every promise <strong>off</strong></td><td>The whole band disappears from <code>/mission</code> - <strong>and so does its entry in the section rail</strong>. A rail entry pointing at a band that does not render sends the scroll arrow nowhere.</td></tr><tr><td><strong>Delete</strong> every promise</td><td>The <strong>shipped wording comes back</strong>. That is correct, and the screen says so - otherwise a delete whose visible effect is the original text reappearing reads as a failed delete.</td></tr><tr><td>Switch the <strong>limits</strong> off while the promises stay on</td><td>Only the limits band goes. Writing one must never empty the other.</td></tr><tr><td>Pick an icon</td><td>It is a <strong>picker</strong>, not a text box. Free text there is a way to put an empty square on the mission page, and a blank box does not say whether the icon or the row failed.</td></tr></tbody></table>
+<p><strong>And one wording check.</strong> No heading on that page counts the cards - nothing reads &quot;Four things, every patient&quot; over three of them. That is a number somebody forgets to change, and it tells the reader something untrue.</p>
+<hr>
+<h3>Step 13.12 - Checkpoint</h3>
 <table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Eight public pages</td><td>One template, photographs with faces and screens, rail in order</td></tr><tr><td>Catalogue</td><td>The same card on the public page and the patient&#x27;s booking screen</td></tr><tr><td>Admin edits</td><td>Live on the public site immediately</td></tr><tr><td>Progress</td><td>A bar on all four dashboards, no percentage</td></tr><tr><td>Phone</td><td>No sideways scroll, drawer nav, dialogs usable</td></tr><tr><td>Keyboard</td><td>Everything reachable, dialogs trap and restore focus</td></tr></tbody></table>
 <hr>
 <h2>15. Sign-off</h2>

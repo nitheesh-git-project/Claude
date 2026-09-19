@@ -177,7 +177,55 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.11 - Checkpoint
+### Step 13.11 - The mission, the vision, the promises and the limits
+
+These four blocks are what `/mission` **is**, and all of them are an admin's
+to write. They used to be constants only a developer could change, which made
+the copy most likely to be argued over the copy nobody in the clinic could
+touch.
+
+**Do this**
+
+1. Open **Settings → Public Site → Mission & Vision**.
+2. Replace the mission with `QA mission line for testing, replaced by the admin.`
+   and save.
+3. Open `/` and `/mission` **at once**, in another tab.
+4. Now **clear the box** entirely and save again.
+5. Reload both pages.
+
+**Expect**
+
+* Step 3: the new sentence is on **both** pages immediately. Both are cached,
+  and saving is supposed to clear that cache - a reworded mission that stays
+  old for five minutes reads as a save that failed.
+* The home page quotes the mission and the vision **in full** - they are two
+  sentences, and a paraphrase there would be the home page making a weaker
+  version of the same claim.
+* Step 5: **the original wording is back.** Blank is the undo, not an error -
+  it is how an admin restores a sentence they cannot read out of the source.
+* The form **warns** past about fifteen words and saves anyway; a genuinely
+  over-long value is refused by a character limit, which is about the card the
+  line renders in rather than about the writing.
+
+**Now the promises and the limits.** Both are lists of rows on the same
+screen.
+
+| Do this | Expect |
+| --- | --- |
+| Add a promise: title `QA promise`, a short body, pick an icon | It appears on `/mission`, and on the home page as a **title only**, linking through |
+| Reorder them with the arrows, then **Save order** | Nothing changes until you save; then the new order is live on both pages and **survives a reload** |
+| Switch every promise **off** | The whole band disappears from `/mission` - **and so does its entry in the section rail**. A rail entry pointing at a band that does not render sends the scroll arrow nowhere. |
+| **Delete** every promise | The **shipped wording comes back**. That is correct, and the screen says so - otherwise a delete whose visible effect is the original text reappearing reads as a failed delete. |
+| Switch the **limits** off while the promises stay on | Only the limits band goes. Writing one must never empty the other. |
+| Pick an icon | It is a **picker**, not a text box. Free text there is a way to put an empty square on the mission page, and a blank box does not say whether the icon or the row failed. |
+
+**And one wording check.** No heading on that page counts the cards - nothing
+reads "Four things, every patient" over three of them. That is a number
+somebody forgets to change, and it tells the reader something untrue.
+
+---
+
+### Step 13.12 - Checkpoint
 
 | | Should be |
 | --- | --- |

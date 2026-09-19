@@ -152,6 +152,14 @@ The same row is rendered by four different people. They must agree.
 
 Restore the real note text afterwards.
 
+**Then edit the note and check the previous version was kept.** Change one
+sentence and save again.
+
+**Expect.** The edit lands, and what it replaced is **kept** rather than
+overwritten. Notes stay editable for **24 hours**; past that the submit route
+refuses the edit, whatever the screen offers. A note that can be silently
+rewritten days later is a clinical record with no history - **P1**.
+
 ---
 
 ### Step 5.7 - Check the patient's phone is masked
@@ -187,7 +195,40 @@ Clear explanation and a plan I can actually follow at home.
 
 ---
 
-### Step 5.9 - Checkpoint
+### Step 5.9 - Reopen a completed session
+
+Closing a session is what makes a therapist's share payable, so undoing it has
+to undo the whole of it.
+
+**Do this**
+
+1. As the admin, open the session Therapist A completed at Step 5.5 and reopen it.
+2. Read what the screen says will happen before confirming.
+3. Look at the session afterwards.
+4. Look at both ratings.
+
+**Expect**
+
+* The session returns to **confirmed**, and the record of *when* it was
+  completed is **cleared** with it. A row reading `confirmed` while still
+  carrying a completion time is a contradiction, and it is exactly the
+  evidence a risk detector should no longer be looking at - **P1**.
+* **Both sides' ratings are destroyed**, and you were told so before
+  confirming. The 4-star rating from Step 5.8 is gone.
+* The therapist's **Owed to you** figure falls back by that session's share.
+
+**Then have two admins reopen it at once**, in two browsers, and tap within a
+moment of each other.
+
+**Expect.** Exactly **one** of them does it. The second is refused or is a
+no-op rather than reopening an already-reopened session and destroying a
+rating somebody has since left again.
+
+Re-complete the session and re-rate it before moving on - Part 10 counts it.
+
+---
+
+### Step 5.10 - Checkpoint
 
 | | Should be |
 | --- | --- |

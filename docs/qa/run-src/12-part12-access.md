@@ -313,7 +313,74 @@ const r = await fetch("/api/admin/stop-impersonation", { method: "POST" });
 
 ---
 
-### Step 12.11 - Checkpoint
+### Step 12.11 - Check the response headers
+
+Not everything that protects a patient is on screen. These ship on every
+response and cost nothing to check.
+
+**Do this.** Open any page, DevTools → **Network**, click the document request,
+and read **Response Headers**.
+
+**Expect** to find all of these:
+
+| Header | Should be |
+| --- | --- |
+| `X-Frame-Options` | `DENY` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | present |
+| `Strict-Transport-Security` | present (on an HTTPS deployment) |
+
+**Why each matters here.** Without the first, the admin dashboard and a
+patient's health profile can be framed by any site on the internet. Without
+the third, a referral token or an appointment id sitting in a URL travels to
+third parties as a full referrer.
+
+**One you should expect to see complaints about.** A content-security policy
+may be present in **report-only** form, logging violations without blocking
+them. That is deliberate: Razorpay's checkout injects its own script and
+frame, and a policy written blind takes down checkout, which is the one
+failure a payment screen must not have. Console warnings from a report-only
+policy are **not** a defect - note them and move on.
+
+---
+
+### Step 12.12 - A patient's route answers a patient
+
+Three routes on the patient dashboard used to answer a therapist or a hospital
+with a **200**. Nothing cross-account leaked - each acts on the caller's own
+row - which is exactly why it survived unnoticed.
+
+**Do this.** Sign in as **QA Therapist A**, then run:
+
+```js
+const routes = [
+  "/api/patient/dismiss-onboarding",
+  "/api/patient/previous-therapists",
+  "/api/patient/condition-profile/export",
+];
+console.table(await Promise.all(routes.map(async (route) => {
+  const r = await fetch(route, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 80) };
+})));
+```
+
+Repeat signed in as the **hospital**.
+
+**Expect.** Refused on every one, in both runs. The sharpest of the three is
+the export: a 200 there hands a non-patient a typeset PDF of an empty health
+record **named after them**.
+
+**And check the suspended case too.** Suspend that therapist, then re-run.
+Still refused - a suspended account must not keep acting as itself.
+
+---
+
+### Step 12.13 - Checkpoint
 
 | | Should be |
 | --- | --- |

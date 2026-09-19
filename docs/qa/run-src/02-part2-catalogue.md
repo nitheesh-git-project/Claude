@@ -261,3 +261,51 @@ You are not changing these yet - you are checking where they stand, so that a la
 **Also check, on any Settings screen you opened:** under the page heading there are **two lines** - one saying what the screen is in plain words, and a second starting **"For example:"**. A Settings screen whose heading is followed by "How the product behaves" and nothing else has lost its own description, which is a **P2**.
 
 ---
+
+### Step 2.8 - Choose which four lead the home page
+
+The home page does not list every condition - it leads with **four** and sends
+the reader on for the rest. Which four is an admin's choice, not a count of
+what sells: a home page that rearranges itself when a booking lands has
+changed without anybody deciding, and a condition added today could never
+reach it until it had already sold.
+
+**First, look at it with nothing ticked.** Open `/` and read the "what we
+treat" band.
+
+**Expect.** Your first four conditions, in order, with a link on to
+`/conditions` for the rest. **An empty band is a P1** - nothing is ticked yet,
+and the fallback exists precisely so the band is never empty while somebody
+has not opened the screen.
+
+**Now choose.** In **Catalog → Conditions**, tick the feature control on
+`QA Neuro Rehabilitation` and untick the others. Save, then reload `/`.
+
+**Expect**
+
+* Only the ticked one leads, and the band still links on to `/conditions`,
+  which shows **everything**.
+* The cap is **stated on the screen that sets it**, so you know how many will
+  show before you reload the site.
+* Ticking more than the cap is **not an error** - it simply shows the first
+  of them.
+
+**Then do the same on Home Visit.** Tick one home-visit package and reload
+`/home-visit`.
+
+**Expect.** The page shows the ticked one and **reveals the rest in place**
+rather than linking somewhere - it *is* its own full list and has nowhere
+else to send anybody. A control that opens a list identical to the one above
+it is a dead end with a label on it.
+
+**And check the two controls are not the same control.** On the home-visit
+form there are two: one picks whether it leads the page, the other is
+**Highlight with a ring**, which is styling. They must read as different
+things. Two controls both called "Feature", meaning different things, in the
+one place an admin meets both, is a **P2**.
+
+**One more thing to check.** The patient dashboard's **Book a Session** screen
+still shows **everything**, ticked or not. That is the screen somebody opens
+*to* book, so trimming it hides what they came for.
+
+---

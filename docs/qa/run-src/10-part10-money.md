@@ -209,7 +209,54 @@ Leave the switch **off** when you are done, unless you were asked to leave it on
 
 ---
 
-### Step 10.11 - Checkpoint
+### Step 10.11 - Payment integrity
+
+Money can arrive twice, arrive late, or not really arrive at all. Three
+checks, all from the Razorpay dashboard's own webhook log.
+
+**An authorization is not a payment.** Razorpay can *authorize* a card - a
+hold - and capture it seconds later. A hold that is never captured is voided
+and refunded a few days on, so nothing may be fulfilled against one.
+
+**Do this.** From the Razorpay test dashboard, send a **`payment.authorized`**
+event for a booking that is still unpaid, then look at the booking.
+
+**Expect**
+
+* The booking is **still unpaid**. Nothing is confirmed, no calendar event is
+  made, no invite reward is settled.
+* The event **is** recorded in the webhook trail even so - the record is worth
+  more than the one saved delivery.
+* Then send **`payment.captured`** for the same order: *now* everything
+  happens. If the authorization alone marked it paid, that is a **P0** - the
+  app would be delivering care against money that can still evaporate, and
+  nothing walks it back.
+
+**A duplicate webhook changes nothing twice.**
+
+**Do this.** Re-send the same `payment.captured` event two or three times.
+
+**Expect.** One payment recorded, one booking confirmed, **one** calendar
+event. The second delivery finds the order already captured and does nothing.
+Two `payments` rows for one order, or two calendar invites reaching the
+patient, is a **P0**.
+
+**And the callback and the webhook must agree on the figure.** Pay for a
+**home visit** in the browser and let the callback confirm it, then read the
+recorded amount.
+
+**Expect.** It is the **whole** of what the gateway took - the visit **plus
+travel**, `₹2,649` at Step 8.1's prices - not the service line alone. One
+booking recorded two different ways depending on which arrived first is the
+disagreement this record exists to settle.
+
+**Finally, check the unmatched-payment alert.** Money's alerts strip counts
+payments attached to nothing. It should read **zero** unless you have
+deliberately made one.
+
+---
+
+### Step 10.12 - Checkpoint
 
 | | Should be |
 | --- | --- |

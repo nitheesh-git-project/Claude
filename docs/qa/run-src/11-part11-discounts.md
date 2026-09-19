@@ -218,7 +218,34 @@ Unless you were asked to leave them on, return each to how Step 2.7 found it:
 
 ---
 
-### Step 11.9 - Checkpoint
+### Step 11.9 - A goodwill discount collected at the door
+
+This is the one combination where a discount meets cash, and it has been
+wrong before: the discount was given, and the full price was then recorded as
+the cash taken.
+
+**Do this**
+
+1. As a patient, book a **home visit** choosing **Pay at the visit** (as at
+   Step 8.4).
+2. As the admin, apply a goodwill discount of **₹300** to that visit with the
+   reason `Long wait for the first appointment.`
+3. As the admin, mark it **paid by cash**.
+4. Read three things: the amount recorded against the visit, the therapist's
+   **Cash Ledger** figure, and **Money → Summary**'s gross revenue.
+
+**Expect**
+
+* All three reflect the **discounted** figure. The discount facts on the row -
+  what the list price was, how much came off, which rule, and why - must
+  describe a reduction the recorded amount **actually shows**.
+* Recording the full price here overstates the cash ledger *and* gross revenue
+  by exactly the amount given away, and asks the therapist to hand over money
+  nobody collected. **P0.**
+
+---
+
+### Step 11.10 - Checkpoint
 
 | | Should be |
 | --- | --- |
