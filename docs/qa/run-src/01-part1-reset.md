@@ -119,6 +119,6 @@ Eight rows, with `plan_conversion_low` and `post_consultation_dropout` **disable
 Because conditions survive, you may already have some. Look at **Catalog → Conditions** and write down what is there.
 
 * **If the list is empty**, you will create all three at Step 2.1 and the run proceeds exactly as written.
-* **If rows already exist**, you will still create the three this run needs at Step 2.1. Leave the others alone; they cost nothing, and deleting them is its own test at Step 13.4.
+* **If rows already exist**, you will still create the three this run needs at Step 2.1. Leave the others alone; they cost nothing, and deleting them is its own test at Step 15.4.
 
 ---

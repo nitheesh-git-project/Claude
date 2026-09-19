@@ -1,4 +1,4 @@
-## 10. Part 9 - The partner referral, end to end
+## 11. Part 10 - The partner referral, end to end
 
 **What this part does.** Follows one referred patient from the hospital's form to a delivered session and the commission it earns. This is the one flow where the clinic has to reach somebody who has no account yet, which is why a phone number is required.
 
@@ -6,7 +6,7 @@
 
 ---
 
-### Step 9.1 - Refer a patient
+### Step 10.1 - Refer a patient
 
 **Who you are.** `QA Sunrise Hospital` (`qa.hospital@example.test`, the generated password from Step 3.10).
 
@@ -40,7 +40,7 @@
 
 ---
 
-### Step 9.2 - Refer a home visit, and find the pincode rule
+### Step 10.2 - Refer a home visit, and find the pincode rule
 
 **Do this.** Submit a second referral for the same patient, choosing **Home visit**, leaving **Pincode** blank. Then `56003`. Then `560038`.
 
@@ -58,7 +58,7 @@
 
 ---
 
-### Step 9.3 - Watch the admin drive the pipeline
+### Step 10.3 - Watch the admin drive the pipeline
 
 **Who you are.** The Master Admin, with the hospital's screen open in the other browser so you can watch it change.
 
@@ -73,7 +73,7 @@
 | Nothing yet | **Pending Review** |
 | Assign a therapist and a slot | **Therapist Assigned** |
 | Send the registration link | **Invite Sent** |
-| *(after Step 9.5)* the patient registers | **Registered** |
+| *(after Step 10.5)* the patient registers | **Registered** |
 
 **Expect.** The hospital sees **status only** - never the patient's clinical record, never a session note, never a health profile.
 
@@ -83,7 +83,7 @@
 
 ---
 
-### Step 9.4 - Try to withdraw at the wrong moment
+### Step 10.4 - Try to withdraw at the wrong moment
 
 **Do this.** As the hospital, withdraw a referral that is still **Pending Review**. Then try to withdraw the one that is **Invite Sent**.
 
@@ -95,7 +95,7 @@
 
 ---
 
-### Step 9.5 - Register Patient C, carrying the attribution
+### Step 10.5 - Register Patient C, carrying the attribution
 
 Two ways in. Do both, on two different referrals.
 
@@ -129,7 +129,7 @@ Tab out of the Referral Code field and read the line.
 
 ---
 
-### Step 9.6 - Deliver a session and check the commission
+### Step 10.6 - Deliver a session and check the commission
 
 **Do this**
 
@@ -147,7 +147,7 @@ Tab out of the Referral Code field and read the line.
 
 ---
 
-### Step 9.7 - Check the two states that must not collapse
+### Step 10.7 - Check the two states that must not collapse
 
 This is subtle and it is worth doing carefully, because collapsing them hides real money.
 
@@ -171,7 +171,7 @@ Put Therapist B's share back to **55**.
 
 ---
 
-### Step 9.8 - Check the hospital is fenced in
+### Step 10.8 - Check the hospital is fenced in
 
 **Do this, each as `QA Sunrise Hospital`:**
 
@@ -206,7 +206,7 @@ console.log("document:", b.status, (await b.text()).slice(0, 120));
 
 ---
 
-### Step 9.9 - Suspend the hospital
+### Step 10.9 - Suspend the hospital
 
 **Do this.** As the admin, suspend `QA Sunrise Hospital`. Then, in the hospital's still-open browser, reload the dashboard and run one console call.
 
@@ -220,7 +220,7 @@ Restore the hospital.
 
 ---
 
-### Step 9.10 - Checkpoint
+### Step 10.10 - Checkpoint
 
 | | Should be |
 | --- | --- |

@@ -1,4 +1,4 @@
-## 11. Part 10 - The books
+## 12. Part 11 - The books
 
 **What this part does.** Reads everything the run has earned and paid out, and checks the figures agree with each other and with the rows behind them. By now there is real money in the database: two consultations, a programme, two home visits, a referral, a refund and a cash collection.
 
@@ -8,7 +8,7 @@
 
 ---
 
-### Step 10.1 - Read the Money screens in order
+### Step 11.1 - Read the Money screens in order
 
 **Do this.** Open each Money screen and read the whole of it before moving on: **Summary**, **Breakdown**, **Costs**, **Payouts**, **Business Health**.
 
@@ -21,7 +21,7 @@
 
 ---
 
-### Step 10.2 - Check the two identities hold
+### Step 11.2 - Check the two identities hold
 
 These must be true on every range you pick. Check them on at least two: all time, and this month.
 
@@ -38,13 +38,13 @@ clinic share  = splittable net - therapists' share - partners' share
 
 | Rule | Check it with |
 | --- | --- |
-| A therapist's share is earned by **delivering**, not by being booked | The forfeited late cancellation from Step 8.8 - it is paid and not completed, so it adds **nothing** to any therapist's share |
-| A home visit's **travel fee is part of the therapist's share**, never revenue | The ₹150 from Step 8.1 |
-| **Refunds reverse the partner's commission, not the therapist's** | Patient C's refunded session from Step 9.6 - the therapist never earned a share on it, and the hospital's cut reverses |
+| A therapist's share is earned by **delivering**, not by being booked | The forfeited late cancellation from Step 9.8 - it is paid and not completed, so it adds **nothing** to any therapist's share |
+| A home visit's **travel fee is part of the therapist's share**, never revenue | The ₹150 from Step 9.1 |
+| **Refunds reverse the partner's commission, not the therapist's** | Patient C's refunded session from Step 10.6 - the therapist never earned a share on it, and the hospital's cut reverses |
 
 ---
 
-### Step 10.3 - Open a total
+### Step 11.3 - Open a total
 
 **Do this.** On **Summary**, tap **See the sessions** on each of the four split figures.
 
@@ -59,7 +59,7 @@ clinic share  = splittable net - therapists' share - partners' share
 
 ---
 
-### Step 10.4 - Pay a therapist
+### Step 11.4 - Pay a therapist
 
 **Do this**
 
@@ -69,7 +69,7 @@ clinic share  = splittable net - therapists' share - partners' share
 **Expect**
 
 * What is owed counts **completed, paid** sessions only, at 60% for online and **65%** for their home visits, plus travel in full.
-* **The cash they are holding is netted off the transfer.** Therapist A collected cash at Step 8.5: the amount actually transferred is reduced by it, and **those visits are marked remitted in the same run**. If they are not, the same rupees are deducted again on the next payout and the Cash Ledger goes on asking somebody to chase money already recovered - **P1**.
+* **The cash they are holding is netted off the transfer.** Therapist A collected cash at Step 9.5: the amount actually transferred is reduced by it, and **those visits are marked remitted in the same run**. If they are not, the same rupees are deducted again on the next payout and the Cash Ledger goes on asking somebody to chase money already recovered - **P1**.
 * "Owed to therapists" is **all-time and not date-filtered**. Scoping a balance to the range in view lets an admin read "nothing owed" off a quiet week while a real debt sits outside the window.
 * The settlement is recorded in **Logs → All Activity**, and the log row was written **after** the claim - so a settlement that lost a race can never appear in the log.
 
@@ -79,7 +79,7 @@ clinic share  = splittable net - therapists' share - partners' share
 
 ---
 
-### Step 10.5 - Work the refund queues
+### Step 11.5 - Work the refund queues
 
 **Do this.** Open **Money** and **Today**, and read the counts.
 
@@ -102,7 +102,7 @@ clinic share  = splittable net - therapists' share - partners' share
 
 ---
 
-### Step 10.6 - Record costs and read the profit
+### Step 11.6 - Record costs and read the profit
 
 **Do this.** Open **Money → Costs** and add three expenses:
 
@@ -119,11 +119,11 @@ clinic share  = splittable net - therapists' share - partners' share
 * **Operating profit** appears - clinic share less the gateway fee and these costs. It is the **only** figure allowed to be called profit, and nothing here is post-tax: a figure labelled "net profit" is a **P2**.
 * With **no** costs recorded for a range, Operating profit is stated as a **ceiling** and the screen says so, rather than implying a number it cannot know.
 
-**Also read the discount line.** *Discounts given* is **reported, never deducted**. A discount means less was collected, so it is already inside gross revenue as a smaller number; subtracting it from profit would count it twice. If Operating profit falls when you give a discount at Part 11, that is a **P0**.
+**Also read the discount line.** *Discounts given* is **reported, never deducted**. A discount means less was collected, so it is already inside gross revenue as a smaller number; subtracting it from profit would count it twice. If Operating profit falls when you give a discount at Part 12, that is a **P0**.
 
 ---
 
-### Step 10.7 - Read Business Health
+### Step 11.7 - Read Business Health
 
 **Do this.** Open **Money → Business Health**.
 
@@ -155,7 +155,7 @@ clinic share  = splittable net - therapists' share - partners' share
 
 ---
 
-### Step 10.8 - Flip the ledger switch
+### Step 11.8 - Flip the ledger switch
 
 **Do this**
 
@@ -173,7 +173,7 @@ Leave the switch **off** when you are done, unless you were asked to leave it on
 
 ---
 
-### Step 10.9 - Adjust a balance, and try to adjust history
+### Step 11.9 - Adjust a balance, and try to adjust history
 
 **Do this**
 
@@ -191,7 +191,7 @@ Leave the switch **off** when you are done, unless you were asked to leave it on
 
 ---
 
-### Step 10.10 - Read System Health
+### Step 11.10 - Read System Health
 
 **Do this.** Open **Settings → System Health** and read all five checks.
 
@@ -209,7 +209,7 @@ Leave the switch **off** when you are done, unless you were asked to leave it on
 
 ---
 
-### Step 10.11 - Payment integrity
+### Step 11.11 - Payment integrity
 
 Money can arrive twice, arrive late, or not really arrive at all. Three
 checks, all from the Razorpay dashboard's own webhook log.
@@ -246,7 +246,7 @@ patient, is a **P0**.
 recorded amount.
 
 **Expect.** It is the **whole** of what the gateway took - the visit **plus
-travel**, `₹2,649` at Step 8.1's prices - not the service line alone. One
+travel**, `₹2,649` at Step 9.1's prices - not the service line alone. One
 booking recorded two different ways depending on which arrived first is the
 disagreement this record exists to settle.
 
@@ -256,7 +256,7 @@ deliberately made one.
 
 ---
 
-### Step 10.12 - Checkpoint
+### Step 11.12 - Checkpoint
 
 | | Should be |
 | --- | --- |

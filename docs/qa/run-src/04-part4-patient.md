@@ -248,7 +248,7 @@ const r = await fetch("/api/appointments/create", {
 ({ status: r.status, body: await r.text() });
 ```
 
-**Expect: `200`**, and an unpaid, unassigned session appears. **That is correct and is not a defect.** This route gates on the account being *active*, not approved - an unapproved self-signup patient has to be able to hold the row they are about to pay for, and an unpaid row grants nothing. What must be refused is a **suspended** account, which you check at Step 12.2.
+**Expect: `200`**, and an unpaid, unassigned session appears. **That is correct and is not a defect.** This route gates on the account being *active*, not approved - an unapproved self-signup patient has to be able to hold the row they are about to pay for, and an unpaid row grants nothing. What must be refused is a **suspended** account, which you check at Step 13.2.
 
 > **Why `10:30:00.000Z` and not `10:00:00.000Z`.** A slot must start on the hour **in the booking's own timezone**, and with no timezone in the body that is India. `10:00Z` is 15:30 IST and is correctly refused with `Sessions start on the hour. Pick a time like 6:00 or 7:00.` `10:30Z` is 4 PM IST. If you see that refusal, you have found the rule working, not a bug.
 

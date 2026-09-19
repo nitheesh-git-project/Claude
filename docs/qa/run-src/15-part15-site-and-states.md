@@ -1,4 +1,4 @@
-## 14. Part 13 - The site itself, and the small things
+## 16. Part 15 - The site itself, and the small things
 
 **What this part does.** The cross-cutting checks that do not belong to one journey: the public pages, what happens on a phone, what happens when something goes wrong, and whether the app ever leaves somebody staring at a screen that is not responding.
 
@@ -6,7 +6,7 @@
 
 ---
 
-### Step 13.1 - Walk the eight public pages
+### Step 15.1 - Walk the eight public pages
 
 **Do this.** Signed out, open each of `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals`.
 
@@ -22,7 +22,7 @@
 
 ---
 
-### Step 13.2 - Check the catalogue reads the same everywhere
+### Step 15.2 - Check the catalogue reads the same everywhere
 
 **Do this.** Compare one programme card in three places: `/conditions`, its **View full details** dialog, and the patient dashboard's **Book a Session** screen.
 
@@ -36,7 +36,7 @@
 
 ---
 
-### Step 13.3 - Check an admin edit reaches the public site immediately
+### Step 15.3 - Check an admin edit reaches the public site immediately
 
 **Do this.** With `/conditions` open in one tab, as the admin: rename a condition, change its price, and reorder two of them with **Save order**. Reload the public tab **at once**.
 
@@ -56,7 +56,7 @@
 
 ---
 
-### Step 13.4 - Delete a condition, three ways
+### Step 15.4 - Delete a condition, three ways
 
 **Do this**
 
@@ -82,7 +82,7 @@
 
 ---
 
-### Step 13.5 - Check the app always says it is working
+### Step 15.5 - Check the app always says it is working
 
 **Do this.** Throttle the network to **Slow 3G** and, on each dashboard, tap something that changes data - approve an account, save a setting, assign a therapist.
 
@@ -100,7 +100,7 @@
 
 ---
 
-### Step 13.6 - Check the admin dashboard does not move under you
+### Step 15.6 - Check the admin dashboard does not move under you
 
 **Do this.** Open the admin dashboard and leave it. In a second browser, have a patient book a session. Watch the first screen **without reloading**.
 
@@ -115,7 +115,7 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.7 - Break things on purpose
+### Step 15.7 - Break things on purpose
 
 **Do this**
 
@@ -128,7 +128,7 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.8 - Use the whole thing on a phone
+### Step 15.8 - Use the whole thing on a phone
 
 **Do this.** On a real phone, or at a 390px-wide window, walk: the home page, `/book` end to end, the patient dashboard's every screen, and the admin dashboard.
 
@@ -143,7 +143,7 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.9 - Check the keyboard and a screen reader can get through
+### Step 15.9 - Check the keyboard and a screen reader can get through
 
 **Do this.** Put the mouse away. Tab through `/book`, then through a dashboard.
 
@@ -158,7 +158,7 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.10 - Check the splash one more time
+### Step 15.10 - Check the splash one more time
 
 **Do this**
 
@@ -177,7 +177,7 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.11 - The mission, the vision, the promises and the limits
+### Step 15.11 - The mission, the vision, the promises and the limits
 
 These four blocks are what `/mission` **is**, and all of them are an admin's
 to write. They used to be constants only a developer could change, which made
@@ -225,7 +225,7 @@ somebody forgets to change, and it tells the reader something untrue.
 
 ---
 
-### Step 13.12 - Checkpoint
+### Step 15.12 - Checkpoint
 
 | | Should be |
 | --- | --- |

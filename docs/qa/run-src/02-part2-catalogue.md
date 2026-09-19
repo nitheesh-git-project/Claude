@@ -204,7 +204,7 @@ Open **Catalog → Packages** and use the home-visit section.
 **Expect**
 
 * Both save and appear on `/home-visit`.
-* **Only HV1 is offered with a Book button.** HV2 has four visits, so it is a programme: it can be recommended but not bought. You will prove the route refuses it directly at Step 11.6.
+* **Only HV1 is offered with a Book button.** HV2 has four visits, so it is a programme: it can be recommended but not bought. You will prove the route refuses it directly at Step 12.6.
 
 ---
 
@@ -238,7 +238,7 @@ A home visit cannot be sold anywhere until a pincode is covered.
 **Write these two down** - later parts use them:
 
 * **`560038` is serviceable**, travel fee **₹150 per visit**.
-* **`560025` is not serviceable** and is the address you will use to test the waitlist at Step 8.7.
+* **`560025` is not serviceable** and is the address you will use to test the waitlist at Step 9.7.
 
 ---
 
@@ -249,14 +249,14 @@ You are not changing these yet - you are checking where they stand, so that a la
 | Setting | Where | Should read | Why it matters here |
 | --- | --- | --- | --- |
 | **Therapist-Suggested Sessions** | Settings → Programmes & Home Visits | **on** | Part 7 needs it. On a database that predates the change it may still be off - switch it on now if it is. |
-| **Assign a Therapist Automatically** | Settings → Programmes & Home Visits | **off** | Parts 4 and 5 expect a paid session to wait in the admin queue. Step 12.4 switches it on deliberately. |
-| **Session Balances From The Ledger** | Settings → Programmes & Home Visits | **off** | Step 10.8 flips it and checks the balances still agree. |
+| **Assign a Therapist Automatically** | Settings → Programmes & Home Visits | **off** | Parts 4 and 5 expect a paid session to wait in the admin queue. Step 13.4 switches it on deliberately. |
+| **Session Balances From The Ledger** | Settings → Programmes & Home Visits | **off** | Step 11.8 flips it and checks the balances still agree. |
 | **The clinic approves a recommendation** | Settings → Programmes & Home Visits | **on** | Part 7 is written around the review queue. |
-| **First session offer** | Settings → Offers & Discounts | **off** | Part 4 expects the patient to be charged list price. Step 9.1 switches it on. |
-| **Promo codes** | Money → Costs | **off** | Step 9.3 switches it on. |
-| **Patient invites** | Settings → Offers & Discounts | **off** | Step 9.5 switches it on. |
+| **First session offer** | Settings → Offers & Discounts | **off** | Part 4 expects the patient to be charged list price. Step 10.1 switches it on. |
+| **Promo codes** | Money → Costs | **off** | Step 10.3 switches it on. |
+| **Patient invites** | Settings → Offers & Discounts | **off** | Step 10.5 switches it on. |
 | **Online Booking Lead Time** | Settings → Booking Rules | **12** hours | Every booking step assumes 12. |
-| **Online Cancellation Refund Window** | Settings → Booking Rules | **24** hours | Step 10.2 depends on it. |
+| **Online Cancellation Refund Window** | Settings → Booking Rules | **24** hours | Step 11.2 depends on it. |
 
 **Also check, on any Settings screen you opened:** under the page heading there are **two lines** - one saying what the screen is in plain words, and a second starting **"For example:"**. A Settings screen whose heading is followed by "How the product behaves" and nothing else has lost its own description, which is a **P2**.
 

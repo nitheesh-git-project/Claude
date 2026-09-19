@@ -1,4 +1,4 @@
-## 12. Part 11 - The four ways money comes off
+## 13. Part 12 - The four ways money comes off
 
 **What this part does.** Switches on each of the four acquisition discounts in turn and proves the rule they all share: **the browser sends a name, never a figure.** Every amount comes from a row an admin created.
 
@@ -15,7 +15,7 @@
 
 ---
 
-### Step 11.1 - The first-session offer
+### Step 12.1 - The first-session offer
 
 **Do this**
 
@@ -37,7 +37,7 @@
 
 ---
 
-### Step 11.2 - The goodwill adjustment
+### Step 12.2 - The goodwill adjustment
 
 **Do this**
 
@@ -60,7 +60,7 @@
 
 ---
 
-### Step 11.3 - The promo code
+### Step 12.3 - The promo code
 
 **Do this**
 
@@ -105,7 +105,7 @@
 
 ---
 
-### Step 11.4 - The patient invite
+### Step 12.4 - The patient invite
 
 **Do this**
 
@@ -135,7 +135,7 @@
 
 ---
 
-### Step 11.5 - Check they never stack
+### Step 12.5 - Check they never stack
 
 **Do this.** Set up a patient who qualifies for **two at once** - a first-session offer of ₹500 and a promo code worth ₹300 - and read Step 3.
 
@@ -152,7 +152,7 @@
 
 ---
 
-### Step 11.6 - The free booking
+### Step 12.6 - The free booking
 
 **Do this**
 
@@ -193,7 +193,7 @@ const r = await fetch("/api/appointments/confirm-free", {
 
 ---
 
-### Step 11.7 - Check the books can tell cheap from discounted
+### Step 12.7 - Check the books can tell cheap from discounted
 
 **Do this.** Open **Money → Costs** and read *Discounts given*.
 
@@ -205,7 +205,7 @@ const r = await fetch("/api/appointments/confirm-free", {
 
 ---
 
-### Step 11.8 - Put the switches back
+### Step 12.8 - Put the switches back
 
 Unless you were asked to leave them on, return each to how Step 2.7 found it:
 
@@ -218,7 +218,7 @@ Unless you were asked to leave them on, return each to how Step 2.7 found it:
 
 ---
 
-### Step 11.9 - A goodwill discount collected at the door
+### Step 12.9 - A goodwill discount collected at the door
 
 This is the one combination where a discount meets cash, and it has been
 wrong before: the discount was given, and the full price was then recorded as
@@ -227,7 +227,7 @@ the cash taken.
 **Do this**
 
 1. As a patient, book a **home visit** choosing **Pay at the visit** (as at
-   Step 8.4).
+   Step 9.4).
 2. As the admin, apply a goodwill discount of **₹300** to that visit with the
    reason `Long wait for the first appointment.`
 3. As the admin, mark it **paid by cash**.
@@ -245,7 +245,7 @@ the cash taken.
 
 ---
 
-### Step 11.10 - Checkpoint
+### Step 12.10 - Checkpoint
 
 | | Should be |
 | --- | --- |

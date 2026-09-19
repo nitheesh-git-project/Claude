@@ -1,16 +1,18 @@
-## 6. Part 5 - Assign, join and deliver the session
+## 6. Part 5 - One session, seen by everyone
 
-**What this part does.** Takes Patient A's paid session from "nobody is assigned" to "delivered and written up". It is the spine of the clinic's operational day, and every money figure in Part 10 comes from it.
+**What this part does.** Takes Patient A's paid session from "nobody is assigned" to "delivered, written up and rated" - and at every moment shows **what each role sees of the same row**. A session is the one thing in this product four different people look at, and the commonest class of defect is two of them disagreeing about it.
 
-**Time.** About 45 minutes.
+**How to read this part.** Each step is split by who you are signed in as - **As the admin**, **As the therapist**, **As the patient**, **As the partner**. Work through the blocks in the order they appear.
+
+**Keep four browsers or profiles open.** Tabs in one browser share cookies, so signing in as the admin in a second tab signs the patient out of the first.
+
+**Time.** About 55 minutes.
 
 ---
 
-### Step 5.1 - Find the session in the admin's queue
+### Step 5.1 - The paid session arrives
 
-**Who you are.** The Master Admin.
-
-**Do this**
+**As the admin**
 
 1. Open **Today**.
 2. Read the "needs a person" figure and the queue list beneath it.
@@ -19,19 +21,37 @@
 **Expect**
 
 * The figure and the list **agree**. A strip reading 23 over a list of four is the exact defect this check exists for - **P1**.
-* Tapping it opens **Sessions → All Sessions** already filtered to the rows it counted, **not** the whole table. Filtering you have to redo by hand is the failure; so is a count that opens an unfiltered list and therefore looks wrong.
+* Tapping it opens **Sessions → All Sessions** already filtered to the rows it counted, **not** the whole table.
 * Patient A's session is there: paid, tomorrow at 4 PM, **no therapist**.
 * The row carries a chip reading **Tap to assign** - not "Reschedule / Reassign". A session nobody has ever been assigned to must not describe the action as editing something that already happened.
 
-**Then tap somewhere else and come back.** Move to another screen and return to All Sessions.
+Move to another screen and come back.
 
-**Expect.** The preset is **gone** - it is one-shot, so a filter never becomes something an admin cannot find the source of. Tapping the Today figure again re-applies it.
+**Expect.** The preset is **gone** - it is one-shot, so a filter never becomes something an admin cannot find the source of. Tapping the figure again re-applies it.
+
+**As the therapist**
+
+Open `/therapist/dashboard`.
+
+**Expect. Nothing.** The session is paid and unassigned, so it belongs to nobody yet. A clinician seeing unassigned work on their own dashboard is a **P2** - it is the admin's queue, not theirs.
+
+**As the patient**
+
+Open **Sessions**.
+
+**Expect.** The session is listed as **Pending** - paid, waiting on the clinic. It does **not** claim a therapist and does **not** offer a join link.
+
+**As the partner**
+
+Sign in as `QA Sunrise Hospital` and look everywhere.
+
+**Expect.** Nothing about this session, at all. Patient A did not come through them.
 
 ---
 
-### Step 5.2 - Assign Therapist A
+### Step 5.2 - Assigning a therapist
 
-**Do this**
+**As the admin**
 
 1. Tap Patient A's session row. The detail drawer opens.
 2. Read what the drawer leads with.
@@ -40,91 +60,129 @@
 **Expect**
 
 * The drawer **leads with the assign control**, with the reschedule form kept below for when the time has to move too.
+* One tap, honouring the therapist the patient asked for if they asked for one.
 * The session becomes **confirmed**.
-* A **Meet link** appears on it, and on the patient's own session card.
-* The therapist's dashboard now lists the session.
 
-**If there is no Meet link**, look at **Settings → System Health** before reporting anything:
+**As the therapist**
+
+Reload `/therapist/dashboard`.
+
+**Expect**
+
+* The session is now **theirs** - on the Overview's **Today** or **Upcoming** figure, and in their session list.
+* The patient's name is there. Their **phone is masked** and their **email is not shown at all**; Step 5.7 covers that properly.
+
+**As the patient**
+
+Reload **Sessions**.
+
+**Expect**
+
+* It reads **Confirmed**, and now names the therapist.
+* A **meeting link** appears on the card.
+
+**If there is no meeting link**, look at **Settings → System Health** as the admin before reporting anything:
 
 | What System Health says | What it means |
 | --- | --- |
-| Google shows **Not set up** | Nobody wired Google up in this environment. **Not a defect** - it is a state, not a fault, and the run continues without video links. Mark the Meet checks N/A. |
-| Google shows **Needs you now** with a dead-credential message | One refresh token has died, so **every** session fails identically. The card states the length, an eight-character fingerprint and whether the stored value has stray whitespace - that is how you tell "the permission died" from "the server is still holding the old value". |
-| The session sits in **Session Links** with an error | The sweep will retry it, capped. A manual **Retry** resets the counter. |
+| Google shows **Not set up** | Nobody wired Google up here. **Not a defect** - a state, not a fault. Mark every meeting-link check in this run N/A. |
+| **Needs you now**, dead credential | One token has died, so **every** session fails identically. The card states the length, an eight-character fingerprint and whether the stored value carries stray whitespace - that is how you tell "the permission died" from "the server is still holding the old value". |
+| The session sits in **Session Links** | The sweep retries it, capped. A manual **Retry** resets the counter. |
 
-**One thing to watch for and report.** Tap **Retry** on a **home visit** (you will have one after Part 8). A home visit **never** has a Meet link by design - there is nothing to join. If Retry answers `502 Retry failed`, or if every click creates a **new calendar event**, that is a **P0**: three duplicate invites once reached one patient that way.
-
----
-
-### Step 5.3 - Check the session reads the same on every screen
-
-The same row is rendered by four different people. They must agree.
-
-**Do this.** Open, in turn, and compare the date, the time and the status:
-
-| Screen | Where |
-| --- | --- |
-| The patient's **Sessions** | `/patient/dashboard/sessions` |
-| The therapist's **Sessions** | `/therapist/dashboard/sessions` |
-| The admin's **All Sessions** | Sessions → All Sessions |
-| The admin's **Schedule** | Sessions → Schedule (calendar) |
-
-**Expect.** One date, one time, one status, everywhere - and the time is **4 PM**, in India Standard Time, on all four. A screen showing `10:30 AM` for the same row is the clinic-time rule broken.
-
-**Also check the patient's Sessions screen is one list.** Upcoming / Past / Cancelled filters, not separate sidebar entries for video and home visits. The Video / Home visit filter appears only once this patient has both, which they do not yet.
+**One thing to watch for and report.** Once you have a home visit (Part 9), tap **Retry** on it. A home visit **never** has a meeting link by design - there is nothing to join. If Retry answers `502 Retry failed`, or if each click creates a **new calendar event**, that is a **P0**: three duplicate invites once reached one patient that way.
 
 ---
 
-### Step 5.4 - Check the join window
+### Step 5.3 - One row, four screens
 
-**Do this**
+The same session, read by six different signed-in people. Compare the **date, the time and the status** on each.
 
-1. As the patient, look at the session card now (it is tomorrow).
-2. As the therapist, look at the same session.
-3. Open **Settings → Booking Rules** as the admin and read the **join window** and the **Session Completed cutoff**.
+| Signed in as | Where | Must show |
+| --- | --- | --- |
+| Patient A | `/patient/dashboard/sessions` | 4 PM, Confirmed, therapist named |
+| Therapist A | `/therapist/dashboard/sessions` | 4 PM, Confirmed, patient named, phone masked |
+| The Master Admin | Sessions → All Sessions | 4 PM, Confirmed, both named, amount visible |
+| The Master Admin | Sessions → Schedule | The same session on the same day, opening the **same** drawer |
+| Operations | Sessions → All Sessions | The same row - **but no amount** |
+| Finance | Sessions → All Sessions | The row **and** the amount, and **no** control that changes it |
 
 **Expect**
 
-* Well before the slot, the join control is **not** live - it names when it opens rather than being a dead button.
-* Inside the window, **Tap to Join** works for both parties.
-* Past the cutoff - the admin-set number of minutes after the slot time - every join control reads **Session Completed** instead, **including the admin's own**. A session an hour past its start must read the same way on every screen it appears on.
-
-> If you cannot wait for real time to pass, use the Debug bar's simulated time rather than editing the database. Changing a session's slot to the past by hand also changes what the money screens count.
+* One date, one time, one status, everywhere - and the time is **4 PM**, in **India Standard Time**, on every one of them whatever your laptop is set to. A screen showing `10:30 AM` for the same row is the clinic-time rule broken, and it is a **P1**: two people reading one screen then disagree about when the session is.
+* The patient's screen is **one list** - Upcoming / Past / Cancelled filters, not separate entries for video and home visits. The Video / Home visit filter appears only once they have both, which they do not yet.
 
 ---
 
-### Step 5.5 - Try to complete it too early, then properly
+### Step 5.4 - The join window, for all three
 
-**Who you are.** QA Therapist A.
+Three people, one session, and they must agree about whether it can be joined.
 
-**Do this**
+**As the patient.** Look at the session card now, well before the slot.
 
-1. **Before** the join window opens, try to mark the session complete.
-2. Then, inside or after the window, mark it complete.
+**Expect.** The join control is **not live**, and it **names when it opens** rather than being a dead button with no explanation.
 
-**Expect**
+**As the therapist.** Look at the same session.
 
-* Step 1 is **refused**. Completing a session is a financial write with a clinical name: `completed` + `paid` is the exact and only condition that makes the therapist's revenue share payable, so a session cannot be closed before the window in which it could have been started. A therapist who can mark tomorrow's session done today and be owed for it is a **P0**.
-* Step 2 succeeds. The session reads **Completed** on all four screens from Step 5.3.
+**Expect.** The same answer, at the same moment. A window open for one party and shut for the other is a **P1** - one of them sits waiting in a meeting nobody else can enter.
 
-**Then check the two refusals that protect the money**, each on a session you set up for it:
+**As the admin.** Open the session drawer.
 
-| Situation | Expect |
+**Expect.** The admin's own join control follows the **same** window. The admin is not special here.
+
+**Now move inside the window.** Use the Debug bar's simulated time rather than editing the database - changing a slot by hand also changes what the money screens count.
+
+**Expect. Tap to Join** works for the patient, the therapist **and** the admin.
+
+**Then move past the Session Completed cutoff** - the admin-set number of minutes after the slot time.
+
+**Expect.** Every join control now reads **Session Completed** instead - **on all three screens, the admin's included**. A session an hour past its start must read the same way everywhere it appears. One screen still offering Join is a **P2**.
+
+---
+
+### Step 5.5 - Completing it
+
+Completing a session is a **financial write with a clinical name**: `completed` + `paid` is the exact and only condition that makes the therapist's revenue share payable. So who may do it, and when, is a money question.
+
+**As the therapist - the refusals**
+
+| Try | Expect |
 | --- | --- |
-| A session with **no payment** behind it | The therapist cannot complete it. |
-| A **cash home visit** with no cash recorded | The therapist cannot complete it - collect first, which is the right order anyway. |
+| Complete it **before** the join window opens | **Refused.** A therapist who can mark tomorrow's session done today and be owed for it is a **P0** |
+| Complete a session with **no payment** behind it | Refused |
+| Complete a **cash home visit** with no cash recorded | Refused - collect first, which is the right order anyway |
 
-> An **admin** can complete a session in either of those states, deliberately: a backfill or a correction is exactly what the override lane is for. What an admin cannot do is complete one from a desk that only reads Sessions - Step 12.3 checks that.
+**As the therapist - properly.** Inside or after the window, mark it complete.
+
+**Expect.** It succeeds, and reads **Completed** on all the screens from Step 5.3.
+
+**As the admin - the override lane.** Complete a session that has **no payment** behind it.
+
+**Expect. Allowed.** A backfill or a correction is exactly what an admin is for, and neither gate above applies to them.
+
+**As Finance - the refusal that matters.** Signed in as `qa.admin.finance@example.test`, try to complete a session, from the screen and from the console:
+
+```js
+const r = await fetch("/api/appointments/complete-session", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ appointmentId: "<a paid, past session id>" }),
+});
+({ status: r.status, body: await r.text() });
+```
+
+**Expect.** The buttons **do not render**, and the route answers **403**. Finance reads Sessions precisely so the person reconciling the books cannot change what they are reconciling - and completing a session is what creates the payout obligation they are reconciling.
+
+**As the patient.** Reload Sessions.
+
+**Expect.** The session moves to **Past**, marked completed. Nothing about the money changes on their screen - they already paid.
 
 ---
 
-### Step 5.6 - Write the session note
+### Step 5.6 - The session note
 
-**Who you are.** QA Therapist A.
+**As the therapist**
 
-**Do this**
-
-1. From the completed session's card, open the session note dialog.
+1. From the completed session's card, open the note dialog.
 2. Fill all four fields:
 
 | Field | Value |
@@ -136,95 +194,105 @@ The same row is rendered by four different people. They must agree.
 
 3. Save.
 
-**Expect**
+**Expect.** Saved, and the Overview's **Notes to write** figure falls by one. At zero it reads `Every delivered session is written up`.
 
-* Saved, and the therapist's Overview **Notes to write** figure falls by one. At zero it reads `Every delivered session is written up`.
-* The note is editable for **24 hours**, and every edit inside that window keeps a copy of what it replaced.
-* **The patient cannot see it anywhere.** Check the patient's Health Profile and their export - session notes are clinician-only and are excluded from both on purpose. A patient who can read a session note is a **P0**.
+**Then edit it** and change one sentence.
 
-**Then check the contact scanner on this field.** Open the note again and try to save each of these:
+**Expect.** The edit lands, and **what it replaced is kept** rather than overwritten. Notes stay editable for **24 hours**; past that the route refuses the edit whatever the screen offers. A note that can be silently rewritten days later is a clinical record with no history - **P1**.
+
+**As the patient.** Look for it: on Health Profile, on the session card, and in the export from Step 6.5.
+
+**Expect. Nothing, anywhere.** Session notes are clinician-only, written in the register clinicians use with each other, and they are excluded from the patient's export on purpose. **A patient who can read a session note is a P0.**
+
+**As the admin.** Open the same session.
+
+**Expect.** The admin **can** read it - they carry the clinic's responsibility for the record.
+
+**Now the contact scanner, as the therapist.** Try saving each of these into the note:
 
 | What you type | Expect |
 | --- | --- |
-| `Grade III PA mobilisation x3 sets, 30s hold. 10 reps, 2x daily. Order ref 90210.` | **Saves normally.** Clinical text full of numbers must not fire the scanner - a check that cries wolf is a check nobody reads. |
-| `Call me on 9876543210 before the session` | **Saves, and is recorded.** A phone number is flagged, not blocked. It appears on the admin's flagged-messages panel. |
-| `Pay me directly on 9876543210@okhdfc, it's cheaper` | **Refused.** A payment handle is blocked outright. |
+| `Grade III PA mobilisation x3 sets, 30s hold. 10 reps, 2x daily. Order ref 90210.` | **Saves normally.** Clinical text full of numbers must not fire the scanner - a check that cries wolf is a check nobody reads |
+| `Call me on 9876543210 before the session` | **Saves, and is recorded.** A phone number is flagged, not blocked |
+| `Pay me directly on 9876543210@okhdfc, it's cheaper` | **Refused.** A payment handle is blocked outright |
 
-Restore the real note text afterwards.
+**As the admin**, confirm the flagged one appears on the flagged-messages panel, and that **the blocked one is nowhere in the record at all** - it was never written.
 
-**Then edit the note and check the previous version was kept.** Change one
-sentence and save again.
-
-**Expect.** The edit lands, and what it replaced is **kept** rather than
-overwritten. Notes stay editable for **24 hours**; past that the submit route
-refuses the edit, whatever the screen offers. A note that can be silently
-rewritten days later is a clinical record with no history - **P1**.
+Restore the real note text.
 
 ---
 
-### Step 5.7 - Check the patient's phone is masked
+### Step 5.7 - The patient's phone number
 
-**Who you are.** QA Therapist A.
+**As the therapist**
 
-**Do this**
-
-1. Open **My Patients** and then Patient A.
+1. Open **My Patients** → Patient A.
 2. Read the contact details.
 3. Inside the session's join window, use **reveal contact**.
+4. Try it again **outside** the window, and on a **cancelled** session.
 
 **Expect**
 
-* The phone is **masked** and the email is **not shown at all** - it is not loaded onto these screens in the first place.
-* Revealing works inside a video session's join window, and on a home visit's own day.
-* It is **refused** outside that window, and refused for a cancelled session.
-* Every reveal is recorded. As the admin, check the reveal log has a row. **A reveal that could not be recorded is refused** - unlike the audit log, this one is not best-effort, because a reveal with no trace is the one outcome the route must not produce.
+* The phone is **masked**; the email is **not shown at all** - it is not even loaded onto these screens.
+* The reveal works inside a video session's join window, and on a home visit's own day.
+* Step 4's two attempts are both **refused**.
+
+**As the admin.** Open the contact reveal log.
+
+**Expect.** A row for the reveal, naming who, whom and when. **A reveal that could not be recorded is refused** - unlike the audit log, this one is not best-effort, because a reveal with no trace is the one outcome the route must not produce.
+
+**As the patient.** Nothing about any of this is on their screens, and nothing should be.
 
 ---
 
-### Step 5.8 - Rate the session
+### Step 5.8 - The rating
 
-**Do this.** As Patient A, rate the completed session **4 stars** with the comment:
+**As the patient.** Rate the completed session **4 stars** with:
 
 ```
 Clear explanation and a plan I can actually follow at home.
 ```
 
-**Expect.** The rating saves. The therapist's Overview header now reads `Your Rating: 4.0 (1 rating)` instead of `No ratings yet`.
+**As the therapist.** Reload the Overview.
 
-**Then, as the admin**, hide that therapist's rating from public pages and check `/team` no longer quotes it, and that the therapist's own header gains ` - hidden from public pages`. Put it back.
+**Expect.** The header now reads `Your Rating: 4.0 (1 rating)` instead of `No ratings yet`.
+
+**As the admin.** Hide that therapist's rating from the public pages.
+
+**Expect.** `/team` stops quoting it, and the therapist's own header gains ` - hidden from public pages`. The real number is still theirs to see - it is the public quoting of it that stopped.
+
+Put it back.
 
 ---
 
-### Step 5.9 - Reopen a completed session
+### Step 5.9 - Reopening a completed session
 
-Closing a session is what makes a therapist's share payable, so undoing it has
-to undo the whole of it.
+Undoing a completion has to undo the whole of it.
 
-**Do this**
+**As the admin**
 
-1. As the admin, open the session Therapist A completed at Step 5.5 and reopen it.
-2. Read what the screen says will happen before confirming.
+1. Reopen the session you completed at Step 5.5.
+2. Read what the screen says will happen **before** confirming.
 3. Look at the session afterwards.
-4. Look at both ratings.
 
 **Expect**
 
-* The session returns to **confirmed**, and the record of *when* it was
-  completed is **cleared** with it. A row reading `confirmed` while still
-  carrying a completion time is a contradiction, and it is exactly the
-  evidence a risk detector should no longer be looking at - **P1**.
-* **Both sides' ratings are destroyed**, and you were told so before
-  confirming. The 4-star rating from Step 5.8 is gone.
-* The therapist's **Owed to you** figure falls back by that session's share.
+* It returns to **confirmed**, and the record of *when* it was completed is **cleared** with it. A row reading `confirmed` while still carrying a completion time is a contradiction, and it is exactly the evidence a risk detector should no longer be looking at - **P1**.
+* **Both sides' ratings are destroyed**, and you were told so before confirming. The 4 stars from Step 5.8 are gone.
 
-**Then have two admins reopen it at once**, in two browsers, and tap within a
-moment of each other.
+**As the therapist.** Reload Earnings.
 
-**Expect.** Exactly **one** of them does it. The second is refused or is a
-no-op rather than reopening an already-reopened session and destroying a
-rating somebody has since left again.
+**Expect. Owed to you** has fallen back by that session's share. A reopened session must not stay payable.
 
-Re-complete the session and re-rate it before moving on - Part 10 counts it.
+**As the patient.** Reload Sessions.
+
+**Expect.** It is back among the upcoming work, and their rating is gone.
+
+**Then have two admins reopen it at once**, in two browsers, tapping within a moment of each other.
+
+**Expect.** Exactly **one** of them does it. The second is refused or is a no-op - not a second reopen destroying a rating somebody has since left again.
+
+Re-complete the session and re-rate it before moving on. Part 11 counts it.
 
 ---
 
@@ -232,10 +300,12 @@ Re-complete the session and re-rate it before moving on - Part 10 counts it.
 
 | | Should be |
 | --- | --- |
-| Patient A's session | Completed and paid, delivered by Therapist A |
-| Session note | Written, clinician-only |
-| Rating | 4 stars, showing on the therapist's header |
-| Flagged message | One recorded, from Step 5.6 |
-| Contact reveal | One logged |
+| The session | Completed and paid, delivered by Therapist A, rated 4 |
+| Agreement | The same date, time and status on every screen, in clinic time |
+| Join window | The same answer for patient, therapist and admin, at the same moments |
+| Completion | Refused early, refused unpaid for the therapist, allowed for the admin, refused for Finance |
+| Note | Written, edited with its previous version kept, invisible to the patient |
+| Contact | One reveal, logged; two refusals |
+| Flags | One phone number recorded, one payment handle refused and never written |
 
 ---

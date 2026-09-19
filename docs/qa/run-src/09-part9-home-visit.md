@@ -1,4 +1,4 @@
-## 9. Part 8 - The home visit
+## 10. Part 9 - The home visit
 
 **What this part does.** Buys and delivers a visit at the patient's address, both ways of paying for it. The travel fee is the thing to watch throughout: it is a reimbursement paid to the therapist in full, never revenue, and never discounted.
 
@@ -6,7 +6,7 @@
 
 ---
 
-### Step 8.1 - Book a visit, paying online
+### Step 9.1 - Book a visit, paying online
 
 **Who you are.** QA Patient A.
 
@@ -33,7 +33,7 @@
 **Expect**
 
 * Step 3: a teal line reading *"Yes - we visit Indiranagar, Bengaluru. Travel to this area is ₹150 per visit."*
-* Step 5: the copy says home visits need at least **24 hours'** notice - deliberately longer than the online session's 12, and read from its own setting. If changing the online lead time at Step 12.1 also changes this one, that is a **P1**: the two are independent.
+* Step 5: the copy says home visits need at least **24 hours'** notice - deliberately longer than the online session's 12, and read from its own setting. If changing the online lead time at Step 13.1 also changes this one, that is a **P1**: the two are independent.
 * Step 7: the breakdown shows **three** figures - programme `₹2,499`, travel `₹150`, total `₹2,649`.
 * **The button charges exactly the total shown.** ₹2,649, not ₹2,499. Quoting one figure and charging another is a **P0**, and this is the place it has happened before: a four-visit programme in a ₹150 area was ₹600 out because the card printed the programme price alone.
 * After paying: a confirmation. The visit appears on the patient's Sessions screen, and the **Video / Home visit** filter now appears there - they have both kinds.
@@ -44,7 +44,7 @@
 
 ---
 
-### Step 8.2 - Check the unserviceable path
+### Step 9.2 - Check the unserviceable path
 
 **Do this**
 
@@ -70,7 +70,7 @@
 
 ---
 
-### Step 8.3 - Prove a four-visit package cannot be bought
+### Step 9.3 - Prove a four-visit package cannot be bought
 
 **Do this**
 
@@ -97,9 +97,9 @@ const r = await fetch("/api/home-visit/create-order", {
 
 ---
 
-### Step 8.4 - Book a second visit, paying cash at the door
+### Step 9.4 - Book a second visit, paying cash at the door
 
-**Do this.** Repeat Step 8.1, but at **Review and pay** choose **Pay at the visit**.
+**Do this.** Repeat Step 9.1, but at **Review and pay** choose **Pay at the visit**.
 
 **Expect**
 
@@ -112,7 +112,7 @@ const r = await fetch("/api/home-visit/create-order", {
 
 ---
 
-### Step 8.5 - Deliver the cash visit and record the money
+### Step 9.5 - Deliver the cash visit and record the money
 
 **Who you are.** QA Therapist A - assign yourself the visit as the admin first if it is unassigned.
 
@@ -141,7 +141,7 @@ Patient was short at the door, agreed the balance next visit.
 
 ---
 
-### Step 8.6 - Check travel is paid to the therapist, not kept as revenue
+### Step 9.6 - Check travel is paid to the therapist, not kept as revenue
 
 **Do this.** As the admin, open **Money → Summary**, then **Money → Payouts**.
 
@@ -157,7 +157,7 @@ Patient was short at the door, agreed the balance next visit.
 
 ---
 
-### Step 8.7 - Check the travel buffer
+### Step 9.7 - Check the travel buffer
 
 **Do this**
 
@@ -168,7 +168,7 @@ Patient was short at the door, agreed the balance next visit.
 
 ---
 
-### Step 8.8 - Cancel a visit and check its own refund window
+### Step 9.8 - Cancel a visit and check its own refund window
 
 **Do this**
 
@@ -196,7 +196,7 @@ Patient was short at the door, agreed the balance next visit.
 
 ---
 
-### Step 8.9 - Switch home visits off with a recommendation outstanding
+### Step 9.9 - Switch home visits off with a recommendation outstanding
 
 **Do this**
 
@@ -210,7 +210,7 @@ Switch home visits back **on**.
 
 ---
 
-### Step 8.10 - Checkpoint
+### Step 9.10 - Checkpoint
 
 | | Should be |
 | --- | --- |

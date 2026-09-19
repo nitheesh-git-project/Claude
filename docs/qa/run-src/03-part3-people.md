@@ -97,7 +97,7 @@ Repeat Step 3.1 twice more. You need all three: B proves one therapist cannot se
 * After approving, each therapist disappears from the queue and the badge falls by one.
 * Open `/team` in another tab: all three now appear there, immediately. A therapist approved but missing from `/team` for five minutes means the approval did not clear that page's cache - **P2**.
 
-**Then sign in as Therapist A** (`qa.therapist.a@example.test` / `QaTest!2024pass`) and confirm the sign-in now lands on `/therapist/dashboard`, with the sidebar showing **Overview, Availability, Sessions, Earnings, My Patients, Edit Profile**, and **Back to Home** at the foot of the nav.
+**Then sign in as Therapist A** (`qa.therapist.a@example.test` / `QaTest!2024pass`) and confirm the sign-in now lands on `/therapist/dashboard`, with the sidebar showing **Overview, Availability, Sessions, Earnings, My Patients, Edit Profile**, and **Back to Home** at the foot of the nav. **Part 8 walks every one of those screens** - for now just confirm they are there.
 
 ---
 
@@ -116,14 +116,14 @@ A therapist's revenue share decides every payout figure later in this run, so it
 **Expect**
 
 * Each saves and the therapist's own Overview header then reads `Your Revenue Share: 60%` (and so on) when they next open it.
-* **Leaving B and C's home-visit share unset is deliberate.** Part 8 checks that a home visit delivered by B falls back to their ordinary 55%, rather than to zero or to A's 65%.
+* **Leaving B and C's home-visit share unset is deliberate.** Part 9 checks that a home visit delivered by B falls back to their ordinary 55%, rather than to zero or to A's 65%.
 * `-5` and `150` are both refused with `Revenue share must be a number between 0 and 100`.
 
 ---
 
 ### Step 3.6 - Give Therapist A a roster
 
-The roster is the clinic's planning record - who can be *offered* work. It does **not** filter what times a patient is offered at booking; you will prove that at Step 12.5.
+The roster is the clinic's planning record - who can be *offered* work. It does **not** filter what times a patient is offered at booking; you will prove that at Step 13.5.
 
 **Do this**
 
@@ -151,13 +151,13 @@ The roster is the clinic's planning record - who can be *offered* work. It does 
 
 **Expect.** The roster shows them off. **Their weekly schedule is untouched and is still there when the leave is removed** - there is nothing to restore on the way back because nothing was removed.
 
-**And give Therapist B a roster too**, since Part 8 needs them bookable: Monday to Friday `10:00-16:00`.
+**And give Therapist B a roster too**, since Part 9 needs them bookable: Monday to Friday `10:00-16:00`.
 
 ---
 
 ### Step 3.7 - Create the three scoped admins
 
-Four desks exist. You have the first; these are the other three, and the run needs them from Part 11 onwards.
+Four desks exist. You have the first; these are the other three, and the run needs them from Part 12 onwards.
 
 **Do this.** Open **Settings → User Access**. For each row below, use the **Account type** picker and create the account.
 
@@ -244,7 +244,7 @@ A hospital never self-registers into a working account. The public page collects
 
 **Expect**
 
-* The account is created, and the screen shows **a generated password and a generated referral code, once**. **Write both down.** Part 9 needs the referral code.
+* The account is created, and the screen shows **a generated password and a generated referral code, once**. **Write both down.** Part 10 needs the referral code.
 * Open **Logs → All Activity**. The onboarding is recorded, naming who onboarded whom and when - **and the password is not in it.** Every admin can read that log, so a generated password there would be a credential leak. Finding one is a **P0**.
 * A revenue share of `-5` or `150` is refused with `Revenue share must be a number between 0 and 100`. Re-submitting the same email is refused rather than creating a second account.
 
@@ -252,7 +252,32 @@ A hospital never self-registers into a working account. The public page collects
 
 ---
 
-### Step 3.11 - Checkpoint
+### Step 3.11 - The partner's own dashboard
+
+The hospital is a role like any other and has screens of its own. Walk them
+once now; Part 10 uses them in anger.
+
+**Do this.** Signed in as `QA Sunrise Hospital`, open each sidebar entry.
+
+| Screen | Expect |
+| --- | --- |
+| **Overview** | The same shape as every other dashboard - four figures, then the feed, then quick actions, in that order. Items still waiting on the partner are pinned above dated ones. |
+| **Refer a Patient** | The form, with **Session Type** offering Home visit only because you switched it on at Step 2.4 |
+| **Your Referrals** | Empty for now |
+| **Earnings** | Zero for now. The word is **Earnings**, matching the therapist's sidebar - not "Revenue & Payouts", which reads as a third name for the same thing |
+| **Edit Profile** | Logo, Organisation Details, Contact Preferences, Account Security. The page is named **Edit Profile**, not after one of its sections |
+| **Back to Home** | At the foot of the nav. Without it the only exit is Log Out, which also ends the session |
+
+**Then change the organisation name** on Edit Profile and check the admin's
+**People → Partners** shows the new one.
+
+**And confirm what is absent.** There is no clinical screen anywhere in this
+sidebar - no patient record, no session note, no health profile. A hospital
+is a referral source, never a clinical actor.
+
+---
+
+### Step 3.12 - Checkpoint
 
 Before going on, confirm all of this is true. Part 4 assumes every line.
 

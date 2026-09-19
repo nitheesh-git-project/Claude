@@ -1,4 +1,4 @@
-## 13. Part 12 - Who may do what
+## 14. Part 13 - Who may do what
 
 **What this part does.** Checks the access model where it is actually enforced - in the routes, not in the sidebar - plus the settings that change other screens, the log, and signing in as somebody else.
 
@@ -8,7 +8,7 @@
 
 ---
 
-### Step 12.1 - Each desk lands on its own dashboard
+### Step 13.1 - Each desk lands on its own dashboard
 
 **Do this.** Sign in as each of the four admins in turn and read the Today screen **before** touching anything.
 
@@ -28,7 +28,7 @@
 
 ---
 
-### Step 12.2 - The sidebar is presentation; the routes are the rule
+### Step 13.2 - The sidebar is presentation; the routes are the rule
 
 This is the most important check in the part. A hidden button proves nothing.
 
@@ -73,7 +73,7 @@ That combination - open the screen, cannot change a row - is what makes `view` a
 
 ---
 
-### Step 12.3 - Complete a session from the wrong desk
+### Step 13.3 - Complete a session from the wrong desk
 
 **Do this.** As **Finance**, find a completed-eligible session and try to mark it complete, both from the screen and from the console:
 
@@ -90,7 +90,7 @@ const r = await fetch("/api/appointments/complete-session", {
 
 ---
 
-### Step 12.4 - Change a setting and watch the feature change
+### Step 13.4 - Change a setting and watch the feature change
 
 Settings are only real if something downstream moves. Check each of these, then put it back.
 
@@ -113,7 +113,7 @@ Settings are only real if something downstream moves. Check each of these, then 
 
 ---
 
-### Step 12.5 - Sign in as somebody else
+### Step 13.5 - Sign in as somebody else
 
 **Do this.** As the **Master Admin**, open Patient A's profile and use the control that opens their dashboard as them.
 
@@ -137,7 +137,7 @@ Settings are only real if something downstream moves. Check each of these, then 
 
 ---
 
-### Step 12.6 - The log
+### Step 13.6 - The log
 
 **Who you are.** The Master Admin - **Logs** is this desk's alone.
 
@@ -183,7 +183,7 @@ Settings are only real if something downstream moves. Check each of these, then 
 
 ---
 
-### Step 12.7 - Suspend and delete
+### Step 13.7 - Suspend and delete
 
 **Do this**
 
@@ -206,7 +206,7 @@ Restore `QA Admin Operations`.
 
 ---
 
-### Step 12.8 - The doors a stranger can reach
+### Step 13.8 - The doors a stranger can reach
 
 **Do this.** In a **private window**, signed into nothing, run the anonymous sweep:
 
@@ -269,7 +269,7 @@ console.table(await Promise.all(Object.entries(bodies).map(async ([name, body]) 
 
 ---
 
-### Step 12.9 - Knock on a public door repeatedly
+### Step 13.9 - Knock on a public door repeatedly
 
 **Do this.** In a private window, call the area lookup about twenty times in a row:
 
@@ -292,7 +292,7 @@ for (let i = 0; i < 20; i++) {
 
 ---
 
-### Step 12.10 - Check the back office is never named to outsiders
+### Step 13.10 - Check the back office is never named to outsiders
 
 **Do this**
 
@@ -313,7 +313,7 @@ const r = await fetch("/api/admin/stop-impersonation", { method: "POST" });
 
 ---
 
-### Step 12.11 - Check the response headers
+### Step 13.11 - Check the response headers
 
 Not everything that protects a patient is on screen. These ship on every
 response and cost nothing to check.
@@ -345,7 +345,7 @@ policy are **not** a defect - note them and move on.
 
 ---
 
-### Step 12.12 - A patient's route answers a patient
+### Step 13.12 - A patient's route answers a patient
 
 Three routes on the patient dashboard used to answer a therapist or a hospital
 with a **200**. Nothing cross-account leaked - each acts on the caller's own
@@ -380,7 +380,7 @@ Still refused - a suspended account must not keep acting as itself.
 
 ---
 
-### Step 12.13 - Checkpoint
+### Step 13.13 - Checkpoint
 
 | | Should be |
 | --- | --- |

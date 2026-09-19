@@ -6,6 +6,20 @@ This is **one test run, written in the order you perform it.** Start at Step 1.1
 
 It is deliberately **not** the reference plan. The companion document, *Complete Manual E2E Test Plan & Feature Guide*, is organised by area - all the patient cases together, all the admin cases together, with a test-data library at the front - which is the right shape for looking something up and the wrong shape for executing. Following it meant scrolling back to a table at the front to find out what to type, then scrolling forward again, over and over. Everything here is where you are.
 
+**Every role is in it, and often on the same step.** This is not a patient
+test plan with the other roles bolted on. Four people look at the same
+session, the same recommendation and the same money, and the commonest class
+of defect is two of them disagreeing - so where a moment involves more than
+one role, the step is split by **who you are signed in as**:
+
+> **As the admin** … **As the therapist** … **As the patient** … **As the partner**
+
+Work those blocks in the order they appear. Part 5 is the clearest example:
+one session, assigned, joined, completed, noted and rated, with each role's
+view of it side by side. Each role also has a part of its own where their
+work is theirs alone - the patient at Part 4, the therapist at Part 8, the
+partner hospital at Part 10, and the back office at Part 14.
+
 **The run builds its own data.** You will reset the database at Step 1.2 and then create everything the run needs, in the order the application itself would have it created: the catalogue before anyone can book against it, the therapists before anyone can be assigned to one, the patient before there is a session to treat. Nothing is seeded for you, and nothing assumes a fixture that arrived from somewhere else. If a step needs a therapist with a roster, an earlier step made one.
 
 That is also why the order matters more than usual. **Do not skip a step and do not reorder the parts.** A skipped step is usually a missing row three parts later, and it surfaces as a screen that looks broken.
@@ -33,7 +47,7 @@ Only four things are defined once rather than at the point of use, because they 
 QaTest!2024pass
 ```
 
-Where a step needs a *second, different* password - there is one, at Step 11.4 - it says so and gives you the value there.
+Where a step needs a *second, different* password - there is one, at Step 12.4 - it says so and gives you the value there.
 
 **2. Emails all end `@example.test`.** `.test` is reserved and cannot be delivered to, so nothing you type here can reach a real inbox by accident.
 
@@ -59,7 +73,12 @@ The request is same-origin, so the browser attaches that user's session cookie b
 
 ### 1.4 How to record a result
 
-Put a mark against every step as you go. The sign-off sheet at Step 13.1 asks for the totals.
+Put a mark against every step as you go. The sign-off sheet at Step 15.1 asks for the totals.
+
+> **Keep four browsers or profiles open.** Tabs in one browser share cookies,
+> so signing in as the admin in a second tab signs the patient out of the
+> first. Chrome for the patient, a private window for the admin, and two more
+> profiles (or a second machine) for the therapist and the hospital.
 
 | Mark | Means |
 | --- | --- |

@@ -6,6 +6,20 @@ This is **one test run, written in the order you perform it.** Start at Step 1.1
 
 It is deliberately **not** the reference plan. The companion document, *Complete Manual E2E Test Plan & Feature Guide*, is organised by area - all the patient cases together, all the admin cases together, with a test-data library at the front - which is the right shape for looking something up and the wrong shape for executing. Following it meant scrolling back to a table at the front to find out what to type, then scrolling forward again, over and over. Everything here is where you are.
 
+**Every role is in it, and often on the same step.** This is not a patient
+test plan with the other roles bolted on. Four people look at the same
+session, the same recommendation and the same money, and the commonest class
+of defect is two of them disagreeing - so where a moment involves more than
+one role, the step is split by **who you are signed in as**:
+
+> **As the admin** … **As the therapist** … **As the patient** … **As the partner**
+
+Work those blocks in the order they appear. Part 5 is the clearest example:
+one session, assigned, joined, completed, noted and rated, with each role's
+view of it side by side. Each role also has a part of its own where their
+work is theirs alone - the patient at Part 4, the therapist at Part 8, the
+partner hospital at Part 10, and the back office at Part 14.
+
 **The run builds its own data.** You will reset the database at Step 1.2 and then create everything the run needs, in the order the application itself would have it created: the catalogue before anyone can book against it, the therapists before anyone can be assigned to one, the patient before there is a session to treat. Nothing is seeded for you, and nothing assumes a fixture that arrived from somewhere else. If a step needs a therapist with a roster, an earlier step made one.
 
 That is also why the order matters more than usual. **Do not skip a step and do not reorder the parts.** A skipped step is usually a missing row three parts later, and it surfaces as a screen that looks broken.
@@ -33,7 +47,7 @@ Only four things are defined once rather than at the point of use, because they 
 QaTest!2024pass
 ```
 
-Where a step needs a *second, different* password - there is one, at Step 11.4 - it says so and gives you the value there.
+Where a step needs a *second, different* password - there is one, at Step 12.4 - it says so and gives you the value there.
 
 **2. Emails all end `@example.test`.** `.test` is reserved and cannot be delivered to, so nothing you type here can reach a real inbox by accident.
 
@@ -59,7 +73,12 @@ The request is same-origin, so the browser attaches that user's session cookie b
 
 ### 1.4 How to record a result
 
-Put a mark against every step as you go. The sign-off sheet at Step 13.1 asks for the totals.
+Put a mark against every step as you go. The sign-off sheet at Step 15.1 asks for the totals.
+
+> **Keep four browsers or profiles open.** Tabs in one browser share cookies,
+> so signing in as the admin in a second tab signs the patient out of the
+> first. Chrome for the patient, a private window for the admin, and two more
+> profiles (or a second machine) for the therapist and the hospital.
 
 | Mark | Means |
 | --- | --- |
@@ -213,7 +232,7 @@ Eight rows, with `plan_conversion_low` and `post_consultation_dropout` **disable
 Because conditions survive, you may already have some. Look at **Catalog → Conditions** and write down what is there.
 
 * **If the list is empty**, you will create all three at Step 2.1 and the run proceeds exactly as written.
-* **If rows already exist**, you will still create the three this run needs at Step 2.1. Leave the others alone; they cost nothing, and deleting them is its own test at Step 13.4.
+* **If rows already exist**, you will still create the three this run needs at Step 2.1. Leave the others alone; they cost nothing, and deleting them is its own test at Step 15.4.
 
 ---
 
@@ -423,7 +442,7 @@ Open **Catalog → Packages** and use the home-visit section.
 **Expect**
 
 * Both save and appear on `/home-visit`.
-* **Only HV1 is offered with a Book button.** HV2 has four visits, so it is a programme: it can be recommended but not bought. You will prove the route refuses it directly at Step 11.6.
+* **Only HV1 is offered with a Book button.** HV2 has four visits, so it is a programme: it can be recommended but not bought. You will prove the route refuses it directly at Step 12.6.
 
 ---
 
@@ -457,7 +476,7 @@ A home visit cannot be sold anywhere until a pincode is covered.
 **Write these two down** - later parts use them:
 
 * **`560038` is serviceable**, travel fee **₹150 per visit**.
-* **`560025` is not serviceable** and is the address you will use to test the waitlist at Step 8.7.
+* **`560025` is not serviceable** and is the address you will use to test the waitlist at Step 9.7.
 
 ---
 
@@ -468,14 +487,14 @@ You are not changing these yet - you are checking where they stand, so that a la
 | Setting | Where | Should read | Why it matters here |
 | --- | --- | --- | --- |
 | **Therapist-Suggested Sessions** | Settings → Programmes & Home Visits | **on** | Part 7 needs it. On a database that predates the change it may still be off - switch it on now if it is. |
-| **Assign a Therapist Automatically** | Settings → Programmes & Home Visits | **off** | Parts 4 and 5 expect a paid session to wait in the admin queue. Step 12.4 switches it on deliberately. |
-| **Session Balances From The Ledger** | Settings → Programmes & Home Visits | **off** | Step 10.8 flips it and checks the balances still agree. |
+| **Assign a Therapist Automatically** | Settings → Programmes & Home Visits | **off** | Parts 4 and 5 expect a paid session to wait in the admin queue. Step 13.4 switches it on deliberately. |
+| **Session Balances From The Ledger** | Settings → Programmes & Home Visits | **off** | Step 11.8 flips it and checks the balances still agree. |
 | **The clinic approves a recommendation** | Settings → Programmes & Home Visits | **on** | Part 7 is written around the review queue. |
-| **First session offer** | Settings → Offers & Discounts | **off** | Part 4 expects the patient to be charged list price. Step 9.1 switches it on. |
-| **Promo codes** | Money → Costs | **off** | Step 9.3 switches it on. |
-| **Patient invites** | Settings → Offers & Discounts | **off** | Step 9.5 switches it on. |
+| **First session offer** | Settings → Offers & Discounts | **off** | Part 4 expects the patient to be charged list price. Step 10.1 switches it on. |
+| **Promo codes** | Money → Costs | **off** | Step 10.3 switches it on. |
+| **Patient invites** | Settings → Offers & Discounts | **off** | Step 10.5 switches it on. |
 | **Online Booking Lead Time** | Settings → Booking Rules | **12** hours | Every booking step assumes 12. |
-| **Online Cancellation Refund Window** | Settings → Booking Rules | **24** hours | Step 10.2 depends on it. |
+| **Online Cancellation Refund Window** | Settings → Booking Rules | **24** hours | Step 11.2 depends on it. |
 
 **Also check, on any Settings screen you opened:** under the page heading there are **two lines** - one saying what the screen is in plain words, and a second starting **"For example:"**. A Settings screen whose heading is followed by "How the product behaves" and nothing else has lost its own description, which is a **P2**.
 
@@ -628,7 +647,7 @@ Repeat Step 3.1 twice more. You need all three: B proves one therapist cannot se
 * After approving, each therapist disappears from the queue and the badge falls by one.
 * Open `/team` in another tab: all three now appear there, immediately. A therapist approved but missing from `/team` for five minutes means the approval did not clear that page's cache - **P2**.
 
-**Then sign in as Therapist A** (`qa.therapist.a@example.test` / `QaTest!2024pass`) and confirm the sign-in now lands on `/therapist/dashboard`, with the sidebar showing **Overview, Availability, Sessions, Earnings, My Patients, Edit Profile**, and **Back to Home** at the foot of the nav.
+**Then sign in as Therapist A** (`qa.therapist.a@example.test` / `QaTest!2024pass`) and confirm the sign-in now lands on `/therapist/dashboard`, with the sidebar showing **Overview, Availability, Sessions, Earnings, My Patients, Edit Profile**, and **Back to Home** at the foot of the nav. **Part 8 walks every one of those screens** - for now just confirm they are there.
 
 ---
 
@@ -647,14 +666,14 @@ A therapist's revenue share decides every payout figure later in this run, so it
 **Expect**
 
 * Each saves and the therapist's own Overview header then reads `Your Revenue Share: 60%` (and so on) when they next open it.
-* **Leaving B and C's home-visit share unset is deliberate.** Part 8 checks that a home visit delivered by B falls back to their ordinary 55%, rather than to zero or to A's 65%.
+* **Leaving B and C's home-visit share unset is deliberate.** Part 9 checks that a home visit delivered by B falls back to their ordinary 55%, rather than to zero or to A's 65%.
 * `-5` and `150` are both refused with `Revenue share must be a number between 0 and 100`.
 
 ---
 
 ### Step 3.6 - Give Therapist A a roster
 
-The roster is the clinic's planning record - who can be *offered* work. It does **not** filter what times a patient is offered at booking; you will prove that at Step 12.5.
+The roster is the clinic's planning record - who can be *offered* work. It does **not** filter what times a patient is offered at booking; you will prove that at Step 13.5.
 
 **Do this**
 
@@ -682,13 +701,13 @@ The roster is the clinic's planning record - who can be *offered* work. It does 
 
 **Expect.** The roster shows them off. **Their weekly schedule is untouched and is still there when the leave is removed** - there is nothing to restore on the way back because nothing was removed.
 
-**And give Therapist B a roster too**, since Part 8 needs them bookable: Monday to Friday `10:00-16:00`.
+**And give Therapist B a roster too**, since Part 9 needs them bookable: Monday to Friday `10:00-16:00`.
 
 ---
 
 ### Step 3.7 - Create the three scoped admins
 
-Four desks exist. You have the first; these are the other three, and the run needs them from Part 11 onwards.
+Four desks exist. You have the first; these are the other three, and the run needs them from Part 12 onwards.
 
 **Do this.** Open **Settings → User Access**. For each row below, use the **Account type** picker and create the account.
 
@@ -775,7 +794,7 @@ A hospital never self-registers into a working account. The public page collects
 
 **Expect**
 
-* The account is created, and the screen shows **a generated password and a generated referral code, once**. **Write both down.** Part 9 needs the referral code.
+* The account is created, and the screen shows **a generated password and a generated referral code, once**. **Write both down.** Part 10 needs the referral code.
 * Open **Logs → All Activity**. The onboarding is recorded, naming who onboarded whom and when - **and the password is not in it.** Every admin can read that log, so a generated password there would be a credential leak. Finding one is a **P0**.
 * A revenue share of `-5` or `150` is refused with `Revenue share must be a number between 0 and 100`. Re-submitting the same email is refused rather than creating a second account.
 
@@ -783,7 +802,32 @@ A hospital never self-registers into a working account. The public page collects
 
 ---
 
-### Step 3.11 - Checkpoint
+### Step 3.11 - The partner's own dashboard
+
+The hospital is a role like any other and has screens of its own. Walk them
+once now; Part 10 uses them in anger.
+
+**Do this.** Signed in as `QA Sunrise Hospital`, open each sidebar entry.
+
+| Screen | Expect |
+| --- | --- |
+| **Overview** | The same shape as every other dashboard - four figures, then the feed, then quick actions, in that order. Items still waiting on the partner are pinned above dated ones. |
+| **Refer a Patient** | The form, with **Session Type** offering Home visit only because you switched it on at Step 2.4 |
+| **Your Referrals** | Empty for now |
+| **Earnings** | Zero for now. The word is **Earnings**, matching the therapist's sidebar - not "Revenue & Payouts", which reads as a third name for the same thing |
+| **Edit Profile** | Logo, Organisation Details, Contact Preferences, Account Security. The page is named **Edit Profile**, not after one of its sections |
+| **Back to Home** | At the foot of the nav. Without it the only exit is Log Out, which also ends the session |
+
+**Then change the organisation name** on Edit Profile and check the admin's
+**People → Partners** shows the new one.
+
+**And confirm what is absent.** There is no clinical screen anywhere in this
+sidebar - no patient record, no session note, no health profile. A hospital
+is a referral source, never a clinical actor.
+
+---
+
+### Step 3.12 - Checkpoint
 
 Before going on, confirm all of this is true. Part 4 assumes every line.
 
@@ -1050,7 +1094,7 @@ const r = await fetch("/api/appointments/create", {
 ({ status: r.status, body: await r.text() });
 ```
 
-**Expect: `200`**, and an unpaid, unassigned session appears. **That is correct and is not a defect.** This route gates on the account being *active*, not approved - an unapproved self-signup patient has to be able to hold the row they are about to pay for, and an unpaid row grants nothing. What must be refused is a **suspended** account, which you check at Step 12.2.
+**Expect: `200`**, and an unpaid, unassigned session appears. **That is correct and is not a defect.** This route gates on the account being *active*, not approved - an unapproved self-signup patient has to be able to hold the row they are about to pay for, and an unpaid row grants nothing. What must be refused is a **suspended** account, which you check at Step 13.2.
 
 > **Why `10:30:00.000Z` and not `10:00:00.000Z`.** A slot must start on the hour **in the booking's own timezone**, and with no timezone in the body that is India. `10:00Z` is 15:30 IST and is correctly refused with `Sessions start on the hour. Pick a time like 6:00 or 7:00.` `10:30Z` is 4 PM IST. If you see that refusal, you have found the rule working, not a bug.
 
@@ -1085,19 +1129,21 @@ Duplicate registration, patient already has an account.
 
 ---
 
-## 6. Part 5 - Assign, join and deliver the session
+## 6. Part 5 - One session, seen by everyone
 
-**What this part does.** Takes Patient A's paid session from "nobody is assigned" to "delivered and written up". It is the spine of the clinic's operational day, and every money figure in Part 10 comes from it.
+**What this part does.** Takes Patient A's paid session from "nobody is assigned" to "delivered, written up and rated" - and at every moment shows **what each role sees of the same row**. A session is the one thing in this product four different people look at, and the commonest class of defect is two of them disagreeing about it.
 
-**Time.** About 45 minutes.
+**How to read this part.** Each step is split by who you are signed in as - **As the admin**, **As the therapist**, **As the patient**, **As the partner**. Work through the blocks in the order they appear.
+
+**Keep four browsers or profiles open.** Tabs in one browser share cookies, so signing in as the admin in a second tab signs the patient out of the first.
+
+**Time.** About 55 minutes.
 
 ---
 
-### Step 5.1 - Find the session in the admin's queue
+### Step 5.1 - The paid session arrives
 
-**Who you are.** The Master Admin.
-
-**Do this**
+**As the admin**
 
 1. Open **Today**.
 2. Read the "needs a person" figure and the queue list beneath it.
@@ -1106,19 +1152,37 @@ Duplicate registration, patient already has an account.
 **Expect**
 
 * The figure and the list **agree**. A strip reading 23 over a list of four is the exact defect this check exists for - **P1**.
-* Tapping it opens **Sessions → All Sessions** already filtered to the rows it counted, **not** the whole table. Filtering you have to redo by hand is the failure; so is a count that opens an unfiltered list and therefore looks wrong.
+* Tapping it opens **Sessions → All Sessions** already filtered to the rows it counted, **not** the whole table.
 * Patient A's session is there: paid, tomorrow at 4 PM, **no therapist**.
 * The row carries a chip reading **Tap to assign** - not "Reschedule / Reassign". A session nobody has ever been assigned to must not describe the action as editing something that already happened.
 
-**Then tap somewhere else and come back.** Move to another screen and return to All Sessions.
+Move to another screen and come back.
 
-**Expect.** The preset is **gone** - it is one-shot, so a filter never becomes something an admin cannot find the source of. Tapping the Today figure again re-applies it.
+**Expect.** The preset is **gone** - it is one-shot, so a filter never becomes something an admin cannot find the source of. Tapping the figure again re-applies it.
+
+**As the therapist**
+
+Open `/therapist/dashboard`.
+
+**Expect. Nothing.** The session is paid and unassigned, so it belongs to nobody yet. A clinician seeing unassigned work on their own dashboard is a **P2** - it is the admin's queue, not theirs.
+
+**As the patient**
+
+Open **Sessions**.
+
+**Expect.** The session is listed as **Pending** - paid, waiting on the clinic. It does **not** claim a therapist and does **not** offer a join link.
+
+**As the partner**
+
+Sign in as `QA Sunrise Hospital` and look everywhere.
+
+**Expect.** Nothing about this session, at all. Patient A did not come through them.
 
 ---
 
-### Step 5.2 - Assign Therapist A
+### Step 5.2 - Assigning a therapist
 
-**Do this**
+**As the admin**
 
 1. Tap Patient A's session row. The detail drawer opens.
 2. Read what the drawer leads with.
@@ -1127,91 +1191,129 @@ Duplicate registration, patient already has an account.
 **Expect**
 
 * The drawer **leads with the assign control**, with the reschedule form kept below for when the time has to move too.
+* One tap, honouring the therapist the patient asked for if they asked for one.
 * The session becomes **confirmed**.
-* A **Meet link** appears on it, and on the patient's own session card.
-* The therapist's dashboard now lists the session.
 
-**If there is no Meet link**, look at **Settings → System Health** before reporting anything:
+**As the therapist**
+
+Reload `/therapist/dashboard`.
+
+**Expect**
+
+* The session is now **theirs** - on the Overview's **Today** or **Upcoming** figure, and in their session list.
+* The patient's name is there. Their **phone is masked** and their **email is not shown at all**; Step 5.7 covers that properly.
+
+**As the patient**
+
+Reload **Sessions**.
+
+**Expect**
+
+* It reads **Confirmed**, and now names the therapist.
+* A **meeting link** appears on the card.
+
+**If there is no meeting link**, look at **Settings → System Health** as the admin before reporting anything:
 
 | What System Health says | What it means |
 | --- | --- |
-| Google shows **Not set up** | Nobody wired Google up in this environment. **Not a defect** - it is a state, not a fault, and the run continues without video links. Mark the Meet checks N/A. |
-| Google shows **Needs you now** with a dead-credential message | One refresh token has died, so **every** session fails identically. The card states the length, an eight-character fingerprint and whether the stored value has stray whitespace - that is how you tell "the permission died" from "the server is still holding the old value". |
-| The session sits in **Session Links** with an error | The sweep will retry it, capped. A manual **Retry** resets the counter. |
+| Google shows **Not set up** | Nobody wired Google up here. **Not a defect** - a state, not a fault. Mark every meeting-link check in this run N/A. |
+| **Needs you now**, dead credential | One token has died, so **every** session fails identically. The card states the length, an eight-character fingerprint and whether the stored value carries stray whitespace - that is how you tell "the permission died" from "the server is still holding the old value". |
+| The session sits in **Session Links** | The sweep retries it, capped. A manual **Retry** resets the counter. |
 
-**One thing to watch for and report.** Tap **Retry** on a **home visit** (you will have one after Part 8). A home visit **never** has a Meet link by design - there is nothing to join. If Retry answers `502 Retry failed`, or if every click creates a **new calendar event**, that is a **P0**: three duplicate invites once reached one patient that way.
-
----
-
-### Step 5.3 - Check the session reads the same on every screen
-
-The same row is rendered by four different people. They must agree.
-
-**Do this.** Open, in turn, and compare the date, the time and the status:
-
-| Screen | Where |
-| --- | --- |
-| The patient's **Sessions** | `/patient/dashboard/sessions` |
-| The therapist's **Sessions** | `/therapist/dashboard/sessions` |
-| The admin's **All Sessions** | Sessions → All Sessions |
-| The admin's **Schedule** | Sessions → Schedule (calendar) |
-
-**Expect.** One date, one time, one status, everywhere - and the time is **4 PM**, in India Standard Time, on all four. A screen showing `10:30 AM` for the same row is the clinic-time rule broken.
-
-**Also check the patient's Sessions screen is one list.** Upcoming / Past / Cancelled filters, not separate sidebar entries for video and home visits. The Video / Home visit filter appears only once this patient has both, which they do not yet.
+**One thing to watch for and report.** Once you have a home visit (Part 9), tap **Retry** on it. A home visit **never** has a meeting link by design - there is nothing to join. If Retry answers `502 Retry failed`, or if each click creates a **new calendar event**, that is a **P0**: three duplicate invites once reached one patient that way.
 
 ---
 
-### Step 5.4 - Check the join window
+### Step 5.3 - One row, four screens
 
-**Do this**
+The same session, read by six different signed-in people. Compare the **date, the time and the status** on each.
 
-1. As the patient, look at the session card now (it is tomorrow).
-2. As the therapist, look at the same session.
-3. Open **Settings → Booking Rules** as the admin and read the **join window** and the **Session Completed cutoff**.
+| Signed in as | Where | Must show |
+| --- | --- | --- |
+| Patient A | `/patient/dashboard/sessions` | 4 PM, Confirmed, therapist named |
+| Therapist A | `/therapist/dashboard/sessions` | 4 PM, Confirmed, patient named, phone masked |
+| The Master Admin | Sessions → All Sessions | 4 PM, Confirmed, both named, amount visible |
+| The Master Admin | Sessions → Schedule | The same session on the same day, opening the **same** drawer |
+| Operations | Sessions → All Sessions | The same row - **but no amount** |
+| Finance | Sessions → All Sessions | The row **and** the amount, and **no** control that changes it |
 
 **Expect**
 
-* Well before the slot, the join control is **not** live - it names when it opens rather than being a dead button.
-* Inside the window, **Tap to Join** works for both parties.
-* Past the cutoff - the admin-set number of minutes after the slot time - every join control reads **Session Completed** instead, **including the admin's own**. A session an hour past its start must read the same way on every screen it appears on.
-
-> If you cannot wait for real time to pass, use the Debug bar's simulated time rather than editing the database. Changing a session's slot to the past by hand also changes what the money screens count.
+* One date, one time, one status, everywhere - and the time is **4 PM**, in **India Standard Time**, on every one of them whatever your laptop is set to. A screen showing `10:30 AM` for the same row is the clinic-time rule broken, and it is a **P1**: two people reading one screen then disagree about when the session is.
+* The patient's screen is **one list** - Upcoming / Past / Cancelled filters, not separate entries for video and home visits. The Video / Home visit filter appears only once they have both, which they do not yet.
 
 ---
 
-### Step 5.5 - Try to complete it too early, then properly
+### Step 5.4 - The join window, for all three
 
-**Who you are.** QA Therapist A.
+Three people, one session, and they must agree about whether it can be joined.
 
-**Do this**
+**As the patient.** Look at the session card now, well before the slot.
 
-1. **Before** the join window opens, try to mark the session complete.
-2. Then, inside or after the window, mark it complete.
+**Expect.** The join control is **not live**, and it **names when it opens** rather than being a dead button with no explanation.
 
-**Expect**
+**As the therapist.** Look at the same session.
 
-* Step 1 is **refused**. Completing a session is a financial write with a clinical name: `completed` + `paid` is the exact and only condition that makes the therapist's revenue share payable, so a session cannot be closed before the window in which it could have been started. A therapist who can mark tomorrow's session done today and be owed for it is a **P0**.
-* Step 2 succeeds. The session reads **Completed** on all four screens from Step 5.3.
+**Expect.** The same answer, at the same moment. A window open for one party and shut for the other is a **P1** - one of them sits waiting in a meeting nobody else can enter.
 
-**Then check the two refusals that protect the money**, each on a session you set up for it:
+**As the admin.** Open the session drawer.
 
-| Situation | Expect |
+**Expect.** The admin's own join control follows the **same** window. The admin is not special here.
+
+**Now move inside the window.** Use the Debug bar's simulated time rather than editing the database - changing a slot by hand also changes what the money screens count.
+
+**Expect. Tap to Join** works for the patient, the therapist **and** the admin.
+
+**Then move past the Session Completed cutoff** - the admin-set number of minutes after the slot time.
+
+**Expect.** Every join control now reads **Session Completed** instead - **on all three screens, the admin's included**. A session an hour past its start must read the same way everywhere it appears. One screen still offering Join is a **P2**.
+
+---
+
+### Step 5.5 - Completing it
+
+Completing a session is a **financial write with a clinical name**: `completed` + `paid` is the exact and only condition that makes the therapist's revenue share payable. So who may do it, and when, is a money question.
+
+**As the therapist - the refusals**
+
+| Try | Expect |
 | --- | --- |
-| A session with **no payment** behind it | The therapist cannot complete it. |
-| A **cash home visit** with no cash recorded | The therapist cannot complete it - collect first, which is the right order anyway. |
+| Complete it **before** the join window opens | **Refused.** A therapist who can mark tomorrow's session done today and be owed for it is a **P0** |
+| Complete a session with **no payment** behind it | Refused |
+| Complete a **cash home visit** with no cash recorded | Refused - collect first, which is the right order anyway |
 
-> An **admin** can complete a session in either of those states, deliberately: a backfill or a correction is exactly what the override lane is for. What an admin cannot do is complete one from a desk that only reads Sessions - Step 12.3 checks that.
+**As the therapist - properly.** Inside or after the window, mark it complete.
+
+**Expect.** It succeeds, and reads **Completed** on all the screens from Step 5.3.
+
+**As the admin - the override lane.** Complete a session that has **no payment** behind it.
+
+**Expect. Allowed.** A backfill or a correction is exactly what an admin is for, and neither gate above applies to them.
+
+**As Finance - the refusal that matters.** Signed in as `qa.admin.finance@example.test`, try to complete a session, from the screen and from the console:
+
+```js
+const r = await fetch("/api/appointments/complete-session", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ appointmentId: "<a paid, past session id>" }),
+});
+({ status: r.status, body: await r.text() });
+```
+
+**Expect.** The buttons **do not render**, and the route answers **403**. Finance reads Sessions precisely so the person reconciling the books cannot change what they are reconciling - and completing a session is what creates the payout obligation they are reconciling.
+
+**As the patient.** Reload Sessions.
+
+**Expect.** The session moves to **Past**, marked completed. Nothing about the money changes on their screen - they already paid.
 
 ---
 
-### Step 5.6 - Write the session note
+### Step 5.6 - The session note
 
-**Who you are.** QA Therapist A.
+**As the therapist**
 
-**Do this**
-
-1. From the completed session's card, open the session note dialog.
+1. From the completed session's card, open the note dialog.
 2. Fill all four fields:
 
 | Field | Value |
@@ -1223,95 +1325,105 @@ The same row is rendered by four different people. They must agree.
 
 3. Save.
 
-**Expect**
+**Expect.** Saved, and the Overview's **Notes to write** figure falls by one. At zero it reads `Every delivered session is written up`.
 
-* Saved, and the therapist's Overview **Notes to write** figure falls by one. At zero it reads `Every delivered session is written up`.
-* The note is editable for **24 hours**, and every edit inside that window keeps a copy of what it replaced.
-* **The patient cannot see it anywhere.** Check the patient's Health Profile and their export - session notes are clinician-only and are excluded from both on purpose. A patient who can read a session note is a **P0**.
+**Then edit it** and change one sentence.
 
-**Then check the contact scanner on this field.** Open the note again and try to save each of these:
+**Expect.** The edit lands, and **what it replaced is kept** rather than overwritten. Notes stay editable for **24 hours**; past that the route refuses the edit whatever the screen offers. A note that can be silently rewritten days later is a clinical record with no history - **P1**.
+
+**As the patient.** Look for it: on Health Profile, on the session card, and in the export from Step 6.5.
+
+**Expect. Nothing, anywhere.** Session notes are clinician-only, written in the register clinicians use with each other, and they are excluded from the patient's export on purpose. **A patient who can read a session note is a P0.**
+
+**As the admin.** Open the same session.
+
+**Expect.** The admin **can** read it - they carry the clinic's responsibility for the record.
+
+**Now the contact scanner, as the therapist.** Try saving each of these into the note:
 
 | What you type | Expect |
 | --- | --- |
-| `Grade III PA mobilisation x3 sets, 30s hold. 10 reps, 2x daily. Order ref 90210.` | **Saves normally.** Clinical text full of numbers must not fire the scanner - a check that cries wolf is a check nobody reads. |
-| `Call me on 9876543210 before the session` | **Saves, and is recorded.** A phone number is flagged, not blocked. It appears on the admin's flagged-messages panel. |
-| `Pay me directly on 9876543210@okhdfc, it's cheaper` | **Refused.** A payment handle is blocked outright. |
+| `Grade III PA mobilisation x3 sets, 30s hold. 10 reps, 2x daily. Order ref 90210.` | **Saves normally.** Clinical text full of numbers must not fire the scanner - a check that cries wolf is a check nobody reads |
+| `Call me on 9876543210 before the session` | **Saves, and is recorded.** A phone number is flagged, not blocked |
+| `Pay me directly on 9876543210@okhdfc, it's cheaper` | **Refused.** A payment handle is blocked outright |
 
-Restore the real note text afterwards.
+**As the admin**, confirm the flagged one appears on the flagged-messages panel, and that **the blocked one is nowhere in the record at all** - it was never written.
 
-**Then edit the note and check the previous version was kept.** Change one
-sentence and save again.
-
-**Expect.** The edit lands, and what it replaced is **kept** rather than
-overwritten. Notes stay editable for **24 hours**; past that the submit route
-refuses the edit, whatever the screen offers. A note that can be silently
-rewritten days later is a clinical record with no history - **P1**.
+Restore the real note text.
 
 ---
 
-### Step 5.7 - Check the patient's phone is masked
+### Step 5.7 - The patient's phone number
 
-**Who you are.** QA Therapist A.
+**As the therapist**
 
-**Do this**
-
-1. Open **My Patients** and then Patient A.
+1. Open **My Patients** → Patient A.
 2. Read the contact details.
 3. Inside the session's join window, use **reveal contact**.
+4. Try it again **outside** the window, and on a **cancelled** session.
 
 **Expect**
 
-* The phone is **masked** and the email is **not shown at all** - it is not loaded onto these screens in the first place.
-* Revealing works inside a video session's join window, and on a home visit's own day.
-* It is **refused** outside that window, and refused for a cancelled session.
-* Every reveal is recorded. As the admin, check the reveal log has a row. **A reveal that could not be recorded is refused** - unlike the audit log, this one is not best-effort, because a reveal with no trace is the one outcome the route must not produce.
+* The phone is **masked**; the email is **not shown at all** - it is not even loaded onto these screens.
+* The reveal works inside a video session's join window, and on a home visit's own day.
+* Step 4's two attempts are both **refused**.
+
+**As the admin.** Open the contact reveal log.
+
+**Expect.** A row for the reveal, naming who, whom and when. **A reveal that could not be recorded is refused** - unlike the audit log, this one is not best-effort, because a reveal with no trace is the one outcome the route must not produce.
+
+**As the patient.** Nothing about any of this is on their screens, and nothing should be.
 
 ---
 
-### Step 5.8 - Rate the session
+### Step 5.8 - The rating
 
-**Do this.** As Patient A, rate the completed session **4 stars** with the comment:
+**As the patient.** Rate the completed session **4 stars** with:
 
 ```
 Clear explanation and a plan I can actually follow at home.
 ```
 
-**Expect.** The rating saves. The therapist's Overview header now reads `Your Rating: 4.0 (1 rating)` instead of `No ratings yet`.
+**As the therapist.** Reload the Overview.
 
-**Then, as the admin**, hide that therapist's rating from public pages and check `/team` no longer quotes it, and that the therapist's own header gains ` - hidden from public pages`. Put it back.
+**Expect.** The header now reads `Your Rating: 4.0 (1 rating)` instead of `No ratings yet`.
+
+**As the admin.** Hide that therapist's rating from the public pages.
+
+**Expect.** `/team` stops quoting it, and the therapist's own header gains ` - hidden from public pages`. The real number is still theirs to see - it is the public quoting of it that stopped.
+
+Put it back.
 
 ---
 
-### Step 5.9 - Reopen a completed session
+### Step 5.9 - Reopening a completed session
 
-Closing a session is what makes a therapist's share payable, so undoing it has
-to undo the whole of it.
+Undoing a completion has to undo the whole of it.
 
-**Do this**
+**As the admin**
 
-1. As the admin, open the session Therapist A completed at Step 5.5 and reopen it.
-2. Read what the screen says will happen before confirming.
+1. Reopen the session you completed at Step 5.5.
+2. Read what the screen says will happen **before** confirming.
 3. Look at the session afterwards.
-4. Look at both ratings.
 
 **Expect**
 
-* The session returns to **confirmed**, and the record of *when* it was
-  completed is **cleared** with it. A row reading `confirmed` while still
-  carrying a completion time is a contradiction, and it is exactly the
-  evidence a risk detector should no longer be looking at - **P1**.
-* **Both sides' ratings are destroyed**, and you were told so before
-  confirming. The 4-star rating from Step 5.8 is gone.
-* The therapist's **Owed to you** figure falls back by that session's share.
+* It returns to **confirmed**, and the record of *when* it was completed is **cleared** with it. A row reading `confirmed` while still carrying a completion time is a contradiction, and it is exactly the evidence a risk detector should no longer be looking at - **P1**.
+* **Both sides' ratings are destroyed**, and you were told so before confirming. The 4 stars from Step 5.8 are gone.
 
-**Then have two admins reopen it at once**, in two browsers, and tap within a
-moment of each other.
+**As the therapist.** Reload Earnings.
 
-**Expect.** Exactly **one** of them does it. The second is refused or is a
-no-op rather than reopening an already-reopened session and destroying a
-rating somebody has since left again.
+**Expect. Owed to you** has fallen back by that session's share. A reopened session must not stay payable.
 
-Re-complete the session and re-rate it before moving on - Part 10 counts it.
+**As the patient.** Reload Sessions.
+
+**Expect.** It is back among the upcoming work, and their rating is gone.
+
+**Then have two admins reopen it at once**, in two browsers, tapping within a moment of each other.
+
+**Expect.** Exactly **one** of them does it. The second is refused or is a no-op - not a second reopen destroying a rating somebody has since left again.
+
+Re-complete the session and re-rate it before moving on. Part 11 counts it.
 
 ---
 
@@ -1319,11 +1431,13 @@ Re-complete the session and re-rate it before moving on - Part 10 counts it.
 
 | | Should be |
 | --- | --- |
-| Patient A's session | Completed and paid, delivered by Therapist A |
-| Session note | Written, clinician-only |
-| Rating | 4 stars, showing on the therapist's header |
-| Flagged message | One recorded, from Step 5.6 |
-| Contact reveal | One logged |
+| The session | Completed and paid, delivered by Therapist A, rated 4 |
+| Agreement | The same date, time and status on every screen, in clinic time |
+| Join window | The same answer for patient, therapist and admin, at the same moments |
+| Completion | Refused early, refused unpaid for the therapist, allowed for the admin, refused for Finance |
+| Note | Written, edited with its previous version kept, invisible to the patient |
+| Contact | One reveal, logged; two refusals |
+| Flags | One phone number recorded, one payment handle refused and never written |
 
 ---
 
@@ -1753,7 +1867,310 @@ Take Therapist A off leave.
 
 ---
 
-## 9. Part 8 - The home visit
+## 9. Part 8 - The therapist's own week
+
+**What this part does.** Everything a clinician does that is not a session:
+their dashboard, the line between a detail they own and a credential the
+clinic approves, their patient list, proposing the next appointment, and
+asking to be paid. The patient gets an end-to-end part of their own; this is
+the therapist's.
+
+**Who you are.** **QA Therapist A**, with the admin and Patient A in other
+browsers.
+
+**Time.** About 50 minutes.
+
+---
+
+### Step 8.1 - Read the therapist's Overview
+
+**Do this.** Sign in as `qa.therapist.a@example.test` and open
+`/therapist/dashboard`. Read it top to bottom before tapping anything.
+
+**Expect**
+
+* The header greets them by name and states **what they are paid and how they
+  are rated**: `Your Revenue Share: 60%` and `Your Rating: 4.0 (1 rating)`
+  after Part 5. Before any rating it reads `No ratings yet`. If an admin has
+  hidden that rating from the public pages, the line ends
+  ` - hidden from public pages`.
+* The greeting is `Your practice today`, and the headline names the **next**
+  session and its patient - or, with nothing booked,
+  `No sessions booked yet - keep your availability open and the clinic assigns work to it.`
+* Four figures, in this order: **Today**, **Upcoming**, **Notes to write**,
+  **Owed to you**.
+* Then the feed, then quick actions - the same shape as every other
+  dashboard in this product.
+
+**Now check each figure agrees with the screen it opens.**
+
+| Tap | Should land on | And the count there should |
+| --- | --- | --- |
+| **Today** | the session list | match, with `Next at H:MM` beneath the figure |
+| **Upcoming** | the session list | count confirmed **and** awaiting-assignment work |
+| **Notes to write** | `/therapist/dashboard/sessions` | match the delivered sessions with nothing written |
+| **Owed to you** | `/therapist/dashboard/earnings` | match, as a rupee figure |
+
+* **Notes to write** is amber above zero and emerald at zero, reading
+  `Every delivered session is written up`.
+* **Owed to you** carries its state: `Not yet requested`, `Payout request
+  under review`, or `Payout request sent`.
+
+**Then the four quick actions.** Tap each and come back.
+
+| Action | Must land on |
+| --- | --- |
+| Set your availability | `/therapist/dashboard/availability`, **with the weekly editor on screen** |
+| Your assigned sessions | `/therapist/dashboard/sessions` |
+| Patient health profiles | `/therapist/dashboard/health-profile` |
+| Earnings and payouts | `/therapist/dashboard/earnings` |
+
+**A quick action that reloads the Overview and changes nothing is a defect** -
+report it against this step. Availability in particular is its own route.
+
+**And one thing that must not be here.** No figure, card or feed item on this
+screen shows a patient's **phone number or email address**. Check.
+
+---
+
+### Step 8.2 - Edit Profile: what saves instantly, and what the clinic approves
+
+This screen draws a line: a detail the therapist owns outright saves on the
+spot, and a credential patients rely on becomes a request an admin decides.
+
+**Do this**
+
+1. Open **Edit Profile**.
+2. Under **Public Details**, set:
+
+| Field | Value |
+| --- | --- |
+| Short Bio | `Works with desk-based patients on posture-driven back pain.` |
+| Languages Spoken | `English, Kannada, Hindi` |
+
+3. **Save**, then reload the page.
+4. Under **Credentials & Specialization**, set **Years of Experience** to `15`
+   and **Specialist In** to `Spine, hip and knee rehabilitation`.
+5. Tap **Request Changes**.
+6. Read the two fields you just changed.
+7. Tap **Withdraw** beside **Specialist In**.
+8. Request it again, and leave it pending.
+9. In the admin browser, open **Today → Approvals** and **decline both**
+   with the note:
+
+```
+Send the council registration number first.
+```
+
+10. Back as the therapist, reopen **Edit Profile**.
+
+**Expect**
+
+* Step 3: **Public Details survive the reload.** No admin ever saw them.
+* Step 5: `Your request has been submitted for admin review.`
+* Step 6: each requested field is replaced by its **new** value on a slate
+  panel with an amber **Pending Review** chip and a **Withdraw** link, and
+  **cannot be edited again** until it is decided.
+* **The live profile still shows the old value.** Check `/team` and the
+  patient's view of their therapist - neither may change yet. A credential
+  that goes live before approval is a **P1**.
+* Step 7: **Withdraw** returns the field to an editable input immediately,
+  carrying the **old** value.
+* Step 10: the field is editable again and carries
+  `Last request declined: Send the council registration number first.` in
+  red. Nothing on the public profile ever changed.
+* The note under those fields reads
+  `Changes to these fields need admin approval before they take effect.`
+
+**Two more on the same screen.**
+
+* **Profile photo** uploads on the spot, with no review, and appears on
+  `/team`.
+* **Account Security → Send password reset email** sends the reset and says
+  so. The password is never typed on this screen.
+
+---
+
+### Step 8.3 - My Patients, and the two ways to look at it
+
+**Do this**
+
+1. Open **My Patients**.
+2. Find the **Patients / Programmes** toggle and switch between them.
+3. Open `QA Patient A`.
+
+**Expect**
+
+* Patient A is listed. **Patient B is not** - Therapist A has never been
+  assigned to them.
+* The toggle renders the **same** cards arranged differently, not two
+  different lists. A session that appears in one view and not the other is a
+  **P1**.
+* The **Programmes** view only exists for a therapist who has programme
+  patients. Sign in as **QA Therapist B**, who has none: the toggle is
+  **absent** rather than showing an empty panel.
+* On Patient A: their **phone is masked** and their **email is not shown at
+  all**. The health record from Part 6 is there; the Pain Map is there.
+
+**Then check a therapist cannot reach somebody who is not theirs.** As
+**Therapist B**, try to open Patient A's health profile by URL.
+
+**Expect.** Refused, and no clinical data renders. A path by which an
+unassigned clinician reads a patient's record is a **P0** that stops the run.
+
+---
+
+### Step 8.4 - Propose the next session
+
+A therapist may **suggest** a time on a programme locked to them. They cannot
+book it - the patient does that. This whole feature has its own switch; check
+it is on before blaming the screen.
+
+**Do this**
+
+1. As the admin, confirm **Therapist-Suggested Sessions** is **on**
+   (Settings → Programmes & Home Visits).
+2. As **QA Therapist A**, open Patient A's programme from Part 7 and use the
+   suggest control.
+3. Pick a date and hour at least a couple of days out, and add the note:
+
+```
+Let's keep to Tuesdays while the pain settles.
+```
+
+4. Submit. Then try to submit a **second** suggestion on the same programme.
+5. **Double-tap** submit on a fresh suggestion.
+
+**Expect**
+
+* The control offers the **same compact calendar and hour chips** the patient
+  sees, obeying the same lead time. A raw date box beside an hour dropdown
+  could offer a time the patient's own screen would then refuse - **P1**.
+* Step 4 is **refused**: at most **one pending suggestion per programme**.
+* Step 5 produces **exactly one** suggestion, not two.
+* **No slot is held.** Nothing about that time is reserved for the patient,
+  and the therapist's calendar is re-checked when they answer.
+
+**Now switch to Patient A** and open **Suggested Sessions**.
+
+**Expect**
+
+* The proposed time and the therapist's note are there, with **Accept** and
+  **Decline**.
+* **Accepting books it** - and only then does the programme's remaining
+  balance fall by one. A suggestion that spends a session before it is
+  accepted is a **P1**: a decline would then have to refund one.
+* The booked session is **auto-assigned to Therapist A and confirmed**, with
+  its own meeting link, because the programme is locked to them.
+
+**Then the three refusals.**
+
+| Try | Expect |
+| --- | --- |
+| **Decline** a suggestion, then look at the balance | Nothing was spent |
+| Have the therapist suggest a slot, then let the clock run inside the 12-hour lead time | It simply **stops being acceptable**. Nothing anywhere writes it as "expired" - there is no worker here to run a sweep, so the state is worked out when it is read |
+| Answer the same suggestion from **two browsers at once** | One wins, the other is told so. Not two bookings. |
+
+**And the connection test.** Accept a suggestion with the network dropped
+mid-request.
+
+**Expect.** The patient is left **exactly where they were**, with the
+suggestion still on screen - not cleared optimistically into a state that
+never happened.
+
+**Finally, switch the feature off** as the admin and reload both screens.
+
+**Expect.** The suggest control is gone from the therapist's screen, and the
+route refuses it if called directly. Switch it back on.
+
+---
+
+### Step 8.5 - Earnings, and asking to be paid
+
+**Do this.** As Therapist A, open **Earnings**.
+
+**Expect**
+
+* The sidebar word is **Earnings** - the same word the hospital's sidebar
+  uses. Money owed *to* somebody is Earnings; money going *out* is Payments
+  on the patient's side. A third word for the same thing is a **P2**.
+* The figure counts **completed, paid** sessions only. A session that is paid
+  and not yet delivered contributes **nothing** - a therapist is paid for
+  delivering, not for being booked.
+* A **home visit** contributes at their home-visit rate (65%) with the
+  **travel fee in full** on top.
+* A forfeited late cancellation - paid, never delivered - contributes
+  **nothing**.
+* Any **cash they are holding** is shown as owed back to the clinic, and the
+  screen says what will be netted off.
+
+**Now request a payout**, and watch the state move on the Overview:
+
+| Stage | Overview's **Owed to you** should read |
+| --- | --- |
+| Before requesting | `Not yet requested` |
+| After requesting | `Payout request under review` |
+| After the admin settles it (Part 11) | `Payout request sent` |
+
+**Then try to request twice** without an admin acting in between.
+
+**Expect.** Refused, or a no-op. Two open requests for one balance is a
+**P1** - somebody will pay both.
+
+---
+
+### Step 8.6 - What a therapist cannot reach
+
+**Do this**, each signed in as QA Therapist A:
+
+| Try | Expect |
+| --- | --- |
+| Open `/admin/dashboard` | Redirected to **`/get-started`** - never to `/admin/login` |
+| Open `/patient/dashboard` | Bounced. One account carries one role. |
+| Open `/book` | The wrong-account panel, telling a clinician wanting therapy to use a separate patient account |
+| Open another therapist's patient by URL | Refused |
+
+**And the route sweep**, in the console:
+
+```js
+const routes = [
+  "/api/admin/approve-account",
+  "/api/admin/settle-therapist-payout",
+  "/api/admin/save-therapist-availability",
+  "/api/admin/set-availability-exception",
+  "/api/patient/condition-profile/export",
+  "/api/hospital/withdraw-referral",
+];
+console.table(await Promise.all(routes.map(async (route) => {
+  const r = await fetch(route, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));
+```
+
+**Expect. 403 on every one.** The two roster routes matter particularly:
+**writing a date exception is an admin capability**, and a therapist reads
+theirs rather than setting it.
+
+---
+
+### Step 8.7 - Checkpoint
+
+| | Should be |
+| --- | --- |
+| Therapist A's Overview | Four figures, each agreeing with the screen it opens |
+| Profile | Bio and languages saved instantly; both credentials declined, editable again, public profile never changed |
+| My Patients | Patient A only; Therapist B sees neither them nor the toggle |
+| Suggestion | One accepted and booked, one declined and costing nothing, a second one refused |
+| Earnings | Delivered work only, travel in full, a payout requested |
+| Refusals | 403 on all six routes |
+
+---
+
+## 10. Part 9 - The home visit
 
 **What this part does.** Buys and delivers a visit at the patient's address, both ways of paying for it. The travel fee is the thing to watch throughout: it is a reimbursement paid to the therapist in full, never revenue, and never discounted.
 
@@ -1761,7 +2178,7 @@ Take Therapist A off leave.
 
 ---
 
-### Step 8.1 - Book a visit, paying online
+### Step 9.1 - Book a visit, paying online
 
 **Who you are.** QA Patient A.
 
@@ -1788,7 +2205,7 @@ Take Therapist A off leave.
 **Expect**
 
 * Step 3: a teal line reading *"Yes - we visit Indiranagar, Bengaluru. Travel to this area is ₹150 per visit."*
-* Step 5: the copy says home visits need at least **24 hours'** notice - deliberately longer than the online session's 12, and read from its own setting. If changing the online lead time at Step 12.1 also changes this one, that is a **P1**: the two are independent.
+* Step 5: the copy says home visits need at least **24 hours'** notice - deliberately longer than the online session's 12, and read from its own setting. If changing the online lead time at Step 13.1 also changes this one, that is a **P1**: the two are independent.
 * Step 7: the breakdown shows **three** figures - programme `₹2,499`, travel `₹150`, total `₹2,649`.
 * **The button charges exactly the total shown.** ₹2,649, not ₹2,499. Quoting one figure and charging another is a **P0**, and this is the place it has happened before: a four-visit programme in a ₹150 area was ₹600 out because the card printed the programme price alone.
 * After paying: a confirmation. The visit appears on the patient's Sessions screen, and the **Video / Home visit** filter now appears there - they have both kinds.
@@ -1799,7 +2216,7 @@ Take Therapist A off leave.
 
 ---
 
-### Step 8.2 - Check the unserviceable path
+### Step 9.2 - Check the unserviceable path
 
 **Do this**
 
@@ -1825,7 +2242,7 @@ Take Therapist A off leave.
 
 ---
 
-### Step 8.3 - Prove a four-visit package cannot be bought
+### Step 9.3 - Prove a four-visit package cannot be bought
 
 **Do this**
 
@@ -1852,9 +2269,9 @@ const r = await fetch("/api/home-visit/create-order", {
 
 ---
 
-### Step 8.4 - Book a second visit, paying cash at the door
+### Step 9.4 - Book a second visit, paying cash at the door
 
-**Do this.** Repeat Step 8.1, but at **Review and pay** choose **Pay at the visit**.
+**Do this.** Repeat Step 9.1, but at **Review and pay** choose **Pay at the visit**.
 
 **Expect**
 
@@ -1867,7 +2284,7 @@ const r = await fetch("/api/home-visit/create-order", {
 
 ---
 
-### Step 8.5 - Deliver the cash visit and record the money
+### Step 9.5 - Deliver the cash visit and record the money
 
 **Who you are.** QA Therapist A - assign yourself the visit as the admin first if it is unassigned.
 
@@ -1896,7 +2313,7 @@ Patient was short at the door, agreed the balance next visit.
 
 ---
 
-### Step 8.6 - Check travel is paid to the therapist, not kept as revenue
+### Step 9.6 - Check travel is paid to the therapist, not kept as revenue
 
 **Do this.** As the admin, open **Money → Summary**, then **Money → Payouts**.
 
@@ -1912,7 +2329,7 @@ Patient was short at the door, agreed the balance next visit.
 
 ---
 
-### Step 8.7 - Check the travel buffer
+### Step 9.7 - Check the travel buffer
 
 **Do this**
 
@@ -1923,7 +2340,7 @@ Patient was short at the door, agreed the balance next visit.
 
 ---
 
-### Step 8.8 - Cancel a visit and check its own refund window
+### Step 9.8 - Cancel a visit and check its own refund window
 
 **Do this**
 
@@ -1951,7 +2368,7 @@ Patient was short at the door, agreed the balance next visit.
 
 ---
 
-### Step 8.9 - Switch home visits off with a recommendation outstanding
+### Step 9.9 - Switch home visits off with a recommendation outstanding
 
 **Do this**
 
@@ -1965,7 +2382,7 @@ Switch home visits back **on**.
 
 ---
 
-### Step 8.10 - Checkpoint
+### Step 9.10 - Checkpoint
 
 | | Should be |
 | --- | --- |
@@ -1976,7 +2393,7 @@ Switch home visits back **on**.
 
 ---
 
-## 10. Part 9 - The partner referral, end to end
+## 11. Part 10 - The partner referral, end to end
 
 **What this part does.** Follows one referred patient from the hospital's form to a delivered session and the commission it earns. This is the one flow where the clinic has to reach somebody who has no account yet, which is why a phone number is required.
 
@@ -1984,7 +2401,7 @@ Switch home visits back **on**.
 
 ---
 
-### Step 9.1 - Refer a patient
+### Step 10.1 - Refer a patient
 
 **Who you are.** `QA Sunrise Hospital` (`qa.hospital@example.test`, the generated password from Step 3.10).
 
@@ -2018,7 +2435,7 @@ Switch home visits back **on**.
 
 ---
 
-### Step 9.2 - Refer a home visit, and find the pincode rule
+### Step 10.2 - Refer a home visit, and find the pincode rule
 
 **Do this.** Submit a second referral for the same patient, choosing **Home visit**, leaving **Pincode** blank. Then `56003`. Then `560038`.
 
@@ -2036,7 +2453,7 @@ Switch home visits back **on**.
 
 ---
 
-### Step 9.3 - Watch the admin drive the pipeline
+### Step 10.3 - Watch the admin drive the pipeline
 
 **Who you are.** The Master Admin, with the hospital's screen open in the other browser so you can watch it change.
 
@@ -2051,7 +2468,7 @@ Switch home visits back **on**.
 | Nothing yet | **Pending Review** |
 | Assign a therapist and a slot | **Therapist Assigned** |
 | Send the registration link | **Invite Sent** |
-| *(after Step 9.5)* the patient registers | **Registered** |
+| *(after Step 10.5)* the patient registers | **Registered** |
 
 **Expect.** The hospital sees **status only** - never the patient's clinical record, never a session note, never a health profile.
 
@@ -2061,7 +2478,7 @@ Switch home visits back **on**.
 
 ---
 
-### Step 9.4 - Try to withdraw at the wrong moment
+### Step 10.4 - Try to withdraw at the wrong moment
 
 **Do this.** As the hospital, withdraw a referral that is still **Pending Review**. Then try to withdraw the one that is **Invite Sent**.
 
@@ -2073,7 +2490,7 @@ Switch home visits back **on**.
 
 ---
 
-### Step 9.5 - Register Patient C, carrying the attribution
+### Step 10.5 - Register Patient C, carrying the attribution
 
 Two ways in. Do both, on two different referrals.
 
@@ -2107,7 +2524,7 @@ Tab out of the Referral Code field and read the line.
 
 ---
 
-### Step 9.6 - Deliver a session and check the commission
+### Step 10.6 - Deliver a session and check the commission
 
 **Do this**
 
@@ -2125,7 +2542,7 @@ Tab out of the Referral Code field and read the line.
 
 ---
 
-### Step 9.7 - Check the two states that must not collapse
+### Step 10.7 - Check the two states that must not collapse
 
 This is subtle and it is worth doing carefully, because collapsing them hides real money.
 
@@ -2149,7 +2566,7 @@ Put Therapist B's share back to **55**.
 
 ---
 
-### Step 9.8 - Check the hospital is fenced in
+### Step 10.8 - Check the hospital is fenced in
 
 **Do this, each as `QA Sunrise Hospital`:**
 
@@ -2184,7 +2601,7 @@ console.log("document:", b.status, (await b.text()).slice(0, 120));
 
 ---
 
-### Step 9.9 - Suspend the hospital
+### Step 10.9 - Suspend the hospital
 
 **Do this.** As the admin, suspend `QA Sunrise Hospital`. Then, in the hospital's still-open browser, reload the dashboard and run one console call.
 
@@ -2198,7 +2615,7 @@ Restore the hospital.
 
 ---
 
-### Step 9.10 - Checkpoint
+### Step 10.10 - Checkpoint
 
 | | Should be |
 | --- | --- |
@@ -2209,7 +2626,7 @@ Restore the hospital.
 
 ---
 
-## 11. Part 10 - The books
+## 12. Part 11 - The books
 
 **What this part does.** Reads everything the run has earned and paid out, and checks the figures agree with each other and with the rows behind them. By now there is real money in the database: two consultations, a programme, two home visits, a referral, a refund and a cash collection.
 
@@ -2219,7 +2636,7 @@ Restore the hospital.
 
 ---
 
-### Step 10.1 - Read the Money screens in order
+### Step 11.1 - Read the Money screens in order
 
 **Do this.** Open each Money screen and read the whole of it before moving on: **Summary**, **Breakdown**, **Costs**, **Payouts**, **Business Health**.
 
@@ -2232,7 +2649,7 @@ Restore the hospital.
 
 ---
 
-### Step 10.2 - Check the two identities hold
+### Step 11.2 - Check the two identities hold
 
 These must be true on every range you pick. Check them on at least two: all time, and this month.
 
@@ -2249,13 +2666,13 @@ clinic share  = splittable net - therapists' share - partners' share
 
 | Rule | Check it with |
 | --- | --- |
-| A therapist's share is earned by **delivering**, not by being booked | The forfeited late cancellation from Step 8.8 - it is paid and not completed, so it adds **nothing** to any therapist's share |
-| A home visit's **travel fee is part of the therapist's share**, never revenue | The ₹150 from Step 8.1 |
-| **Refunds reverse the partner's commission, not the therapist's** | Patient C's refunded session from Step 9.6 - the therapist never earned a share on it, and the hospital's cut reverses |
+| A therapist's share is earned by **delivering**, not by being booked | The forfeited late cancellation from Step 9.8 - it is paid and not completed, so it adds **nothing** to any therapist's share |
+| A home visit's **travel fee is part of the therapist's share**, never revenue | The ₹150 from Step 9.1 |
+| **Refunds reverse the partner's commission, not the therapist's** | Patient C's refunded session from Step 10.6 - the therapist never earned a share on it, and the hospital's cut reverses |
 
 ---
 
-### Step 10.3 - Open a total
+### Step 11.3 - Open a total
 
 **Do this.** On **Summary**, tap **See the sessions** on each of the four split figures.
 
@@ -2270,7 +2687,7 @@ clinic share  = splittable net - therapists' share - partners' share
 
 ---
 
-### Step 10.4 - Pay a therapist
+### Step 11.4 - Pay a therapist
 
 **Do this**
 
@@ -2280,7 +2697,7 @@ clinic share  = splittable net - therapists' share - partners' share
 **Expect**
 
 * What is owed counts **completed, paid** sessions only, at 60% for online and **65%** for their home visits, plus travel in full.
-* **The cash they are holding is netted off the transfer.** Therapist A collected cash at Step 8.5: the amount actually transferred is reduced by it, and **those visits are marked remitted in the same run**. If they are not, the same rupees are deducted again on the next payout and the Cash Ledger goes on asking somebody to chase money already recovered - **P1**.
+* **The cash they are holding is netted off the transfer.** Therapist A collected cash at Step 9.5: the amount actually transferred is reduced by it, and **those visits are marked remitted in the same run**. If they are not, the same rupees are deducted again on the next payout and the Cash Ledger goes on asking somebody to chase money already recovered - **P1**.
 * "Owed to therapists" is **all-time and not date-filtered**. Scoping a balance to the range in view lets an admin read "nothing owed" off a quiet week while a real debt sits outside the window.
 * The settlement is recorded in **Logs → All Activity**, and the log row was written **after** the claim - so a settlement that lost a race can never appear in the log.
 
@@ -2290,7 +2707,7 @@ clinic share  = splittable net - therapists' share - partners' share
 
 ---
 
-### Step 10.5 - Work the refund queues
+### Step 11.5 - Work the refund queues
 
 **Do this.** Open **Money** and **Today**, and read the counts.
 
@@ -2313,7 +2730,7 @@ clinic share  = splittable net - therapists' share - partners' share
 
 ---
 
-### Step 10.6 - Record costs and read the profit
+### Step 11.6 - Record costs and read the profit
 
 **Do this.** Open **Money → Costs** and add three expenses:
 
@@ -2330,11 +2747,11 @@ clinic share  = splittable net - therapists' share - partners' share
 * **Operating profit** appears - clinic share less the gateway fee and these costs. It is the **only** figure allowed to be called profit, and nothing here is post-tax: a figure labelled "net profit" is a **P2**.
 * With **no** costs recorded for a range, Operating profit is stated as a **ceiling** and the screen says so, rather than implying a number it cannot know.
 
-**Also read the discount line.** *Discounts given* is **reported, never deducted**. A discount means less was collected, so it is already inside gross revenue as a smaller number; subtracting it from profit would count it twice. If Operating profit falls when you give a discount at Part 11, that is a **P0**.
+**Also read the discount line.** *Discounts given* is **reported, never deducted**. A discount means less was collected, so it is already inside gross revenue as a smaller number; subtracting it from profit would count it twice. If Operating profit falls when you give a discount at Part 12, that is a **P0**.
 
 ---
 
-### Step 10.7 - Read Business Health
+### Step 11.7 - Read Business Health
 
 **Do this.** Open **Money → Business Health**.
 
@@ -2366,7 +2783,7 @@ clinic share  = splittable net - therapists' share - partners' share
 
 ---
 
-### Step 10.8 - Flip the ledger switch
+### Step 11.8 - Flip the ledger switch
 
 **Do this**
 
@@ -2384,7 +2801,7 @@ Leave the switch **off** when you are done, unless you were asked to leave it on
 
 ---
 
-### Step 10.9 - Adjust a balance, and try to adjust history
+### Step 11.9 - Adjust a balance, and try to adjust history
 
 **Do this**
 
@@ -2402,7 +2819,7 @@ Leave the switch **off** when you are done, unless you were asked to leave it on
 
 ---
 
-### Step 10.10 - Read System Health
+### Step 11.10 - Read System Health
 
 **Do this.** Open **Settings → System Health** and read all five checks.
 
@@ -2420,7 +2837,7 @@ Leave the switch **off** when you are done, unless you were asked to leave it on
 
 ---
 
-### Step 10.11 - Payment integrity
+### Step 11.11 - Payment integrity
 
 Money can arrive twice, arrive late, or not really arrive at all. Three
 checks, all from the Razorpay dashboard's own webhook log.
@@ -2457,7 +2874,7 @@ patient, is a **P0**.
 recorded amount.
 
 **Expect.** It is the **whole** of what the gateway took - the visit **plus
-travel**, `₹2,649` at Step 8.1's prices - not the service line alone. One
+travel**, `₹2,649` at Step 9.1's prices - not the service line alone. One
 booking recorded two different ways depending on which arrived first is the
 disagreement this record exists to settle.
 
@@ -2467,7 +2884,7 @@ deliberately made one.
 
 ---
 
-### Step 10.12 - Checkpoint
+### Step 11.12 - Checkpoint
 
 | | Should be |
 | --- | --- |
@@ -2480,7 +2897,7 @@ deliberately made one.
 
 ---
 
-## 12. Part 11 - The four ways money comes off
+## 13. Part 12 - The four ways money comes off
 
 **What this part does.** Switches on each of the four acquisition discounts in turn and proves the rule they all share: **the browser sends a name, never a figure.** Every amount comes from a row an admin created.
 
@@ -2497,7 +2914,7 @@ deliberately made one.
 
 ---
 
-### Step 11.1 - The first-session offer
+### Step 12.1 - The first-session offer
 
 **Do this**
 
@@ -2519,7 +2936,7 @@ deliberately made one.
 
 ---
 
-### Step 11.2 - The goodwill adjustment
+### Step 12.2 - The goodwill adjustment
 
 **Do this**
 
@@ -2542,7 +2959,7 @@ deliberately made one.
 
 ---
 
-### Step 11.3 - The promo code
+### Step 12.3 - The promo code
 
 **Do this**
 
@@ -2587,7 +3004,7 @@ deliberately made one.
 
 ---
 
-### Step 11.4 - The patient invite
+### Step 12.4 - The patient invite
 
 **Do this**
 
@@ -2617,7 +3034,7 @@ deliberately made one.
 
 ---
 
-### Step 11.5 - Check they never stack
+### Step 12.5 - Check they never stack
 
 **Do this.** Set up a patient who qualifies for **two at once** - a first-session offer of ₹500 and a promo code worth ₹300 - and read Step 3.
 
@@ -2634,7 +3051,7 @@ deliberately made one.
 
 ---
 
-### Step 11.6 - The free booking
+### Step 12.6 - The free booking
 
 **Do this**
 
@@ -2675,7 +3092,7 @@ const r = await fetch("/api/appointments/confirm-free", {
 
 ---
 
-### Step 11.7 - Check the books can tell cheap from discounted
+### Step 12.7 - Check the books can tell cheap from discounted
 
 **Do this.** Open **Money → Costs** and read *Discounts given*.
 
@@ -2687,7 +3104,7 @@ const r = await fetch("/api/appointments/confirm-free", {
 
 ---
 
-### Step 11.8 - Put the switches back
+### Step 12.8 - Put the switches back
 
 Unless you were asked to leave them on, return each to how Step 2.7 found it:
 
@@ -2700,7 +3117,7 @@ Unless you were asked to leave them on, return each to how Step 2.7 found it:
 
 ---
 
-### Step 11.9 - A goodwill discount collected at the door
+### Step 12.9 - A goodwill discount collected at the door
 
 This is the one combination where a discount meets cash, and it has been
 wrong before: the discount was given, and the full price was then recorded as
@@ -2709,7 +3126,7 @@ the cash taken.
 **Do this**
 
 1. As a patient, book a **home visit** choosing **Pay at the visit** (as at
-   Step 8.4).
+   Step 9.4).
 2. As the admin, apply a goodwill discount of **₹300** to that visit with the
    reason `Long wait for the first appointment.`
 3. As the admin, mark it **paid by cash**.
@@ -2727,7 +3144,7 @@ the cash taken.
 
 ---
 
-### Step 11.10 - Checkpoint
+### Step 12.10 - Checkpoint
 
 | | Should be |
 | --- | --- |
@@ -2739,7 +3156,7 @@ the cash taken.
 
 ---
 
-## 13. Part 12 - Who may do what
+## 14. Part 13 - Who may do what
 
 **What this part does.** Checks the access model where it is actually enforced - in the routes, not in the sidebar - plus the settings that change other screens, the log, and signing in as somebody else.
 
@@ -2749,7 +3166,7 @@ the cash taken.
 
 ---
 
-### Step 12.1 - Each desk lands on its own dashboard
+### Step 13.1 - Each desk lands on its own dashboard
 
 **Do this.** Sign in as each of the four admins in turn and read the Today screen **before** touching anything.
 
@@ -2769,7 +3186,7 @@ the cash taken.
 
 ---
 
-### Step 12.2 - The sidebar is presentation; the routes are the rule
+### Step 13.2 - The sidebar is presentation; the routes are the rule
 
 This is the most important check in the part. A hidden button proves nothing.
 
@@ -2814,7 +3231,7 @@ That combination - open the screen, cannot change a row - is what makes `view` a
 
 ---
 
-### Step 12.3 - Complete a session from the wrong desk
+### Step 13.3 - Complete a session from the wrong desk
 
 **Do this.** As **Finance**, find a completed-eligible session and try to mark it complete, both from the screen and from the console:
 
@@ -2831,7 +3248,7 @@ const r = await fetch("/api/appointments/complete-session", {
 
 ---
 
-### Step 12.4 - Change a setting and watch the feature change
+### Step 13.4 - Change a setting and watch the feature change
 
 Settings are only real if something downstream moves. Check each of these, then put it back.
 
@@ -2854,7 +3271,7 @@ Settings are only real if something downstream moves. Check each of these, then 
 
 ---
 
-### Step 12.5 - Sign in as somebody else
+### Step 13.5 - Sign in as somebody else
 
 **Do this.** As the **Master Admin**, open Patient A's profile and use the control that opens their dashboard as them.
 
@@ -2878,7 +3295,7 @@ Settings are only real if something downstream moves. Check each of these, then 
 
 ---
 
-### Step 12.6 - The log
+### Step 13.6 - The log
 
 **Who you are.** The Master Admin - **Logs** is this desk's alone.
 
@@ -2924,7 +3341,7 @@ Settings are only real if something downstream moves. Check each of these, then 
 
 ---
 
-### Step 12.7 - Suspend and delete
+### Step 13.7 - Suspend and delete
 
 **Do this**
 
@@ -2947,7 +3364,7 @@ Restore `QA Admin Operations`.
 
 ---
 
-### Step 12.8 - The doors a stranger can reach
+### Step 13.8 - The doors a stranger can reach
 
 **Do this.** In a **private window**, signed into nothing, run the anonymous sweep:
 
@@ -3010,7 +3427,7 @@ console.table(await Promise.all(Object.entries(bodies).map(async ([name, body]) 
 
 ---
 
-### Step 12.9 - Knock on a public door repeatedly
+### Step 13.9 - Knock on a public door repeatedly
 
 **Do this.** In a private window, call the area lookup about twenty times in a row:
 
@@ -3033,7 +3450,7 @@ for (let i = 0; i < 20; i++) {
 
 ---
 
-### Step 12.10 - Check the back office is never named to outsiders
+### Step 13.10 - Check the back office is never named to outsiders
 
 **Do this**
 
@@ -3054,7 +3471,7 @@ const r = await fetch("/api/admin/stop-impersonation", { method: "POST" });
 
 ---
 
-### Step 12.11 - Check the response headers
+### Step 13.11 - Check the response headers
 
 Not everything that protects a patient is on screen. These ship on every
 response and cost nothing to check.
@@ -3086,7 +3503,7 @@ policy are **not** a defect - note them and move on.
 
 ---
 
-### Step 12.12 - A patient's route answers a patient
+### Step 13.12 - A patient's route answers a patient
 
 Three routes on the patient dashboard used to answer a therapist or a hospital
 with a **200**. Nothing cross-account leaked - each acts on the caller's own
@@ -3121,7 +3538,7 @@ Still refused - a suspended account must not keep acting as itself.
 
 ---
 
-### Step 12.13 - Checkpoint
+### Step 13.13 - Checkpoint
 
 | | Should be |
 | --- | --- |
@@ -3134,7 +3551,323 @@ Still refused - a suspended account must not keep acting as itself.
 
 ---
 
-## 14. Part 13 - The site itself, and the small things
+## 15. Part 14 - The back office, screen by screen
+
+**What this part does.** Opens **every** screen in the admin dashboard once,
+in order, and goes deep on the ones no earlier part has touched. Earlier
+parts exercised the back office through the work - assigning, approving,
+reconciling. This is the sweep that catches whatever that missed, which is
+what makes "we finished the run" mean something.
+
+**Who you are.** The Master Admin, who is the only desk that opens all seven
+sections.
+
+**Time.** About 60 minutes.
+
+> **Tick every row of the checklist at Step 14.8 as you go.** A screen you did
+> not open is not a screen that passed.
+
+---
+
+### Step 14.1 - Today
+
+Four screens. Two of them you have used; two you have not.
+
+**Inbox.** Covered by Steps 5.1 and 7.3 - confirm once more that each figure
+opens exactly the rows it counted, and that the strip agrees with the list
+beneath it.
+
+**Approvals.** Covered at Steps 3.4, 4.9 and 8.2.
+
+**Activity.** Open it as the Master Admin, then as each of the three limited
+desks.
+
+**Expect.** A Master Admin sees **everything**. A limited desk sees only
+entries whose action belongs to a section that desk can **work** *and* whose
+actor sits at that desk - so it will look **sparse**, and the screen says the
+list is their desk's rather than showing an empty panel that reads as
+"nothing happened".
+
+**Risk.** This one has had no step at all until now.
+
+**Do this**
+
+1. Open **Today → Risk**.
+2. Read the thresholds, and find the two that ship **disabled**.
+3. Open a signal, if the run has produced one - the contact-leak flag from
+   Step 5.6 is the likeliest.
+4. Review it with the note `Checked the message, clinical context is fine.`
+5. Try to review one with the note `ok`.
+
+**Expect**
+
+* **The queue carries no action buttons.** A flag is never an accusation and
+  never carries a penalty: nothing here suspends an account, holds a payout or
+  hides a therapist. Acting on a finding means going to the screen that owns
+  that action and doing it deliberately. **An action button on this tab is a
+  P1** - it is the separation that makes running heuristics over clinical data
+  safe at all.
+* A signal **links to the rows behind it** rather than showing a score. An
+  admin who can only see a verdict cannot disagree with it.
+* Step 2: two rules are **off** on a fresh database - the two that need a
+  clinic baseline nobody has yet. A threshold invented before anyone knows the
+  normal rate fires on everyone or on nobody.
+* Step 5 is **refused**: a review needs a real note, ten characters minimum.
+  "Dismissed" with no reason reads the same as "not read".
+* Reviews **append**. You cannot edit or delete one.
+* **Dismiss a signal, then cause the same thing again.** A fresh signal is
+  raised rather than the old one re-opening - that is correct, because it is
+  new information.
+
+**And check the desks.** As **Finance**, open Today → Risk.
+
+**Expect.** They see the rules that are **money** questions - a cash variance,
+a session completed with no payment - and not the clinical ones. The
+**flagged messages** and the **contact reveal log** stay Master-Admin-only,
+because those quote what a colleague wrote and name every patient contact
+they opened. A desk with no rule of its own is **told so** rather than shown
+a locked screen.
+
+---
+
+### Step 14.2 - Sessions
+
+Six screens.
+
+| Screen | Covered by | What to confirm here |
+| --- | --- | --- |
+| All Sessions | 5.1, 11.5 | Filters remembered per browser; the date range **not** remembered, because it goes stale |
+| Recommendations | Part 7 | - |
+| Roster | 3.6 | - |
+| **Schedule** | *nothing yet* | see below |
+| **Delivery** | *nothing yet* | see below |
+| **New Booking** | *nothing yet* | see below |
+
+**Schedule.** Open the calendar.
+
+**Expect.** Every session this run has created, on its own day, in clinic
+time. Tapping a day opens the same **session drawer** the list does - not a
+second, parallel screen with its own idea of a session. A row with no
+therapist carries the same **Tap to assign** chip.
+
+**Delivery.** Open it.
+
+**Expect.** No-show rate, cancellation rate, repeat-booking rate and
+sessions-per-therapist. **These live under Sessions, not Money** - a no-show
+rate is about how the clinic runs, not about its books. Compare any figure
+that also appears on a Money screen: they are computed in one pass, so they
+**cannot** disagree. If they do, that is a **P1**.
+
+**New Booking.** This is the admin booking on somebody's behalf.
+
+**Do this**
+
+1. Open **Sessions → New Booking**.
+2. Book `QA Patient B` a session against `QA Knee & Joint Care`, two days out.
+3. Now try to book one **inside** the 12-hour lead time.
+4. Tick the "book inside the window anyway" box and try again.
+
+**Expect**
+
+* The slot picker is the **same calendar and hour chips** the patient sees.
+* Step 3 is refused by the lead time.
+* Step 4 **opens the grid up** - the override lane - and the route accepts it.
+  The two must agree: a grid that offers a slot the route then refuses, or a
+  route that accepts one the grid would not offer, is a **P1**.
+* The booking cannot reach **into the past** even with the box ticked.
+* A time like `6:52` cannot be produced at all - slots start on the hour.
+
+---
+
+### Step 14.3 - People
+
+Four screens, plus the detail pages behind them.
+
+| Screen | Confirm |
+| --- | --- |
+| **Patients** | Every patient this run created. Open one: sessions, purchases, documents, and the money controls **only** if your desk may see money |
+| **Therapists** | All three, with their shares and their `/team` visibility control |
+| **Partners** | Hospital A, its referrals, its revenue share |
+| **Global search** | Search a patient's name, a session code and a purchase code |
+
+**On the global search**, sign in as **Clinical** and search a **purchase**
+code.
+
+**Expect.** They are told it does not exist. A result that opens a screen
+their desk cannot open would be a dead link that looks like it worked.
+
+**Then open a patient detail page two ways**, because they behave differently:
+
+1. Tap the patient's name from the directory - it opens as an **overlay**
+   over the dashboard.
+2. **Reload** that page.
+
+**Expect.** The reloaded page still **looks like the back office** - same dark
+rail, same section list, same header shape. It must not become a bare page
+with a small "back" link, which reads as being thrown out of the admin
+dashboard onto a different, plainer site. **P2.**
+
+**And press an action inside the overlay** - Mark Done on something.
+
+**Expect.** The confirmation dialog covers the **whole screen**, centred, and
+does not slide away as you scroll the panel behind it.
+
+---
+
+### Step 14.4 - Money
+
+Five screens, all covered by Part 11. Confirm here only that **every one of
+them** carries the alerts strip, the glossary, and an (i) on each figure - and
+that each screen says in a plain sentence what it is and gives one example
+under its heading.
+
+---
+
+### Step 14.5 - Catalog
+
+Four screens, all built in Part 2 and used since.
+
+| Screen | Confirm |
+| --- | --- |
+| Conditions | Three, ordered, one with a positioned cover |
+| Packages | Three programmes and two home-visit packages |
+| Service Areas | Two areas and the waitlist entry from Step 9.2 |
+| **Purchases** | see below |
+
+**Purchases** deserves a proper look, because five money actions live in it.
+
+**Do this.** Open **Catalog → Purchases** and open Patient A's programme.
+
+**Expect** the detail modal offers: **extend expiry**, **reassign the locked
+therapist**, **refund**, **restore a session**, and **grant / reverse /
+revive credits**.
+
+| Try | Expect |
+| --- | --- |
+| Extend the expiry to a nonsense date | Refused |
+| Reassign the locked therapist | **Future sessions only.** A completed session keeps whoever actually ran it - **P0** if it does not |
+| Open the same modal as **Operations** | The money controls **do not render** |
+
+---
+
+### Step 14.6 - Settings
+
+Nine screens. Three have had no step at all.
+
+| Screen | Covered by | |
+| --- | --- | --- |
+| Brand & Contact | *nothing yet* | see below |
+| Public Site | 15.11 (mission), 15.10 (splash) | plus testimonials and FAQ, below |
+| Booking Rules | 13.4 | |
+| Offers & Discounts | Part 12 | |
+| Programmes & Home Visits | 2.4, 2.7, 11.8 | |
+| Clinical Questions | *nothing yet* | see below |
+| User Access | 3.7, 3.8, 13.7 | |
+| System Health | 11.10 | |
+| Account Security | *nothing yet* | see below |
+
+**Brand & Contact.**
+
+**Do this.** Change the **site name** to `QA Physio Clinic`, the tagline, the
+contact email, the WhatsApp number, the contact phone and the footer
+copyright line. Save. Then open any public page.
+
+**Expect.** The **navbar** and the **footer** carry the new strings
+immediately. They are read once at the top of the site and passed down - so a
+page still showing the old name after a reload is a **P2**.
+
+**Clinical Questions.**
+
+**Do this**
+
+1. Open **Settings → Clinical Questions**.
+2. Confirm there is **one tab per condition type**, not three stacked lists.
+3. Reword one orthopaedic question and save.
+4. As Patient A, look at the health profile.
+5. Back in Settings, remove **Neurological** from the types triage offers.
+6. As a therapist, triage a new patient - and then re-triage Patient C, who
+   already has a neurological record.
+
+**Expect**
+
+* Step 3's new wording appears on the patient's screen.
+* Step 5 removes it from **triage only**. Patient C's existing record **keeps
+  rendering**, and a therapist re-triaging them is **still offered** it -
+  removing a type from the menu must not strand the patients already on it.
+  **P1** if it does.
+* **Orthopaedic can never be switched off.**
+* The paediatric caregiver fields are **not** part of the seven-question
+  count. Who is speaking for the child is provenance, not a clinical question.
+
+**Account Security.**
+
+**Do this.** Open it and read what it offers. Change the admin's own password
+through it, then sign in again with the new one.
+
+**Expect.** It works, it does not show any password back to you, and the
+change is recorded in the log without the password in it.
+
+**Testimonials and FAQ** (both on Public Site).
+
+| Do this | Expect |
+| --- | --- |
+| Read the seeded testimonials | The form says at the point of entry that these are illustrative copy, **not real patients**. Never present one as real. |
+| Add one, edit it, delete it | Each change reaches `/` and `/mission` **immediately** |
+| Add an FAQ, reorder, delete | The same, on `/faq` |
+| Turn the rating summary off | The real number disappears from the public pages |
+
+---
+
+### Step 14.7 - Logs
+
+Both screens are covered at Step 13.6. Confirm here only that **Logs is
+absent from the sidebar** for Operations, Finance and Clinical, and present
+for you.
+
+---
+
+### Step 14.8 - The checklist
+
+Every screen in the back office. Tick each one you actually opened.
+
+**Today** - Inbox · Approvals · Activity · Risk
+
+**Sessions** - Schedule · All Sessions · Roster · Recommendations · Delivery · New Booking
+
+**People** - Patients · Therapists · Partners · Global search
+
+**Money** - Summary · Breakdown · Costs · Payouts · Business Health · Your Numbers · Cash Ledger
+
+**Catalog** - Conditions · Packages · Service Areas · Purchases
+
+**Logs** - All Activity · Archive & Clear
+
+**Settings** - Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Account Security
+
+**On every one of them**, three things are true or they are a defect:
+
+1. Under the heading there are **two lines** - what the screen is, and one
+   concrete example of something you would come here to do. Not the section's
+   own line repeated.
+2. Every list on it **pages**, and every list with a dimension **filters**.
+3. Every export offers **CSV and PDF**, and the two describe the same rows.
+
+---
+
+### Step 14.9 - Checkpoint
+
+| | Should be |
+| --- | --- |
+| Screens opened | Every row of Step 14.8 |
+| Risk | One signal reviewed with a real note, a short note refused, no action buttons on the tab |
+| New Booking | One booking made, one refused by the lead time, one made through the override |
+| Clinical Questions | One reworded question live, one type removed from triage without stranding its patients |
+| Brand & Contact | New strings live in the navbar and footer |
+| Blurbs | Two lines under every screen's heading |
+
+---
+
+## 16. Part 15 - The site itself, and the small things
 
 **What this part does.** The cross-cutting checks that do not belong to one journey: the public pages, what happens on a phone, what happens when something goes wrong, and whether the app ever leaves somebody staring at a screen that is not responding.
 
@@ -3142,7 +3875,7 @@ Still refused - a suspended account must not keep acting as itself.
 
 ---
 
-### Step 13.1 - Walk the eight public pages
+### Step 15.1 - Walk the eight public pages
 
 **Do this.** Signed out, open each of `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals`.
 
@@ -3158,7 +3891,7 @@ Still refused - a suspended account must not keep acting as itself.
 
 ---
 
-### Step 13.2 - Check the catalogue reads the same everywhere
+### Step 15.2 - Check the catalogue reads the same everywhere
 
 **Do this.** Compare one programme card in three places: `/conditions`, its **View full details** dialog, and the patient dashboard's **Book a Session** screen.
 
@@ -3172,7 +3905,7 @@ Still refused - a suspended account must not keep acting as itself.
 
 ---
 
-### Step 13.3 - Check an admin edit reaches the public site immediately
+### Step 15.3 - Check an admin edit reaches the public site immediately
 
 **Do this.** With `/conditions` open in one tab, as the admin: rename a condition, change its price, and reorder two of them with **Save order**. Reload the public tab **at once**.
 
@@ -3192,7 +3925,7 @@ Still refused - a suspended account must not keep acting as itself.
 
 ---
 
-### Step 13.4 - Delete a condition, three ways
+### Step 15.4 - Delete a condition, three ways
 
 **Do this**
 
@@ -3218,7 +3951,7 @@ Still refused - a suspended account must not keep acting as itself.
 
 ---
 
-### Step 13.5 - Check the app always says it is working
+### Step 15.5 - Check the app always says it is working
 
 **Do this.** Throttle the network to **Slow 3G** and, on each dashboard, tap something that changes data - approve an account, save a setting, assign a therapist.
 
@@ -3236,7 +3969,7 @@ Still refused - a suspended account must not keep acting as itself.
 
 ---
 
-### Step 13.6 - Check the admin dashboard does not move under you
+### Step 15.6 - Check the admin dashboard does not move under you
 
 **Do this.** Open the admin dashboard and leave it. In a second browser, have a patient book a session. Watch the first screen **without reloading**.
 
@@ -3251,7 +3984,7 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.7 - Break things on purpose
+### Step 15.7 - Break things on purpose
 
 **Do this**
 
@@ -3264,7 +3997,7 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.8 - Use the whole thing on a phone
+### Step 15.8 - Use the whole thing on a phone
 
 **Do this.** On a real phone, or at a 390px-wide window, walk: the home page, `/book` end to end, the patient dashboard's every screen, and the admin dashboard.
 
@@ -3279,7 +4012,7 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.9 - Check the keyboard and a screen reader can get through
+### Step 15.9 - Check the keyboard and a screen reader can get through
 
 **Do this.** Put the mouse away. Tab through `/book`, then through a dashboard.
 
@@ -3294,7 +4027,7 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.10 - Check the splash one more time
+### Step 15.10 - Check the splash one more time
 
 **Do this**
 
@@ -3313,7 +4046,7 @@ The other three dashboards still refresh themselves, which is right - a patient 
 
 ---
 
-### Step 13.11 - The mission, the vision, the promises and the limits
+### Step 15.11 - The mission, the vision, the promises and the limits
 
 These four blocks are what `/mission` **is**, and all of them are an admin's
 to write. They used to be constants only a developer could change, which made
@@ -3361,7 +4094,7 @@ somebody forgets to change, and it tells the reader something untrue.
 
 ---
 
-### Step 13.12 - Checkpoint
+### Step 15.12 - Checkpoint
 
 | | Should be |
 | --- | --- |
@@ -3374,9 +4107,9 @@ somebody forgets to change, and it tells the reader something untrue.
 
 ---
 
-## 15. Sign-off
+## 17. Sign-off
 
-### 15.1 What the run should have left behind
+### 17.1 What the run should have left behind
 
 Check the database matches this before signing anything. A mismatch is either a defect you have not written up or a step you skipped.
 
@@ -3398,7 +4131,105 @@ Check the database matches this before signing anything. A mismatch is either a 
 
 ---
 
-### 15.2 The sign-off sheet
+### 17.2 Every role, every surface
+
+The run is organised by the work rather than by the role, so this is the
+cross-check: each role against the screens that are theirs. If a cell has no
+step behind it, the run has a hole.
+
+**Patient** - Part 4 end to end, plus their view in Parts 5-9 and 12.
+
+| Surface | Step |
+| --- | --- |
+| Register through the booking wizard, and through `/patient/register` | 4.2, 4.8 |
+| Held at `/pending-approval` until approved, at the screen **and** the route | 4.8 |
+| Overview, and every screen's loading state | 4.5 |
+| Book and pay, every payment outcome | 4.4 |
+| Edit Profile, addresses, uploaded reports | 4.6, 9.1 |
+| Health Profile locked, then unlocked, then exported | 4.7, 6.4, 6.5 |
+| Sessions: confirmed, joined, completed, rated | 5.2-5.8 |
+| Suggested Sessions: an offer, and a proposed time | 7.7, 8.4 |
+| Paying for a programme and scheduling the run | 7.7, 7.8 |
+| Home visit, online and cash | 9.1, 9.4 |
+| Payments screen, refunds in their own voice | 9.8 |
+| Discounts they can trigger themselves | 12.1, 12.3, 12.4, 12.6 |
+| Cannot reach another patient, or any other role's screens | 6.6, 13.8 |
+
+**Therapist** - Part 8 end to end, plus their view in Parts 5-7 and 9.
+
+| Surface | Step |
+| --- | --- |
+| Apply, wait, be approved, sign in | 3.1-3.4 |
+| Held at the door at the route, not only the screen | 3.2 |
+| Overview: four figures, each agreeing with what it opens | 8.1 |
+| Edit Profile: instant vs. reviewed, withdraw, decline | 8.2 |
+| Availability: weekly, exceptions, leave | 3.6 |
+| My Patients, and the Programmes toggle | 8.3 |
+| Triage, health record, Pain Map | 6.1-6.3 |
+| Deliver, complete, write the note | 5.5, 5.6 |
+| Recommend a programme | 7.1 |
+| Suggest the next session | 8.4 |
+| Record cash at the door | 9.5 |
+| Earnings and requesting a payout | 8.5 |
+| Masked contact, and one logged reveal | 5.7 |
+| Cannot reach an unassigned patient, another role, or an admin route | 8.3, 8.6 |
+
+**Partner hospital** - Part 10 end to end.
+
+| Surface | Step |
+| --- | --- |
+| Public enquiry, then provisioned by an admin | 3.10 |
+| Their own five screens | 3.11 |
+| Refer, online and home visit | 10.1, 10.2 |
+| Watch the status pipeline | 10.3 |
+| Withdraw, and be refused once the link has gone | 10.4 |
+| Earnings, and a refund reversing the commission | 10.6 |
+| Cannot see another partner, a clinical record, or the back office | 10.8 |
+| Suspended, and locked out at the route | 10.9 |
+
+**Master Admin** - Part 14 screen by screen, plus every part's admin blocks.
+
+| Surface | Step |
+| --- | --- |
+| Reset the database, and its four gates | 1.2, 3.9 |
+| Build the whole catalogue | 2.1-2.8 |
+| Approve, decline, suspend, delete | 3.4, 4.9, 13.7 |
+| Assign, reschedule, reopen | 5.2, 5.9 |
+| Review recommendations, all three outcomes | 7.4, 7.5 |
+| Write one on a therapist's behalf, and withdraw one | 7.11, 7.12 |
+| The whole of Money, and the two identities | 11.1-11.10 |
+| Every one of the seven sections, screen by screen | 14.1-14.8 |
+| Sign in as somebody else | 13.5 |
+| Read and clear the log | 13.6 |
+
+**Operations, Finance, Clinical** - Part 13.
+
+| Surface | Step |
+| --- | --- |
+| Each lands on its own Today screen | 13.1 |
+| Every admin route refuses them | 13.2 |
+| Finance reads Sessions and cannot change one | 13.2, 13.3, 5.5 |
+| Their own desk's activity feed | 14.1 |
+| Their own desk's risk signals; the trails stay closed | 14.1 |
+| Logs refuses all three, at the screen and both routes | 13.6 |
+| Exports follow the scope, not only the screen | 11.5 |
+| The reset refuses them | 3.9 |
+
+**Nobody at all** - signed out.
+
+| Surface | Step |
+| --- | --- |
+| The eight public pages | 4.1, 15.1 |
+| The splash, and where it must not appear | 4.1, 15.10 |
+| A quote before an account exists | 12.1 |
+| Every mutating route refuses them | 13.8 |
+| Malformed bodies answer 4xx, never 500 | 13.8 |
+| A public door is rate limited, and says so without blame | 13.9 |
+| The back office is never named to them | 13.10 |
+
+---
+
+### 17.3 The sign-off sheet
 
 | | |
 | --- | --- |
@@ -3421,26 +4252,28 @@ Check the database matches this before signing anything. A mismatch is either a 
 
 ---
 
-### 15.3 The ten checks that matter most
+### 17.4 The twelve checks that matter most
 
 If you have time for nothing else, these are the ones whose failure is worst. Each names the step that covers it.
 
 | # | Check | Step |
 | --- | --- | --- |
-| 1 | The payment screen charges exactly the figure it quoted | 4.2, 4.4, 8.1, 11.1 |
-| 2 | A free total takes no money at all, and never ₹1 | 11.6 |
-| 3 | A programme cannot be bought without a recommendation | 7.2, 8.3 |
+| 1 | The payment screen charges exactly the figure it quoted | 4.2, 4.4, 9.1, 12.1 |
+| 2 | A free total takes no money at all, and never ₹1 | 12.6 |
+| 3 | A programme cannot be bought without a recommendation | 7.2, 9.3 |
 | 4 | A recommendation the clinic has not approved reaches the patient in no form | 7.1, 7.2 |
 | 5 | One patient's clinical record is unreachable by another patient, and by an unassigned clinician | 6.6 |
-| 6 | Every admin route refuses the three limited desks | 12.2 |
-| 7 | Every mutating route refuses an anonymous caller | 12.8 |
+| 6 | Every admin route refuses the three limited desks | 13.2 |
+| 7 | Every mutating route refuses an anonymous caller | 13.8 |
 | 8 | A purchase is never rewritten by a later catalogue edit | 7.10 |
-| 9 | Travel is paid to the therapist in full and never counted as revenue | 8.6, 10.2 |
-| 10 | Suspending an account locks it out at the route, not only on the screen | 9.9, 12.7 |
+| 11 | An authorization is not a capture - nothing is fulfilled against a hold | 11.11 |
+| 12 | A therapist's suggestion spends nothing until the patient accepts it | 8.4 |
+| 9 | Travel is paid to the therapist in full and never counted as revenue | 9.6, 11.2 |
+| 10 | Suspending an account locks it out at the route, not only on the screen | 10.9, 13.7 |
 
 ---
 
-### 15.4 What this run deliberately does not cover
+### 17.5 What this run deliberately does not cover
 
 Say so explicitly rather than letting silence imply coverage.
 
@@ -3454,7 +4287,7 @@ Say so explicitly rather than letting silence imply coverage.
 
 ---
 
-### 15.5 Running it a second time
+### 17.6 Running it a second time
 
 This document builds its own data, which makes it repeatable - but only from the same starting point.
 
@@ -3472,7 +4305,7 @@ This document builds its own data, which makes it repeatable - but only from the
 
 ---
 
-### 15.6 If something in this document is wrong
+### 17.7 If something in this document is wrong
 
 This run quotes real screen names, real settings, real error strings and real prices. When the application changes, some of them go stale, and a stale expectation reads exactly like a defect.
 
