@@ -40,7 +40,8 @@ export type HealthCheckId =
   | "google"
   | "sync"
   | "waiting_room"
-  | "accounting";
+  | "accounting"
+  | "rate_limits";
 
 export type HealthCheck = {
   id: HealthCheckId;
@@ -82,6 +83,17 @@ export type SystemHealthInput = {
   accounting: AccountingHealth;
   /** site_settings.meet_open_access_enabled. */
   openAccessEnabled: boolean;
+  /**
+   * What this server has seen about whether it can tell callers apart --
+   * from `rateLimitIdentifierStats()`. Optional because a render that did
+   * not ask should read "Not checked" rather than "Healthy".
+   */
+  rateLimitIdentity?: {
+    observed: number;
+    identified: number;
+    anonymous: number;
+    allOneCaller: boolean;
+  };
 };
 
 const STATUS_RANK: Record<HealthStatus, number> = {
@@ -444,6 +456,105 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
   };
 }
 
+/**
+ * Whether the public doors are actually throttled, which is not the same
+ * question as whether the limiter is installed.
+ *
+ * `enforceRateLimit` allows a request it cannot attribute -- deliberately,
+ * because inventing a key would put every visitor on earth in one bucket and
+ * let the first thirty lock out the thirty-first. The cost of that correct
+ * decision is that a deployment behind a host which sets neither `x-real-ip`
+ * nor `x-forwarded-for` has every limit switched off and no symptom: no 429,
+ * no log line, no counter row. A load test is what found it -- the same
+ * burst that produced 40 allowed and 252 refused with a header produced
+ * nothing at all without one -- and a burst is not something an owner runs.
+ *
+ * So the app states it. `off` rather than `broken`, because nothing is
+ * failing: the app is doing what it was told, and the fix is one setting on
+ * the host rather than anything in here. A mixture is `attention`, since a
+ * host that sets the header on some routes and not others is the case most
+ * likely to be a misconfiguration somebody can still correct.
+ */
+function rateLimitCheck(
+  stats:
+    | { observed: number; identified: number; anonymous: number; allOneCaller: boolean }
+    | undefined
+): HealthCheck {
+  const base = {
+    id: "rate_limits" as const,
+    label: "Public doors",
+    icon: "fa-shield-halved",
+    what:
+      "Whether this server can tell one visitor from another. Every public form and lookup is capped per visitor, and a cap can only be applied to somebody the server can recognise.",
+    example:
+      "Someone runs a script against the pincode lookup or the partner-hospital enquiry form. With this healthy they are stopped after their share; without it, either nothing stops them or the whole internet shares one allowance and ordinary visitors get refused.",
+    evidence: [] as string[],
+  };
+
+  if (!stats || stats.observed === 0) {
+    return {
+      ...base,
+      status: "unknown",
+      headline:
+        "Nothing has used a capped page yet on this server, so there is nothing to judge.",
+      fix: [],
+      count: 0,
+    };
+  }
+
+  const hostingSteps = [
+    "Open your hosting dashboard and turn on the setting that passes the visitor's own IP address through to the app. It is usually called forwarded headers, real IP, or client IP.",
+    "If the site sits behind your own proxy or load balancer, set it to send an X-Real-IP header carrying the visitor's address rather than its own.",
+    "Reload this screen afterwards. It reads what this server has actually received, so it will change on its own once the next visitors come through.",
+  ];
+
+  if (stats.anonymous > 0) {
+    const allAnonymous = stats.identified === 0;
+    return {
+      ...base,
+      // Nothing is failing: the app is doing exactly what it was told, and
+      // the fix is a setting on the host rather than anything in here.
+      // Painting that red is how red stops meaning anything.
+      status: allAnonymous ? "off" : "attention",
+      headline: allAnonymous
+        ? `No visitor could be told apart, so nothing is being capped (${plural(stats.anonymous, "request", "requests")} checked).`
+        : `${plural(stats.anonymous, "request", "requests")} of ${stats.observed} arrived with no way to tell who was asking, so those were not capped.`,
+      fix: hostingSteps,
+      count: stats.anonymous,
+      evidence: [
+        `Requests seen on this server: ${stats.observed}. Recognised: ${stats.identified}. Not recognised: ${stats.anonymous}.`,
+        "Counted since this server last restarted, on the machine that drew this screen.",
+      ],
+    };
+  }
+
+  if (stats.allOneCaller) {
+    return {
+      ...base,
+      // The dangerous one, and the one that looks healthy from the inside:
+      // everybody is being capped, together, out of a single allowance.
+      status: "attention",
+      headline: `Every visitor is arriving as the same person, so they are sharing one allowance between them (${plural(stats.observed, "request", "requests")} checked).`,
+      fix: hostingSteps,
+      count: stats.observed,
+      evidence: [
+        `All ${stats.observed} requests seen on this server carried one and the same address.`,
+        "That is what a proxy passing on its own address rather than the visitor's looks like. It can also mean one person is doing all the testing.",
+        "Counted since this server last restarted, on the machine that drew this screen.",
+      ],
+    };
+  }
+
+  return {
+    ...base,
+    status: "healthy",
+    headline: `Visitors are being told apart, so the caps are doing their job (${plural(stats.identified, "request", "requests")} checked).`,
+    fix: [],
+    count: 0,
+  };
+}
+
+
 export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
   const googleDown = input.google?.state === "broken";
   return [
@@ -452,6 +563,7 @@ export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
     syncCheck(input.syncIssues, googleDown),
     waitingRoomCheck(input.waitingRoomIssues, input.openAccessEnabled),
     accountingCheck(input.accounting),
+    rateLimitCheck(input.rateLimitIdentity),
   ];
 }
 

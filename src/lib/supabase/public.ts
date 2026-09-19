@@ -1,4 +1,5 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { resilientSupabaseFetch } from "./resilientFetch";
 
 /**
  * Stateless anon-key client for public, unauthenticated reads in Server
@@ -11,6 +12,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 export function createPublicClient() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { fetch: resilientSupabaseFetch } }
   );
 }

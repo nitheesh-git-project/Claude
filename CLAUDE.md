@@ -58,6 +58,27 @@ routes -- both Razorpay routes among them -- were answering with. Sign-up and si
 Supabase Auth, so their limits live in the Supabase dashboard. See the rate
 limit rule in `AGENTS.md`.
 
+**Every server-side Supabase call goes through one bounded `fetch`.**
+Node opens a socket per request and will open thousands: the admin dashboard
+fires ~82 queries a render, so 40 concurrent admins was ~3,300 requests at
+one origin, the TLS handshakes timed out, and the dashboard's own isolated
+guards rendered the missing rows as zeroes -- fifteen renders answered
+HTTP 200 having silently lost the appointments table, which is every money
+figure and every queue count on that screen.
+`src/lib/supabase/resilientFetch.ts` caps in-flight requests
+(`SUPABASE_MAX_IN_FLIGHT`, 96, measured -- 48 was eight times *slower*, 192
+no better), deadlines each one (`SUPABASE_REQUEST_TIMEOUT_MS`, 20s), and
+retries a GET once on a transport error but never a write. `AdminDataLoadBanner`
+is the other half: a read that failed now says so on the screen instead of
+rendering as a read that came back empty, and the two routes that reported an
+unreadable `home_visit_enabled` as "home visits aren't available" answer 503
+"we couldn't check" instead. Settings -> System Health carries a sixth check,
+**Public doors**, for the limiter's own silent failure: a request nobody can
+be told apart from is allowed, so a host that forwards its own address rather
+than the visitor's leaves every public cap either off or shared between
+everybody, with no 429 and no log line to notice it by. See the transport
+rule in `AGENTS.md`.
+
 **Suspension reaches the database, not only the app.** `profiles.active` is
 read by `src/proxy.ts` and `requireActiveProfile`, and both are this
 application -- a session cookie reaches PostgREST without passing either, and
@@ -414,7 +435,10 @@ the one idempotent `record_payment_capture` function. Setting
 a patient who pays and closes the tab leaves a paid order against an unpaid
 booking.
 
-Quick commands: `npm run dev`, `npm run build`, `npm run test` (Vitest over
+Quick commands: `npm run dev`, `npm run build`, `npm run start:cluster`
+(production on several Node workers -- one process renders React on one
+thread, and under 200 concurrent visitors that thread, not Supabase, is what
+makes the admin dashboard slow), `npm run test` (Vitest over
 the dependency-free `src/lib` modules), `npm run verify` (lint + test +
 build), `npm run lint` (which also
 runs `npm run check:realtime`, the Supabase Realtime publication coverage

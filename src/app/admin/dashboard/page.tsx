@@ -38,9 +38,11 @@ import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
+import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
 import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
 import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
+import { rateLimitIdentifierStats } from "@/lib/rateLimitServer";
 import { activityScopeNote, filterActivityForViewer } from "@/lib/activityScope";
 import { riskRulesForSections } from "@/lib/riskSignals";
 import { googleConnectionCheckedAt } from "@/lib/googleConnectionHealth";
@@ -253,14 +255,14 @@ export default async function AdminDashboardPage({
     { data: referrals },
     { data: capacityNoteRows },
     { data: referralPhoneRows },
-    { data: allProfiles },
+    { data: allProfiles, error: allProfilesError },
     { data: roleCodeRows },
     { data: treatmentCategories },
     { data: packages },
     { data: packagePurchaseSummaries },
     { data: testimonials },
     { data: faqs },
-    { data: siteSettings },
+    { data: siteSettings, error: siteSettingsError },
     { data: payoutRequests },
     { data: conditionProfiles },
     { count: conditionRequestsPendingCount },
@@ -1156,6 +1158,22 @@ export default async function AdminDashboardPage({
   // anything is actually wrong. Log it loudly instead of swallowing it.
   if (appointmentsError) {
     console.error("Admin dashboard: failed to load appointments", appointmentsError);
+  }
+
+  // ...and say so on the screen, not only in a log nobody reads. See
+  // AdminDataLoadBanner for why an empty panel and a failed read must not
+  // look the same. These three are the reads whose absence changes what
+  // every other panel says, so they are the ones worth a banner; a panel
+  // with its own failed read still degrades to empty on its own.
+  const failedCoreReads: string[] = [];
+  if (appointmentsError) failedCoreReads.push("sessions and bookings");
+  if (allProfilesError) {
+    console.error("Admin dashboard: failed to load profiles", allProfilesError);
+    failedCoreReads.push("the people directory");
+  }
+  if (siteSettingsError) {
+    console.error("Admin dashboard: failed to load site settings", siteSettingsError);
+    failedCoreReads.push("your settings (defaults are being shown)");
   }
 
   const nowForReferrals = nowTimestamp();
@@ -2938,6 +2956,11 @@ export default async function AdminDashboardPage({
     </div>
   );
 
+  // In-process counters, not a query: whether this server can tell callers
+  // apart is a fact about the hosting rather than about any one request, so
+  // it costs nothing and is read where the health checks are built.
+  const rateLimitIdentity = rateLimitIdentifierStats();
+
   const settingsHealthTab = (
     <AdminSystemHealthTab
       syncIssues={googleMeetSyncIssues}
@@ -2949,6 +2972,7 @@ export default async function AdminDashboardPage({
       googleCheckedAt={googleConnectionCheckedAt()}
       accounting={accountingHealth}
       openAccessEnabled={adminSettings.meetOpenAccessEnabled}
+      rateLimitIdentity={rateLimitIdentity}
       canFix={scopeCanManage(viewerScope, "settings")}
       renderedAt={nowTimestamp()}
     />
@@ -3955,6 +3979,7 @@ export default async function AdminDashboardPage({
     waitingRoomIssues: meetWaitingRoomIssues,
     accounting: accountingHealth,
     openAccessEnabled: adminSettings.meetOpenAccessEnabled,
+    rateLimitIdentity,
   });
 
   const home = buildAdminHome(viewerScope, {
@@ -3980,9 +4005,12 @@ export default async function AdminDashboardPage({
       // banner is a link, and an action for a section this scope cannot
       // reach would land them somewhere else via findTab's fallback.
       banner={
-        allowedSections.includes("settings") ? (
-          <AdminHealthBanner checks={systemHealthChecks} />
-        ) : null
+        <>
+          <AdminDataLoadBanner missing={failedCoreReads} />
+          {allowedSections.includes("settings") ? (
+            <AdminHealthBanner checks={systemHealthChecks} />
+          ) : null}
+        </>
       }
       greeting={home.greeting}
       headline={home.headline}
