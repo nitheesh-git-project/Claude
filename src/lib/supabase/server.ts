@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { IMPERSONATION_COOKIE, isExpired, parseMarker } from "@/lib/impersonation";
+import { resilientSupabaseFetch } from "./resilientFetch";
 
 /**
  * The signed-in user's own client, for server components and route
@@ -39,6 +40,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: resilientSupabaseFetch },
       cookies: {
         getAll() {
           const all = cookieStore.getAll();

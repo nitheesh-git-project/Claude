@@ -6,6 +6,7 @@ import {
   isExpired,
   parseMarker,
 } from "@/lib/impersonation";
+import { resilientSupabaseFetch } from "./resilientFetch";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -14,6 +15,7 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: resilientSupabaseFetch },
       cookies: {
         getAll() {
           return request.cookies.getAll();

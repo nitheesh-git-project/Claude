@@ -556,6 +556,62 @@ client is the only writer and the log is append-only from any session.
   Use it only after an explicit auth check, and never import it into anything
   that can reach the browser.
 
+**Every server-side one of those four shares one `fetch`, and that is not a
+detail.** `src/lib/supabase/resilientFetch.ts` is passed as `global.fetch`
+to `admin.ts`, `public.ts`, `server.ts` and `proxy.ts`, and a new server
+client gets it too. It does three things, each of which is a failure that
+was measured rather than imagined:
+
+1. **It caps how many requests may be in flight to Supabase at once** (96 by
+   default, `SUPABASE_MAX_IN_FLIGHT`). Node's fetch opens a socket per
+   request and will happily open thousands. The admin dashboard fires ~82
+   queries per render, so 40 concurrent admins is ~3,300 requests against
+   one origin: the TLS handshakes queued past undici's 10-second connect
+   timeout and the render's own isolated guards turned the failures into
+   empty panels. Fifteen renders in that run answered **HTTP 200 having
+   lost the appointments table** -- the query that feeds Overview, Calendar,
+   Sessions and every money figure. The database answered 400 concurrent
+   requests in 4.6s with no errors in the same run, so the origin was never
+   what broke.
+2. **It puts a deadline on every request** (20s, `SUPABASE_REQUEST_TIMEOUT_MS`).
+   undici's default body timeout is five minutes, and a socket stuck that
+   long holds a slot the requests behind it need.
+3. **It retries a GET once on a transport error, and never a write.** The
+   ledger RPCs, `record_payment_capture` and `claim_promo_code` are all
+   idempotent, but on keys this layer cannot see -- so the decision to
+   repeat belongs to the caller, and the default is not to. An HTTP error
+   status is never retried either: a 500 from PostgREST is an answer.
+
+The cap is **measured, and a cap that is too tight is its own failure**: at
+40 concurrent renders, 48 gave a p50 of 130s, 96 gave 15.3s and 192 gave
+16.4s. A page render is a chain of query batches rather than one batch, so
+every sequential step pays the queue's whole depth again -- which is why
+halving the cap multiplied latency by eight instead of two. Past ~96 the
+database's own throughput is the limit (flat at ~290ms a query, ~330 queries
+a second, from 8 concurrent to 96), so a higher number buys nothing and only
+widens the burst this exists to stop.
+
+**A read that failed is not a read that came back empty, and the admin
+dashboard now says which.** Every read on that page is isolated so one
+failure costs its own panel -- and the cost of that isolation is that a
+failed read renders as an empty one. `AdminDataLoadBanner` is the sentence
+saying so, above the health banner, for every scope: a `console.error` is
+not a place a clinic owner looks, and a zero meaning "nothing happened" and
+a zero meaning "we could not ask" are opposite facts that render
+identically. The same correction was applied to the two routes where an
+unreadable `home_visit_enabled` was being reported to a patient as the
+clinic having withdrawn the service: `/api/home-visit/check-area` and
+`/api/care-plan/create-order` still refuse (failing closed is the safe
+direction for "do we come to you") but answer **503 "we couldn't check"**
+rather than 403 "home visits aren't available", because those two send a
+patient to two different places.
+
+**One Node process renders everything, and that is the remaining ceiling.**
+With 200 concurrent visitors browsing the public pages (412 requests a
+second sustained, p95 549ms, no errors), one admin dashboard render goes
+from 4.0s to 15.9s -- the process sits at ~200% of the 4 CPUs available and
+the JS thread is the queue. Nothing in the app fixes that; run more workers.
+
 ## Schema conventions
 
 - `supabase/schema.sql` is the single source of truth and is re-runnable:

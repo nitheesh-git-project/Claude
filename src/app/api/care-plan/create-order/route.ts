@@ -189,10 +189,24 @@ export async function POST(request: NextRequest) {
     // admin who turns home visits off has stopped the service; a
     // recommendation written before that must not stay purchasable, or the
     // clinic takes money for visits it is not making.
-    const { data: settingsRow } = await admin
+    //
+    // A failed read is not the switch being off. It still refuses -- taking
+    // money for a visit nobody has confirmed we still make is the worse
+    // direction -- but it says which of the two happened, because "the
+    // clinic has stopped doing home visits" and "we could not check just
+    // now" send the patient to two different places. 503 rather than 403
+    // for the same reason: the caller can retry one and not the other.
+    const { data: settingsRow, error: settingsError } = await admin
       .from("site_settings")
       .select("home_visit_enabled")
       .maybeSingle();
+    if (settingsError) {
+      console.error("care-plan/create-order: could not read home_visit_enabled", settingsError.message);
+      return NextResponse.json(
+        { error: "We couldn't start that payment just now. Please try again." },
+        { status: 503 }
+      );
+    }
     if (settingsRow?.home_visit_enabled !== true) {
       return NextResponse.json(
         { error: "Home visits aren't available right now. Please talk to your therapist." },

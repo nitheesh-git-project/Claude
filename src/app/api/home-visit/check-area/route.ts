@@ -45,10 +45,31 @@ export async function GET(request: NextRequest) {
   // The master switch is checked here too, not only on the page: with it
   // off there is no service to check against, and answering "yes we serve
   // you" from a stale client would be worse than answering nothing.
-  const { data: settingsRow } = await supabase
+  //
+  // The read failing and the switch being off are different answers, and
+  // they used to be the same one. A load test caught it: under enough
+  // concurrency this read timed out, and every caller was told "Home visits
+  // aren't available right now" -- the clinic announcing it had withdrawn a
+  // service, to a patient whose own clinician had just recommended it. That
+  // is this codebase's own rule broken in a new place: a check that could
+  // not be run is not a check that came back negative.
+  //
+  // It still refuses either way, because answering "yes we come to you"
+  // from an unread setting is the worse direction. What changes is what the
+  // caller is told: 503 is "we could not ask", which both callers already
+  // separate from a real answer by gating on res.ok before reading
+  // `serviceable`.
+  const { data: settingsRow, error: settingsError } = await supabase
     .from("site_settings")
     .select("home_visit_enabled")
     .maybeSingle();
+  if (settingsError) {
+    console.error("check-area: could not read home_visit_enabled", settingsError.message);
+    return NextResponse.json(
+      { error: "We couldn't check that pincode just now." },
+      { status: 503 }
+    );
+  }
   if (settingsRow?.home_visit_enabled !== true) {
     return NextResponse.json(
       { error: "Home visits aren't available right now." },
