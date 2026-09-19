@@ -157,6 +157,24 @@ never hand-edited. It quotes real route paths, screen names, setting defaults
 and error strings, so it goes stale the same way the other docs do -- update it
 in the change that makes it wrong.
 
+**There are two of them, and the split is shape rather than scope.** The plan
+above is organised by area -- every patient case together, every admin case
+together, a test-data library at the front -- which is right for looking
+something up and wrong for executing: a tester following it scrolled back to a
+table at the front to find out what to type, then forward again, for every
+case. `docs/qa/run-src/*.md` is the same application written as **one run in
+the order you perform it** (`DrPoojaPhysio-E2E-Run-Order`, same builder, same
+house style). Two rules shape it and are worth keeping: **every value sits on
+the step that needs it**, so there is no data library and no cross-reference to
+one; and **the run seeds itself** -- it resets at Step 1.2 and then creates the
+catalogue, the therapists, the hospital and the patients in the order the
+application itself would have them created, so nothing assumes a fixture that
+arrived from somewhere else. That is also why its ordering is load-bearing: the
+scoped-admin checks sit after the step that creates those admins, rather than
+in a phase that needs a later one to have run first. When a rule changes, both
+documents want the edit -- the plan states it as a case, the run states it as
+an expectation on a step.
+
 `scripts/seed-qa-accounts.mjs` (`npm run seed:qa`) recreates every account
 the manual plan names -- four admins, three patients, three therapists, two
 hospitals -- with the fixture password, straight after a data reset. The reset

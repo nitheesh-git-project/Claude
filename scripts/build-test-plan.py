@@ -41,6 +41,19 @@ DOCS = {
             ("Start here", "Section 6 - STEP 0, Reset the test environment"),
         ],
     },
+    "run": {
+        "src": OUT / "run-src",
+        "basename": "DrPoojaPhysio-E2E-Run-Order",
+        "title": "Dr. Pooja's Physio - E2E Test Run, In Execution Order",
+        "subtitle": "One pass, top to bottom, building its own data as it goes",
+        "meta": [
+            ("Application", "Dr. Pooja's Physio - Next.js 16 · React 19 · Supabase · Razorpay"),
+            ("Document version", "1.0"),
+            ("Audience", "A tester who has never used this application before"),
+            ("Environment", "Throwaway Supabase project · Razorpay test mode · npm run dev"),
+            ("How to use it", "Start at Step 1.1 and do not skip. Every value you need is on the step that needs it."),
+        ],
+    },
     "audit": {
         "src": OUT / "audit-src",
         "basename": "DrPoojaPhysio-QA-Audit-Report",
