@@ -1478,7 +1478,11 @@ clinic's revenue, and the therapist's share all at once -- the therapist is paid
 for delivering rather than for collecting, and the clinic carries the gap.
 
 Read on **Money -> Owed by Patients**, which leads with the total owed and how
-long the oldest unsettled session has been owed. There is deliberately no
+long the oldest unsettled session has been owed. How long that may run before it
+counts as worth chasing is set on that same screen (`pay_later_aged_after_days`,
+60 days by default, 1-365) -- patients who settle weekly want it low, patients
+who settle quarterly want it high, and with no ceiling on what anyone may owe it
+is the only automatic warning there is. There is deliberately no
 ceiling on what a trusted patient may owe, so those two figures are the whole of
 the early warning, alongside a list of pay-later sessions that have been and
 gone and were never marked completed -- the one case where nothing is recorded

@@ -17,16 +17,56 @@
 // 'completed'. Everything below filters on that one word.
 
 /**
- * How long a balance may sit before it is worth a phone call.
+ * How long a balance may sit before it is worth a phone call -- the DEFAULT,
+ * where `site_settings.pay_later_aged_after_days` is the clinic's own answer.
  *
- * A number rather than an admin setting on purpose, for now: a threshold
- * invented before anyone knows the clinic's normal rhythm fires on everyone
- * or on nobody, and 60 days is deliberately generous -- these are patients
- * who settle monthly, so anything under a month is simply the arrangement
- * working. It earns being a setting once there is a real answer to compare
- * it against.
+ * 60 is deliberately generous: these are patients who settle monthly, so
+ * anything under a month is simply the arrangement working.
+ *
+ * It is configurable, where a threshold in this codebase normally is not,
+ * because with no ceiling on what a trusted patient may owe this number is the
+ * only automatic warning the feature has. A clinic settling weekly wants it far
+ * below 60; one settling quarterly wants it above, or the warning is on
+ * permanently and becomes the badge nobody reads. Unset or unreadable resolves
+ * back to here, so a database without the migration behaves exactly as it did.
  */
 export const PAY_LATER_AGED_AFTER_DAYS = 60;
+
+/**
+ * The bounds the column, the route and `readPayLaterAgedAfterDays` all share.
+ *
+ * There is deliberately no zero, unlike `splash_revisit_minutes` and
+ * `journey_step_seconds` where zero means "off". Here it is ambiguous -- it
+ * reads as "chase everything" to one person and "never warn me" to another --
+ * and a warning whose meaning depends on who set it is worse than no setting.
+ * The ceiling is not a policy: past a year the warning is inert anyway, and it
+ * exists so a mistyped 3650 is refused rather than quietly switching the only
+ * automatic warning off.
+ */
+export const MIN_PAY_LATER_AGED_AFTER_DAYS = 1;
+export const MAX_PAY_LATER_AGED_AFTER_DAYS = 365;
+
+/**
+ * What the clinic's stored answer resolves to -- the judgement with the
+ * database taken out, so it is unit-tested rather than only clicked. Same
+ * shape as `decideAutoAssignment` beside `pickAutoAssignTherapist`.
+ *
+ * Anything unusable resolves to the default rather than to a bound. There is
+ * no safe direction to fail in here: this decides the colour of a warning, and
+ * too low is on permanently while too high never fires -- so an unreadable
+ * setting means the behaviour the clinic had before anybody set one.
+ *
+ * Out-of-range is included in "unusable" on purpose. The column's CHECK and
+ * the route both refuse those, but a value typed by hand in the SQL editor
+ * passes neither, and a 0 read back from such a row would paint every balance
+ * amber on the one screen whose job is to make one stand out.
+ */
+export function resolveAgedAfterDays(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isInteger(raw)) return PAY_LATER_AGED_AFTER_DAYS;
+  if (raw < MIN_PAY_LATER_AGED_AFTER_DAYS) return PAY_LATER_AGED_AFTER_DAYS;
+  if (raw > MAX_PAY_LATER_AGED_AFTER_DAYS) return PAY_LATER_AGED_AFTER_DAYS;
+  return raw;
+}
 
 /** A session, as the balance reads it. */
 export type PayLaterAppointment = {

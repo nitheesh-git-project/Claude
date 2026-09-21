@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  PAY_LATER_AGED_AFTER_DAYS,
+  MIN_PAY_LATER_AGED_AFTER_DAYS,
+  MAX_PAY_LATER_AGED_AFTER_DAYS,
+  resolveAgedAfterDays,
   isOpenPayLaterSession,
   computePatientBalance,
   computeClinicReceivable,
@@ -231,5 +235,79 @@ describe("unclosedPayLaterSessions", () => {
   it("ignores prepaid sessions entirely", () => {
     const rows = [session({ status: "confirmed", payment_terms: "prepaid" })];
     expect(unclosedPayLaterSessions(rows, NOW)).toEqual([]);
+  });
+});
+
+// The threshold itself. It is an admin setting with this constant as the
+// default, and these are the bounds the column's CHECK, the route and the
+// reader all share -- so the three cannot drift apart silently.
+describe("the ageing threshold", () => {
+  it("keeps a generous default, since these patients settle monthly", () => {
+    expect(PAY_LATER_AGED_AFTER_DAYS).toBe(60);
+  });
+
+  // Not merely "small": a threshold of 0 reads as "chase everything" to one
+  // person and "never warn me" to another, and a warning whose meaning
+  // depends on who set it is worse than not having one.
+  it("has no zero, and a ceiling that keeps a mistyped 3650 out", () => {
+    expect(MIN_PAY_LATER_AGED_AFTER_DAYS).toBe(1);
+    expect(MAX_PAY_LATER_AGED_AFTER_DAYS).toBe(365);
+  });
+
+  it("holds the default inside its own bounds", () => {
+    expect(PAY_LATER_AGED_AFTER_DAYS).toBeGreaterThanOrEqual(MIN_PAY_LATER_AGED_AFTER_DAYS);
+    expect(PAY_LATER_AGED_AFTER_DAYS).toBeLessThanOrEqual(MAX_PAY_LATER_AGED_AFTER_DAYS);
+  });
+
+  // The boundary the screen colours on, asserted both ways so a change from
+  // >= to > is a failing test rather than a quietly different screen.
+  it("counts a balance exactly at the threshold as aged", () => {
+    const rows = [session({ slot_time: new Date(NOW - 60 * DAY).toISOString() })];
+    expect(oldestOwedAgeDays(rows, NOW)).toBe(60);
+    expect(oldestOwedAgeDays(rows, NOW)! >= 60).toBe(true);
+  });
+
+  it("does not count one a day under it", () => {
+    const rows = [session({ slot_time: new Date(NOW - 59 * DAY).toISOString() })];
+    expect(oldestOwedAgeDays(rows, NOW)! >= 60).toBe(false);
+  });
+
+  // A clinic settling weekly sets this low, and the same rows then read
+  // differently -- which is the whole reason it is a setting.
+  it("moves with the threshold rather than with the sessions", () => {
+    const rows = [session({ slot_time: new Date(NOW - 10 * DAY).toISOString() })];
+    const age = oldestOwedAgeDays(rows, NOW)!;
+    expect(age >= 7).toBe(true);
+    expect(age >= 60).toBe(false);
+  });
+});
+
+describe("resolveAgedAfterDays", () => {
+  it("takes the clinic's own answer when it is usable", () => {
+    expect(resolveAgedAfterDays(7)).toBe(7);
+    expect(resolveAgedAfterDays(1)).toBe(1);
+    expect(resolveAgedAfterDays(365)).toBe(365);
+  });
+
+  // A database without the migration, and the commonest case by far.
+  it("falls back to the default for an unset column", () => {
+    expect(resolveAgedAfterDays(null)).toBe(PAY_LATER_AGED_AFTER_DAYS);
+    expect(resolveAgedAfterDays(undefined)).toBe(PAY_LATER_AGED_AFTER_DAYS);
+  });
+
+  // Typed by hand in the SQL editor, where neither the CHECK nor the route
+  // ran. Zero is the one that matters: it would paint every balance amber on
+  // the one screen whose job is to make one stand out.
+  it("falls back rather than clamping an out-of-range value", () => {
+    expect(resolveAgedAfterDays(0)).toBe(PAY_LATER_AGED_AFTER_DAYS);
+    expect(resolveAgedAfterDays(-5)).toBe(PAY_LATER_AGED_AFTER_DAYS);
+    expect(resolveAgedAfterDays(3650)).toBe(PAY_LATER_AGED_AFTER_DAYS);
+  });
+
+  it("falls back for anything that is not a whole number", () => {
+    expect(resolveAgedAfterDays(30.5)).toBe(PAY_LATER_AGED_AFTER_DAYS);
+    expect(resolveAgedAfterDays("30")).toBe(PAY_LATER_AGED_AFTER_DAYS);
+    expect(resolveAgedAfterDays(NaN)).toBe(PAY_LATER_AGED_AFTER_DAYS);
+    expect(resolveAgedAfterDays(true)).toBe(PAY_LATER_AGED_AFTER_DAYS);
   });
 });

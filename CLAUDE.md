@@ -333,7 +333,11 @@ two apart is what stops an abandoned cart being counted as a debt. The money is
 read on **Money -> Owed by Patients** (`src/lib/patientBalances.ts`), which leads
 with the total and the age of the oldest unsettled session -- there is no ceiling
 on what a trusted patient may owe, so those two figures are the entire early
-warning. See the pay-later rule in `AGENTS.md`.
+warning. How long a balance may sit before it counts as worth chasing is the
+clinic's own (`pay_later_aged_after_days`, 60 days by default, set on that same
+screen beside the figure it colours): it is the only automatic warning the
+feature has, and a clinic settling weekly needs a different number from one
+settling quarterly. See the pay-later rule in `AGENTS.md`.
 
 **The books answer the seven standard questions too.** Money -> Business
 Health reports return on investment, return on ad spend, working capital,

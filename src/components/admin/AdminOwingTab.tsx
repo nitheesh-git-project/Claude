@@ -2,6 +2,7 @@ import Link from "next/link";
 import PagedList from "@/components/dashboard/PagedList";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
+import PayLaterAgeSetting from "@/components/admin/PayLaterAgeSetting";
 import { MoneyTermInfo } from "@/components/admin/MoneyFigure";
 import { formatClinicDateShort } from "@/lib/formatDateTime";
 import { adminScreenHref } from "@/lib/adminNav";
@@ -39,6 +40,7 @@ export default function AdminOwingTab({
   patientNameById,
   nowMs,
   agedAfterDays,
+  canManageSettings = false,
 }: {
   appointments: PayLaterAppointment[];
   payments?: PayLaterPaymentRow[];
@@ -46,6 +48,10 @@ export default function AdminOwingTab({
   nowMs: number;
   /** Past this, a balance is old enough to chase. */
   agedAfterDays: number;
+  /** Gated on SETTINGS, not Money: Finance manages Money but holds settings at
+   *  "none", so /api/admin/update-setting would refuse them -- and a control a
+   *  scope cannot call must not render. */
+  canManageSettings?: boolean;
 }) {
   const { totalPaise, balances } = computeClinicReceivable(appointments, payments);
   const oldestDays = oldestOwedAgeDays(appointments, nowMs);
@@ -158,6 +164,7 @@ export default function AdminOwingTab({
             </p>
           </div>
         </div>
+        {canManageSettings && <PayLaterAgeSetting value={agedAfterDays} />}
       </SurfaceCard>
 
       {/* The one place money can silently fail to exist. Debt, revenue and

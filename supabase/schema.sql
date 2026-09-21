@@ -10989,3 +10989,31 @@ end $$;
 create index if not exists appointments_pay_later_open_idx
   on appointments (patient_id)
   where payment_terms = 'pay_later' and payment_status = 'unpaid';
+
+-- How long a patient's balance may sit before the clinic calls it worth
+-- chasing. Null means "use PAY_LATER_AGED_AFTER_DAYS", the constant in
+-- src/lib/patientBalances.ts, so a database that has not run this migration
+-- behaves exactly as it did.
+--
+-- It is a setting rather than a constant because, with no ceiling on what a
+-- trusted patient may owe, this number is the only automatic warning the
+-- feature has. A clinic whose patients settle weekly wants it far below 60; one
+-- settling quarterly wants it above, or the warning is on permanently and
+-- becomes the badge nobody reads. That is a judgement about this clinic's own
+-- rhythm, and it should not need a release.
+--
+-- There is deliberately NO zero, unlike splash_revisit_minutes and
+-- journey_step_seconds where zero means "off". Here it is ambiguous: it reads
+-- as "chase everything" to one person and "never warn me" to another, and a
+-- warning whose meaning depends on who set it is worse than no setting at all.
+-- The 365 ceiling is not a policy -- past a year the warning is inert anyway --
+-- it is so that a mistyped 3650 is refused rather than quietly switching the
+-- only automatic warning off.
+alter table site_settings add column if not exists pay_later_aged_after_days integer;
+do $$
+begin
+  alter table site_settings add constraint site_settings_pay_later_aged_after_days_check
+    check (pay_later_aged_after_days is null
+           or (pay_later_aged_after_days >= 1 and pay_later_aged_after_days <= 365));
+exception when duplicate_object then null;
+end $$;

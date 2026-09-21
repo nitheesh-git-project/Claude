@@ -41,11 +41,11 @@ import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
 import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
 import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
 import AdminOwingTab from "@/components/admin/AdminOwingTab";
+import { readPayLaterAgedAfterDays } from "@/lib/payLaterSettingsServer";
 import {
   computeClinicReceivable,
   isOpenPayLaterSession,
   oldestOwedAgeDays,
-  PAY_LATER_AGED_AFTER_DAYS,
 } from "@/lib/patientBalances";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
 import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
@@ -691,6 +691,7 @@ export default async function AdminDashboardPage({
     financeSettings,
     missionCopyRow,
     missionPrincipleRows,
+    payLaterAgedAfterDaysSetting,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -916,6 +917,10 @@ export default async function AdminDashboardPage({
         ).data,
       null as MissionPrincipleRecord[] | null
     ),
+    // How long a balance may sit before the clinic calls it worth chasing.
+    // Its own read, and the helper falls back to the constant, so a database
+    // without the column behaves exactly as it did.
+    readPayLaterAgedAfterDays(admin),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -3964,7 +3969,7 @@ export default async function AdminDashboardPage({
   // ordinary; the same amount owed for months is the thing the ageing count
   // exists to surface -- and with no ceiling on what a patient may owe, it is
   // the only automatic warning there is.
-  const payLaterAgedAfterDays = PAY_LATER_AGED_AFTER_DAYS;
+  const payLaterAgedAfterDays = payLaterAgedAfterDaysSetting;
   const payLaterBalances = computeClinicReceivable(appointmentsWithSessionCode);
   const patientsOwingAged = payLaterBalances.balances.filter((b) => {
     const rows = appointmentsWithSessionCode.filter(
@@ -4185,6 +4190,7 @@ export default async function AdminDashboardPage({
           }
           nowMs={nowTimestamp()}
           agedAfterDays={payLaterAgedAfterDays}
+          canManageSettings={scopeCanManage(viewerScope, "settings")}
         />
       </div>
     ),

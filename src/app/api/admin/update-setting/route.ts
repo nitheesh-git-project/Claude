@@ -13,6 +13,10 @@ import {
 import { isContactScanMode } from "@/lib/adminSettings";
 import { MAX_MISSION_LENGTH, MAX_VISION_LENGTH } from "@/lib/mission";
 import { isRunRateBasis } from "@/lib/financeMetrics";
+import {
+  MIN_PAY_LATER_AGED_AFTER_DAYS,
+  MAX_PAY_LATER_AGED_AFTER_DAYS,
+} from "@/lib/patientBalances";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 const ALLOWED_COLUMNS = new Set([
@@ -27,6 +31,11 @@ const ALLOWED_COLUMNS = new Set([
   "first_session_offer_type",
   "first_session_offer_value",
   "promo_codes_enabled",
+  // How long a trusted patient's balance may sit before the clinic calls it
+  // worth chasing. Its control lives on Money -> Owed by Patients rather than
+  // in Settings, beside the figure it colours -- same placement, and same
+  // reasoning, as promo_codes_enabled sitting beside its campaigns.
+  "pay_later_aged_after_days",
   "invite_rewards_enabled",
   "invite_reward_paise",
   "invite_welcome_paise",
@@ -228,6 +237,26 @@ export async function POST(request: NextRequest) {
       { error: "Unknown checking mode." },
       { status: 400 }
     );
+  }
+  // Mirrors the column's own CHECK, so a value the database would reject is
+  // refused here with a sentence rather than a 500. Deliberately NOT in the
+  // non-negative-integer branch below: zero is legitimate for every key there
+  // and is exactly what must not be accepted here -- see the constants' own
+  // comment for why a zero threshold is ambiguous rather than merely small.
+  if (key === "pay_later_aged_after_days") {
+    if (
+      typeof value !== "number" ||
+      !Number.isInteger(value) ||
+      value < MIN_PAY_LATER_AGED_AFTER_DAYS ||
+      value > MAX_PAY_LATER_AGED_AFTER_DAYS
+    ) {
+      return NextResponse.json(
+        {
+          error: `Enter a whole number of days between ${MIN_PAY_LATER_AGED_AFTER_DAYS} and ${MAX_PAY_LATER_AGED_AFTER_DAYS}.`,
+        },
+        { status: 400 }
+      );
+    }
   }
   if (key === "payment_gateway_fee_percent" && !isValidGatewayFeePercent(value)) {
     return NextResponse.json(

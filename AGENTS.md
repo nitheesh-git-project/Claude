@@ -320,6 +320,7 @@ src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
 src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
 src/lib/financeMetrics.ts the seven standard finance figures and their inputs
 src/lib/patientBalances.ts what trusted patients owe, and how long they have
+src/lib/payLaterSettingsServer.ts the clinic's own "worth chasing" threshold
 src/lib/sessionAmount.ts  one session's worth, with each caller's own fallback
 src/lib/financeInputs.ts validation for the three things an owner types in
 src/lib/financeSettingsServer.ts how Business Health reads the same money
@@ -1476,7 +1477,24 @@ before.
      each caller's fallback and leaves it untouched.
   5. **There is no ceiling, by choice**, so the two figures on Money -> Owed by
      Patients are the whole of the early warning: the total, and
-     `oldestOwedAgeDays`. `unclosedPayLaterSessions` is the other half -- debt,
+     `oldestOwedAgeDays` against `site_settings.pay_later_aged_after_days`.
+     That threshold is configurable where one in this codebase normally is not,
+     precisely because it is the only automatic warning the feature has -- a
+     clinic settling weekly wants it far below the 60-day default, one settling
+     quarterly above it, or the warning is on permanently and becomes the badge
+     nobody reads. `PAY_LATER_AGED_AFTER_DAYS` stays as the default and
+     `resolveAgedAfterDays` is the judgement with the database taken out, so an
+     unset, unreadable or hand-edited value resolves back to it rather than to
+     a bound -- there is no safe direction to fail in when the thing being
+     decided is the colour of a warning. There is deliberately **no zero**,
+     unlike `splash_revisit_minutes` and `journey_step_seconds`: here it reads
+     as "chase everything" to one person and "never warn me" to another, and a
+     warning whose meaning depends on who set it is worse than no setting. Its
+     control sits on Money -> Owed by Patients beside the figure it colours
+     rather than in Settings -- the `promo_codes_enabled` placement rule -- but
+     is gated on `scopeCanManage(scope, "settings")`, **not** money: Finance
+     manages Money and holds settings at `none`, so `/api/admin/update-setting`
+     would refuse them. `unclosedPayLaterSessions` is the other half -- debt,
      revenue and the therapist's pay all appear at completion, so a session
      nobody closed produces none of the three and no screen has anything to
      show. Every other failure here is a wrong number; that one is an absent
