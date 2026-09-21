@@ -11017,3 +11017,19 @@ begin
            or (pay_later_aged_after_days >= 1 and pay_later_aged_after_days <= 365));
 exception when duplicate_object then null;
 end $$;
+
+-- Whether that ageing warning is wanted at all.
+--
+-- The switch exists because the number could not carry this meaning. Zero was
+-- refused for pay_later_aged_after_days precisely because it is ambiguous --
+-- "chase everything" to one person, "never warn me" to another -- so a clinic
+-- that does not want the warning had no way to say so, and the only sentence
+-- explaining that was the refusal they met when they tried. A switch says it in
+-- words, and the number is kept while it is off, so turning it back on restores
+-- what the clinic chose rather than the default.
+--
+-- Default true: every clinic that already has this feature keeps the behaviour
+-- it has, and a fresh database gets the only automatic warning the arrangement
+-- has rather than silence.
+alter table site_settings
+  add column if not exists pay_later_age_warning_enabled boolean not null default true;

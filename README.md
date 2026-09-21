@@ -1482,7 +1482,13 @@ long the oldest unsettled session has been owed. How long that may run before it
 counts as worth chasing is set on that same screen (`pay_later_aged_after_days`,
 60 days by default, 1-365) -- patients who settle weekly want it low, patients
 who settle quarterly want it high, and with no ceiling on what anyone may owe it
-is the only automatic warning there is. There is deliberately no
+is the only automatic warning there is. The field says how many patients a
+number would flag before it is saved, names any stored value it could not use,
+and reads as a plain sentence for a desk that cannot change it. Whether the
+warning runs at all is its own switch beside it
+(`pay_later_age_warning_enabled`, on by default) rather than a zero in the
+number: off, nothing turns amber and the Today alert counts zero, while every
+total still shows. There is deliberately no
 ceiling on what a trusted patient may owe, so those two figures are the whole of
 the early warning, alongside a list of pay-later sessions that have been and
 gone and were never marked completed -- the one case where nothing is recorded

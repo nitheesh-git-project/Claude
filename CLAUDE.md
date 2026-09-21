@@ -335,9 +335,17 @@ with the total and the age of the oldest unsettled session -- there is no ceilin
 on what a trusted patient may owe, so those two figures are the entire early
 warning. How long a balance may sit before it counts as worth chasing is the
 clinic's own (`pay_later_aged_after_days`, 60 days by default, set on that same
-screen beside the figure it colours): it is the only automatic warning the
+screen beside the figure it colours, with a live count saying how many patients
+that number would flag before it is saved): it is the only automatic warning the
 feature has, and a clinic settling weekly needs a different number from one
-settling quarterly. See the pay-later rule in `AGENTS.md`.
+settling quarterly. Whether it warns at all is a switch
+(`pay_later_age_warning_enabled`, on) rather than a zero in that number, because
+zero reads as "chase everything" to one person and "never warn me" to another;
+off means nothing turns amber and the Today alert counts zero, while every total
+still shows. A stored number the app cannot use resolves to the 60-day default
+and the screen **says so** rather than quietly disagreeing with its own
+database, and a desk that cannot change the setting reads the rule in a sentence
+instead of meeting a gap where a control should be. See the pay-later rule in `AGENTS.md`.
 
 **The books answer the seven standard questions too.** Money -> Business
 Health reports return on investment, return on ad spend, working capital,

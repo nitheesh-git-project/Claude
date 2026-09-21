@@ -2,18 +2,21 @@ import Link from "next/link";
 import PagedList from "@/components/dashboard/PagedList";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
-import PayLaterAgeSetting from "@/components/admin/PayLaterAgeSetting";
+import PayLaterAgeSetting, { PayLaterAgeNote } from "@/components/admin/PayLaterAgeSetting";
 import { MoneyTermInfo } from "@/components/admin/MoneyFigure";
 import { formatClinicDateShort } from "@/lib/formatDateTime";
 import { adminScreenHref } from "@/lib/adminNav";
+import { ADMIN_SCOPE_LABELS } from "@/lib/adminScope";
 import {
   computeClinicReceivable,
+  isAgedBalance,
   oldestOwedAgeDays,
   unclosedPayLaterSessions,
   isOpenPayLaterSession,
   type PayLaterAppointment,
   type PayLaterPaymentRow,
 } from "@/lib/patientBalances";
+import type { PayLaterAgeSettings } from "@/lib/payLaterSettingsServer";
 
 // Money → Owed by Patients.
 //
@@ -39,20 +42,22 @@ export default function AdminOwingTab({
   payments = [],
   patientNameById,
   nowMs,
-  agedAfterDays,
+  ageSetting,
   canManageSettings = false,
 }: {
   appointments: PayLaterAppointment[];
   payments?: PayLaterPaymentRow[];
   patientNameById: Map<string, string>;
   nowMs: number;
-  /** Past this, a balance is old enough to chase. */
-  agedAfterDays: number;
+  /** How long a balance may sit before it is worth chasing, whether the clinic
+   *  wants to be warned at all, and where that answer came from. */
+  ageSetting: PayLaterAgeSettings;
   /** Gated on SETTINGS, not Money: Finance manages Money but holds settings at
    *  "none", so /api/admin/update-setting would refuse them -- and a control a
-   *  scope cannot call must not render. */
+   *  scope cannot call must not render. They get the note instead of a gap. */
   canManageSettings?: boolean;
 }) {
+  const ageRule = { days: ageSetting.days, enabled: ageSetting.enabled };
   const { totalPaise, balances } = computeClinicReceivable(appointments, payments);
   const oldestDays = oldestOwedAgeDays(appointments, nowMs);
   const unclosed = unclosedPayLaterSessions(appointments, nowMs);
@@ -67,17 +72,26 @@ export default function AdminOwingTab({
 
   const nameOf = (id: string) => patientNameById.get(id) ?? "Unknown patient";
 
+  // Every owing patient's age, so the control below can say what a number
+  // would do before it is saved. Same rows, same ages the cards render.
+  const balanceAgeDays = balances
+    .map((b) => oldestOwedAgeDays(sessionsByPatient.get(b.patientId) ?? [], nowMs))
+    .filter((d): d is number => d !== null);
+
   const items = balances.map((b) => {
     const rows = (sessionsByPatient.get(b.patientId) ?? [])
       .slice()
       .sort((x, y) => (x.slot_time ?? "").localeCompare(y.slot_time ?? ""));
     const oldest = rows[0]?.slot_time ?? null;
     const ageDays = oldestOwedAgeDays(rows, nowMs);
-    const isAged = ageDays !== null && ageDays >= agedAfterDays;
+    const isAged = isAgedBalance(ageDays, ageRule);
 
     return {
       id: b.patientId,
-      group: isAged ? "aged" : "recent",
+      // With the warning off there is no aged/recent distinction to filter by,
+      // so every row is ungrouped and PagedList drops the chips -- a filter
+      // dividing a list into "all of them" and "none" is noise.
+      group: ageSetting.enabled ? (isAged ? "aged" : "recent") : undefined,
       node: (
         <div
           className={`rounded-2xl border p-4 ${
@@ -150,9 +164,7 @@ export default function AdminOwingTab({
             </p>
             <p
               className={`mt-1 text-2xl font-bold ${
-                oldestDays !== null && oldestDays >= agedAfterDays
-                  ? "text-amber-700"
-                  : "text-slate-900"
+                isAgedBalance(oldestDays, ageRule) ? "text-amber-700" : "text-slate-900"
               }`}
             >
               {oldestDays === null ? "-" : `${oldestDays} day${oldestDays === 1 ? "" : "s"}`}
@@ -160,11 +172,25 @@ export default function AdminOwingTab({
             <p className="text-xs text-slate-500">
               {oldestDays === null
                 ? "Nothing outstanding"
-                : `Anything past ${agedAfterDays} days is worth a call`}
+                : ageSetting.enabled
+                  ? `Anything past ${ageSetting.days} days is worth a call`
+                  : "Ageing warnings are off"}
             </p>
           </div>
         </div>
-        {canManageSettings && <PayLaterAgeSetting value={agedAfterDays} />}
+        {canManageSettings ? (
+          <PayLaterAgeSetting
+            setting={ageSetting}
+            enabled={ageSetting.enabled}
+            ageDays={balanceAgeDays}
+          />
+        ) : (
+          <PayLaterAgeNote
+            days={ageSetting.days}
+            enabled={ageSetting.enabled}
+            managerLabel={ADMIN_SCOPE_LABELS.full}
+          />
+        )}
       </SurfaceCard>
 
       {/* The one place money can silently fail to exist. Debt, revenue and
@@ -219,10 +245,14 @@ export default function AdminOwingTab({
             nounPlural="patients"
             storageKey="admin-owing"
             className="space-y-3"
-            filters={[
-              { key: "aged", label: "Owed a while" },
-              { key: "recent", label: "Recent" },
-            ]}
+            filters={
+              ageSetting.enabled
+                ? [
+                    { key: "aged", label: "Owed a while" },
+                    { key: "recent", label: "Recent" },
+                  ]
+                : undefined
+            }
             filterLabel="Show"
           />
         )}

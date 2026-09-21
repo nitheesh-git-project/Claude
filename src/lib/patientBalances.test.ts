@@ -4,6 +4,8 @@ import {
   MIN_PAY_LATER_AGED_AFTER_DAYS,
   MAX_PAY_LATER_AGED_AFTER_DAYS,
   resolveAgedAfterDays,
+  describeAgedAfterDays,
+  isAgedBalance,
   isOpenPayLaterSession,
   computePatientBalance,
   computeClinicReceivable,
@@ -309,5 +311,78 @@ describe("resolveAgedAfterDays", () => {
     expect(resolveAgedAfterDays("30")).toBe(PAY_LATER_AGED_AFTER_DAYS);
     expect(resolveAgedAfterDays(NaN)).toBe(PAY_LATER_AGED_AFTER_DAYS);
     expect(resolveAgedAfterDays(true)).toBe(PAY_LATER_AGED_AFTER_DAYS);
+  });
+});
+
+// The reason beside the number. `resolveAgedAfterDays` above is unchanged and
+// its cases are untouched -- that is the whole guarantee that adding the
+// reason changed no behaviour.
+describe("describeAgedAfterDays", () => {
+  it("reports the clinic's own answer as theirs", () => {
+    expect(describeAgedAfterDays(7)).toEqual({
+      days: 7,
+      source: "clinic",
+      ignoredValue: null,
+    });
+  });
+
+  // The ordinary case, and NOT a fault: nobody chose anything. Reporting it
+  // as an ignored value would put an amber line on every clinic that has
+  // never opened the control.
+  it("reports an unset column as the default with nothing ignored", () => {
+    for (const raw of [null, undefined, "", true]) {
+      expect(describeAgedAfterDays(raw)).toEqual({
+        days: PAY_LATER_AGED_AFTER_DAYS,
+        source: "default",
+        ignoredValue: null,
+      });
+    }
+  });
+
+  // The case the reason exists for: a number IS stored, the screen shows a
+  // different one, and without this nothing on the page reconciles them.
+  it("keeps the unusable number so the screen can say what was ignored", () => {
+    expect(describeAgedAfterDays(3650)).toEqual({
+      days: PAY_LATER_AGED_AFTER_DAYS,
+      source: "default",
+      ignoredValue: 3650,
+    });
+    expect(describeAgedAfterDays(0).ignoredValue).toBe(0);
+    expect(describeAgedAfterDays(-5).ignoredValue).toBe(-5);
+    expect(describeAgedAfterDays(30.5).ignoredValue).toBe(30.5);
+  });
+
+  it("agrees with resolveAgedAfterDays on every input", () => {
+    for (const raw of [7, 1, 365, 0, -5, 3650, 30.5, "30", NaN, null, undefined]) {
+      expect(describeAgedAfterDays(raw).days).toBe(resolveAgedAfterDays(raw));
+    }
+  });
+});
+
+describe("isAgedBalance", () => {
+  const rule = { days: 60, enabled: true };
+
+  // Exactly at the threshold counts. "More than 60 days" and "60 days or
+  // more" differ by one patient on the day it matters.
+  it("counts a balance exactly at the threshold", () => {
+    expect(isAgedBalance(60, rule)).toBe(true);
+    expect(isAgedBalance(61, rule)).toBe(true);
+    expect(isAgedBalance(59, rule)).toBe(false);
+  });
+
+  it("is never aged when there is nothing owed", () => {
+    expect(isAgedBalance(null, rule)).toBe(false);
+  });
+
+  // The switch, not a zero threshold: off means no warning at all, whatever
+  // the number beside it says, and the number is kept rather than cleared.
+  it("warns about nothing while the warning is switched off", () => {
+    expect(isAgedBalance(3650, { days: 60, enabled: false })).toBe(false);
+    expect(isAgedBalance(0, { days: 1, enabled: false })).toBe(false);
+  });
+
+  it("moves with the clinic's own number", () => {
+    expect(isAgedBalance(10, { days: 7, enabled: true })).toBe(true);
+    expect(isAgedBalance(10, { days: 30, enabled: true })).toBe(false);
   });
 });

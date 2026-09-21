@@ -41,9 +41,10 @@ import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
 import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
 import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
 import AdminOwingTab from "@/components/admin/AdminOwingTab";
-import { readPayLaterAgedAfterDays } from "@/lib/payLaterSettingsServer";
+import { readPayLaterAgeSettings } from "@/lib/payLaterSettingsServer";
 import {
   computeClinicReceivable,
+  isAgedBalance,
   isOpenPayLaterSession,
   oldestOwedAgeDays,
 } from "@/lib/patientBalances";
@@ -691,7 +692,7 @@ export default async function AdminDashboardPage({
     financeSettings,
     missionCopyRow,
     missionPrincipleRows,
-    payLaterAgedAfterDaysSetting,
+    payLaterAgeSetting,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -920,7 +921,7 @@ export default async function AdminDashboardPage({
     // How long a balance may sit before the clinic calls it worth chasing.
     // Its own read, and the helper falls back to the constant, so a database
     // without the column behaves exactly as it did.
-    readPayLaterAgedAfterDays(admin),
+    readPayLaterAgeSettings(admin),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -3969,14 +3970,20 @@ export default async function AdminDashboardPage({
   // ordinary; the same amount owed for months is the thing the ageing count
   // exists to surface -- and with no ceiling on what a patient may owe, it is
   // the only automatic warning there is.
-  const payLaterAgedAfterDays = payLaterAgedAfterDaysSetting;
   const payLaterBalances = computeClinicReceivable(appointmentsWithSessionCode);
+  // One judgement, three readers -- this count, the total's colour and each
+  // patient card's amber -- so the figure on Today agrees with the rows the
+  // screen it links to actually paints. With the warning switched off it is
+  // zero rather than hidden: an alert row nothing can bring down is worse
+  // than no row.
   const patientsOwingAged = payLaterBalances.balances.filter((b) => {
     const rows = appointmentsWithSessionCode.filter(
       (a) => a.patient_id === b.patientId && isOpenPayLaterSession(a)
     );
-    const age = oldestOwedAgeDays(rows, nowTimestamp());
-    return age !== null && age >= payLaterAgedAfterDays;
+    return isAgedBalance(oldestOwedAgeDays(rows, nowTimestamp()), {
+      days: payLaterAgeSetting.days,
+      enabled: payLaterAgeSetting.enabled,
+    });
   }).length;
 
   const moneyAlerts = (
@@ -4189,7 +4196,7 @@ export default async function AdminDashboardPage({
             )
           }
           nowMs={nowTimestamp()}
-          agedAfterDays={payLaterAgedAfterDays}
+          ageSetting={payLaterAgeSetting}
           canManageSettings={scopeCanManage(viewerScope, "settings")}
         />
       </div>

@@ -36,6 +36,10 @@ const ALLOWED_COLUMNS = new Set([
   // in Settings, beside the figure it colours -- same placement, and same
   // reasoning, as promo_codes_enabled sitting beside its campaigns.
   "pay_later_aged_after_days",
+  // Whether that ageing warning runs at all. A switch rather than a zero in
+  // the number above, because zero there reads as "chase everything" to one
+  // person and "never warn me" to another.
+  "pay_later_age_warning_enabled",
   "invite_rewards_enabled",
   "invite_reward_paise",
   "invite_welcome_paise",
@@ -196,7 +200,8 @@ export async function POST(request: NextRequest) {
       key === "finance_cogs_partner_share" ||
       key === "finance_cogs_payment_fees" ||
       key === "finance_include_app_balances" ||
-      key === "splash_enabled") &&
+      key === "splash_enabled" ||
+      key === "pay_later_age_warning_enabled") &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });

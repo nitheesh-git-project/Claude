@@ -46,9 +46,23 @@ export const PAY_LATER_AGED_AFTER_DAYS = 60;
 export const MIN_PAY_LATER_AGED_AFTER_DAYS = 1;
 export const MAX_PAY_LATER_AGED_AFTER_DAYS = 365;
 
+/** What the clinic's stored answer came to, and why. */
+export type AgedAfterDays = {
+  /** The number in force. */
+  days: number;
+  /** Whether that number is the clinic's own or the built-in default. */
+  source: "clinic" | "default";
+  /**
+   * The stored number that could not be used, when that is why the default is
+   * in force. Null for the ordinary unset case, which is not a fault and must
+   * not be reported as one.
+   */
+  ignoredValue: number | null;
+};
+
 /**
- * What the clinic's stored answer resolves to -- the judgement with the
- * database taken out, so it is unit-tested rather than only clicked. Same
+ * What the clinic's stored answer resolves to, and why -- the judgement with
+ * the database taken out, so it is unit-tested rather than only clicked. Same
  * shape as `decideAutoAssignment` beside `pickAutoAssignTherapist`.
  *
  * Anything unusable resolves to the default rather than to a bound. There is
@@ -60,12 +74,61 @@ export const MAX_PAY_LATER_AGED_AFTER_DAYS = 365;
  * the route both refuse those, but a value typed by hand in the SQL editor
  * passes neither, and a 0 read back from such a row would paint every balance
  * amber on the one screen whose job is to make one stand out.
+ *
+ * It carries the REASON rather than only the number because a fallback nobody
+ * is told about is a screen disagreeing with its own database: the figure says
+ * 60, the row says 3650, and nothing on the page reconciles them. The same
+ * correction the admin dashboard's failed-read banner makes -- a value that
+ * could not be used is not a value that was never set.
+ */
+export function describeAgedAfterDays(raw: unknown): AgedAfterDays {
+  const fallback = (ignoredValue: number | null): AgedAfterDays => ({
+    days: PAY_LATER_AGED_AFTER_DAYS,
+    source: "default",
+    ignoredValue,
+  });
+  // Unset, null, or a type nothing could have meant: nobody chose anything.
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return fallback(null);
+  // A number that IS there and cannot be used -- the case worth a sentence.
+  if (!Number.isInteger(raw)) return fallback(raw);
+  if (raw < MIN_PAY_LATER_AGED_AFTER_DAYS) return fallback(raw);
+  if (raw > MAX_PAY_LATER_AGED_AFTER_DAYS) return fallback(raw);
+  return { days: raw, source: "clinic", ignoredValue: null };
+}
+
+/**
+ * The number alone. Kept exactly as it was so every existing caller and every
+ * existing test is untouched by the split -- which is the whole guarantee that
+ * adding the reason changed no behaviour.
  */
 export function resolveAgedAfterDays(raw: unknown): number {
-  if (typeof raw !== "number" || !Number.isInteger(raw)) return PAY_LATER_AGED_AFTER_DAYS;
-  if (raw < MIN_PAY_LATER_AGED_AFTER_DAYS) return PAY_LATER_AGED_AFTER_DAYS;
-  if (raw > MAX_PAY_LATER_AGED_AFTER_DAYS) return PAY_LATER_AGED_AFTER_DAYS;
-  return raw;
+  return describeAgedAfterDays(raw).days;
+}
+
+/**
+ * The ageing warning as the screens read it: how many days, and whether the
+ * clinic wants to be warned at all.
+ *
+ * `enabled` is a switch rather than a zero in `days`, because zero here is
+ * ambiguous -- it reads as "chase everything" to one person and "never warn
+ * me" to another. The switch says which in words, and `days` is kept while it
+ * is off so switching back on restores the number the clinic chose rather than
+ * the default.
+ */
+export type PayLaterAgeRule = { days: number; enabled: boolean };
+
+/**
+ * Is this balance old enough to chase?
+ *
+ * One answer for the three readers -- the total's colour, each patient card's
+ * amber, and the alert count on Today -- because a count that disagrees with
+ * the rows beneath it is the failure this codebase corrects most often.
+ * Exactly at the threshold counts; one day under does not.
+ */
+export function isAgedBalance(ageDays: number | null, rule: PayLaterAgeRule): boolean {
+  if (!rule.enabled) return false;
+  if (ageDays === null) return false;
+  return ageDays >= rule.days;
 }
 
 /** A session, as the balance reads it. */

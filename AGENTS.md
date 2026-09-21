@@ -1483,13 +1483,31 @@ before.
      clinic settling weekly wants it far below the 60-day default, one settling
      quarterly above it, or the warning is on permanently and becomes the badge
      nobody reads. `PAY_LATER_AGED_AFTER_DAYS` stays as the default and
-     `resolveAgedAfterDays` is the judgement with the database taken out, so an
+     `describeAgedAfterDays` is the judgement with the database taken out, so an
      unset, unreadable or hand-edited value resolves back to it rather than to
      a bound -- there is no safe direction to fail in when the thing being
-     decided is the colour of a warning. There is deliberately **no zero**,
+     decided is the colour of a warning. `resolveAgedAfterDays` is that
+     function's `.days` and keeps its exact old signature, which is what makes
+     adding the reason provably behaviour-free: every one of its existing tests
+     passes unmodified. There is deliberately **no zero**,
      unlike `splash_revisit_minutes` and `journey_step_seconds`: here it reads
      as "chase everything" to one person and "never warn me" to another, and a
-     warning whose meaning depends on who set it is worse than no setting. Its
+     warning whose meaning depends on who set it is worse than no setting --
+     so "off" is its own switch, `pay_later_age_warning_enabled` (on by
+     default), which keeps the number while it is off so switching back on
+     restores what the clinic chose rather than the default. `isAgedBalance` is
+     the one answer its three readers share -- the total's colour, each patient
+     card's amber, and the `patients_owing_aged` count on Today -- so a count
+     cannot disagree with the rows it links to; with the warning off that count
+     is **zero rather than hidden**, since an alert row nothing can bring down
+     is worse than no row. Three things the screen used to know and not say, it
+     says now: a stored value that could not be used is named beside the number
+     in force (the screen and the database disagreeing with nothing
+     reconciling them is the failure `AdminDataLoadBanner` exists for, one
+     setting down), the days field carries a live "N of M patients would show
+     as worth chasing" computed from the ages already on the page, and a scope
+     that cannot manage settings gets `PayLaterAgeNote` -- the rule plus who
+     owns it -- rather than an absence that reads as a half-built screen. Its
      control sits on Money -> Owed by Patients beside the figure it colours
      rather than in Settings -- the `promo_codes_enabled` placement rule -- but
      is gated on `scopeCanManage(scope, "settings")`, **not** money: Finance
