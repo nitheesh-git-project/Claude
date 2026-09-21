@@ -41,6 +41,11 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     on: "Patients can now pay the therapist at the door.",
     off: "Cash on visit is off. Home visits must be prepaid.",
   },
+  pay_later_enabled: {
+    kind: "boolean",
+    on: "Trusted patients can now be treated first and settle afterwards.",
+    off: "Nobody new can be put on pay later. Anything already owed is still owed, and can still be settled.",
+  },
   pay_later_age_warning_enabled: {
     kind: "boolean",
     on: "Balances that sit too long will turn amber.",

@@ -14,6 +14,7 @@ import SessionDetailDrawer, {
 } from "@/components/admin/SessionDetailDrawer";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { describeSessionPayment } from "@/lib/sessionPaymentState";
 
 type Category = {
   id: string;
@@ -29,6 +30,13 @@ type Category = {
 // propagation) now opens the same SessionDetailDrawer already used in the
 // Calendar/Session Story tabs, so rating/feedback/cancellation detail is
 // reachable from here too.
+const PAYMENT_CHIP_TONE: Record<string, string> = {
+  good: "text-green-700 bg-green-50",
+  warn: "text-amber-700 bg-amber-50",
+  bad: "text-red-700 bg-red-50",
+  neutral: "text-slate-600 bg-slate-100",
+};
+
 export default function ProfileSessionList({
   variant,
   appointments,
@@ -104,15 +112,20 @@ export default function ProfileSessionList({
                   <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
                     {a.status}
                   </span>
-                  <span
-                    className={`capitalize font-semibold px-2.5 py-1 rounded-full ${
-                      a.payment_status === "paid"
-                        ? "text-green-700 bg-green-50"
-                        : "text-slate-600 bg-slate-100"
-                    }`}
-                  >
-                    {a.payment_status}
-                  </span>
+                  {/* Read through the one module rather than printing the
+                      column, or a trusted patient's delivered session says
+                      "unpaid" beside an abandoned checkout saying the same
+                      word -- on the screen an admin chases people from. */}
+                  {(() => {
+                    const pay = describeSessionPayment(a);
+                    return (
+                      <span
+                        className={`font-semibold px-2.5 py-1 rounded-full ${PAYMENT_CHIP_TONE[pay.tone]}`}
+                      >
+                        {pay.label}
+                      </span>
+                    );
+                  })()}
                   {/* Beside the payment, because it is the same question
                       asked in the other direction. This list is where the
                       gap was reported: an admin refunded from a patient's

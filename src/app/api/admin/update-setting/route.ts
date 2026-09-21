@@ -35,6 +35,9 @@ const ALLOWED_COLUMNS = new Set([
   // worth chasing. Its control lives on Money -> Owed by Patients rather than
   // in Settings, beside the figure it colours -- same placement, and same
   // reasoning, as promo_codes_enabled sitting beside its campaigns.
+  // Whether anybody may be treated on pay-later terms at all. Off for its
+  // first release, and read everywhere else in its own call failing closed.
+  "pay_later_enabled",
   "pay_later_aged_after_days",
   // Whether that ageing warning runs at all. A switch rather than a zero in
   // the number above, because zero there reads as "chase everything" to one
@@ -201,7 +204,8 @@ export async function POST(request: NextRequest) {
       key === "finance_cogs_payment_fees" ||
       key === "finance_include_app_balances" ||
       key === "splash_enabled" ||
-      key === "pay_later_age_warning_enabled") &&
+      key === "pay_later_age_warning_enabled" ||
+      key === "pay_later_enabled") &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });

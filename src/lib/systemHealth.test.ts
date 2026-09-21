@@ -25,6 +25,17 @@ const ALL_WELL: SystemHealthInput = {
   accounting: CLEAN_ACCOUNTING,
   openAccessEnabled: true,
   rateLimitIdentity: { observed: 12, identified: 12, anonymous: 0, allOneCaller: false },
+  payLater: {
+    patientsOnTerms: 2,
+    featureEnabled: true,
+    totalOwedPaise: 0,
+    patientsOwing: 0,
+    oldestOwedAgeDays: null,
+    agedAfterDays: 60,
+    ageWarningEnabled: true,
+    patientsOwingAged: 0,
+    unclosedSessions: 0,
+  },
 };
 
 describe("buildSystemHealth", () => {
@@ -84,7 +95,7 @@ describe("buildSystemHealth", () => {
 
   it("reports every check healthy when nothing is wrong", () => {
     const checks = buildSystemHealth(ALL_WELL);
-    expect(checks).toHaveLength(6);
+    expect(checks).toHaveLength(7);
     expect(checks.every((c) => c.status === "healthy")).toBe(true);
     // A healthy check must not ask the reader to do anything.
     expect(checks.every((c) => c.fix.length === 0)).toBe(true);
@@ -337,7 +348,7 @@ describe("summarizeHealth", () => {
     const summary = summarizeHealth(buildSystemHealth(ALL_WELL));
     expect(summary.needsPerson).toBe(0);
     expect(summary.worst).toBe("healthy");
-    expect(summary.headline).toBe("All 6 checks healthy");
+    expect(summary.headline).toBe("All 7 checks healthy");
     expect(summary.attention).toHaveLength(0);
   });
 

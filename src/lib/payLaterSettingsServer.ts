@@ -66,3 +66,30 @@ export async function readPayLaterAgeSettings(
     return DEFAULT_PAY_LATER_AGE_SETTINGS;
   }
 }
+
+/**
+ * Whether anybody may be treated on pay-later terms at all.
+ *
+ * Read in its own call for the same migration-dependent reason as the pair
+ * above, and failing **CLOSED** -- the opposite direction from the ageing
+ * threshold beside it, and deliberately so. That one decides the colour of a
+ * warning, where neither direction is safe; this one decides whether a
+ * session may be delivered without money, and an unreadable answer that
+ * charges the patient is recoverable in a way the reverse is not.
+ *
+ * It gates NEW bookings only. Switching it off must never strand money
+ * already owed: those sessions stay owed, stay listed and stay settleable,
+ * because a stop that hides a debt is worse than no stop.
+ */
+export async function readPayLaterEnabled(admin: AdminClient): Promise<boolean> {
+  try {
+    const { data, error } = await admin
+      .from("site_settings")
+      .select("pay_later_enabled")
+      .maybeSingle();
+    if (error) return false;
+    return data?.pay_later_enabled === true;
+  } catch {
+    return false;
+  }
+}

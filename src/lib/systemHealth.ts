@@ -41,7 +41,8 @@ export type HealthCheckId =
   | "sync"
   | "waiting_room"
   | "accounting"
-  | "rate_limits";
+  | "rate_limits"
+  | "pay_later";
 
 export type HealthCheck = {
   id: HealthCheckId;
@@ -71,6 +72,29 @@ export type HealthCheck = {
   evidence: string[];
 };
 
+/**
+ * What the pay-later check reads. Absent (`null`) means the database has not
+ * had the columns applied, and the check reports "Not set up" -- which is how
+ * an unapplied migration becomes a line on a screen somebody already reads
+ * rather than a failure discovered by a patient.
+ */
+export type PayLaterHealth = {
+  /** How many patients the clinic has put on terms. */
+  patientsOnTerms: number;
+  /** The clinic-wide switch. */
+  featureEnabled: boolean;
+  totalOwedPaise: number;
+  patientsOwing: number;
+  /** The oldest unsettled session, in whole days. Null when nothing is owed. */
+  oldestOwedAgeDays: number | null;
+  /** Past this, the clinic calls a balance worth chasing. */
+  agedAfterDays: number;
+  ageWarningEnabled: boolean;
+  patientsOwingAged: number;
+  /** Sessions that have been and gone and were never marked completed. */
+  unclosedSessions: number;
+};
+
 export type SystemHealthInput = {
   /** Whether RAZORPAY_WEBHOOK_SECRET is set in the server environment. */
   webhookSecretConfigured: boolean;
@@ -94,6 +118,8 @@ export type SystemHealthInput = {
     anonymous: number;
     allOneCaller: boolean;
   };
+  /** Null when the columns have not been applied -- see PayLaterHealth. */
+  payLater?: PayLaterHealth | null;
 };
 
 const STATUS_RANK: Record<HealthStatus, number> = {
@@ -555,6 +581,116 @@ function rateLimitCheck(
 }
 
 
+/**
+ * Patients the clinic has agreed to be paid by afterwards.
+ *
+ * Three things decide the shape, and all three are the same rule: **owing
+ * money is not a fault**. A patient on terms owing a large sum is the
+ * arrangement working, so it is never red; the only red here is an internal
+ * inconsistency, and there is exactly one that matters at this stage -- a
+ * session that has been and gone and was never closed, because debt, revenue
+ * and the therapist's own pay all appear at completion and none of the three
+ * exists until somebody taps it.
+ *
+ * `off` is not a fault either. An owner who has not switched this on, or has
+ * nobody on terms, has not got a problem, and painting that red is how red
+ * stops meaning anything.
+ */
+function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
+  const base = {
+    id: "pay_later" as const,
+    label: "Pay Later",
+    icon: "fa-handshake-angle",
+    what: "Patients you have allowed to pay after their sessions: how much they owe, how long it has been owed, and any session that has happened but was never marked done - which is the one case where nothing is recorded anywhere at all.",
+    example:
+      "A session on Tuesday was delivered and nobody closed it. The patient is not billed for it, the clinic counts no revenue for it, and the therapist is not paid for it - and no screen has anything to show, because as far as the app knows it never happened.",
+  };
+
+  if (!health) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Cannot be checked - this database has not had the latest columns applied yet.",
+      fix: [
+        "Run scripts/run-schema.mjs against this database, or push to main, which applies it for you.",
+        "Reload this page. The check starts reporting straight away.",
+      ],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  const money = `₹${Math.round(health.totalOwedPaise / 100).toLocaleString("en-IN")}`;
+  const evidence = [
+    `${plural(health.patientsOnTerms, "patient", "patients")} allowed to pay later`,
+    `${money} owed by ${plural(health.patientsOwing, "patient", "patients")}`,
+    health.oldestOwedAgeDays === null
+      ? "Nothing outstanding"
+      : `Oldest unsettled session: ${plural(health.oldestOwedAgeDays, "day", "days")}`,
+    health.ageWarningEnabled
+      ? `Worth chasing after ${plural(health.agedAfterDays, "day", "days")}`
+      : "Ageing warnings are switched off",
+  ];
+
+  if (!health.featureEnabled && health.patientsOnTerms === 0) {
+    return {
+      ...base,
+      status: "off",
+      headline: "Pay later is not in use.",
+      fix: [],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  // The one genuine inconsistency: work delivered that produced no record of
+  // itself anywhere. Amber rather than red -- it asks for a person, and a
+  // person can fix it in one tap.
+  if (health.unclosedSessions > 0) {
+    return {
+      ...base,
+      status: "attention",
+      headline: `${plural(health.unclosedSessions, "session", "sessions")} happened and were never marked done, so nothing has been recorded for them.`,
+      fix: [
+        "Open Money -> Owed by Patients. The sessions are listed under 'Sessions that were never closed'.",
+        "Open each one on All Sessions and mark it done, once you are sure it went ahead.",
+        "The money appears everywhere at once - what the patient owes, your revenue, and the therapist's share.",
+      ],
+      count: health.unclosedSessions,
+      evidence,
+    };
+  }
+
+  if (health.ageWarningEnabled && health.patientsOwingAged > 0) {
+    return {
+      ...base,
+      status: "attention",
+      headline: `${plural(health.patientsOwingAged, "patient has", "patients have")} owed for longer than ${plural(health.agedAfterDays, "day", "days")}.`,
+      fix: [
+        "Open Money -> Owed by Patients. The patients are at the top of the list, in amber.",
+        "Give them a call. These are people you chose to trust, so this is a reminder rather than a concern.",
+        "If somebody has stopped paying altogether, turn pay later off on their profile. What they already owe stays owed.",
+      ],
+      count: health.patientsOwingAged,
+      evidence,
+    };
+  }
+
+  return {
+    ...base,
+    status: "healthy",
+    headline:
+      health.patientsOwing === 0
+        ? `${plural(health.patientsOnTerms, "patient", "patients")} can pay later, and nobody owes anything.`
+        : `${money} owed by ${plural(health.patientsOwing, "patient", "patients")}, all within ${plural(health.agedAfterDays, "day", "days")}.`,
+    fix: [],
+    count: 0,
+    // Empty, like every other healthy check: evidence exists to decide
+    // whether the steps above apply, and a healthy check has no steps.
+    evidence: [],
+  };
+}
+
 export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
   const googleDown = input.google?.state === "broken";
   return [
@@ -564,6 +700,7 @@ export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
     waitingRoomCheck(input.waitingRoomIssues, input.openAccessEnabled),
     accountingCheck(input.accounting),
     rateLimitCheck(input.rateLimitIdentity),
+    payLaterCheck(input.payLater ?? null),
   ];
 }
 

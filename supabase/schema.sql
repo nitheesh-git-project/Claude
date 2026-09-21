@@ -11033,3 +11033,59 @@ end $$;
 -- has rather than silence.
 alter table site_settings
   add column if not exists pay_later_age_warning_enabled boolean not null default true;
+
+-- ---------------------------------------------------------------------------
+-- Pay later, phase 2: the privilege itself.
+-- ---------------------------------------------------------------------------
+-- Who may be treated first and settle afterwards. Granted by an admin, never
+-- self-served and never inferred from behaviour: these are a handful of
+-- long-standing patients the clinic has decided to trust, and "decided" is the
+-- operative word -- there is no ceiling on what one of them may owe, so the
+-- grant is the only control there is.
+alter table profiles add column if not exists pay_later_enabled boolean not null default false;
+alter table profiles add column if not exists pay_later_reason text;
+alter table profiles add column if not exists pay_later_granted_by uuid references profiles(id);
+alter table profiles add column if not exists pay_later_granted_at timestamptz;
+
+-- The reason is enforced here and not only in the route, for the reason
+-- appointments_goodwill_needs_reason is: this is a column an admin's own
+-- discretion is written into, and extending credit that nobody can explain
+-- later is indistinguishable from a mistake. Ten characters, the same floor
+-- an admin credit adjustment and an impersonation reason both use.
+--
+-- Revoking leaves the reason in place: the CHECK is vacuous while disabled,
+-- and why terms were granted stays on the record after they are stopped.
+alter table profiles drop constraint if exists profiles_pay_later_needs_reason;
+alter table profiles add constraint profiles_pay_later_needs_reason check (
+  pay_later_enabled = false
+  or char_length(btrim(coalesce(pay_later_reason, ''))) >= 10
+);
+
+-- The master switch, off for its first release. Read in its own call and
+-- failing CLOSED -- an unreadable answer to "may anyone be treated without
+-- paying" charges the patient, which is the recoverable direction.
+alter table site_settings add column if not exists pay_later_enabled boolean not null default false;
+
+-- Two risk rules, under their own heading on the Risk screen. A flag here is
+-- never an accusation and carries no penalty, which matters double for this
+-- population: these are patients the clinic chose to extend terms to, so the
+-- rules are reminders rather than concerns.
+--
+-- A third rule -- a patient whose declared payments keep being rejected --
+-- belongs with the declarations it counts, and lands in the phase that builds
+-- them. A rule that can never fire is a queue nobody reads.
+insert into risk_rules (rule_key, label, description, enabled, config)
+select 'pay_later_aged',
+       'A trusted patient has owed for a while',
+       'The oldest unsettled session for a patient on pay-later terms has passed the clinic''s own "worth chasing" threshold. Enabled despite having no baseline, unlike the two rules that ship off: the population is tiny and hand-picked, and with no ceiling on what one may owe this is the only automatic warning the arrangement has.',
+       true,
+       '{}'::jsonb
+where not exists (select 1 from risk_rules where rule_key = 'pay_later_aged');
+
+insert into risk_rules (rule_key, label, description, enabled, config)
+select 'pay_later_balance_high',
+       'One trusted patient owes far more than the others',
+       'A patient on pay-later terms owes well above what the rest do. Disabled until there is a clinic baseline to compare against - a threshold invented before anyone knows the normal figure fires on everyone or on nobody.',
+       false,
+       '{"balancePaise": 5000000}'::jsonb
+where not exists (select 1 from risk_rules where rule_key = 'pay_later_balance_high');

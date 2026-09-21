@@ -1517,6 +1517,79 @@ before.
      nobody closed produces none of the three and no screen has anything to
      show. Every other failure here is a wrong number; that one is an absent
      number, which nothing else would catch.
+  6. **The privilege is granted, never inferred, and every guard ships before
+     it can be used.** `/api/admin/set-patient-pay-later` takes
+     `requireAdminScope("money")` -- extending credit is a money capability
+     whatever screen the control sits on, which is also why
+     `PatientDetailContent` computes `scopeCanManage(viewer.scope, "money")`
+     for the card rather than reusing that page's `canSeeMoney`, which is the
+     looser `scopeCanOpen`. A ten-character reason is required to **grant**
+     and not to stop: this is the opposite split from the care-plan review,
+     because the thing being explained is the risk, and here the risk is the
+     grant. It is enforced by the route and by
+     `profiles_pay_later_needs_reason`, and revoking leaves the reason in
+     place -- the CHECK is vacuous while disabled, and why terms were given
+     stays on the record after they are stopped. A **hospital-referred**
+     patient is refused outright: a partner's commission is taken on net
+     revenue and revenue is recognised at completion, so terms would have the
+     clinic owing a cut on money it has not received, and deferring the
+     partner's share to settlement instead would break
+     `clinic share = net - therapist - partner`, which is worse than the
+     problem. One master switch, `site_settings.pay_later_enabled`, off for
+     its first release, read in its own call and failing **closed** -- the
+     opposite direction from the ageing threshold beside it, because that one
+     decides the colour of a warning where neither direction is safe, and this
+     one decides whether work may be delivered without money. It gates
+     **granting** and never stopping, and never a debt already owed.
+     Seven guards land in the same change and are **inert by construction** on
+     the day they land, since nothing can carry `pay_later` until the booking
+     path exists -- which is the point of the ordering: each guard is in place
+     before the thing it guards can exist, so the feature never has a window
+     where it looks broken. `detectCompletionWithoutPayment` and
+     `readSessionsWithoutBacking` both stop counting a session on terms
+     (it **is** backed: the sale is recorded, the revenue counted and the debt
+     on its own screen -- without this every session one of these patients
+     ever has is a high-severity signal and a permanent red row);
+     `complete-session` gains a fourth allowance beside paid, programme and
+     cash, because completing is what *creates* the debt and refusing would
+     make the one session that must be closed the one that cannot be;
+     `assign-appointment` confirms on terms as well as on payment, or the row
+     never leaves `requested` and can never be completed; `TherapistSessionCards`
+     drops `cashDue`, since chasing a trusted patient at a door that does not
+     exist is what the platform's own communication rules exist to prevent;
+     `dashboardFeed` branches its "Payment not completed" item, which was
+     telling a patient their booked session was not booked, and the
+     replacement is informational and **never** `needsYou` -- there is nothing
+     for them to do, and pinning it would put a permanent to-do on the
+     dashboard of the patients the clinic trusts most. And every chip reads
+     `src/lib/sessionPaymentState.ts`, shaped on `refundState.ts` for the same
+     reason: three surfaces printed `payment_status` raw, so a delivered
+     session on terms said **"Unpaid"** beside an abandoned checkout saying the
+     same word, on the screen an admin chases people from. `payment_terms` is
+     added to every reader through an **isolated** read merged by id, never to
+     a shared select -- verified against a live database missing the columns:
+     PostgREST answers `42703`, supabase-js resolves rather than rejects, the
+     `Promise.all` survives, the card reads "off" and the switch fails closed.
+     **System Health carries a seventh check**, `pay_later`. `off` when the
+     switch is off and nobody is on terms, and **owing money is never a
+     fault** -- a patient on terms owing a large sum is the arrangement
+     working. Its one amber state that matters is `unclosedSessions`: a
+     session that happened and was never marked done produces no debt, no
+     revenue and no therapist pay, and no screen has anything to show, which
+     is the only place in this design where money can silently fail to exist.
+     Its input is null on an unmigrated database and the check reads
+     **"Not set up"**, so an unapplied migration becomes a line on a screen
+     somebody already reads. **Risk carries two rules**, both
+     `RISK_RULE_DOMAIN: "money"`, under their own heading *Trusted patients --
+     follow up*: `pay_later_aged` ships **enabled** despite the no-baseline
+     rule that keeps `plan_conversion_low` off, because the population is tiny
+     and hand-picked so a threshold cannot fire on everyone, and it is the
+     only automatic warning an arrangement with no ceiling has -- it reads the
+     admin's own threshold rather than its own config, so the amber on the
+     screen and the signal can never disagree about what "a while" means;
+     `pay_later_balance_high` ships **disabled**. A third rule counting
+     rejected declarations waits for the phase that builds them, because a
+     rule that can never fire is a queue nobody reads.
 
 - **A therapist asserts that money changed hands; the system owns the
   number.** `/api/therapist/record-cash-collection` used to accept

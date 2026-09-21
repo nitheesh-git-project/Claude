@@ -95,6 +95,11 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "pain_assessment.create": "sessions",
 
   // money
+  // Extending credit is a money capability, whatever screen the control
+  // sits on -- the route guards with requireAdminScope("money") and the
+  // two must agree, or the feed offers a row whose screen the reader is
+  // refused at.
+  "patient.set_pay_later": "money",
   "payment.goodwill_discount": "money",
   "payout.settle": "money",
   "payout_request.start_review": "money",

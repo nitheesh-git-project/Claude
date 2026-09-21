@@ -92,6 +92,10 @@ export type FeedAppointment = {
   status: string;
   visit_mode?: string | null;
   payment_status?: string | null;
+  /** Optional for the same reason as `refund_status` below: a feed built
+   *  from a select that did not ask for it describes an ordinary prepaid
+   *  session rather than guessing at terms nobody granted. */
+  payment_terms?: string | null;
   created_at?: string | null;
   therapist_name?: string | null;
   patient_name?: string | null;
@@ -250,16 +254,41 @@ export function buildPatientFeed({
       }
     }
     if (a.payment_status === "unpaid" && a.status !== "cancelled") {
-      items.push({
-        id: `pay-${a.id}`,
-        at: a.created_at ?? when,
-        icon: "fa-indian-rupee-sign",
-        tone: "warn",
-        title: "Payment not completed",
-        detail: "This session isn't booked until payment goes through.",
-        href: "/patient/dashboard/sessions",
-        needsYou: true,
-      });
+      // Two opposite facts wear the same `unpaid` here, which is why
+      // `payment_terms` exists at all. One is an abandoned checkout, where
+      // the session is genuinely not booked and the patient has to act. The
+      // other is a patient the clinic asked to pay afterwards -- their
+      // session IS booked, nothing is owed until it has happened, and the
+      // original wording scolds them for honouring the arrangement.
+      const onTerms = a.payment_terms === "pay_later";
+      items.push(
+        onTerms
+          ? {
+              id: `paylater-${a.id}`,
+              at: a.created_at ?? when,
+              icon: "fa-handshake-angle",
+              tone: "neutral",
+              title: "Nothing to pay up front",
+              detail:
+                "This session is booked. It'll be added to what you owe once it has happened.",
+              href: "/patient/dashboard/sessions",
+              // Informational, never needsYou: there is nothing for them to
+              // do, and pinning it above everything else would put a
+              // permanent to-do on the dashboard of the patients the clinic
+              // trusts most.
+              needsYou: false,
+            }
+          : {
+              id: `pay-${a.id}`,
+              at: a.created_at ?? when,
+              icon: "fa-indian-rupee-sign",
+              tone: "warn",
+              title: "Payment not completed",
+              detail: "This session isn't booked until payment goes through.",
+              href: "/patient/dashboard/sessions",
+              needsYou: true,
+            }
+      );
     }
   }
 

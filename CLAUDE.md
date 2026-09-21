@@ -322,7 +322,16 @@ at home.
 
 **A few long-standing patients pay after their treatment, not before.** An
 admin creates the account, hands over the credentials and ticks **Pay later** on
-the profile; that patient books an online session, pays nothing, and owes
+the profile -- `/api/admin/set-patient-pay-later`, `requireAdminScope("money")`
+because extending credit is a money capability whatever screen the button sits
+on, with a ten-character reason to grant and none to stop, refused for a
+hospital-referred patient (a partner earns a share the moment a session is
+delivered, so terms would pay it out of money nobody has been given), and
+behind one master switch, `pay_later_enabled`, off for its first release and
+read in its own call failing **closed**. Stopping a patient's terms stops new
+bookings only: sessions already booked keep them, and anything already owed
+stays owed, listed and settleable. That patient books an online session, pays
+nothing, and owes
 nothing until the session has actually been delivered. On completion the frozen
 price appears in three places at once -- what they owe, the clinic's revenue,
 and the therapist's share, which is deliberately **not** made to wait on the
@@ -345,7 +354,22 @@ off means nothing turns amber and the Today alert counts zero, while every total
 still shows. A stored number the app cannot use resolves to the 60-day default
 and the screen **says so** rather than quietly disagreeing with its own
 database, and a desk that cannot change the setting reads the rule in a sentence
-instead of meeting a gap where a control should be. See the pay-later rule in `AGENTS.md`.
+instead of meeting a gap where a control should be. Seven guards ship with the privilege and **before** anything can use it,
+because each one would otherwise make a working feature read as broken: the
+risk detector and System Health both stop counting a session on terms as
+unbacked (it is backed -- the debt is recorded and has its own screen),
+`complete-session` gains a fourth allowance (completing is precisely what
+creates the debt, so refusing would make the one session that must be closed
+the one that cannot be), assignment confirms on terms (or it never reaches
+`confirmed` and can never be completed), the therapist's card stops telling
+them to collect cash at a video call, the patient's feed stops saying their
+booked session "isn't booked", and every chip reads `src/lib/sessionPaymentState.ts`
+rather than printing `payment_status` raw -- "Unpaid" against a patient of two
+years is both wrong and, on the screen an admin chases people from, actively
+misleading. System Health carries a seventh check, **Pay Later**, whose only
+red-adjacent state is a session that happened and was never closed; owing money
+is never a fault. Risk carries two rules of its own under **Trusted patients --
+follow up**. See the pay-later rule in `AGENTS.md`.
 
 **The books answer the seven standard questions too.** Money -> Business
 Health reports return on investment, return on ad spend, working capital,

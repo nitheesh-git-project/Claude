@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, status, therapist_id, package_purchase_id, home_visit_purchase_id, payment_status, cash_collected_at, slot_time"
+      "id, status, therapist_id, package_purchase_id, home_visit_purchase_id, payment_status, payment_terms, cash_collected_at, slot_time"
     )
     .eq("id", appointmentId)
     .single();
@@ -105,7 +105,13 @@ export async function POST(request: NextRequest) {
       !!appointment.package_purchase_id || !!appointment.home_visit_purchase_id;
     const paid = appointment.payment_status === "paid";
     const cashInHand = !!appointment.cash_collected_at;
-    if (!paid && !coveredByProgramme && !cashInHand) {
+    // The fourth allowance. A trusted patient's session is unpaid by design
+    // and stays that way until they settle -- completing it is precisely what
+    // creates the debt, the revenue and this therapist's own share, all at
+    // once. Refusing here would make the one session type that MUST be closed
+    // the one that cannot be.
+    const onTerms = appointment.payment_terms === "pay_later";
+    if (!paid && !coveredByProgramme && !cashInHand && !onTerms) {
       return NextResponse.json(
         {
           error:

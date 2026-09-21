@@ -2,7 +2,10 @@ import Link from "next/link";
 import PagedList from "@/components/dashboard/PagedList";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
-import PayLaterAgeSetting, { PayLaterAgeNote } from "@/components/admin/PayLaterAgeSetting";
+import PayLaterAgeSetting, {
+  PayLaterAgeNote,
+  PayLaterMasterSwitch,
+} from "@/components/admin/PayLaterAgeSetting";
 import { MoneyTermInfo } from "@/components/admin/MoneyFigure";
 import { formatClinicDateShort } from "@/lib/formatDateTime";
 import { adminScreenHref } from "@/lib/adminNav";
@@ -43,6 +46,7 @@ export default function AdminOwingTab({
   patientNameById,
   nowMs,
   ageSetting,
+  featureEnabled,
   canManageSettings = false,
 }: {
   appointments: PayLaterAppointment[];
@@ -52,6 +56,9 @@ export default function AdminOwingTab({
   /** How long a balance may sit before it is worth chasing, whether the clinic
    *  wants to be warned at all, and where that answer came from. */
   ageSetting: PayLaterAgeSettings;
+  /** The clinic-wide switch. Off, nobody new can be put on terms -- but
+   *  everything already owed stays listed and settleable. */
+  featureEnabled: boolean;
   /** Gated on SETTINGS, not Money: Finance manages Money but holds settings at
    *  "none", so /api/admin/update-setting would refuse them -- and a control a
    *  scope cannot call must not render. They get the note instead of a gap. */
@@ -178,6 +185,11 @@ export default function AdminOwingTab({
             </p>
           </div>
         </div>
+        {canManageSettings && (
+          <div className="mt-4">
+            <PayLaterMasterSwitch enabled={featureEnabled} />
+          </div>
+        )}
         {canManageSettings ? (
           <PayLaterAgeSetting
             setting={ageSetting}

@@ -3,7 +3,7 @@ import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
-import { scopeCanOpen } from "@/lib/adminScope";
+import { scopeCanManage, scopeCanOpen } from "@/lib/adminScope";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import PatientActiveToggle from "@/components/admin/PatientActiveToggle";
@@ -15,6 +15,7 @@ import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import PatientProfitChart from "@/components/admin/PatientProfitChart";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
+import PayLaterGrantCard from "@/components/admin/PayLaterGrantCard";
 import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawer";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
@@ -46,6 +47,13 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   // requireAdminScope("sessions"), which a finance admin does not have
   // even though they can open this page.
   const canManageSessions = viewer !== null && scopeCanOpen(viewer.scope, "sessions");
+  // And the stricter test for the one control on this page that CHANGES
+  // money rather than showing it. `canSeeMoney` above is scopeCanOpen, which
+  // Operations fails and Finance passes -- right for hiding figures, wrong
+  // for a button: /api/admin/set-patient-pay-later guards with
+  // requireAdminScope("money"), which asks for manage. A control an admin's
+  // scope cannot call must not render.
+  const canManageMoney = viewer !== null && scopeCanManage(viewer.scope, "money");
 
   const admin = createAdminClient();
 
@@ -90,6 +98,9 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     { data: hospital },
     { data: sessionCodeLinks },
     { data: meetLinkRows },
+    { data: payLaterRows },
+    { data: payLaterProfile },
+    { data: payLaterSettingRow },
   ] = await Promise.all([
     admin
       .from("appointments")
@@ -121,12 +132,38 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     // meet_link is also new/migration-dependent -- same isolation reasoning
     // as sessionCodeLinks above.
     admin.from("appointments").select("id, meet_link").eq("patient_id", id),
+    // The pay-later columns, same isolation reasoning again -- they are the
+    // newest on that table, and this select feeds the whole session list.
+    admin
+      .from("appointments")
+      .select("id, payment_terms, pay_later_outcome")
+      .eq("patient_id", id),
+    // The grant itself, and the clinic-wide switch. Both in their own reads
+    // for the same reason: newest columns, and a card that cannot say which
+    // state it is in must not take the page down with it.
+    admin
+      .from("profiles")
+      .select("pay_later_enabled, pay_later_reason, pay_later_granted_at")
+      .eq("id", id)
+      .maybeSingle(),
+    admin.from("site_settings").select("pay_later_enabled").maybeSingle(),
   ]);
 
+  const payLaterFeatureEnabled = payLaterSettingRow?.pay_later_enabled === true;
+  const payLaterById = new Map((payLaterRows ?? []).map((r) => [r.id, r]));
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
-  );
+  ).map((a) => {
+    const terms = payLaterById.get(a.id);
+    return terms
+      ? {
+          ...a,
+          payment_terms: terms.payment_terms,
+          pay_later_outcome: terms.pay_later_outcome,
+        }
+      : a;
+  });
 
   const categoryIds = [
     ...new Set((appointments ?? []).map((a) => a.category_id).filter(Boolean)),
@@ -460,6 +497,25 @@ export default async function PatientDetailContent({ id }: { id: string }) {
           emptyMessage="No bookings yet."
         />
       </div>
+
+      {/* Whether this patient may be treated first and settle afterwards.
+          Above the money blocks rather than inside them: it is a decision
+          about the person, and the figures below are its consequence.
+          Gated on canManageMoney -- the stricter test -- since it changes
+          money rather than showing it. */}
+      {canManageMoney && (
+        <div className="mb-6">
+          <PayLaterGrantCard
+            patientId={id}
+            patientName={patient.full_name ?? null}
+            enabled={payLaterProfile?.pay_later_enabled === true}
+            reason={payLaterProfile?.pay_later_reason ?? null}
+            grantedAt={payLaterProfile?.pay_later_granted_at ?? null}
+            featureEnabled={payLaterFeatureEnabled}
+            referredByHospital={!!patient.referred_by_hospital_id}
+          />
+        </div>
+      )}
 
       {/* Money on a person's page follows the same rule as the Money
           section itself -- see canSeeMoney above. */}

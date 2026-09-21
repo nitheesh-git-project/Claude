@@ -182,7 +182,14 @@ export function renderTherapistHomeVisitCard(
     // An unpaid home visit is a cash-at-the-door booking by definition:
     // the prepaid path marks the appointment paid at creation, so anything
     // still unpaid here is money the therapist collects on arrival.
-    const cashDue = a.payment_status !== "paid" && !visit?.cash_collected_at;
+    // ...unless the patient is one the clinic has agreed to be paid
+    // afterwards, where unpaid is the arrangement working rather than money
+    // to collect. Chasing a trusted patient at the door for a bill that is
+    // the clinic's to settle is exactly what the platform's own
+    // communication rules exist to prevent -- and on a video session there
+    // is no door.
+    const onTerms = a.payment_terms === "pay_later";
+    const cashDue = a.payment_status !== "paid" && !visit?.cash_collected_at && !onTerms;
 
     return (
       <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-2">

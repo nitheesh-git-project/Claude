@@ -127,6 +127,7 @@ export type AdminActivityAction =
   // this table exists to prevent.
   | "patient.update_contact"
   | "patient.update_notes"
+  | "patient.set_pay_later"
   | "therapist.update_contact"
   | "therapist.update_notes"
   | "therapist.update_display_content"
@@ -266,6 +267,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "mission_principle.delete": "Removed a promise or limit",
   "mission_principle.reorder": "Reordered the promises or limits",
   "patient.update_contact": "Changed a patient's contact details",
+  "patient.set_pay_later": "Changed whether a patient may pay after treatment",
   "patient.update_notes": "Edited notes on a patient",
   "therapist.update_contact": "Changed a therapist's contact details",
   "therapist.update_notes": "Edited notes on a therapist",

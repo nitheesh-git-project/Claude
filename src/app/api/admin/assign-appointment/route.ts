@@ -67,6 +67,17 @@ export async function POST(request: NextRequest) {
 
   const isHomeVisit = visit?.visit_mode === "home_visit";
 
+  // Pay-later terms in their own query, and for the same reason as the block
+  // above: `payment_terms` is newer than this route, so folding it into the
+  // main select would let one unmigrated database break assignment for every
+  // ordinary session. Absent, it reads as `prepaid`, which is what every
+  // session was before this column existed.
+  const { data: terms } = await admin
+    .from("appointments")
+    .select("payment_terms")
+    .eq("id", appointmentId)
+    .maybeSingle();
+
   // A therapist finishing at one address cannot be at another minutes
   // later, and time overlap is the only signal available -- the app holds
   // no distance data. Online assignments pass 0 and behave exactly as
@@ -123,7 +134,13 @@ export async function POST(request: NextRequest) {
   // assigning a therapist would silently confirm an unpaid booking. If it's
   // still unpaid, the therapist is assigned but status stays "requested";
   // /api/razorpay/verify auto-confirms it the moment payment succeeds.
-  const shouldConfirm = appointment.payment_status === "paid";
+  // ...or the patient is one the clinic has agreed to be paid afterwards. A
+  // pay-later booking is never going to be "paid" before it happens, so
+  // without this it would sit at `requested` for ever -- and only a
+  // `confirmed` session can be completed, which is the step that creates the
+  // debt, the revenue and the therapist's share.
+  const shouldConfirm =
+    appointment.payment_status === "paid" || terms?.payment_terms === "pay_later";
 
   // Compare-and-set on the therapist this request believes is currently on
   // the session. Without it, two admins assigning *different* therapists to

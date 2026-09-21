@@ -143,7 +143,7 @@ async function readSessionsWithoutBacking(
   try {
     const { data, error } = await admin
       .from("appointments")
-      .select("id, session_code, patient_id, slot_time, package_purchase_id, home_visit_purchase_id, cash_collected_at")
+      .select("id, session_code, patient_id, slot_time, payment_terms, package_purchase_id, home_visit_purchase_id, cash_collected_at")
       .eq("status", "completed")
       .neq("payment_status", "paid")
       .order("slot_time", { ascending: false })
@@ -152,7 +152,16 @@ async function readSessionsWithoutBacking(
     return (data ?? [])
       .filter(
         (a) =>
-          !a.package_purchase_id && !a.home_visit_purchase_id && !a.cash_collected_at
+          !a.package_purchase_id &&
+          !a.home_visit_purchase_id &&
+          !a.cash_collected_at &&
+          // A delivered session on pay-later terms is backed -- the debt is
+          // recorded and has its own screen and its own System Health check.
+          // Filtered here rather than in the query above so a database
+          // without the column still lists every other row: this function
+          // answers null on a failed select, which would read as "unknown"
+          // across the whole check.
+          a.payment_terms !== "pay_later"
       )
       .slice(0, ROW_LIMIT)
       .map((a) => ({

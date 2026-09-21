@@ -59,6 +59,66 @@ export function PayLaterAgeNote({
   );
 }
 
+/**
+ * The clinic-wide switch, beside the figures it governs.
+ *
+ * Off is not a stop on money already owed: those sessions stay listed and
+ * stay settleable. It gates who may be put on terms from here on, which is
+ * why the wording is about new patients rather than about the feature.
+ */
+export function PayLaterMasterSwitch({ enabled }: { enabled: boolean }) {
+  const saveSetting = useSaveSetting();
+  const [optimistic, setOptimistic] = useOptimistic(enabled);
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  function handleToggle() {
+    const next = !optimistic;
+    setError(null);
+    startTransition(async () => {
+      setOptimistic(next);
+      try {
+        await saveSetting("pay_later_enabled", next);
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not save. Please try again.");
+      }
+    });
+  }
+
+  return (
+    <div className="flex items-start justify-between gap-4 border-t border-slate-100 pt-4">
+      <div>
+        <p className="text-xs font-semibold text-slate-800">
+          Let trusted patients pay after their treatment
+        </p>
+        <p className="mt-0.5 text-[11px] text-slate-500">
+          {optimistic
+            ? "You can now allow a patient to pay later from their own profile."
+            : "Nobody new can be put on pay later. Anything already owed is still owed, and can still be settled."}
+        </p>
+        {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
+      </div>
+      <button
+        onClick={handleToggle}
+        disabled={isPending}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-60 ${
+          optimistic ? "bg-teal-600" : "bg-slate-300"
+        }`}
+        aria-pressed={optimistic}
+        aria-label="Let trusted patients pay after their treatment"
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+            optimistic ? "left-[22px]" : "left-0.5"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 export default function PayLaterAgeSetting({
   setting,
   enabled,

@@ -41,12 +41,16 @@ import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
 import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
 import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
 import AdminOwingTab from "@/components/admin/AdminOwingTab";
-import { readPayLaterAgeSettings } from "@/lib/payLaterSettingsServer";
+import {
+  readPayLaterAgeSettings,
+  readPayLaterEnabled,
+} from "@/lib/payLaterSettingsServer";
 import {
   computeClinicReceivable,
   isAgedBalance,
   isOpenPayLaterSession,
   oldestOwedAgeDays,
+  unclosedPayLaterSessions,
 } from "@/lib/patientBalances";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
 import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
@@ -693,6 +697,9 @@ export default async function AdminDashboardPage({
     missionCopyRow,
     missionPrincipleRows,
     payLaterAgeSetting,
+    payLaterFeatureEnabled,
+    payLaterPatients,
+    payLaterRows,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -922,6 +929,44 @@ export default async function AdminDashboardPage({
     // Its own read, and the helper falls back to the constant, so a database
     // without the column behaves exactly as it did.
     readPayLaterAgeSettings(admin),
+    readPayLaterEnabled(admin),
+    // Who is actually on terms. Its own read for the usual reason, and the
+    // one figure the check needs that the appointments above cannot give:
+    // a patient granted terms who has not yet had a session appears in no
+    // appointment row at all.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("profiles")
+            .select("id")
+            .eq("role", "patient")
+            .eq("pay_later_enabled", true)
+        ).data,
+      null as { id: string }[] | null
+    ),
+    // The pay-later columns on the appointment. Their own read, and merged
+    // below rather than selected with the row: they are the newest columns on
+    // that table, and that select feeds Overview, Calendar, All Sessions and
+    // every money figure -- an unknown column there blanks the dashboard
+    // where here it costs one screen. Absent, every session reads `prepaid`,
+    // which is what they all were before the column existed.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("appointments")
+            .select("id, payment_terms, amount_due_paise, pay_later_outcome")
+        ).data,
+      null as
+        | {
+            id: string;
+            payment_terms: string | null;
+            amount_due_paise: number | null;
+            pay_later_outcome: string | null;
+          }[]
+        | null
+    ),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -1123,6 +1168,7 @@ export default async function AdminDashboardPage({
   );
 
   const refundDetailById = new Map((refundDetailRows ?? []).map((r) => [r.id, r]));
+  const payLaterById = new Map((payLaterRows ?? []).map((r) => [r.id, r]));
 
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
@@ -1139,14 +1185,24 @@ export default async function AdminDashboardPage({
     // column on this table, so it is read separately and merged rather than
     // selected with the row.
     const refund = refundDetailById.get(a.id);
-    const withRefund = refund
+    // And the same again for the pay-later columns, which are newer still.
+    const terms = payLaterById.get(a.id);
+    const withTerms = terms
       ? {
           ...a,
+          payment_terms: terms.payment_terms,
+          amount_due_paise: terms.amount_due_paise,
+          pay_later_outcome: terms.pay_later_outcome,
+        }
+      : a;
+    const withRefund = refund
+      ? {
+          ...withTerms,
           refunded_at: refund.refunded_at,
           refund_reason: refund.refund_reason,
           refund_id: refund.refund_id,
         }
-      : a;
+      : withTerms;
     return discount
       ? {
           ...withRefund,
@@ -3986,6 +4042,29 @@ export default async function AdminDashboardPage({
     });
   }).length;
 
+  // The pay-later check's input, derived from the same rows Money -> Owed by
+  // Patients renders. Null when the columns have not been applied, which is
+  // what makes an unapplied migration a line on System Health rather than a
+  // surprise later: `payLaterRows` is the isolated read that returns null on
+  // an unknown column.
+  const payLaterHealth =
+    payLaterRows === null
+      ? null
+      : {
+          patientsOnTerms: payLaterPatients?.length ?? 0,
+          featureEnabled: payLaterFeatureEnabled,
+          totalOwedPaise: payLaterBalances.totalPaise,
+          patientsOwing: payLaterBalances.balances.length,
+          oldestOwedAgeDays: oldestOwedAgeDays(appointmentsWithSessionCode, nowTimestamp()),
+          agedAfterDays: payLaterAgeSetting.days,
+          ageWarningEnabled: payLaterAgeSetting.enabled,
+          patientsOwingAged,
+          unclosedSessions: unclosedPayLaterSessions(
+            appointmentsWithSessionCode,
+            nowTimestamp()
+          ).length,
+        };
+
   const moneyAlerts = (
     <MoneyAlertsStrip
       counts={{
@@ -4015,6 +4094,7 @@ export default async function AdminDashboardPage({
     accounting: accountingHealth,
     openAccessEnabled: adminSettings.meetOpenAccessEnabled,
     rateLimitIdentity,
+    payLater: payLaterHealth,
   });
 
   const home = buildAdminHome(viewerScope, {
@@ -4197,6 +4277,7 @@ export default async function AdminDashboardPage({
           }
           nowMs={nowTimestamp()}
           ageSetting={payLaterAgeSetting}
+          featureEnabled={payLaterFeatureEnabled}
           canManageSettings={scopeCanManage(viewerScope, "settings")}
         />
       </div>

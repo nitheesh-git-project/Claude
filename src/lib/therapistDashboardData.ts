@@ -83,6 +83,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     { data: visitDetailRows },
     { data: sessionCodeLinks },
     { data: meetLinkRows },
+    { data: paymentTermsRows },
     { data: payoutBatches },
     { data: treatmentCategories },
     { data: payoutRequests },
@@ -173,6 +174,12 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     // as sessionCodeLinks above.
     supabase.from("appointments").select("id, meet_link").eq("therapist_id", user.id),
 
+    // payment_terms, same isolation reasoning again. It decides only whether
+    // a session card tells this therapist to collect cash -- and a patient on
+    // terms is the clinic's to settle with, never theirs to chase. Absent, it
+    // reads as `prepaid`, which is what every session was before the column.
+    supabase.from("appointments").select("id, payment_terms").eq("therapist_id", user.id),
+
     // Kept as its own query rather than folded into the profile select for
     // the same reason as onLeaveProfile -- therapist_payout_batches is new
     // and migration-dependent, and an unknown-table error here should only
@@ -230,6 +237,9 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   const categoryTitleById = new Map((treatmentCategories ?? []).map((c) => [c.id, c.title]));
 
   const visitDetailById = new Map((visitDetailRows ?? []).map((r) => [r.id, r]));
+  const paymentTermsById = new Map(
+    (paymentTermsRows ?? []).map((r) => [r.id, r.payment_terms as string | null])
+  );
 
   const sessionNotes = (sessionNoteRows ?? []) as SessionNoteRow[];
   const noteByAppointmentId = new Map(sessionNotes.map((n) => [n.appointment_id, n]));
@@ -237,7 +247,11 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
-  ).map((a) => ({ ...a, visit: visitDetailById.get(a.id) ?? null }));
+  ).map((a) => ({
+    ...a,
+    visit: visitDetailById.get(a.id) ?? null,
+    payment_terms: paymentTermsById.get(a.id) ?? null,
+  }));
 
   // One query, split in memory -- a therapist's list is small, and a second
   // round trip to the same table filtered the other way would cost more

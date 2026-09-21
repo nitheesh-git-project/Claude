@@ -1470,6 +1470,14 @@ session and pays nothing at the time. `appointments.payment_terms`
 an abandoned checkout -- both are `payment_status = 'unpaid'`, and counting the
 second as a debt would be wrong in every figure.
 
+An admin grants it on the patient's own profile (`/api/admin/set-patient-pay-later`,
+money scope, a ten-character reason to grant and none to stop), behind a master
+switch that is off by default. A hospital-referred patient is refused: that
+partner earns a share of the revenue the moment a session is delivered, so
+terms would have the clinic paying it out of money it has not been given.
+Stopping somebody's terms stops new bookings only -- what is already owed stays
+owed and settleable.
+
 Nothing is owed until the work is done: `amount_due_paise` is frozen when the
 session is booked and counted only once the session is **completed**, so a
 booking owes nothing and a late cancellation owes nothing, with no special case

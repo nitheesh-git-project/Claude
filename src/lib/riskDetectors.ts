@@ -8,6 +8,15 @@ import {
   type RiskSeverity,
   type RiskSubjectKind,
 } from "@/lib/riskSignals";
+import {
+  computeClinicReceivable,
+  computePatientBalance,
+  isAgedBalance,
+  isOpenPayLaterSession,
+  oldestOwedAgeDays,
+  type PayLaterAppointment,
+} from "@/lib/patientBalances";
+import { readPayLaterAgeSettings } from "@/lib/payLaterSettingsServer";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -212,10 +221,17 @@ const detectCompletionWithoutPayment: Detector = async (admin, rule) => {
   const { data: rows } = await admin
     .from("appointments")
     .select(
-      "id, session_code, therapist_id, patient_id, slot_time, payment_status, package_purchase_id, home_visit_purchase_id, cash_collected_at"
+      "id, session_code, therapist_id, patient_id, slot_time, payment_status, payment_terms, package_purchase_id, home_visit_purchase_id, cash_collected_at"
     )
     .eq("status", "completed")
     .neq("payment_status", "paid")
+    // A session on pay-later terms IS backed: the sale is recorded, the
+    // revenue is counted and the debt is on Money -> Owed by Patients. This
+    // rule's whole meaning is "the clinic was never paid and has no record of
+    // selling it", which is false here -- so without this line every session
+    // one of these patients ever has raises a high-severity signal, and the
+    // queue stops being read.
+    .neq("payment_terms", "pay_later")
     .is("package_purchase_id", null)
     .is("home_visit_purchase_id", null)
     .is("cash_collected_at", null)
@@ -547,6 +563,105 @@ const detectPostConsultationDropout: Detector = async (admin, rule) => {
   return out;
 };
 
+/**
+ * A trusted patient who has owed for longer than the clinic's own threshold.
+ *
+ * The only automatic warning an arrangement with no ceiling has, which is why
+ * this one ships **enabled** where the two rules with no baseline ship off:
+ * the population is tiny and hand-picked, so a threshold cannot fire on
+ * everyone, and the alternative is that nothing watches at all.
+ *
+ * It reads the admin's own number rather than carrying a threshold in its
+ * config, so the amber on Money -> Owed by Patients and the signal here can
+ * never disagree about what "a while" means.
+ *
+ * A flag is not an accusation and carries no penalty. Nothing is suspended,
+ * held or hidden because this fired; it links to the sessions behind it and
+ * an admin decides, if at all, through the ordinary screens.
+ */
+const detectPayLaterAged: Detector = async (admin) => {
+  const [{ days, enabled }, { data: rows }] = await Promise.all([
+    readPayLaterAgeSettings(admin),
+    admin
+      .from("appointments")
+      .select("id, patient_id, slot_time, status, payment_status, payment_terms, amount_due_paise, pay_later_outcome")
+      .eq("payment_terms", "pay_later")
+      .eq("status", "completed")
+      .neq("payment_status", "paid"),
+  ]);
+  // The clinic switched the warning off. A detector that fires anyway would
+  // be a second opinion on a question an admin has already answered.
+  if (!enabled) return [];
+  if (!rows || rows.length === 0) return [];
+
+  const now = Date.now();
+  const byPatient = new Map<string, PayLaterAppointment[]>();
+  for (const a of rows as PayLaterAppointment[]) {
+    if (!isOpenPayLaterSession(a)) continue;
+    byPatient.set(a.patient_id, [...(byPatient.get(a.patient_id) ?? []), a]);
+  }
+
+  const out: Candidate[] = [];
+  for (const [patientId, sessions] of byPatient) {
+    const age = oldestOwedAgeDays(sessions, now);
+    if (!isAgedBalance(age, { days, enabled })) continue;
+    const { owedPaise, owedCount } = computePatientBalance(patientId, sessions);
+    if (owedPaise <= 0) continue;
+    out.push({
+      ruleKey: "pay_later_aged",
+      subjectKind: "patient",
+      subjectId: patientId,
+      severity: "medium",
+      summary: `A trusted patient has owed ₹${Math.round(owedPaise / 100).toLocaleString("en-IN")} across ${countPhrase(owedCount, "session", "sessions")} for ${age} days.`,
+      // The rows behind it, never a score: an admin who can only see a
+      // verdict cannot disagree with it.
+      evidence: {
+        patientId,
+        oldestAgeDays: age,
+        thresholdDays: days,
+        owedPaise,
+        appointmentIds: sessions.map((a) => a.id),
+      },
+    });
+  }
+  return out;
+};
+
+/**
+ * One trusted patient owing far more than a configured figure.
+ *
+ * Ships **disabled**: nobody knows the normal balance for this clinic yet,
+ * and a threshold invented before anyone does fires on everyone or on
+ * nobody -- the first of which is how a queue stops being read.
+ */
+const detectPayLaterBalanceHigh: Detector = async (admin, rule) => {
+  const ceilingPaise = ruleNumber(rule.config, "balancePaise", 5_000_000);
+
+  const { data: rows } = await admin
+    .from("appointments")
+    .select("id, patient_id, slot_time, status, payment_status, payment_terms, amount_due_paise, pay_later_outcome")
+    .eq("payment_terms", "pay_later")
+    .eq("status", "completed")
+    .neq("payment_status", "paid");
+  if (!rows || rows.length === 0) return [];
+
+  const { balances } = computeClinicReceivable(rows as PayLaterAppointment[]);
+  return balances
+    .filter((b) => b.owedPaise >= ceilingPaise)
+    .map((b) => ({
+      ruleKey: rule.ruleKey,
+      subjectKind: "patient" as const,
+      subjectId: b.patientId,
+      severity: "medium" as const,
+      summary: `A trusted patient owes ₹${Math.round(b.owedPaise / 100).toLocaleString("en-IN")} across ${countPhrase(b.owedCount, "session", "sessions")}.`,
+      evidence: {
+        patientId: b.patientId,
+        owedPaise: b.owedPaise,
+        thresholdPaise: ceilingPaise,
+      },
+    }));
+};
+
 const DETECTORS: Record<string, Detector> = {
   contact_leak: detectContactLeak,
   completion_without_payment: detectCompletionWithoutPayment,
@@ -556,4 +671,6 @@ const DETECTORS: Record<string, Detector> = {
   manual_adjustment_volume: detectManualAdjustmentVolume,
   plan_conversion_low: detectPlanConversionLow,
   post_consultation_dropout: detectPostConsultationDropout,
+  pay_later_aged: detectPayLaterAged,
+  pay_later_balance_high: detectPayLaterBalanceHigh,
 };

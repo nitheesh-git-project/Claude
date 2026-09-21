@@ -27,6 +27,14 @@ import {
   mapsSearchUrl,
   visitAddressFromAppointment,
 } from "@/lib/formatAddress";
+import { describeSessionPayment } from "@/lib/sessionPaymentState";
+
+const PAYMENT_CHIP_TONE: Record<string, string> = {
+  good: "text-green-700 bg-green-50",
+  warn: "text-amber-700 bg-amber-50",
+  bad: "text-red-700 bg-red-50",
+  neutral: "text-slate-600 bg-slate-100",
+};
 
 export type SessionDetailAppointment = {
   id: string;
@@ -35,6 +43,8 @@ export type SessionDetailAppointment = {
   concern: string | null;
   status: string;
   payment_status: string;
+  payment_terms?: string | null;
+  pay_later_outcome?: string | null;
   amount_paid_paise: number | null;
   /** What the session lists at, and anything an admin already took off it.
    *  Migration-dependent, so a database without the columns hands through
@@ -412,15 +422,18 @@ export default function SessionDetailDrawer({
                   No-Show
                 </span>
               )}
-              <span
-                className={`capitalize font-semibold px-2.5 py-1 rounded-full ${
-                  a.payment_status === "paid"
-                    ? "text-green-700 bg-green-50"
-                    : "text-slate-600 bg-slate-100"
-                }`}
-              >
-                {a.payment_status}
-              </span>
+              {/* Same one reading as the row on a patient's profile, so the
+                  two cannot describe one session differently. */}
+              {(() => {
+                const pay = describeSessionPayment(a);
+                return (
+                  <span
+                    className={`font-semibold px-2.5 py-1 rounded-full ${PAYMENT_CHIP_TONE[pay.tone]}`}
+                  >
+                    {pay.label}
+                  </span>
+                );
+              })()}
             </div>
 
             <div>
