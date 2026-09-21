@@ -1478,6 +1478,12 @@ terms would have the clinic paying it out of money it has not been given.
 Stopping somebody's terms stops new bookings only -- what is already owed stays
 owed and settleable.
 
+Booking is the ordinary wizard with the payment step replaced: the button
+reads **Confirm booking - pay later**, with **pay now instead** beside it, and
+the confirmation says the session is booked rather than that a payment went
+through. Online sessions only, and never one drawn from a programme already
+paid for.
+
 Nothing is owed until the work is done: `amount_due_paise` is frozen when the
 session is booked and counted only once the session is **completed**, so a
 booking owes nothing and a late cancellation owes nothing, with no special case

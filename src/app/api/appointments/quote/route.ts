@@ -6,6 +6,7 @@ import { isProfileActive, isPatientProfile } from "@/lib/supabase/requireActiveP
 import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
 import { isGatewayPayable } from "@/lib/discounts";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
+import { readPayLaterBookingEligibility } from "@/lib/payLaterSettingsServer";
 
 // What this booking costs, as the payment screen will say it.
 //
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
+  let hasProgramme = false;
   let appointment = {
     // A uuid no row can carry, for the "no booking yet" quote. Nothing is
     // excluded from a claim count and no goodwill can be found against it,
@@ -100,7 +102,7 @@ export async function POST(request: NextRequest) {
     // a blank.
     const { data: row } = await supabase
       .from("appointments")
-      .select("id, patient_id, category_id, visit_mode, travel_fee_paise, payment_status")
+      .select("id, patient_id, category_id, visit_mode, travel_fee_paise, payment_status, package_purchase_id")
       .eq("id", appointmentId)
       .eq("patient_id", user.id)
       .maybeSingle();
@@ -117,9 +119,26 @@ export async function POST(request: NextRequest) {
       visit_mode: row.visit_mode,
       travel_fee_paise: row.travel_fee_paise,
     };
+    hasProgramme = !!row.package_purchase_id;
   }
 
-  const quote = await resolveCheckoutQuote(createAdminClient(), {
+  const admin = createAdminClient();
+
+  // Whether this patient may settle afterwards, re-derived here rather than
+  // assumed -- the screen must not offer a choice the confirmation route
+  // would then refuse. A signed-out visitor is never eligible and is not
+  // asked about: the anonymous quote answers for "a new patient", and terms
+  // are granted to an account by an admin.
+  const payLater =
+    user && !hasProgramme
+      ? await readPayLaterBookingEligibility(admin, {
+          patientId: user.id,
+          visitMode: appointment.visit_mode,
+          hasProgramme,
+        })
+      : { allowed: false as const, reason: "not_on_terms" as const };
+
+  const quote = await resolveCheckoutQuote(admin, {
     appointment,
     promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
     claim: false,
@@ -137,6 +156,20 @@ export async function POST(request: NextRequest) {
     promoCodesEnabled: quote.promoCodesEnabled,
     // What the button should do. Named for the decision rather than for the
     // number, so the client is not left to re-implement the threshold.
-    free: !isGatewayPayable(quote.totalPaise),
+    //
+    // A named three-way rather than a second boolean beside `free`: two
+    // booleans can contradict each other and this one cannot. **Free beats
+    // pay later** -- a discount that reached zero leaves nothing to settle,
+    // so writing terms would create a debt of zero somebody is later asked
+    // to pay.
+    settlement: !isGatewayPayable(quote.totalPaise)
+      ? "free"
+      : payLater.allowed
+        ? "pay_later"
+        : "gateway",
+    // Whether paying now is possible at all, which is a different question:
+    // a patient on terms may still prefer to pay and not owe, and losing
+    // that would be a downgrade for the people the clinic trusts most.
+    canPayNow: isGatewayPayable(quote.totalPaise),
   });
 }

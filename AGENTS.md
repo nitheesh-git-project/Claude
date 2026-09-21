@@ -1590,6 +1590,66 @@ before.
      `pay_later_balance_high` ships **disabled**. A third rule counting
      rejected declarations waits for the phase that builds them, because a
      rule that can never fire is a queue nobody reads.
+  7. **Booking on terms is its own confirmation route, and it claims
+     discounts like any other booking.**
+     `/api/appointments/confirm-pay-later` is the sibling of `confirm-free`
+     and deliberately the same shape: re-resolve server-side, refuse on the
+     state, then confirm through the sequence the paid path uses.
+     `confirmPaidAppointment` was split for it --
+     `runConfirmation()` holds the roster read, the atomic claim and the Meet
+     event, and the two exports differ only in which payment columns the
+     claim writes. A `markPaid: false` flag was **rejected**: it reads as a
+     lie at the call site, and the callers want different columns rather than
+     one write with a field suppressed. `payment_status` stays `unpaid` and
+     `paid_at` is never stamped, which is the whole reason `payment_terms`
+     exists as a second axis.
+     Four refusals, all re-derived and never sent: the switch, the patient's
+     grant, a **home visit** (travel is a pass-through paid to the therapist
+     in full -- deferring it has them funding their own transport until the
+     patient settles) and a **programme** session (drawn from the credit
+     ledger, which this feature never touches). `decidePayLaterBooking` in
+     `src/lib/payLaterBooking.ts` is that judgement with the database taken
+     out, returning a **named reason** rather than a boolean so the route and
+     the wizard cannot grow two answers to "why not" -- and the two reasons
+     that are about the patient say the *same* sentence on purpose, since
+     somebody never granted terms must not learn the arrangement exists and
+     they are not in it.
+     **A free booking is not a debt of zero**: a discount reaching zero hands
+     the caller back to `confirm-free`, and the quote's `settlement` is a
+     named three-way (`gateway` | `free` | `pay_later`) rather than a second
+     boolean beside `free`, since two booleans can contradict each other.
+     `canPayNow` is separate because it answers a different question --
+     **paying now is never taken away**, and choosing it produces an ordinary
+     prepaid session touching none of this. Once confirmed on terms,
+     `create-order` refuses: paying there would mark it paid outside the
+     settlement path and skip the allocation deciding which delivered
+     sessions the money covers.
+     **The price is frozen inside the same claim that confirms**, so no row
+     is ever pay-later-but-unconfirmed or confirmed-with-no-figure, and the
+     route **returns the figure it wrote** rather than a re-read -- reading
+     the price once to quote and again to render is how the two come to
+     differ.
+     **Discounts apply exactly as they do on every other booking**, which is
+     a decision with a database consequence. Both claim functions counted a
+     claim as spent only while the booking was `paid` or inside a
+     thirty-minute checkout hold -- and a pay-later booking is `unpaid` for
+     its whole life, so thirty minutes after booking its promo claim stopped
+     counting against the cap while `promo_code_id` still pointed at the
+     campaign and the discount stayed frozen into what was owed: a cap of 100
+     handing out more than 100, which is the exact failure the cap exists to
+     prevent. `claim_invite_half` had the mirror -- the booking stopped
+     *holding* its half, so the same half could be spent twice. Both now
+     count a confirmed pay-later booking permanently, exactly as a paid one:
+     the discount has been given and can never be taken back. Re-created in
+     full at the end of `schema.sql` with **their three revokes each**, since
+     a re-created function arrives carrying `anon` and `authenticated` grants
+     again. `scripts/pay-later-sql-checks.sql` asserts both halves of each --
+     the pay-later claim still counting *and* an abandoned prepaid checkout
+     of the same age still giving its claim back, without which a function
+     that counted every claim forever would pass.
+     `settleInvitesOnCapture` is **not** called: an inviter's reward is
+     earned when their friend's first session is paid for, and nothing has
+     been.
 
 - **A therapist asserts that money changed hands; the system owns the
   number.** `/api/therapist/record-cash-collection` used to accept

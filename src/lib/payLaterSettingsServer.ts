@@ -4,6 +4,10 @@ import {
   describeAgedAfterDays,
   type AgedAfterDays,
 } from "@/lib/patientBalances";
+import {
+  decidePayLaterBooking,
+  type PayLaterDecision,
+} from "@/lib/payLaterBooking";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -92,4 +96,54 @@ export async function readPayLaterEnabled(admin: AdminClient): Promise<boolean> 
   } catch {
     return false;
   }
+}
+
+/**
+ * May this patient book this session on terms?
+ *
+ * Both callers re-derive it here rather than trusting anything the browser
+ * sent: the quote route, to decide whether to offer the choice at all, and
+ * the confirmation route, which is the one that matters -- a request can be
+ * posted directly, and "the patient said they were allowed to" is not a
+ * check.
+ *
+ * The two reads are isolated from each other and from everything else. The
+ * switch already fails closed; the patient's own grant does the same, since
+ * an unreadable answer that let somebody be treated without paying is the
+ * direction with no way back.
+ */
+export async function readPayLaterBookingEligibility(
+  admin: AdminClient,
+  args: {
+    patientId: string;
+    visitMode?: string | null;
+    hasProgramme?: boolean;
+  }
+): Promise<PayLaterDecision> {
+  const [featureEnabled, patientOnTerms] = await Promise.all([
+    readPayLaterEnabled(admin),
+    (async () => {
+      try {
+        const { data, error } = await admin
+          .from("profiles")
+          .select("pay_later_enabled")
+          .eq("id", args.patientId)
+          .eq("role", "patient")
+          .maybeSingle();
+        if (error) return false;
+        return data?.pay_later_enabled === true;
+      } catch {
+        return false;
+      }
+    })(),
+  ]);
+
+  // The judgement itself is dependency-free and unit-tested; this function
+  // is the fetch and nothing else.
+  return decidePayLaterBooking({
+    featureEnabled,
+    patientOnTerms,
+    visitMode: args.visitMode,
+    hasProgramme: args.hasProgramme,
+  });
 }

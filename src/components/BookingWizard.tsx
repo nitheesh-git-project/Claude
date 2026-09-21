@@ -49,10 +49,14 @@ type CheckoutQuoteResponse = {
   travelFeePaise: number;
   totalPaise: number;
   discountLabel: string | null;
-  /** True when a discount took the total to nothing. Named for the decision
-   *  rather than the number, so this component never re-implements the
-   *  gateway threshold. */
-  free: boolean;
+  /** What happens when the patient confirms. Named for the decision rather
+   *  than the number, so this component never re-implements the gateway
+   *  threshold -- and a named three-way rather than two booleans, which
+   *  could contradict each other. */
+  settlement: "gateway" | "free" | "pay_later";
+  /** Whether paying now is possible at all. A different question: a patient
+   *  on terms may still prefer to pay and not owe. */
+  canPayNow: boolean;
 };
 
 export default function BookingWizard({
@@ -88,6 +92,10 @@ export default function BookingWizard({
   // reads from this rather than from the category price, because printing
   // one figure and opening Razorpay at another is the bug this replaced.
   const [quote, setQuote] = useState<CheckoutQuoteResponse | null>(null);
+  // Which ending the confirmation screen describes. A booking settled later
+  // is not a completed payment, and a screen that reads as one would be
+  // telling somebody they did something they did not do.
+  const [paidLater, setPaidLater] = useState(false);
   const [quoting, setQuoting] = useState(false);
 
   // Lazy initializer, not a bare Date.now() in the render body -- same
@@ -443,8 +451,12 @@ export default function BookingWizard({
     // nothing of a goodwill adjustment or an invite half. This one knows
     // both, and create-order resolves it all again under a row lock anyway.
     const identified = await refreshQuote(newAppointmentId, promoCode);
-    if (identified?.free) {
+    if (identified?.settlement === "free") {
       await confirmFree(newAppointmentId);
+      return;
+    }
+    if (identified?.settlement === "pay_later") {
+      await confirmPayLater(newAppointmentId);
       return;
     }
     await startPayment(newAppointmentId);
@@ -477,6 +489,44 @@ export default function BookingWizard({
         return;
       }
       setLoading(false);
+      setDone(true);
+    } catch {
+      setLoading(false);
+      setError("Could not reach the server. Please check your connection and try again.");
+      setFailedAttempts((n) => n + 1);
+    }
+  }
+
+  /**
+   * What a trusted patient does instead of paying.
+   *
+   * The same shape as confirmFree above, and for the same reason: the server
+   * re-derives whether this patient may settle afterwards, re-resolves the
+   * price, and freezes it -- so this is a request to confirm, never a claim
+   * to be allowed. The browser sends an appointment id and nothing about
+   * terms.
+   */
+  async function confirmPayLater(id: string) {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/appointments/confirm-pay-later", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId: id, promoCode }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoading(false);
+        setError(data.error ?? "Could not confirm your booking. Please try again.");
+        setFailedAttempts((n) => n + 1);
+        // The answer moved between the quote and this tap -- terms stopped,
+        // a code was paused. Re-quote so the screen stops offering it.
+        await refreshQuote(id, promoCode);
+        return;
+      }
+      setLoading(false);
+      setPaidLater(true);
       setDone(true);
     } catch {
       setLoading(false);
@@ -629,10 +679,28 @@ export default function BookingWizard({
         {header}
         <div className="p-8 text-center">
           <i className="fa-solid fa-circle-check text-teal-600 text-4xl mb-4"></i>
-          <h2 className="text-xl font-bold text-slate-900">Payment Confirmed</h2>
+          {/* A session to be settled afterwards is not a completed payment,
+              and a screen reading "Payment Confirmed" would be telling
+              somebody they did something they did not do. It says what is
+              true -- booked, nothing taken -- and when the money appears,
+              which is after the session rather than now. */}
+          <h2 className="text-xl font-bold text-slate-900">
+            {paidLater ? "Booking Confirmed" : "Payment Confirmed"}
+          </h2>
           <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-            Your session is booked and paid. We&apos;ll confirm your exact slot
-            and send the video call link by email or WhatsApp shortly.
+            {paidLater ? (
+              <>
+                Your session is booked and there&apos;s nothing to pay now. It&apos;s added to
+                what you owe once the session has happened, and you can settle whenever suits
+                you. We&apos;ll confirm your exact slot and send the video call link by email
+                or WhatsApp shortly.
+              </>
+            ) : (
+              <>
+                Your session is booked and paid. We&apos;ll confirm your exact slot and send
+                the video call link by email or WhatsApp shortly.
+              </>
+            )}
           </p>
           <Link
             href="/patient/dashboard"
@@ -987,7 +1055,7 @@ export default function BookingWizard({
               <div className="flex justify-between text-sm pt-3 border-t border-teal-100">
                 <span className="font-semibold text-slate-700">Total</span>
                 <span className="font-extrabold text-slate-900">
-                  {quote.free ? "Free" : `${formatInr(quote.totalPaise)} INR`}
+                  {quote.settlement === "free" ? "Free" : `${formatInr(quote.totalPaise)} INR`}
                 </span>
               </div>
             )}
@@ -1009,9 +1077,11 @@ export default function BookingWizard({
           )}
           <p className="text-xs text-slate-500">
             <i className="fa-solid fa-lock text-teal-600 mr-1"></i>
-            {quote?.free
+            {quote?.settlement === "free"
               ? "Nothing to pay - your discount covers this session in full. Your slot is held once you confirm."
-              : "Secure payment via Razorpay. Your slot is held once payment is confirmed."}
+              : quote?.settlement === "pay_later"
+                ? "Nothing to pay now. Your slot is held once you confirm, and this session is added to what you owe after it has happened."
+                : "Secure payment via Razorpay. Your slot is held once payment is confirmed."}
           </p>
           <p className="text-xs text-slate-500">
             <i className="fa-solid fa-circle-info text-teal-600 mr-1"></i>
@@ -1040,9 +1110,11 @@ export default function BookingWizard({
             <button
               onClick={
                 appointmentId
-                  ? quote?.free
+                  ? quote?.settlement === "free"
                     ? () => confirmFree(appointmentId)
-                    : () => startPayment(appointmentId)
+                    : quote?.settlement === "pay_later"
+                      ? () => confirmPayLater(appointmentId)
+                      : () => startPayment(appointmentId)
                   : handleSubmit
               }
               // Disabled while a quote is in flight, so a tap can never act
@@ -1052,13 +1124,30 @@ export default function BookingWizard({
             >
               {loading
                 ? "Please wait..."
-                : quote?.free
+                : quote?.settlement === "free"
                   ? "Confirm booking - free"
-                  : appointmentId
-                    ? `Pay ${formatInr(quote?.totalPaise ?? selectedCategory?.price_paise ?? 0)} Now`
-                    : "Request Booking"}
+                  : quote?.settlement === "pay_later"
+                    ? "Confirm booking - pay later"
+                    : appointmentId
+                      ? `Pay ${formatInr(quote?.totalPaise ?? selectedCategory?.price_paise ?? 0)} Now`
+                      : "Request Booking"}
             </button>
           </div>
+          {/* Paying now is never taken away from somebody who may settle
+              later. Switching this arrangement on for a patient must not
+              remove a choice they had -- some will simply rather pay and not
+              owe, and it produces an ordinary prepaid session that touches
+              none of this. Secondary weight, because settling later is why
+              they were given terms. */}
+          {appointmentId && quote?.settlement === "pay_later" && quote.canPayNow && (
+            <button
+              onClick={() => startPayment(appointmentId)}
+              disabled={loading || quoting}
+              className="w-full text-center text-xs font-semibold text-teal-700 underline underline-offset-2 disabled:opacity-60"
+            >
+              Or pay {formatInr(quote.totalPaise)} now instead
+            </button>
+          )}
           {/* One failure is enough to want reassurance. A patient whose card
               was declined has no way of knowing their booking survived, and
               the most likely next action is to close the tab -- so the fact

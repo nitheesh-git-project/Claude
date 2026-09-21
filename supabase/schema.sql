@@ -11089,3 +11089,238 @@ select 'pay_later_balance_high',
        false,
        '{"balancePaise": 5000000}'::jsonb
 where not exists (select 1 from risk_rules where rule_key = 'pay_later_balance_high');
+
+-- ---------------------------------------------------------------------------
+-- Pay later, phase 3: a discount claim on a booking that will never capture.
+-- ---------------------------------------------------------------------------
+-- Both claim functions count a claim as spent while the booking is **paid**
+-- or still inside a thirty-minute checkout hold. That is right for every
+-- booking that goes to a gateway, and wrong for one on pay-later terms: those
+-- sit at `payment_status = 'unpaid'` for their whole life by design, so
+-- thirty minutes after booking the claim silently stops counting while the
+-- discount stays frozen into what the patient owes.
+--
+-- For a promo code that means a cap of 100 hands out more than 100 -- the
+-- exact failure the cap exists to prevent, and the "count and the money
+-- cannot disagree" rule broken by a clock. For an invite half it is the
+-- mirror: the booking stops *holding* its half, and the same half can be
+-- spent twice.
+--
+-- Both functions are re-created here in full rather than edited above, which
+-- is the convention this file already follows. Each needs its three revokes
+-- again: a re-created function arrives carrying anon and authenticated grants
+-- from Supabase's default ACL, so naming only PUBLIC would quietly reopen it.
+create or replace function public.claim_promo_code(
+  p_code text,
+  p_patient_id uuid,
+  p_appointment_id uuid,
+  p_patient_has_paid_before boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_promo promo_codes%rowtype;
+  -- Long enough for a real checkout (a UPI hand-off to a bank app and back),
+  -- short enough that an abandoned one gives the claim back the same
+  -- afternoon rather than at the end of the campaign.
+  v_hold constant interval := interval '30 minutes';
+  v_used integer;
+  v_used_by_patient integer;
+begin
+  select * into v_promo from promo_codes
+    where code = upper(btrim(p_code))
+    for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  if not v_promo.active then
+    return jsonb_build_object('ok', false, 'reason', 'inactive');
+  end if;
+  if v_promo.starts_at is not null and now() < v_promo.starts_at then
+    return jsonb_build_object('ok', false, 'reason', 'not_started');
+  end if;
+  -- The end of the window is exclusive: a code ending "1 April" ends at the
+  -- first instant of 1 April. Anything else makes the last day ambiguous.
+  if v_promo.ends_at is not null and now() >= v_promo.ends_at then
+    return jsonb_build_object('ok', false, 'reason', 'expired');
+  end if;
+  if v_promo.first_session_only and p_patient_has_paid_before then
+    return jsonb_build_object('ok', false, 'reason', 'first_session_only');
+  end if;
+
+  -- What counts as used: a booking that was paid for, plus one still inside
+  -- its hold. This appointment is excluded so re-opening checkout on the
+  -- same booking is not a second claim.
+  select count(*) into v_used from appointments a
+    where a.promo_code_id = v_promo.id
+      and a.id <> p_appointment_id
+      and a.status <> 'cancelled'
+      and (a.payment_status = 'paid'
+           -- A confirmed booking on pay-later terms is NOT an abandoned
+           -- checkout. It sits at payment_status = 'unpaid' for its whole
+           -- life by design, so without this line its claim stops counting
+           -- thirty minutes after booking while appointments.promo_code_id
+           -- still points at the campaign and the patient still has the
+           -- discount frozen into what they owe -- a cap of 100 handing out
+           -- more than 100, which is the exact failure the cap exists to
+           -- prevent. The discount has been given and can never be taken
+           -- back, so it counts permanently, exactly as a paid one does.
+           or a.payment_terms = 'pay_later'
+           or a.promo_claimed_at > now() - v_hold);
+
+  if v_promo.max_redemptions is not null and v_used >= v_promo.max_redemptions then
+    return jsonb_build_object('ok', false, 'reason', 'exhausted');
+  end if;
+
+  select count(*) into v_used_by_patient from appointments a
+    where a.promo_code_id = v_promo.id
+      and a.patient_id = p_patient_id
+      and a.id <> p_appointment_id
+      and a.status <> 'cancelled'
+      and (a.payment_status = 'paid'
+           -- A confirmed booking on pay-later terms is NOT an abandoned
+           -- checkout. It sits at payment_status = 'unpaid' for its whole
+           -- life by design, so without this line its claim stops counting
+           -- thirty minutes after booking while appointments.promo_code_id
+           -- still points at the campaign and the patient still has the
+           -- discount frozen into what they owe -- a cap of 100 handing out
+           -- more than 100, which is the exact failure the cap exists to
+           -- prevent. The discount has been given and can never be taken
+           -- back, so it counts permanently, exactly as a paid one does.
+           or a.payment_terms = 'pay_later'
+           or a.promo_claimed_at > now() - v_hold);
+
+  if v_used_by_patient >= v_promo.max_per_patient then
+    return jsonb_build_object('ok', false, 'reason', 'already_used');
+  end if;
+
+  update appointments
+    set promo_code_id = v_promo.id,
+        promo_claimed_at = now()
+    where id = p_appointment_id
+      and patient_id = p_patient_id
+      and payment_status <> 'paid';
+
+  if not found then
+    -- Already paid, or not this patient's booking. Either way there is
+    -- nothing to discount, and saying so beats stamping a code onto a row
+    -- whose price is settled.
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'promo_code_id', v_promo.id,
+    'code', v_promo.code,
+    'kind', v_promo.kind,
+    'value', v_promo.value,
+    'min_spend_paise', v_promo.min_spend_paise,
+    'max_per_patient', v_promo.max_per_patient,
+    'first_session_only', v_promo.first_session_only
+  );
+end;
+$$;
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from public;
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from anon;
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from authenticated;
+create or replace function public.claim_invite_half(
+  p_patient_id uuid,
+  p_appointment_id uuid,
+  p_half text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invite patient_invites%rowtype;
+  v_hold constant interval := interval '30 minutes';
+  v_amount integer;
+  v_spent_on uuid;
+  v_settled timestamptz;
+  v_held boolean;
+begin
+  if p_half = 'welcome' then
+    select * into v_invite from patient_invites
+      where invitee_id = p_patient_id for update;
+  elsif p_half = 'reward' then
+    -- An inviter may hold several invites at once, so this picks the best
+    -- candidate rather than filtering to it: qualified before unqualified,
+    -- unspent before spent. Filtering out the settled ones instead would
+    -- report "you have no reward" to somebody who has one and has already
+    -- used it, which is a different sentence and the wrong one.
+    select * into v_invite from patient_invites
+      where inviter_id = p_patient_id
+      order by (qualified_at is null), (reward_settled_at is not null), qualified_at
+      limit 1
+      for update;
+  else
+    return jsonb_build_object('ok', false, 'reason', 'unknown_half');
+  end if;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'none');
+  end if;
+
+  if p_half = 'welcome' then
+    v_amount := v_invite.welcome_paise;
+    v_spent_on := v_invite.welcome_spent_on;
+    v_settled := v_invite.welcome_settled_at;
+  else
+    -- The reward exists only once the friend has paid.
+    if v_invite.qualified_at is null then
+      return jsonb_build_object('ok', false, 'reason', 'not_qualified');
+    end if;
+    v_amount := v_invite.reward_paise;
+    v_spent_on := v_invite.reward_spent_on;
+    v_settled := v_invite.reward_settled_at;
+  end if;
+
+  if v_amount <= 0 then
+    return jsonb_build_object('ok', false, 'reason', 'none');
+  end if;
+  if v_settled is not null then
+    return jsonb_build_object('ok', false, 'reason', 'spent');
+  end if;
+
+  -- Held by another booking that is still inside its checkout window.
+  select exists (
+    select 1 from appointments a
+      where a.id = v_spent_on
+        and a.id <> p_appointment_id
+        and a.status <> 'cancelled'
+        and a.payment_status <> 'paid'
+        -- The mirror of the promo change above: a pay-later booking holds
+        -- its half for good. Left to the hold alone it would stop holding
+        -- thirty minutes after booking, and the same half could then be
+        -- spent a second time while the first booking still carried it.
+        and (a.payment_terms = 'pay_later' or a.promo_claimed_at > now() - v_hold)
+  ) into v_held;
+  if v_held then
+    return jsonb_build_object('ok', false, 'reason', 'held');
+  end if;
+
+  if p_half = 'welcome' then
+    update patient_invites set welcome_spent_on = p_appointment_id where id = v_invite.id;
+  else
+    update patient_invites set reward_spent_on = p_appointment_id where id = v_invite.id;
+  end if;
+
+  -- promo_claimed_at doubles as "this booking's discount hold started now".
+  -- One column rather than two that can disagree: a booking holds at most
+  -- one discount, because the discounts never stack.
+  update appointments set promo_claimed_at = now()
+    where id = p_appointment_id and patient_id = p_patient_id and payment_status <> 'paid';
+
+  return jsonb_build_object('ok', true, 'amount_paise', v_amount, 'invite_id', v_invite.id);
+end;
+$$;
+revoke all on function public.claim_invite_half(uuid, uuid, text) from public;
+revoke all on function public.claim_invite_half(uuid, uuid, text) from anon;
+revoke all on function public.claim_invite_half(uuid, uuid, text) from authenticated;

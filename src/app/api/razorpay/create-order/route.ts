@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
   const { data: appointment } = await supabase
     .from("appointments")
     .select(
-      "id, patient_id, payment_status, category_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone, visit_mode, travel_fee_paise"
+      "id, patient_id, payment_status, payment_terms, category_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone, visit_mode, travel_fee_paise"
     )
     .eq("id", appointmentId)
     .eq("patient_id", user.id)
@@ -106,6 +106,23 @@ export async function POST(request: NextRequest) {
 
   if (appointment.payment_status === "paid") {
     return NextResponse.json({ error: "This booking is already paid" }, { status: 400 });
+  }
+
+  // A session already confirmed on pay-later terms is not an open checkout.
+  // Paying for it here would mark it paid outside the settlement path,
+  // skipping the allocation that decides which delivered sessions a payment
+  // covers -- so the money would land with nothing saying what it was for.
+  // Choosing to pay now is offered BEFORE the booking is confirmed, where it
+  // produces an ordinary prepaid session; after that, settling is its own
+  // flow.
+  if (appointment.payment_terms === "pay_later") {
+    return NextResponse.json(
+      {
+        error:
+          "This session is already booked, and you'll settle it later. You can pay from your dashboard.",
+      },
+      { status: 409 }
+    );
   }
 
   const admin = createAdminClient();

@@ -330,8 +330,17 @@ delivered, so terms would pay it out of money nobody has been given), and
 behind one master switch, `pay_later_enabled`, off for its first release and
 read in its own call failing **closed**. Stopping a patient's terms stops new
 bookings only: sessions already booked keep them, and anything already owed
-stays owed, listed and settleable. That patient books an online session, pays
-nothing, and owes
+stays owed, listed and settleable. That patient books an online session through the ordinary wizard --
+`/api/appointments/confirm-pay-later`, the sibling of `confirm-free`: no
+gateway, no `payments` row, `payment_status` left `unpaid` and `paid_at` never
+stamped, with eligibility re-derived server-side because the browser sends an
+appointment id and nothing else. Online only, never against a programme, and
+never when a discount already took the total to nothing -- a free booking is
+not a debt of zero. The price is **frozen inside the same claim that
+confirms**, so no row is ever half-booked, and the route returns the figure it
+wrote rather than a re-read. Paying now is still offered beside it: switching
+this on for somebody must not take away a choice they had. They pay
+nothing, and owe
 nothing until the session has actually been delivered. On completion the frozen
 price appears in three places at once -- what they owe, the clinic's revenue,
 and the therapist's share, which is deliberately **not** made to wait on the
