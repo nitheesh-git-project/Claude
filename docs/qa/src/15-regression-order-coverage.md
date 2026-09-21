@@ -2,7 +2,7 @@
 
 ## 22. Full regression journeys
 
-Each journey is an end-to-end run through the product, executed in one sitting. Run all four before a release.
+Each journey is an end-to-end run through the product, executed in one sitting. Run all seven before a release.
 
 ### `REG-J1` - The core money journey · P0
 
@@ -74,6 +74,24 @@ Run **all** of §18 in one pass, then `ADM-SET-027`'s full table.
 ### `REG-J6` - Payment integrity sweep · P0
 Run **all** of §16.3 in one pass.
 
+### `REG-J7` - The pay-later journey · P0
+
+```
+ADM-SET (pay_later_enabled on, at Money -> Owed by Patients)
+  -> PL-GRANT-001 (grant, with a reason) -> PL-GRANT-003 (a referred patient is refused)
+  -> PL-BOOK-001 (book, no payment screen) -> PL-BOOK-003 (nothing owed yet)
+  -> THR-SESS-005 (complete)             -> PL-DONE-001 (money in three places at once)
+  -> PL-DONE-004 (no risk signal, no health row)
+  -> PL-PAY-003 (part payment settles one whole session)
+  -> PL-PAY-004 (no money figure moved)  -> PL-PAY-007 (reconciliation holds)
+  -> PL-DECL-001 (a declaration settles nothing) -> PL-DECL-002 (the clinic answers it)
+  -> PL-WOFF-001 (write one off)         -> PL-WOFF-002 (and reverse it)
+  -> PL-REF-001 (refund a settled one, handed back by a person)
+  -> FIN-SUM-001 (the identities still hold)
+```
+
+**Pass criterion.** Every money figure on Summary, Breakdown, Business Health and the therapist's Earnings is **byte-identical** before and after each settlement and each write-off; both money identities hold at the end; and `sum(confirmed) = sum(settled) + unallocated` holds at every step. **Restore the switch to off afterwards.**
+
 ---
 
 ## 23. Test dependency map and recommended execution order
@@ -128,7 +146,8 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | 11 | **Credits** | `PAT-PKG-001..004`, `THR-SUGG-*`, `PAT-SUGG-*` | |
 | 12 | **Clinical** | `THR-HP-*`, `PAT-HP-*`, `PAT-DOC-*`, `THR-LEAK-*` | |
 | 13 | **Finance** | §16.1–16.2 | Build the reference dataset first. |
-| 14 | **Configuration dependencies** | §15.4, all 46 rows | Restore every setting afterwards. |
+| 13b | **Pay later** | §16.4 in full | Needs a delivered session, so it runs after phase 8 at the earliest - and after 13, since half of it is "this figure did not move". Use a **fresh** QA patient with no payment history, or `PL-BOOK-007`'s first-session offer will already have been spent. Turn the switch on at the start and **off at the end**. |
+| 14 | **Configuration dependencies** | §15.4, all 49 rows | Restore every setting afterwards. |
 | 15 | **Security** | §18 in full | |
 | 16 | **UX / mobile / a11y** | §19 | |
 | 17 | **Error / loading / empty** | §20 | Empty states are easiest right after a reset - consider running `ERR-EMPTY-001` in phase 1. |
@@ -147,6 +166,10 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | `DBG-TIME-*`, and every TIME scenario | **Reset to Real Time** |
 | `SETUP-RESET-003` | Re-arm `ALLOW_DEBUG_DATA_RESET=true` |
 | `PAY-WH-004` | Restore `RAZORPAY_WEBHOOK_SECRET` |
+| Every `PL-*` | `pay_later_enabled` back **off** - it is off by default and gates whether work may be delivered without money |
+| `PL-OWED-002` / `PL-OWED-004` | `pay_later_aged_after_days` back to **unset** (the built-in 60 days) |
+| `PL-OWED-003` | `pay_later_age_warning_enabled` back **on** |
+| `PL-GRANT-001` | Stop the QA patient's terms - the reason stays on the record by design |
 | `ADM-PEOP-007`, `SEC-AUTH-006` | Re-activate the suspended accounts |
 | `ADM-CAT-002` (deactivate) | Re-activate the category |
 | `ADM-SET-020` (disable paediatrics) | Re-enable it |

@@ -664,3 +664,6 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 44 | Therapist team visibility | People → Therapists | `/team`, `?therapist=` resolution | Hidden ⇒ link resolves to nothing, silently | `PAT-BOOK-008` |
 | 45 | Payment gateway fee % | Settings (Costs context) | Operating profit on Money → Costs | The automatic fee line moves | `FIN-COST-002` |
 | 46 | **Therapist roster (any change)** | Sessions → Roster | **`/book` picker** | **Nothing changes - this is the guard** | `XCFG-ROSTER-001` |
+| 47 | Pay later master switch | **Money → Owed by Patients** (not Settings - it sits beside the figures it governs) | Granting terms; `confirm-pay-later` | Off ⇒ the grant card says it would do nothing and the route refuses; **money already owed is still settleable** | `PL-GRANT-004`, `PL-EDGE-002` |
+| 48 | Worth-chasing threshold | Money → Owed by Patients | The total's colour, each patient card, the Today alert | All three move together; a live count previews it before saving; 0 and 400 refused | `PL-OWED-002` |
+| 49 | Ageing warning on/off | Money → Owed by Patients | The same three, plus the filter chips | Off ⇒ nothing amber, chips dropped, alert counts **zero rather than hiding**; the number is kept | `PL-OWED-003` |

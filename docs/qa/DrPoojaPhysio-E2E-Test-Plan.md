@@ -626,6 +626,20 @@ Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `ac
 
 ### 8.3 Patients
 
+**Patient E is made only for §16.4 (pay later), and is made late on purpose.** That section turns on an arrangement where work is delivered before money arrives, and half of it asks *"is this patient new?"* - a question the app answers **once ever** per patient. Patients A and B both carry paid sessions from the reference dataset by the time Finance runs, so reusing either would spend the first-session offer before `PL-BOOK-007` could watch it fire. Create Patient E as an **admin-made account** (Settings → User Access) rather than a self-signup, because that is how these patients really arrive: the clinic makes the account and hands over the credentials.
+
+| Field | **Patient E** (pay later) |
+| --- | --- |
+| Full name | `QA Patient E` |
+| Email | `qa.patient.e@example.test` |
+| Password | Generated, shown **once** on User Access - write it down |
+| Phone | `+91 98765 43213` |
+| Date of birth | `1968-07-21` |
+| PIN code | `560038` |
+| Referral code | *(blank - a referred patient can never be granted terms; that is `PL-GRANT-003`, which uses **Patient C**)* |
+| Concern | `Chronic shoulder pain` |
+| Pay later reason | `Patient of six years, settles monthly by bank transfer` |
+
 | Field | **Patient A** (main journey) | **Patient B** (isolation/negative) | **Patient C** (hospital-referred) |
 | --- | --- | --- | --- |
 | Full name | `QA Patient A` | `QA Patient B` | `QA Referred Patient C` |
@@ -3781,6 +3795,9 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 44 | Therapist team visibility | People → Therapists | `/team`, `?therapist=` resolution | Hidden ⇒ link resolves to nothing, silently | `PAT-BOOK-008` |
 | 45 | Payment gateway fee % | Settings (Costs context) | Operating profit on Money → Costs | The automatic fee line moves | `FIN-COST-002` |
 | 46 | **Therapist roster (any change)** | Sessions → Roster | **`/book` picker** | **Nothing changes - this is the guard** | `XCFG-ROSTER-001` |
+| 47 | Pay later master switch | **Money → Owed by Patients** (not Settings - it sits beside the figures it governs) | Granting terms; `confirm-pay-later` | Off ⇒ the grant card says it would do nothing and the route refuses; **money already owed is still settleable** | `PL-GRANT-004`, `PL-EDGE-002` |
+| 48 | Worth-chasing threshold | Money → Owed by Patients | The total's colour, each patient card, the Today alert | All three move together; a live count previews it before saving; 0 and 400 refused | `PL-OWED-002` |
+| 49 | Ageing warning on/off | Money → Owed by Patients | The same three, plus the filter chips | Off ⇒ nothing amber, chips dropped, alert counts **zero rather than hiding**; the number is kept | `PL-OWED-003` |
 
 ---
 
@@ -4116,6 +4133,360 @@ Covered by `FIN-PAY-002`. **No double payout.**
 #### `PAY-AMT-002` - A care-plan price cannot be tampered with · P0
 **Steps.** Accept a recommendation, intercepting the request to change the package id to a cheaper one.
 **Expected Result.** The route **re-derives the price from the plan's own recommended package** and refuses a catalog mismatch (`That recommendation is incomplete.` / a mismatch 409). The programme granted is the one recommended, at the price recommended.
+
+---
+
+### 16.4 Pay later
+
+#### Feature guide - what this arrangement is, and the one rule behind it
+
+A handful of long-standing patients are **treated first and settle afterwards** - weekly, monthly, or right after a session. An admin creates the account, hands over the credentials and grants the privilege on the patient's own profile. That patient books an online session through the ordinary wizard with **no payment step**, and pays later.
+
+**The whole design rests on one sentence: nothing is owed until the work is done.** `amount_due_paise` is frozen when the session is **booked** and counted only once the session is **completed**. That single split is what makes "booking owes nothing" and "a late cancellation owes nothing" true with **no special case anywhere** - there is no state to unwind, because nothing was ever owed.
+
+Four consequences worth holding in mind while testing:
+
+1. **`payment_status = 'unpaid'` already means "somebody abandoned a checkout".** So `payment_terms` (`prepaid` | `pay_later`) is a **second axis**, and telling the two apart is what stops an abandoned cart being counted as a debt. A pay-later session sits at `unpaid` for its whole life and is **not** a failed payment.
+2. **Revenue is recognised at completion, not at collection** - because the therapist's share is. On completion the frozen price appears in **three places at once**: what the patient owes, the clinic's revenue, and the therapist's share. The therapist is deliberately **not** made to wait on the patient: they did the work and had no say in extending the credit, so **the clinic carries the gap**.
+3. **There is no ceiling, by choice.** So the two figures at the top of **Money → Owed by Patients** - the total, and how long the oldest unsettled session has been owed - are the **entire** early warning. Test them as though they were the only safety net, because they are.
+4. **Online sessions only.** Never a home visit (travel is a pass-through paid to the therapist in full), never a session drawn from a programme already paid for, and never when a discount has already taken the total to nothing - a free booking is not a debt of zero.
+
+**Vocabulary.** Patient screens say *You owe so far*, *We're checking your payment*. They never say **debt**, **outstanding**, **invoice** or **balance** - that last one is already the patient's word for unspent session credits, and one dashboard cannot have it meaning two things. Admin screens say **Pay later**, **Owed by patients**, **Payments waiting**.
+
+**Prerequisite for everything below:** the master switch is **off by default**. Turn it on at **Money → Owed by Patients** (not Settings - it sits beside the figures it governs, the same placement rule promo codes follow). Use **Patient E** (§8.3), who is created for this section precisely because Patients A and B have both paid for sessions by now and the first-session offer is once-ever. **Patient C** is the one to point `PL-GRANT-003` at, since a hospital-referred patient can never be granted terms. Turn the switch **off again** when you finish.
+
+---
+
+#### `PL-GRANT-001` - The privilege is granted, with a reason, by a money desk · P0
+
+**Steps.** As Master Admin, open a patient's profile and find the **Pay later** card. Try to save with a 9-character reason. Then save with a real one, e.g. `Patient of six years, settles monthly by bank transfer`. Re-read the card.
+**Expected Result.** Nine characters is refused by **the route and a CHECK constraint** - both, because a route check is true only for as long as every caller remembers it. Ten or more saves, the card reads back **Why:** with the reason, and an audit entry `patient.set_pay_later` is written. The button reads **Allow this patient to pay later**; once granted it reads **Stop pay later**.
+**Why a reason to grant and none to stop:** this is the **opposite** split from the care-plan review. The thing being explained is the **risk**, and here the risk is the grant. Revoking leaves the reason in place - the CHECK is vacuous while disabled, and why terms were given stays on the record after they are stopped.
+
+#### `PL-GRANT-002` - Operations and Clinical cannot reach it at all · P0
+
+**Steps.** As **Operations**, then as **Clinical**, open the same patient profile. Then POST `/api/admin/set-patient-pay-later` directly with a valid session cookie for each.
+**Expected Result.** The card **does not render** for either, and both routes answer **403**. Extending credit is a **money** capability whatever screen the button sits on. **Finance can do it** - they manage Money.
+**Negative:** the card must compute `scopeCanManage(scope, "money")` of its own, **not** reuse the patient page's looser `canSeeMoney` - that one is `scopeCanOpen`, and using it would offer the control to a desk the route then refuses with nothing on screen to explain it.
+
+#### `PL-GRANT-003` - A hospital-referred patient is refused, with the reason named · P0
+
+**Steps.** Try to grant terms to a patient carrying `referred_by_hospital_id`.
+**Expected Result.** Refused, and the card states it in place: the partner earns a share of the revenue **as soon as a session is delivered**, so terms would have the clinic paying that share out of money nobody has been given.
+**Why not the alternative:** deferring the partner's cut to settlement would break `clinic share = net − therapist − partner`, the identity §16.0 says must always hold - which is worse than the problem.
+
+#### `PL-GRANT-004` - With the master switch off, a grant says so rather than looking saved · P1
+
+**Steps.** With `pay_later_enabled` **off**, open the card.
+**Expected Result.** One line: *"Pay later is switched off for the whole clinic, so this would do nothing yet."* The save button is disabled. Calling the route directly answers *"Pay later is switched off for the whole clinic. Turn it on under Money - Owed by Patients first."*
+**Expected Result (the setting's own toast).** Switching it on says *"Trusted patients can now be treated first and settle afterwards."*; off says *"Nobody new can be put on pay later. Anything already owed is still owed, and can still be settled."* **The switch gates granting only** - never stopping, and never a debt already owed.
+
+---
+
+#### `PL-BOOK-001` - Booking on terms, with no payment screen · P0
+
+**Steps.** As the trusted patient, book an **online** session through the ordinary wizard. Read the final step.
+**Expected Result.** The primary button reads **Confirm booking - pay later**, with a secondary link under it reading **Or pay ₹X now instead** - secondary weight, because settling later is why they were given terms. Confirming produces a session at `status = 'confirmed'`, `payment_terms = 'pay_later'`, `payment_status = 'unpaid'`, `paid_at` **never stamped**, a therapist assigned or queued as usual, and a **Meet link**. No Razorpay sheet opens and no `payments` row is written.
+**Expected Result (the confirmation names the figure).** A line reading *"After your session you'll owe"* with the frozen amount under it - the figure the route just wrote, **never a re-read**. Reading the price once to quote and again to render is how the two come to differ.
+
+#### `PL-BOOK-002` - Paying now is never taken away · P1
+
+**Steps.** On that same screen follow **Or pay ₹X now instead** and complete a real test payment.
+**Expected Result.** An ordinary **prepaid** session that touches none of this machinery: paid, `payment_terms = 'prepaid'`, nothing added to what they owe. Switching this arrangement on for somebody must not remove a choice they already had.
+
+#### `PL-BOOK-003` - Immediately after booking, nothing is owed · P0
+
+**Steps.** With the session booked and not yet delivered, read the patient's dashboard and **Money → Owed by Patients**.
+**Expected Result.** The patient's widget is **absent** - not showing ₹0 - and the admin total is unchanged. A card reading ₹0 is a card telling somebody about a thing that is not happening.
+
+#### `PL-BOOK-004` - A late cancellation owes nothing, with no special case · P0
+
+**Steps.** Cancel that session inside the cancellation window.
+**Expected Result.** **Nothing is owed and nothing is forfeited.** Different from a prepaid patient, who forfeits - accepted deliberately, because these are patients the clinic would forgive anyway. There is no state to unwind: the money is filtered on `status = 'completed'`, and the session never reached it.
+
+#### `PL-BOOK-005` - Four refusals, all re-derived server-side · P0
+
+**Steps.** POST `/api/appointments/confirm-pay-later` four ways: with the master switch off; as a patient **without** the grant; for a **home visit**; and for a session drawn from a **programme** purchase.
+**Expected Result.** All four refused, each from the server's own reading - the browser sends an appointment id and nothing else. The home visit says *"Home visits are paid for when they're booked. You can book an online session to pay later."*; the programme says *"This session comes out of a programme you've already paid for, so there's nothing to settle."*
+**The two refusals about the patient say the same sentence on purpose** - *"This booking needs to be paid for now."* - so somebody who was never granted terms does not learn the arrangement exists and that they are not in it.
+
+#### `PL-BOOK-006` - The price is frozen at booking · P0
+
+**Steps.** Book on terms against a category priced ₹1,200. Re-price the category to ₹1,500. Complete the session.
+**Expected Result.** The session still owes **₹1,200**. Resolving the price again at settlement would charge the new price for work already delivered - the same reason a purchase reads its frozen `package_snapshot` rather than the live catalogue row.
+
+#### `PL-BOOK-007` - A discount applies exactly as it does to any other booking · P1
+
+**Steps.** With the **first-session offer** on, book two sessions on terms for one brand-new trusted patient.
+**Expected Result.** The offer applies to the **first only**. The confirmation names what was frozen **and what came off it**; **Money → Owed by Patients** prints the struck-through list price and the rule beside any session owed less than it.
+**Negative - the bug this replaced.** "Is this patient new" was asked in three places and all three asked `payment_status = 'paid'`. A session on terms is never paid, so a trusted patient read as **brand new on every booking they ever made**: the offer fired on sessions two, three and four, a first-session-only promo code was claimable repeatedly, and an invite welcome was claimable after they had already been treated. Silently, in all three.
+**Also check the cap.** A promo code claimed by a pay-later booking counts against its cap **permanently** - the discount has been given and can never be taken back - while an abandoned **prepaid** checkout of the same age still gives its claim back after the thirty-minute hold.
+
+#### `PL-BOOK-008` - A free booking is not a debt of zero · P1
+
+**Steps.** Apply a 100%-off code to a booking for a patient on terms.
+**Expected Result.** The quote resolves to **free**, not to pay-later, and the confirmation goes through `/api/appointments/confirm-free`: no gateway order, **no `payments` row**, `amount_paid_paise = 0` with all four discount facts recorded. Nothing is added to what they owe.
+
+---
+
+#### `PL-DONE-001` - Completion makes the money appear in three places at once · P0
+
+**Steps.** Have the therapist complete the session. Then read, in order: the patient's dashboard, **Money → Owed by Patients**, **Money → Summary**, and the therapist's **Earnings**.
+**Expected Result.** The frozen price appears in **all three** at the same moment - what the patient owes, the clinic's **gross and net revenue**, and the therapist's **share**. Nothing waits on the patient paying.
+**Hand-check the month.** A session delivered in January and paid in February must read: **January** revenue ₹1,200, therapist ₹720, **profit ₹480** - not a loss. **February: nothing moves.** Counting at collection instead reports a loss in the month the work was done and a windfall in the month it was paid - both months wrong for one session.
+
+#### `PL-DONE-002` - The therapist may complete it, and sees nothing to chase · P0
+
+**Steps.** As the treating therapist, open the session card before and after completing it.
+**Expected Result.** Completion is **allowed** - it is the fourth allowance beside paid, programme and cash, because completing is precisely what **creates** the debt, and refusing would make the one session that must be closed the one that cannot be. The card reads as an **ordinary session**: no "Unpaid", no amount, and **no instruction to collect cash** at a video call. Chasing a trusted patient at a door that does not exist is what the platform's own communication rules exist to prevent.
+
+#### `PL-DONE-003` - A prepaid unpaid session is still refused · P0
+
+**Steps.** As a therapist, try to complete an ordinary **prepaid** session sitting at `unpaid`.
+**Expected Result.** Still **409**, exactly as before. The new allowance is keyed on `payment_terms`, so it is inert on every session that is not on terms.
+
+#### `PL-DONE-004` - No risk signal, no System Health row · P0
+
+**Steps.** After completing a pay-later session, open **Today → Risk** and **Settings → System Health**.
+**Expected Result.** **No** `completion_without_payment` signal, and **no** `sessions_without_backing` row. A session on terms **is** backed: the sale is recorded, the revenue counted, and the debt is on its own screen. Without these two exclusions every session one of these patients ever has would be a high-severity signal and a permanent red row.
+
+#### `PL-DONE-005` - The patient's feed does not say their booked session isn't booked · P1
+
+**Steps.** Read the patient's dashboard feed with a booked, undelivered pay-later session.
+**Expected Result.** No item titled *"Payment not completed"* over *"This session isn't booked until payment goes through."* The replacement is **informational and never `needsYou`** - there is nothing for them to do, and pinning it would put a permanent to-do on the dashboard of the patients the clinic trusts most.
+
+#### `PL-DONE-006` - Every chip reads the terms, not the raw column · P0
+
+**Steps.** Open the same delivered session on **People → the patient's profile**, in the **Sessions → All Sessions** drawer, and in the All Sessions export.
+**Expected Result.** None of them prints **"Unpaid"**. All three read one shared module, so the chip, the drawer and the file cannot describe it three ways. "Unpaid" against a patient of two years is both wrong and, on the screen an admin chases people from, actively misleading. The `pay_later` filter and `?view=` preset select exactly these rows, and the `unpaid` preset is narrowed to **prepaid**-unpaid so the two counts cannot overlap.
+
+#### `PL-DONE-007` - A session that happened and was never closed is named · P0
+
+**Steps.** Leave a pay-later session past its slot time without completing it. Open **Money → Owed by Patients** and **Settings → System Health**.
+**Expected Result.** It is listed under **Sessions that were never closed**, and the System Health check turns **amber** naming the count. **This is the one place in the whole design where money can silently fail to exist** - debt, revenue and the therapist's pay all appear at completion, so a session nobody closed produces none of the three and no screen has anything to show. Every other failure here is a *wrong* number, which a check can catch; this is an *absent* one, which nothing else would.
+
+---
+
+#### `PL-OWED-001` - The two figures that are the whole early warning · P0
+
+**Steps.** Open **Money → Owed by Patients** with several delivered, unsettled sessions across two patients. Read **Total owed** and **Owed longest**. Change the date range on any other Money screen and come back.
+**Expected Result.** Both figures are `now`-scoped - **right now, all time** - and do **not** move with a date filter. A debt does not stop existing outside a filter. Each patient card names the session count, the oldest date and the age in days, and each session line carries **the price agreed on the day**.
+
+#### `PL-OWED-002` - The ageing threshold, and seeing it work before saving · P1
+
+**Steps.** As Master Admin, read the ageing control beside the figures. Type `30`, `45`, `60` without saving and watch the live count. Save `7`. Then try `0` and `400`.
+**Expected Result.** The default is **60 days**. The field says **"N of M patients would show as worth chasing"**, recomputed live from the ages already on the page - nothing is fetched and nothing is saved to find out. Saving `7` turns a 10-day balance amber that was green at 60, and the Today alert count moves with it. `0` and `400` are refused by **the route and the column's CHECK**. The toast reads *"A patient who has owed for more than 7 days now shows as worth chasing."*
+**Why there is no zero:** it reads as "chase everything" to one person and "never warn me" to another, and a warning whose meaning depends on who set it is worse than no setting.
+
+#### `PL-OWED-003` - Turning the warning off keeps the totals · P1
+
+**Steps.** Switch **pay_later_age_warning_enabled** off.
+**Expected Result.** *"Ageing warnings are off. You will still see what every patient owes."* Nothing turns amber, **Owed longest** goes slate, the aged/recent filter chips drop out, and the Today alert **Patients who have owed for a while** counts **zero rather than hiding** - an alert row nothing can bring down is worse than no row. The number itself is **kept**, so switching back on restores what the clinic chose rather than the default.
+
+#### `PL-OWED-004` - A stored number the app cannot use is named on screen · P2 **[SQL]**
+
+**Steps.** Set `pay_later_aged_after_days` to `3650` directly in SQL, past the route and the CHECK. Reload the screen.
+**Expected Result.** The screen states that **3,650 days is saved but cannot be used, so the built-in 60 days is in force**, and says to save a number between 1 and 365. The screen and the database disagreeing with nothing reconciling them is exactly the failure the data-load banner exists for, one setting down.
+
+#### `PL-OWED-005` - Finance reads the rule instead of meeting a gap · P1
+
+**Steps.** Open the same screen as **Finance**.
+**Expected Result.** A plain sentence - *balances turn amber after N days, only a Master Admin can change this* - where the control sits. Finance manages **Money** but holds **settings** at `none`, so the save route would refuse them; a control a scope cannot call must not render, and an absence reads as a half-built screen.
+
+---
+
+#### `PL-PAY-001` - Paying online settles in one transaction · P0
+
+**Steps.** As the patient with ₹4,800 owed across four delivered sessions, tap **Pay ₹4,800 now** and complete a test payment.
+**Expected Result.** All four settle at once and the widget reads nothing owed. The capture **confirms the payment row and allocates in one database transaction** - it either confirms and closes the sessions it covers, or does neither. `payments.purpose` reads `pay_later_settlement` with `target_pay_later_payment_id` set, so it is **not** reported as an unmatched payment on System Health.
+
+#### `PL-PAY-002` - The amount comes from the server · P0
+
+**Steps.** Intercept `/api/patient/pay-later/create-order` and raise the amount above what is owed.
+**Expected Result.** Capped at the server's own figure, re-derived through the same balance the admin screen reads. Asking for more than is owed answers *"That's more than you owe at the moment. Enter the amount owed or less."* **This route deliberately does not go through the checkout quote** - it is a payment against a debt already recorded, so there is nothing to quote, claim or discount. Money off was decided when each session was booked and is already inside the frozen price; resolving it again here would take it twice.
+
+#### `PL-PAY-003` - A part payment settles whole sessions, oldest first · P0
+
+**Steps.** With ₹4,800 owed across four ₹1,200 sessions, pay **₹2,000**.
+**Expected Result.** **Exactly one** session settles, in full, at **its own** frozen price. **₹800 stays unallocated** and is stated on both screens - the patient's reads *"₹800 of your last payment is held against your next session"*, the admin card reads *"received and not yet applied"*. The widget reads **₹3,600**, not ₹4,800. **No session is part-settled.**
+**Why whole sessions only:** the therapist's cut is computed from `amount_paid_paise`, so spreading ₹500 across four ₹1,200 sessions would silently shrink it on sessions the clinic had **already paid out on**.
+
+#### `PL-PAY-004` - No money figure moves either side of a settlement · P0
+
+**Steps.** Record every figure on **Money → Summary**, **Breakdown**, **Business Health** and the therapist's **Earnings** and **Payouts** before the settlement above. Compare after.
+**Expected Result.** **Byte-identical.** Settlement writes `amount_paid_paise = amount_due_paise` **exactly** - never the payment's share - so recognised revenue and every therapist's pay are the same number before and after the money arrives. This is the single most important assertion in the feature; if it fails, stop and report it.
+
+#### `PL-PAY-005` - The pool is fungible across payments · P1
+
+**Steps.** With ₹800 unallocated, have a **fifth** session complete. Then pay a further **₹400**.
+**Expected Result.** The completion re-runs allocation and the ₹800 still settles **nothing** (₹1,200 is needed). The further ₹400 pools with it and settles the next session **in full**. Requiring one payment to cover one whole session reads tidier and strands money for ever - two ₹800 instalments would leave ₹1,600 in the clinic's hands and a ₹1,200 session nothing could close.
+
+#### `PL-PAY-006` - One receipt per payment, not one per session · P1
+
+**Steps.** Open the patient's **Payments** screen after a ₹4,800 payment closed four sessions.
+**Expected Result.** **One** receipt listing the four. Four receipts for one transfer reads as four payments.
+
+#### `PL-PAY-007` - Reconciliation holds · P0 **[SQL]**
+
+**Steps.** After each of the cases above, compute `sum(confirmed payments)` against `sum(settled session amounts) + unallocated`.
+**Expected Result.** Equal, every time. **Settings → System Health → Pay Later** says *"Money in matches money accounted for"*. A disagreement is this feature's **only red state**, and it **reports and never repairs** - a silent auto-fix on a money record is how a discrepancy becomes permanent.
+
+---
+
+#### `PL-DECL-001` - A declaration settles nothing · P0
+
+**Steps.** As the patient, tap **I've already paid**, choose UPI, enter the full amount with a reference and a note, and submit. Then read what they owe, on both the patient's screen and the admin's.
+**Expected Result.** A **pending** row is written and **the figure does not move by a paisa**, on either screen. The patient's card reads *"We're checking your payment."* with what they told the clinic and when - informational, never a to-do. **A patient who could clear their own total by typing into a box is a patient who can.**
+
+#### `PL-DECL-002` - The clinic answers it, and the two outcomes differ · P0
+
+**Steps.** As Finance, open **Payments waiting** on Money → Owed by Patients. Confirm one. On a second, tap **Could not find it** and try a 9-character reason, then a real one.
+**Expected Result.** **Confirm is one tap and needs no reason** - it is the outcome this queue exists to reach, and taxing it with a sentence meaning "the money is there" is how a reason column fills with "ok". **Rejecting needs ten characters**, enforced by the route **and** a CHECK, and the reason reaches the patient on their own dashboard: *"We couldn't find the ₹X you told us about"* followed by what the admin wrote. Confirming reaches the allocator; rejecting settles nothing and un-settles nothing.
+
+#### `PL-DECL-003` - One waiting at a time, and a rejection unblocks · P1
+
+**Steps.** Declare a payment, then try to declare a second before it is answered. Then have the admin reject the first and declare again.
+**Expected Result.** The second is refused: *"We're already checking a payment from you. We'll confirm it shortly."* After a rejection, declaring is allowed again.
+
+#### `PL-DECL-004` - Two admins answering one declaration · P0
+
+**Steps.** Open the queue in two browsers as two admins and confirm the same row at once.
+**Expected Result.** Exactly **one** wins; the other gets **409** *"Somebody else confirmed this payment a moment ago."* The audit entry records **only the winner** - the log write happens after the CAS claim. The pool is not spent twice.
+
+#### `PL-DECL-005` - An online payment is never "pending" · P1 **[SQL]**
+
+**Steps.** Try to insert a `pay_later_payments` row with `method = 'online'` and `status = 'pending'`.
+**Expected Result.** Refused by a CHECK. The gateway **is** the confirmation, so a pending online row would be a queue entry nobody could ever action.
+
+#### `PL-DECL-006` - The table is append-only · P0 **[SQL]**
+
+**Steps.** Try to DELETE a confirmed row; try `confirmed → pending`; try to rewrite an amount, method or note.
+**Expected Result.** All refused by trigger. `pending → confirmed|rejected` is permitted **one way**, plus the two columns allocation moves. RLS is not the guarantee here - every route writes with the service-role client, which bypasses it entirely.
+
+#### `PL-DECL-007` - Waiting too long is amber, on two screens · P1
+
+**Steps.** Leave a declaration unanswered for more than **three days**.
+**Expected Result.** The queue card turns amber and names the wait; **System Health → Pay Later** reads *"1 payment is waiting to be checked, the oldest for 4 days"* with steps naming the bank statement; the Money alerts strip carries **Payments waiting to be checked**. Until it is answered, **both** screens overstate what is owed, and the patient cannot tell "being checked" from "forgotten".
+
+#### `PL-DECL-008` - Declaration spam is throttled without blame · P2
+
+**Steps.** Submit declarations rapidly until refused.
+**Expected Result.** A `429` whose message carries **no numbers and no blame** - a limit is reached by a shared office address or a retrying connection far more often than by anybody doing anything wrong. The concrete wait is composed separately from `Retry-After` and is the half allowed to be specific, because it is measured.
+
+---
+
+#### `PL-WOFF-001` - Writing a session off is a cost, not a reduction · P0
+
+**Steps.** Record every figure on **Money → Summary** and the therapist's **Earnings**. On **Money → Owed by Patients**, find an owed session and tap **Write it off**. Read the confirmation, enter a real reason, save. Compare the figures. Then open **Money → Costs**.
+**Expected Result.** **Revenue does not move. The therapist's share does not move.** `clinic share = net − therapist − partner` still holds. The session leaves the owed total, and **one Bad debt row** appears on Costs for exactly the amount forgiven, dated **today**.
+**Why:** the clinic **earned** the ₹1,200 at completion and **failed to collect** it - and the therapist has already been paid, because they did the work and had no say in extending the credit. Reducing the session's amount instead would pull revenue down **and claw their share back off money already handed over**.
+**Where it lands in the books:** a bad debt is an **operating expense** - below the gross-profit line, inside what break-even has to cover, and **not** added back in EBITDA. Check **Business Health**: gross margin must be unchanged, EBITDA and net profit each down by exactly the amount written off.
+
+#### `PL-WOFF-002` - Both directions need a reason, and it can be undone · P1
+
+**Steps.** Try to write one off with a 9-character reason. Then write it off properly, find it under **Written off**, and tap **Ask for it again** with a real reason.
+**Expected Result.** Nine characters refused. The reversal brings the session back as **owed** and **removes the Bad debt row with it**. Both directions need a sentence - writing off gives money away, and reversing re-imposes a debt on a patient who has been told it was forgiven.
+**Why the list exists at all:** written-off sessions are dropped from every balance, so without their own list the undo would be reachable only in the database - which would make it a claim rather than a control.
+
+#### `PL-WOFF-003` - One cost row per session, however many taps · P0
+
+**Steps.** Double-tap the write-off button. Then check **Money → Costs**.
+**Expected Result.** **One** Bad debt row. The appointment is claimed first and only the caller whose claim lands writes the loss, with a partial unique index behind it for the callers a route check cannot see.
+**Order matters, and this is why:** a session written off with **no cost row behind it** overstates profit by exactly the amount forgiven and says so on **no screen**. So a cost row that will not write **reverts the write-off** rather than leaving that state.
+
+#### `PL-WOFF-004` - The cost cannot be deleted out from under the session · P1
+
+**Steps.** On **Money → Costs**, try to delete the Bad debt row.
+**Expected Result.** Refused, naming where to reverse it: *bring the session back on Money → Owed by Patients and this goes with it.* Ordinary hand-typed costs delete exactly as before.
+
+#### `PL-WOFF-005` - The books are checked, and null is not zero · P1
+
+**Steps.** Open **Settings → System Health → Pay Later** with a write-off in place.
+**Expected Result.** The evidence reads *"Every written-off session has its loss recorded as a cost"*. A disagreement is **red**. On a database that has not had the migration applied it reads **"could not be checked"** - never as agreement, because a read that failed is not a read that came back empty.
+
+#### `PL-WOFF-006` - Refusals name the alternative · P2
+
+**Steps.** Try to write off: a prepaid session; a session not yet delivered; one already settled; one already written off.
+**Expected Result.** Each refused with its own sentence, and the first two **name the lane that would work** rather than stopping at "no" - an admin who has opened this control has decided not to collect, and a bare refusal leaves them looking for another way to do the same thing off the books.
+
+---
+
+#### `PL-REF-001` - Refunding a settled session is handed back by a person · P0
+
+**Steps.** Settle a session, then open it in the **Sessions → All Sessions** drawer and refund part of it. Read the confirmation wording. Then open **Money → Owed by Patients**.
+**Expected Result.** The confirmation says the money is **recorded as owed back**, not sent "via Razorpay". No gateway call is made. The session lands at `manual_pending` and appears under **Refunds to hand back** with the amount, the reason and how long it has waited. **Confirm handed back** clears it.
+**Why every settled pay-later session takes this lane, whatever it was settled with:** the money arrived into a **pool** covering several sessions, and an online settlement's gateway id sits on the payment row rather than the session - so "this session's share of that payment" is not something a gateway refund can express safely.
+
+#### `PL-REF-002` - Refunding an unsettled session is not a refund · P1
+
+**Steps.** Try to refund a session the patient has **not** settled.
+**Expected Result.** Refused, and the message names the write-off: *"Nothing has been paid for this session yet, so there is nothing to refund. To stop chasing it, write it off on Money → Owed by Patients."* A dead-end refusal here is the whole failure this replaces.
+
+#### `PL-REF-003` - Each refund count links to a screen that can clear it · P1
+
+**Steps.** With both a cancelled **cash home visit** refund and a **pay-later** refund waiting, read the Money alerts strip and follow each row.
+**Expected Result.** **Two** rows: *Refunds to hand back by hand* → Payouts → the Cash Ledger, and *Refunds owed to trusted patients* → Owed by Patients → the hand-back list. The two sum to every `manual_pending` refund there is.
+**Negative:** as one row it linked to the Cash Ledger, which lists **home visits** - so a pay-later refund was counted on a screen that could not act on it, and **an alert nothing can bring down is worse than no alert**.
+
+#### `PL-REF-004` - Gateway refunds on ordinary sessions are untouched · P0
+
+**Steps.** Refund a prepaid, gateway-paid session.
+**Expected Result.** Entirely unchanged: a real Razorpay refund, `processed`, with the refund id recorded. The by-hand lane is keyed on the terms, so it is inert everywhere else.
+
+---
+
+#### `PL-RISK-001` - Trusted patients get their own heading, and a flag is never an accusation · P1
+
+**Steps.** Open **Today → Risk** with an aged balance.
+**Expected Result.** The findings sit under **Trusted patients - follow up**, with a line saying these are **reminders, not concerns**. A patient of two years appearing unexplained under a heading called "Risk" reads exactly wrong - to whoever opens the screen, and to the patient if it ever reaches them. Nothing is suspended, held or hidden; the signal links to the rows behind it and carries **no action buttons**.
+**Defaults.** `pay_later_aged` ships **enabled** - unusual for a threshold with no clinic baseline, and justified because the population is tiny and hand-picked so it cannot fire on everyone, and because it is the only automatic warning an arrangement with no ceiling has. It reads **the admin's own threshold**, so the amber on the screen and the signal can never disagree about what "a while" means. `pay_later_balance_high` ships **disabled**. `pay_later_declaration_rejected` is **enabled**, threshold **2** - it fires on the second rejection, not the first.
+
+#### `PL-HEALTH-001` - Owing money is never a fault · P0
+
+**Steps.** Read **Settings → System Health → Pay Later** in four states: switch off and nobody on terms; money owed, all recent, nothing waiting; a declaration waiting six days; the reconciliation disagreeing.
+**Expected Result.** In order: **`off`** (*"Pay later is not in use."*) - **not** a fault and not red; **Healthy**; **Needs a look**; **Needs you now**. A patient owing a large sum with nothing overdue is **not red** - that is the arrangement working, and painting it red is how red stops meaning anything. Every non-healthy state carries **steps an owner can follow alone**, and the sidebar badge rises by **at most one**, because it counts checks rather than rows.
+
+#### `PL-HEALTH-002` - An unapplied migration becomes a line on a screen · P1
+
+**Steps.** Point the app at a database missing the pay-later columns.
+**Expected Result.** The check reads **"Not set up"** with the steps to apply the schema, and **nothing else on the screen breaks**. Every pay-later column is read in its **own isolated query** and merged by id - never folded into a shared select, which would take the whole dashboard down over one column.
+
+---
+
+#### `PL-EDGE-001` - Revoking terms does not disturb what is already booked · P1
+
+**Steps.** With sessions booked and money owed, stop the patient's terms.
+**Expected Result.** **New** pay-later bookings are refused. Sessions already booked **keep their frozen terms** and still enter the owed list when completed; everything already owed stays owed, listed and **settleable**. Retroactively demanding payment for sessions already agreed is the wrong behaviour.
+
+#### `PL-EDGE-002` - The master switch never strands money · P0
+
+**Steps.** With money owed, switch `pay_later_enabled` **off**.
+**Expected Result.** Nobody new can be put on terms, and nobody can book on them - but every existing balance is **still fully settleable**, online and by declaration. The stop must never strand money owed to the clinic.
+
+#### `PL-EDGE-003` - Reopening a settled session is refused · P0
+
+**Steps.** As an **Operations** admin, try to reopen a settled pay-later session, and one whose therapist has been paid out.
+**Expected Result.** Both refused **by the route**, not merely hidden on the screen - reopen is guarded by the Sessions scope, so an Operations admin reaches it. An unsettled, unpaid-out one may be reopened, and debt, revenue and the therapist's share all come off **together**, because all three key on the single word `completed`.
+
+#### `PL-EDGE-004` - Deleting a patient with money history · P1
+
+**Steps.** Try to delete a trusted patient's account.
+**Expected Result.** Refused **in plain words naming the counts**, grouped the way a person describes them, with **suspension offered beside it** - never a raw Postgres foreign-key string.
+
+#### `PL-EDGE-005` - Impersonation records the patient, not the admin · P2
+
+**Steps.** As Master Admin, open the patient's dashboard through impersonation and submit a declaration.
+**Expected Result.** The widget renders exactly as the patient sees it, and the declaration is recorded as **theirs**, inside the impersonation window - that window is the only thing a later reader can intersect the action against.
+
+#### `PL-EDGE-006` - Every date is in the clinic's zone · P2
+
+**Steps.** Read every date on the widget, the queues and the owed cards from a machine set to a different timezone.
+**Expected Result.** All rendered in the clinic's zone, except a **session slot**, which is shown in the zone the patient booked it in. Nothing prints "Invalid Date".
+
+#### `PL-EDGE-007` - The dashboard does not rebuild twice for one confirmation · P2
+
+**Steps.** With the admin dashboard open in a second browser, confirm a declaration.
+**Expected Result.** `pay_later_payments` is on the **30-second catalog channel**, not the operational one, so one Confirm does not rebuild the dashboard twice. On the admin dashboard the channels **count** rather than rebuild: the Refresh button turns teal and says how many changes are waiting.
 
 ---
 
@@ -4787,7 +5158,7 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 
 ## 22. Full regression journeys
 
-Each journey is an end-to-end run through the product, executed in one sitting. Run all four before a release.
+Each journey is an end-to-end run through the product, executed in one sitting. Run all seven before a release.
 
 ### `REG-J1` - The core money journey · P0
 
@@ -4859,6 +5230,24 @@ Run **all** of §18 in one pass, then `ADM-SET-027`'s full table.
 ### `REG-J6` - Payment integrity sweep · P0
 Run **all** of §16.3 in one pass.
 
+### `REG-J7` - The pay-later journey · P0
+
+```
+ADM-SET (pay_later_enabled on, at Money -> Owed by Patients)
+  -> PL-GRANT-001 (grant, with a reason) -> PL-GRANT-003 (a referred patient is refused)
+  -> PL-BOOK-001 (book, no payment screen) -> PL-BOOK-003 (nothing owed yet)
+  -> THR-SESS-005 (complete)             -> PL-DONE-001 (money in three places at once)
+  -> PL-DONE-004 (no risk signal, no health row)
+  -> PL-PAY-003 (part payment settles one whole session)
+  -> PL-PAY-004 (no money figure moved)  -> PL-PAY-007 (reconciliation holds)
+  -> PL-DECL-001 (a declaration settles nothing) -> PL-DECL-002 (the clinic answers it)
+  -> PL-WOFF-001 (write one off)         -> PL-WOFF-002 (and reverse it)
+  -> PL-REF-001 (refund a settled one, handed back by a person)
+  -> FIN-SUM-001 (the identities still hold)
+```
+
+**Pass criterion.** Every money figure on Summary, Breakdown, Business Health and the therapist's Earnings is **byte-identical** before and after each settlement and each write-off; both money identities hold at the end; and `sum(confirmed) = sum(settled) + unallocated` holds at every step. **Restore the switch to off afterwards.**
+
 ---
 
 ## 23. Test dependency map and recommended execution order
@@ -4913,7 +5302,8 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | 11 | **Credits** | `PAT-PKG-001..004`, `THR-SUGG-*`, `PAT-SUGG-*` | |
 | 12 | **Clinical** | `THR-HP-*`, `PAT-HP-*`, `PAT-DOC-*`, `THR-LEAK-*` | |
 | 13 | **Finance** | §16.1–16.2 | Build the reference dataset first. |
-| 14 | **Configuration dependencies** | §15.4, all 46 rows | Restore every setting afterwards. |
+| 13b | **Pay later** | §16.4 in full | Needs a delivered session, so it runs after phase 8 at the earliest - and after 13, since half of it is "this figure did not move". Use a **fresh** QA patient with no payment history, or `PL-BOOK-007`'s first-session offer will already have been spent. Turn the switch on at the start and **off at the end**. |
+| 14 | **Configuration dependencies** | §15.4, all 49 rows | Restore every setting afterwards. |
 | 15 | **Security** | §18 in full | |
 | 16 | **UX / mobile / a11y** | §19 | |
 | 17 | **Error / loading / empty** | §20 | Empty states are easiest right after a reset - consider running `ERR-EMPTY-001` in phase 1. |
@@ -4932,6 +5322,10 @@ THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
 | `DBG-TIME-*`, and every TIME scenario | **Reset to Real Time** |
 | `SETUP-RESET-003` | Re-arm `ALLOW_DEBUG_DATA_RESET=true` |
 | `PAY-WH-004` | Restore `RAZORPAY_WEBHOOK_SECRET` |
+| Every `PL-*` | `pay_later_enabled` back **off** - it is off by default and gates whether work may be delivered without money |
+| `PL-OWED-002` / `PL-OWED-004` | `pay_later_aged_after_days` back to **unset** (the built-in 60 days) |
+| `PL-OWED-003` | `pay_later_age_warning_enabled` back **on** |
+| `PL-GRANT-001` | Stop the QA patient's terms - the reason stays on the record by design |
 | `ADM-PEOP-007`, `SEC-AUTH-006` | Re-activate the suspended accounts |
 | `ADM-CAT-002` (deactivate) | Re-activate the category |
 | `ADM-SET-020` (disable paediatrics) | Re-enable it |

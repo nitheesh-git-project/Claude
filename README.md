@@ -1483,7 +1483,7 @@ Stopping somebody's terms stops new bookings only -- what is already owed stays
 owed and settleable.
 
 Booking is the ordinary wizard with the payment step replaced: the button
-reads **Confirm booking - pay later**, with **pay now instead** beside it, and
+reads **Confirm booking - pay later**, with **Or pay ₹X now instead** under it, and
 the confirmation says the session is booked rather than that a payment went
 through. Online sessions only, and never one drawn from a programme already
 paid for.
