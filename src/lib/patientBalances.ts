@@ -141,6 +141,15 @@ export type PayLaterAppointment = {
   payment_terms?: string | null;
   amount_due_paise?: number | null;
   pay_later_outcome?: string | null;
+  /** The four discount facts, recorded on every booking since discounts
+   *  shipped. Read here for display only -- nothing in this module's
+   *  arithmetic touches them, because `amount_due_paise` is already the
+   *  figure after the discount. They exist on the row so the screen can say
+   *  *why* a session is owed less than its category costs, which is the one
+   *  question a person chasing that figure will have. */
+  list_price_paise?: number | null;
+  discount_paise?: number | null;
+  discount_source?: string | null;
 };
 
 /** A payment the patient has made, once somebody has confirmed it arrived. */

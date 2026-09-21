@@ -402,8 +402,12 @@ rule in `AGENTS.md`.
 Four acquisition discounts exist and no more (`src/lib/discounts.ts`,
 `promoCodes.ts`, `inviteRewards.ts`), recorded as five sources because an
 invite has two halves: a standing **first-session offer**, whose eligibility
-is "has this patient ever paid for a session" asked of the database and so
-cannot be claimed twice or posted from a browser; a **goodwill adjustment**
+is "has this patient ever **committed** to paying for a session" asked of the
+database and so cannot be claimed twice or posted from a browser - committed
+rather than paid, because a session on pay-later terms is never paid and the
+older test therefore read a trusted patient as brand new on every booking
+they made, in all three places that ask it (`src/lib/priorSessionsServer.ts`
+is the one query they now share); a **goodwill adjustment**
 an admin applies to one unpaid session with a mandatory reason and an audit
 row; a **promo code**, a campaign an admin sets up that a patient claims by
 typing its name at checkout; and a **patient invite**, which takes something

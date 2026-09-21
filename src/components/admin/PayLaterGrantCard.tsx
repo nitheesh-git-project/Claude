@@ -108,6 +108,18 @@ export default function PayLaterGrantCard({
         There is no limit on what they may owe.
       </p>
 
+      {/* Said here because here is where the decision is made, and the admin
+          is usually typing "patient of six years" into the box below while
+          the app has no record of them before this account. Their first
+          session therefore gets whatever a new patient would be offered --
+          once, and once only: a booking on terms makes them no longer new
+          from then on, exactly as a paid one does. */}
+      <p className="mt-2 text-xs text-slate-600">
+        Discounts work as they do for anyone else. If this account is new here, their
+        first session gets whatever a new patient is offered - once, not on every
+        booking.
+      </p>
+
       {enabled && (
         <div className="mt-3 rounded-xl bg-slate-50 p-3">
           {reason && (

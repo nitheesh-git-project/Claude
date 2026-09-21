@@ -3321,7 +3321,7 @@ At **Settings → Offers & Discounts**, above Patient invites.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
-| **First session offer** | **off** | On → a patient who has never paid for a session is charged the offer price for a video consultation. Off → everyone pays list price |
+| **First session offer** | **off** | On → a patient who has never had a session here is charged the offer price for a video consultation. "Never had one" means no session paid for and none standing on pay-later terms - a trusted patient settling afterwards is new exactly once too, and a session they cancelled leaves them new. Off → everyone pays list price |
 | **Offer type** | `A set price` | `A set price` names what they pay ("₹499"); `A percentage off` adapts across categories priced differently |
 | **Offer value** | 0 | Rupees or whole percent depending on the type. The panel previews what a real category's session would cost a new patient |
 

@@ -972,8 +972,11 @@ Four, and deliberately no more.
 Configured at **Settings → Offers & Discounts** - off by default, either a set
 price ("first session ₹499") or a percentage off - and it applies to a video
 consultation only. Eligibility is decided by the server asking *has this
-patient ever paid for a session*, so it cannot be claimed twice, cannot be
-asked for, and cannot be sent from a browser. A patient is only new once.
+patient ever committed to paying for a session* - one that was paid for, or
+one still standing on pay-later terms - so it cannot be claimed twice, cannot
+be asked for, and cannot be sent from a browser. A patient is only new once,
+including a patient the clinic lets pay afterwards. A session they cancelled
+was never delivered and leaves them new.
 Programmes and home visits are never discounted by it: a programme comes
 from a therapist's recommendation, and a visit's travel fee is money that
 goes straight to the therapist.
@@ -1017,8 +1020,9 @@ session, and they get something off their next one - once that friend has
 actually had and paid for a session, never on a signup. Set both amounts and
 a ceiling on how many rewards one patient may earn at **Settings → Offers &
 Discounts**; it is off by default. A code cannot be used by its owner, cannot be
-used twice, and cannot be used by somebody who has already paid for a
-session - you are new exactly once. An amount already promised is honoured
+used twice, and cannot be used by somebody who has already had a session
+here - you are new exactly once, and a session you have yet to settle counts
+just as a paid one does. An amount already promised is honoured
 even if you change the figures or switch the feature off later.
 
 This is **not** the same thing as a hospital referral, which is a partner

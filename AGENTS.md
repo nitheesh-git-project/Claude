@@ -1650,6 +1650,36 @@ before.
      `settleInvitesOnCapture` is **not** called: an inviter's reward is
      earned when their friend's first session is paid for, and nothing has
      been.
+     **And the same decision had a second consequence, one layer up in
+     eligibility rather than in a cap.** "Is this patient new" was asked in
+     three places -- the standing first-session offer, a `first_session_only`
+     promo code, and `claim_invite()`, whose own comment said it was "the
+     same test the first-session offer uses" -- and all three asked
+     `payment_status = 'paid'`. A session on terms is never paid, so a
+     trusted patient read as brand new on **every** booking they ever made:
+     the offer did not fire once, it fired on sessions two, three and four,
+     and an invite welcome was claimable after they had already been
+     treated. Silently, in all three. They now count a **commitment** rather
+     than a capture, through one shared query
+     (`countPriorCommittedSessions`, `src/lib/priorSessionsServer.ts`), and
+     `priorSessions.test.ts` fails when a reader grows its own copy back.
+     Two details are load-bearing. The `status <> 'cancelled'` exclusion
+     applies to the terms arm **alone**: a cancelled pay-later booking was
+     never delivered and owes nothing, while widening the paid arm the same
+     way would hand the offer back to everybody who ever paid and then
+     cancelled. And the terms half is a **second, isolated** count rather
+     than one `or(...)`, because `payment_terms` is migration-dependent and
+     this count fails closed -- folded into one query, an unapplied
+     migration would quietly withdraw the first-session offer from
+     everybody.
+     What the decision also needs is for the discount to be **visible**,
+     since a pay-later booking was the one checkout ending in this app that
+     showed no figure at all: the confirmation names what was frozen and
+     what came off it (the route already returned both and the wizard
+     dropped them), and Money -> Owed by Patients states the list price and
+     the rule beside any session owed less than it -- an unexplained ₹499
+     against a ₹1,200 session, on the screen an admin chases people from,
+     reads as an error.
 
 - **A therapist asserts that money changed hands; the system owns the
   number.** `/api/therapist/record-cash-collection` used to accept
@@ -1834,10 +1864,22 @@ before.
   sends a **name**, never a figure.
   1. **The first-session offer** is standing configuration
      (`first_session_offer_enabled` / `_type` / `_value`, Settings → Offers
-     & Discounts, off by default). Eligibility is `has this patient ever paid for
-     a session`, asked of the database in `/api/razorpay/create-order` -
+     & Discounts, off by default). Eligibility is `has this patient ever
+     committed to paying for a session`, asked of the database in
+     `/api/razorpay/create-order` -
      so it cannot be claimed twice, asked for, or sent from a browser, and a
-     patient is only new once. It fails **closed**: an unreadable answer
+     patient is only new once. **Committed, not paid**, and the word is
+     load-bearing: it was `payment_status = 'paid'` until pay later existed,
+     and a session on terms is never paid - so that test read every trusted
+     patient as brand new on *every* booking they ever made and handed the
+     offer out again each time. A confirmed booking on terms is not an
+     abandoned checkout, because its price and its discount are frozen on it
+     and can never be taken back; a **cancelled** one was never delivered and
+     leaves them new. `countPriorCommittedSessions`
+     (`src/lib/priorSessionsServer.ts`) is the one query all three readers of
+     that question share - the offer, a `first_session_only` promo code and
+     `claim_invite()` - and `priorSessions.test.ts` fails when a reader grows
+     its own copy back. It fails **closed**: an unreadable answer
      means list price, because charging somebody who was owed an offer is a
      complaint while discounting everybody forever is a hole in the revenue
      nobody notices for a month. Video consultations only; a programme comes
@@ -1908,10 +1950,12 @@ before.
        reward that pays out on signups is a reward for creating accounts,
        and somebody will.
      - **A patient is new exactly once**, the same test the first-session
-       offer uses: an invite is claimable only before that patient's first
-       paid session, at most once ever (a unique index on `invitee_id`, not
-       a route check), and never their own code (`claim_invite()` and a
-       CHECK).
+       offer uses - and that phrase was a comment in `claim_invite()` while
+       the two had silently parted: an invite is claimable only before that
+       patient's first **committed** session (paid, or standing on pay-later
+       terms - see the first-session rule above), at most once ever (a unique
+       index on `invitee_id`, not a route check), and never their own code
+       (`claim_invite()` and a CHECK).
      - **Amounts are snapshotted at claim.** Lowering the reward next month
        must not lower what was already promised - the same reason a
        purchased entitlement reads its package snapshot rather than the live

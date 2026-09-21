@@ -96,6 +96,17 @@ export default function BookingWizard({
   // is not a completed payment, and a screen that reads as one would be
   // telling somebody they did something they did not do.
   const [paidLater, setPaidLater] = useState(false);
+  // What the pay-later confirmation actually wrote. Kept because this is the
+  // one checkout ending in the app that never showed the patient a figure:
+  // the session is booked, a discount may have come off, and the amount
+  // frozen onto the row is the thing they will be asked for later. It comes
+  // from the route's own response rather than from `quote`, which is a read
+  // that could have moved between the tap and the write.
+  const [owedLater, setOwedLater] = useState<{
+    amountDuePaise: number;
+    discountPaise: number;
+    discountLabel: string | null;
+  } | null>(null);
   const [quoting, setQuoting] = useState(false);
 
   // Lazy initializer, not a bare Date.now() in the render body -- same
@@ -527,6 +538,15 @@ export default function BookingWizard({
       }
       setLoading(false);
       setPaidLater(true);
+      // The figure the route wrote, never a re-read of it -- and never the
+      // quote's, which is what this screen used to show nothing of at all.
+      if (typeof data.amountDuePaise === "number") {
+        setOwedLater({
+          amountDuePaise: data.amountDuePaise,
+          discountPaise: typeof data.discountPaise === "number" ? data.discountPaise : 0,
+          discountLabel: quote?.discountLabel ?? null,
+        });
+      }
       setDone(true);
     } catch {
       setLoading(false);
@@ -702,6 +722,29 @@ export default function BookingWizard({
               </>
             )}
           </p>
+
+          {/* The price was frozen at this moment and any discount was
+              applied at it, so this is the one place either can be queried.
+              Left unsaid, a patient met the figure for the first time on a
+              screen asking them to settle it. */}
+          {paidLater && owedLater && (
+            <div className="mt-5 mx-auto max-w-xs rounded-2xl bg-teal-50 border border-teal-100 p-4 text-left">
+              <p className="text-xs text-slate-600">After your session you&apos;ll owe</p>
+              <p className="text-2xl font-bold text-teal-800 mt-0.5">
+                {formatInr(owedLater.amountDuePaise)}
+              </p>
+              {owedLater.discountPaise > 0 && (
+                <p className="text-[11px] text-teal-700 mt-1">
+                  {owedLater.discountLabel ?? "Discount"} - this price is held for this
+                  session whatever changes later.
+                </p>
+              )}
+              <p className="text-[11px] text-slate-500 mt-2">
+                Nothing is owed until the session has happened. You can see it on your
+                dashboard afterwards.
+              </p>
+            </div>
+          )}
           <Link
             href="/patient/dashboard"
             className="mt-6 inline-block bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 px-6 rounded-xl text-sm transition"

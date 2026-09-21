@@ -11324,3 +11324,103 @@ $$;
 revoke all on function public.claim_invite_half(uuid, uuid, text) from public;
 revoke all on function public.claim_invite_half(uuid, uuid, text) from anon;
 revoke all on function public.claim_invite_half(uuid, uuid, text) from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- A patient is new exactly once, and "once" had stopped meaning once
+-- ---------------------------------------------------------------------------
+--
+-- The comment on the original definition of this function says the "not_new"
+-- test is "the same test the first-session offer uses", and that was true and
+-- is the whole reason this re-creation exists: both asked
+-- `payment_status = 'paid'`, and a session booked on pay-later terms sits at
+-- `unpaid` for its whole life by design. So a trusted patient read as brand
+-- new on every booking they ever made -- an invite welcome was claimable
+-- after they had already been treated, and the standing offer fired again
+-- each time.
+--
+-- The predicate counts a **commitment** rather than a capture, exactly as
+-- `claim_promo_code` above already counts one: a confirmed booking on terms
+-- is not an abandoned checkout, because its price and its discount are frozen
+-- on it and can never be taken back.
+--
+-- `status <> 'cancelled'` applies to the terms arm alone. A cancelled
+-- pay-later booking was never delivered and owes nothing, so spending a
+-- once-ever welcome on it would charge somebody for a session that did not
+-- happen. The paid arm deliberately keeps its old shape -- widening it here
+-- would hand the welcome back to every patient who ever paid for a session
+-- and then cancelled it.
+--
+-- See countPriorCommittedSessions in src/lib/priorSessionsServer.ts, which is
+-- the same question asked by the two readers that live in the application.
+create or replace function public.claim_invite(
+  p_code text,
+  p_invitee_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_settings site_settings%rowtype;
+  v_inviter_id uuid;
+  v_paid_before integer;
+  v_rewards_earned integer;
+begin
+  select * into v_settings from site_settings where id limit 1;
+  if not found or not coalesce(v_settings.invite_rewards_enabled, false) then
+    return jsonb_build_object('ok', false, 'reason', 'disabled');
+  end if;
+
+  select id into v_inviter_id from profiles
+    where invite_code = upper(btrim(replace(replace(p_code, '-', ''), ' ', '')))
+      and role = 'patient';
+  if v_inviter_id is null then
+    return jsonb_build_object('ok', false, 'reason', 'unknown_code');
+  end if;
+  if v_inviter_id = p_invitee_id then
+    return jsonb_build_object('ok', false, 'reason', 'self');
+  end if;
+
+  select count(*) into v_paid_before from appointments
+    where patient_id = p_invitee_id
+      and (payment_status = 'paid'
+           or (payment_terms = 'pay_later'
+               and payment_status <> 'paid'
+               and status <> 'cancelled'));
+  if v_paid_before > 0 then
+    return jsonb_build_object('ok', false, 'reason', 'not_new');
+  end if;
+
+  select count(*) into v_rewards_earned from patient_invites
+    where inviter_id = v_inviter_id and qualified_at is not null;
+  if v_rewards_earned >= coalesce(v_settings.invite_max_rewards_per_patient, 0) then
+    return jsonb_build_object('ok', false, 'reason', 'inviter_capped');
+  end if;
+
+  begin
+    insert into patient_invites (
+      inviter_id, invitee_id, code_used, reward_paise, welcome_paise
+    ) values (
+      v_inviter_id,
+      p_invitee_id,
+      upper(btrim(replace(replace(p_code, '-', ''), ' ', ''))),
+      coalesce(v_settings.invite_reward_paise, 0),
+      coalesce(v_settings.invite_welcome_paise, 0)
+    );
+  exception when unique_violation then
+    return jsonb_build_object('ok', false, 'reason', 'already_claimed');
+  end;
+
+  return jsonb_build_object(
+    'ok', true,
+    'welcome_paise', coalesce(v_settings.invite_welcome_paise, 0),
+    'reward_paise', coalesce(v_settings.invite_reward_paise, 0)
+  );
+end;
+$$;
+-- All three, every time: a re-created function arrives carrying anon and
+-- authenticated grants again, and PUBLIC's implicit one on top.
+revoke all on function public.claim_invite(text, uuid) from public;
+revoke all on function public.claim_invite(text, uuid) from anon;
+revoke all on function public.claim_invite(text, uuid) from authenticated;

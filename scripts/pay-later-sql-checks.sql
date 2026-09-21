@@ -8,11 +8,18 @@
 -- booking a promo claim silently stopped counting against its cap while the
 -- discount stayed frozen into what the patient owed.
 --
+-- And the same shape one layer up, in eligibility rather than in a cap: a
+-- patient is new exactly once, and every reader of that question asked
+-- `payment_status = 'paid'` -- so a patient treated on terms read as brand
+-- new on every booking they ever made, collecting the first-session offer
+-- and an invite welcome again each time.
+--
 -- Every assertion here checks BOTH halves, per the rule the append-only
 -- checks established: that the pay-later booking still counts, AND that an
--- ordinary abandoned checkout still gives its claim back. Checking only the
+-- ordinary abandoned checkout still gives its claim back -- and that a
+-- CANCELLED booking on terms still leaves the patient new. Checking only the
 -- first would pass just as well on a function that had broken the hold for
--- everybody.
+-- everybody, or one that counted a session nobody ever had.
 --
 -- Runs inside one transaction and ends in ROLLBACK, so it leaves nothing
 -- behind and can be re-run against the same database.
@@ -107,6 +114,68 @@ begin
   v_result := claim_promo_code('PAYLATERCHECK', v_other_patient, v_appt_probe, false);
   if coalesce(v_result->>'reason', '') <> 'exhausted' then
     raise exception 'A paid booking stopped counting against the cap: got %', v_result;
+  end if;
+
+  -- ---------------------------------------------------------------------
+  -- 4. A patient is new exactly once, and a booking on terms is what makes
+  --    them no longer new. Until this, claim_invite asked
+  --    `payment_status = 'paid'` -- which a pay-later session never is -- so
+  --    a patient who had already been treated could still claim a welcome.
+  -- ---------------------------------------------------------------------
+  update site_settings set invite_rewards_enabled = true,
+                           invite_max_rewards_per_patient = 10,
+                           invite_welcome_paise = 20000,
+                           invite_reward_paise = 20000
+    where id;
+
+  -- The inviter needs a code to be found by, and the invitee must not
+  -- already hold an invite from an earlier run of this file.
+  update profiles set invite_code = 'PAYLATERINV' where id = v_patient;
+  delete from patient_invites where invitee_id = v_other_patient;
+
+  -- A standing booking on terms, and nothing paid.
+  update appointments set payment_status = 'unpaid', payment_terms = 'pay_later',
+                          status = 'confirmed', amount_due_paise = 120000
+    where id = v_appt_terms;
+  update appointments set payment_status = 'unpaid', payment_terms = 'prepaid'
+    where id in (v_appt_abandoned, v_appt_probe);
+  update appointments set patient_id = v_other_patient where id = v_appt_terms;
+
+  v_result := claim_invite('PAYLATERINV', v_other_patient);
+  if coalesce(v_result->>'reason', '') <> 'not_new' then
+    raise exception
+      'A patient with a confirmed pay-later session still read as new: got %', v_result;
+  end if;
+
+  -- ---------------------------------------------------------------------
+  -- 5. The other half, and the one that stops the fix going too far: a
+  --    CANCELLED pay-later booking was never delivered and owes nothing, so
+  --    it must not spend a once-ever welcome. Without this assertion, a
+  --    predicate counting every booking on terms would pass check 4.
+  -- ---------------------------------------------------------------------
+  update appointments set status = 'cancelled' where id = v_appt_terms;
+
+  v_result := claim_invite('PAYLATERINV', v_other_patient);
+  if coalesce(v_result->>'ok', 'false') <> 'true' then
+    raise exception
+      'A cancelled pay-later booking should have left the patient new: got %', v_result;
+  end if;
+
+  -- ---------------------------------------------------------------------
+  -- 6. And the arm that was always there: a PAID session still makes a
+  --    patient not new, whatever its status. The paid arm deliberately does
+  --    not take the cancelled exclusion -- widening it would hand the
+  --    welcome back to everybody who ever paid and then cancelled.
+  -- ---------------------------------------------------------------------
+  delete from patient_invites where invitee_id = v_other_patient;
+  update appointments set payment_terms = 'prepaid', payment_status = 'paid',
+                          status = 'cancelled'
+    where id = v_appt_terms;
+
+  v_result := claim_invite('PAYLATERINV', v_other_patient);
+  if coalesce(v_result->>'reason', '') <> 'not_new' then
+    raise exception
+      'A paid session stopped making a patient not-new: got %', v_result;
   end if;
 
   raise notice 'pay-later SQL checks passed';

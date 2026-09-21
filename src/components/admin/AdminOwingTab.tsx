@@ -9,6 +9,7 @@ import PayLaterAgeSetting, {
 import { MoneyTermInfo } from "@/components/admin/MoneyFigure";
 import { formatClinicDateShort } from "@/lib/formatDateTime";
 import { adminScreenHref } from "@/lib/adminNav";
+import { describeDiscount, type DiscountSource } from "@/lib/discounts";
 import { ADMIN_SCOPE_LABELS } from "@/lib/adminScope";
 import {
   computeClinicReceivable,
@@ -38,6 +39,23 @@ import type { PayLaterAgeSettings } from "@/lib/payLaterSettingsServer";
 
 function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
+}
+
+/**
+ * Why this session is owed less than the list price, when it is.
+ *
+ * Reads `describeDiscount` rather than composing its own sentence, so the
+ * wording here and on every other surface that names a discount stays one
+ * wording. Returns null when nothing came off, so an undiscounted session
+ * carries no empty line -- the same rule `refundState`'s `none` follows.
+ */
+function discountNote(a: PayLaterAppointment): string | null {
+  const off = a.discount_paise ?? 0;
+  if (off <= 0) return null;
+  const listed = a.list_price_paise ?? null;
+  const label = describeDiscount((a.discount_source ?? null) as DiscountSource | null, off);
+  if (!label) return null;
+  return listed ? `${formatInr(listed)} list · ${label}` : label;
 }
 
 export default function AdminOwingTab({
@@ -134,9 +152,21 @@ export default function AdminOwingTab({
                   {a.slot_time ? formatClinicDateShort(a.slot_time) : "No date"}
                 </span>
                 {/* The price agreed on the day, not today's -- so a patient
-                    settling an old session can see it was not re-priced. */}
-                <span className="font-semibold text-slate-700">
-                  {formatInr(Math.max(0, a.amount_due_paise ?? 0))}
+                    settling an old session can see it was not re-priced.
+                    A discount applies to a booking on terms exactly as it
+                    does to any other, so this figure can sit below what the
+                    category costs; said plainly, because the person reading
+                    it is about to ask somebody for it, and an unexplained
+                    ₹499 against a ₹1,200 session reads as an error. */}
+                <span className="text-right">
+                  <span className="font-semibold text-slate-700">
+                    {formatInr(Math.max(0, a.amount_due_paise ?? 0))}
+                  </span>
+                  {discountNote(a) && (
+                    <span className="block text-[11px] font-normal text-slate-500">
+                      {discountNote(a)}
+                    </span>
+                  )}
                 </span>
               </li>
             ))}
