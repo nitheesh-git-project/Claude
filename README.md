@@ -309,7 +309,7 @@ link points here so no client bundle has to know the four paths; see
 | **Today** | Today · Approvals | What is waiting on me right now |
 | **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom |
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
-| **Money** | Summary · Business Health · Transactions · Payouts · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
+| **Money** | Summary · Business Health · Transactions · Payouts · Owed by Patients · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
 | **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
 | **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
@@ -1461,6 +1461,28 @@ attempt and its recorded errors.
 it completes. Aggregates (`src/lib/ratingAggregate.ts`, the
 `public_rating_summary` view) feed the public team page; the admin can hide
 individual ratings, hide a therapist's rating, or hide ratings site-wide.
+
+**Pay later.** A few long-standing patients are treated first and settle
+afterwards -- weekly, monthly, or right after a session. An admin creates the
+account and ticks **Pay later** on the profile; that patient books an online
+session and pays nothing at the time. `appointments.payment_terms`
+(`prepaid` | `pay_later`) marks it, which is what keeps it distinguishable from
+an abandoned checkout -- both are `payment_status = 'unpaid'`, and counting the
+second as a debt would be wrong in every figure.
+
+Nothing is owed until the work is done: `amount_due_paise` is frozen when the
+session is booked and counted only once the session is **completed**, so a
+booking owes nothing and a late cancellation owes nothing, with no special case
+either side. On completion that frozen price becomes what the patient owes, the
+clinic's revenue, and the therapist's share all at once -- the therapist is paid
+for delivering rather than for collecting, and the clinic carries the gap.
+
+Read on **Money -> Owed by Patients**, which leads with the total owed and how
+long the oldest unsettled session has been owed. There is deliberately no
+ceiling on what a trusted patient may owe, so those two figures are the whole of
+the early warning, alongside a list of pay-later sessions that have been and
+gone and were never marked completed -- the one case where nothing is recorded
+anywhere at all.
 
 **Payouts.** Each therapist has a `revenue_share_percent`. Earnings are
 computed per completed, paid session (`src/lib/therapistEarnings.ts`,

@@ -319,6 +319,8 @@ src/lib/rateLimitServer.ts the one call that counts a hit and refuses
 src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
 src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
 src/lib/financeMetrics.ts the seven standard finance figures and their inputs
+src/lib/patientBalances.ts what trusted patients owe, and how long they have
+src/lib/sessionAmount.ts  one session's worth, with each caller's own fallback
 src/lib/financeInputs.ts validation for the three things an owner types in
 src/lib/financeSettingsServer.ts how Business Health reads the same money
 src/lib/adminScope.ts    admin scopes and which sections each one may open
@@ -1435,6 +1437,50 @@ before.
   `confirmed` with a completion on it and exactly the evidence the detector
   should no longer see. A row closed before that column
   existed carries null and is skipped rather than guessed at.
+
+- **Pay later: a trusted patient is treated first and settles afterwards.**
+  `appointments.payment_terms` (`prepaid` | `pay_later`) is the new axis, and
+  it exists because `payment_status = 'unpaid'` already means *"somebody
+  abandoned a checkout"*. Without a second column those two are
+  indistinguishable and three things break at once: an abandoned cart counts
+  as a debt, `dashboardFeed`'s "Payment not completed / this session isn't
+  booked" item scolds a patient whose session **is** booked, and
+  `detectCompletionWithoutPayment` raises a high-severity signal on every
+  session these patients ever have. Five rules:
+  1. **Nothing is owed until the work is done.** `amount_due_paise` is stamped
+     at booking and **counted** only once `status = 'completed'`. That one
+     split is what makes "booking owes nothing" and "a late cancellation owes
+     nothing" true with no special case anywhere -- there is no state to
+     unwind, because nothing was ever owed. Everything in
+     `src/lib/patientBalances.ts` filters on that one word.
+  2. **The price is frozen at booking**, for the reason `package_snapshot` is
+     frozen by trigger: `checkoutQuote` reads the **live** category price, so
+     resolving it again at settlement charges the new price for work already
+     delivered.
+  3. **Revenue is recognised at completion, not at collection**, because the
+     therapist's share is. `moneyLineFor` counts a completed pay-later session
+     and reads its amount as the frozen price; settlement writes
+     `amount_paid_paise` equal to it, so recognised revenue never moves.
+     Counting at collection instead reports a loss in the month the work was
+     done and a windfall in the month it was paid -- both months wrong for one
+     session. `gatewayFeePaise` is deliberately **not** changed: a gateway fee
+     is a real cost only when a gateway took money.
+  4. **`sessionAmountPaise` takes its fallback as an argument**, and that is
+     load-bearing. The three readers do not share one -- `adminMetrics` falls
+     back to `SESSION_FEE_PAISE`, `therapistPayouts` to `0`,
+     `therapistEarnings` to a value its caller passes. A shared helper
+     hard-coding the session fee would make every already-paid session with a
+     null amount start contributing the full fee to a therapist's payout where
+     it contributes nothing today, changing what the clinic owes real people on
+     sessions unrelated to this feature. The frozen price slots in **before**
+     each caller's fallback and leaves it untouched.
+  5. **There is no ceiling, by choice**, so the two figures on Money -> Owed by
+     Patients are the whole of the early warning: the total, and
+     `oldestOwedAgeDays`. `unclosedPayLaterSessions` is the other half -- debt,
+     revenue and the therapist's pay all appear at completion, so a session
+     nobody closed produces none of the three and no screen has anything to
+     show. Every other failure here is a wrong number; that one is an absent
+     number, which nothing else would catch.
 
 - **A therapist asserts that money changed hands; the system owns the
   number.** `/api/therapist/record-cash-collection` used to accept

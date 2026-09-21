@@ -320,6 +320,21 @@ toggle somebody can flip back on is not the rule being gone. The patient
 dashboard's booking hub is the same: one video consultation, or one visit
 at home.
 
+**A few long-standing patients pay after their treatment, not before.** An
+admin creates the account, hands over the credentials and ticks **Pay later** on
+the profile; that patient books an online session, pays nothing, and owes
+nothing until the session has actually been delivered. On completion the frozen
+price appears in three places at once -- what they owe, the clinic's revenue,
+and the therapist's share, which is deliberately **not** made to wait on the
+patient: they did the work and had no say in extending the credit, so the clinic
+carries the gap. `appointments.payment_terms` is the new axis because
+`payment_status = 'unpaid'` already means "abandoned checkout", and telling those
+two apart is what stops an abandoned cart being counted as a debt. The money is
+read on **Money -> Owed by Patients** (`src/lib/patientBalances.ts`), which leads
+with the total and the age of the oldest unsettled session -- there is no ceiling
+on what a trusted patient may owe, so those two figures are the entire early
+warning. See the pay-later rule in `AGENTS.md`.
+
 **The books answer the seven standard questions too.** Money -> Business
 Health reports return on investment, return on ad spend, working capital,
 gross and net margin, EBITDA, break-even and revenue run rate, off one
