@@ -6,6 +6,14 @@
 // has settled a payout for it yet -- see settle-therapist-payout's own
 // filter, reused verbatim here so the numbers always agree with what that
 // route would actually pay out right now.
+//
+// Pay later widened "delivered and paid for" to "delivered": a trusted
+// patient is treated first and settles afterwards, and the clinic's decision
+// is that the therapist is not made to wait on that. They did the work and
+// had no say in extending the credit, so the share is earned at completion
+// and the clinic carries the gap.
+
+import { sessionAmountPaise } from "@/lib/sessionAmount";
 
 export type EarningsAppointment = {
   id: string;
@@ -16,6 +24,10 @@ export type EarningsAppointment = {
   status: string;
   payment_status: string;
   amount_paid_paise: number | null;
+  // Pay later, optional for the usual migration-tolerance reason: absent, every
+  // row reads as prepaid and this module behaves exactly as it always has.
+  payment_terms?: string | null;
+  amount_due_paise?: number | null;
   therapist_payout_paid_at: string | null;
   therapist_payout_amount_paise?: number | null;
   // Home-visit fields, optional so every existing online-only caller is
@@ -51,11 +63,17 @@ export function computeTherapistEarningRows(
 ): TherapistEarningRow[] {
   if (sharePercent === null) return [];
   return appointments
-    .filter((a) => a.status === "completed" && a.payment_status === "paid")
+    .filter(
+      (a) =>
+        a.status === "completed" &&
+        (a.payment_status === "paid" || a.payment_terms === "pay_later")
+    )
     .map((a): TherapistEarningRow => {
       const isHomeVisit = a.visit_mode === "home_visit";
       const effectiveShare = isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent;
-      const feePaise = a.amount_paid_paise ?? sessionFeePaiseFallback;
+      // The caller's own fallback is preserved exactly -- see sessionAmount.ts
+      // for why that is an argument rather than a constant.
+      const feePaise = sessionAmountPaise(a, sessionFeePaiseFallback);
       const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
       return {
         id: a.id,

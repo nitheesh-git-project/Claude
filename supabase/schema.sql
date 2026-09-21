@@ -10924,3 +10924,68 @@ revoke all on function public.admin_activity_log_is_append_only() from public, a
 revoke all on function public.session_note_revisions_is_append_only() from public, anon, authenticated;
 revoke all on function public.payment_webhook_events_identity_frozen() from public, anon, authenticated;
 revoke all on function public.payments_not_deletable() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Pay later: trusted patients settle after treatment, not before
+-- ---------------------------------------------------------------------------
+--
+-- payment_terms is the one genuinely new axis, and it exists because
+-- payment_status 'unpaid' already means something else: "somebody started a
+-- checkout and never finished". Without a second column those two are
+-- indistinguishable, and three things go wrong at once -- an abandoned cart
+-- counts as a debt, the patient's own "Payment not completed / this session
+-- isn't booked" feed item scolds a patient whose session IS booked, and
+-- detect_completion_without_payment raises a high-severity signal on every
+-- session these patients ever have.
+--
+-- 'prepaid' is deliberately the same word home_visit_package_purchases.
+-- payment_mode already uses, and the default, so every existing row keeps
+-- behaving exactly as it does today.
+alter table appointments add column if not exists payment_terms text not null default 'prepaid';
+do $$
+begin
+  alter table appointments add constraint appointments_payment_terms_check
+    check (payment_terms in ('prepaid', 'pay_later'));
+exception when duplicate_object then null;
+end $$;
+
+-- What this session will cost, FROZEN at the moment it is booked.
+--
+-- Frozen for the reason package_snapshot is frozen by trigger: resolving the
+-- price again at settlement reads the LIVE catalogue, so a category re-priced
+-- between the session and the payment would charge the new price for work
+-- already delivered. The price a patient was shown is the price they pay.
+--
+-- It is stamped at booking and COUNTED only once status = 'completed'. That
+-- one split is what makes "booking owes nothing" and "a late cancellation
+-- owes nothing" true with no special case anywhere -- there is no state to
+-- unwind, because nothing was ever owed.
+alter table appointments add column if not exists amount_due_paise integer;
+do $$
+begin
+  alter table appointments add constraint appointments_amount_due_non_negative
+    check (amount_due_paise is null or amount_due_paise >= 0);
+exception when duplicate_object then null;
+end $$;
+
+-- How a pay-later session's debt ended. 'settled' is money received;
+-- 'written_off' is the clinic deciding not to collect.
+--
+-- A write-off is deliberately NOT a reduction of the session's amount. The
+-- session was delivered, so the revenue was earned and the therapist's share
+-- was earned with it -- and the therapist has usually been paid by then.
+-- Zeroing the amount would claw both back. The clinic earned it and failed to
+-- collect it, which is a bad debt: revenue stands, the share stands, and the
+-- loss is recorded as a cost on business_expenses.
+alter table appointments add column if not exists pay_later_outcome text;
+do $$
+begin
+  alter table appointments add constraint appointments_pay_later_outcome_check
+    check (pay_later_outcome is null or pay_later_outcome in ('settled', 'written_off'));
+exception when duplicate_object then null;
+end $$;
+
+-- The owed list reads exactly these rows, so it is worth an index of its own.
+create index if not exists appointments_pay_later_open_idx
+  on appointments (patient_id)
+  where payment_terms = 'pay_later' and payment_status = 'unpaid';

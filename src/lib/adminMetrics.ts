@@ -3,12 +3,18 @@
 // to render the component.
 
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { sessionAmountPaise } from "@/lib/sessionAmount";
 
 export type MetricsAppointment = {
   id: string;
   status: string;
   payment_status: string;
   amount_paid_paise: number | null;
+  // Pay later. Both optional because they are the newest columns on
+  // appointments and a database that has not run the migration simply has
+  // neither -- in which case every row reads as prepaid, which is what it is.
+  payment_terms?: string | null;
+  amount_due_paise?: number | null;
   category_id: string | null;
   therapist_id: string | null;
   patient_id: string;
@@ -383,9 +389,23 @@ export function moneyLineFor(
   a: MetricsAppointment,
   rates: MoneyRates
 ): MoneyLine | null {
-  if (a.payment_status !== "paid" || !a.slot_time) return null;
+  // Pay later: a trusted patient is treated first and pays afterwards, so the
+  // clinic earns at COMPLETION rather than at collection. Recognising it only
+  // when the money lands would report a loss in the month the work was done --
+  // the therapist's share is payable from completion too -- and a windfall in
+  // the month it was paid. Both months wrong for one session.
+  //
+  // The condition can only ever be true for a pay-later row, and payment_terms
+  // defaults to 'prepaid' on every row that exists, so this is inert on all of
+  // them. The proof is that the existing tests in this module pass unedited.
+  const payLaterEarned = a.payment_terms === "pay_later" && a.status === "completed";
+  if (!payLaterEarned && a.payment_status !== "paid") return null;
+  if (!a.slot_time) return null;
 
-  const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
+  // The frozen price stands in until the money arrives, and settlement writes
+  // amount_paid_paise equal to it -- so recognised revenue reads the same
+  // figure either side of a payment and never moves.
+  const paidPaise = sessionAmountPaise(a, SESSION_FEE_PAISE);
   const refundPaise =
     a.refund_status === "processed" ? Math.max(0, a.refund_amount_paise ?? 0) : 0;
   const netPaise = Math.max(0, paidPaise - refundPaise);
