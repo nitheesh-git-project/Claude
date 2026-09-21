@@ -94,6 +94,13 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   "capital_investments",
   "marketing_campaigns",
   "balance_sheet_entries",
+  // Payments a patient declares against what they owe. On the long cooldown
+  // rather than the operational one, the same move `admin_activity_log` got:
+  // a declaration is a queue entry an admin opens deliberately, the admin who
+  // confirms one has already refreshed for their own action, and a full
+  // ~40-query rebuild per declaration would be real cost for a row nobody
+  // watches land.
+  "pay_later_payments",
   // Detector thresholds, edited on the Risk tab itself.
   "risk_rules",
   // The signals themselves, moved off the operational channel: they are

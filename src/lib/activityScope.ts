@@ -100,6 +100,8 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   // two must agree, or the feed offers a row whose screen the reader is
   // refused at.
   "patient.set_pay_later": "money",
+  "pay_later.confirm_payment": "money",
+  "pay_later.reject_payment": "money",
   "payment.goodwill_discount": "money",
   "payout.settle": "money",
   "payout_request.start_review": "money",

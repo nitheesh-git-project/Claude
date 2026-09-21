@@ -10,6 +10,9 @@ import { MoneyTermInfo } from "@/components/admin/MoneyFigure";
 import { formatClinicDateShort } from "@/lib/formatDateTime";
 import { adminScreenHref } from "@/lib/adminNav";
 import { describeDiscount, type DiscountSource } from "@/lib/discounts";
+import PayLaterSettlementQueue, {
+  type QueuedSettlement,
+} from "@/components/admin/PayLaterSettlementQueue";
 import { ADMIN_SCOPE_LABELS } from "@/lib/adminScope";
 import {
   computeClinicReceivable,
@@ -66,6 +69,8 @@ export default function AdminOwingTab({
   ageSetting,
   featureEnabled,
   canManageSettings = false,
+  settlements = [],
+  canManageMoney = false,
 }: {
   appointments: PayLaterAppointment[];
   payments?: PayLaterPaymentRow[];
@@ -74,6 +79,13 @@ export default function AdminOwingTab({
   /** How long a balance may sit before it is worth chasing, whether the clinic
    *  wants to be warned at all, and where that answer came from. */
   ageSetting: PayLaterAgeSettings;
+  /** Payments a patient says they have made, waiting to be checked. Oldest
+   *  first, and empty on a database without the table. */
+  settlements?: QueuedSettlement[];
+  /** Whether this desk may answer one. Both routes take
+   *  `requireAdminScope("money")`, and a control a scope cannot call must not
+   *  render -- Finance manages Money, so Finance answers these. */
+  canManageMoney?: boolean;
   /** The clinic-wide switch. Off, nobody new can be put on terms -- but
    *  everything already owed stays listed and settleable. */
   featureEnabled: boolean;
@@ -178,6 +190,17 @@ export default function AdminOwingTab({
 
   return (
     <div className="space-y-8">
+      {/* Above the totals, because until these are answered the totals
+          include money that may already be in the bank -- and because a
+          patient is waiting on each one. */}
+      {canManageMoney && (
+        <PayLaterSettlementQueue
+          settlements={settlements}
+          patientNameById={patientNameById}
+          nowMs={nowMs}
+        />
+      )}
+
       <SurfaceCard
         title="Owed by patients"
         subtitle="Patients you have allowed to pay after their treatment. Counted once a session has been delivered - a booked session owes nothing."

@@ -662,6 +662,64 @@ const detectPayLaterBalanceHigh: Detector = async (admin, rule) => {
     }));
 };
 
+/**
+ * A patient whose declared payments keep being turned down.
+ *
+ * Held back until now on purpose: it counts rejected declarations, and
+ * `pay_later_payments` did not exist, so a rule that could never fire would
+ * have been a queue nobody reads.
+ *
+ * Enabled, at two. One rejection is ordinary -- a reference typed wrong, a
+ * transfer that had not landed when somebody looked. Two is a pattern, and
+ * the pattern it most often is, is a patient who believes they have paid and
+ * a clinic that cannot find the money: the person who most needs a phone call
+ * and is least likely to get one, because from the clinic's side nothing has
+ * changed except a figure that will not go down.
+ *
+ * Like every rule here it carries no penalty. Nothing is suspended, held or
+ * hidden; an admin rings them, or does not.
+ */
+const detectPayLaterDeclarationRejected: Detector = async (admin, rule) => {
+  const threshold = Math.max(2, ruleNumber(rule.config, "rejections", 2));
+
+  const { data: rows } = await admin
+    .from("pay_later_payments")
+    .select("id, patient_id, amount_paise, declared_at")
+    .eq("status", "rejected")
+    .order("declared_at", { ascending: false })
+    .limit(500);
+
+  if (!rows || rows.length === 0) return [];
+
+  const byPatient = new Map<string, { ids: string[]; totalPaise: number }>();
+  for (const r of rows as { id: string; patient_id: string; amount_paise: number | null }[]) {
+    const entry = byPatient.get(r.patient_id) ?? { ids: [], totalPaise: 0 };
+    entry.ids.push(r.id);
+    entry.totalPaise += Math.max(0, r.amount_paise ?? 0);
+    byPatient.set(r.patient_id, entry);
+  }
+
+  const out: Candidate[] = [];
+  for (const [patientId, entry] of byPatient) {
+    if (entry.ids.length < threshold) continue;
+    out.push({
+      ruleKey: "pay_later_declaration_rejected",
+      subjectKind: "patient",
+      subjectId: patientId,
+      severity: "medium",
+      summary: `${countPhrase(entry.ids.length, "payment", "payments")} this patient said they had made could not be found.`,
+      evidence: {
+        patientId,
+        rejectedCount: entry.ids.length,
+        thresholdRejections: threshold,
+        totalDeclaredPaise: entry.totalPaise,
+        paymentIds: entry.ids,
+      },
+    });
+  }
+  return out;
+};
+
 const DETECTORS: Record<string, Detector> = {
   contact_leak: detectContactLeak,
   completion_without_payment: detectCompletionWithoutPayment,
@@ -673,4 +731,5 @@ const DETECTORS: Record<string, Detector> = {
   post_consultation_dropout: detectPostConsultationDropout,
   pay_later_aged: detectPayLaterAged,
   pay_later_balance_high: detectPayLaterBalanceHigh,
+  pay_later_declaration_rejected: detectPayLaterDeclarationRejected,
 };

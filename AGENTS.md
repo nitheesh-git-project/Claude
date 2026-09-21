@@ -1681,6 +1681,57 @@ before.
      against a ₹1,200 session, on the screen an admin chases people from,
      reads as an error.
 
+  8. **Settling is a pool, and a payment never touches a session.**
+     `pay_later_payments` is one row per **payment**;
+     `allocate_pay_later_payment()` covers that patient's delivered,
+     unsettled sessions **oldest first, whole sessions only**, under a
+     `select ... for update` on the patient -- two admins confirming two
+     payments at once is exactly what races. Six rules:
+     - **Settlement writes `amount_paid_paise = amount_due_paise` exactly**,
+       never the payment's share of it. That is the whole safety case: the
+       therapist's cut is computed from that column, so spreading 2,000
+       across four 1,200 sessions as 500 each would silently shrink it on
+       sessions the clinic had already paid out on. `adminMetrics.test.ts`
+       asserts every money figure is byte-identical either side of a
+       settlement, and that is the first test written.
+     - **The pool is fungible across payments, each payment is not.**
+       Requiring one payment to cover one whole session reads tidier and
+       strands money for ever: two 800 instalments leave 1,600 in the
+       clinic's hands and a 1,200 session nothing can close. The session is
+       stamped with the payment that **completed** it, since
+       `pay_later_payment_id` holds one -- which is why a settlement receipt
+       lists the sessions a payment closed rather than claiming its amount
+       is the sum of their prices.
+     - **Allocation runs at two moments**, a payment being confirmed and a
+       session being completed, so a remainder is picked up without anything
+       having to remember it. It reads the whole pool rather than one
+       payment, which is also what makes it idempotent.
+     - **A declaration settles nothing.** `/api/patient/declare-payment`
+       writes a `pending` row and the owed figure does not move; only
+       `/api/admin/confirm-pay-later-payment` reaches the allocator. One
+       waiting at a time. **Confirming needs no reason and rejecting needs
+       ten characters** -- the opposite split from the grant, because here
+       the outcome that takes something away is the refusal, and its reason
+       is the only half the patient can act on.
+     - **An online row is never `pending`** (a CHECK): the gateway is the
+       confirmation. So `record_payment_capture`'s fourth branch claims it on
+       `razorpay_payment_id is null` rather than on the status -- a status
+       guard could never match, and the allocator would never run on the one
+       path it was written for. That bug was found by
+       `scripts/pay-later-sql-checks.sql`, which asserts both halves: the
+       capture closes the session, **and** a retried webhook closes nothing
+       twice.
+     - **The table is append-only by trigger**, permitting exactly
+       `pending -> confirmed|rejected` one way plus the two columns
+       allocation moves, and never a delete. `payments.purpose` is widened to
+       `pay_later_settlement` and `payments.target_pay_later_payment_id`
+       added, so a settlement is not reported as captured money attached to
+       nothing -- read in its **own isolated query** in
+       `readUnmatchedPayments`, since folding the column into the existing
+       one would take the whole check to "unknown" on an unmigrated
+       database. One receipt per payment, not one per session: four receipts
+       for one transfer reads as four payments.
+
 - **A therapist asserts that money changed hands; the system owns the
   number.** `/api/therapist/record-cash-collection` used to accept
   `amountPaise` from the request body, which meant the person holding the

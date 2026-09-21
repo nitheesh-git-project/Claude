@@ -128,6 +128,8 @@ export type AdminActivityAction =
   | "patient.update_contact"
   | "patient.update_notes"
   | "patient.set_pay_later"
+  | "pay_later.confirm_payment"
+  | "pay_later.reject_payment"
   | "therapist.update_contact"
   | "therapist.update_notes"
   | "therapist.update_display_content"
@@ -268,6 +270,8 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "mission_principle.reorder": "Reordered the promises or limits",
   "patient.update_contact": "Changed a patient's contact details",
   "patient.set_pay_later": "Changed whether a patient may pay after treatment",
+  "pay_later.confirm_payment": "Confirmed a payment from a patient on pay later",
+  "pay_later.reject_payment": "Turned down a payment a patient said they had made",
   "patient.update_notes": "Edited notes on a patient",
   "therapist.update_contact": "Changed a therapist's contact details",
   "therapist.update_notes": "Edited notes on a therapist",

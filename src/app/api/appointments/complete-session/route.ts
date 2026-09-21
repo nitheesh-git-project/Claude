@@ -6,6 +6,7 @@ import { scopeCanManage } from "@/lib/adminScope";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { mirrorConsume } from "@/lib/sessionCreditMirror";
+import { allocatePayLaterPayments } from "@/lib/payLaterSettlementServer";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, status, therapist_id, package_purchase_id, home_visit_purchase_id, payment_status, payment_terms, cash_collected_at, slot_time"
+      "id, status, therapist_id, patient_id, package_purchase_id, home_visit_purchase_id, payment_status, payment_terms, cash_collected_at, slot_time"
     )
     .eq("id", appointmentId)
     .single();
@@ -187,6 +188,22 @@ export async function POST(request: NextRequest) {
     actorId: user.id,
     actorRole: adminUser ? "admin" : "therapist",
   });
+
+  // Completion is the moment a pay-later session becomes owed, so it is also
+  // the moment money already sitting in this patient's pool might cover it.
+  // Allocation therefore runs at two moments -- a payment being confirmed and
+  // a session being completed -- which is what picks up a remainder an earlier
+  // payment left over without anything having to remember it. Someone who
+  // handed over 2,000 against one 1,200 session has 800 waiting; the next
+  // session they have closes against it the moment a further 400 arrives.
+  //
+  // Best-effort and after the claim, like the mirror above: the debt, the
+  // revenue and the therapist's pay all appear at completion and matter more
+  // than which payment is recorded against the session, and the next
+  // confirmation or completion picks up whatever this one missed.
+  if (appointment.payment_terms === "pay_later" && appointment.patient_id) {
+    await allocatePayLaterPayments(admin, appointment.patient_id);
+  }
 
   // The other half of what completion never recorded. `session_completed`
   // and `visit_completed` have been declared event types since packages

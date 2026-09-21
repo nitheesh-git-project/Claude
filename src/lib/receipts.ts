@@ -41,6 +41,11 @@ export type PatientReceiptAppointment = {
   list_price_paise?: number | null;
   discount_paise?: number | null;
   discount_source?: string | null;
+  /** Which settlement closed this session, when the patient is one who pays
+   *  after their treatment. Migration-dependent, so a caller reading a
+   *  database without it hands through undefined and every session keeps its
+   *  own receipt exactly as it always had. */
+  pay_later_payment_id?: string | null;
 };
 
 export type PayoutReceiptAppointment = {
@@ -149,7 +154,45 @@ export type PaymentFailedReceipt = {
   date: string;
 };
 
-export type PatientReceipt = BookingReceipt | PaymentFailedReceipt;
+/**
+ * One payment that settled several delivered sessions.
+ *
+ * **One receipt per payment, not one per session**, and that is the whole
+ * reason this kind exists. Four sessions closed by one ₹4,800 transfer would
+ * otherwise produce four `booking` receipts, each reading as its own payment
+ * -- so a patient who paid once would look at their Payments screen and see
+ * four payments. The receipt is the transaction they made and would show
+ * somebody, which is one.
+ *
+ * `sessions` carries the ones this payment **closed**, each at the price
+ * agreed on the day it was delivered. Those amounts do not always sum to
+ * `amountPaise`, and that is correct rather than sloppy: the pool is
+ * fungible, so a session can be closed by money from two payments and is
+ * stamped with the one that completed it. A part payment therefore shows the
+ * amount received and no sessions yet; the next one shows a smaller amount
+ * and the session it finished off. Claiming the two figures tie would be the
+ * lie -- what is true is that this is the payment, and these are the sessions
+ * it closed.
+ */
+export type SettlementReceipt = {
+  kind: "settlement";
+  id: string;
+  title: string;
+  amountPaise: number;
+  method: string;
+  reference: string | null;
+  /** When the money was confirmed, not when it was declared. */
+  date: string;
+  sessions: {
+    appointmentId: string;
+    title: string;
+    slotTime: string | null;
+    slotTimezone: string | null;
+    amountPaise: number;
+  }[];
+};
+
+export type PatientReceipt = BookingReceipt | PaymentFailedReceipt | SettlementReceipt;
 
 function deriveBookingStage(a: {
   status: string;
@@ -173,14 +216,36 @@ function deriveBookingStage(a: {
 // failure. Unpaid, non-package appointments with no failure logged simply
 // have nothing to show yet -- they're still just a pending booking with a
 // Pay Now button, not a receipt.
+export type ReceiptSettlement = {
+  id: string;
+  amount_paise: number;
+  method: string;
+  reference: string | null;
+  confirmed_at: string | null;
+  declared_at: string | null;
+};
+
 export function buildPatientReceipts(
   appointments: PatientReceiptAppointment[],
   packagePurchases: ReceiptPackagePurchase[],
   paymentFailures: PaymentFailureRow[],
-  categoryTitleById: Map<string, string>
+  categoryTitleById: Map<string, string>,
+  /** Confirmed payments this patient made against what they owed. Optional,
+   *  so every existing caller is unchanged and a database without the table
+   *  simply has none. */
+  settlements: ReceiptSettlement[] = []
 ): PatientReceipt[] {
+  const settlementById = new Map(settlements.map((s) => [s.id, s]));
+
   const bookingReceipts: BookingReceipt[] = appointments
     .filter((a) => a.payment_status === "paid" && a.paid_at)
+    // A session closed by a settlement is listed **inside** that settlement's
+    // own receipt rather than getting one of its own. Without this a patient
+    // who paid once for four sessions reads four payments on this screen.
+    // Only when the settlement is actually in hand: a session whose payment
+    // row could not be read keeps its own receipt rather than vanishing from
+    // the list, since a missing receipt is worse than a duplicated one.
+    .filter((a) => !(a.pay_later_payment_id && settlementById.has(a.pay_later_payment_id)))
     .map((a) => ({
       kind: "booking",
       id: a.id,
@@ -249,9 +314,54 @@ export function buildPatientReceipts(
     date: f.created_at,
   }));
 
-  return [...bookingReceipts, ...packageReceipts, ...failureReceipts].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  const sessionsBySettlement = new Map<string, SettlementReceipt["sessions"]>();
+  for (const a of appointments) {
+    const settlementId = a.pay_later_payment_id;
+    if (!settlementId || !settlementById.has(settlementId)) continue;
+    const list = sessionsBySettlement.get(settlementId) ?? [];
+    list.push({
+      appointmentId: a.id,
+      title: a.concern ?? "General Consultation",
+      slotTime: a.slot_time,
+      slotTimezone: a.timezone,
+      // The price agreed on the day it was delivered, never today's -- the
+      // same figure the owed list showed, so a patient settling an old
+      // session can see it was not re-priced. Not this payment's share of
+      // it: see the note on SettlementReceipt.
+      amountPaise: a.amount_paid_paise ?? 0,
+    });
+    sessionsBySettlement.set(settlementId, list);
+  }
+
+  const settlementReceipts: SettlementReceipt[] = settlements.map((s) => {
+    const sessions = (sessionsBySettlement.get(s.id) ?? []).sort((a, b) => {
+      const at = a.slotTime ? Date.parse(a.slotTime) : 0;
+      const bt = b.slotTime ? Date.parse(b.slotTime) : 0;
+      return at - bt;
+    });
+    return {
+      kind: "settlement",
+      id: s.id,
+      title:
+        sessions.length === 0
+          ? "Payment received"
+          : `Payment for ${sessions.length} session${sessions.length === 1 ? "" : "s"}`,
+      amountPaise: s.amount_paise,
+      method: s.method,
+      reference: s.reference,
+      // Confirmed rather than declared: the receipt is for money that
+      // arrived, and the two dates can be days apart.
+      date: s.confirmed_at ?? s.declared_at ?? new Date(0).toISOString(),
+      sessions,
+    };
+  });
+
+  return [
+    ...bookingReceipts,
+    ...packageReceipts,
+    ...failureReceipts,
+    ...settlementReceipts,
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
 export type PayoutReceiptSession = {

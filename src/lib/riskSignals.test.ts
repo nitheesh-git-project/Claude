@@ -76,6 +76,7 @@ describe("which desk a rule belongs to", () => {
       // the only automatic warning an arrangement with no ceiling has.
       "pay_later_aged",
       "pay_later_balance_high",
+      "pay_later_declaration_rejected",
     ]);
     // A cash variance is not an operations question, and a contact leak is
     // not a finance one.

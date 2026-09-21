@@ -93,6 +93,15 @@ export type PayLaterHealth = {
   patientsOwingAged: number;
   /** Sessions that have been and gone and were never marked completed. */
   unclosedSessions: number;
+  /** Payments a patient says they have made, waiting for somebody to check
+   *  the bank. Absent on a database predating the settlement table. */
+  settlementsWaiting?: number;
+  /** How long the one that has waited longest has waited, in whole days. */
+  oldestSettlementWaitDays?: number | null;
+  /** `sum(confirmed) - (sum(settled) + unallocated)`, in paise. Zero means
+   *  the books agree; null means it could not be asked, which is not the
+   *  same thing and must not read as agreement. */
+  settlementDifferencePaise?: number | null;
 };
 
 export type SystemHealthInput = {
@@ -630,6 +639,16 @@ function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
     health.ageWarningEnabled
       ? `Worth chasing after ${plural(health.agedAfterDays, "day", "days")}`
       : "Ageing warnings are switched off",
+    `${plural(health.settlementsWaiting ?? 0, "payment", "payments")} waiting to be checked`,
+    // Facts, never advice: this line is what decides whether the steps above
+    // it apply, which is why it renders above them.
+    health.settlementDifferencePaise === null || health.settlementDifferencePaise === undefined
+      ? "Money in against money accounted for: could not be checked"
+      : health.settlementDifferencePaise === 0
+        ? "Money in matches money accounted for"
+        : `Money in and money accounted for differ by ₹${Math.abs(
+            Math.round(health.settlementDifferencePaise / 100)
+          ).toLocaleString("en-IN")}`,
   ];
 
   if (!health.featureEnabled && health.patientsOnTerms === 0) {
@@ -643,9 +662,55 @@ function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
     };
   }
 
-  // The one genuine inconsistency: work delivered that produced no record of
-  // itself anywhere. Amber rather than red -- it asks for a person, and a
-  // person can fix it in one tap.
+  // The one genuinely red state in this whole feature, and it is the only
+  // one: the money that came in and the money accounted for disagree. Either
+  // a delivered session was closed by money that never arrived, or money
+  // arrived and closed nothing -- and both mean a figure somebody is chasing
+  // people from is wrong. Checked first, because it outranks any queue.
+  //
+  // It **reports and never repairs**: a silent auto-fix on a money record is
+  // how a discrepancy becomes permanent, the same posture
+  // `verify_entitlement_balances` takes.
+  // `null` is not `0`. The reconciliation returns null when it could not be
+  // asked, and reading that as "the books agree" is the exact mistake this
+  // codebase corrects most often -- a read that failed is not a read that
+  // came back empty. It is amber rather than red: nothing is known to be
+  // wrong, and the honest state is "we could not check", not "something is".
+  // `undefined` is different again and correctly silent: an unmigrated
+  // database has no settlements to reconcile.
+  if (health.settlementDifferencePaise === null) {
+    return {
+      ...base,
+      status: "attention",
+      headline: "The money received from patients on pay later could not be checked against the sessions it closed.",
+      fix: [
+        "Reload this page - a single failed read usually clears on its own.",
+        "If it keeps saying this, use Copy for my developer at the foot of this card and send that text on.",
+      ],
+      count: 1,
+      evidence,
+    };
+  }
+
+  const difference = health.settlementDifferencePaise ?? 0;
+  if (difference !== 0) {
+    const gap = `₹${Math.abs(Math.round(difference / 100)).toLocaleString("en-IN")}`;
+    return {
+      ...base,
+      status: "broken",
+      headline: `Money received from patients on pay later and money accounted for differ by ${gap}.`,
+      fix: [
+        "Do not change anything by hand - the figures are the evidence, and editing them loses it.",
+        "Open Money -> Owed by Patients and use Copy for my developer at the foot of this card.",
+        "Send that text on. It names every payment and every session involved.",
+      ],
+      count: 1,
+      evidence,
+    };
+  }
+
+  // Work delivered that produced no record of itself anywhere. Amber rather
+  // than red -- it asks for a person, and a person can fix it in one tap.
   if (health.unclosedSessions > 0) {
     return {
       ...base,
@@ -657,6 +722,29 @@ function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
         "The money appears everywhere at once - what the patient owes, your revenue, and the therapist's share.",
       ],
       count: health.unclosedSessions,
+      evidence,
+    };
+  }
+
+  // Somebody has handed money over and heard nothing. Their own figure still
+  // says they owe it, and the clinic's says the same -- so until this is
+  // checked, both screens overstate what is owed and the patient cannot tell
+  // "being checked" from "forgotten".
+  if ((health.settlementsWaiting ?? 0) > 0) {
+    const waited = health.oldestSettlementWaitDays;
+    return {
+      ...base,
+      status: "attention",
+      headline:
+        waited === null || waited === undefined
+          ? `${plural(health.settlementsWaiting ?? 0, "payment is", "payments are")} waiting to be checked.`
+          : `${plural(health.settlementsWaiting ?? 0, "payment is", "payments are")} waiting to be checked, the oldest for ${plural(waited, "day", "days")}.`,
+      fix: [
+        "Open Money -> Owed by Patients. They are listed under 'Payments waiting'.",
+        "Find each one and its reference in your bank statement.",
+        "Tap Confirm, or Reject with a reason the patient will read.",
+      ],
+      count: health.settlementsWaiting ?? 0,
       evidence,
     };
   }

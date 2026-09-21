@@ -375,10 +375,26 @@ them to collect cash at a video call, the patient's feed stops saying their
 booked session "isn't booked", and every chip reads `src/lib/sessionPaymentState.ts`
 rather than printing `payment_status` raw -- "Unpaid" against a patient of two
 years is both wrong and, on the screen an admin chases people from, actively
-misleading. System Health carries a seventh check, **Pay Later**, whose only
-red-adjacent state is a session that happened and was never closed; owing money
-is never a fault. Risk carries two rules of its own under **Trusted patients --
-follow up**. See the pay-later rule in `AGENTS.md`.
+misleading. **They settle from a pool.** The patient's dashboard carries what they owe,
+each session at the price agreed on the day, and two ways to pay: online,
+which `record_payment_capture` confirms and allocates in one transaction, or a
+**declaration** (cash, UPI, bank transfer) that lands `pending` and **settles
+nothing** -- the figure does not move until an admin confirms the money
+arrived, because a patient who could clear their own total by typing into a box
+is a patient who can. `pay_later_payments` is the pool;
+`allocate_pay_later_payment()` covers delivered sessions **oldest first, whole
+sessions only**, under a row lock on the patient, and writes
+`amount_paid_paise = amount_due_paise` **exactly** -- never the payment's share
+-- which is what makes every money figure and every therapist's pay identical
+either side of a settlement. The pool is fungible across payments, so two part
+payments close a session between them rather than stranding money for ever. One
+receipt per payment, listing the sessions it closed, because four receipts for
+one transfer reads as four payments. Confirming is one tap and rejecting needs
+a ten-character reason the patient reads. System Health carries a seventh
+check, **Pay Later**: owing money is never a fault, a payment waiting to be
+checked is amber, and the only red is the money in disagreeing with the money
+accounted for -- reported, never repaired. Risk carries three rules of its own
+under **Trusted patients -- follow up**. See the pay-later rule in `AGENTS.md`.
 
 **The books answer the seven standard questions too.** Money -> Business
 Health reports return on investment, return on ad spend, working capital,

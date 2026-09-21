@@ -46,6 +46,11 @@ import {
   readPayLaterEnabled,
 } from "@/lib/payLaterSettingsServer";
 import {
+  readPendingSettlementRows,
+  readSettlementReconciliation,
+} from "@/lib/payLaterSettlementServer";
+import { reconcileSettlements, settlementWaitDays } from "@/lib/payLaterSettlement";
+import {
   computeClinicReceivable,
   isAgedBalance,
   isOpenPayLaterSession,
@@ -700,6 +705,8 @@ export default async function AdminDashboardPage({
     payLaterFeatureEnabled,
     payLaterPatients,
     payLaterRows,
+    payLaterSettlementRows,
+    payLaterReconciliation,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -967,6 +974,15 @@ export default async function AdminDashboardPage({
           }[]
         | null
     ),
+    // Payments a patient says they have made, waiting to be checked. Its own
+    // read, like everything else in this block: `pay_later_payments` is the
+    // newest table in the app, and a database without it loses this one panel
+    // rather than the screen.
+    readPendingSettlementRows(admin),
+    // Money in against money accounted for. Null when it could not be asked,
+    // which the check reports as "could not be checked" rather than as
+    // agreement -- a read that failed is not a read that came back empty.
+    readSettlementReconciliation(admin),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -4063,6 +4079,20 @@ export default async function AdminDashboardPage({
             appointmentsWithSessionCode,
             nowTimestamp()
           ).length,
+          settlementsWaiting: payLaterSettlementRows?.length ?? 0,
+          oldestSettlementWaitDays: settlementWaitDays(
+            // Arrives oldest first from the server, so the first row is the
+            // one that has waited longest.
+            payLaterSettlementRows?.[0]?.declared_at ?? null,
+            nowTimestamp()
+          ),
+          settlementDifferencePaise:
+            payLaterReconciliation === null
+              ? // Could not be asked. Deliberately NOT zero: the check reads
+                // null as "we could not check" and zero as "the books agree",
+                // and those are opposite facts.
+                null
+              : reconcileSettlements(payLaterReconciliation).differencePaise,
         };
 
   const moneyAlerts = (
@@ -4074,6 +4104,7 @@ export default async function AdminDashboardPage({
         refundsFailed,
         unmatchedPayments: accountingHealth.unmatchedPayments.length,
         patientsOwingAged,
+        settlementsWaiting: payLaterSettlementRows?.length ?? 0,
       }}
       // Workable, not merely open: every row on this strip is a job, and
       // Finance reads Sessions without being able to change one -- so a
@@ -4277,6 +4308,8 @@ export default async function AdminDashboardPage({
           }
           nowMs={nowTimestamp()}
           ageSetting={payLaterAgeSetting}
+          settlements={payLaterSettlementRows ?? []}
+          canManageMoney={scopeCanManage(viewerScope, "money")}
           featureEnabled={payLaterFeatureEnabled}
           canManageSettings={scopeCanManage(viewerScope, "settings")}
         />

@@ -22,6 +22,8 @@ import { isDirectlyPurchasable } from "@/lib/consultationFirst";
 import { readInviteSettings } from "@/lib/acquisitionSettings";
 import { ensureInviteCode, readInviteSummary } from "@/lib/inviteRewardsServer";
 import type { InviteSettings } from "@/lib/inviteRewards";
+import { loadPatientPayLater } from "@/lib/payLaterSettlementServer";
+import type { ReceiptSettlement } from "@/lib/receipts";
 
 // Everything the patient dashboard's screens read, loaded once per
 // request.
@@ -940,12 +942,37 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     }
   }
 
+  // ---- What they owe, for patients who pay after their treatment --------
+  //
+  // Its own isolated pair of reads, merged here rather than folded into the
+  // shared appointment select: `payment_terms`, `amount_due_paise` and
+  // `pay_later_outcome` are recent columns and `pay_later_payments` newer
+  // still, so on a database missing any of them this costs the widget and
+  // nothing else on the screen. Absent, nothing is owed -- which is exactly
+  // right, since a database with no such column has no such debt.
+  //
+  // Overview and the Payments screen only. Every other screen would pay two
+  // round trips to render nothing.
+  let payLater: {
+    owedPaise: number;
+    owedCount: number;
+    unallocatedPaise: number;
+    sessions: { id: string; concern: string | null; slot_time: string | null; timezone: string | null; amount_due_paise: number | null }[];
+    pendingDeclaration: { id: string; amount_paise: number; method: string; declared_at: string | null } | null;
+    lastRejection: { amount_paise: number; rejection_reason: string | null; confirmed_at: string | null } | null;
+    settlements: ReceiptSettlement[];
+  } | null = null;
+  if (needFeed || needReceipts) {
+    payLater = await loadPatientPayLater(admin, user.id);
+  }
+
   return {
     user,
     profile,
     patientCodeRow,
     adminSettings,
     invite,
+    payLater,
     appointments,
     onlineAppointments,
     homeVisitAppointments,

@@ -40,6 +40,15 @@ declare
   v_appt_terms uuid;
   v_appt_abandoned uuid;
   v_appt_probe uuid;
+  v_sess_old uuid;
+  v_sess_new uuid;
+  v_payment uuid;
+  v_pending uuid;
+  v_status text;
+  v_amount integer;
+  v_confirmed integer;
+  v_settled integer;
+  v_unallocated integer;
   v_result jsonb;
 begin
   -- ---------------------------------------------------------------------
@@ -54,7 +63,7 @@ begin
   end if;
 
   insert into promo_codes (code, kind, value, active, max_redemptions, max_per_patient)
-    values ('PAYLATERCHECK', 'fixed', 10000, true, 1, 1)
+    values ('PAYLATERCHECK', 'amount_off', 10000, true, 1, 1)
     returning id into v_promo;
 
   -- A booking confirmed on terms, claimed well outside the checkout hold.
@@ -176,6 +185,205 @@ begin
   if coalesce(v_result->>'reason', '') <> 'not_new' then
     raise exception
       'A paid session stopped making a patient not-new: got %', v_result;
+  end if;
+
+  -- ---------------------------------------------------------------------
+  -- 7. The settlement pool. Whole sessions only, oldest first, and the
+  --    amount written is the session's own frozen price -- never the
+  --    payment's share of it. That last part is the whole safety case:
+  --    the therapist's cut is computed from amount_paid_paise, so
+  --    spreading 2,000 across four 1,200 sessions would shrink it on
+  --    sessions the clinic had already paid out on.
+  -- ---------------------------------------------------------------------
+  insert into appointments (patient_id, category_id, slot_time, status, payment_status,
+                            payment_terms, amount_due_paise)
+    values (v_patient, v_category, now() - interval '20 days', 'completed', 'unpaid',
+            'pay_later', 120000)
+    returning id into v_sess_old;
+  insert into appointments (patient_id, category_id, slot_time, status, payment_status,
+                            payment_terms, amount_due_paise)
+    values (v_patient, v_category, now() - interval '10 days', 'completed', 'unpaid',
+            'pay_later', 120000)
+    returning id into v_sess_new;
+
+  insert into pay_later_payments (patient_id, amount_paise, method, status,
+                                  confirmed_at, unallocated_paise)
+    values (v_patient, 200000, 'upi', 'confirmed', now(), 200000)
+    returning id into v_payment;
+
+  v_result := allocate_pay_later_payment(v_patient);
+
+  if coalesce((v_result->>'settled_count')::int, -1) <> 1 then
+    raise exception 'A 2,000 payment should settle exactly one 1,200 session: got %', v_result;
+  end if;
+  if coalesce((v_result->>'unallocated_paise')::int, -1) <> 80000 then
+    raise exception 'The 800 remainder should stay in the pool: got %', v_result;
+  end if;
+
+  -- Oldest first, and the amount is the session's own price.
+  select payment_status, amount_paid_paise into v_status, v_amount
+    from appointments where id = v_sess_old;
+  if v_status <> 'paid' or v_amount <> 120000 then
+    raise exception
+      'The oldest session should be settled at its own frozen price: status %, amount %',
+      v_status, v_amount;
+  end if;
+
+  -- The other half: the newer session is NOT part-settled. 800 covers none
+  -- of it, and writing 800 onto it would move the therapist's cut.
+  select payment_status, amount_paid_paise into v_status, v_amount
+    from appointments where id = v_sess_new;
+  if v_status = 'paid' or coalesce(v_amount, 0) <> 0 then
+    raise exception
+      'A session must never be part-settled: status %, amount %', v_status, v_amount;
+  end if;
+
+  -- ---------------------------------------------------------------------
+  -- 8. Idempotent. Allocation runs at two moments -- a payment confirmed
+  --    and a session completed -- so a second call must find nothing left
+  --    to cover rather than settling the same session twice.
+  -- ---------------------------------------------------------------------
+  v_result := allocate_pay_later_payment(v_patient);
+  if coalesce((v_result->>'settled_count')::int, -1) <> 0 then
+    raise exception 'A second allocation settled something again: %', v_result;
+  end if;
+
+  -- ---------------------------------------------------------------------
+  -- 9. A further 400 tops the pool to 1,200 and the next session closes.
+  -- ---------------------------------------------------------------------
+  insert into pay_later_payments (patient_id, amount_paise, method, status,
+                                  confirmed_at, unallocated_paise)
+    values (v_patient, 40000, 'cash', 'confirmed', now(), 40000);
+
+  v_result := allocate_pay_later_payment(v_patient);
+  if coalesce((v_result->>'settled_count')::int, -1) <> 1 then
+    raise exception 'Topping the pool to 1,200 should settle the next session: %', v_result;
+  end if;
+
+  -- ---------------------------------------------------------------------
+  -- 10. money in = money on sessions + money still in the pool. The one
+  --     invariant the pool design stands on, and the System Health check's
+  --     only red state.
+  -- ---------------------------------------------------------------------
+  select coalesce(sum(amount_paise), 0), coalesce(sum(unallocated_paise), 0)
+    into v_confirmed, v_unallocated
+    from pay_later_payments where patient_id = v_patient and status = 'confirmed';
+  select coalesce(sum(amount_paid_paise), 0) into v_settled
+    from appointments where pay_later_payment_id is not null and patient_id = v_patient;
+  if v_confirmed <> v_settled + v_unallocated then
+    raise exception
+      'Money in (%) should equal money on sessions (%) plus the pool (%)',
+      v_confirmed, v_settled, v_unallocated;
+  end if;
+
+  -- ---------------------------------------------------------------------
+  -- 11. The append-only guard, both halves: the one transition it needs
+  --     still lands, and every other one raises.
+  -- ---------------------------------------------------------------------
+  insert into pay_later_payments (patient_id, amount_paise, method, status)
+    values (v_patient, 50000, 'bank_transfer', 'pending')
+    returning id into v_pending;
+
+  update pay_later_payments set status = 'confirmed', confirmed_at = now()
+    where id = v_pending;  -- must succeed
+
+  begin
+    update pay_later_payments set status = 'pending' where id = v_pending;
+    raise exception 'A confirmed payment was allowed back to pending';
+  exception when others then
+    if sqlerrm like '%was allowed back to pending%' then raise; end if;
+  end;
+
+  begin
+    delete from pay_later_payments where id = v_pending;
+    raise exception 'A payment was deleted';
+  exception when others then
+    if sqlerrm like '%was deleted%' then raise; end if;
+  end;
+
+  begin
+    update pay_later_payments set amount_paise = 1 where id = v_pending;
+    raise exception 'A declared amount was rewritten';
+  exception when others then
+    if sqlerrm like '%was rewritten%' then raise; end if;
+  end;
+
+  -- ---------------------------------------------------------------------
+  -- 12. The two CHECKs: an online row is never pending, and a rejection
+  --     carries a real reason.
+  -- ---------------------------------------------------------------------
+  begin
+    insert into pay_later_payments (patient_id, amount_paise, method, status)
+      values (v_patient, 10000, 'online', 'pending');
+    raise exception 'An online payment was allowed to sit pending';
+  exception when others then
+    if sqlerrm like '%allowed to sit pending%' then raise; end if;
+  end;
+
+  insert into pay_later_payments (patient_id, amount_paise, method, status)
+    values (v_patient, 10000, 'upi', 'pending')
+    returning id into v_pending;
+  begin
+    update pay_later_payments set status = 'rejected', rejection_reason = 'too short'
+      where id = v_pending;
+    raise exception 'A nine-character rejection reason was accepted';
+  exception when others then
+    if sqlerrm like '%nine-character%' then raise; end if;
+  end;
+
+  update pay_later_payments
+    set status = 'rejected', rejection_reason = 'Nothing matching that reference reached the account'
+    where id = v_pending;  -- must succeed
+
+  -- ---------------------------------------------------------------------
+  -- 13. A capture against a settlement order confirms the payment and
+  --     closes the sessions it covers, inside one transaction.
+  --
+  --     This one caught a real bug. The branch originally claimed the row
+  --     on `status = 'pending'` -- and an online row is created `confirmed`,
+  --     because the CHECK above refuses a pending one, so the guard could
+  --     never match and the allocator never ran on the single path it was
+  --     written for. Everything looked right: the purpose was set, the
+  --     target attached, the payment recorded. Only the session stayed open.
+  -- ---------------------------------------------------------------------
+  insert into appointments (patient_id, category_id, slot_time, status, payment_status,
+                            payment_terms, amount_due_paise)
+    values (v_other_patient, v_category, now() - interval '5 days', 'completed', 'unpaid',
+            'pay_later', 120000)
+    returning id into v_sess_old;
+
+  insert into pay_later_payments (patient_id, amount_paise, method, status,
+                                  razorpay_order_id, unallocated_paise)
+    values (v_other_patient, 120000, 'online', 'confirmed', 'order_PLCHECK', 0)
+    returning id into v_payment;
+
+  -- No payments row yet: the webhook-first case, where the capture has to
+  -- work out for itself what the order was for.
+  v_result := record_payment_capture('order_PLCHECK', 'pay_PLCHECK', 120000, null);
+
+  select purpose into v_status from payments where razorpay_order_id = 'order_PLCHECK';
+  if v_status <> 'pay_later_settlement' then
+    raise exception 'A settlement capture was recorded as %', v_status;
+  end if;
+
+  select payment_status into v_status from appointments where id = v_sess_old;
+  if v_status <> 'paid' then
+    raise exception
+      'The capture confirmed the payment and did not close the session: %', v_status;
+  end if;
+
+  -- ---------------------------------------------------------------------
+  -- 14. The other half: a retried webhook settles nothing a second time.
+  --     Razorpay retries at least once, and a duplicate that allocated
+  --     again would hand the patient their money twice.
+  -- ---------------------------------------------------------------------
+  v_result := record_payment_capture('order_PLCHECK', 'pay_PLCHECK', 120000, null);
+  if coalesce((v_result->>'already_captured')::boolean, false) <> true then
+    raise exception 'A duplicate capture was not recognised: %', v_result;
+  end if;
+  select count(*) into v_amount from appointments where pay_later_payment_id = v_payment;
+  if v_amount <> 1 then
+    raise exception 'A duplicate capture settled % sessions', v_amount;
   end if;
 
   raise notice 'pay-later SQL checks passed';

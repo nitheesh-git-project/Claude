@@ -4,6 +4,7 @@ import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import OnboardingTour from "@/components/patient/OnboardingTour";
 import InviteCard from "@/components/patient/InviteCard";
+import PayLaterWidget from "@/components/patient/PayLaterWidget";
 import { StripProgress } from "@/components/dashboard/StatStrip";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -29,6 +30,21 @@ export default async function PatientDashboardPage() {
       subtitle="Your virtual physical therapy dashboard"
     >
       {!d.onboardingRow?.onboarding_seen_at && <OnboardingTour intakeLocked={!d.intakeGate.canEdit} />}
+
+      {/* Above everything else on the screen, because it is the one thing
+          here that involves money the clinic is waiting for -- and because
+          the patient it belongs to has no other way to see it. Absent when
+          nothing is owed and nothing is being checked. */}
+      {d.payLater && (
+        <PayLaterWidget
+          owedPaise={d.payLater.owedPaise}
+          sessions={d.payLater.sessions}
+          unallocatedPaise={d.payLater.unallocatedPaise}
+          pendingDeclaration={d.payLater.pendingDeclaration}
+          lastRejection={d.payLater.lastRejection}
+          razorpayKeyId={process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? null}
+        />
+      )}
 
       {/* The nudge is dropped entirely while the record is the
           therapist's to write. An amber banner is a to-do marker, and

@@ -457,3 +457,92 @@ describe("copyTextFor", () => {
     expect(copyTextFor(healthy)).not.toContain("Steps:");
   });
 });
+
+/**
+ * Settling what is owed, on the one check where owing money is not a fault.
+ *
+ * The line this draws is the whole shape of the feature: a patient owing a
+ * large sum is the arrangement working, a payment waiting to be checked is
+ * work, and only the money in disagreeing with the money accounted for is
+ * something broken. Get it wrong in the generous direction and the screen
+ * paints red at a clinic where nothing is wrong, which is how red stops
+ * meaning anything.
+ */
+describe("pay later: settlement", () => {
+  const payLater = (over: Partial<NonNullable<SystemHealthInput["payLater"]>> = {}) => ({
+    ...ALL_WELL,
+    payLater: { ...ALL_WELL.payLater!, ...over },
+  });
+
+  const check = (input: SystemHealthInput) =>
+    buildSystemHealth(input).find((c) => c.id === "pay_later")!;
+
+  it("is red when money in and money accounted for disagree", () => {
+    const c = check(payLater({ settlementDifferencePaise: -120000 }));
+    expect(c.status).toBe("broken");
+    expect(c.headline).toContain("₹1,200");
+  });
+
+  it("is red in either direction", () => {
+    expect(check(payLater({ settlementDifferencePaise: 120000 })).status).toBe("broken");
+  });
+
+  // Reports, never repairs -- a silent auto-fix on a money record is how a
+  // discrepancy becomes permanent.
+  it("tells an owner not to change anything by hand", () => {
+    const c = check(payLater({ settlementDifferencePaise: 500 }));
+    expect(c.fix.join(" ").toLowerCase()).toContain("do not change anything by hand");
+  });
+
+  it("is amber, never red, for payments waiting to be checked", () => {
+    const c = check(payLater({ settlementsWaiting: 2, oldestSettlementWaitDays: 6 }));
+    expect(c.status).toBe("attention");
+    expect(c.headline).toContain("6 days");
+    expect(c.count).toBe(2);
+  });
+
+  // A patient owing a large sum is the arrangement working.
+  it("stays healthy on a big balance with nothing waiting", () => {
+    const c = check(
+      payLater({ totalOwedPaise: 5000000, patientsOwing: 3, oldestOwedAgeDays: 10 })
+    );
+    expect(c.status).toBe("healthy");
+  });
+
+  // A session nobody closed produces no debt, no revenue and no therapist
+  // pay, so it outranks a queue that is merely waiting on somebody.
+  it("names the unclosed session before the waiting payment", () => {
+    const c = check(payLater({ unclosedSessions: 1, settlementsWaiting: 2 }));
+    expect(c.status).toBe("attention");
+    expect(c.headline).toContain("never marked done");
+  });
+
+  // ...and the disagreement outranks both.
+  it("names the disagreement before either", () => {
+    const c = check(
+      payLater({ settlementDifferencePaise: 100, unclosedSessions: 1, settlementsWaiting: 2 })
+    );
+    expect(c.status).toBe("broken");
+  });
+
+  // "We could not ask" and "the books agree" are opposite facts. A null must
+  // not read as a zero difference and paint the check healthy.
+  it("says so when the reconciliation could not be run, and does not call it agreement", () => {
+    const c = check(payLater({ settlementDifferencePaise: null }));
+    expect(c.status).toBe("attention");
+    expect(c.status).not.toBe("healthy");
+    expect(c.headline.toLowerCase()).toContain("could not be checked");
+    expect(c.evidence?.join(" ")).toContain("could not be checked");
+  });
+
+  // An unmigrated database has no settlements to reconcile, so silence is
+  // correct there -- undefined and null are different facts.
+  it("stays quiet when there is nothing to reconcile at all", () => {
+    expect(check(payLater({ settlementDifferencePaise: undefined })).status).toBe("healthy");
+  });
+
+  it("stays off when nobody is on terms and the switch is off", () => {
+    const c = check(payLater({ featureEnabled: false, patientsOnTerms: 0, settlementsWaiting: 0 }));
+    expect(c.status).toBe("off");
+  });
+});

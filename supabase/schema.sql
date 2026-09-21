@@ -4847,6 +4847,10 @@ $$;
 revoke execute on function public.record_payment_capture(text, text, integer, jsonb)
   from anon, authenticated;
 
+
+revoke execute on function public.record_payment_capture(text, text, integer, jsonb)
+  from anon, authenticated;
+
 -- Payment tables belong in the wipe list for the same reason every other
 -- table does: a reset that leaves payment rows behind leaves the next round
 -- of testing reconciling against money that was never collected.
@@ -10164,6 +10168,25 @@ end $$;
 -- page copy columns are -- their default is a line in `mission.ts`, not in the
 -- column, and nulling is what hands the band back to it.
 
+-- ---------------------------------------------------------------------------
+-- debug_reset_all_data: now clears pay_later_payments too
+-- ---------------------------------------------------------------------------
+-- Re-created in full at the end rather than edited above, because the LAST
+-- definition is the only one that survives the file being applied -- this
+-- function has been written out several times and adding a table to any
+-- earlier copy does nothing at all, silently leaving its rows behind.
+--
+-- pay_later_payments would in fact be reached by CASCADE through profiles,
+-- and is listed explicitly anyway on the same basis as payments and
+-- session_credit_ledger: "a reset must empty this" should be readable from
+-- the list rather than inferred from a foreign key a later migration could
+-- drop. A reset that left a patient's settlements behind would hand the next
+-- round of testing money paid against sessions that no longer exist.
+--
+-- Every UPDATE and DELETE in here still carries a real WHERE clause:
+-- Supabase preloads pg-safeupdate for the role PostgREST connects as, so a
+-- bare UPDATE is refused at runtime and only from the one caller that
+-- matters -- applying this file as `postgres` never sees it.
 create or replace function public.debug_reset_all_data()
 returns jsonb
 language plpgsql
@@ -10180,6 +10203,7 @@ begin
   end if;
 
   truncate table
+    pay_later_payments,
     session_credit_ledger,
     session_entitlements,
     payment_webhook_events,
@@ -11424,3 +11448,534 @@ $$;
 revoke all on function public.claim_invite(text, uuid) from public;
 revoke all on function public.claim_invite(text, uuid) from anon;
 revoke all on function public.claim_invite(text, uuid) from authenticated;
+
+-- ===========================================================================
+-- Pay later, phase 4: the pool a patient settles from
+-- ===========================================================================
+--
+-- Phases 1-3 made the money appear: a trusted patient books without paying,
+-- and on completion the frozen price lands in what they owe, in revenue and
+-- in the therapist's share at once. What did not exist was any way for that
+-- patient to see it or to pay it, which is what this adds.
+--
+-- **A payment never touches a session.** It joins the patient's pool, and
+-- allocation then covers their unsettled sessions oldest first, WHOLE
+-- SESSIONS ONLY, leaving the remainder on the payment row. Spreading 2,000
+-- across four 1,200 sessions as 500 each would rewrite every session's
+-- amount -- and the therapist's share is computed from that amount, so it
+-- would silently shrink on sessions the clinic has already paid out. So
+-- settlement writes `amount_paid_paise = amount_due_paise` exactly, never
+-- the payment's share, which is what makes every money figure identical
+-- before and after a settlement.
+
+create table if not exists pay_later_payments (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  amount_paise integer not null check (amount_paise > 0),
+  -- 'online' is the gateway; the rest are ways money reaches the clinic
+  -- that only a person can confirm.
+  method text not null check (method in ('online', 'cash', 'upi', 'bank_transfer', 'other')),
+  -- What the patient says about it ("sent from HDFC 2pm") and any reference
+  -- they can quote. Both free text, both scanned by nothing: this is a
+  -- patient writing to the clinic about money, not a cross-role clinical
+  -- field, and the contact rules exist to stop treatment being arranged off
+  -- the platform rather than to police a UTR.
+  note text,
+  reference text,
+  status text not null default 'pending' check (status in ('pending', 'confirmed', 'rejected')),
+  declared_by uuid references profiles(id) on delete set null,
+  declared_at timestamptz not null default now(),
+  confirmed_by uuid references profiles(id) on delete set null,
+  confirmed_at timestamptz,
+  rejection_reason text,
+  -- Confirmed money not yet applied to a session. computePatientBalance
+  -- already nets this off what is owed: somebody who owes 4,800 and has
+  -- handed over 2,000 owes 3,600, and asking for 4,800 would be asking
+  -- twice for money already in the till.
+  unallocated_paise integer not null default 0 check (unallocated_paise >= 0),
+  razorpay_order_id text,
+  razorpay_payment_id text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+do $$ begin
+  -- The gateway IS the confirmation: an online payment that captured is
+  -- confirmed by Razorpay, and one that did not is not a payment. A
+  -- 'pending' online row would be a queue entry nobody can ever action.
+  alter table pay_later_payments add constraint pay_later_payments_online_never_pending
+    check (method <> 'online' or status <> 'pending');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  -- The same floor an admin credit adjustment, a goodwill discount and a
+  -- pay-later grant all use. Refusing somebody's declared payment is the
+  -- half of this feature that takes something away, so it is the half that
+  -- has to say why -- and confirming needs no sentence, because taxing the
+  -- ordinary outcome with one meaning "fine" is how a reason column fills
+  -- with "ok" and stops being worth reading.
+  alter table pay_later_payments add constraint pay_later_payments_rejection_needs_reason
+    check (status <> 'rejected' or length(btrim(coalesce(rejection_reason, ''))) >= 10);
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  alter table pay_later_payments add constraint pay_later_payments_unallocated_within_amount
+    check (unallocated_paise <= amount_paise);
+exception when duplicate_object then null; end $$;
+
+create index if not exists idx_pay_later_payments_patient
+  on pay_later_payments (patient_id, status);
+create index if not exists idx_pay_later_payments_pending
+  on pay_later_payments (declared_at) where status = 'pending';
+create unique index if not exists idx_pay_later_payments_order
+  on pay_later_payments (razorpay_order_id) where razorpay_order_id is not null;
+
+-- Which payment closed this session. One foreign key rather than a join
+-- table: a second place the same fact is written is two places that can
+-- disagree about how much of a patient's debt has been settled.
+alter table appointments add column if not exists pay_later_payment_id uuid
+  references pay_later_payments(id) on delete set null;
+create index if not exists idx_appointments_pay_later_payment
+  on appointments (pay_later_payment_id) where pay_later_payment_id is not null;
+
+-- So a settlement is not reported as a captured payment attached to nothing.
+alter table payments add column if not exists target_pay_later_payment_id uuid
+  references pay_later_payments(id) on delete set null;
+
+-- `purpose` is CHECKed to four values and a settlement is none of them. The
+-- constraint is on a table with live rows, so it is replaced here rather
+-- than edited where it was written.
+alter table payments drop constraint if exists payments_purpose_check;
+alter table payments add constraint payments_purpose_check check (purpose in
+  ('consultation', 'session_package', 'home_visit_package', 'pay_later_settlement', 'other'));
+
+-- ---------------------------------------------------------------------------
+-- Append-only, by trigger rather than by RLS
+-- ---------------------------------------------------------------------------
+-- Every route here writes with the service-role client, which bypasses RLS
+-- entirely -- so for a table whose whole value is that it cannot be
+-- rewritten, "no route updates it" is not the same guarantee as "an update
+-- raises". Exactly one transition is permitted, one way, plus the two
+-- columns allocation itself has to move.
+create or replace function public.pay_later_payments_is_append_only()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'pay_later_payments is append-only: a payment that did not arrive is rejected with a reason, never deleted';
+  end if;
+
+  -- pending -> confirmed | rejected, and nothing else. A confirmed payment
+  -- going back to pending would un-settle sessions the patient has been
+  -- told are paid for.
+  if new.status is distinct from old.status then
+    if old.status <> 'pending' then
+      raise exception 'pay_later_payments: % is final and cannot become %', old.status, new.status;
+    end if;
+    if new.status not in ('confirmed', 'rejected') then
+      raise exception 'pay_later_payments: a pending payment may only be confirmed or rejected';
+    end if;
+  end if;
+
+  -- What money arrived, from whom, by what means and when they said so is
+  -- the record. Allocation moves unallocated_paise; capture fills in the
+  -- gateway's own ids on a row it created a moment earlier.
+  if new.patient_id is distinct from old.patient_id
+     or new.amount_paise is distinct from old.amount_paise
+     or new.method is distinct from old.method
+     or new.note is distinct from old.note
+     or new.reference is distinct from old.reference
+     or new.declared_by is distinct from old.declared_by
+     or new.declared_at is distinct from old.declared_at then
+    raise exception 'pay_later_payments is append-only: what was declared cannot be rewritten';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_pay_later_payments_append_only on pay_later_payments;
+create trigger trg_pay_later_payments_append_only
+  before update or delete on pay_later_payments
+  for each row execute function public.pay_later_payments_is_append_only();
+
+-- ---------------------------------------------------------------------------
+-- RLS
+-- ---------------------------------------------------------------------------
+alter table pay_later_payments enable row level security;
+
+drop policy if exists pay_later_payments_select_own on pay_later_payments;
+create policy pay_later_payments_select_own on pay_later_payments
+  for select using (patient_id = auth.uid());
+
+drop policy if exists pay_later_payments_select_admin on pay_later_payments;
+create policy pay_later_payments_select_admin on pay_later_payments
+  for select using (is_admin());
+
+-- Deliberately no insert and no update policy: the service-role client is
+-- the only writer, so a patient cannot declare a payment around the route
+-- that rate-limits and validates it, and cannot confirm their own.
+
+do $$ begin
+  alter publication supabase_realtime add table pay_later_payments;
+exception when duplicate_object then null; end $$;
+
+-- ---------------------------------------------------------------------------
+-- allocate_pay_later_payment: the one place sessions close
+-- ---------------------------------------------------------------------------
+-- Covers this patient's delivered, unsettled sessions oldest first and WHOLE
+-- SESSIONS ONLY, from every confirmed payment of theirs that still has money
+-- on it. Four rules:
+--
+-- 1. **The patient's row is locked first**, the same shape claim_promo_code
+--    uses. Two admins confirming two payments at once would otherwise both
+--    read the same pool and both spend it.
+-- 2. **It reads the whole pool, not the one payment.** Allocation runs when
+--    a payment is confirmed AND when a session is completed, so a remainder
+--    left over by an earlier payment is picked up without anything having to
+--    remember it. That also makes it idempotent: called twice, the second
+--    call finds nothing left to cover.
+-- 3. **A session is settled with amount_paid_paise = amount_due_paise
+--    exactly** -- never the payment's share. That is what keeps recognised
+--    revenue and every therapist figure identical either side of a
+--    settlement, which is the whole safety case for the pool.
+-- 4. **It never moves money out of a session.** There is no un-settle: a
+--    delivered session that has been paid for stays paid for.
+create or replace function public.allocate_pay_later_payment(
+  p_patient_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_available integer := 0;
+  v_settled_count integer := 0;
+  v_settled_paise integer := 0;
+  v_session record;
+  v_payment record;
+  v_last_payment uuid;
+  v_remaining integer;
+  v_take integer;
+  v_taken integer;
+begin
+  if p_patient_id is null then
+    raise exception 'allocate_pay_later_payment needs a patient';
+  end if;
+
+  -- The lock. Taken on the patient rather than on a payment, because the
+  -- pool is the patient's and two payments are exactly what races here.
+  perform 1 from profiles where id = p_patient_id for update;
+
+  select coalesce(sum(unallocated_paise), 0) into v_available
+    from pay_later_payments
+    where patient_id = p_patient_id and status = 'confirmed';
+
+  if v_available <= 0 then
+    return jsonb_build_object('settled_count', 0, 'settled_paise', 0, 'unallocated_paise', 0);
+  end if;
+
+  for v_session in
+    select id, coalesce(amount_due_paise, 0) as due
+      from appointments
+      where patient_id = p_patient_id
+        and payment_terms = 'pay_later'
+        and status = 'completed'
+        and payment_status <> 'paid'
+        and coalesce(pay_later_outcome, '') <> 'written_off'
+        and coalesce(amount_due_paise, 0) > 0
+      order by slot_time asc nulls last, created_at asc
+      for update
+  loop
+    -- Whole sessions only. Stop at the first one the pool cannot cover
+    -- rather than skipping to a cheaper one further down: a patient paying
+    -- off their oldest session is what they think they are doing.
+    exit when v_session.due > v_available;
+
+    -- Drawn from the pool as a whole, oldest payment first, taking what
+    -- each has until the session is covered.
+    --
+    -- **It is the pool that is fungible, not each payment**, and that is
+    -- load-bearing rather than incidental. Requiring a single payment to
+    -- cover a whole session reads tidier and strands money for ever:
+    -- somebody settling in two 800 instalments has 1,600 in the clinic's
+    -- hands and a 1,200 session no payment can close, with no path out of
+    -- it. Real money stuck permanently is worse than any tidiness.
+    --
+    -- The session is stamped with the payment that **completed** it, since
+    -- `pay_later_payment_id` holds one. So where two payments closed one
+    -- session it shows against the second -- which is why a settlement
+    -- receipt lists the sessions a payment closed rather than claiming its
+    -- own amount is the sum of their prices.
+    v_taken := 0;
+    v_last_payment := null;
+    for v_payment in
+      select id, unallocated_paise
+        from pay_later_payments
+        where patient_id = p_patient_id
+          and status = 'confirmed'
+          and unallocated_paise > 0
+        order by confirmed_at asc nulls last, declared_at asc
+        for update
+    loop
+      exit when v_taken >= v_session.due;
+      v_take := least(v_payment.unallocated_paise, v_session.due - v_taken);
+      update pay_later_payments
+        set unallocated_paise = unallocated_paise - v_take,
+            updated_at = now()
+        where id = v_payment.id;
+      v_taken := v_taken + v_take;
+      v_last_payment := v_payment.id;
+    end loop;
+
+    -- The loop cannot come up short: the pool was checked against this
+    -- session's price before entering it. Asserted rather than assumed,
+    -- because coming up short here would mark a session paid for money the
+    -- clinic never received -- the one thing this function must not do.
+    if v_taken < v_session.due then
+      raise exception
+        'allocate_pay_later_payment: covered % of a % session', v_taken, v_session.due;
+    end if;
+
+    -- No `updated_at` here: `appointments` has never carried one, and
+    -- writing a column that does not exist would fail every allocation this
+    -- function exists for. `paid_at` is this table's own record of when the
+    -- money landed, which is the timestamp a reader actually wants.
+    update appointments
+      set payment_status = 'paid',
+          paid_at = coalesce(paid_at, now()),
+          amount_paid_paise = v_session.due,
+          pay_later_payment_id = v_last_payment,
+          pay_later_outcome = 'settled'
+      where id = v_session.id
+        and payment_status <> 'paid';
+
+    v_available := v_available - v_taken;
+    v_settled_count := v_settled_count + 1;
+    v_settled_paise := v_settled_paise + v_taken;
+  end loop;
+
+  select coalesce(sum(unallocated_paise), 0) into v_remaining
+    from pay_later_payments
+    where patient_id = p_patient_id and status = 'confirmed';
+
+  return jsonb_build_object(
+    'settled_count', v_settled_count,
+    'settled_paise', v_settled_paise,
+    'unallocated_paise', v_remaining
+  );
+end;
+$$;
+
+revoke all on function public.allocate_pay_later_payment(uuid) from public;
+revoke all on function public.allocate_pay_later_payment(uuid) from anon;
+revoke all on function public.allocate_pay_later_payment(uuid) from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- record_payment_capture: a fourth thing a payment can be for
+-- ---------------------------------------------------------------------------
+-- Re-created in full at the end of the file, the convention this file already
+-- follows, with its three revokes after it -- a re-created function arrives
+-- carrying anon and authenticated grants again, and PUBLIC's implicit one on
+-- top, so naming fewer than three leaves it callable by anyone holding the
+-- publishable key.
+--
+-- A settlement is a fourth purpose rather than a second fulfilment path, per
+-- this function's own instruction: one capture is applied in exactly one
+-- place, under one row lock, idempotently, so a duplicate webhook racing the
+-- browser callback is safe without either knowing about the other.
+create or replace function public.record_payment_capture(
+  p_order_id text,
+  p_payment_id text,
+  p_amount_paise integer default null,
+  p_raw jsonb default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_payment payments%rowtype;
+  v_patient_id uuid;
+  v_purpose text;
+  v_amount integer;
+  v_appointment_id uuid;
+  v_package_id uuid;
+  v_home_visit_id uuid;
+  v_pay_later_id uuid;
+  v_settlement_patient uuid;
+  v_appointment_status text;
+  v_target_updated boolean := false;
+begin
+  if p_order_id is null or p_order_id = '' or p_payment_id is null or p_payment_id = '' then
+    raise exception 'record_payment_capture needs both an order id and a payment id';
+  end if;
+
+  select * into v_payment from payments where razorpay_order_id = p_order_id for update;
+
+  -- No payments row yet: this order predates the table, or the capture is
+  -- arriving before whatever would have created it. Find what the order was
+  -- for from the three tables that carry the order id, and create the row.
+  if not found then
+    select a.id, a.patient_id, a.amount_paid_paise
+      into v_appointment_id, v_patient_id, v_amount
+      from appointments a where a.razorpay_order_id = p_order_id limit 1;
+    if v_appointment_id is not null then
+      v_purpose := 'consultation';
+    else
+      select pp.id, pp.patient_id, pp.amount_paid_paise
+        into v_package_id, v_patient_id, v_amount
+        from patient_package_purchases pp where pp.razorpay_order_id = p_order_id limit 1;
+      if v_package_id is not null then
+        v_purpose := 'session_package';
+      else
+        select hp.id, hp.patient_id, hp.amount_paid_paise
+          into v_home_visit_id, v_patient_id, v_amount
+          from home_visit_package_purchases hp where hp.razorpay_order_id = p_order_id limit 1;
+        if v_home_visit_id is not null then
+          v_purpose := 'home_visit_package';
+        else
+          -- A trusted patient settling what they already owe. Without this
+          -- fourth table the order matches none of the three above, the row
+          -- is written with purpose 'other' and every target null, and
+          -- readUnmatchedPayments reports every settlement this clinic ever
+          -- takes as captured money attached to nothing.
+          select pl.id, pl.patient_id, pl.amount_paise
+            into v_pay_later_id, v_patient_id, v_amount
+            from pay_later_payments pl where pl.razorpay_order_id = p_order_id limit 1;
+          if v_pay_later_id is not null then
+            v_purpose := 'pay_later_settlement';
+          else
+            -- Money we cannot attribute to anything. Recorded rather than
+            -- dropped: an unmatched capture is exactly the case an admin has
+            -- to chase, and it cannot be chased if the only trace is a
+            -- Razorpay dashboard nobody is watching.
+            v_purpose := 'other';
+          end if;
+        end if;
+      end if;
+    end if;
+
+    insert into payments (
+      patient_id, purpose, razorpay_order_id, razorpay_payment_id, amount_paise,
+      status, target_appointment_id, target_package_purchase_id,
+      target_home_visit_purchase_id, target_pay_later_payment_id, captured_at, raw
+    ) values (
+      v_patient_id, v_purpose, p_order_id, p_payment_id,
+      greatest(coalesce(p_amount_paise, v_amount, 0), 1),
+      'captured', v_appointment_id, v_package_id, v_home_visit_id, v_pay_later_id,
+      now(), p_raw
+    )
+    returning * into v_payment;
+  else
+    -- The row exists. If it is already captured this call is a duplicate --
+    -- a retried webhook, or the browser callback arriving after the webhook
+    -- already did the work. Answer with what happened the first time.
+    if v_payment.status in ('captured', 'refunded', 'partially_refunded') then
+      return jsonb_build_object(
+        'applied', false,
+        'already_captured', true,
+        'payment_id', v_payment.id,
+        'purpose', v_payment.purpose,
+        'target_appointment_id', v_payment.target_appointment_id,
+        'target_package_purchase_id', v_payment.target_package_purchase_id,
+        'target_home_visit_purchase_id', v_payment.target_home_visit_purchase_id,
+        'target_pay_later_payment_id', v_payment.target_pay_later_payment_id
+      );
+    end if;
+
+    update payments
+      set razorpay_payment_id = p_payment_id,
+          status = 'captured',
+          captured_at = now(),
+          raw = coalesce(p_raw, raw),
+          amount_paise = greatest(coalesce(p_amount_paise, amount_paise), 1),
+          updated_at = now()
+      where id = v_payment.id
+      returning * into v_payment;
+  end if;
+
+  -- Apply the capture to whatever it paid for. Every branch is guarded on
+  -- the target still being unpaid, so a target already marked paid by the
+  -- other caller is left exactly as it is.
+  if v_payment.target_appointment_id is not null then
+    select status into v_appointment_status
+      from appointments where id = v_payment.target_appointment_id for update;
+    -- Never revive a cancelled booking. Same rule as razorpay/verify.
+    if v_appointment_status in ('requested', 'confirmed') then
+      update appointments
+        set payment_status = 'paid',
+            razorpay_payment_id = p_payment_id,
+            paid_at = coalesce(paid_at, now())
+        where id = v_payment.target_appointment_id
+          and payment_status <> 'paid';
+      get diagnostics v_target_updated = row_count;
+    end if;
+  elsif v_payment.target_package_purchase_id is not null then
+    update patient_package_purchases
+      set payment_status = 'paid',
+          razorpay_payment_id = p_payment_id,
+          paid_at = coalesce(paid_at, now())
+      where id = v_payment.target_package_purchase_id
+        and payment_status <> 'paid';
+    get diagnostics v_target_updated = row_count;
+  elsif v_payment.target_home_visit_purchase_id is not null then
+    update home_visit_package_purchases
+      set payment_status = 'paid',
+          razorpay_payment_id = p_payment_id,
+          paid_at = coalesce(paid_at, now())
+      where id = v_payment.target_home_visit_purchase_id
+        and payment_status <> 'paid';
+    get diagnostics v_target_updated = row_count;
+  elsif v_payment.target_pay_later_payment_id is not null then
+    -- The gateway IS the confirmation for an online settlement, so the row
+    -- is confirmed here rather than waiting for a person. Its whole amount
+    -- arrives unallocated and the allocator below decides which delivered
+    -- sessions it closes -- guarded on `status = 'pending'` so a duplicate
+    -- webhook cannot hand the patient their money twice.
+    -- Claimed on `razorpay_payment_id is null`, NOT on `status = 'pending'`.
+    -- An online row is created `confirmed` -- the CHECK on this table refuses
+    -- a pending one, because the gateway is the confirmation -- so a status
+    -- guard here could never match and the allocator would never run on the
+    -- one path it was written for. What must happen exactly once is putting
+    -- the money on the row, and the gateway's own payment id is the mark that
+    -- it has been.
+    update pay_later_payments
+      set status = 'confirmed',
+          confirmed_at = coalesce(confirmed_at, now()),
+          razorpay_payment_id = p_payment_id,
+          unallocated_paise = amount_paise,
+          updated_at = now()
+      where id = v_payment.target_pay_later_payment_id
+        and razorpay_payment_id is null
+      returning patient_id into v_settlement_patient;
+    get diagnostics v_target_updated = row_count;
+    if v_settlement_patient is not null then
+      -- Inside this transaction and under its own row lock, so a capture
+      -- either confirms the payment and closes the sessions it covers or
+      -- does neither. A payment confirmed with its sessions left open is
+      -- money the patient has handed over that no screen accounts for.
+      perform allocate_pay_later_payment(v_settlement_patient);
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'applied', true,
+    'already_captured', false,
+    'target_updated', v_target_updated,
+    'appointment_status', v_appointment_status,
+    'payment_id', v_payment.id,
+    'purpose', v_payment.purpose,
+    'target_appointment_id', v_payment.target_appointment_id,
+    'target_package_purchase_id', v_payment.target_package_purchase_id,
+    'target_home_visit_purchase_id', v_payment.target_home_visit_purchase_id,
+    'target_pay_later_payment_id', v_payment.target_pay_later_payment_id
+  );
+end;
+$$;
+
+revoke all on function public.record_payment_capture(text, text, integer, jsonb) from public;
+revoke all on function public.record_payment_capture(text, text, integer, jsonb) from anon;
+revoke all on function public.record_payment_capture(text, text, integer, jsonb) from authenticated;

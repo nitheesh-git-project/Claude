@@ -1512,6 +1512,29 @@ the early warning, alongside a list of pay-later sessions that have been and
 gone and were never marked completed -- the one case where nothing is recorded
 anywhere at all.
 
+*Settling.* The patient's own dashboard shows what they owe -- each session at
+the price agreed on the day it was delivered -- with two ways to pay. **Online**
+goes through Razorpay like any other payment, and the capture confirms it and
+closes the sessions it covers in one transaction. **Or they tell the clinic they
+have already paid** (cash, UPI, bank transfer) with a note and a reference: that
+lands as a payment *waiting to be checked* and **changes nothing** -- the figure
+they owe does not move until somebody has found the money, because a patient who
+could clear their own total by typing into a box is a patient who can. Finance
+or a Master Admin answers it on **Money -> Owed by Patients**: Confirm is one
+tap, and turning one down needs a reason of at least ten characters, which the
+patient reads on their own dashboard.
+
+Money joins a **pool** rather than attaching to a session. Allocation then
+covers delivered sessions oldest first and whole sessions only, so ₹2,000
+against ₹4,800 settles one ₹1,200 session and leaves ₹800 held against the next
+one -- stated on both screens rather than quietly netted off. The pool is shared
+across payments, so two part payments close a session between them instead of
+stranding money that no single payment can spend. Each session is settled at its
+own frozen price, never at a share of the payment, which is what keeps every
+revenue figure and every therapist's pay identical either side of a settlement.
+A payment produces **one receipt** listing the sessions it closed, because four
+receipts for one transfer reads as four payments.
+
 **Payouts.** Each therapist has a `revenue_share_percent`. Earnings are
 computed per completed, paid session (`src/lib/therapistEarnings.ts`,
 `src/lib/therapistPayouts.ts`); therapists request payouts

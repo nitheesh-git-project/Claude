@@ -20,7 +20,8 @@ export type MoneyAlertKey =
   | "manual_refunds"
   | "refunds_failed"
   | "unmatched_payments"
-  | "patients_owing_aged";
+  | "patients_owing_aged"
+  | "settlements_waiting";
 
 export type MoneyAlert = {
   key: MoneyAlertKey;
@@ -62,6 +63,13 @@ export type MoneyAlertCounts = {
    *  Optional so a caller that predates pay later is unchanged -- absent, the
    *  row counts zero and is dropped like any other empty alert. */
   patientsOwingAged?: number;
+  /** Payments a patient says they have made, waiting for somebody to check
+   *  the bank. Until one is answered the clinic's own figure overstates what
+   *  is owed, and the patient cannot tell "being checked" from "forgotten".
+   *
+   *  Optional for the same reason as the row above: a caller predating the
+   *  settlement table counts zero and the row is dropped. */
+  settlementsWaiting?: number;
 };
 
 export function buildMoneyAlerts(
@@ -120,6 +128,18 @@ export function buildMoneyAlerts(
       // Money the clinic has earned and does not have, sitting with somebody
       // else -- the same kind of exposure as cash a therapist is holding.
       urgent: true,
+    },
+    {
+      key: "settlements_waiting",
+      label: "Payments waiting to be checked",
+      count: counts.settlementsWaiting ?? 0,
+      hint: "A patient says they have paid. Find it in your bank, then confirm it - or turn it down with a reason they will read.",
+      section: "money",
+      tab: "owing",
+      // Work in a queue rather than money out of the clinic's control: the
+      // money may well be in the bank already. Urgent is reserved for the
+      // rows where it is definitely somewhere else.
+      urgent: false,
     },
     {
       key: "unmatched_payments",
