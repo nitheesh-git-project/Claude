@@ -16,6 +16,18 @@
 // late cancellation owes nothing, automatically, because it never reached
 // 'completed'. Everything below filters on that one word.
 
+/**
+ * How long a balance may sit before it is worth a phone call.
+ *
+ * A number rather than an admin setting on purpose, for now: a threshold
+ * invented before anyone knows the clinic's normal rhythm fires on everyone
+ * or on nobody, and 60 days is deliberately generous -- these are patients
+ * who settle monthly, so anything under a month is simply the arrangement
+ * working. It earns being a setting once there is a real answer to compare
+ * it against.
+ */
+export const PAY_LATER_AGED_AFTER_DAYS = 60;
+
 /** A session, as the balance reads it. */
 export type PayLaterAppointment = {
   id: string;

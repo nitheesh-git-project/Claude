@@ -40,6 +40,13 @@ import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
 import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
 import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
+import AdminOwingTab from "@/components/admin/AdminOwingTab";
+import {
+  computeClinicReceivable,
+  isOpenPayLaterSession,
+  oldestOwedAgeDays,
+  PAY_LATER_AGED_AFTER_DAYS,
+} from "@/lib/patientBalances";
 import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHealth";
 import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
 import { rateLimitIdentifierStats } from "@/lib/rateLimitServer";
@@ -3952,6 +3959,21 @@ export default async function AdminDashboardPage({
   // five Money screens -- an admin should not have to open each of them and
   // know what a wrong figure looks like. Built once here for the same reason
   // the health checks are: five copies would be five answers.
+  // Pay later: what trusted patients owe, read off the same appointments array
+  // every other money figure on this page uses. A patient owing for a week is
+  // ordinary; the same amount owed for months is the thing the ageing count
+  // exists to surface -- and with no ceiling on what a patient may owe, it is
+  // the only automatic warning there is.
+  const payLaterAgedAfterDays = PAY_LATER_AGED_AFTER_DAYS;
+  const payLaterBalances = computeClinicReceivable(appointmentsWithSessionCode);
+  const patientsOwingAged = payLaterBalances.balances.filter((b) => {
+    const rows = appointmentsWithSessionCode.filter(
+      (a) => a.patient_id === b.patientId && isOpenPayLaterSession(a)
+    );
+    const age = oldestOwedAgeDays(rows, nowTimestamp());
+    return age !== null && age >= payLaterAgedAfterDays;
+  }).length;
+
   const moneyAlerts = (
     <MoneyAlertsStrip
       counts={{
@@ -3960,6 +3982,7 @@ export default async function AdminDashboardPage({
         manualRefundsPending,
         refundsFailed,
         unmatchedPayments: accountingHealth.unmatchedPayments.length,
+        patientsOwingAged,
       }}
       // Workable, not merely open: every row on this strip is a job, and
       // Finance reads Sessions without being able to change one -- so a
@@ -4145,6 +4168,24 @@ export default async function AdminDashboardPage({
         {payoutRequestsTab}
         <HomeVisitCashLedger visits={homeVisitRows} nowMs={nowTimestamp()} />
         <MoneyGlossary />
+      </div>
+    ),
+    "money:owing": (
+      <div className="space-y-8">
+        {moneyAlerts}
+        <AdminOwingTab
+          appointments={appointmentsWithSessionCode}
+          patientNameById={
+            new Map(
+              Array.from(profileMap.entries()).map(([id, p]) => [
+                id,
+                p.full_name ?? "Unknown patient",
+              ])
+            )
+          }
+          nowMs={nowTimestamp()}
+          agedAfterDays={payLaterAgedAfterDays}
+        />
       </div>
     ),
     "money:costs": (

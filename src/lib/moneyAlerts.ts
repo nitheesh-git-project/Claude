@@ -19,7 +19,8 @@ export type MoneyAlertKey =
   | "cash_to_remit"
   | "manual_refunds"
   | "refunds_failed"
-  | "unmatched_payments";
+  | "unmatched_payments"
+  | "patients_owing_aged";
 
 export type MoneyAlert = {
   key: MoneyAlertKey;
@@ -52,6 +53,15 @@ export type MoneyAlertCounts = {
   /** Captured payments nothing in the app is attached to. Read from the same
    *  accounting check System Health reports on. */
   unmatchedPayments: number;
+  /** Trusted patients whose oldest unsettled session has been owed longer
+   *  than the clinic's own threshold. Counted separately from the total owed,
+   *  because owing money is not a problem and owing it for four months is --
+   *  and with no ceiling on what a patient may owe, this is the only
+   *  automatic warning there is.
+   *
+   *  Optional so a caller that predates pay later is unchanged -- absent, the
+   *  row counts zero and is dropped like any other empty alert. */
+  patientsOwingAged?: number;
 };
 
 export function buildMoneyAlerts(
@@ -98,6 +108,17 @@ export function buildMoneyAlerts(
       tab: "all",
       view: "refund_failed",
       // Money the clinic has agreed to return and has not returned.
+      urgent: true,
+    },
+    {
+      key: "patients_owing_aged",
+      label: "Patients who have owed for a while",
+      count: counts.patientsOwingAged ?? 0,
+      hint: "Treated a while ago and still not settled. Give them a ring - and if they have stopped paying, turn Pay later off on their profile.",
+      section: "money",
+      tab: "owing",
+      // Money the clinic has earned and does not have, sitting with somebody
+      // else -- the same kind of exposure as cash a therapist is holding.
       urgent: true,
     },
     {

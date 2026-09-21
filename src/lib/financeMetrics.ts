@@ -816,6 +816,9 @@ export function computeWorkingCapital({
     cashTherapistsHoldPaise: number;
     refundsToHandBackPaise: number;
     unusedPaidSessionsPaise: number;
+    /** Trusted patients who have been treated and not yet settled. Optional
+     *  so a caller that has not been updated behaves exactly as before. */
+    owedByPatientsPaise?: number;
   };
   includeAppBalances: boolean;
 }): WorkingCapital {
@@ -844,6 +847,18 @@ export function computeWorkingCapital({
         label: "Cash therapists are holding",
         amountPaise: derived.cashTherapistsHoldPaise,
         note: "Collected at a patient's door and not yet handed in - yours, but not with you",
+      });
+    }
+    // The app's first receivable. Same idea as the cash a therapist is holding
+    // -- yours, but not with you -- and the mirror of "Owed to therapists" on
+    // the other side of the sheet. It is an asset rather than a correction to
+    // revenue because the session was delivered: the clinic earned that money
+    // and has not collected it, which is precisely what a receivable is.
+    if ((derived.owedByPatientsPaise ?? 0) > 0) {
+      assetLines.push({
+        label: "Owed by patients",
+        amountPaise: derived.owedByPatientsPaise ?? 0,
+        note: "Treated and not yet settled - already counted as revenue, not yet in the bank",
       });
     }
     if (derived.owedToTherapistsPaise > 0) {
