@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  DEFAULT_COST_CLASS,
   DEFAULT_FINANCE_SETTINGS,
   campaignSpendInRange,
   computeBreakEven,
@@ -23,6 +24,7 @@ import {
   type FinanceExpenseRow,
   type MarketingCampaign,
 } from "./financeMetrics";
+import { BAD_DEBT_EXPENSE_CATEGORY, EXPENSE_CATEGORIES } from "./operatingCosts";
 
 const RUPEE = 100;
 
@@ -658,5 +660,73 @@ describe("series", () => {
 
   it("draws a gap, not a zero, for a bucket with no revenue", () => {
     expect(marginPercentByBucket([100, 0], [1000, 0])).toEqual([10, null]);
+  });
+});
+
+describe("a written-off pay-later session lands as bad debt", () => {
+  // `/api/admin/write-off-pay-later-session` records the loss as one
+  // `business_expenses` row at the DEFAULT cost class, and this is why that
+  // is the right class rather than the convenient one. Bad debt is an
+  // operating expense: the clinic delivered the session and counted the
+  // revenue, so the loss sits BELOW the gross-profit line, INSIDE what
+  // break-even has to cover, and is NOT added back in EBITDA the way a
+  // write-off of an asset is.
+  const base = {
+    netRevenuePaise: 1_000_000,
+    therapistCutPaise: 400_000,
+    partnerCutPaise: 50_000,
+    gatewayFeePaise: 20_000,
+    investments: [] as CapitalInvestment[],
+    fromMs: istDayMs("2026-03-01"),
+    toMs: istDayMs("2026-04-01"),
+  };
+
+  const badDebt = expense({
+    amount_paise: 120_000,
+    category: BAD_DEBT_EXPENSE_CATEGORY,
+    cost_class: DEFAULT_COST_CLASS,
+  });
+
+  it("is never a cost of delivery, so gross margin does not move", () => {
+    const without = profitAndLoss({ ...base, expenses: [], settings: DEFAULT_FINANCE_SETTINGS });
+    const with_ = profitAndLoss({
+      ...base,
+      expenses: [badDebt],
+      settings: DEFAULT_FINANCE_SETTINGS,
+    });
+    expect(with_.cogsPaise).toBe(without.cogsPaise);
+    expect(with_.grossProfitPaise).toBe(without.grossProfitPaise);
+    expect(with_.grossMarginPercent).toBe(without.grossMarginPercent);
+  });
+
+  it("comes off operating income and off EBITDA, in full", () => {
+    const without = profitAndLoss({ ...base, expenses: [], settings: DEFAULT_FINANCE_SETTINGS });
+    const with_ = profitAndLoss({
+      ...base,
+      expenses: [badDebt],
+      settings: DEFAULT_FINANCE_SETTINGS,
+    });
+    expect(with_.operatingExpensesPaise).toBe(without.operatingExpensesPaise + 120_000);
+    // Not added back: unlike depreciation, money the clinic never collected
+    // is a real operating loss in the period it was given up on.
+    expect(with_.ebitdaPaise).toBe(without.ebitdaPaise - 120_000);
+    expect(with_.depreciationPaise).toBe(without.depreciationPaise);
+    expect(with_.netProfitPaise).toBe(without.netProfitPaise - 120_000);
+  });
+
+  it("reads as a running cost on a database that never got the class column", () => {
+    // The route's fallback insert drops `cost_class` on an unmigrated
+    // database. That must land the loss in the same place, or the figure
+    // moves depending on which database wrote it.
+    expect(costClassOf(expense({ amount_paise: 1, category: BAD_DEBT_EXPENSE_CATEGORY }))).toBe(
+      "fixed"
+    );
+  });
+
+  it("is not a category an admin can type by hand", () => {
+    // Keeping it out of the hand-entry list is what makes "written-off
+    // sessions should equal the bad-debt rows" a reconciliation rather than
+    // a coincidence -- System Health reads exactly that.
+    expect(EXPENSE_CATEGORIES as readonly string[]).not.toContain(BAD_DEBT_EXPENSE_CATEGORY);
   });
 });

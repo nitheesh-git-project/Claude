@@ -13,6 +13,12 @@ import { describeDiscount, type DiscountSource } from "@/lib/discounts";
 import PayLaterSettlementQueue, {
   type QueuedSettlement,
 } from "@/components/admin/PayLaterSettlementQueue";
+import PayLaterRefundQueue from "@/components/admin/PayLaterRefundQueue";
+import PayLaterWriteOffForm from "@/components/admin/PayLaterWriteOffForm";
+import type {
+  PayLaterRefundRow,
+  PayLaterWrittenOffRow,
+} from "@/lib/payLaterSettlementServer";
 import { ADMIN_SCOPE_LABELS } from "@/lib/adminScope";
 import {
   computeClinicReceivable,
@@ -70,6 +76,8 @@ export default function AdminOwingTab({
   featureEnabled,
   canManageSettings = false,
   settlements = [],
+  manualRefunds = [],
+  writtenOff = [],
   canManageMoney = false,
 }: {
   appointments: PayLaterAppointment[];
@@ -82,6 +90,13 @@ export default function AdminOwingTab({
   /** Payments a patient says they have made, waiting to be checked. Oldest
    *  first, and empty on a database without the table. */
   settlements?: QueuedSettlement[];
+  /** Money the clinic has agreed to hand back and has not handed back yet.
+   *  These carry no gateway payment to reverse, so a person has to move it. */
+  manualRefunds?: PayLaterRefundRow[];
+  /** Sessions the clinic has decided to stop chasing. Listed because the
+   *  decision is reversible and a reversal has to be reachable -- these rows
+   *  are dropped from every balance above. */
+  writtenOff?: PayLaterWrittenOffRow[];
   /** Whether this desk may answer one. Both routes take
    *  `requireAdminScope("money")`, and a control a scope cannot call must not
    *  render -- Finance manages Money, so Finance answers these. */
@@ -159,27 +174,49 @@ export default function AdminOwingTab({
           )}
           <ul className="mt-3 space-y-1">
             {rows.map((a) => (
-              <li key={a.id} className="flex items-baseline justify-between gap-3 text-xs">
-                <span className="text-slate-600">
-                  {a.slot_time ? formatClinicDateShort(a.slot_time) : "No date"}
-                </span>
-                {/* The price agreed on the day, not today's -- so a patient
-                    settling an old session can see it was not re-priced.
-                    A discount applies to a booking on terms exactly as it
-                    does to any other, so this figure can sit below what the
-                    category costs; said plainly, because the person reading
-                    it is about to ask somebody for it, and an unexplained
-                    ₹499 against a ₹1,200 session reads as an error. */}
-                <span className="text-right">
-                  <span className="font-semibold text-slate-700">
-                    {formatInr(Math.max(0, a.amount_due_paise ?? 0))}
+              // The control below is a block, so the row is a container with
+              // the flex line inside it rather than being the flex line
+              // itself -- a form is not phrasing content and nesting one in
+              // the price span is markup a browser is entitled to reshape
+              // under React.
+              <li key={a.id} className="text-xs">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-slate-600">
+                    {a.slot_time ? formatClinicDateShort(a.slot_time) : "No date"}
                   </span>
-                  {discountNote(a) && (
-                    <span className="block text-[11px] font-normal text-slate-500">
-                      {discountNote(a)}
+                  {/* The price agreed on the day, not today's -- so a patient
+                      settling an old session can see it was not re-priced.
+                      A discount applies to a booking on terms exactly as it
+                      does to any other, so this figure can sit below what the
+                      category costs; said plainly, because the person reading
+                      it is about to ask somebody for it, and an unexplained
+                      ₹499 against a ₹1,200 session reads as an error. */}
+                  <span className="text-right">
+                    <span className="font-semibold text-slate-700">
+                      {formatInr(Math.max(0, a.amount_due_paise ?? 0))}
                     </span>
-                  )}
-                </span>
+                    {discountNote(a) && (
+                      <span className="block text-[11px] font-normal text-slate-500">
+                        {discountNote(a)}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                {/* Deciding not to chase this one sits on the row it is
+                    about, on the screen an admin is looking at when they
+                    decide -- not in a drawer two navigations away. A session
+                    with no agreed price has no figure to record as the loss,
+                    and the route refuses it, so the control is not offered
+                    either. */}
+                {canManageMoney && (a.amount_due_paise ?? 0) > 0 && (
+                  <div className="mt-0.5 text-right">
+                    <PayLaterWriteOffForm
+                      appointmentId={a.id}
+                      amountPaise={a.amount_due_paise ?? 0}
+                      writtenOff={false}
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -199,6 +236,13 @@ export default function AdminOwingTab({
           patientNameById={patientNameById}
           nowMs={nowMs}
         />
+      )}
+
+      {/* The other direction, and above the totals for the same reason: a
+          patient is out of pocket until somebody sends this back, and no
+          gateway is going to do it. */}
+      {canManageMoney && (
+        <PayLaterRefundQueue refunds={manualRefunds} patientNameById={patientNameById} />
       )}
 
       <SurfaceCard
@@ -293,6 +337,52 @@ export default function AdminOwingTab({
             </Link>
             , and the money appears everywhere at once.
           </p>
+        </SurfaceCard>
+      )}
+
+      {/* Written off, and still here. These rows are gone from every figure
+          above -- `isOpenPayLaterSession` drops them -- so without this list
+          a write-off made by mistake would be undoable only in the database,
+          which would make the undo a claim rather than a control. It is also
+          the one place an admin can see what the clinic has decided to stop
+          chasing, which is a figure worth knowing before granting more terms. */}
+      {canManageMoney && writtenOff.length > 0 && (
+        <SurfaceCard
+          title="Written off"
+          subtitle="Sessions the clinic has decided to stop chasing. The money the clinic earned on them still counts as revenue and the therapist has still been paid - the loss is recorded as a cost on Money → Costs."
+        >
+          <ul className="space-y-2">
+            {writtenOff.map((a) => (
+              <li
+                key={a.id}
+                className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 pb-2 text-xs last:border-0 last:pb-0"
+              >
+                <span>
+                  <Link
+                    href={`/admin/patients/${a.patient_id}`}
+                    className="font-semibold text-slate-800 hover:text-teal-700"
+                  >
+                    {nameOf(a.patient_id)}
+                  </Link>
+                  <span className="ml-2 text-slate-500">
+                    {a.slot_time ? formatClinicDateShort(a.slot_time) : "No date"}
+                  </span>
+                </span>
+                <div className="text-right">
+                  <span className="font-semibold text-slate-500 line-through">
+                    {formatInr(Math.max(0, a.amount_due_paise ?? 0))}
+                  </span>
+                  <div className="mt-0.5">
+                    <PayLaterWriteOffForm
+                      appointmentId={a.id}
+                      amountPaise={Math.max(0, a.amount_due_paise ?? 0)}
+                      writtenOff
+                    />
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
         </SurfaceCard>
       )}
 

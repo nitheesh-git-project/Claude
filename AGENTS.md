@@ -321,6 +321,7 @@ src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
 src/lib/financeMetrics.ts the seven standard finance figures and their inputs
 src/lib/patientBalances.ts what trusted patients owe, and how long they have
 src/lib/payLaterSettingsServer.ts the clinic's own "worth chasing" threshold
+src/lib/payLaterWriteOff.ts forgiving one session's debt, and taking that back
 src/lib/sessionAmount.ts  one session's worth, with each caller's own fallback
 src/lib/financeInputs.ts validation for the three things an owner types in
 src/lib/financeSettingsServer.ts how Business Health reads the same money
@@ -1732,6 +1733,74 @@ before.
        database. One receipt per payment, not one per session: four receipts
        for one transfer reads as four payments.
 
+  9. **Money out is a cost, and a refund is a hand-back.** Two paths, and
+     both were half-wired before they existed: `pay_later_outcome =
+     'written_off'` was read in six places and written by nothing, and
+     `refund-session-partial` refused every settled pay-later session
+     because it requires `razorpay_payment_id` **on the appointment**.
+     - **A write-off is a cost, not a revenue reduction.** Completion
+       already counted the revenue and already paid the therapist, so
+       `/api/admin/write-off-pay-later-session` touches **no** money column
+       on the appointment: `amount_due_paise`, `amount_paid_paise` and
+       `payment_status` stay exactly as they are, the session leaves the
+       owed figure through `pay_later_outcome` alone, and the loss is one
+       `business_expenses` row. Reducing the session's amount instead would
+       pull revenue down *and* claw the therapist's share back off money
+       already handed to somebody who had no say in extending the credit.
+       `adminMetrics.test.ts` asserts every figure is byte-identical either
+       side, the same shape as the settlement-invariance test.
+     - **Its cost class is `fixed`, which is the accounting answer rather
+       than the convenient one.** Bad debt is an operating expense: below
+       the gross-profit line, inside break-even's "what has to be covered",
+       and **not** added back in EBITDA. It is also `DEFAULT_COST_CLASS`, so
+       the unmigrated-database fallback insert lands it in the same place.
+       `BAD_DEBT_EXPENSE_CATEGORY` is deliberately **not** in
+       `EXPENSE_CATEGORIES`: that list is what an admin may type by hand, and
+       keeping bad debt out of it is what makes "written-off sessions equal
+       the bad-debt rows" a reconciliation rather than a coincidence.
+       `incurred_on` is the day it was decided, never the session's own date
+       -- back-dating a cost into a month somebody has already read moves a
+       profit figure under them.
+     - **The order of the two writes is the safety case.** The appointment is
+       claimed first (`pay_later_outcome is null`, so a double tap writes one
+       cost row), the cost row second, and a failure on the second **reverts
+       the first** -- same posture as `refund-session-partial` reverting its
+       claim when Razorpay refuses. A session written off with no cost behind
+       it overstates profit by exactly the amount forgiven and says so on no
+       screen, which is worse than a write-off that failed.
+       `business_expenses.source_appointment_id` plus a partial unique index
+       is what ties the two together, and it is what
+       `/api/admin/expenses/delete` refuses to break.
+     - **It is reversible, and reversing needs a reason too.** The opposite
+       split from the grant: there the risk is all on one side, here writing
+       off gives money away and reversing re-imposes a debt on a patient who
+       was told it was forgiven. Written-off sessions get their own list on
+       Money -> Owed by Patients precisely so the undo is a control rather
+       than a claim -- every balance drops them.
+     - **A refund on a settled session is handed back by a person.** The
+       money arrived into a **pool** covering several sessions and an online
+       settlement's gateway id is on the `pay_later_payments` row, so "this
+       session's share of that payment" is not something a gateway refund can
+       express safely. Every settled pay-later session takes the
+       `manual_pending` lane whatever it was settled with, on the same claim
+       and the same ceiling, and is worked from **Refunds to hand back** on
+       Money -> Owed by Patients through the existing
+       `mark-cash-refund-returned`. An **unsettled** session is not a refund
+       at all and the route says so rather than dead-ending: it is the
+       write-off. A session paid by `mark-paid-by-cash` is the same shape and
+       is deliberately left alone -- it has no figure of its own that an
+       unrecorded hand-back would falsify.
+     - **`manual_refunds` splits in two.** It counted every `manual_pending`
+       row and linked to Money -> Payouts, whose Cash Ledger lists home
+       visits -- so a pay-later refund would be counted there and actionable
+       nowhere. `pay_later_refunds` is its own key linking to Owed by
+       Patients; the two sum to the old total, so no count moved.
+     - **System Health gains two states**: refunds owed back and not sent
+       (amber -- a patient is out of pocket and nothing automatic will move
+       it), and written-off sessions disagreeing with the bad debt recorded
+       (red, and **null is not zero** -- a database without
+       `source_appointment_id` reads "could not be checked").
+
 - **A therapist asserts that money changed hands; the system owns the
   number.** `/api/therapist/record-cash-collection` used to accept
   `amountPaise` from the request body, which meant the person holding the
@@ -2858,7 +2927,7 @@ before.
   advance). Offers carries a note saying where promo codes and goodwill
   live, because "where did the promo screen go" is the question a split
   otherwise creates.
-- **System Health is six checks in one shape, and every unhealthy one says
+- **System Health is seven checks in one shape, and every unhealthy one says
   how to fix it.** The screen reports rather than sets, so it is not an
   `AdminFeatureControlTab` view -- `src/lib/systemHealth.ts` decides each
   check's status, its one-line headline, the numbered steps that fix it, and
@@ -2896,7 +2965,7 @@ before.
      says "Checked 4 minutes ago". The relative time is rendered after mount,
      never on the server -- "4 minutes ago" computed server-side is already
      wrong in the browser, and rendering it in both is a hydration mismatch.
-  A seventh check is an entry in that module plus, if it has rows, a card
+  An eighth check is an entry in that module plus, if it has rows, a card
   body in the tab -- never a new panel with its own shape. The two fix
   buttons render only under `scopeCanManage(scope, "settings")`, matching the
   routes.

@@ -48,6 +48,10 @@ import {
 import {
   readPendingSettlementRows,
   readSettlementReconciliation,
+  readPayLaterManualRefunds,
+  readPayLaterWriteOffs,
+  readUnallocatedSettlements,
+  readWriteOffReconciliation,
 } from "@/lib/payLaterSettlementServer";
 import { reconcileSettlements, settlementWaitDays } from "@/lib/payLaterSettlement";
 import {
@@ -707,6 +711,10 @@ export default async function AdminDashboardPage({
     payLaterRows,
     payLaterSettlementRows,
     payLaterReconciliation,
+    payLaterPoolRows,
+    payLaterManualRefunds,
+    payLaterWrittenOff,
+    payLaterWriteOffReconciliation,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -983,6 +991,18 @@ export default async function AdminDashboardPage({
     // which the check reports as "could not be checked" rather than as
     // agreement -- a read that failed is not a read that came back empty.
     readSettlementReconciliation(admin),
+    // Money received and not yet covering a whole session. Netted off the
+    // owed figure the same way the patient's own widget nets it, or the two
+    // screens disagree about what is owed and the patient's is the right one.
+    readUnallocatedSettlements(admin),
+    // Refunds agreed and not yet handed over, and sessions the clinic has
+    // stopped chasing. Both are their own isolated reads for the usual
+    // reason, and both answer `[]` on a database without the columns.
+    readPayLaterManualRefunds(admin),
+    readPayLaterWriteOffs(admin),
+    // Written-off sessions against the bad debt recorded for them. Null when
+    // it cannot be asked, which the check reports as "could not be checked".
+    readWriteOffReconciliation(admin),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -3761,9 +3781,27 @@ export default async function AdminDashboardPage({
   // disagreed with. refund_status lives on the appointment for both modes:
   // a cash home visit reaches manual_pending through cancelAppointment like
   // any other session, and nothing writes it on a purchase row.
-  const manualRefundsPending = appointmentsWithSessionCode.filter(
+  //
+  // Split by terms, because the two are worked on different screens. A
+  // cancelled cash visit is handed back from the Cash Ledger on Payouts,
+  // which lists home visits; a session a trusted patient had already settled
+  // is handed back from the list on Owed by Patients. Counting both in one
+  // row would put a figure on the strip that the screen it opens cannot
+  // bring down -- the same "a count links to the rows it counted" rule the
+  // double-counting comment above is about. The two still sum to every
+  // `manual_pending` refund there is.
+  // Read off the isolated pay-later map rather than the merged row: the
+  // merge widens a union and only some of its branches carry the column, and
+  // a database without it leaves the map empty -- which reads every refund as
+  // the cash-visit kind, exactly what this count was before pay later
+  // existed.
+  const manualPendingRefunds = appointmentsWithSessionCode.filter(
     (a) => a.refund_status === "manual_pending"
+  );
+  const payLaterRefundsPending = manualPendingRefunds.filter(
+    (a) => payLaterById.get(a.id)?.payment_terms === "pay_later"
   ).length;
+  const manualRefundsPending = manualPendingRefunds.length - payLaterRefundsPending;
   // A refund the gateway refused. Nothing in this app was watching these at
   // all -- the patient's own screen now tells them to contact the clinic,
   // so the clinic needs the same list.
@@ -3892,6 +3930,18 @@ export default async function AdminDashboardPage({
           section: "money",
           tab: "payouts",
           hint: "Money a patient is owed with no card payment to reverse - hand it over, then confirm it here.",
+          urgent: true,
+        },
+        {
+          // Its own row rather than folded into the one above, for the same
+          // reason the counts are split: these are handed back from Owed by
+          // Patients, and a row linking somewhere the work is not visible is
+          // a row nobody can clear.
+          label: "Refunds owed to trusted patients",
+          count: payLaterRefundsPending,
+          section: "money",
+          tab: "owing",
+          hint: "A session they had already settled, refunded and not yet sent back. Send it, then confirm it here.",
           urgent: true,
         },
         {
@@ -4093,6 +4143,18 @@ export default async function AdminDashboardPage({
                 // and those are opposite facts.
                 null
               : reconcileSettlements(payLaterReconciliation).differencePaise,
+          refundsToHandBack: payLaterManualRefunds?.length ?? 0,
+          refundsToHandBackPaise: (payLaterManualRefunds ?? []).reduce(
+            (sum, r) => sum + Math.max(0, r.refund_amount_paise ?? 0),
+            0
+          ),
+          // Every written-off session should carry one Bad debt cost. Same
+          // null-is-not-zero rule as the settlement figure above it.
+          writeOffDifferencePaise:
+            payLaterWriteOffReconciliation === null
+              ? null
+              : payLaterWriteOffReconciliation.writtenOffPaise -
+                payLaterWriteOffReconciliation.badDebtPaise,
         };
 
   const moneyAlerts = (
@@ -4101,6 +4163,7 @@ export default async function AdminDashboardPage({
         payoutRequestsOpen: payoutRequestsBadgeCount,
         cashToRemitVisits: cashOwedByTherapists,
         manualRefundsPending,
+        payLaterRefundsPending,
         refundsFailed,
         unmatchedPayments: accountingHealth.unmatchedPayments.length,
         patientsOwingAged,
@@ -4308,7 +4371,10 @@ export default async function AdminDashboardPage({
           }
           nowMs={nowTimestamp()}
           ageSetting={payLaterAgeSetting}
+          payments={payLaterPoolRows ?? []}
           settlements={payLaterSettlementRows ?? []}
+          manualRefunds={payLaterManualRefunds ?? []}
+          writtenOff={payLaterWrittenOff ?? []}
           canManageMoney={scopeCanManage(viewerScope, "money")}
           featureEnabled={payLaterFeatureEnabled}
           canManageSettings={scopeCanManage(viewerScope, "settings")}

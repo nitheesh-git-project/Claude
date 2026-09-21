@@ -875,6 +875,13 @@ export default function SessionDetailDrawer({
                   appointmentId={a.id}
                   paidPaise={a.amount_paid_paise ?? 0}
                   alreadyRefundedPaise={a.refund_amount_paise ?? 0}
+                  // A session a trusted patient settled carries no gateway
+                  // payment of its own: the money arrived as one payment
+                  // covering several sessions, and a pay-later booking never
+                  // reaches create-order at all. So the terms are the whole
+                  // test here, and the route re-derives it from the column
+                  // this drawer does not load.
+                  byHand={a.payment_terms === "pay_later"}
                 />
               </div>
             )}

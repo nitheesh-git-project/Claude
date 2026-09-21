@@ -102,6 +102,8 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "patient.set_pay_later": "money",
   "pay_later.confirm_payment": "money",
   "pay_later.reject_payment": "money",
+  "pay_later.write_off": "money",
+  "pay_later.reverse_write_off": "money",
   "payment.goodwill_discount": "money",
   "payout.settle": "money",
   "payout_request.start_review": "money",

@@ -1535,6 +1535,28 @@ revenue figure and every therapist's pay identical either side of a settlement.
 A payment produces **one receipt** listing the sessions it closed, because four
 receipts for one transfer reads as four payments.
 
+*When the money does not come in.* Sometimes it never will -- somebody moved
+away, or after a year has simply stopped. **Writing a session off is a cost,
+not a reduction** (`/api/admin/write-off-pay-later-session`, money scope, a
+ten-character reason): the clinic delivered the session, counted the revenue
+and has already paid the therapist their share, so nothing on the session's
+money columns moves and forgiving the debt would otherwise claw back money
+already handed over. `pay_later_outcome` takes the session out of the owed
+figure, and the loss is recorded as one **Bad debt** row on Money -> Costs,
+linked to the session it came from. It is reversible -- bringing the session
+back as owed removes that cost with it -- and both directions need a reason.
+Written-off sessions are listed on Money -> Owed by Patients so the reversal
+is reachable, and System Health reports any written-off session with no cost
+recorded against it.
+
+*Giving money back.* A session a trusted patient had already settled carries
+no gateway payment of its own -- their money arrived as one payment covering
+several sessions -- so `/api/admin/refund-session-partial` records it as owed
+back rather than calling Razorpay, and it waits under **Refunds to hand back**
+on Money -> Owed by Patients until somebody sends it and confirms. Refunding a
+session they have **not** settled is not a refund at all and the route says so:
+that is the write-off above.
+
 **Payouts.** Each therapist has a `revenue_share_percent`. Earnings are
 computed per completed, paid session (`src/lib/therapistEarnings.ts`,
 `src/lib/therapistPayouts.ts`); therapists request payouts

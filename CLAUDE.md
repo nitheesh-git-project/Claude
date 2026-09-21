@@ -394,7 +394,23 @@ a ten-character reason the patient reads. System Health carries a seventh
 check, **Pay Later**: owing money is never a fault, a payment waiting to be
 checked is amber, and the only red is the money in disagreeing with the money
 accounted for -- reported, never repaired. Risk carries three rules of its own
-under **Trusted patients -- follow up**. See the pay-later rule in `AGENTS.md`.
+under **Trusted patients -- follow up**. **And money that never arrives is a
+cost, not a reduction.** Writing a session off
+(`/api/admin/write-off-pay-later-session`, money scope, a ten-character reason
+both ways because reversing re-imposes a debt somebody was told was forgiven)
+moves no money column on the appointment -- the clinic delivered the session,
+counted the revenue and has already paid the therapist, so reducing the amount
+would claw back money already handed over. `pay_later_outcome` takes it out of
+the owed figure and the loss is one **Bad debt** row on Money -> Costs, tied to
+the session by `business_expenses.source_appointment_id` and its partial unique
+index; the appointment is claimed first and a cost row that will not write
+reverts the claim, since a write-off with no cost behind it overstates profit by
+exactly the amount forgiven. **A refund on a session they had already settled is
+handed back by a person**: the money arrived into a pool covering several
+sessions, so it takes the `manual_pending` lane and waits under *Refunds to hand
+back* on the same screen -- and refunding one they have **not** settled is not a
+refund at all, which the route says rather than dead-ending. See the pay-later
+rule in `AGENTS.md`.
 
 **The books answer the seven standard questions too.** Money -> Business
 Health reports return on investment, return on ad spend, working capital,

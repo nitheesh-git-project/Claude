@@ -19,6 +19,14 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 // only what arithmetic requires -- never more than was actually paid, never
 // stacking past the original amount, and never a refund against a payment
 // Razorpay doesn't have.
+//
+// It has two lanes, and only one of them calls a gateway. A session a
+// **trusted patient settled** carries no `razorpay_payment_id` of its own --
+// the money reached the clinic as one payment covering several sessions, and
+// an online settlement's id sits on the `pay_later_payments` row -- so those
+// are recorded as owed back and handed over by a person, exactly the way a
+// cancelled cash visit already is. Same claim, same ceiling, same audit row;
+// what differs is who moves the money.
 
 type Body = { appointmentId?: string; amountPaise?: number; reason?: string };
 
@@ -72,7 +80,44 @@ export async function POST(request: NextRequest) {
   if (!appointment) {
     return NextResponse.json({ error: "Session not found." }, { status: 404 });
   }
-  if (appointment.payment_status !== "paid" || !appointment.razorpay_payment_id) {
+
+  // Is this a session a trusted patient settled? Its own isolated read,
+  // because `payment_terms` and `pay_later_outcome` are newer than this
+  // table and folding them into the select above would refuse every refund
+  // in the app on a database mid-migration. An unreadable answer reads as
+  // "not on terms", which is this route's behaviour as it has always been.
+  const { data: terms } = await admin
+    .from("appointments")
+    .select("payment_terms, pay_later_outcome")
+    .eq("id", appointmentId)
+    .maybeSingle();
+  const onTerms = terms?.payment_terms === "pay_later";
+
+  // A session a trusted patient has NOT settled is not a refund at all --
+  // the clinic is holding none of their money. What is being asked for is a
+  // write-off, and saying so is the difference between a refusal somebody
+  // can act on and a dead end.
+  if (onTerms && appointment.payment_status !== "paid") {
+    return NextResponse.json(
+      {
+        error:
+          "Nothing has been paid for this session yet, so there is nothing to refund. To stop chasing it, write it off on Money → Owed by Patients.",
+      },
+      { status: 409 }
+    );
+  }
+
+  // The money arrived into the patient's pool rather than against this
+  // session -- one settlement covers several sessions, and an online one
+  // carries its gateway id on the payment row, not here. "This session's
+  // share of that payment" is not something a gateway refund can express
+  // safely, so every settled pay-later session is handed back by hand,
+  // whatever it was settled with. Same record either way: the amount, the
+  // reason and who decided it, waiting on Money → Owed by Patients until
+  // somebody confirms the money went back.
+  const byHand = onTerms && !appointment.razorpay_payment_id;
+
+  if (!byHand && (appointment.payment_status !== "paid" || !appointment.razorpay_payment_id)) {
     return NextResponse.json(
       {
         error:
@@ -127,7 +172,11 @@ export async function POST(request: NextRequest) {
   const claim = admin
     .from("appointments")
     .update({
-      refund_status: "processed",
+      // `manual_pending` on the by-hand path, never `processed`: nobody has
+      // handed anything over yet, and a refund that says it is done when the
+      // patient is still out of pocket is the one thing this column must not
+      // claim. `mark-cash-refund-returned` is what moves it on.
+      refund_status: byHand ? "manual_pending" : "processed",
       refund_amount_paise: totalRefunded,
       refund_is_manual: true,
       refund_reason: reason,
@@ -157,6 +206,25 @@ export async function POST(request: NextRequest) {
       },
       { status: 409 }
     );
+  }
+
+  if (byHand) {
+    // Nothing to call. The claim above is the whole record, and the audit
+    // row is written exactly as it is for a gateway refund -- what differs is
+    // who moves the money, not whether the clinic recorded the decision.
+    await recordAdminActivity(admin, context.id, {
+      action: totalRefunded >= paid ? "refund.issue" : "refund.partial",
+      targetId: appointmentId,
+      targetLabel: appointment.session_code,
+      amountPaise,
+      details: { reason, byHand: true, totalRefundedPaise: totalRefunded, paidPaise: paid },
+    });
+    return NextResponse.json({
+      success: true,
+      byHand: true,
+      refundedPaise: amountPaise,
+      totalRefundedPaise: totalRefunded,
+    });
   }
 
   let refundId: string | null = null;

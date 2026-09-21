@@ -658,3 +658,56 @@ describe("a settlement changes no figure", () => {
     );
   });
 });
+
+describe("a write-off changes no figure either", () => {
+  // The other half of the safety case. A settlement must not move a figure
+  // because the money arriving is not what earned it; a write-off must not
+  // move one because the money NOT arriving is not what earned it either.
+  // The clinic delivered the session, counted the revenue and paid the
+  // therapist their share -- so forgiving the debt is a cost, recorded on
+  // Money -> Costs, and nothing here is allowed to notice.
+  const OWED = appointment({
+    id: "owed",
+    status: "completed",
+    payment_status: "unpaid",
+    payment_terms: "pay_later",
+    amount_paid_paise: null,
+    amount_due_paise: 199900,
+    paid_at: null,
+  } as Partial<MetricsAppointment>);
+
+  // Exactly what /api/admin/write-off-pay-later-session writes: one column,
+  // and deliberately none of the money ones.
+  const WRITTEN_OFF = appointment({
+    ...OWED,
+    pay_later_outcome: "written_off",
+  } as Partial<MetricsAppointment>);
+
+  it("reports the same gross, net and every share before and after", () => {
+    expect(run([WRITTEN_OFF])).toEqual(run([OWED]));
+  });
+
+  it("leaves the therapist's share exactly where it was", () => {
+    // Stated on its own because it is the failure the design exists to
+    // prevent: reducing the session's amount to clear the debt would claw
+    // back money already handed to somebody who had no say in the credit.
+    expect(run([WRITTEN_OFF]).therapist).toBe(run([OWED]).therapist);
+    expect(run([WRITTEN_OFF]).therapist).toBeGreaterThan(0);
+  });
+
+  it("still reports what an ordinary prepaid session of the same price would", () => {
+    expect(run([WRITTEN_OFF])).toEqual(run([appointment({ id: "owed" })]));
+  });
+
+  it("puts the same lines behind the total", () => {
+    const rates = {
+      therapistSharePercent: SHARES,
+      patientHospitalSharePercent: HOSPITAL_SHARES,
+      hospitalReferredPatientIds: REFERRED,
+      therapistHomeVisitSharePercent: HOME_SHARES,
+    };
+    expect(explainMoneyLines([WRITTEN_OFF], [BUCKET], rates)).toEqual(
+      explainMoneyLines([OWED], [BUCKET], rates)
+    );
+  });
+});

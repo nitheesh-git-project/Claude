@@ -186,6 +186,162 @@ export async function readSettlementReconciliation(
 }
 
 /**
+ * Confirmed payments still holding money that has not covered a session.
+ *
+ * The admin's own balance screen has to net these off exactly as the
+ * patient's widget does, or the two disagree about what is owed -- an admin
+ * chases ₹4,800 while the patient's screen reads ₹3,600, and the patient is
+ * right. Its own isolated read, and `[]` on a failure, which reads as "no
+ * money held" -- the figure the screen showed before the pool existed.
+ */
+export async function readUnallocatedSettlements(
+  admin: AdminClient,
+  limit = 500
+): Promise<PayLaterPoolRow[]> {
+  try {
+    const { data, error } = await admin
+      .from("pay_later_payments")
+      .select("id, patient_id, status, unallocated_paise")
+      .eq("status", "confirmed")
+      .gt("unallocated_paise", 0)
+      .limit(limit);
+    if (error) return [];
+    return (data ?? []) as PayLaterPoolRow[];
+  } catch {
+    return [];
+  }
+}
+
+/** Money received and not yet applied to a session, as the balance maths
+ *  needs it. */
+export type PayLaterPoolRow = {
+  id: string;
+  patient_id: string;
+  status: string;
+  unallocated_paise: number | null;
+};
+
+/** A refund the clinic owes a trusted patient and has not handed over yet. */
+export type PayLaterRefundRow = {
+  id: string;
+  patient_id: string;
+  session_code: string | null;
+  slot_time: string | null;
+  refund_amount_paise: number | null;
+  refund_reason: string | null;
+  refunded_at: string | null;
+};
+
+/**
+ * Refunds on sessions a trusted patient had already settled, waiting for
+ * somebody to hand the money over.
+ *
+ * These carry no gateway payment on the appointment -- the money arrived as
+ * one settlement covering several sessions -- so nothing reverses itself and
+ * a person has to move it. Its own isolated read for the usual reason, and it
+ * answers `[]` rather than null on a failure: an absent queue costs a panel,
+ * where a null would have to be told apart from "none waiting" by every
+ * caller for no gain. The reconciliation is where an unaskable question is
+ * kept distinct from an answer of zero.
+ */
+export async function readPayLaterManualRefunds(
+  admin: AdminClient,
+  limit = 200
+): Promise<PayLaterRefundRow[]> {
+  try {
+    const { data, error } = await admin
+      .from("appointments")
+      .select(
+        "id, patient_id, session_code, slot_time, refund_amount_paise, refund_reason, refunded_at"
+      )
+      .eq("payment_terms", "pay_later")
+      .eq("refund_status", "manual_pending")
+      .order("refunded_at", { ascending: true })
+      .limit(limit);
+    if (error) return [];
+    return (data ?? []) as PayLaterRefundRow[];
+  } catch {
+    return [];
+  }
+}
+
+/** A session the clinic has decided to stop chasing. */
+export type PayLaterWrittenOffRow = {
+  id: string;
+  patient_id: string;
+  session_code: string | null;
+  slot_time: string | null;
+  amount_due_paise: number | null;
+};
+
+/**
+ * Sessions already written off.
+ *
+ * Listed because the decision is reversible and a reversal has to be
+ * reachable: `isOpenPayLaterSession` drops these rows from every balance, so
+ * without their own list a write-off made by mistake would be undoable only
+ * in the database -- which would make the undo a claim rather than a control.
+ * Newest first, unlike the two queues beside it: this is a record of what was
+ * decided rather than work waiting, and the one somebody comes back to is the
+ * one they just made.
+ */
+export async function readPayLaterWriteOffs(
+  admin: AdminClient,
+  limit = 100
+): Promise<PayLaterWrittenOffRow[]> {
+  try {
+    const { data, error } = await admin
+      .from("appointments")
+      .select("id, patient_id, session_code, slot_time, amount_due_paise")
+      .eq("pay_later_outcome", "written_off")
+      .order("slot_time", { ascending: false })
+      .limit(limit);
+    if (error) return [];
+    return (data ?? []) as PayLaterWrittenOffRow[];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Written-off sessions against the bad debt recorded for them.
+ *
+ * The check the revert inside `/api/admin/write-off-pay-later-session` is
+ * meant to make impossible -- which is exactly why it is worth having. A
+ * session written off with no cost row behind it overstates profit by exactly
+ * the amount forgiven and says so on no screen; the one way it can happen is
+ * a database whose fallback insert dropped the link.
+ *
+ * Null when it cannot be asked, never zero. On a database without
+ * `source_appointment_id` there is nothing to compare against, and reading
+ * that as "the books agree" is the mistake this codebase corrects most often.
+ */
+export async function readWriteOffReconciliation(
+  admin: AdminClient
+): Promise<{ writtenOffPaise: number; badDebtPaise: number; sessions: number } | null> {
+  try {
+    const [sessions, costs] = await Promise.all([
+      admin
+        .from("appointments")
+        .select("amount_due_paise")
+        .eq("pay_later_outcome", "written_off"),
+      admin
+        .from("business_expenses")
+        .select("amount_paise")
+        .not("source_appointment_id", "is", null),
+    ]);
+    if (sessions.error || costs.error) return null;
+    let writtenOffPaise = 0;
+    for (const a of sessions.data ?? []) writtenOffPaise += Math.max(0, a.amount_due_paise ?? 0);
+    let badDebtPaise = 0;
+    for (const c of costs.data ?? []) badDebtPaise += Math.max(0, c.amount_paise ?? 0);
+    return { writtenOffPaise, badDebtPaise, sessions: (sessions.data ?? []).length };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Everything the patient's own screens need about what they owe.
  *
  * One call, its own reads, and it **never throws**: absent, the widget is

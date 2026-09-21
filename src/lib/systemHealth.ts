@@ -102,6 +102,19 @@ export type PayLaterHealth = {
    *  the books agree; null means it could not be asked, which is not the
    *  same thing and must not read as agreement. */
   settlementDifferencePaise?: number | null;
+  /** Refunds agreed on sessions a trusted patient had already settled, and
+   *  not yet handed over. No gateway reverses these -- the money arrived as
+   *  one payment covering several sessions -- so a person has to move them,
+   *  and until somebody does the patient is out of pocket. */
+  refundsToHandBack?: number;
+  refundsToHandBackPaise?: number;
+  /** `sum(written-off sessions) - sum(bad debt recorded)`, in paise. A
+   *  written-off session with no cost row behind it overstates profit by
+   *  exactly the amount forgiven and says so on no other screen. Null when it
+   *  could not be asked -- a database without `source_appointment_id` has
+   *  nothing to compare against, and reading that as agreement is the mistake
+   *  this file corrects most often. */
+  writeOffDifferencePaise?: number | null;
 };
 
 export type SystemHealthInput = {
@@ -640,6 +653,7 @@ function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
       ? `Worth chasing after ${plural(health.agedAfterDays, "day", "days")}`
       : "Ageing warnings are switched off",
     `${plural(health.settlementsWaiting ?? 0, "payment", "payments")} waiting to be checked`,
+    `${plural(health.refundsToHandBack ?? 0, "refund", "refunds")} agreed and not yet handed back`,
     // Facts, never advice: this line is what decides whether the steps above
     // it apply, which is why it renders above them.
     health.settlementDifferencePaise === null || health.settlementDifferencePaise === undefined
@@ -648,6 +662,13 @@ function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
         ? "Money in matches money accounted for"
         : `Money in and money accounted for differ by ₹${Math.abs(
             Math.round(health.settlementDifferencePaise / 100)
+          ).toLocaleString("en-IN")}`,
+    health.writeOffDifferencePaise === null || health.writeOffDifferencePaise === undefined
+      ? "Written-off sessions against the cost recorded for them: could not be checked"
+      : health.writeOffDifferencePaise === 0
+        ? "Every written-off session has its loss recorded as a cost"
+        : `Written-off sessions and the cost recorded for them differ by ₹${Math.abs(
+            Math.round(health.writeOffDifferencePaise / 100)
           ).toLocaleString("en-IN")}`,
   ];
 
@@ -705,6 +726,69 @@ function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
         "Send that text on. It names every payment and every session involved.",
       ],
       count: 1,
+      evidence,
+    };
+  }
+
+  // The other half of the same question, one direction over: a session the
+  // clinic decided to stop chasing, with nothing recording the loss. It
+  // overstates profit by exactly the amount forgiven, and no other screen
+  // would say so -- the write-off route reverts itself precisely to make this
+  // impossible, so if it ever fires something got past that.
+  //
+  // `null` is amber and not red for the reason above it: not knowing is not
+  // the same as knowing something is wrong. `undefined` stays silent, which
+  // is a database with no write-offs to reconcile.
+  if (health.writeOffDifferencePaise === null) {
+    return {
+      ...base,
+      status: "attention",
+      headline:
+        "Sessions written off could not be checked against the cost recorded for them.",
+      fix: [
+        "Reload this page - a single failed read usually clears on its own.",
+        "If it keeps saying this, use Copy for my developer at the foot of this card and send that text on.",
+      ],
+      count: 1,
+      evidence,
+    };
+  }
+
+  const writeOffGap = health.writeOffDifferencePaise ?? 0;
+  if (writeOffGap !== 0) {
+    const gap = `₹${Math.abs(Math.round(writeOffGap / 100)).toLocaleString("en-IN")}`;
+    return {
+      ...base,
+      status: "broken",
+      headline: `Sessions written off and the cost recorded for them differ by ${gap}.`,
+      fix: [
+        "Do not change anything by hand - the figures are the evidence, and editing them loses it.",
+        "Open Money -> Owed by Patients and use Copy for my developer at the foot of this card.",
+        "Send that text on. Every write-off should have one Bad debt cost against it on Money -> Costs.",
+      ],
+      count: 1,
+      evidence,
+    };
+  }
+
+  // Money the clinic has agreed to give back and has not given back. Checked
+  // before the queues below it because the patient here is out of pocket
+  // rather than waiting on an answer, and nothing automatic is ever going to
+  // move it.
+  if ((health.refundsToHandBack ?? 0) > 0) {
+    const owed = health.refundsToHandBackPaise
+      ? ` (₹${Math.round(health.refundsToHandBackPaise / 100).toLocaleString("en-IN")})`
+      : "";
+    return {
+      ...base,
+      status: "attention",
+      headline: `${plural(health.refundsToHandBack ?? 0, "refund is", "refunds are")} owed back to a patient and not yet sent${owed}.`,
+      fix: [
+        "Open Money -> Owed by Patients. They are listed under 'Refunds to hand back'.",
+        "Send the money the way they paid it - there is no card payment to reverse, so nothing happens on its own.",
+        "Tap Confirm handed back, which is what takes it off this list.",
+      ],
+      count: health.refundsToHandBack ?? 0,
       evidence,
     };
   }

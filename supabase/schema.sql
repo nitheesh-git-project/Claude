@@ -11979,3 +11979,42 @@ $$;
 revoke all on function public.record_payment_capture(text, text, integer, jsonb) from public;
 revoke all on function public.record_payment_capture(text, text, integer, jsonb) from anon;
 revoke all on function public.record_payment_capture(text, text, integer, jsonb) from authenticated;
+
+-- ===========================================================================
+-- PAY LATER, PART 5: money out -- writing a debt off
+-- ===========================================================================
+--
+-- A write-off is a **cost, not a revenue reduction**, and that is the whole
+-- design. Completion already counted the session as revenue and already made
+-- the therapist's share payable -- and the therapist has been paid, because
+-- they did the work and had no say in extending the credit. So reducing the
+-- session's amount to clear the debt would pull revenue down *and* claw the
+-- therapist's share back off money already handed over.
+--
+-- Instead nothing on the appointment's money columns moves. The session
+-- leaves the owed figure through `pay_later_outcome = 'written_off'`, which
+-- `isOpenPayLaterSession` and `allocate_pay_later_payment` already honour,
+-- and the loss is recorded where a loss belongs: one `business_expenses` row
+-- at cost class `fixed`. Bad debt is an operating expense -- below the
+-- gross-profit line, inside break-even's "what has to be covered", and not
+-- added back in EBITDA -- which is exactly where `fixed` puts it.
+--
+-- This column is what ties the two together. Without it the cost row and the
+-- session it came from are two facts nothing can reconcile, a mistaken
+-- write-off cannot be reversed without guessing which expense to remove, and
+-- a double tap writes the loss twice.
+alter table business_expenses
+  add column if not exists source_appointment_id uuid
+  references appointments(id) on delete set null;
+
+-- One cost row per written-off session, enforced here rather than by a route
+-- check: this table is written by the service-role client, which bypasses
+-- RLS, and is reachable by hand in the SQL editor -- so "the route only
+-- inserts once" is true for exactly as long as every caller remembers it.
+create unique index if not exists business_expenses_one_per_source_appointment
+  on business_expenses (source_appointment_id)
+  where source_appointment_id is not null;
+
+-- `on delete set null` for the reason `created_by` has it: removing a row
+-- elsewhere must never quietly delete the clinic's cost history. The link is
+-- lost, the loss is not.

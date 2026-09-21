@@ -18,6 +18,7 @@ export type MoneyAlertKey =
   | "payout_requests"
   | "cash_to_remit"
   | "manual_refunds"
+  | "pay_later_refunds"
   | "refunds_failed"
   | "unmatched_payments"
   | "patients_owing_aged"
@@ -42,10 +43,18 @@ export type MoneyAlert = {
 export type MoneyAlertCounts = {
   payoutRequestsOpen: number;
   cashToRemitVisits: number;
-  /** Cash visits and sessions alike: both are money a patient is owed and
-   *  does not have, and splitting them into two rows would make an admin
-   *  add up their own total. */
+  /** A cancelled cash visit with no card payment to reverse. Worked on the
+   *  Cash Ledger, which lists home visits -- which is why the pay-later half
+   *  of `manual_pending` is counted separately below rather than swept in
+   *  here: a count has to link to rows the screen it opens actually shows,
+   *  and a count nothing on that screen can bring down is worse than no row
+   *  at all. The two together are every `manual_pending` refund there is. */
   manualRefundsPending: number;
+  /** A session a trusted patient had already settled, refunded and not yet
+   *  handed back. No gateway payment to reverse -- the money came in as one
+   *  settlement covering several sessions -- so a person has to move it, on
+   *  the hand-back list on Money → Owed by Patients. */
+  payLaterRefundsPending?: number;
   /** Refunds the gateway refused. Counted separately because the work is
    *  different -- one is "go and hand over cash", the other is "find out
    *  why Razorpay said no" -- and because nothing else in the app was
@@ -105,6 +114,16 @@ export function buildMoneyAlerts(
       section: "money",
       tab: "payouts",
       // A patient is owed money and does not have it.
+      urgent: true,
+    },
+    {
+      key: "pay_later_refunds",
+      label: "Refunds owed to trusted patients",
+      count: counts.payLaterRefundsPending ?? 0,
+      hint: "A session they had already settled, refunded and not yet sent back. Their money arrived as one payment covering several sessions, so nothing reverses itself - send it, then confirm it here.",
+      section: "money",
+      tab: "owing",
+      // A patient is out of pocket and nothing automatic is going to fix it.
       urgent: true,
     },
     {

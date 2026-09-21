@@ -40,6 +40,7 @@ declare
   v_appt_terms uuid;
   v_appt_abandoned uuid;
   v_appt_probe uuid;
+  v_appt_writeoff uuid;
   v_sess_old uuid;
   v_sess_new uuid;
   v_payment uuid;
@@ -384,6 +385,94 @@ begin
   select count(*) into v_amount from appointments where pay_later_payment_id = v_payment;
   if v_amount <> 1 then
     raise exception 'A duplicate capture settled % sessions', v_amount;
+  end if;
+
+  -- ---------------------------------------------------------------------
+  -- 15. Writing a session off: one cost row per session, and no second.
+  --     The route claims the appointment first and only the winner writes
+  --     the loss -- but that route check is true for exactly as long as
+  --     every caller remembers it, and this table is reachable by the
+  --     service-role key and by hand in the SQL editor. The index is what
+  --     makes it true anyway.
+  -- ---------------------------------------------------------------------
+  insert into appointments (patient_id, category_id, slot_time, status,
+                            payment_status, payment_terms, amount_due_paise,
+                            concern, duration_minutes)
+    values (v_patient, v_category, now() - interval '20 days', 'completed',
+            'unpaid', 'pay_later', 150000, 'Write-off check', 45)
+    returning id into v_appt_writeoff;
+
+  update appointments set pay_later_outcome = 'written_off' where id = v_appt_writeoff;
+
+  insert into business_expenses (incurred_on, category, description, amount_paise,
+                                 source_appointment_id)
+    values (current_date, 'Bad debt', 'Written off: check', 150000, v_appt_writeoff);
+
+  -- The half that matters: a second row for the same session is refused.
+  -- Without it a double tap records the loss twice and understates profit by
+  -- the amount forgiven, in the books, silently.
+  begin
+    insert into business_expenses (incurred_on, category, description, amount_paise,
+                                   source_appointment_id)
+      values (current_date, 'Bad debt', 'Written off: duplicate', 150000, v_appt_writeoff);
+    raise exception 'A second bad-debt row was accepted for one session';
+  exception
+    when unique_violation then null;
+  end;
+
+  -- And the other half of THAT: ordinary hand-entered costs are unaffected.
+  -- Two rents in one month is not a duplicate, and an index that refused
+  -- them would have broken the Costs screen to protect a feature nobody had
+  -- used yet.
+  --
+  -- Stated honestly: this pair cannot fail while the column is nullable,
+  -- because Postgres treats NULLs in a unique index as distinct whether the
+  -- index is partial or not -- a negative control confirmed a non-partial
+  -- index passes it too. It is here as the documented half of the rule, not
+  -- as the thing that proves it; the `where source_appointment_id is not
+  -- null` clause is belt-and-braces over that default, and the assertion
+  -- above is what actually discriminates.
+  insert into business_expenses (incurred_on, category, amount_paise)
+    values (current_date, 'Rent', 5000000);
+  insert into business_expenses (incurred_on, category, amount_paise)
+    values (current_date, 'Rent', 5000000);
+
+  -- ---------------------------------------------------------------------
+  -- 16. A written-off session is skipped by allocation, and an ordinary one
+  --     is not. Both halves, because a function that skipped everything
+  --     would pass the first on its own -- and money arriving against a
+  --     forgiven session has to stay in the pool rather than closing it.
+  -- ---------------------------------------------------------------------
+  insert into appointments (patient_id, category_id, slot_time, status,
+                            payment_status, payment_terms, amount_due_paise,
+                            concern, duration_minutes)
+    values (v_patient, v_category, now() - interval '10 days', 'completed',
+            'unpaid', 'pay_later', 100000, 'Still owed', 45)
+    returning id into v_appt_probe;
+
+  insert into pay_later_payments (patient_id, amount_paise, method, status, unallocated_paise)
+    values (v_patient, 100000, 'cash', 'confirmed', 100000)
+    returning id into v_payment;
+
+  perform allocate_pay_later_payment(v_patient);
+
+  select payment_status into v_status from appointments where id = v_appt_writeoff;
+  if v_status <> 'unpaid' then
+    raise exception 'A written-off session was settled by the allocator: %', v_status;
+  end if;
+
+  select payment_status into v_status from appointments where id = v_appt_probe;
+  if v_status <> 'paid' then
+    raise exception
+      'The allocator skipped an ordinary owed session as well: %', v_status;
+  end if;
+
+  -- The written-off session is older, so an allocator that merely stopped at
+  -- the first row it could not cover would also pass above. It has to have
+  -- passed OVER it to reach the newer one.
+  select amount_paid_paise into v_amount from appointments where id = v_appt_probe;
+  if v_amount <> 100000 then
+    raise exception 'A settled session recorded % rather than its own amount', v_amount;
   end if;
 
   raise notice 'pay-later SQL checks passed';
