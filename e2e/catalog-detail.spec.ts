@@ -22,6 +22,9 @@ const PACKAGE_TITLE = "QA Detail Package";
 
 let categoryId = "";
 let packageId = "";
+/** Which categories the clinic had ticked before this spec ran, so they can
+ *  be put back. See the beforeAll note. */
+let previouslyFeatured: string[] = [];
 
 test.describe("Catalog detail dialogs", () => {
   test.beforeAll(async () => {
@@ -66,12 +69,45 @@ test.describe("Catalog detail dialogs", () => {
     expect(packageId, "seeded package").not.toBe("");
 
     await admin.from("site_settings").update({ session_packages_visible: true }).not("id", "is", null);
+
+    // The home page leads with four featured conditions now
+    // (`pickFeatured`), not every active one -- so a freshly seeded category
+    // does not appear on `/` at all unless it is one of the four, and three
+    // cases below open its dialog there. `pickFeatured` takes the first
+    // `FEATURED_LIMIT` of the ticked rows, so ticking a fifth is not enough:
+    // the fixture has to be the only one ticked while this spec runs.
+    //
+    // Which four an admin has chosen is their data, not the product's
+    // behaviour, so the spec sets the state it needs and puts back exactly
+    // what it found -- the same posture as `session_packages_visible` above
+    // and the two rows it deletes in afterAll.
+    const { data: featured } = await admin
+      .from("treatment_categories")
+      .select("id")
+      .eq("featured", true);
+    previouslyFeatured = (featured ?? []).map((r) => r.id as string);
+    if (previouslyFeatured.length) {
+      await admin
+        .from("treatment_categories")
+        .update({ featured: false })
+        .in("id", previouslyFeatured);
+    }
+    await admin.from("treatment_categories").update({ featured: true }).eq("id", categoryId);
   });
 
   test.afterAll(async () => {
     const admin = adminClient();
     if (packageId) await admin.from("treatment_category_packages").delete().eq("id", packageId);
     if (categoryId) await admin.from("treatment_categories").delete().eq("id", categoryId);
+    // Put the clinic's own choice back. Deleting the fixture above already
+    // removes its tick; this restores the four that were unticked for it,
+    // and runs even when a case above failed.
+    if (previouslyFeatured.length) {
+      await admin
+        .from("treatment_categories")
+        .update({ featured: true })
+        .in("id", previouslyFeatured);
+    }
   });
 
   test.beforeEach(async ({ page }) => {
