@@ -1363,7 +1363,6 @@ alter table appointments add column if not exists payment_method text;
 -- needed. All writes go through the service-role
 -- /api/admin/update-setting route only, same as ratings_visible_publicly's
 -- own route.
-alter table site_settings add column if not exists session_packages_visible boolean not null default true;
 alter table site_settings add column if not exists session_timeout_minutes integer not null default 0;
 
 -- Google Meet/Calendar admin controls (Feature Control tab): master kill
@@ -1836,9 +1835,7 @@ left join lateral (
 grant select on package_purchase_summary to authenticated;
 
 -- Session Manager (Feature Control's former Session Packages toggle moved
--- here, plus new package-wide defaults). session_packages_visible itself
--- already exists above and keeps its column/meaning -- only which admin
--- tab controls it changes.
+-- here, plus new package-wide defaults).
 alter table site_settings add column if not exists package_default_validity_days integer not null default 90 check (package_default_validity_days > 0);
 alter table site_settings add column if not exists package_therapist_lock_enabled boolean not null default true;
 alter table site_settings add column if not exists package_bulk_schedule_max integer not null default 8 check (package_bulk_schedule_max > 0);
@@ -3331,7 +3328,6 @@ begin
     home_visit_page_heading = null,
     home_visit_page_subheading = null,
     ratings_visible_publicly = default,
-    session_packages_visible = default,
     session_timeout_minutes = default,
     google_meet_enabled = default,
     join_window_minutes = default,
@@ -4972,7 +4968,6 @@ begin
     home_visit_page_heading = null,
     home_visit_page_subheading = null,
     ratings_visible_publicly = default,
-    session_packages_visible = default,
     session_timeout_minutes = default,
     google_meet_enabled = default,
     join_window_minutes = default,
@@ -6679,27 +6674,6 @@ begin
 exception when duplicate_object then null;
 end $$;
 
--- What `session_packages_visible` now means.
---
--- It used to gate whether a patient could buy a programme. Since the
--- consultation-first cutover nobody can buy one directly at all -- a
--- programme comes from a therapist's recommendation -- so the flag only ever
--- decided whether the public pages show what the courses of treatment cost.
--- Left under its old name it reads as a purchase switch that no longer
--- exists, which is exactly the kind of setting somebody flips expecting
--- something else to happen.
---
--- Added rather than renamed: a rename would break every deployment mid-roll
--- and lose the admin's current choice. The old column stays as the source of
--- truth for one release; this one is seeded from it and becomes the name the
--- code reads.
-alter table site_settings
-  add column if not exists show_programme_prices boolean not null default true;
-
-update site_settings
-  set show_programme_prices = session_packages_visible
-  where show_programme_prices is distinct from session_packages_visible;
-
 -- Who typed a recommendation, when that is not who made it.
 --
 -- A care plan is a clinician's judgement and `authored_by` names that
@@ -7093,7 +7067,6 @@ begin
     home_visit_page_heading = null,
     home_visit_page_subheading = null,
     ratings_visible_publicly = default,
-    session_packages_visible = default,
     session_timeout_minutes = default,
     google_meet_enabled = default,
     join_window_minutes = default,
@@ -7407,10 +7380,11 @@ alter table treatment_categories
 -- `session_packages_visible` and the `show_programme_prices` it was renamed
 -- to are no longer read by anything. The public pages do not print programme
 -- prices at all now -- a course of treatment is a clinical recommendation,
--- and a price list of them is what this change exists to remove. The columns
--- are left in place rather than dropped: nothing reads them, dropping a
--- column from a live database is the one edit in this file that cannot be
--- undone by re-running it, and their defaults are harmless.
+-- and a price list of them is what this change exists to remove. Both columns
+-- are dropped at the end of this file; their `add column` statements and the
+-- seeding update between them are gone from the sections above, so a fresh
+-- database never creates them at all. See that drop for why it is safe to
+-- re-run.
 
 -- ---------------------------------------------------------------------------
 -- The reset, with the review step in it
@@ -7520,7 +7494,6 @@ begin
     home_visit_page_heading = null,
     home_visit_page_subheading = null,
     ratings_visible_publicly = default,
-    session_packages_visible = default,
     session_timeout_minutes = default,
     google_meet_enabled = default,
     join_window_minutes = default,
@@ -8387,7 +8360,6 @@ begin
     home_visit_page_heading = null,
     home_visit_page_subheading = null,
     ratings_visible_publicly = default,
-    session_packages_visible = default,
     session_timeout_minutes = default,
     google_meet_enabled = default,
     join_window_minutes = default,
@@ -8691,7 +8663,6 @@ begin
     home_visit_page_heading = null,
     home_visit_page_subheading = null,
     ratings_visible_publicly = default,
-    session_packages_visible = default,
     session_timeout_minutes = default,
     google_meet_enabled = default,
     join_window_minutes = default,
@@ -8892,7 +8863,6 @@ begin
     home_visit_page_heading = null,
     home_visit_page_subheading = null,
     ratings_visible_publicly = default,
-    session_packages_visible = default,
     session_timeout_minutes = default,
     google_meet_enabled = default,
     join_window_minutes = default,
@@ -9180,7 +9150,6 @@ begin
     home_visit_page_heading = null,
     home_visit_page_subheading = null,
     ratings_visible_publicly = default,
-    session_packages_visible = default,
     session_timeout_minutes = default,
     google_meet_enabled = default,
     join_window_minutes = default,
@@ -9919,7 +9888,6 @@ begin
     home_visit_page_heading = null,
     home_visit_page_subheading = null,
     ratings_visible_publicly = default,
-    session_packages_visible = default,
     session_timeout_minutes = default,
     google_meet_enabled = default,
     join_window_minutes = default,
@@ -10293,7 +10261,6 @@ begin
     mission_statement = null,
     vision_statement = null,
     ratings_visible_publicly = default,
-    session_packages_visible = default,
     session_timeout_minutes = default,
     google_meet_enabled = default,
     join_window_minutes = default,
@@ -12018,3 +11985,30 @@ create unique index if not exists business_expenses_one_per_source_appointment
 -- `on delete set null` for the reason `created_by` has it: removing a row
 -- elsewhere must never quietly delete the clinic's cost history. The link is
 -- lost, the loss is not.
+
+
+-- ---------------------------------------------------------------------------
+-- Dropping the retired programme-price switch
+-- ---------------------------------------------------------------------------
+-- `session_packages_visible` and `show_programme_prices` are the one pair of
+-- columns in this table nothing reads: no route writes them, no page selects
+-- them, and `SITE_SETTINGS_SELECT` has never listed them. They were left in
+-- place when the consultation-first cutover retired them, on the reasoning
+-- that a drop is the one edit here that cannot be undone by re-running the
+-- file -- which is true of the data and not of the statement: `drop column if
+-- exists` is re-runnable, and the data is a boolean nothing has consulted
+-- since the cutover.
+--
+-- Leaving them had a cost that grew rather than stayed still. Ten successive
+-- re-declarations of `debug_reset_all_data()` carried
+-- `session_packages_visible = default` in their reset list, and an e2e spec
+-- set it in a `beforeAll` -- so both kept describing a switch that decides
+-- nothing, and the next reader of either had to trace a column to its absence
+-- before knowing it was dead. A dead column that live code keeps touching is
+-- not inert.
+--
+-- `restrict` rather than `cascade`: nothing should depend on these, and if
+-- something does -- a view, a policy written since -- the right outcome is a
+-- failure naming it, not a silent drop of whatever it was.
+alter table site_settings drop column if exists session_packages_visible restrict;
+alter table site_settings drop column if exists show_programme_prices restrict;

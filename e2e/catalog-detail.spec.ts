@@ -68,8 +68,6 @@ test.describe("Catalog detail dialogs", () => {
     packageId = pkg?.id ?? "";
     expect(packageId, "seeded package").not.toBe("");
 
-    await admin.from("site_settings").update({ session_packages_visible: true }).not("id", "is", null);
-
     // The home page leads with four featured conditions now
     // (`pickFeatured`), not every active one -- so a freshly seeded category
     // does not appear on `/` at all unless it is one of the four, and three
@@ -79,8 +77,8 @@ test.describe("Catalog detail dialogs", () => {
     //
     // Which four an admin has chosen is their data, not the product's
     // behaviour, so the spec sets the state it needs and puts back exactly
-    // what it found -- the same posture as `session_packages_visible` above
-    // and the two rows it deletes in afterAll.
+    // what it found -- the same posture as the two rows it deletes in
+    // afterAll.
     const { data: featured } = await admin
       .from("treatment_categories")
       .select("id")

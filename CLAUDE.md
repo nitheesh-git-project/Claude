@@ -14,7 +14,16 @@ section's single line ("How the product behaves") explained nothing about
 the screen you had just opened. That is also why the old Booking Rules
 screen is three: **Booking Rules** (one video session), **Offers &
 Discounts** (money off, to win a patient), and **Programmes & Home Visits**
-(more than one appointment, arranged in advance).
+(more than one appointment, arranged in advance). Its ten screens sit under
+four sidebar captions - *Your website*, *How the clinic runs*, *Who gets in*,
+*Technical* - because ten flat labels is a list nobody reads top to bottom.
+**Sign-in & Security** holds your own password *and* how long everybody else
+stays signed in; the idle timeout and the sign-out banner used to sit on
+Booking Rules, which is about when a session may be sold rather than when one
+ends. **Advanced** is the technical shelf and exists so a data-migration
+cutover cannot sit between two rules about how a programme is sold. The two
+screens taller than a couple of screenfuls open with a sticky map of their own
+sections.
 
 **Logs is Master Admin's alone.** Every action an admin takes is recorded in
 `admin_activity_log`, and the Logs section is where the whole of it is read:
@@ -255,7 +264,10 @@ on the appointment or payment that caused it, and
 `verify_entitlement_balances()` reports any disagreement on Settings →
 System Health → Books & Sessions Agree. Whether balances are read from the ledger or from the older
 counters is one admin switch (`entitlement_ledger_authoritative`), off by
-default and reversible without a release. Admins can change any balance - grant, reverse, revive, all
+default and reversible without a release - on **Settings → Advanced**, the
+technical shelf, rather than beside the rules deciding what a programme is:
+a data-migration cutover whose own help text sends the reader to System
+Health is not a decision the clinic can take by preference. Admins can change any balance - grant, reverse, revive, all
 with a mandatory reason - and cannot change any history.
 
 An admin can write a recommendation on a therapist's behalf when that
@@ -316,7 +328,8 @@ since ordinary consultations are always video.
 catalogue at all: `/` and `/conditions` show treatment categories and their
 consultation price, `/home-visit` shows single visits only, and the
 `show_programme_prices` switch is retired rather than defaulted off - a
-toggle somebody can flip back on is not the rule being gone. The patient
+toggle somebody can flip back on is not the rule being gone, and its column
+is dropped rather than left behind for the reset function to keep resetting. The patient
 dashboard's booking hub is the same: one video consultation, or one visit
 at home.
 

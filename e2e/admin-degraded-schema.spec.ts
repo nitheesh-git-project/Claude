@@ -144,9 +144,16 @@ test.describe("Suite J: degraded schema", () => {
 
       await page.goto(`${BASE}/admin/dashboard?section=settings&tab=booking`);
       // The setting falls back to the documented default (12) and every
-      // other setting on the same screen still renders.
-      await expect(page.getByText("Online Booking Lead Time")).toBeVisible({ timeout: 30_000 });
-      await expect(page.getByText("Session Timeout of Inactivity")).toBeVisible();
+      // other setting on the same screen still renders. Both headings were
+      // reworded when Settings stopped naming its controls after the column
+      // they write, and the idle timeout moved to Sign-in & Security in the
+      // same change -- an idle timeout is not a booking rule -- so the
+      // "and nothing else broke" half is asserted with a control that is
+      // still on this screen.
+      await expect(page.getByText("How far ahead a session must be booked")).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(page.getByText("Free cancellation window")).toBeVisible();
       await expect(page.getByText("Auto-Create Meet Links")).toBeVisible();
     } finally {
       restoreSchema();

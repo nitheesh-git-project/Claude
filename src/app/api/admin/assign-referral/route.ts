@@ -9,11 +9,15 @@ import {
   findTieBrokenReferralConflict,
 } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import {
+  DEFAULT_ADMIN_SETTINGS,
+  parseAdminSettings,
+  SITE_SETTINGS_SELECT,
+} from "@/lib/adminSettings";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import {
-  BOOKING_LEAD_TIME_HOURS, BOOKING_LEAD_TIME_MS,
   isWholeHourSlot,
+  leadTimeMsFromHours,
   NOT_WHOLE_HOUR_ERROR,
 } from "@/lib/bookingSlots";
 
@@ -54,16 +58,30 @@ export async function POST(request: NextRequest) {
   if (!isWholeHourSlot(new Date(slotMs).toISOString(), null)) {
     return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
   }
-  if (slotMs < Date.now() + BOOKING_LEAD_TIME_MS) {
+
+  const admin = createAdminClient();
+
+  // The lead time comes from the clinic's own setting, not from the
+  // constant. `/api/admin/create-booking` and `/api/appointments/create`
+  // have read the column since it became a setting, and this route read the
+  // constant -- so a clinic that widened its window had one of its three
+  // admin doors still promising a referred patient the old one. The constant
+  // survives as the fallback for a database that has not applied the column.
+  const { data: leadSettingsRow } = await admin
+    .from("site_settings")
+    .select(SITE_SETTINGS_SELECT)
+    .maybeSingle();
+  const leadTimeHours = parseAdminSettings(leadSettingsRow).onlineBookingLeadTimeHours;
+  if (slotMs < Date.now() + leadTimeMsFromHours(leadTimeHours)) {
     return NextResponse.json(
       {
-        error: `The assigned slot must be at least ${BOOKING_LEAD_TIME_HOURS} hours from now.`,
+        error: `The assigned slot must be at least ${leadTimeHours} hour${
+          leadTimeHours === 1 ? "" : "s"
+        } from now.`,
       },
       { status: 400 }
     );
   }
-
-  const admin = createAdminClient();
 
   const { data: therapist } = await admin
     .from("profiles")

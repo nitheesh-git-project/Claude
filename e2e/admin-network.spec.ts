@@ -9,10 +9,16 @@ import { BASE, QA_EMAILS, browserCookiesFor } from "./helpers";
 
 const SETTING_ROUTE = "**/api/admin/update-setting";
 
+// The lead-time card's heading. Named once because three helpers below look
+// it up: the screen was reworded away from "Online Booking Lead Time" when
+// Settings stopped naming its controls after the column they write, and a
+// heading spelled out at each use is three places to miss the next time.
+const LEAD_TIME_HEADING = "How far ahead a session must be booked";
+
 async function openBookingRules(page: Page) {
   await page.context().addCookies(await browserCookiesFor(QA_EMAILS.admin));
   await page.goto(`${BASE}/admin/dashboard?section=settings&tab=booking`);
-  await expect(page.getByText("Online Booking Lead Time")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(LEAD_TIME_HEADING)).toBeVisible({ timeout: 60_000 });
 }
 
 // Scoped to one card, by its heading. Every assertion below -- the button,
@@ -27,7 +33,7 @@ function card(page: Page, heading: string) {
 // The lead-time card: a plain number + Save, the smallest real mutation on
 // the dashboard, so a failure here is unambiguous.
 function leadTimeCard(page: Page) {
-  return card(page, "Online Booking Lead Time");
+  return card(page, LEAD_TIME_HEADING);
 }
 
 // Matched on a prefix because the label itself is the pending indicator:

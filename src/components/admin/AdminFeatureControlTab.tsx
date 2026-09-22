@@ -231,14 +231,101 @@ export default function AdminFeatureControlTab({
   }
 
   if (view === "security") {
+    // Two things, and they are the same thing seen from either side of the
+    // desk: how you get into this dashboard, and how everybody else stops
+    // being in theirs. The two sign-out settings below used to sit on Booking
+    // Rules, under a heading promising "when a patient may book, cancel, and
+    // join a video session" -- an idle timeout is not a booking rule, and an
+    // owner looking for it had no reason to open that screen.
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="font-bold text-lg text-slate-900">Account Security</h2>
-          <p className="text-xs text-slate-500 mt-1">Reset your own admin password by email.</p>
+          <h2 className="font-bold text-lg text-slate-900">Your own sign-in</h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Only your admin account. Nothing here affects patients or the website.
+          </p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <AccountSecuritySection email={adminEmail} />
+        </div>
+
+        <div>
+          <h2 className="font-bold text-lg text-slate-900">Everybody else&apos;s sign-in</h2>
+          <p className="text-xs text-slate-500 mt-1">
+            How long a patient, therapist or partner stays signed in, and what they are
+            told once they are not.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h3 className="font-bold text-sm text-slate-800">Sign out after inactivity</h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-md">
+            Automatically sign out any patient, therapist or hospital after this many minutes
+            of no activity (mouse, keyboard, or touch). They&apos;re shown a notice explaining
+            what happened, with a link back to their own login page. Set to 0 to disable.
+          </p>
+          <p className="text-xs text-slate-500 mt-1 max-w-md">
+            Admin sessions are exempt - this dashboard stays open however long you leave it.
+          </p>
+          <div className="flex items-center gap-2 mt-3">
+            <input
+              type="number"
+              min={0}
+              step={1}
+              aria-label="Session timeout of inactivity, in minutes"
+              value={timeoutInput}
+              onChange={(e) => {
+                setTimeoutInput(e.target.value);
+                setTimeoutSaved(false);
+              }}
+              className="w-24 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
+            />
+            <span className="text-xs text-slate-500">minutes</span>
+            <button
+              onClick={handleSaveTimeout}
+              disabled={isTimeoutPending}
+              className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
+            >
+              {isTimeoutPending ? "Saving..." : "Save"}
+            </button>
+            {timeoutSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
+          </div>
+          {timeoutError && <p className="text-[11px] text-red-600 mt-2">{timeoutError}</p>}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h3 className="font-bold text-sm text-slate-800">Sign-out message</h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-md">
+            After someone signs out, a banner across the top of the public site tells them the
+            sign-out worked. This is how long it stays before clearing itself. Set to 0 to leave
+            it up until they close it - on a shared machine that means the next person reads the
+            last person&apos;s goodbye.
+          </p>
+          <div className="flex items-center gap-2 mt-3">
+            <input
+              type="number"
+              min={0}
+              max={300}
+              step={1}
+              aria-label="Sign-out message duration, in seconds"
+              value={farewellInput}
+              onChange={(e) => {
+                setFarewellInput(e.target.value);
+                setFarewellSaved(false);
+              }}
+              className="w-24 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
+            />
+            <span className="text-xs text-slate-500">seconds</span>
+            <button
+              onClick={handleSaveFarewell}
+              disabled={isFarewellPending}
+              className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
+            >
+              {isFarewellPending ? "Saving..." : "Save"}
+            </button>
+            {farewellSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
+          </div>
+          {farewellError && <p className="text-[11px] text-red-600 mt-2">{farewellError}</p>}
         </div>
       </div>
     );
@@ -249,18 +336,21 @@ export default function AdminFeatureControlTab({
       {view === "booking" && (
       <>
       <div>
-        <h2 className="font-bold text-lg text-slate-900">Platform Rules</h2>
+        <h2 className="font-bold text-lg text-slate-900">One video session</h2>
         <p className="text-xs text-slate-500 mt-1">
-          Applied everywhere immediately.
+          When it may be booked, what a cancellation is worth, and which languages a
+          patient may ask for. Saved changes apply to every new booking at once.
         </p>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-sm text-slate-800">Online Booking Lead Time</h3>
+        <h3 className="font-bold text-sm text-slate-800">How far ahead a session must be booked</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
           How far ahead an online session must be booked. The booking picker and the
           server-side check both read this one value, so they can&apos;t disagree. Home visits
-          have their own, longer lead time below - a therapist has to physically travel.
+          have their own, longer lead time, set under{" "}
+          <span className="font-semibold text-slate-600">Programmes &amp; Home Visits</span> - a
+          therapist has to physically travel.
         </p>
         <div className="flex items-center gap-2 mt-3">
           <input
@@ -289,7 +379,7 @@ export default function AdminFeatureControlTab({
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-sm text-slate-800">Online Cancellation Refund Window</h3>
+        <h3 className="font-bold text-sm text-slate-800">Free cancellation window</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
           Cancel an online session more than this many hours before it starts and the patient is
           refunded in full; inside the window, nothing is refunded. Set to 0 to refund nothing
@@ -322,77 +412,6 @@ export default function AdminFeatureControlTab({
           )}
         </div>
         {refundHoursError && <p className="text-[11px] text-red-600 mt-2">{refundHoursError}</p>}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-sm text-slate-800">Session Timeout of Inactivity</h3>
-        <p className="text-xs text-slate-500 mt-1 max-w-md">
-          Automatically sign out any patient, therapist or hospital after this many minutes
-          of no activity (mouse, keyboard, or touch). They&apos;re shown a notice explaining
-          what happened, with a link back to their own login page. Set to 0 to disable.
-        </p>
-        <p className="text-xs text-slate-500 mt-1 max-w-md">
-          Admin sessions are exempt - this dashboard stays open however long you leave it.
-        </p>
-        <div className="flex items-center gap-2 mt-3">
-          <input
-            type="number"
-            min={0}
-            step={1}
-            aria-label="Session timeout of inactivity, in minutes"
-            value={timeoutInput}
-            onChange={(e) => {
-              setTimeoutInput(e.target.value);
-              setTimeoutSaved(false);
-            }}
-            className="w-24 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
-          />
-          <span className="text-xs text-slate-500">minutes</span>
-          <button
-            onClick={handleSaveTimeout}
-            disabled={isTimeoutPending}
-            className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
-          >
-            {isTimeoutPending ? "Saving..." : "Save"}
-          </button>
-          {timeoutSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
-        </div>
-        {timeoutError && <p className="text-[11px] text-red-600 mt-2">{timeoutError}</p>}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-sm text-slate-800">Sign-out message</h3>
-        <p className="text-xs text-slate-500 mt-1 max-w-md">
-          After someone signs out, a banner across the top of the public site tells them the
-          sign-out worked. This is how long it stays before clearing itself. Set to 0 to leave
-          it up until they close it - on a shared machine that means the next person reads the
-          last person&apos;s goodbye.
-        </p>
-        <div className="flex items-center gap-2 mt-3">
-          <input
-            type="number"
-            min={0}
-            max={300}
-            step={1}
-            aria-label="Sign-out message duration, in seconds"
-            value={farewellInput}
-            onChange={(e) => {
-              setFarewellInput(e.target.value);
-              setFarewellSaved(false);
-            }}
-            className="w-24 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-600"
-          />
-          <span className="text-xs text-slate-500">seconds</span>
-          <button
-            onClick={handleSaveFarewell}
-            disabled={isFarewellPending}
-            className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-lg transition"
-          >
-            {isFarewellPending ? "Saving..." : "Save"}
-          </button>
-          {farewellSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
-        </div>
-        {farewellError && <p className="text-[11px] text-red-600 mt-2">{farewellError}</p>}
       </div>
 
       <BookingLanguagesSection
@@ -561,6 +580,25 @@ export default function AdminFeatureControlTab({
         {completedAfterError && (
           <p className="text-[11px] text-red-600 mt-2">{completedAfterError}</p>
         )}
+        {/* The two numbers can be set into a combination where one of them
+            silently does nothing, and nothing said so. The join control
+            reads the cutoff first (JoinSessionButton: `completed` wins over
+            `isJoinable`), so a cutoff at or below the grace period means the
+            late minutes past it can never be used -- a setting an owner
+            changed and watched have no effect. Stated rather than refused:
+            both values are legitimate on their own, and which one they meant
+            to move is theirs to decide. Computed off the typed values, not
+            the saved ones, so it appears while they are still deciding. */}
+        {Number(completedAfterInput) > 0 &&
+          Number(completedAfterInput) <= Number(joinWindowAfterInput) && (
+            <p className="mt-2 max-w-md rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+              This cutoff is not longer than the {joinWindowAfterInput}-minute grace
+              period above, so a session reads{" "}
+              <span className="font-semibold">Session Completed</span> before that
+              grace period runs out and none of it can be used. Set this higher than
+              the grace period, or shorten the grace period.
+            </p>
+          )}
       </div>
 
       </>

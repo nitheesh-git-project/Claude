@@ -42,6 +42,21 @@ export type AdminTabDef = {
    */
   example?: string;
   /**
+   * The caption this screen sits under in the sidebar.
+   *
+   * Settings is ten screens, which is where a flat list stops being read and
+   * starts being scanned: an owner looking for the refund window read all ten
+   * labels because nothing said which four were about how the clinic runs.
+   * Screens carrying the same group are drawn under one small caption, so the
+   * list is four short lists instead of one long one. Screens sharing a group
+   * must be adjacent in this array -- the sidebar draws a caption whenever the
+   * group changes, so a group split in two would be captioned twice.
+   *
+   * Sections whose screen list is already short (Today, People, Catalog) leave
+   * it off, and get the flat list they had.
+   */
+  group?: string;
+  /**
    * The screen is nothing but actions, so a scope holding this section at
    * `view` must not see it at all. A screen that merely *contains* actions
    * does not want this -- it takes a manage flag and renders read-only,
@@ -290,39 +305,55 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     blurb: "How the product behaves.",
     // Every screen here says what it is and gives one example, because a
     // settings list is the part of a back office people open least often and
-    // therefore remember least well. Two of them are also new: "Booking
-    // Rules" had grown into six unrelated stacks -- when a patient may book,
-    // what money comes off, how a programme works, how a home visit works --
-    // with no heading between them, so the one screen an owner opened to
-    // change a refund window also held the discount that decides revenue.
+    // therefore remember least well.
+    //
+    // "Booking Rules" is three screens for the same reason: it had grown
+    // into six unrelated stacks -- when a patient may book, what money comes
+    // off, how a programme works, how a home visit works -- with no heading
+    // between them, so the one screen an owner opened to change a refund
+    // window also held the discount that decides revenue.
+    //
+    // They are also grouped, because ten flat labels is a list nobody reads
+    // top to bottom: an owner hunting for the refund window scanned past the
+    // discount that decides what every new patient pays, and the two screens
+    // about nothing but their own login sat in the same undifferentiated run
+    // as the clinic's booking rules. Four captions -- your website, how the
+    // clinic runs, who gets in, and the technical shelf -- say which quarter
+    // of the list to read. Screens sharing a caption are adjacent, which the
+    // sidebar relies on (see AdminTabDef.group).
     tabs: [
       {
         key: "brand",
         label: "Brand & Contact",
+        group: "Your website",
         blurb: "Your clinic's name and the contact details patients see.",
         example: "Change the WhatsApp number shown in the website footer.",
       },
       {
         key: "public",
         label: "Public Site",
+        group: "Your website",
         blurb: "What visitors read on your website.",
         example: "Add a patient's story to the home page, or answer a new question on the FAQ page.",
       },
       {
         key: "booking",
         label: "Booking Rules",
+        group: "How the clinic runs",
         blurb: "When a patient may book, cancel, and join a video session.",
         example: "Stop patients booking a slot that is less than 12 hours away.",
       },
       {
         key: "offers",
         label: "Offers & Discounts",
+        group: "How the clinic runs",
         blurb: "Money off, to bring new patients in.",
         example: "Give every new patient \u20b9200 off their first session.",
       },
       {
         key: "programmes",
         label: "Programmes & Home Visits",
+        group: "How the clinic runs",
         blurb:
           "Rules for a course of sessions a therapist recommends, and for visits to a patient's home.",
         example: "Make a therapist's recommendation wait for your approval before the patient sees it.",
@@ -330,26 +361,51 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       {
         key: "clinical",
         label: "Clinical Questions",
+        group: "How the clinic runs",
         blurb: "The questions a patient answers about their condition, and the ones a therapist fills in after an exam.",
         example: "Reword the question that asks how long the pain has lasted.",
       },
       {
         key: "access",
         label: "User Access",
+        group: "Who gets in",
         blurb: "Who can sign in to this dashboard, what each of them reaches, and how much of a patient's phone number a therapist is shown.",
         example: "Hire somebody into Operations, or take away the access of somebody who left.",
+      },
+      // Your own password, and how long anybody else's session stays open.
+      // The two sign-out settings used to sit on Booking Rules, whose own
+      // header promises "when a patient may book, cancel, and join a video
+      // session" -- neither is about booking, and both are about a session
+      // ending rather than a session being sold. Moving them here also gives
+      // this screen something to be: one button to email yourself a reset was
+      // a screen an owner opened once and never found a second reason for.
+      {
+        key: "security",
+        label: "Sign-in & Security",
+        group: "Who gets in",
+        blurb: "Your own password, and how long a patient, therapist or partner stays signed in.",
+        example: "Sign people out automatically after 30 minutes of doing nothing.",
       },
       {
         key: "health",
         label: "System Health",
+        group: "Technical",
         blurb: "Warnings when something behind the scenes has failed. Nothing here is set by you \u2014 it is the app reporting on itself.",
         example: "Find a booked session whose Google Meet link was never created, and try again.",
       },
+      // The quarantine. One switch today, and the point of the screen is that
+      // it is the only place a switch like it may live: a data-migration
+      // cutover whose own help text sends you to System Health to decide it
+      // has no business sitting between two rules about how a programme is
+      // sold. Master Admin only, because the whole Settings section is.
       {
-        key: "security",
-        label: "Account Security",
-        blurb: "Your own login. Nothing here affects patients or the website.",
-        example: "Send yourself a password reset email.",
+        key: "advanced",
+        label: "Advanced",
+        group: "Technical",
+        requiresManage: true,
+        blurb:
+          "Technical switches that change how the app works inside, not what the clinic sells. Leave these alone unless you are following instructions.",
+        example: "Switch which of two records the app trusts for a patient's remaining sessions.",
       },
     ],
   },

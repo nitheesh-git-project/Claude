@@ -8,7 +8,6 @@ import {
   bookingCellClass,
 } from "@/lib/bookingCellStyles";
 import {
-  BOOKING_LEAD_TIME_HOURS,
   bookableHoursForDate,
   earliestBookableDateKey,
   formatDateKeyLong,
@@ -141,8 +140,16 @@ export default function AdminSlotPicker({
           {/* Says why yesterday and this afternoon are not on offer, rather
               than leaving an admin to work it out from greyed-out cells. */}
           <p className="text-[10px] text-slate-500">
-            {leadTimeMs === BOOKING_LEAD_TIME_MS
-              ? `Earliest bookable time is ${BOOKING_LEAD_TIME_HOURS} hours from now - the same rule the patient's own booking screen follows.`
+            {/* Branches on whether a lead time applies at all, not on
+                whether it equals the constant: the rule is an admin setting
+                now, so a clinic running a 24-hour window would otherwise be
+                told its own referral screen was an override lane. The hours
+                are read back off the value in force rather than printed from
+                the constant, for the same reason. */}
+            {leadTimeMs > 0
+              ? `Earliest bookable time is ${Math.round(leadTimeMs / 3_600_000)} hour${
+                  Math.round(leadTimeMs / 3_600_000) === 1 ? "" : "s"
+                } from now - the same rule the patient's own booking screen follows.`
               : "Any time from now on - this screen is an override, so the patient's lead-time rule does not apply."}
           </p>
         </div>

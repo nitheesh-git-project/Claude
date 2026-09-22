@@ -152,6 +152,26 @@ Three environment notes for the browser specs:
   "Failed to fetch" where the same call from Node returns 200. Note TR-003
   asserts that chip is *absent*, so in the same environment it passes for the
   wrong reason.
+  `booking-rules.spec.ts` BR-CANCEL-001/002 are the same case one flow over,
+  and they read as a broken checkout rather than as a missing chip:
+  `BookingWizard` resolves `isLoggedIn` from its own client-side
+  `auth.getUser()`, so with no egress the injected cookie is invisible to it,
+  Step 2 renders the signed-out registration fields, the walk never reaches
+  Step 3, and the failure is `getByText(/Free cancellation/)` not found. Both
+  fail identically on an unmodified tree -- confirmed by stashing and
+  re-running -- so a change to the cancellation copy is not what to suspect
+  first. `admin-settings-ia.spec.ts` CFG-005 covers the same page and passes
+  here, because Step 1's picker is fed by the server render rather than by a
+  browser-side read.
+  `pay-later.spec.ts` PL-UI-003 to PL-UI-006 are the same case a third time,
+  and its own screenshots are what settle it: `07-book-step2-filled.png` shows
+  Step 2 offering *Full Name*, *Create Password* and "Already have an account?
+  Sign in first" to a patient the spec had just signed in, so the four cases
+  after it fail on a booking that was never made rather than on anything
+  pay-later. A whole-suite run here is therefore **258 passed, 6 failed**, and
+  those six are these three pairs -- all six fail identically on a stashed,
+  unmodified tree. Check that before reading a red pay-later run as a money
+  bug.
 - `admin-login.spec.ts` is the exception, since the login form itself is
   what it tests: it needs a second app instance whose
   `NEXT_PUBLIC_SUPABASE_URL` points at `scripts/.qa/supabase-relay.mjs` (a
@@ -756,8 +776,8 @@ before.
      change any history.
 
   **Which number the app believes is a switch, not a deploy.**
-  `site_settings.entitlement_ledger_authoritative` (Settings → Programmes
-  & Home Visits, off by default) decides whether a balance shown and offered comes
+  `site_settings.entitlement_ledger_authoritative` (Settings → Advanced,
+  off by default) decides whether a balance shown and offered comes
   from the ledger or from `sessions_used` / `visits_used`. Flipping it is
   reversible in a second, because both are still written either way.
 
@@ -881,8 +901,28 @@ before.
 
 ## Domain rules worth knowing before editing
 
-- **Booking lead time** is 12 hours, defined once in `src/lib/bookingSlots.ts`
-  and shared by the picker and the validator so they cannot drift apart.
+- **Booking lead time** is `site_settings.online_booking_lead_time_hours`,
+  defaulting to the 12 hours `src/lib/bookingSlots.ts` still holds as
+  `BOOKING_LEAD_TIME_HOURS`, and shared by the picker and the validator so
+  they cannot drift apart.
+  **The constant is the fallback, never the answer, and three surfaces had it
+  the wrong way round.** `/api/appointments/create` has read the column since
+  it became a setting; `/book`'s Step 1 filtered its calendar on the constant
+  and printed the constant in *"at least N hours from now"*, `AssignReferralForm`
+  validated against the constant, and `/api/admin/assign-referral` re-checked
+  against the constant. So a clinic that widened its window was offered a slot
+  by its own picker, and the patient met the refusal at the last step of
+  checkout -- the "two answers to when can this be booked" failure this bullet
+  is otherwise about, reintroduced one level up the moment the rule became
+  configurable. All four read the setting now: `/book` loads it in its own
+  isolated query beside the three settings already there, `BookingWizard` takes
+  it as `bookingLeadTimeHours` and passes `leadTimeMsFromHours()` through to
+  `bookableHoursForDate` / `BookingCalendar`, and `AdminSlotPicker`'s own hint
+  reads the hours back off the value in force rather than printing the
+  constant. `/book` is ISR-cached, so `update-setting` revalidates it for this
+  key as it already did for `booking_languages`. A new surface that judges
+  whether a slot is far enough ahead takes the hours as a prop or reads the
+  column; there is no third source.
   **An admin screen that sets a session time reads that module too.**
   `AssignReferralForm` used `<input type="datetime-local">` with a
   five-minute floor, so an admin could promise a referred patient a slot the
@@ -2589,8 +2629,15 @@ before.
   `home/SessionPackages.tsx` is deleted. `show_programme_prices` /
   `session_packages_visible` are retired rather than defaulted off - a
   toggle somebody can flip back on is not the rule being gone, and a price
-  list of programmes is exactly what a patient must not shop from. The two
-  columns stay in `schema.sql`, read by nothing.
+  list of programmes is exactly what a patient must not shop from. Both
+  columns are **dropped** at the end of `schema.sql` now: leaving a column
+  nothing reads is only free while nothing touches it, and ten successive
+  re-declarations of `debug_reset_all_data()` kept resetting one of them
+  while an e2e `beforeAll` kept writing it, so the next reader of either had
+  to trace a column to its absence before learning it was dead. `drop column
+  if exists` is re-runnable, which is what made the original "a drop cannot
+  be undone by re-running the file" reasoning true of the data and not of
+  the statement.
   The home-visit exception is load-bearing rather than a compromise: every
   home visit in this app is a `home_visit_packages` purchase and
   `/api/appointments/create` books `visit_mode: 'online'` only, so applying
@@ -2965,6 +3012,45 @@ before.
   level, manage never outruns open, every section has a capability group, and
   every group has at least one read-only row, without which a group cannot
   show the difference between `view` and `none`.
+- **Settings is ten screens under four captions, and the captions are part
+  of the definition.** `AdminTabDef.group` (`src/lib/adminNav.ts`) names the
+  caption a screen sits under, and `AdminShell` draws one whenever the group
+  changes -- so screens sharing a caption must be **adjacent** in that array
+  or the caption is drawn twice. Four: *Your website*, *How the clinic runs*,
+  *Who gets in*, *Technical*. A flat list of ten labels is one nobody reads
+  top to bottom, which is the same failure the per-screen blurb fixes one
+  level down. Sections with a short screen list name no groups and render
+  exactly as before.
+  Two screens moved in the same change, both because the label on the door
+  was wrong about what was inside. **Sign-in & Security** (was *Account
+  Security*, one button to email yourself a reset) now also carries the idle
+  timeout and the sign-out banner, which sat on Booking Rules under a heading
+  promising "when a patient may book, cancel, and join a video session".
+  **Advanced** is the technical shelf: `entitlement_ledger_authoritative`
+  alone, taken off Programmes & Home Visits where it sat between two rules
+  about how a programme is sold. A switch belongs there when the clinic's own
+  judgement cannot answer it *and* it is about how the app works inside rather
+  than what it sells -- the test the ledger switch fails on both counts
+  elsewhere, since its own help text sends the reader to System Health.
+  Settings is `full` scope only, so Advanced needs no further gate.
+  **A settings screen taller than a couple of screens carries a map of
+  itself.** `SettingsJumpNav` + `SettingsSection`
+  (`src/components/admin/SettingsJumpNav.tsx`) put a sticky strip of anchors
+  above Public Site (4,300px) and Programmes & Home Visits (3,100px). Plain
+  `<a href="#id">`, and the ids are prefixed per screen because the shell
+  keeps every screen mounted behind `hidden` -- two screens naming a section
+  "Testimonials" would collide on one id. Its `offsetTop` matches
+  `AdminShell`'s: the pre-launch debug bar is fixed and 41px tall, and a strip
+  stuck to `top-0` parks underneath it.
+  **Two settings can be set into a combination where one does nothing, and
+  the screen says so.** The join control reads the Session Completed cutoff
+  before the join window (`JoinSessionButton`: `completed` wins over
+  `isJoinable`), so a cutoff at or below the after-window makes the grace
+  period unreachable. Booking Rules shows an amber line, computed off the
+  typed values rather than the saved ones so it appears while the owner is
+  still deciding. Stated, never refused: both numbers are legitimate alone,
+  and which one they meant to move is theirs.
+
 - **A settings screen says what it is and gives an example.** `AdminTabDef`
   carries an optional `blurb` and `example`, and `AdminShell` prints them
   under the page heading in place of the section's own line. Every Settings

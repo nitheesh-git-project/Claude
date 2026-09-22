@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import BookingWizard from "@/components/BookingWizard";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
+import { BOOKING_LEAD_TIME_HOURS } from "@/lib/bookingSlots";
 import BookingBackToSessions from "@/components/BookingBackToSessions";
 import { Reveal } from "@/components/motion/primitives";
 import { parseBookingLanguages } from "@/lib/adminSettings";
@@ -23,8 +24,13 @@ export const revalidate = 300;
 
 export default async function BookPage() {
   const supabase = createPublicClient();
-  const [{ data: categories }, { data: settingsRow }, { data: promoRow }, { data: cancelRow }] =
-    await Promise.all([
+  const [
+    { data: categories },
+    { data: settingsRow },
+    { data: promoRow },
+    { data: cancelRow },
+    { data: leadRow },
+  ] = await Promise.all([
     supabase
       .from("treatment_categories")
       .select("id, title, price_paise, duration_minutes")
@@ -50,6 +56,14 @@ export default async function BookPage() {
     // screen that reads as a promise. Its own query, same reasoning again:
     // losing it costs the sentence its number, not the page its categories.
     supabase.from("site_settings").select("online_cancellation_refund_hours").maybeSingle(),
+
+    // How far ahead a session must be booked. Its own query for the same
+    // reason as the three above -- and the reason it is here at all is that
+    // Step 1 filtered on the constant while /api/appointments/create has
+    // read this column since it became a setting: a clinic that widened the
+    // window was offered the old one by its own picker and had the booking
+    // refused at the last step of checkout.
+    supabase.from("site_settings").select("online_booking_lead_time_hours").maybeSingle(),
   ]);
 
   return (
@@ -76,6 +90,11 @@ export default async function BookPage() {
               typeof cancelRow?.online_cancellation_refund_hours === "number"
                 ? cancelRow.online_cancellation_refund_hours
                 : CANCELLATION_FULL_REFUND_HOURS
+            }
+            bookingLeadTimeHours={
+              typeof leadRow?.online_booking_lead_time_hours === "number"
+                ? leadRow.online_booking_lead_time_hours
+                : BOOKING_LEAD_TIME_HOURS
             }
           />
         </Suspense>

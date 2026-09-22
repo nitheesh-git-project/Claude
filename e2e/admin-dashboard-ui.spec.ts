@@ -132,7 +132,10 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
 
   test("C-001/C-002: spamming a save button produces exactly one request", async ({ page }) => {
     await page.goto(`${BASE}/admin/dashboard?section=settings&tab=booking`);
-    await expect(page.getByText("Online Booking Lead Time")).toBeVisible();
+    // The card's heading, not the column name: this screen was reworded away
+    // from "Online Booking Lead Time" when Settings stopped naming its
+    // controls after the thing they write.
+    await expect(page.getByText("How far ahead a session must be booked")).toBeVisible();
 
     const requests: string[] = [];
     page.on("request", (r) => {
@@ -141,7 +144,7 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
       }
     });
 
-    const card = page.locator("div", { hasText: "Online Booking Lead Time" }).last();
+    const card = page.locator("div", { hasText: "How far ahead a session must be booked" }).last();
     const save = card.getByRole("button", { name: "Save" }).first();
     // Ten clicks as fast as Playwright will issue them.
     await Promise.all(
