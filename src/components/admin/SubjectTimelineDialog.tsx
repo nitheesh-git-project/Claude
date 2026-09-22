@@ -26,11 +26,16 @@ import { activityCategory, activityCategoryLabel } from "@/lib/activityLog";
 export default function SubjectTimelineDialog({
   subject,
   onClose,
+  onBack,
   onOpenEntry,
 }: {
   /** The entry the reader came from -- its subject is what is being traced. */
   subject: ActivityRow;
   onClose: () => void;
+  /** Back to the entry this was opened from. One dialog is open at a time,
+   *  so without it the only way out is closing back to the table and
+   *  finding that entry again. */
+  onBack?: () => void;
   /** Back into the detail dialog for one row of the timeline. */
   onOpenEntry: (row: ActivityRow) => void;
 }) {
@@ -67,6 +72,8 @@ export default function SubjectTimelineDialog({
       title={subject.targetLabel ?? "This subject"}
       subtitle="Everything the back office has done to this record"
       onClose={onClose}
+      onBack={onBack}
+      backLabel="Back to this entry"
     >
       {error && (
         <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">

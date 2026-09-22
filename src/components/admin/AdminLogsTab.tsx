@@ -56,6 +56,11 @@ export default function AdminLogsTab({
   // An entry opened *from* a timeline. Same reason -- it may be older than
   // anything this screen has loaded, so it cannot be looked up by id.
   const [openRowFromTimeline, setOpenRowFromTimeline] = useState<ActivityRow | null>(null);
+  // The timeline an entry was picked from, so that entry can offer the way
+  // back to it. Held as the subject row rather than a flag: the timeline is
+  // keyed on that row's target, and re-deriving it from the entry now on
+  // screen would open a different record's history.
+  const [timelineOrigin, setTimelineOrigin] = useState<ActivityRow | null>(null);
   // A synchronous guard, because a `disabled` attribute lands a render too
   // late -- the same rule the suggestion controls follow.
   const loadingRef = useRef(false);
@@ -74,6 +79,7 @@ export default function AdminLogsTab({
   const closeEntry = () => {
     setOpenId(null);
     setOpenRowFromTimeline(null);
+    setTimelineOrigin(null);
   };
 
   const filtersActive =
@@ -274,7 +280,13 @@ export default function AdminLogsTab({
                 {pageRows.map((r) => (
                   <tr
                     key={r.id}
-                    onClick={() => setOpenId(r.id)}
+                    onClick={() => {
+                      // Opened from the table, so there is no timeline
+                      // behind it to go back to.
+                      setTimelineOrigin(null);
+                      setOpenRowFromTimeline(null);
+                      setOpenId(r.id);
+                    }}
                     className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
                   >
                     <td className="whitespace-nowrap py-2 pr-3 text-slate-500">
@@ -344,6 +356,15 @@ export default function AdminLogsTab({
         <ActivityDetailDialog
           row={openRow}
           onClose={closeEntry}
+          onBack={
+            timelineOrigin
+              ? () => {
+                  const origin = timelineOrigin;
+                  closeEntry();
+                  setSubject(origin);
+                }
+              : undefined
+          }
           onOpenSubject={(r) => {
             closeEntry();
             setSubject(r);
@@ -355,7 +376,16 @@ export default function AdminLogsTab({
         <SubjectTimelineDialog
           subject={subject}
           onClose={() => setSubject(null)}
+          onBack={() => {
+            // Back to the entry this timeline was opened from. Its own row
+            // is the subject, so nothing has to be remembered separately.
+            setSubject(null);
+            setTimelineOrigin(null);
+            setOpenId(subject.id);
+            setOpenRowFromTimeline(subject);
+          }}
           onOpenEntry={(r) => {
+            setTimelineOrigin(subject);
             setSubject(null);
             setOpenId(r.id);
             setOpenRowFromTimeline(r);

@@ -8,11 +8,20 @@ export default function Modal({
   title,
   subtitle,
   onClose,
+  onBack,
+  backLabel = "Back",
   children,
 }: {
   title: string;
   subtitle?: string;
   onClose: () => void;
+  /** Where this dialog was opened from, when it replaced another one.
+   *  One dialog is on screen at a time here, so a dialog that took the
+   *  place of another has to offer the way back itself -- closing it
+   *  otherwise drops the reader onto the table and makes them find what
+   *  they were reading a tap ago all over again. */
+  onBack?: () => void;
+  backLabel?: string;
   children: ReactNode;
 }) {
   const titleId = useId();
@@ -37,6 +46,16 @@ export default function Modal({
         >
           <div className="flex items-start justify-between mb-4 gap-4">
             <div>
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="mb-1.5 -ml-1 inline-flex items-center gap-1.5 rounded-lg px-1 py-0.5 text-[11px] font-semibold text-teal-700 transition hover:text-teal-900"
+                >
+                  <i aria-hidden className="fa-solid fa-arrow-left text-[9px]" />
+                  {backLabel}
+                </button>
+              )}
               <h3 id={titleId} className="font-display font-bold text-lg text-slate-800">
                 {title}
               </h3>

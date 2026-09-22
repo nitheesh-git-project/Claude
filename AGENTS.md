@@ -3566,6 +3566,17 @@ before.
   on rather than claiming to be everything. One dialog is open at a time:
   opening a timeline closes the entry behind it, since two stacked modals
   over a table leave a reader unable to tell which Escape closes what.
+  **So each replacement carries the way back itself.** `Modal` takes an
+  optional `onBack` (with its own label), the timeline offers "Back to this
+  entry", and an entry opened *from* a timeline offers "Back to this
+  record's history". Without it the only exit from a dialog that replaced
+  another was closing to the table and finding the entry again -- the cost
+  of the one-at-a-time rule, paid by the reader rather than by the design.
+  The way back is a real row, never a re-derivation: `timelineOrigin` holds
+  the subject row the timeline was keyed on, because rebuilding it from the
+  entry now on screen would open a different record's history. An entry
+  opened from the table clears it, so no back button points at a timeline
+  nobody came from.
 - **An audit entry is read months later, so it says what changed from what.**
   Tapping a row in the Logs section -- or on a limited desk's
   Today -> Activity -- opens the whole entry
