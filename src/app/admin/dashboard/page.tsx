@@ -488,7 +488,7 @@ export default async function AdminDashboardPage({
     admin
       .from("treatment_category_packages")
       .select(
-        "id, package_code, category_id, title, subtitle, description, image_url, promises, badge_label, highlight, terms, session_count, price_paise, compare_at_paise, display_order, therapist_rate_basis, validity_days, session_duration_minutes, therapist_locked, min_gap_hours, max_sessions_per_week, max_purchases_per_patient, visible_on_home, visible_on_conditions, visible_in_dashboard, active"
+        "id, package_code, category_id, title, subtitle, description, image_url, promises, session_count, price_paise, compare_at_paise, display_order, therapist_rate_basis, validity_days, session_duration_minutes, therapist_locked, min_gap_hours, max_sessions_per_week, max_purchases_per_patient, recommendable, active"
       )
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),
@@ -549,7 +549,7 @@ export default async function AdminDashboardPage({
     admin
       .from("home_visit_packages")
       .select(
-        "id, package_code, title, subtitle, description, image_url, benefits, badge_label, highlight, terms, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked, min_gap_hours, max_visits_per_week, max_purchases_per_patient, category_id, display_order, visible_on_home, visible_on_home_visit_page, visible_in_dashboard, active"
+        "id, package_code, title, subtitle, description, image_url, benefits, badge_label, highlight, terms, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked, min_gap_hours, max_visits_per_week, max_purchases_per_patient, category_id, display_order, visible_on_home_visit_page, visible_in_dashboard, recommendable, active"
       )
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),

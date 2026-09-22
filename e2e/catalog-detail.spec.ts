@@ -58,10 +58,7 @@ test.describe("Catalog detail dialogs", () => {
         compare_at_paise: 480000,
         promises: ["Promise one", "Promise two"],
         description: "Long-form package copy the card has no room for.",
-        terms: "Seeded terms.",
         active: true,
-        visible_on_home: true,
-        visible_on_conditions: true,
       })
       .select("id")
       .single();

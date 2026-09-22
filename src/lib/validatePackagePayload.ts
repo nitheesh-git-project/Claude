@@ -6,8 +6,7 @@
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_SUBTITLE_LENGTH = 200;
-const MAX_BADGE_LENGTH = 40;
-const MAX_TEXT_LENGTH = 4000; // description, terms
+const MAX_TEXT_LENGTH = 4000; // description
 const MAX_PROMISES = 20;
 const MAX_PROMISE_LENGTH = 200;
 const MAX_IMAGE_URL_LENGTH = 2000;
@@ -28,9 +27,6 @@ export type PackagePayload = {
   imageFocalX?: number | null;
   imageFocalY?: number | null;
   promises?: string[];
-  badgeLabel?: string | null;
-  highlight?: boolean;
-  terms?: string | null;
   sessionCount?: number | string;
   priceInr?: number | string;
   compareAtInr?: number | string | null;
@@ -42,9 +38,7 @@ export type PackagePayload = {
   minGapHours?: number | string | null;
   maxSessionsPerWeek?: number | string | null;
   maxPurchasesPerPatient?: number | string | null;
-  visibleOnHome?: boolean;
-  visibleOnConditions?: boolean;
-  visibleInDashboard?: boolean;
+  recommendable?: boolean;
   active?: boolean;
 };
 
@@ -54,9 +48,6 @@ export type PackageColumns = {
   description: string | null;
   image_url: string | null;
   promises: string[];
-  badge_label: string | null;
-  highlight: boolean;
-  terms: string | null;
   session_count: number;
   price_paise: number;
   compare_at_paise: number | null;
@@ -68,9 +59,7 @@ export type PackageColumns = {
   min_gap_hours: number | null;
   max_sessions_per_week: number | null;
   max_purchases_per_patient: number | null;
-  visible_on_home: boolean;
-  visible_on_conditions: boolean;
-  visible_in_dashboard: boolean;
+  recommendable: boolean;
   active: boolean;
 };
 
@@ -144,24 +133,6 @@ export function validatePackagePayload(
       promises.push(trimmed);
     }
     columns.promises = promises;
-  }
-
-  if (body.badgeLabel !== undefined) {
-    if (body.badgeLabel && body.badgeLabel.length > MAX_BADGE_LENGTH) {
-      return { error: `Badge text must be ${MAX_BADGE_LENGTH} characters or fewer.` };
-    }
-    columns.badge_label = body.badgeLabel?.trim() || null;
-  }
-
-  if (body.highlight !== undefined) {
-    columns.highlight = Boolean(body.highlight);
-  }
-
-  if (body.terms !== undefined) {
-    if (body.terms && body.terms.length > MAX_TEXT_LENGTH) {
-      return { error: `Terms must be ${MAX_TEXT_LENGTH} characters or fewer.` };
-    }
-    columns.terms = body.terms?.trim() || null;
   }
 
   if (requireTitleAndPricing || body.sessionCount !== undefined) {
@@ -253,11 +224,7 @@ export function validatePackagePayload(
     columns.max_purchases_per_patient = result.value;
   }
 
-  if (body.visibleOnHome !== undefined) columns.visible_on_home = Boolean(body.visibleOnHome);
-  if (body.visibleOnConditions !== undefined)
-    columns.visible_on_conditions = Boolean(body.visibleOnConditions);
-  if (body.visibleInDashboard !== undefined)
-    columns.visible_in_dashboard = Boolean(body.visibleInDashboard);
+  if (body.recommendable !== undefined) columns.recommendable = Boolean(body.recommendable);
   if (body.active !== undefined) columns.active = Boolean(body.active);
 
   return { columns };

@@ -12012,3 +12012,42 @@ create unique index if not exists business_expenses_one_per_source_appointment
 -- failure naming it, not a silent drop of whatever it was.
 alter table site_settings drop column if exists session_packages_visible restrict;
 alter table site_settings drop column if exists show_programme_prices restrict;
+
+-- A session package's placement flags, and its marketing text, follow the
+-- same reasoning one table over.
+--
+-- `visible_on_home`, `visible_on_conditions` and `visible_in_dashboard` each
+-- decided where a programme was advertised. The consultation-first cutover
+-- removed every one of those surfaces: `/` and `/conditions` carry no
+-- programme catalogue at all, and the patient's booking hub sells one
+-- consultation or one visit. Nothing has read any of the three since, while
+-- the admin form went on offering them as three ticked boxes above the only
+-- switch that still did anything -- which is worse than a dead column,
+-- because it reads as a placement somebody chose.
+--
+-- `badge_label`, `highlight` and `terms` are the same story as content
+-- rather than placement: a corner ribbon, a featured ring and fine print,
+-- all of them for the public programme card that was deleted. `terms` was
+-- still being selected into the care-plan offer snapshot, where it reached
+-- no screen either.
+--
+-- The switch that does decide where a programme reaches a patient is
+-- `recommendable`, and it had no control on that form at all -- while
+-- Sessions -> Recommendations told admins to "turn one on under Catalog ->
+-- Packages". It has one now, on both catalog forms.
+--
+-- `home_visit_packages` keeps its badge, its highlight, its terms and both
+-- of its live placement flags: a home visit is still sold directly, so
+-- `/home-visit` and the booking hub both render it. Only `visible_on_home`
+-- goes, because the home page carries a link band to that page and has
+-- never listed visit packages.
+--
+-- `restrict` rather than `cascade`, for the reason above: a dependency
+-- written since should fail loudly rather than be dropped silently.
+alter table treatment_category_packages drop column if exists visible_on_home restrict;
+alter table treatment_category_packages drop column if exists visible_on_conditions restrict;
+alter table treatment_category_packages drop column if exists visible_in_dashboard restrict;
+alter table treatment_category_packages drop column if exists badge_label restrict;
+alter table treatment_category_packages drop column if exists highlight restrict;
+alter table treatment_category_packages drop column if exists terms restrict;
+alter table home_visit_packages drop column if exists visible_on_home restrict;

@@ -4803,6 +4803,31 @@ must not have.
   `/api/admin/create-package` already took and re-checked `categoryId`, so
   nothing server-side moved. `e2e/package-category-picker.spec.ts` is the
   guard.
+- **A switch that decides nothing is worse than no switch.** The
+  session-package form carried three placement ticks -- *Show on Home page*,
+  *Show on Conditions page*, *Show in Patient Dashboard* -- plus a Badge, a
+  *Feature this package* ring and a Terms box. Every one of them was for the
+  public programme card the consultation-first cutover deleted: `/` and
+  `/conditions` carry no programme catalogue, the booking hub sells one
+  consultation or one visit, and `terms` was selected into the care-plan
+  offer snapshot and rendered on no screen. Three ticked boxes above the one
+  switch that still worked read as a placement somebody chose. They are gone
+  from the form, from `validatePackagePayload`, from the dashboard's select
+  and from the table (`drop column if exists ... restrict` at the end of
+  `schema.sql`, the `show_programme_prices` precedent).
+  **And the switch that does decide it had no control at all.**
+  `recommendable` is what lets a clinician put a programme in front of a
+  patient -- the only route a programme is sold by now -- while Sessions ->
+  Recommendations told admins to "turn one on under Catalog -> Packages", a
+  screen with no such control. Both catalog forms have it now, and the
+  package list chips *Not recommendable* rather than a badge nobody renders.
+  **Home visits are not the same case and were not treated as one.** A visit
+  package is still sold directly (a one-visit package is that patient's
+  consultation), so `/home-visit` and the booking hub both render it: its
+  badge, highlight, terms, `visible_on_home_visit_page` and
+  `visible_in_dashboard` all stay. Only `visible_on_home` goes, because the
+  home page carries a link band to that page and has never listed visit
+  packages. `e2e/package-form-flags.spec.ts` holds both halves.
 
 ## Gotchas
 

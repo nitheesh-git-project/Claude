@@ -75,7 +75,7 @@ export async function loadRecommendablePackages(
   let sessionQuery = admin
     .from("treatment_category_packages")
     .select(
-      "id, category_id, title, session_count, price_paise, compare_at_paise, validity_days, session_duration_minutes, min_gap_hours, max_sessions_per_week, therapist_locked, terms, active, recommendable"
+      "id, category_id, title, session_count, price_paise, compare_at_paise, validity_days, session_duration_minutes, min_gap_hours, max_sessions_per_week, therapist_locked, active, recommendable"
     )
     .eq("active", true)
     .eq("recommendable", true)
@@ -186,12 +186,17 @@ export async function resolveRecommendablePackage(
   const table = kind === "session_package" ? "treatment_category_packages" : "home_visit_packages";
   const columns =
     kind === "session_package"
-      ? "id, category_id, title, session_count, price_paise, compare_at_paise, validity_days, session_duration_minutes, min_gap_hours, max_sessions_per_week, therapist_locked, terms, active, recommendable"
+      ? "id, category_id, title, session_count, price_paise, compare_at_paise, validity_days, session_duration_minutes, min_gap_hours, max_sessions_per_week, therapist_locked, active, recommendable"
       : "id, category_id, title, visit_count, price_paise, compare_at_paise, validity_days, visit_duration_minutes, min_gap_hours, max_visits_per_week, therapist_locked, terms, active, recommendable";
   try {
     const { data } = await admin.from(table).select(columns).eq("id", packageId).maybeSingle();
     if (!data) return null;
-    const row = data as Record<string, unknown>;
+    // Through `unknown`: `columns` is a union of two select strings, which
+    // supabase-js's own type-level parser cannot resolve to a row shape.
+    // The row is read as a bag here anyway -- `buildOfferSnapshot` takes it
+    // as one on purpose, since the two catalog tables name their columns
+    // differently.
+    const row = data as unknown as Record<string, unknown>;
     if (row.active === false || row.recommendable === false) return null;
     return {
       snapshot: buildOfferSnapshot(kind, row),
