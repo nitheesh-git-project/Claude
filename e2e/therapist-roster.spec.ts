@@ -638,6 +638,14 @@ test.describe("Therapist roster - booking is untouched", () => {
     });
     await page.goto(`${BASE}/book`);
     const times = page.getByRole("radiogroup", { name: "Preferred time" }).getByRole("radio");
+    // `count()` is a one-shot read with no auto-waiting, and the picker is
+    // rendered by a client component after hydration -- so counting straight
+    // after a navigation races the render and returns 0. That failure reads
+    // as "the roster emptied the patient's picker", which is the exact
+    // regression this case exists to catch, so it has to be waited out
+    // rather than left to chance. `toBeVisible` is the waiting half; the
+    // count that follows is then a real one.
+    await expect(times.first()).toBeVisible({ timeout: 30_000 });
     const before = await times.count();
     expect(before).toBeGreaterThan(0);
 
@@ -646,6 +654,10 @@ test.describe("Therapist roster - booking is untouched", () => {
     await post(WEEKLY, cookie, { therapistId, days: days({}) });
     await post(LEAVE, cookie, { therapistId, onLeave: true });
     await page.reload();
+    // Same race on the way back, and this is the side that matters: an
+    // un-awaited 0 here would read as the roster having emptied the picker
+    // and pass the test's own premise off as a product bug.
+    await expect(times.first()).toBeVisible({ timeout: 30_000 });
     const after = await times.count();
     await post(LEAVE, cookie, { therapistId, onLeave: false });
 
