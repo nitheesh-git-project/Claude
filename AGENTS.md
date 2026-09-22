@@ -163,6 +163,15 @@ Three environment notes for the browser specs:
   first. `admin-settings-ia.spec.ts` CFG-005 covers the same page and passes
   here, because Step 1's picker is fed by the server render rather than by a
   browser-side read.
+  `pay-later.spec.ts` PL-UI-003 to PL-UI-006 are the same case a third time,
+  and its own screenshots are what settle it: `07-book-step2-filled.png` shows
+  Step 2 offering *Full Name*, *Create Password* and "Already have an account?
+  Sign in first" to a patient the spec had just signed in, so the four cases
+  after it fail on a booking that was never made rather than on anything
+  pay-later. A whole-suite run here is therefore **258 passed, 6 failed**, and
+  those six are these three pairs -- all six fail identically on a stashed,
+  unmodified tree. Check that before reading a red pay-later run as a money
+  bug.
 - `admin-login.spec.ts` is the exception, since the login form itself is
   what it tests: it needs a second app instance whose
   `NEXT_PUBLIC_SUPABASE_URL` points at `scripts/.qa/supabase-relay.mjs` (a
