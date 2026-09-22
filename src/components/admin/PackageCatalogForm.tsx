@@ -49,13 +49,23 @@ export default function PackageCatalogForm({
   defaultCategoryId,
   onCancel,
 }: {
-  categories: { id: string; title: string; price_paise: number }[];
+  categories: { id: string; title: string; price_paise: number; active?: boolean }[];
   pkg?: Package;
   defaultCategoryId?: string;
   onCancel?: () => void;
 }) {
   const isEdit = !!pkg;
-  const [categoryId] = useState(pkg?.category_id ?? defaultCategoryId ?? categories[0]?.id ?? "");
+  // Chosen at creation and fixed afterwards. It used to be fixed at
+  // creation too: the control was rendered `disabled` on the new-package
+  // form, which pinned every package ever created to `categories[0]` --
+  // the first condition by display order -- with a hint underneath
+  // explaining that it could not be changed. That reads as a rule and was
+  // a control nobody had enabled: this form is opened from a flat "Add
+  // Package" button with no category behind it, so there is nothing for it
+  // to have inherited.
+  const [categoryId, setCategoryId] = useState(
+    pkg?.category_id ?? defaultCategoryId ?? categories[0]?.id ?? ""
+  );
   const [title, setTitle] = useState(pkg?.title ?? "");
   const [subtitle, setSubtitle] = useState(pkg?.subtitle ?? "");
   const [description, setDescription] = useState(pkg?.description ?? "");
@@ -180,11 +190,24 @@ export default function PackageCatalogForm({
       <fieldset className="space-y-3">
         <legend className="font-bold text-slate-700 mb-1">Identity</legend>
         {!isEdit && (
-          <Field label="Category" hint="Fixes the session type, duration, and list price. Cannot be changed after creation.">
-            <select value={categoryId} disabled className="w-full p-2 rounded-lg border border-slate-300 bg-slate-100">
+          <Field
+            label="Category"
+            hint="Which condition from Catalog - Conditions this package is sold under. It fixes the session type, the duration and the list price the saving is worked out against, and it cannot be changed once the package exists, because live purchases reference it."
+          >
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              required
+              className={inputCls()}
+            >
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.title}
+                  {/* The list price is part of the choice rather than a
+                      detail of it: every saving figure on this form is
+                      computed against it, so picking blind means checking
+                      the Conditions screen and coming back. */}
+                  {c.title} — ₹{(c.price_paise / 100).toLocaleString("en-IN")} a session
+                  {c.active === false ? " (inactive)" : ""}
                 </option>
               ))}
             </select>

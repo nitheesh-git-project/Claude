@@ -2710,6 +2710,9 @@ export default async function AdminDashboardPage({
             id: c.id,
             title: c.title,
             price_paise: c.price_paise,
+            // Passed so the picker can say which conditions are switched
+            // off rather than offering them as though they were on sale.
+            active: c.active,
           }))}
         />
       </div>

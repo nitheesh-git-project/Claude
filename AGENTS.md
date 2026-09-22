@@ -4785,6 +4785,24 @@ must not have.
   session length reads as a third measurement until it does.
   `e2e/numeric-input.spec.ts` is the guard -- the rule is unit-tested, and
   what needs a real browser is the browser's own handling being overridden.
+- **A control that is disabled everywhere is a rule; one disabled by
+  accident is a bug wearing a rule's clothes.** A session package's category
+  is genuinely immutable *after* creation -- live purchases reference it --
+  and `PackageCatalogForm` rendered that lock on the **new**-package form
+  too, with the hint "cannot be changed after creation" underneath it. The
+  form is opened from a flat "+ Add Package" button with no category behind
+  it, so `defaultCategoryId` was never passed and every package ever created
+  was pinned to `categories[0]`, the first condition by display order. The
+  sentence explaining the lock is what made it survive: the screen read as
+  having a reason. It is a real picker at creation now, still a plain
+  read-only line on edit, and its options carry each condition's own list
+  price, because every saving figure on that form is computed against it and
+  choosing blind meant a trip to Conditions and back. A condition that is
+  switched off is labelled rather than dropped -- a package under it is not
+  on sale either way, and an option silently missing reads as data lost.
+  `/api/admin/create-package` already took and re-checked `categoryId`, so
+  nothing server-side moved. `e2e/package-category-picker.spec.ts` is the
+  guard.
 
 ## Gotchas
 
