@@ -223,14 +223,21 @@ test("PL-UI-003 booking on terms, with no payment step", async ({ page }) => {
   // for a patient booking on terms it never rendered at all.
   await expect(page.getByRole("button", { name: /Or pay .* now instead/i })).toBeVisible();
 
-  // The notice, in its own words and with its own spacing. Two things were
-  // wrong here and both are invisible to a route test: it quoted the refund
-  // window at somebody who owes nothing until the session happens, and the
-  // prepaid wording it quoted rendered as "24hours" -- a JSX text node
-  // carrying an entity loses its leading space when it wraps.
+  // The notice, in its own words: it quoted the refund window at somebody who
+  // owes nothing until the session happens, which describes money they never
+  // paid. Both prepaid shapes are asserted absent rather than just the one
+  // wording, so a future rewrite of that branch cannot leak into this one
+  // unnoticed.
+  //
+  // The spacing regression that shipped alongside this lives on the prepaid
+  // branch, which quotes a number where this one does not -- so asserting it
+  // here could never have failed. `booking-rules.spec.ts` BR-CANCEL-001/002
+  // are where that is actually pinned now; this line stays only to catch a
+  // numbered sentence leaking onto a screen that should carry none.
   const notice = (await page.textContent("body")) ?? "";
   expect(notice).toContain("Cancel any time before your slot");
-  expect(notice).not.toContain("Free cancellation up to");
+  expect(notice).not.toContain("Free cancellation");
+  expect(notice).not.toContain("so cancelling it isn't refunded");
   expect(notice).not.toMatch(/\d+hours/);
 
   await page.getByRole("button", { name: /Confirm booking - pay later/i }).click();

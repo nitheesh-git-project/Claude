@@ -24,6 +24,7 @@ import {
   earliestBookableDateKey,
 } from "@/lib/bookingSlots";
 import { debugNow } from "@/lib/debugNow";
+import { describeCancellationWindow } from "@/lib/cancellationWindow";
 
 type Category = {
   id: string;
@@ -148,6 +149,18 @@ export default function BookingWizard({
 
   const slotDateTime =
     bookDate && bookHour !== "" ? `${bookDate}T${String(bookHour).padStart(2, "0")}:00` : "";
+  // What cancelling this slot will cost, judged against the same `nowMs` the
+  // picker used. Sharing that clock is not tidiness: the lead time and the
+  // refund window are measured from the same instant, so reading Date.now()
+  // here would let the screen offer a slot as bookable and describe its
+  // cancellation terms against a different "now" -- and it is what keeps the
+  // debug bar's simulate-time box working on this line as well as on the
+  // calendar.
+  const cancellationWindow = describeCancellationWindow({
+    slotMs: slotDateTime ? new Date(slotDateTime).getTime() : null,
+    refundWindowHours,
+    nowMs,
+  });
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -1158,16 +1171,38 @@ export default function BookingWizard({
               never creates the debt; telling them instead that they would
               "not be eligible for a refund" describes money they never paid.
 
-              Built as one string rather than text around `{expr}` on its own
-              line: JSX drops the newline and the indentation between an
-              expression and the text after it, which is how this rendered as
-              "within 24hours of the slot" on the one screen where a number
-              and a unit have to read as a number and a unit. */}
+              A booking a discount took to zero is the same rule once more:
+              a refund window is not a fact about a session nobody paid for,
+              and the old sentence promised one a patient could never claim.
+
+              For everyone else it names the deadline rather than the rule.
+              The patient chose this slot two steps ago and the app knows it,
+              so "up to 24 hours before your slot" asked them to do arithmetic
+              against a time they would have to scroll back for -- and it was
+              worse than merely unhelpful on the bookings that matter most.
+              The lead time is 12 hours and the window defaults to 24, so
+              every booking made between those two is non-refundable from the
+              moment it is made, and that sentence told exactly those patients
+              they had free cancellation. They now read that this slot is
+              inside the window, at the point where they can still pick
+              another one.
+
+              Built as one string per branch rather than text around `{expr}`
+              on its own line: JSX drops the newline and the indentation
+              between an expression and the text after it, which is how this
+              rendered as "within 24hours of the slot" on the one screen where
+              a number and a unit have to read as a number and a unit. */}
           <p className="text-xs text-slate-500">
             <i className="fa-solid fa-circle-info text-teal-600 mr-1"></i>
-            {quote?.settlement === "pay_later"
-              ? `Cancel any time before your slot and you won't owe anything for it - a session is only added to what you owe once it has happened.`
-              : `Free cancellation up to ${refundWindowHours} hours before your slot. Cancelling within ${refundWindowHours} hours of the slot isn't eligible for a refund.`}
+            {quote?.settlement === "free"
+              ? `Cancel any time before your slot. There is nothing to pay for this session and nothing to refund.`
+              : quote?.settlement === "pay_later"
+                ? `Cancel any time before your slot and you won't owe anything for it - a session is only added to what you owe once it has happened.`
+                : cancellationWindow.kind === "deadline"
+                  ? `Free cancellation until ${formatClinicDateTime(cancellationWindow.deadlineMs)}. After that, cancelling isn't refunded.`
+                  : cancellationWindow.kind === "already_inside"
+                    ? `This slot is less than ${cancellationWindow.hours} hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option.`
+                    : `Free cancellation up to ${cancellationWindow.hours} hours before your slot. After that, cancelling isn't refunded.`}
           </p>
           <div className="flex gap-3 pt-1">
             <button

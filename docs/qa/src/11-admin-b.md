@@ -127,8 +127,9 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 
 #### `ADM-SET-011` - Online Cancellation Refund Window → the cancel dialog and the refund · P0
 **Configuration.** `online_cancellation_refund_hours`, default **24**.
-**Steps.** Change it to `72`. Reload `/book` Step 3 and read the cancellation notice. Then cancel a paid session whose slot is 48 hours away.
-**Expected Result.** Step 3's notice now reads *"Free cancellation up to 72 hours before your slot…"*. The 48-hour-away cancellation now falls **inside** the window: the dialog says it will not be refunded, and **no refund is processed**. Restore `24`.
+**Steps.** Change it to `72`. Reload `/book` Step 3, pick a slot **48 hours out**, and read the cancellation notice. Then pick one **96 hours out** and read it again. Then cancel a paid session whose slot is 48 hours away.
+**Expected Result.** On the 48-hour slot, Step 3's notice reads *"This slot is less than 72 hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* - the screen says so **before** the patient pays, which is the point of naming the deadline rather than the rule. On the 96-hour slot it reads *"Free cancellation until \<date\>, \<time\>."*, that date being the slot less 72 hours. The 48-hour-away cancellation then falls **inside** the window: the dialog says it will not be refunded, and **no refund is processed**. Restore `24`.
+**The number must move with the setting.** `CANCELLATION_FULL_REFUND_HOURS` (24) is only the fallback for a database with no value stored; a notice still reading 24 here is the screen quoting a constant instead of the clinic's own window.
 **Independence check:** this must **not** change the **home-visit** refund dialog, which reads its own setting.
 
 #### `ADM-SET-012` - Booking Languages → the Step 1 chips · P1

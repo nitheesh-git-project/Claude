@@ -905,7 +905,15 @@ cancellation window is 24 hours by default and admin-editable at **Settings
 → Booking Rules** (`site_settings.online_cancellation_refund_hours`, with
 `CANCELLATION_FULL_REFUND_HOURS` as the fallback). Cancellations inside the
 window get no refund; outside it, a Razorpay refund is issued and stamped on
-the appointment. That automatic rule can only say "all" or "nothing", so an
+the appointment. The booking wizard's Step 3 states the **deadline** this
+produces for the slot just chosen ("Free cancellation until 24 Sept 2026,
+9:00 am") rather than restating the rule, and where the slot is already
+nearer than the window - which every booking between the 12-hour lead time
+and this 24-hour window is - it says so there, while the patient can still
+choose a different slot. `src/lib/cancellationWindow.ts` is that judgement,
+and a booking that costs nothing (a discount reaching zero, or a patient on
+pay-later terms) gets its own sentence instead, since a refund window is not
+a fact about a session nobody paid for. That automatic rule can only say "all" or "nothing", so an
 admin can additionally return any amount on a paid session from its own
 record (`/api/admin/refund-session-partial`) - it requires a stated reason,
 caps at what is still refundable, sets `refund_is_manual`, and is recorded

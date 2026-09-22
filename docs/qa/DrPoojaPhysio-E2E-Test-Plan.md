@@ -1077,7 +1077,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 | Setting | Where an admin changes it | Effect on `/book` |
 | --- | --- | --- |
 | `online_booking_lead_time_hours` | Settings → Booking Rules → **Online Booking Lead Time** | Which dates/hours the calendar offers, and the server's own validator |
-| `online_cancellation_refund_hours` | Settings → Booking Rules → **Online Cancellation Refund Window** | The sentence on Step 3 ("Free cancellation up to N hours…") and the refund actually paid |
+| `online_cancellation_refund_hours` | Settings → Booking Rules → **Online Cancellation Refund Window** | The sentence on Step 3 and the refund actually paid. The sentence names the **deadline** rather than the rule - *"Free cancellation until 24 Sept 2026, 9:00 am."* - computed from the chosen slot minus this window. A slot nearer than the window reads *"This slot is less than N hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* instead, which is the common case whenever this setting is larger than the booking lead time |
 | **Booking Languages** | Settings → Booking Rules → Booking Languages | The chips on Step 1. An empty list degrades to `English` - booking must never present an empty language picker. |
 | Treatment categories | Catalog → Conditions | The "What would you like help with?" dropdown, each entry showing `Title - ₹price / duration min`. An **inactive** category disappears, and a booking against it is refused server-side. |
 | Category **price** and **duration** | Catalog → Conditions | The header price line, Step 3's Session Fee, the Razorpay amount, and the appointment's duration. **All re-derived server-side from the category row, never from the browser** - `/book` is ISR-cached, so the copy the patient filled in can legitimately be older than the one being charged. |
@@ -1382,7 +1382,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Expected Result**
 * Step 10: the wizard advances to **Step 3 of 3**. The dark header subtitle now reads `₹1,999 INR • 60-Min HD Video Call & Custom Rehab Plan`.
-* Step 11: **Name** `QA Patient A`; **Email** `qa.patient.a@example.test`; **Preferred Time** 11 September 2026, 09:00, in local format; **Language** `English`; **Concern** `QA Back & Spine Care`; **Session Fee** `₹1,999 INR`. Two notices are present: the Razorpay/secure line and *"Free cancellation up to 24 hours before your slot. Cancelling within 24 hours of the slot isn't eligible for a refund."*
+* Step 11: **Name** `QA Patient A`; **Email** `qa.patient.a@example.test`; **Preferred Time** 11 September 2026, 09:00, in local format; **Language** `English`; **Concern** `QA Back & Spine Care`; **Session Fee** `₹1,999 INR`. Two notices are present: the Razorpay/secure line and the cancellation deadline - *"Free cancellation until \<date\>, \<time\>. After that, cancelling isn't refunded."*, where the date is the chosen slot less the 24-hour window, rendered in clinic time. A slot booked less than 24 hours out reads *"This slot is less than 24 hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* instead - **check which of the two applies to the slot you picked before calling this a failure**
 * Step 12: the button shows `Please wait...`; the Supabase account is created and signed in **with no email-confirmation step**; the appointment is created; Razorpay checkout opens.
 * Step 14: Step 3 is replaced by a green tick, **Payment Confirmed**, the sentence about confirming the slot and sending the link, and a **Go to Dashboard** button.
 * **Data state:** exactly **one** appointment for Patient A - `status='requested'`, `payment_status='paid'`, `therapist_id=null`, `visit_mode='online'`, `duration_minutes=60`, `concern='QA Back & Spine Care'`, `preferred_language='English'`, timezone recorded. Exactly **one** `payments` row for that Razorpay order. Patient A's `approved` is now **true** (flipped by `create-order`).
@@ -3258,8 +3258,9 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 
 #### `ADM-SET-011` - Online Cancellation Refund Window → the cancel dialog and the refund · P0
 **Configuration.** `online_cancellation_refund_hours`, default **24**.
-**Steps.** Change it to `72`. Reload `/book` Step 3 and read the cancellation notice. Then cancel a paid session whose slot is 48 hours away.
-**Expected Result.** Step 3's notice now reads *"Free cancellation up to 72 hours before your slot…"*. The 48-hour-away cancellation now falls **inside** the window: the dialog says it will not be refunded, and **no refund is processed**. Restore `24`.
+**Steps.** Change it to `72`. Reload `/book` Step 3, pick a slot **48 hours out**, and read the cancellation notice. Then pick one **96 hours out** and read it again. Then cancel a paid session whose slot is 48 hours away.
+**Expected Result.** On the 48-hour slot, Step 3's notice reads *"This slot is less than 72 hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* - the screen says so **before** the patient pays, which is the point of naming the deadline rather than the rule. On the 96-hour slot it reads *"Free cancellation until \<date\>, \<time\>."*, that date being the slot less 72 hours. The 48-hour-away cancellation then falls **inside** the window: the dialog says it will not be refunded, and **no refund is processed**. Restore `24`.
+**The number must move with the setting.** `CANCELLATION_FULL_REFUND_HOURS` (24) is only the fallback for a database with no value stored; a notice still reading 24 here is the screen quoting a constant instead of the clinic's own window.
 **Independence check:** this must **not** change the **home-visit** refund dialog, which reads its own setting.
 
 #### `ADM-SET-012` - Booking Languages → the Step 1 chips · P1

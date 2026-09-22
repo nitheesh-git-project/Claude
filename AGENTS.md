@@ -342,6 +342,7 @@ src/lib/rateLimit.ts     the named limits, and who a request counts against
 src/lib/rateLimitServer.ts the one call that counts a hit and refuses
 src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
 src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
+src/lib/cancellationWindow.ts what cancelling this slot will cost, before paying
 src/lib/financeMetrics.ts the seven standard finance figures and their inputs
 src/lib/patientBalances.ts what trusted patients owe, and how long they have
 src/lib/payLaterSettingsServer.ts the clinic's own "worth chasing" threshold
@@ -1236,9 +1237,40 @@ before.
   home visit has its own window, so the constant was quoting the wrong number
   of hours on every cancelled visit.
 - **Cancellation/refund**: full refund only outside the 24-hour window in
-  `src/lib/pricing.ts`; inside it, none. Home visits use their own window
+  `src/lib/pricing.ts`; inside it, none. That constant is the **fallback**,
+  never the answer -- the live window is
+  `site_settings.online_cancellation_refund_hours`, and a screen printing the
+  constant quotes the wrong number at every patient the moment a clinic
+  changes it. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) -
   see the Home Visit bullet below.
+  **The payment screen names the deadline, not the rule**, and that is the
+  difference between a policy and something a patient can act on.
+  `describeCancellationWindow` (`src/lib/cancellationWindow.ts`) is
+  the one judgement, dependency-free because it is a promise about money with
+  a boundary: it answers `deadline` (free until an instant the screen prints
+  through `formatClinicDateTime`), `already_inside`, or `rule_only` when no
+  slot is chosen. Two rules hold it. It is judged against the wizard's own
+  `nowMs` -- the same clock the picker measures the lead time from, and the
+  one the debug bar's simulate-time box moves -- so the screen cannot offer a
+  slot as bookable and describe its terms against a different "now". And it
+  is refundable at **exactly** the boundary, because `cancelAppointment.ts`
+  refuses on `hoursUntilSlot < refundWindowHours`; a screen that said "no
+  refund" one millisecond early would promise less than the route delivers.
+  `already_inside` is not an edge case: the booking lead time is 12 hours and
+  this window defaults to 24, so **every booking made between those two is
+  non-refundable from the moment it is made**, and the old sentence told
+  exactly those patients they had free cancellation. They read it at the
+  point where they can still pick another slot.
+  A **free** booking and a **pay-later** one get their own sentences ahead of
+  all three, the same rule `describeRefundForPatient` follows: a refund
+  window is not a fact about a session nobody paid for, and quoting one
+  describes money the patient never handed over.
+  `cancellationWindow.test.ts` holds the boundary; `e2e/booking-rules.spec.ts`
+  BR-CANCEL-001/002 hold what is on the screen, because none of the three
+  regressions here (a fused "24hours", a constant quoted in place of the
+  setting, a false promise of free cancellation) produces an error, a failed
+  request or a wrong row.
 - **The Google connection says whether it is up, because a dead token looks
   like a handful of unlucky sessions.** Every Calendar and Meet call
   authenticates with one refresh token, and when that token dies -- revoked,
