@@ -375,7 +375,13 @@ them to collect cash at a video call, the patient's feed stops saying their
 booked session "isn't booked", and every chip reads `src/lib/sessionPaymentState.ts`
 rather than printing `payment_status` raw -- "Unpaid" against a patient of two
 years is both wrong and, on the screen an admin chases people from, actively
-misleading. **They settle from a pool.** The patient's dashboard carries what they owe,
+misleading. The patient reads the same session in their own voice
+(`describeSessionPaymentForPatient`): **"Written off" never reaches them** --
+it is the clinic's word for a debt it stopped chasing, and on their own card it
+reads as having been given up on, where what is true for them is that there is
+nothing to pay -- a cancelled session on terms says nothing at all, and their
+card no longer offers a Pay Now button that `create-order` refuses anyway.
+**They settle from a pool.** The patient's dashboard carries what they owe,
 each session at the price agreed on the day, and two ways to pay: online,
 which `record_payment_capture` confirms and allocates in one transaction, or a
 **declaration** (cash, UPI, bank transfer) that lands `pending` and **settles
@@ -549,7 +555,11 @@ direct-insert purchase or appointment never claims `visits_used` and never
 gets a calendar event, so each one left behind is a permanent red row on
 Settings -> System Health. Its `--reconcile` mode is the one to reach for: it
 releases the credit and cancels the appointment rather than deleting
-anything, which is what the ledger's own append-only trigger asks for. A Playwright
+anything, which is what the ledger's own append-only trigger asks for. Pay
+later's fixture money is the one thing only `--apply` can clear: a confirmed
+settlement has no undo by design, and left behind its unallocated remainder
+nets off the next run's owed figure, so the patient's widget reads less than
+the sessions listed under it. A Playwright
 e2e suite covers the money-critical paths, the public pages' section
 navigation, the catalog detail dialogs, the specialist booking handoff and
 the patient-only booking rule, therapist-suggested sessions, the Home
@@ -558,7 +568,11 @@ an email-confirmation step, the brand splash's cold-open and
 long-absence rules and its admin settings, and the Session Completed cutoff,
 and the therapist roster end to end -- ranges, exceptions, leave,
 authorization, stale and double-clicked saves, and the booking regression --
-and each admin scope's own landing screen
+and each admin scope's own landing screen, and pay later end to end in a
+real browser -- the grant, a booking with no payment screen, completion
+putting the money in three places at once, a declaration that settles
+nothing until an admin confirms it, and a write-off that costs the clinic
+without moving a single money figure
 (`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys - verify a change
 with a build and a lint.

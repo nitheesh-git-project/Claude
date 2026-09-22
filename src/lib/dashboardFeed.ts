@@ -1,4 +1,5 @@
 import { describeRefundForPatient } from "@/lib/refundState";
+import { ADMIN_ACTIVITY_LABELS } from "@/lib/adminActivityLog";
 import { adminScreenHref, type AdminSectionKey } from "@/lib/adminNav";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 // The notification feed every dashboard shows, derived rather than stored.
@@ -582,11 +583,26 @@ export type FeedActivityRow = {
 /** The admin's feed is the real audit log, not a derivation -- every
  *  mutating admin route already records one (recordAdminActivity). Pending
  *  queues are passed separately so they can be marked as needing a person. */
-/** Turns "setting.update" / "account.approve" into something a person
- *  reads: "Setting updated", "Account approved". Falls back to the raw
- *  action with its separators softened, so a newly added action type is
- *  never rendered as a bare identifier. */
+/**
+ * What an audit action is called on screen.
+ *
+ * **The written label wins.** Every action in the union already has a
+ * sentence in `ADMIN_ACTIVITY_LABELS` -- the same one the Logs section
+ * prints -- so the feed and the log cannot call one action two things, and
+ * the wording somebody chose is the wording that shows.
+ *
+ * This used to conjugate the key instead, and the result was confident
+ * nonsense on every action whose verb is more than one word: a pay-later
+ * grant read **"Patient set pay latered"**, a confirmed settlement "Pay
+ * later confirm paymented", a cash hand-back "Cash mark refund returneded".
+ * The old comment called that a fallback that stops a new action rendering
+ * as a bare identifier -- but a bare identifier is honest and searchable,
+ * and mangled English is neither. It is kept for exactly that unknown case
+ * and reached by nothing else.
+ */
 function humaniseAction(action: string): string {
+  const written = (ADMIN_ACTIVITY_LABELS as Record<string, string | undefined>)[action];
+  if (written) return written;
   const [subject, verb] = action.split(".");
   const words = (value: string) => value.replaceAll("_", " ").trim();
   if (!verb) return words(action).replace(/^./, (c) => c.toUpperCase());

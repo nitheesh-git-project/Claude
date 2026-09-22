@@ -90,3 +90,41 @@ export function describeSessionPayment(a: SessionPaymentRow): SessionPaymentDesc
   // never became `completed`.
   return { state: "pay_later_pending", label: "Pay later", tone: "neutral", owed: false, onTerms: true };
 }
+
+/**
+ * The same session, read by the patient whose session it is.
+ *
+ * `describeRefundForPatient` applied to the other direction of money, and for
+ * the same reason: the two readings differ in what they are *for*, not only in
+ * register. The chip above answers an admin's "what is happening with this
+ * money"; this one answers "is there anything I need to do".
+ *
+ * Two states genuinely differ, and one of them is the reason this exists.
+ * **"Written off" must never reach the patient.** It is the clinic's own
+ * accounting word for a debt it has decided to stop chasing -- a decision
+ * about them, taken without them, and printing it on their session card tells
+ * somebody the clinic gave up on them. What is true for *them* is that there
+ * is nothing to pay, which is what it says. And a cancelled session on terms
+ * says **nothing at all**: the cancelled card already explains itself, and a
+ * payment chip beside it announces an arrangement that never came into play,
+ * exactly as `not_eligible` says nothing on a refund.
+ *
+ * `null` means render no chip. Everything else is the admin's own wording,
+ * because those readings are already true for both.
+ */
+export function describeSessionPaymentForPatient(
+  a: SessionPaymentRow
+): SessionPaymentDescription | null {
+  const admin = describeSessionPayment(a);
+  if (!admin.onTerms) return admin;
+
+  if (admin.state === "pay_later_closed") {
+    // Settled reads the same to both. Written off does not.
+    if (a.pay_later_outcome === "written_off") {
+      return { ...admin, label: "Nothing to pay", tone: "good" };
+    }
+    return admin;
+  }
+  if (a.status === "cancelled") return null;
+  return admin;
+}

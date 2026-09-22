@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, useTransition } from "react";
+import { useId, useRef, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useToast } from "@/lib/toast";
 import { useConfirm } from "@/lib/useConfirm";
@@ -43,7 +43,16 @@ export default function PayLaterWriteOffForm({
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  // Deliberately NOT `useTransition` around `submit`. This control asks the
+  // admin to confirm before it writes, and `await confirm(...)` inside a
+  // transition deadlocks: the dialog that resolves the decision is itself a
+  // state update belonging to the transition that is waiting on that
+  // decision, so it never paints and the button spins for ever. Written that
+  // way, Write it off did nothing at all -- and its undo did nothing either,
+  // which is worse, because a debt the screen says was forgiven was not.
+  // Every neighbour that confirms (`PartialRefundForm`, `HomeVisitCashLedger`)
+  // awaits the decision outside any transition for exactly this reason.
+  const [saving, setSaving] = useState(false);
   const busy = useRef(false);
   const reasonId = useId();
   const router = useRouter();
@@ -69,6 +78,7 @@ export default function PayLaterWriteOffForm({
     if (!ok) return;
 
     busy.current = true;
+    setSaving(true);
     try {
       const res = await fetch("/api/admin/write-off-pay-later-session", {
         method: "POST",
@@ -97,6 +107,7 @@ export default function PayLaterWriteOffForm({
       setError("Could not reach the server. Please try again.");
     } finally {
       busy.current = false;
+      setSaving(false);
     }
   }
 
@@ -141,11 +152,11 @@ export default function PayLaterWriteOffForm({
       {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
       <div className="mt-2 flex flex-wrap gap-2">
         <button
-          onClick={() => startTransition(submit)}
-          disabled={isPending || reason.trim().length < WRITE_OFF_REASON_MIN_CHARS}
+          onClick={submit}
+          disabled={saving || reason.trim().length < WRITE_OFF_REASON_MIN_CHARS}
           className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-900 disabled:opacity-60"
         >
-          {isPending && <Spinner />}
+          {saving && <Spinner />}
           {writtenOff ? "Ask for it again" : "Write it off"}
         </button>
         <button

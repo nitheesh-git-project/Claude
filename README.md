@@ -51,6 +51,15 @@ a dashboard you have to reload.
   so it runs as one SQL transaction over the Supabase Management API and needs
   `SUPABASE_ACCESS_TOKEN` as well.
 
+`--apply` is also the only mode that can clear pay later's fixture money.
+`e2e/pay-later.spec.ts` books, settles, writes off and refunds against one QA
+patient through the real routes, and `pay_later_payments` is append-only - a
+confirmed settlement has no undo, by design. Left behind, its unallocated
+remainder is netted off the next run's owed figure, so that patient's widget
+shows less than the sessions listed under it and the journey fails on a
+working product. `--reconcile` says it cannot clear them rather than
+appearing to.
+
 Both write with full privilege - never point either at a database with real
 patients.
 

@@ -442,8 +442,8 @@ export default function AdminFeatureControlTab({
               owner admits them - and patients sign in with whatever Google account they have,
               so that is nearly everyone. On, each new session&apos;s meeting is opened so the
               patient and the therapist walk straight in.{" "}
-              <span className="font-semibold">Only turn this off</span> if the Google account
-              behind the calendar can&apos;t grant Meet permission; the sessions it couldn&apos;t
+              <span className="font-semibold">Only turn this off</span>{" "}
+              if the Google account behind the calendar can&apos;t grant Meet permission; the sessions it couldn&apos;t
               open are listed under System Health.
             </p>
           </div>

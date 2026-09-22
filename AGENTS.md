@@ -104,7 +104,18 @@ saying which, and an invite that cannot be claimed by its owner, twice, or by
 a patient who has already paid, plus the free-booking path -- the quote
 matching what checkout charges, a 100%-off code resolving to zero rather than
 a token rupee, a confirmation that writes no payment row and is idempotent,
-and the refusal to confirm anything still owed (`acquisition-codes.spec.ts`).
+and the refusal to confirm anything still owed (`acquisition-codes.spec.ts`),
+and pay later end to end in a real browser (`pay-later.spec.ts`) -- the
+master switch and the grant card, a booking that never reaches a payment
+screen, completion putting the money in the owed figure, the revenue and the
+therapist's share at once, the patient's own widget and a declaration that
+settles nothing until an admin confirms it, the settlement leaving every
+money figure byte-identical, and a write-off costing the clinic without
+moving one. It drives screens rather than routes deliberately: half of what
+this feature got wrong the first time was what a person reads -- a delivered
+session chipped "Unpaid", a feed telling a patient their booked session was
+not booked, a Pay-now link that led nowhere -- and every one of those is
+invisible to an API test and obvious in a screenshot.
 It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
@@ -202,6 +213,19 @@ over REST: it runs as one SQL transaction over the Management API, needs
 Either way the fixture `payments` rows go with their purchase -- that foreign
 key is ON DELETE SET NULL, so leaving them would trade one red check for
 another, a captured payment attached to nothing.
+
+**Pay later's fixture money is the second thing only `--apply` can clear,
+and for the same kind of reason.** `e2e/pay-later.spec.ts` writes its
+`pay_later_payments` rows through the real routes rather than inserting them,
+so they are correct rows -- and `pay_later_payments` is append-only by
+trigger, so the spec cannot remove its own money history and a confirmed
+settlement has no undo by design. Left behind, that payment's
+`unallocated_paise` nets off the next run's owed figure: the patient's widget
+reads less than the sessions listed under it, and the journey fails on a
+working product. `--reconcile` **says it cannot help** rather than quietly
+doing nothing, and the spec's own `beforeAll` fails naming this script
+instead of swallowing the refused delete -- which is exactly what hid it the
+first time.
 
 `scripts/care-plan-review-sql-checks.sql` is the review step's
 storage-layer check -- the one-open-plan index covering a queued plan, the
@@ -1566,7 +1590,22 @@ before.
      `src/lib/sessionPaymentState.ts`, shaped on `refundState.ts` for the same
      reason: three surfaces printed `payment_status` raw, so a delivered
      session on terms said **"Unpaid"** beside an abandoned checkout saying the
-     same word, on the screen an admin chases people from. `payment_terms` is
+     same word, on the screen an admin chases people from.
+     **And the patient reads the same session in a different voice**, through
+     `describeSessionPaymentForPatient()` -- `describeRefundForPatient`'s rule
+     applied to the other direction of money. Two states genuinely differ.
+     **"Written off" must never reach the patient**: it is the clinic's own
+     accounting word for a debt it decided to stop chasing, a decision about
+     them taken without them, and on their own session card it reads as the
+     clinic having given up on them -- what is true for *them* is that there
+     is nothing to pay, which is what it says. And a **cancelled** session on
+     terms says nothing at all, exactly as `not_eligible` says nothing on a
+     refund: the cancelled card already explains itself, and a payment chip
+     beside it announces an arrangement that never came into play. Everything
+     else is the admin's own wording, because those readings are already true
+     for both. The card also stopped offering **Pay Now** on a session on
+     terms: `create-order` refuses one outright, so the button did not merely
+     read wrong, it led nowhere. `payment_terms` is
      added to every reader through an **isolated** read merged by id, never to
      a shared select -- verified against a live database missing the columns:
      PostgREST answers `42703`, supabase-js resolves rather than rejects, the
@@ -3123,6 +3162,21 @@ before.
   Guard the submit with a synchronous ref as well (a `disabled` attribute
   lands a render too late), and catch the request: an unhandled throw inside
   a transition puts nothing on screen at all.
+  **And `await confirm(...)` never goes inside a transition -- that one is a
+  deadlock, not a slow button.** `useConfirm` renders its dialog from state,
+  so wrapping a submit that awaits a decision means the dialog that resolves
+  the decision is itself an update belonging to the transition that is waiting
+  on it: nothing paints, the promise never settles, and the control spins for
+  ever. `PayLaterWriteOffForm` shipped that way and **Write it off did nothing
+  at all** -- and neither did its undo, which is the worse half, because a
+  debt the screen said was forgiven was not. Await the decision first, then
+  transition only the request that follows, which is what
+  `PartialRefundForm` and `HomeVisitCashLedger` already do; where the request
+  wants its own busy state, keep the plain `useState` + `finally` shape above
+  and hand the refresh to the bar. It was invisible to every check this repo
+  has -- the route, its unit tests and its SQL assertions were all correct and
+  all passed -- and `e2e/pay-later.spec.ts` PL-UI-007 is what found it, by
+  being the only thing that ever pressed the button.
   **An append-only log does not belong on the operational realtime channel.**
   Every mutating admin route writes `admin_activity_log`, so while that table
   sat on the 2s channel each action rebuilt the whole dashboard twice -- once
@@ -4462,6 +4516,25 @@ must not have.
   requires it.
 - Comments in this codebase explain *why*, especially where a non-obvious
   constraint or a past bug drove the shape of the code. Match that.
+- **A wrapped JSX sentence containing an HTML entity loses a space, and the
+  browser is the only place you can see it.** Next's compiler decodes entities
+  in the same pass that normalises JSX whitespace, and where a text node both
+  carries an entity (`&apos;`, `&quot;`, `&nbsp;`, …) **and** spans more than
+  one source line, its leading space is dropped. Either half alone is
+  harmless, which is why this survived: the identical sentence on one line is
+  fine, and so is the same wrap without an entity. Eight sentences shipped
+  broken -- "at least 24hours' notice", "For 1 sessionyou've already had",
+  "Only turn this offif the Google account", "₹1,200excluded from this
+  breakdown" -- and none of them is visible in the source, in review, or to
+  esbuild, which keeps the space, so Vitest and Playwright transform the file
+  differently from what the browser is served. It was found by reading pixels
+  in a screenshot. The fix is always to make the space a child in its own
+  right, `{" "}`, which nothing can trim; interpolating the whole sentence as
+  a template literal is better where a ternary sits mid-sentence.
+  `src/lib/jsxEntitySpacing.test.ts` walks every `.tsx` in `src/` and fails on
+  one, the same shape and the same reasoning as `formatDateTime.test.ts`'s
+  walk for unzoned dates -- a mistake that produces no error is one a
+  reviewer will not catch.
 - **`text-slate-400` is a dark-surface token.** On white it is 2.63:1, which
   fails WCAG AA for body text, and an axe-core sweep found it on 62 surfaces
   across the public pages and all four dashboards -- every one of them a label,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -63,6 +63,7 @@ export default function BookingWizard({
   initialCategories,
   bookingLanguages,
   promoCodesEnabled = false,
+  cancellationRefundHours = CANCELLATION_FULL_REFUND_HOURS,
 }: {
   initialCategories: Category[];
   // Admin-configured (Feature Control → Booking Languages), never a
@@ -73,7 +74,15 @@ export default function BookingWizard({
    *  is not on screen: a code box with nothing behind it teaches every
    *  patient that there is a discount they are missing. */
   promoCodesEnabled?: boolean;
+  /** How long before the slot a cancellation still earns a full refund.
+   *  An admin setting (Settings -> Booking Rules), and this screen used to
+   *  print the constant instead -- so a clinic that changed the window had
+   *  the old number quoted back at every patient on the one screen that
+   *  reads as a promise. The constant is the default, never the answer. */
+  cancellationRefundHours?: number;
 }) {
+  const refundWindowHours = cancellationRefundHours;
+  const concernFieldId = useId();
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -345,7 +354,19 @@ export default function BookingWizard({
     void refreshQuote(appointmentId, promoCode);
   }
 
-  async function handleSubmit() {
+  /**
+   * Create the booking, then do whatever the re-quote says it needs.
+   *
+   * `intent` exists for one case: a patient on terms who would rather pay
+   * and not owe. Paying now is never taken away from them -- but on the
+   * first pass through this screen there is no appointment yet, so the
+   * secondary link cannot simply call `startPayment`. It comes through here
+   * instead and says, once the booking exists, to take the gateway rather
+   * than the terms. `free` still wins over both: a discount that reached
+   * zero leaves nothing for a gateway to charge, and Razorpay refuses an
+   * order of nothing.
+   */
+  async function handleSubmit(intent: "default" | "pay_now" = "default") {
     setLoading(true);
     setError(null);
 
@@ -466,7 +487,7 @@ export default function BookingWizard({
       await confirmFree(newAppointmentId);
       return;
     }
-    if (identified?.settlement === "pay_later") {
+    if (identified?.settlement === "pay_later" && intent !== "pay_now") {
       await confirmPayLater(newAppointmentId);
       return;
     }
@@ -898,7 +919,10 @@ export default function BookingWizard({
           )}
 
           <div>
-            <label className="block font-semibold mb-1.5 text-slate-900">
+            {/* Associated with `htmlFor`, not by sitting above the control:
+                a label that is merely adjacent is announced to nobody, and
+                this is the field the whole booking hangs on. */}
+            <label htmlFor={concernFieldId} className="block font-semibold mb-1.5 text-slate-900">
               What would you like help with?
             </label>
             {categories.length === 0 ? (
@@ -908,6 +932,7 @@ export default function BookingWizard({
               </p>
             ) : (
               <select
+                id={concernFieldId}
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300 bg-white"
@@ -1126,11 +1151,23 @@ export default function BookingWizard({
                 ? "Nothing to pay now. Your slot is held once you confirm, and this session is added to what you owe after it has happened."
                 : "Secure payment via Razorpay. Your slot is held once payment is confirmed."}
           </p>
+          {/* What cancelling costs, and it is a different sentence for a
+              patient on terms -- they are paying nothing now, so a refund
+              window is not a fact about their booking. Nothing is owed until
+              a session has actually happened, so cancelling before it simply
+              never creates the debt; telling them instead that they would
+              "not be eligible for a refund" describes money they never paid.
+
+              Built as one string rather than text around `{expr}` on its own
+              line: JSX drops the newline and the indentation between an
+              expression and the text after it, which is how this rendered as
+              "within 24hours of the slot" on the one screen where a number
+              and a unit have to read as a number and a unit. */}
           <p className="text-xs text-slate-500">
             <i className="fa-solid fa-circle-info text-teal-600 mr-1"></i>
-            Free cancellation up to {CANCELLATION_FULL_REFUND_HOURS} hours before
-            your slot. Cancelling within {CANCELLATION_FULL_REFUND_HOURS} hours
-            of the slot isn&apos;t eligible for a refund.
+            {quote?.settlement === "pay_later"
+              ? `Cancel any time before your slot and you won't owe anything for it - a session is only added to what you owe once it has happened.`
+              : `Free cancellation up to ${refundWindowHours} hours before your slot. Cancelling within ${refundWindowHours} hours of the slot isn't eligible for a refund.`}
           </p>
           <div className="flex gap-3 pt-1">
             <button
@@ -1158,7 +1195,9 @@ export default function BookingWizard({
                     : quote?.settlement === "pay_later"
                       ? () => confirmPayLater(appointmentId)
                       : () => startPayment(appointmentId)
-                  : handleSubmit
+                  : // Wrapped rather than passed bare: `handleSubmit` takes an
+                    // intent now, and React would hand it the click event.
+                    () => handleSubmit()
               }
               // Disabled while a quote is in flight, so a tap can never act
               // on a figure that is about to change.
@@ -1181,10 +1220,20 @@ export default function BookingWizard({
               remove a choice they had -- some will simply rather pay and not
               owe, and it produces an ordinary prepaid session that touches
               none of this. Secondary weight, because settling later is why
-              they were given terms. */}
-          {appointmentId && quote?.settlement === "pay_later" && quote.canPayNow && (
+              they were given terms.
+
+              Deliberately NOT gated on `appointmentId`. It was, and that is
+              the whole rule failing in practice: the appointment is created
+              by the tap, so on the first pass through this screen there is
+              never an id and the link never rendered at all. A patient on
+              terms saw one button and no choice -- exactly what this is
+              here to prevent -- and it only appeared after a *failed*
+              payment had left an id behind. */}
+          {quote?.settlement === "pay_later" && quote.canPayNow && (
             <button
-              onClick={() => startPayment(appointmentId)}
+              onClick={() =>
+                appointmentId ? startPayment(appointmentId) : handleSubmit("pay_now")
+              }
               disabled={loading || quoting}
               className="w-full text-center text-xs font-semibold text-teal-700 underline underline-offset-2 disabled:opacity-60"
             >

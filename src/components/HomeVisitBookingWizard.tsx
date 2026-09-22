@@ -649,7 +649,8 @@ export default function HomeVisitBookingWizard({
           <div>
             <h2 className="font-display text-lg font-bold text-slate-900">When suits you?</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Home visits need at least {leadTimeHours} hours&apos; notice so a therapist can
+              Home visits need at least {leadTimeHours}{" "}
+              hours&apos; notice so a therapist can
               reach you.
             </p>
             {timezone && (

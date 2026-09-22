@@ -3,6 +3,7 @@ import BookingExitLink from "@/components/booking/BookingExitLink";
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import BookingWizard from "@/components/BookingWizard";
+import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import BookingBackToSessions from "@/components/BookingBackToSessions";
 import { Reveal } from "@/components/motion/primitives";
 import { parseBookingLanguages } from "@/lib/adminSettings";
@@ -22,7 +23,8 @@ export const revalidate = 300;
 
 export default async function BookPage() {
   const supabase = createPublicClient();
-  const [{ data: categories }, { data: settingsRow }, { data: promoRow }] = await Promise.all([
+  const [{ data: categories }, { data: settingsRow }, { data: promoRow }, { data: cancelRow }] =
+    await Promise.all([
     supabase
       .from("treatment_categories")
       .select("id, title, price_paise, duration_minutes")
@@ -41,6 +43,13 @@ export default async function BookPage() {
     // languages are: it is the newest column on that table, and losing it
     // must cost the code field rather than the category list.
     supabase.from("site_settings").select("promo_codes_enabled").maybeSingle(),
+
+    // The cancellation window the review step quotes. An admin setting, and
+    // the wizard printed the constant instead -- so a clinic that widened
+    // the window had the old number read back to every patient on the one
+    // screen that reads as a promise. Its own query, same reasoning again:
+    // losing it costs the sentence its number, not the page its categories.
+    supabase.from("site_settings").select("online_cancellation_refund_hours").maybeSingle(),
   ]);
 
   return (
@@ -63,6 +72,11 @@ export default async function BookPage() {
             initialCategories={categories ?? []}
             bookingLanguages={parseBookingLanguages(settingsRow?.booking_languages)}
             promoCodesEnabled={promoRow?.promo_codes_enabled === true}
+            cancellationRefundHours={
+              typeof cancelRow?.online_cancellation_refund_hours === "number"
+                ? cancelRow.online_cancellation_refund_hours
+                : CANCELLATION_FULL_REFUND_HOURS
+            }
           />
         </Suspense>
         {/* Outside the wizard card, bottom-right. /book deliberately hides

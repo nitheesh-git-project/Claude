@@ -230,8 +230,13 @@ export default function PayLaterAgeSetting({
             Patients who settle weekly want this low; patients who settle quarterly want it
             high.
           </p>
-          {/* The effect, before it is saved. */}
-          {optimisticEnabled && previewCount !== null && (
+          {/* The effect, before it is saved.
+              Suppressed when nobody owes anything: "0 of 0 patients would
+              show as worth chasing" is the one line here whose whole job is
+              to make the number concrete, and over an empty list it does the
+              opposite -- it reads as a broken count on a screen that is
+              simply not in use yet. */}
+          {optimisticEnabled && previewCount !== null && ageDays.length > 0 && (
             <p className="mt-1 text-[11px] text-slate-600">
               <span className="font-semibold">
                 {previewCount} of {ageDays.length}

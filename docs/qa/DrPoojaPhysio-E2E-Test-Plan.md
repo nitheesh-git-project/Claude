@@ -4265,6 +4265,11 @@ Four consequences worth holding in mind while testing:
 **Steps.** Leave a pay-later session past its slot time without completing it. Open **Money → Owed by Patients** and **Settings → System Health**.
 **Expected Result.** It is listed under **Sessions that were never closed**, and the System Health check turns **amber** naming the count. **This is the one place in the whole design where money can silently fail to exist** - debt, revenue and the therapist's pay all appear at completion, so a session nobody closed produces none of the three and no screen has anything to show. Every other failure here is a *wrong* number, which a check can catch; this is an *absent* one, which nothing else would.
 
+#### `PL-DONE-008` - The patient reads it in their own voice · P0
+
+**Steps.** As the patient, open **Your Sessions** for a session on terms that has been delivered, and again for one that was cancelled. Then write a delivered session off from the back office and look at the patient's list again.
+**Expected Result.** The delivered one reads **Owed** and offers **no Pay Now button** - paying there is refused by the checkout route anyway, so the button did not merely read wrong, it led nowhere. The cancelled one shows **no payment chip at all**: the cancelled card already explains itself, and a chip beside it announces an arrangement that never came into play. And the written-off one reads **"Nothing to pay"**, never **"Written off"** - that is the clinic's accounting word for a debt it decided to stop chasing, a decision about them taken without them, and on their own card it reads as having been given up on. The admin screens still say "Written off", because the admin needs exactly that word.
+
 ---
 
 #### `PL-OWED-001` - The two figures that are the whole early warning · P0
@@ -4377,7 +4382,7 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-WOFF-001` - Writing a session off is a cost, not a reduction · P0
 
-**Steps.** Record every figure on **Money → Summary** and the therapist's **Earnings**. On **Money → Owed by Patients**, find an owed session and tap **Write it off**. Read the confirmation, enter a real reason, save. Compare the figures. Then open **Money → Costs**.
+**Steps.** Record every figure on **Money → Summary** and the therapist's **Earnings**. On **Money → Owed by Patients**, find an owed session and tap **Write it off**, enter a real reason, and tap **Write it off** again. A confirmation names the figure (*"Stop chasing ₹1,200?"*) - read it and tap **Yes**. Compare the figures. Then open **Money → Costs**.
 **Expected Result.** **Revenue does not move. The therapist's share does not move.** `clinic share = net − therapist − partner` still holds. The session leaves the owed total, and **one Bad debt row** appears on Costs for exactly the amount forgiven, dated **today**.
 **Why:** the clinic **earned** the ₹1,200 at completion and **failed to collect** it - and the therapist has already been paid, because they did the work and had no say in extending the credit. Reducing the session's amount instead would pull revenue down **and claw their share back off money already handed over**.
 **Where it lands in the books:** a bad debt is an **operating expense** - below the gross-profit line, inside what break-even has to cover, and **not** added back in EBITDA. Check **Business Health**: gross margin must be unchanged, EBITDA and net profit each down by exactly the amount written off.

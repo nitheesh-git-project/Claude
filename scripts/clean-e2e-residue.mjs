@@ -86,6 +86,15 @@ const MARKERS = {
   savedAddressLine1: "E2E Bulk Limit Test Address",
   referralNamePrefix: "E2E Race Referral",
   fakePaymentIdPrefix: "pay_e2erace",
+  // `e2e/pay-later.spec.ts` books, settles, writes off and refunds against
+  // this one fixture account. Its rows are written through the real routes
+  // rather than inserted, so they are correct rows -- they simply cannot be
+  // cleared by the spec, because `pay_later_payments` is append-only by
+  // trigger and a confirmed payment has no undo by design. Left behind, a
+  // confirmed payment's `unallocated_paise` nets off the next run's owed
+  // figure, so the widget reads less than the sessions listed under it and
+  // the journey fails on a working product.
+  payLaterPatientEmail: "qa.patient.e@example.test",
 };
 
 const admin = createClient(url, serviceKey, {
@@ -159,6 +168,36 @@ async function survey() {
     : { data: [], error: null };
   if (entitlements.error) die("session_entitlements", entitlements.error);
 
+  // Pay later's own fixture account, found by who it belongs to rather than
+  // by a marker string: these rows carry no free text of the suite's own.
+  const { data: payLaterPatient, error: plPatientError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("email", MARKERS.payLaterPatientEmail)
+    .maybeSingle();
+  if (plPatientError) die("profiles", plPatientError);
+
+  let payLaterPaymentIds = [];
+  let payLaterAppointmentIds = [];
+  if (payLaterPatient) {
+    const { data: plPayments, error: plError } = await admin
+      .from("pay_later_payments")
+      .select("id")
+      .eq("patient_id", payLaterPatient.id);
+    // The table is migration-dependent: a database without it is a database
+    // that has never run this spec, which is not an error.
+    if (plError && plError.code !== "42P01") die("pay_later_payments", plError);
+    payLaterPaymentIds = (plPayments ?? []).map((r) => r.id);
+
+    const { data: plAppts, error: plApptError } = await admin
+      .from("appointments")
+      .select("id")
+      .eq("patient_id", payLaterPatient.id)
+      .eq("payment_terms", "pay_later");
+    if (plApptError && plApptError.code !== "42703") die("appointments", plApptError);
+    payLaterAppointmentIds = (plAppts ?? []).map((r) => r.id);
+  }
+
   return {
     appointments: appointments ?? [],
     addressIds,
@@ -166,6 +205,8 @@ async function survey() {
     referralIds,
     paymentIds: (payments.data ?? []).map((p) => p.id),
     entitlementIds: (entitlements.data ?? []).map((e) => e.id),
+    payLaterPaymentIds,
+    payLaterAppointmentIds,
   };
 }
 
@@ -190,6 +231,8 @@ declare
   v_appointments uuid[];
   v_purchases uuid[];
   v_entitlements uuid[];
+  v_pl_patient uuid;
+  v_pl_appointments uuid[];
 begin
   select coalesce(array_agg(id), '{}') into v_addresses
     from patient_addresses where line1 = 'E2E Bulk Limit Test Address';
@@ -229,6 +272,34 @@ begin
   delete from home_visit_package_purchases where id = any (v_purchases);
   delete from patient_referrals where id = any (v_referrals);
   delete from patient_addresses where id = any (v_addresses);
+
+  -- Pay later's fixture account, for the same reason as the ledger above and
+  -- with the same care. These rows are correct, and the append-only guard
+  -- refusing to remove them is correct: a payment that did not arrive is
+  -- rejected with a reason, never deleted. Neither fact helps a suite that
+  -- has to start from a known state -- a leftover confirmed payment's
+  -- unallocated remainder nets off the next run's owed figure, so the
+  -- patient's widget reads less than the sessions listed under it and the
+  -- journey fails on a working product. The guard is suspended for these
+  -- statements and nothing else, and restored before the transaction
+  -- commits. The order below is the order the foreign keys allow: the
+  -- bad-debt cost row and the settlement payment both point at rows that are
+  -- about to go.
+  select id into v_pl_patient from profiles where email = 'qa.patient.e@example.test';
+  if v_pl_patient is not null then
+    select coalesce(array_agg(id), '{}') into v_pl_appointments
+      from appointments where patient_id = v_pl_patient and payment_terms = 'pay_later';
+
+    delete from business_expenses where source_appointment_id = any (v_pl_appointments);
+    delete from appointments where id = any (v_pl_appointments);
+    delete from payments where target_pay_later_payment_id in (
+      select id from pay_later_payments where patient_id = v_pl_patient
+    );
+
+    alter table pay_later_payments disable trigger trg_pay_later_payments_append_only;
+    delete from pay_later_payments where patient_id = v_pl_patient;
+    alter table pay_later_payments enable trigger trg_pay_later_payments_append_only;
+  end if;
 end $$;
 `;
 
@@ -324,6 +395,8 @@ async function main() {
     ["home_visit_package_purchases", found.purchaseIds.length],
     ["patient_referrals", found.referralIds.length],
     ["patient_addresses", found.addressIds.length],
+    ["pay_later_payments (fixture settlements)", found.payLaterPaymentIds.length],
+    ["appointments (fixture sessions on terms)", found.payLaterAppointmentIds.length],
   ];
 
   const live = found.appointments.filter((a) => a.status !== "cancelled");
@@ -331,7 +404,9 @@ async function main() {
     found.purchaseIds.length === 0 &&
     found.referralIds.length === 0 &&
     found.addressIds.length === 0 &&
-    found.appointments.length === 0;
+    found.appointments.length === 0 &&
+    found.payLaterPaymentIds.length === 0 &&
+    found.payLaterAppointmentIds.length === 0;
 
   if (apply) {
     console.log("Deleting:");
@@ -340,6 +415,15 @@ async function main() {
     console.log("Reconciling (nothing is deleted):");
     console.log(`  ${String(found.appointments.length).padStart(4)}  reserved credits to release`);
     console.log(`  ${String(live.length).padStart(4)}  fixture appointments to cancel`);
+    if (found.payLaterPaymentIds.length > 0) {
+      // Said rather than skipped: a confirmed settlement has no undo by
+      // design, so this mode genuinely cannot clear it and must not appear
+      // to have done so.
+      console.log(
+        `\n  ${found.payLaterPaymentIds.length} pay-later fixture payment(s) are left as they are --\n` +
+          "  a confirmed settlement cannot be reversed. Use --apply to remove them."
+      );
+    }
   } else {
     console.log("Found (re-run with --reconcile, or --apply to delete outright):");
     for (const [what, count] of plan) console.log(`  ${String(count).padStart(4)}  ${what}`);

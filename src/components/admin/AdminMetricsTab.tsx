@@ -1292,7 +1292,8 @@ export default function AdminMetricsTab({
         {money.excludedCount > 0 && (
           <p className="text-[11px] text-slate-500 mt-3">
             {money.excludedCount} paid session{money.excludedCount > 1 ? "s" : ""} totalling{" "}
-            {formatInr(money.excludedRevenuePaise)} excluded from this breakdown - therapist not
+            {formatInr(money.excludedRevenuePaise)}{" "}
+            excluded from this breakdown - therapist not
             assigned, their revenue share isn&apos;t set yet, or (for a hospital-referred patient)
             the referring hospital&apos;s revenue share isn&apos;t set yet, so no split is
             knowable. Still counted in net revenue above - only the split leaves them out.

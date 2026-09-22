@@ -172,9 +172,12 @@ export default function PayLaterWidget({
             You owe so far
           </p>
           <p className="mt-1 text-3xl font-bold text-teal-900">{formatInr(owedPaise)}</p>
+          {/* One interpolated string, not text either side of a ternary: an
+              expression that renders "" collapses the space beside it, and
+              this line read "For 1 sessionyou've already had." on screen.
+              Same failure the booking wizard's cancellation notice had. */}
           <p className="mt-1 text-xs text-slate-600">
-            For {sessions.length} session{sessions.length === 1 ? "" : "s"} you&apos;ve
-            already had. Settle whenever suits you.
+            {`For ${sessions.length} session${sessions.length === 1 ? "" : "s"} you've already had. Settle whenever suits you.`}
           </p>
         </>
       )}

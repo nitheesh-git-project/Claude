@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   describeSessionPayment,
+  describeSessionPaymentForPatient,
   isPayLaterSession,
   type SessionPaymentRow,
 } from "./sessionPaymentState";
@@ -96,6 +97,38 @@ describe("describeSessionPayment - on terms", () => {
   it("marks every one of them as on terms", () => {
     for (const status of ["requested", "confirmed", "completed", "cancelled"]) {
       expect(describeSessionPayment(terms({ status })).onTerms).toBe(true);
+    }
+  });
+});
+
+describe("describeSessionPaymentForPatient", () => {
+  it("never tells the patient their debt was written off", () => {
+    const row = terms({ status: "completed", pay_later_outcome: "written_off" });
+    // The admin needs the accounting word. The patient needs to know there is
+    // nothing to do -- being told the clinic stopped chasing them is a
+    // decision about them, taken without them.
+    expect(describeSessionPayment(row).label).toBe("Written off");
+    expect(describeSessionPaymentForPatient(row)!.label).toBe("Nothing to pay");
+    expect(describeSessionPaymentForPatient(row)!.tone).toBe("good");
+  });
+
+  it("says nothing at all on a cancelled session", () => {
+    // The cancelled card already explains itself; a payment chip beside it
+    // announces an arrangement that never came into play. Same rule as
+    // `not_eligible` saying nothing on a refund.
+    expect(describeSessionPaymentForPatient(terms({ status: "cancelled" }))).toBeNull();
+  });
+
+  it("reads the same as the admin chip everywhere the two agree", () => {
+    for (const row of [
+      terms({ status: "completed" }),
+      terms({ status: "confirmed" }),
+      terms({ status: "completed", payment_status: "paid" }),
+      prepaid(),
+      prepaid({ payment_status: "paid" }),
+      prepaid({ status: "cancelled" }),
+    ]) {
+      expect(describeSessionPaymentForPatient(row)).toEqual(describeSessionPayment(row));
     }
   });
 });
