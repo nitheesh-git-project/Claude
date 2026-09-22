@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
@@ -385,11 +385,27 @@ export default function AdminShell({
             one list, not a list plus a hidden strip. */}
         {active && !mini && section.tabs.length > 1 && (
           <div className="mt-1 space-y-0.5 border-l border-slate-800 pl-3 ml-4">
-            {section.tabs.map((t) => {
+            {section.tabs.map((t, i) => {
               const tabBadge = badges[`${section.key}:${t.key}`] ?? 0;
+              // A caption whenever the group changes, so Settings' ten
+              // screens read as four short lists. Screens sharing a group are
+              // adjacent in adminNav.ts -- comparing with the previous entry
+              // rather than collecting groups keeps the render in DOM order
+              // and means a section that names no groups is untouched.
+              const caption =
+                t.group && t.group !== section.tabs[i - 1]?.group ? t.group : null;
               return (
+                <Fragment key={t.key}>
+                {caption && (
+                  <p
+                    className={`px-2.5 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 ${
+                      i === 0 ? "pt-1" : "pt-3"
+                    }`}
+                  >
+                    {caption}
+                  </p>
+                )}
                 <button
-                  key={t.key}
                   type="button"
                   onClick={() => {
                     navigate(section.key, t.key);
@@ -408,6 +424,7 @@ export default function AdminShell({
                     </span>
                   )}
                 </button>
+                </Fragment>
               );
             })}
           </div>

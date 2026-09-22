@@ -3,15 +3,22 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
-import { BOOKING_LEAD_TIME_MS } from "@/lib/bookingSlots";
+import { BOOKING_LEAD_TIME_HOURS, leadTimeMsFromHours } from "@/lib/bookingSlots";
 
 export default function AssignReferralForm({
   referralId,
   therapists,
+  leadTimeHours = BOOKING_LEAD_TIME_HOURS,
 }: {
   referralId: string;
   therapists: { id: string; full_name: string }[];
+  /** The clinic's own booking lead time. This form defaulted to the constant
+   *  while `/api/appointments/create` read the setting, so a clinic that
+   *  widened its window promised a referred patient a slot its own booking
+   *  rules refuse. The constant is the fallback, never the answer. */
+  leadTimeHours?: number;
 }) {
+  const leadTimeMs = leadTimeMsFromHours(leadTimeHours);
   const [therapistId, setTherapistId] = useState(therapists[0]?.id ?? "");
   // One instant for the whole form, read once **after mount**: the picker
   // offers dates against it and the check below validates against the same
@@ -64,7 +71,7 @@ export default function AssignReferralForm({
     // when a card has been left open long enough for the boundary to move
     // past the chosen slot -- which is exactly when a silent submit would
     // hand the patient a time the platform would refuse.
-    if (slotMs < nowMs + BOOKING_LEAD_TIME_MS) {
+    if (slotMs < nowMs + leadTimeMs) {
       setError("That time is no longer far enough ahead. Pick a later slot.");
       return;
     }
@@ -165,6 +172,7 @@ export default function AssignReferralForm({
           hour={slot.hour}
           onChange={setSlot}
           nowMs={nowMs}
+          leadTimeMs={leadTimeMs}
           disabled={loading}
         />
       )}

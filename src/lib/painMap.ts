@@ -170,6 +170,52 @@ export function regionRequiresSide(region: PainMapRegionKey): boolean {
   return PAIN_MAP_REGIONS.find((r) => r.key === region)?.paired ?? false;
 }
 
+/**
+ * The short, plain name of an exam question, for a screen that lists the
+ * questions rather than asks them.
+ *
+ * The admin's Clinical Questions screen printed the storage key -- `rom`,
+ * `special_test`, `movement_note` -- as the label above each box, so twenty
+ * rows of snake_case sat above twenty sentences and an owner had to read the
+ * sentence to learn what the label meant. The full wording is editable and
+ * therefore cannot double as the name; this is the fixed name of the thing
+ * being reworded.
+ *
+ * Mirrors IntakeQuestion.shortLabel, which the Health Profile sets already
+ * carry and for the same reason.
+ */
+export const QUESTION_SHORT_LABELS: Record<string, string> = {
+  location: "Exact spot",
+  onset: "When it started",
+  pain_type: "Kind of pain",
+  trigger: "What sets it off",
+  worse: "Makes it worse",
+  better: "Makes it better",
+  pattern: "Constant or intermittent",
+  radiates: "Spreads elsewhere",
+  associated: "Alongside the pain",
+  history: "Past injury or surgery",
+  function: "Effect on daily life",
+  rest_pain: "Pain at rest",
+  movement_pain: "Pain on movement",
+  night_pain: "Pain at night",
+  rom: "Range of motion",
+  strength: "Strength",
+  swelling: "Swelling",
+  palpation: "Tenderness on touch",
+  special_test: "Special test",
+  movement_note: "Movement notes",
+};
+
+/** The short name, falling back to the key made readable -- an admin-added
+ *  question has no entry above and must still be nameable. */
+export function questionShortLabel(key: string): string {
+  return (
+    QUESTION_SHORT_LABELS[key] ??
+    key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())
+  );
+}
+
 export type QuestionInputType = "text" | "scale_0_10" | "yes_no" | "select";
 
 export type QuestionTemplate = {

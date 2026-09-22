@@ -104,7 +104,8 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
 | Settings | `access` | User Access | `ADM-SET-025`, `ADM-SET-025d`, `ADM-SET-026b` |
 | Settings | `health` | System Health | `ADM-SET-030` |
-| Settings | `security` | Account Security | `ADM-SET-035` |
+| Settings | `security` | Sign-in & Security | `ADM-SET-035` |
+| Settings | `advanced` | Advanced | `ADM-SET-019` |
 
 Detail routes (open as an overlay from the dashboard, and as a full page on direct navigation):
 

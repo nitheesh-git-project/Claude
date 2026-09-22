@@ -602,7 +602,18 @@ export async function POST(request: NextRequest) {
   // /book is ISR-cached (revalidate = 300), so without this an edited
   // language list would take up to five minutes to reach patients. Marks
   // the path stale so the next visitor renders the new list instead.
-  if (key === "booking_languages") {
+  // Every setting /book renders at request time. It is ISR-cached
+  // (revalidate = 300), so without this an edit sits behind the old page for
+  // up to five minutes -- which reads as a save that failed, and on the lead
+  // time and the refund window it is worse than that: the picker would go on
+  // offering slots, and quoting terms, that the routes have already stopped
+  // honouring.
+  if (
+    key === "booking_languages" ||
+    key === "online_booking_lead_time_hours" ||
+    key === "online_cancellation_refund_hours" ||
+    key === "promo_codes_enabled"
+  ) {
     revalidatePath("/book");
   }
 

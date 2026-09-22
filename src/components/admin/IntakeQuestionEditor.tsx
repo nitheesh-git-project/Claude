@@ -36,6 +36,12 @@ export default function IntakeQuestionEditor({
           key={q.key}
           specialty={specialty}
           questionKey={q.key}
+          // The fixed, short name of the question -- never the storage key,
+          // which is what used to be printed here: seven rows of snake_case
+          // over seven sentences, so the label told an admin nothing the
+          // sentence under it did not. The wording below is editable, so it
+          // cannot double as the name of the thing being reworded.
+          shortLabel={q.shortLabel ?? q.key}
           text={q.label}
           required={q.required}
         />
@@ -47,11 +53,13 @@ export default function IntakeQuestionEditor({
 function QuestionRow({
   specialty,
   questionKey,
+  shortLabel,
   text,
   required,
 }: {
   specialty: ConditionSpecialty;
   questionKey: string;
+  shortLabel: string;
   text: string;
   required: boolean;
 }) {
@@ -89,7 +97,7 @@ function QuestionRow({
           htmlFor={fieldId}
           className="block text-[11px] font-semibold text-slate-500 mb-1"
         >
-          {questionKey}
+          {shortLabel}
         </label>
         <textarea
           id={fieldId}

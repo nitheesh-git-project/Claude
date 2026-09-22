@@ -37,6 +37,8 @@ import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager"
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
+import AdminAdvancedTab from "@/components/admin/AdminAdvancedTab";
+import SettingsJumpNav, { SettingsSection } from "@/components/admin/SettingsJumpNav";
 import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
 import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
 import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
@@ -1972,6 +1974,7 @@ export default async function AdminDashboardPage({
                         <AssignReferralForm
                           referralId={r.id}
                           therapists={activeApprovedTherapists}
+                          leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
                         />
                         {r.status !== "declined" && (
                           <DeclineReferralButton referralId={r.id} />
@@ -2905,6 +2908,10 @@ export default async function AdminDashboardPage({
     </div>
   );
 
+  // This page hides the shared Navbar entirely, so it needs the debug
+  // bar's own top offset for its fixed sidebar. See AdminShell's offsetTop prop.
+  const showDebugNav = isDebugNavVisible();
+
   const settingsBrandTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <BrandContactDetailsForm
@@ -2921,60 +2928,93 @@ export default async function AdminDashboardPage({
     </div>
   );
 
+  // Long enough to need a map of itself -- see SettingsJumpNav. The blocks
+  // are in the order an owner reads the site: what visitors are shown, then
+  // what it says, then what it says about itself, then other people's words.
   const settingsPublicSiteTab = (
     <div className="space-y-8">
-      <SiteRatingsVisibilityToggle visible={siteSettings?.ratings_visible_publicly ?? true} />
-
-      <HomePageWalkthroughForm seconds={adminSettings.journeyStepSeconds} />
-
-      <MissionStatementForm
-        mission={missionCopyRow?.mission_statement ?? ""}
-        vision={missionCopyRow?.vision_statement ?? ""}
+      <SettingsJumpNav
+        offsetTop={showDebugNav}
+        sections={[
+          { id: "public-ratings", label: "Ratings" },
+          { id: "public-walkthrough", label: "Home page walkthrough" },
+          { id: "public-mission", label: "Mission & vision" },
+          { id: "public-promises", label: "Promises" },
+          { id: "public-limits", label: "Limits" },
+          { id: "public-splash", label: "Opening splash" },
+          { id: "public-testimonials", label: "Testimonials" },
+          { id: "public-faq", label: "FAQ" },
+        ]}
       />
 
-      <MissionPrincipleManager
-        kind="promise"
-        rows={missionPrincipleRows ?? []}
-        heading="What We Promise"
-        blurb="The four cards under your mission, on the Home page as headlines and in full on Our Mission. Each one should be something a patient could hold you to - a rule the platform actually keeps, not an intention."
-        noun="promise"
-      />
+      <SettingsSection id="public-ratings">
+        <SiteRatingsVisibilityToggle visible={siteSettings?.ratings_visible_publicly ?? true} />
+      </SettingsSection>
 
-      <MissionPrincipleManager
-        kind="limit"
-        rows={missionPrincipleRows ?? []}
-        heading="What We Will Not Do"
-        blurb="The band at the foot of Our Mission. Saying plainly what the clinic will not do is believed where a page that claims everything is not - so keep these real, and keep them ones you would repeat on the phone."
-        noun="limit"
-      />
+      <SettingsSection id="public-walkthrough">
+        <HomePageWalkthroughForm seconds={adminSettings.journeyStepSeconds} />
+      </SettingsSection>
 
-      <SplashScreenForm
-        enabled={adminSettings.splashEnabled}
-        brandLine={adminSettings.splashBrandLine}
-        siteName={adminSettings.siteName}
-        phrase={adminSettings.splashPhrase}
-        holdSeconds={adminSettings.splashHoldSeconds}
-        revisitMinutes={adminSettings.splashRevisitMinutes}
-      />
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Testimonials</h2>
-        <p className="text-xs text-slate-500 mb-4">
-          Controls the patient-story band on the Home page and Our Mission.
-        </p>
-        <TestimonialManager
-          testimonials={(testimonials ?? []).map((t) => ({
-            ...t,
-            avatar_url: testimonialAvatarById.get(t.id) ?? null,
-          }))}
+      <SettingsSection id="public-mission">
+        <MissionStatementForm
+          mission={missionCopyRow?.mission_statement ?? ""}
+          vision={missionCopyRow?.vision_statement ?? ""}
         />
-      </div>
+      </SettingsSection>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">FAQ</h2>
-        <p className="text-xs text-slate-500 mb-4">Controls what shows on the public /faq page.</p>
-        <FaqManager faqs={faqs ?? []} />
-      </div>
+      <SettingsSection id="public-promises">
+        <MissionPrincipleManager
+          kind="promise"
+          rows={missionPrincipleRows ?? []}
+          heading="What We Promise"
+          blurb="The four cards under your mission, on the Home page as headlines and in full on Our Mission. Each one should be something a patient could hold you to - a rule the platform actually keeps, not an intention."
+          noun="promise"
+        />
+      </SettingsSection>
+
+      <SettingsSection id="public-limits">
+        <MissionPrincipleManager
+          kind="limit"
+          rows={missionPrincipleRows ?? []}
+          heading="What We Will Not Do"
+          blurb="The band at the foot of Our Mission. Saying plainly what the clinic will not do is believed where a page that claims everything is not - so keep these real, and keep them ones you would repeat on the phone."
+          noun="limit"
+        />
+      </SettingsSection>
+
+      <SettingsSection id="public-splash">
+        <SplashScreenForm
+          enabled={adminSettings.splashEnabled}
+          brandLine={adminSettings.splashBrandLine}
+          siteName={adminSettings.siteName}
+          phrase={adminSettings.splashPhrase}
+          holdSeconds={adminSettings.splashHoldSeconds}
+          revisitMinutes={adminSettings.splashRevisitMinutes}
+        />
+      </SettingsSection>
+
+      <SettingsSection id="public-testimonials">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Testimonials</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            Controls the patient-story band on the Home page and Our Mission.
+          </p>
+          <TestimonialManager
+            testimonials={(testimonials ?? []).map((t) => ({
+              ...t,
+              avatar_url: testimonialAvatarById.get(t.id) ?? null,
+            }))}
+          />
+        </div>
+      </SettingsSection>
+
+      <SettingsSection id="public-faq">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h2 className="font-display font-bold text-lg text-slate-800 mb-1">FAQ</h2>
+          <p className="text-xs text-slate-500 mb-4">Controls what shows on the public /faq page.</p>
+          <FaqManager faqs={faqs ?? []} />
+        </div>
+      </SettingsSection>
     </div>
   );
 
@@ -3032,20 +3072,34 @@ export default async function AdminDashboardPage({
   // and neither belongs beside the rule for a single video booking.
   const settingsProgrammesTab = (
     <div className="space-y-8">
-      <RecommendationSettingsForm
-        settings={adminSettings}
-        requiresApproval={carePlanRequiresApproval}
+      <SettingsJumpNav
+        offsetTop={showDebugNav}
+        sections={[
+          { id: "prog-recommendations", label: "Recommendations" },
+          { id: "prog-programmes", label: "Programmes" },
+          { id: "prog-home-visits", label: "Home visits" },
+        ]}
       />
-      <PackageSettingsForm
-        settings={adminSettings}
-        therapistSuggestionsEnabled={therapistSuggestionsEnabled}
-        autoAssignEnabled={adminSettings.autoAssignTherapistEnabled}
-      />
-      <HomeVisitSettingsForm
-        settings={adminSettings}
-        areaCount={(homeVisitAreas ?? []).length}
-        packageCount={(homeVisitPackages ?? []).length}
-      />
+      <SettingsSection id="prog-recommendations">
+        <RecommendationSettingsForm
+          settings={adminSettings}
+          requiresApproval={carePlanRequiresApproval}
+        />
+      </SettingsSection>
+      <SettingsSection id="prog-programmes">
+        <PackageSettingsForm
+          settings={adminSettings}
+          therapistSuggestionsEnabled={therapistSuggestionsEnabled}
+          autoAssignEnabled={adminSettings.autoAssignTherapistEnabled}
+        />
+      </SettingsSection>
+      <SettingsSection id="prog-home-visits">
+        <HomeVisitSettingsForm
+          settings={adminSettings}
+          areaCount={(homeVisitAreas ?? []).length}
+          packageCount={(homeVisitPackages ?? []).length}
+        />
+      </SettingsSection>
     </div>
   );
 
@@ -3081,6 +3135,12 @@ export default async function AdminDashboardPage({
       canFix={scopeCanManage(viewerScope, "settings")}
       renderedAt={nowTimestamp()}
     />
+  );
+
+  // The technical shelf. One switch, deliberately alone: see
+  // AdminAdvancedTab for why it is not on Programmes & Home Visits.
+  const settingsAdvancedTab = (
+    <AdminAdvancedTab ledgerAuthoritative={adminSettings.entitlementLedgerAuthoritative} />
   );
 
   const settingsSecurityTab = (
@@ -3736,10 +3796,6 @@ export default async function AdminDashboardPage({
       scopeNote={activityScopeNote(viewerScope)}
     />
   );
-
-  // This page hides the shared Navbar entirely, so it needs the debug
-  // bar's own top offset for its fixed sidebar. See AdminShell's offsetTop prop.
-  const showDebugNav = isDebugNavVisible();
 
   // Derived from the rows the Recommendations screen already loaded, rather
   // than a count query of its own: the figure and the list it links to have
@@ -4465,6 +4521,7 @@ export default async function AdminDashboardPage({
     "settings:clinical": settingsClinicalTab,
     "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
+    "settings:advanced": settingsAdvancedTab,
     // The three limited desks' own history, on Today because they cannot
     // open the Logs section at all -- without it, their record is whatever
     // fits in the Today feed. Hidden from a Master Admin, who reads the

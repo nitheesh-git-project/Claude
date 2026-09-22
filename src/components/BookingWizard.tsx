@@ -19,8 +19,8 @@ import ConfirmPasswordField from "@/components/auth/ConfirmPasswordField";
 import BookingStepOne from "@/components/booking/BookingStepOne";
 import {
   BOOKING_LEAD_TIME_HOURS,
-  BOOKING_LEAD_TIME_MS,
   bookableHoursForDate,
+  leadTimeMsFromHours,
   earliestBookableDateKey,
 } from "@/lib/bookingSlots";
 import { debugNow } from "@/lib/debugNow";
@@ -65,6 +65,7 @@ export default function BookingWizard({
   bookingLanguages,
   promoCodesEnabled = false,
   cancellationRefundHours = CANCELLATION_FULL_REFUND_HOURS,
+  bookingLeadTimeHours = BOOKING_LEAD_TIME_HOURS,
 }: {
   initialCategories: Category[];
   // Admin-configured (Feature Control → Booking Languages), never a
@@ -81,8 +82,16 @@ export default function BookingWizard({
    *  the old number quoted back at every patient on the one screen that
    *  reads as a promise. The constant is the default, never the answer. */
   cancellationRefundHours?: number;
+  /** How far ahead a session must be booked. An admin setting (Settings ->
+   *  Booking Rules) that this screen used to ignore in favour of the
+   *  constant, while `/api/appointments/create` read the setting -- so
+   *  widening the window offered the patient a slot the route would then
+   *  refuse, at the last step of checkout. Same correction, and the same
+   *  shape, as `cancellationRefundHours` above. */
+  bookingLeadTimeHours?: number;
 }) {
   const refundWindowHours = cancellationRefundHours;
+  const leadTimeMs = leadTimeMsFromHours(bookingLeadTimeHours);
   const concernFieldId = useId();
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
@@ -136,9 +145,16 @@ export default function BookingWizard({
   // so a server-rendered date could be up to five minutes stale and would
   // mismatch on hydration if it were ever emitted.
   const [timezone, setTimezone] = useState("");
-  const [bookDate, setBookDate] = useState(() => earliestBookableDateKey(nowMs) ?? "");
+  const [bookDate, setBookDate] = useState(
+    () => earliestBookableDateKey(nowMs, leadTimeMsFromHours(bookingLeadTimeHours)) ?? ""
+  );
   const [bookHour, setBookHour] = useState<number | "">(
-    () => bookableHoursForDate(earliestBookableDateKey(nowMs) ?? "", nowMs)[0] ?? ""
+    () =>
+      bookableHoursForDate(
+        earliestBookableDateKey(nowMs, leadTimeMsFromHours(bookingLeadTimeHours)) ?? "",
+        nowMs,
+        leadTimeMsFromHours(bookingLeadTimeHours)
+      )[0] ?? ""
   );
   const [language, setLanguage] = useState(() => bookingLanguages[0] ?? "");
 
@@ -292,7 +308,7 @@ export default function BookingWizard({
     // carrying a now-invalid one forward. (The old date input cleared the
     // hour outright; preselecting keeps Step 1 complete after every change,
     // which is the point of the rework.)
-    setBookHour(bookableHoursForDate(nextDate, nowMs)[0] ?? "");
+    setBookHour(bookableHoursForDate(nextDate, nowMs, leadTimeMs)[0] ?? "");
     setAutoPicked((prev) => ({ ...prev, date: false, hour: true }));
   }
 
@@ -316,8 +332,12 @@ export default function BookingWizard({
     }
     // Unchanged rule, now sourced from the same constant the picker filters
     // on, so the calendar can't offer a slot this check would reject.
-    if (new Date(slotDateTime).getTime() < nowMs + BOOKING_LEAD_TIME_MS) {
-      setError(`Please choose a time at least ${BOOKING_LEAD_TIME_HOURS} hours from now.`);
+    if (new Date(slotDateTime).getTime() < nowMs + leadTimeMs) {
+      setError(
+        `Please choose a time at least ${bookingLeadTimeHours} hour${
+          bookingLeadTimeHours === 1 ? "" : "s"
+        } from now.`
+      );
       return;
     }
     if (!language) {
@@ -807,6 +827,7 @@ export default function BookingWizard({
         <BookingStepOne
           timezone={timezone}
           nowMs={nowMs}
+          leadTimeHours={bookingLeadTimeHours}
           dateKey={bookDate}
           onDateChange={handleDateChange}
           hour={bookHour}

@@ -4,8 +4,8 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import BookingCalendar from "@/components/booking/BookingCalendar";
 import SelectableChipGroup from "@/components/booking/SelectableChipGroup";
 import {
-  BOOKING_LEAD_TIME_HOURS,
   bookableHoursForDate,
+  leadTimeMsFromHours,
   formatDateKeyLong,
 } from "@/lib/bookingSlots";
 import { formatHourRange } from "@/lib/therapistAvailability";
@@ -23,6 +23,7 @@ const REVEAL = {
 export default function BookingStepOne({
   timezone,
   nowMs,
+  leadTimeHours,
   dateKey,
   onDateChange,
   hour,
@@ -35,6 +36,15 @@ export default function BookingStepOne({
 }: {
   timezone: string;
   nowMs: number;
+  /** How far ahead a session must be booked, from the clinic's own settings.
+   *  This screen printed `BOOKING_LEAD_TIME_HOURS` and filtered on it, while
+   *  `/api/appointments/create` has read the admin setting since it became
+   *  one -- so a clinic that widened the window went on being offered the old
+   *  one here and had the booking refused at the last step of checkout, which
+   *  is the "two answers to when can this be booked" failure this codebase
+   *  corrects everywhere else. The constant is the default, never the answer;
+   *  same shape as `cancellationRefundHours` one screen along. */
+  leadTimeHours: number;
   dateKey: string;
   onDateChange: (dateKey: string) => void;
   hour: number | "";
@@ -48,7 +58,8 @@ export default function BookingStepOne({
   onContinue: () => void;
 }) {
   const reduceMotion = useReducedMotion();
-  const hours = dateKey ? bookableHoursForDate(dateKey, nowMs) : [];
+  const leadTimeMs = leadTimeMsFromHours(leadTimeHours);
+  const hours = dateKey ? bookableHoursForDate(dateKey, nowMs, leadTimeMs) : [];
   const ready = Boolean(dateKey) && hour !== "" && Boolean(language);
 
   return (
@@ -64,13 +75,14 @@ export default function BookingStepOne({
           Preferred Date
           <span className="font-normal text-xs text-slate-500">
             {" "}
-            (at least {BOOKING_LEAD_TIME_HOURS} hours from now)
+            (at least {leadTimeHours} hour{leadTimeHours === 1 ? "" : "s"} from now)
           </span>
         </label>
         <BookingCalendar
           selectedDateKey={dateKey}
           onSelect={onDateChange}
           nowMs={nowMs}
+          leadTimeMs={leadTimeMs}
           autoSelected={autoPicked.date}
         />
         {dateKey && (

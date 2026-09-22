@@ -184,7 +184,8 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `clinical` | Clinical Questions | `ADM-SET-020` |
 | Settings | `access` | User Access | `ADM-SET-025`, `ADM-SET-025d`, `ADM-SET-026b` |
 | Settings | `health` | System Health | `ADM-SET-030` |
-| Settings | `security` | Account Security | `ADM-SET-035` |
+| Settings | `security` | Sign-in & Security | `ADM-SET-035` |
+| Settings | `advanced` | Advanced | `ADM-SET-019` |
 
 Detail routes (open as an overlay from the dashboard, and as a full page on direct navigation):
 
@@ -897,7 +898,7 @@ Unless a test says otherwise, leave every setting at its default. The four that 
 | --- | --- | --- |
 | **Therapist-Suggested Sessions** | **on** on a fresh database | Needed by `THR-SUGG-*` and `PAT-SUGG-*`. On a database that predates the change it stays at its old value - **confirm the toggle before running those tests** |
 | **Assign a Therapist Automatically** | **off** | `ADM-SET-021` switches it on; several booking tests assume the queue behaviour while it is off |
-| **Session Balances From The Ledger** | **off** | `ADM-SET-019` |
+| **Where a patient's remaining sessions are counted** (Settings → Advanced) | **Running total** | `ADM-SET-019` |
 | **Home Visit** | **off** | `ADM-SET-013` switches it on for the home-visit journey |
 
 ### 8.18 Setup aliases used in preconditions
@@ -1076,8 +1077,8 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 
 | Setting | Where an admin changes it | Effect on `/book` |
 | --- | --- | --- |
-| `online_booking_lead_time_hours` | Settings → Booking Rules → **Online Booking Lead Time** | Which dates/hours the calendar offers, and the server's own validator |
-| `online_cancellation_refund_hours` | Settings → Booking Rules → **Online Cancellation Refund Window** | The sentence on Step 3 and the refund actually paid. The sentence names the **deadline** rather than the rule - *"Free cancellation until 24 Sept 2026, 9:00 am."* - computed from the chosen slot minus this window. A slot nearer than the window reads *"This slot is less than N hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* instead, which is the common case whenever this setting is larger than the booking lead time |
+| `online_booking_lead_time_hours` | Settings → Booking Rules → **How far ahead a session must be booked** | Which dates/hours the calendar offers, the note under *Preferred Date* (*"at least N hours from now"*), and the server's own validator. Step 1 used to filter on a hardcoded 12 hours while the route read this column, so widening the window offered a slot checkout then refused - check the note, the greyed-out dates and a boundary booking all move together. |
+| `online_cancellation_refund_hours` | Settings → Booking Rules → **Free cancellation window** | The sentence on Step 3 and the refund actually paid. The sentence names the **deadline** rather than the rule - *"Free cancellation until 24 Sept 2026, 9:00 am."* - computed from the chosen slot minus this window. A slot nearer than the window reads *"This slot is less than N hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* instead, which is the common case whenever this setting is larger than the booking lead time |
 | **Booking Languages** | Settings → Booking Rules → Booking Languages | The chips on Step 1. An empty list degrades to `English` - booking must never present an empty language picker. |
 | Treatment categories | Catalog → Conditions | The "What would you like help with?" dropdown, each entry showing `Title - ₹price / duration min`. An **inactive** category disappears, and a booking against it is refused server-side. |
 | Category **price** and **duration** | Catalog → Conditions | The header price line, Step 3's Session Fee, the Razorpay amount, and the appointment's duration. **All re-derived server-side from the category row, never from the browser** - `/book` is ISR-cached, so the copy the patient filled in can legitimately be older than the one being charged. |
@@ -3232,11 +3233,11 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 
 #### `ADM-SET-009` - Every Settings screen says what it is · P2
 
-**Steps.** Open each of the nine Settings screens in turn: Brand & Contact, Public Site, Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, User Access, System Health, Account Security. Then open both Logs screens: All Activity and Archive & Clear.
+**Steps.** Open each of the ten Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Advanced. Then open both Logs screens: All Activity and Archive & Clear.
 
 **Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen - none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
 
-**Spot checks.** Offers & Discounts ends with a **"Looking for promo codes?"** note pointing at **Money → Costs**, and saying a goodwill discount is applied to a session rather than set up here. Booking Rules holds **only** the single-session rules and the Google Meet block - no discount, no package and no home-visit settings on it any more.
+**Spot checks.** The sidebar draws the four captions above their screens, and each caption appears exactly once. Offers & Discounts ends with a **"Looking for promo codes?"** note pointing at **Money → Costs**, and saying a goodwill discount is applied to a session rather than set up here. Booking Rules holds **only** the single-session rules and the Google Meet block - no discount, no package, no home-visit settings, and **no sign-out settings**: the inactivity timeout and the sign-out message moved to Sign-in & Security, since neither is a booking rule. Programmes & Home Visits no longer carries the session-balance switch; it is on **Advanced**. Public Site and Programmes & Home Visits each open with a **jump strip** of that screen's own sections, which sticks to the top as you scroll.
 
 **Critical check:** these are the same ten screens the sidebar lists and the same ten `?tab=` values. A screen reachable from the sidebar with no sentence under its heading, or a sentence on a screen that is not in the sidebar, means `adminNav.ts` and the shell have drifted.
 
@@ -3287,11 +3288,13 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 | Bulk scheduling limit | 8 | `Too many slots in one request.` above this |
 | Page heading / subheading | (defaults) | The `/home-visit` page's own copy |
 
-#### `ADM-SET-015` - Session Timeout of Inactivity · P2
+#### `ADM-SET-015` - Sign out after inactivity · P2
+**Where.** Settings → **Sign-in & Security** (it was on Booking Rules; an idle timeout is not a booking rule).
 **Steps.** Set it to `1` minute. Sign in as a patient and leave the tab idle.
 **Expected Result.** The idle dialog appears and signs the patient out to **their own login page** (`/patient/login`, `/therapist/login`, `/hospital/login` - the door they came in through). **`0` means off. Admins are exempt from the inactivity timeout entirely.**
 
 #### `ADM-SET-016` - Sign-out message duration · P3
+**Where.** Settings → **Sign-in & Security**.
 **Steps.** Set `farewell_banner_seconds` to `2`, then `0`. Sign out each time.
 **Expected Result.** At `2`, the banner clears after two seconds. At **`0` it stays until dismissed**.
 
@@ -3304,6 +3307,8 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 | **Join Button Window (after)** | 15 min | The short grace period for a late arrival |
 | **Session Completed Cutoff** | 60 min | Set `30`; 31 minutes after the slot **every** join control on **every** surface - patient, therapist and **admin** - reads **Session Completed** |
 
+**Contradiction check.** Type a cutoff **at or below** the after-window (e.g. cutoff `10` against a `15`-minute grace period). An amber line appears under the field saying the grace period can never be used, because the join control reads the cutoff first. It is a warning, not a refusal - both numbers are legal on their own - and it clears as soon as the cutoff is raised above the grace period.
+
 **Note:** the cutoff is **not** the same thing as the after-window. See `XR-CUTOFF-001` for the cross-role check.
 
 #### `ADM-SET-018` - Package settings · P1
@@ -3312,7 +3317,7 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 | --- | --- | --- |
 | **Assign a Therapist Automatically** | **off** | See `ADM-SET-021` |
 | **Therapist Lock (site-wide)** | on | Off → later sessions on a purchase are not auto-assigned to the first therapist |
-| **Session Balances From The Ledger** | **off** | See `ADM-SET-019` |
+| **Where a patient's remaining sessions are counted** (Settings → **Advanced**) | **Running total** | See `ADM-SET-019` |
 | **Therapist-Suggested Sessions** | **on for a fresh database** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent. The column default is now true, but that only applies to a new `site_settings` row - **an existing database keeps its current value until an admin toggles it, or a reset restores defaults.** Check the toggle before running `THR-SUGG-*` rather than assuming |
 | **Default Validity** | 90 d | A new purchase's expiry when the package leaves it blank |
 | **Bulk Scheduler Limit** | 8 | `Too many slots in one request.` above this |
@@ -3377,7 +3382,7 @@ At **Settings → Offers & Discounts**, above Patient invites.
 
 **Steps**
 1. Open **Settings → System Health** and confirm **Books & Sessions Agree** is `Healthy`, and that **Google Connection** is not red.
-2. Turn **Session Balances From The Ledger** **on**.
+2. On **Settings → Advanced**, switch **Where a patient's remaining sessions are counted** to **Session history**.
 3. Check every surface that shows a balance: the patient's package widget, the therapist's programme list, both purchase detail modals, the admin Purchases table, and the bulk scheduler.
 4. Turn it back off and check them all again.
 
@@ -3733,11 +3738,11 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 **Expected Result**
 * Step 1: **no Logs section** for any of the three.
 * Step 2: each lands on a screen their scope can open - never a heading over nothing, and never the log.
-* Step 3: Settings has **nine** screens and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
+* Step 3: Settings has **ten** screens under four captions, and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
 * Step 4: the matrix carries a **Logs** group with a read row and a clear row, ticked for Master Admin and blank for the other three - derived from the same module the routes enforce with, so it cannot claim access nobody has.
 
-#### `ADM-SET-035` - Account Security · P2
-**Steps.** Open **Settings → Account Security** and change the admin's own password.
+#### `ADM-SET-035` - Sign-in & Security · P2
+**Steps.** Open **Settings → Sign-in & Security** and change the admin's own password. Check the screen carries two headed blocks: *Your own sign-in* (the reset button) and *Everybody else's sign-in* (the inactivity timeout and the sign-out message).
 **Expected Result.** The change succeeds and the new password works. Admins are exempt from the idle timeout, so no timeout dialog appears while working here.
 
 ---

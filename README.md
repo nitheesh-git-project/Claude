@@ -321,7 +321,7 @@ link points here so no client bundle has to know the four paths; see
 | **Money** | Summary · Business Health · Transactions · Payouts · Owed by Patients · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
 | **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
-| **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
+| **Settings** | *Your website:* Brand & Contact · Public Site — *How the clinic runs:* Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions — *Who gets in:* User Access · Sign-in & Security — *Technical:* System Health · Advanced | How the product behaves. Every screen here states what it is and gives one example, under its heading, and the sidebar groups the ten under four captions - ten flat labels is a list nobody reads top to bottom. |
 
 **How the Money screens divide a rupee.** Every figure on Money → Summary
 comes out of one function, `moneyByBucketFor` in `src/lib/adminMetrics.ts`,
@@ -520,7 +520,7 @@ server-side; admin routes go through `src/lib/supabase/requireAdmin.ts`.
 
 **Signing out.** After a sign-out the public site shows a one-line banner
 confirming it worked, then clears itself. How long it stays is admin-set at
-**Settings → Booking Rules** (`site_settings.farewell_banner_seconds`,
+**Settings → Sign-in & Security** (`site_settings.farewell_banner_seconds`,
 6 seconds by default, 0 to leave it up until dismissed) - on a shared
 machine a banner that never goes away means the next person reads the last
 person's goodbye.
@@ -529,7 +529,11 @@ person's goodbye.
 and time slot. The times it offers come from the online booking lead time -
 12 hours by default, admin-editable at **Settings → Booking Rules**
 (`site_settings.online_booking_lead_time_hours`, with
-`BOOKING_LEAD_TIME_HOURS` in `src/lib/bookingSlots.ts` as the fallback). A
+`BOOKING_LEAD_TIME_HOURS` in `src/lib/bookingSlots.ts` as the fallback). The
+wizard reads that setting rather than the constant, and so do the note under
+*Preferred Date*, `AssignReferralForm` and `/api/admin/assign-referral`: until
+they did, only `/api/appointments/create` honoured a widened window, so the
+patient's own calendar offered a slot checkout then refused. A
 patient books a *time*, not a therapist: the roster
 (`therapist_availability_template`, `therapist_availability_override`,
 `profiles.on_leave`) is what the admin assigns against afterwards, together
