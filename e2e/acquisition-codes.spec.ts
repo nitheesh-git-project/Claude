@@ -432,14 +432,21 @@ test.describe("Promo codes and invites", () => {
     })).json();
     expect(plain.listPricePaise).toBe(CATEGORY_PRICE_PAISE);
     expect(plain.totalPaise).toBe(CATEGORY_PRICE_PAISE);
-    expect(plain.free).toBe(false);
+    // `settlement`, not a `free` boolean. The quote answers a three-way now
+    // (`gateway` | `free` | `pay_later`), because two booleans beside each
+    // other can contradict one another -- and the failure mode of reading the
+    // removed field is the worst kind: `undefined` is falsy, so an assertion
+    // written as `toBeFalsy()` would have gone on passing here for ever while
+    // testing nothing at all.
+    expect(plain.settlement).toBe("gateway");
+    expect(plain.canPayNow).toBe(true);
 
     const withCode = await (await ctx.post(`${BASE}/api/appointments/quote`, {
       data: { appointmentId, promoCode: code },
     })).json();
     expect(withCode.discountPaise).toBe(CATEGORY_PRICE_PAISE * 0.25);
     expect(withCode.totalPaise).toBe(CATEGORY_PRICE_PAISE * 0.75);
-    expect(withCode.free).toBe(false);
+    expect(withCode.settlement).toBe("gateway");
     expect(String(withCode.discountLabel)).toContain("Promo code");
 
     // A quote is a read: nothing was claimed by asking.
@@ -464,7 +471,9 @@ test.describe("Promo codes and invites", () => {
       data: { appointmentId, promoCode: code },
     })).json();
     expect(quote.totalPaise, JSON.stringify(quote)).toBe(0);
-    expect(quote.free).toBe(true);
+    expect(quote.settlement).toBe("free");
+    // Free beats pay later, and there is nothing for a gateway to take.
+    expect(quote.canPayNow).toBe(false);
     expect(quote.discountPaise).toBe(CATEGORY_PRICE_PAISE);
 
     // Razorpay refuses a zero-amount order, so the order route says so
@@ -473,6 +482,8 @@ test.describe("Promo codes and invites", () => {
       data: { appointmentId, promoCode: code },
     });
     expect(order.status()).toBe(409);
+    // create-order keeps its `{free: true}` -- that one is a refusal payload
+    // the wizard's `onFree` callback branches on, not the quote's shape.
     expect((await order.json()).free).toBe(true);
 
     await ctx.dispose();
