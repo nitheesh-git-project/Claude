@@ -4828,6 +4828,24 @@ must not have.
   `visible_in_dashboard` all stay. Only `visible_on_home` goes, because the
   home page carries a link band to that page and has never listed visit
   packages. `e2e/package-form-flags.spec.ts` holds both halves.
+- **A session package may hold one session.** `session_count >= 2` was a
+  rule from when a package was a bundle sold off a public price list: a
+  one-session "package" was the consultation a patient could already buy on
+  its own, so the floor cost nothing and stopped a duplicate product. Both
+  halves of that stopped being true at the consultation-first cutover --
+  there is no public programme catalogue and no `/book?package=` checkout,
+  so a session package reaches a patient only through a recommendation their
+  own clinician wrote, and "come back once more" is among the commonest
+  things a clinician wants to recommend. With a floor of two it could not be
+  expressed at all. `home_visit_packages.visit_count` has allowed one since
+  it shipped, for the same reason read from the other end.
+  Nothing about consultation-first widens: `isDirectlyPurchasable` is read
+  for home-visit packages alone, since session packages have no direct
+  purchase path left, so a one-session programme is still something only a
+  therapist can put in front of somebody. The CHECK is dropped and re-added
+  under a name of its own at the end of `schema.sql` -- a CHECK cannot be
+  altered in place, and the original was created unnamed inside `create
+  table`.
 
 ## Gotchas
 

@@ -137,8 +137,17 @@ export function validatePackagePayload(
 
   if (requireTitleAndPricing || body.sessionCount !== undefined) {
     const count = Number(body.sessionCount);
-    if (!Number.isInteger(count) || count < 2) {
-      return { error: "Sessions Included must be a whole number of 2 or more." };
+    // One session is allowed, and the floor of two it replaces was a rule
+    // from when a package was a bundle sold off a public price list: there,
+    // a one-session "package" was the consultation somebody could already
+    // buy, so it meant nothing. A programme now reaches a patient only
+    // through a recommendation their own clinician wrote, and "come back
+    // once more" is the commonest thing a clinician wants to recommend --
+    // with a floor of two it could not be expressed at all. `home_visit_
+    // packages.visit_count` has always allowed one, for the same reason
+    // read from the other end.
+    if (!Number.isInteger(count) || count < 1) {
+      return { error: "Sessions Included must be a whole number of 1 or more." };
     }
     columns.session_count = count;
   }

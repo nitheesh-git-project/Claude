@@ -12051,3 +12051,33 @@ alter table treatment_category_packages drop column if exists badge_label restri
 alter table treatment_category_packages drop column if exists highlight restrict;
 alter table treatment_category_packages drop column if exists terms restrict;
 alter table home_visit_packages drop column if exists visible_on_home restrict;
+
+-- A session package may hold one session.
+--
+-- `session_count >= 2` dates from when a package was a bundle sold off a
+-- public price list: a one-session "package" was the consultation a patient
+-- could already buy on its own, so the floor cost nothing and stopped a
+-- duplicate product. Both halves of that stopped being true. There is no
+-- public programme catalogue and no `/book?package=` checkout, so a session
+-- package reaches a patient only through a recommendation their own
+-- clinician wrote after seeing them -- and "come back once more" is among
+-- the commonest things a clinician wants to recommend, which a floor of two
+-- made impossible to express. `home_visit_packages.visit_count` has allowed
+-- one since it shipped, for the same reason read from the other end: one
+-- visit is that patient's consultation.
+--
+-- Nothing about consultation-first changes. `isDirectlyPurchasable` is read
+-- for home-visit packages alone -- session packages have no direct purchase
+-- path left to widen -- so a one-session programme is still something only a
+-- therapist can put in front of somebody.
+--
+-- Dropped and re-added rather than altered: a CHECK cannot be modified in
+-- place, and the original was created unnamed inside `create table`, so it
+-- carries Postgres's own generated name.
+alter table treatment_category_packages
+  drop constraint if exists treatment_category_packages_session_count_check;
+alter table treatment_category_packages
+  drop constraint if exists treatment_category_packages_session_count_positive;
+alter table treatment_category_packages
+  add constraint treatment_category_packages_session_count_positive
+  check (session_count >= 1);

@@ -242,8 +242,11 @@ export default function PackageCatalogForm({
       <fieldset className="space-y-3">
         <legend className="font-bold text-slate-700 mb-1">Commercial</legend>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Sessions Included" hint="Editing this later never changes packages already sold.">
-            <input type="number" min={2} step="1" value={sessionCount} onChange={(e) => setSessionCount(e.target.value)} required className={inputCls()} />
+          <Field
+            label="Sessions Included"
+            hint="1 is allowed, for a clinician recommending a single follow-up. Editing this later never changes packages already sold."
+          >
+            <input type="number" min={1} step="1" value={sessionCount} onChange={(e) => setSessionCount(e.target.value)} required className={inputCls()} />
           </Field>
           <Field label="Bundle Price (₹)" hint="What the patient pays, once, upfront.">
             <input type="number" min={1} step="0.01" value={priceInr} onChange={(e) => setPriceInr(e.target.value)} required className={inputCls()} />
