@@ -490,6 +490,28 @@ async function deliverAnotherSession(): Promise<string> {
 
   const confirmed = await post("/api/appointments/confirm-pay-later", { appointmentId }, patientCookie);
   expect(confirmed.status).toBe(200);
+
+  // The price is frozen at booking, which is the claim the whole feature
+  // rests on: settlement writes `amount_paid_paise = amount_due_paise`
+  // exactly, so a figure resolved again later would charge the new price for
+  // work already delivered. Asserted here rather than on the wizard's own
+  // booking above, because this one names its category and that one picks
+  // whatever sits second in the dropdown -- so only this row can be checked
+  // against a price we know.
+  //
+  // `list_price_paise` rather than `amount_due_paise` is the half that must
+  // equal the category: a discount may legitimately sit between the two, and
+  // asserting on the amount would make this case fail the day the clinic
+  // switches an offer on.
+  const { data: frozen } = await db
+    .from("appointments")
+    .select("list_price_paise,amount_due_paise")
+    .eq("id", appointmentId)
+    .single();
+  expect(frozen!.list_price_paise).toBe(categoryPricePaise);
+  expect(frozen!.amount_due_paise).toBeGreaterThan(0);
+  expect(frozen!.amount_due_paise).toBeLessThanOrEqual(categoryPricePaise);
+
   await post("/api/admin/assign-appointment", { appointmentId, therapistId }, adminCookie);
   const done = await post("/api/appointments/complete-session", { appointmentId }, adminCookie);
   expect(done.status).toBe(200);
