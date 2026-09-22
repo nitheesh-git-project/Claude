@@ -260,10 +260,20 @@ export default function AdminPaymentHistoryTab({
           personId: p.id,
           personRole: "patient",
           personName: p.full_name ?? "Unknown",
-          typeLabel: r.kind === "booking" ? RECEIPT_STAGE_LABEL[r.stage] : "Payment Failed",
+          typeLabel:
+            r.kind === "booking"
+              ? RECEIPT_STAGE_LABEL[r.stage]
+              : r.kind === "settlement"
+                ? "Payment Received"
+                : "Payment Failed",
           amountPaise: r.kind === "booking" ? (r.isPackageCovered ? null : r.amountPaise) : r.amountPaise,
           detail: r,
-          sessionCode: r.appointmentId ? sessionCodeByAppointmentId.get(r.appointmentId) ?? null : null,
+          // A settlement covers several sessions, so it has no single one to
+          // name. They are listed inside its own detail instead.
+          sessionCode:
+            r.kind !== "settlement" && r.appointmentId
+              ? sessionCodeByAppointmentId.get(r.appointmentId) ?? null
+              : null,
         });
       }
     }
@@ -751,6 +761,50 @@ function ReceiptDetail({ row }: { row: AdminReceiptRow }) {
         )}
         {detail.errorDescription && (
           <p className="text-slate-600 pt-2 border-t border-slate-100">{detail.errorDescription}</p>
+        )}
+      </div>
+    );
+  }
+
+  if (detail.kind === "settlement") {
+    // Money a patient on pay later handed over, and the delivered sessions it
+    // closed. One row rather than one per session, for the same reason the
+    // patient's own receipt is one: it is a single transaction.
+    return (
+      <div className="space-y-3 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Received</span>
+          <span className="font-bold text-teal-700 text-sm">{formatInr(detail.amountPaise)}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">How</span>
+          <span className="font-semibold text-slate-800">{detail.method}</span>
+        </div>
+        {detail.reference && (
+          <div className="flex items-start justify-between gap-4">
+            <span className="text-slate-500 shrink-0">Reference</span>
+            <span className="text-right text-slate-600">{detail.reference}</span>
+          </div>
+        )}
+        {detail.sessions.length > 0 && (
+          <div className="pt-3 border-t border-slate-100">
+            <p className="font-semibold text-slate-600 mb-2">
+              Sessions covered ({detail.sessions.length})
+            </p>
+            <ul className="space-y-1">
+              {detail.sessions.map((session) => (
+                <li
+                  key={session.appointmentId}
+                  className="flex items-baseline justify-between gap-3"
+                >
+                  <span className="text-slate-600">{session.title}</span>
+                  <span className="font-semibold text-slate-800 shrink-0">
+                    {formatInr(session.amountPaise)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
     );

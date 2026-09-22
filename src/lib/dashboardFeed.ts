@@ -1,4 +1,5 @@
 import { describeRefundForPatient } from "@/lib/refundState";
+import { ADMIN_ACTIVITY_LABELS } from "@/lib/adminActivityLog";
 import { adminScreenHref, type AdminSectionKey } from "@/lib/adminNav";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 // The notification feed every dashboard shows, derived rather than stored.
@@ -92,6 +93,10 @@ export type FeedAppointment = {
   status: string;
   visit_mode?: string | null;
   payment_status?: string | null;
+  /** Optional for the same reason as `refund_status` below: a feed built
+   *  from a select that did not ask for it describes an ordinary prepaid
+   *  session rather than guessing at terms nobody granted. */
+  payment_terms?: string | null;
   created_at?: string | null;
   therapist_name?: string | null;
   patient_name?: string | null;
@@ -250,16 +255,41 @@ export function buildPatientFeed({
       }
     }
     if (a.payment_status === "unpaid" && a.status !== "cancelled") {
-      items.push({
-        id: `pay-${a.id}`,
-        at: a.created_at ?? when,
-        icon: "fa-indian-rupee-sign",
-        tone: "warn",
-        title: "Payment not completed",
-        detail: "This session isn't booked until payment goes through.",
-        href: "/patient/dashboard/sessions",
-        needsYou: true,
-      });
+      // Two opposite facts wear the same `unpaid` here, which is why
+      // `payment_terms` exists at all. One is an abandoned checkout, where
+      // the session is genuinely not booked and the patient has to act. The
+      // other is a patient the clinic asked to pay afterwards -- their
+      // session IS booked, nothing is owed until it has happened, and the
+      // original wording scolds them for honouring the arrangement.
+      const onTerms = a.payment_terms === "pay_later";
+      items.push(
+        onTerms
+          ? {
+              id: `paylater-${a.id}`,
+              at: a.created_at ?? when,
+              icon: "fa-handshake-angle",
+              tone: "neutral",
+              title: "Nothing to pay up front",
+              detail:
+                "This session is booked. It'll be added to what you owe once it has happened.",
+              href: "/patient/dashboard/sessions",
+              // Informational, never needsYou: there is nothing for them to
+              // do, and pinning it above everything else would put a
+              // permanent to-do on the dashboard of the patients the clinic
+              // trusts most.
+              needsYou: false,
+            }
+          : {
+              id: `pay-${a.id}`,
+              at: a.created_at ?? when,
+              icon: "fa-indian-rupee-sign",
+              tone: "warn",
+              title: "Payment not completed",
+              detail: "This session isn't booked until payment goes through.",
+              href: "/patient/dashboard/sessions",
+              needsYou: true,
+            }
+      );
     }
   }
 
@@ -553,11 +583,26 @@ export type FeedActivityRow = {
 /** The admin's feed is the real audit log, not a derivation -- every
  *  mutating admin route already records one (recordAdminActivity). Pending
  *  queues are passed separately so they can be marked as needing a person. */
-/** Turns "setting.update" / "account.approve" into something a person
- *  reads: "Setting updated", "Account approved". Falls back to the raw
- *  action with its separators softened, so a newly added action type is
- *  never rendered as a bare identifier. */
+/**
+ * What an audit action is called on screen.
+ *
+ * **The written label wins.** Every action in the union already has a
+ * sentence in `ADMIN_ACTIVITY_LABELS` -- the same one the Logs section
+ * prints -- so the feed and the log cannot call one action two things, and
+ * the wording somebody chose is the wording that shows.
+ *
+ * This used to conjugate the key instead, and the result was confident
+ * nonsense on every action whose verb is more than one word: a pay-later
+ * grant read **"Patient set pay latered"**, a confirmed settlement "Pay
+ * later confirm paymented", a cash hand-back "Cash mark refund returneded".
+ * The old comment called that a fallback that stops a new action rendering
+ * as a bare identifier -- but a bare identifier is honest and searchable,
+ * and mangled English is neither. It is kept for exactly that unknown case
+ * and reached by nothing else.
+ */
 function humaniseAction(action: string): string {
+  const written = (ADMIN_ACTIVITY_LABELS as Record<string, string | undefined>)[action];
+  if (written) return written;
   const [subject, verb] = action.split(".");
   const words = (value: string) => value.replaceAll("_", " ").trim();
   if (!verb) return words(action).replace(/^./, (c) => c.toUpperCase());

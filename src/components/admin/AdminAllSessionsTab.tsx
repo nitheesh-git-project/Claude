@@ -217,6 +217,7 @@ export default function AdminAllSessionsTab({
       else if (viewParam === "completed") setStatusFilter("completed");
       else if (viewParam === "home_visit") setModeFilter("home_visit");
       else if (viewParam === "unpaid") setPaymentFilter("unpaid");
+      else if (viewParam === "pay_later") setPaymentFilter("pay_later");
       else if (viewParam === "refunded") setPaymentFilter("refunded");
       else if (viewParam === "refund_failed") setPaymentFilter("refund_failed");
       else if (viewParam === "refund_pending") setPaymentFilter("refund_pending");
@@ -305,7 +306,16 @@ export default function AdminAllSessionsTab({
               ? a.refund_status === "failed"
               : paymentFilter === "refund_pending"
                 ? a.refund_status === "manual_pending"
-                : a.payment_status === paymentFilter
+                // Trusted patients, where `unpaid` means the opposite of what
+                // it means on every other row: the clinic is waiting to be
+                // paid for work it did, rather than a checkout somebody
+                // abandoned. Its own option, and excluded from Unpaid below,
+                // or one filter counts rows the other calls a debt.
+                : paymentFilter === "pay_later"
+                  ? a.payment_terms === "pay_later"
+                  : paymentFilter === "unpaid"
+                    ? a.payment_status === "unpaid" && a.payment_terms !== "pay_later"
+                    : a.payment_status === paymentFilter
       )
       .filter((a) => therapistFilter === "all" || a.therapist_id === therapistFilter)
       .filter((a) => patientFilter === "all" || a.patient_id === patientFilter);
@@ -621,6 +631,7 @@ export default function AdminAllSessionsTab({
             <option value="all">Any payment</option>
             <option value="paid">Paid</option>
             <option value="unpaid">Unpaid</option>
+            <option value="pay_later">Pay later</option>
             <option value="refunded">Refunded</option>
             <option value="refund_pending">Refund to hand back</option>
             <option value="refund_failed">Refund failed</option>

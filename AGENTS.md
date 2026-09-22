@@ -104,7 +104,18 @@ saying which, and an invite that cannot be claimed by its owner, twice, or by
 a patient who has already paid, plus the free-booking path -- the quote
 matching what checkout charges, a 100%-off code resolving to zero rather than
 a token rupee, a confirmation that writes no payment row and is idempotent,
-and the refusal to confirm anything still owed (`acquisition-codes.spec.ts`).
+and the refusal to confirm anything still owed (`acquisition-codes.spec.ts`),
+and pay later end to end in a real browser (`pay-later.spec.ts`) -- the
+master switch and the grant card, a booking that never reaches a payment
+screen, completion putting the money in the owed figure, the revenue and the
+therapist's share at once, the patient's own widget and a declaration that
+settles nothing until an admin confirms it, the settlement leaving every
+money figure byte-identical, and a write-off costing the clinic without
+moving one. It drives screens rather than routes deliberately: half of what
+this feature got wrong the first time was what a person reads -- a delivered
+session chipped "Unpaid", a feed telling a patient their booked session was
+not booked, a Pay-now link that led nowhere -- and every one of those is
+invisible to an API test and obvious in a screenshot.
 It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
@@ -202,6 +213,19 @@ over REST: it runs as one SQL transaction over the Management API, needs
 Either way the fixture `payments` rows go with their purchase -- that foreign
 key is ON DELETE SET NULL, so leaving them would trade one red check for
 another, a captured payment attached to nothing.
+
+**Pay later's fixture money is the second thing only `--apply` can clear,
+and for the same kind of reason.** `e2e/pay-later.spec.ts` writes its
+`pay_later_payments` rows through the real routes rather than inserting them,
+so they are correct rows -- and `pay_later_payments` is append-only by
+trigger, so the spec cannot remove its own money history and a confirmed
+settlement has no undo by design. Left behind, that payment's
+`unallocated_paise` nets off the next run's owed figure: the patient's widget
+reads less than the sessions listed under it, and the journey fails on a
+working product. `--reconcile` **says it cannot help** rather than quietly
+doing nothing, and the spec's own `beforeAll` fails naming this script
+instead of swallowing the refused delete -- which is exactly what hid it the
+first time.
 
 `scripts/care-plan-review-sql-checks.sql` is the review step's
 storage-layer check -- the one-open-plan index covering a queued plan, the
@@ -318,7 +342,12 @@ src/lib/rateLimit.ts     the named limits, and who a request counts against
 src/lib/rateLimitServer.ts the one call that counts a hit and refuses
 src/lib/checkoutQuote.ts what a booking costs, resolved once for three callers
 src/lib/confirmPaidAppointment.ts the sequence a booking becoming paid runs
+src/lib/cancellationWindow.ts what cancelling this slot will cost, before paying
 src/lib/financeMetrics.ts the seven standard finance figures and their inputs
+src/lib/patientBalances.ts what trusted patients owe, and how long they have
+src/lib/payLaterSettingsServer.ts the clinic's own "worth chasing" threshold
+src/lib/payLaterWriteOff.ts forgiving one session's debt, and taking that back
+src/lib/sessionAmount.ts  one session's worth, with each caller's own fallback
 src/lib/financeInputs.ts validation for the three things an owner types in
 src/lib/financeSettingsServer.ts how Business Health reads the same money
 src/lib/adminScope.ts    admin scopes and which sections each one may open
@@ -1208,9 +1237,40 @@ before.
   home visit has its own window, so the constant was quoting the wrong number
   of hours on every cancelled visit.
 - **Cancellation/refund**: full refund only outside the 24-hour window in
-  `src/lib/pricing.ts`; inside it, none. Home visits use their own window
+  `src/lib/pricing.ts`; inside it, none. That constant is the **fallback**,
+  never the answer -- the live window is
+  `site_settings.online_cancellation_refund_hours`, and a screen printing the
+  constant quotes the wrong number at every patient the moment a clinic
+  changes it. Home visits use their own window
   instead (`home_visit_cancellation_refund_hours`, `cancelAppointmentAndRefund`) -
   see the Home Visit bullet below.
+  **The payment screen names the deadline, not the rule**, and that is the
+  difference between a policy and something a patient can act on.
+  `describeCancellationWindow` (`src/lib/cancellationWindow.ts`) is
+  the one judgement, dependency-free because it is a promise about money with
+  a boundary: it answers `deadline` (free until an instant the screen prints
+  through `formatClinicDateTime`), `already_inside`, or `rule_only` when no
+  slot is chosen. Two rules hold it. It is judged against the wizard's own
+  `nowMs` -- the same clock the picker measures the lead time from, and the
+  one the debug bar's simulate-time box moves -- so the screen cannot offer a
+  slot as bookable and describe its terms against a different "now". And it
+  is refundable at **exactly** the boundary, because `cancelAppointment.ts`
+  refuses on `hoursUntilSlot < refundWindowHours`; a screen that said "no
+  refund" one millisecond early would promise less than the route delivers.
+  `already_inside` is not an edge case: the booking lead time is 12 hours and
+  this window defaults to 24, so **every booking made between those two is
+  non-refundable from the moment it is made**, and the old sentence told
+  exactly those patients they had free cancellation. They read it at the
+  point where they can still pick another slot.
+  A **free** booking and a **pay-later** one get their own sentences ahead of
+  all three, the same rule `describeRefundForPatient` follows: a refund
+  window is not a fact about a session nobody paid for, and quoting one
+  describes money the patient never handed over.
+  `cancellationWindow.test.ts` holds the boundary; `e2e/booking-rules.spec.ts`
+  BR-CANCEL-001/002 hold what is on the screen, because none of the three
+  regressions here (a fused "24hours", a constant quoted in place of the
+  setting, a false promise of free cancellation) produces an error, a failed
+  request or a wrong row.
 - **The Google connection says whether it is up, because a dead token looks
   like a handful of unlucky sessions.** Every Calendar and Meet call
   authenticates with one refresh token, and when that token dies -- revoked,
@@ -1436,6 +1496,382 @@ before.
   should no longer see. A row closed before that column
   existed carries null and is skipped rather than guessed at.
 
+- **Pay later: a trusted patient is treated first and settles afterwards.**
+  `appointments.payment_terms` (`prepaid` | `pay_later`) is the new axis, and
+  it exists because `payment_status = 'unpaid'` already means *"somebody
+  abandoned a checkout"*. Without a second column those two are
+  indistinguishable and three things break at once: an abandoned cart counts
+  as a debt, `dashboardFeed`'s "Payment not completed / this session isn't
+  booked" item scolds a patient whose session **is** booked, and
+  `detectCompletionWithoutPayment` raises a high-severity signal on every
+  session these patients ever have. Five rules:
+  1. **Nothing is owed until the work is done.** `amount_due_paise` is stamped
+     at booking and **counted** only once `status = 'completed'`. That one
+     split is what makes "booking owes nothing" and "a late cancellation owes
+     nothing" true with no special case anywhere -- there is no state to
+     unwind, because nothing was ever owed. Everything in
+     `src/lib/patientBalances.ts` filters on that one word.
+  2. **The price is frozen at booking**, for the reason `package_snapshot` is
+     frozen by trigger: `checkoutQuote` reads the **live** category price, so
+     resolving it again at settlement charges the new price for work already
+     delivered.
+  3. **Revenue is recognised at completion, not at collection**, because the
+     therapist's share is. `moneyLineFor` counts a completed pay-later session
+     and reads its amount as the frozen price; settlement writes
+     `amount_paid_paise` equal to it, so recognised revenue never moves.
+     Counting at collection instead reports a loss in the month the work was
+     done and a windfall in the month it was paid -- both months wrong for one
+     session. `gatewayFeePaise` is deliberately **not** changed: a gateway fee
+     is a real cost only when a gateway took money.
+  4. **`sessionAmountPaise` takes its fallback as an argument**, and that is
+     load-bearing. The three readers do not share one -- `adminMetrics` falls
+     back to `SESSION_FEE_PAISE`, `therapistPayouts` to `0`,
+     `therapistEarnings` to a value its caller passes. A shared helper
+     hard-coding the session fee would make every already-paid session with a
+     null amount start contributing the full fee to a therapist's payout where
+     it contributes nothing today, changing what the clinic owes real people on
+     sessions unrelated to this feature. The frozen price slots in **before**
+     each caller's fallback and leaves it untouched.
+  5. **There is no ceiling, by choice**, so the two figures on Money -> Owed by
+     Patients are the whole of the early warning: the total, and
+     `oldestOwedAgeDays` against `site_settings.pay_later_aged_after_days`.
+     That threshold is configurable where one in this codebase normally is not,
+     precisely because it is the only automatic warning the feature has -- a
+     clinic settling weekly wants it far below the 60-day default, one settling
+     quarterly above it, or the warning is on permanently and becomes the badge
+     nobody reads. `PAY_LATER_AGED_AFTER_DAYS` stays as the default and
+     `describeAgedAfterDays` is the judgement with the database taken out, so an
+     unset, unreadable or hand-edited value resolves back to it rather than to
+     a bound -- there is no safe direction to fail in when the thing being
+     decided is the colour of a warning. `resolveAgedAfterDays` is that
+     function's `.days` and keeps its exact old signature, which is what makes
+     adding the reason provably behaviour-free: every one of its existing tests
+     passes unmodified. There is deliberately **no zero**,
+     unlike `splash_revisit_minutes` and `journey_step_seconds`: here it reads
+     as "chase everything" to one person and "never warn me" to another, and a
+     warning whose meaning depends on who set it is worse than no setting --
+     so "off" is its own switch, `pay_later_age_warning_enabled` (on by
+     default), which keeps the number while it is off so switching back on
+     restores what the clinic chose rather than the default. `isAgedBalance` is
+     the one answer its three readers share -- the total's colour, each patient
+     card's amber, and the `patients_owing_aged` count on Today -- so a count
+     cannot disagree with the rows it links to; with the warning off that count
+     is **zero rather than hidden**, since an alert row nothing can bring down
+     is worse than no row. Three things the screen used to know and not say, it
+     says now: a stored value that could not be used is named beside the number
+     in force (the screen and the database disagreeing with nothing
+     reconciling them is the failure `AdminDataLoadBanner` exists for, one
+     setting down), the days field carries a live "N of M patients would show
+     as worth chasing" computed from the ages already on the page, and a scope
+     that cannot manage settings gets `PayLaterAgeNote` -- the rule plus who
+     owns it -- rather than an absence that reads as a half-built screen. Its
+     control sits on Money -> Owed by Patients beside the figure it colours
+     rather than in Settings -- the `promo_codes_enabled` placement rule -- but
+     is gated on `scopeCanManage(scope, "settings")`, **not** money: Finance
+     manages Money and holds settings at `none`, so `/api/admin/update-setting`
+     would refuse them. `unclosedPayLaterSessions` is the other half -- debt,
+     revenue and the therapist's pay all appear at completion, so a session
+     nobody closed produces none of the three and no screen has anything to
+     show. Every other failure here is a wrong number; that one is an absent
+     number, which nothing else would catch.
+  6. **The privilege is granted, never inferred, and every guard ships before
+     it can be used.** `/api/admin/set-patient-pay-later` takes
+     `requireAdminScope("money")` -- extending credit is a money capability
+     whatever screen the control sits on, which is also why
+     `PatientDetailContent` computes `scopeCanManage(viewer.scope, "money")`
+     for the card rather than reusing that page's `canSeeMoney`, which is the
+     looser `scopeCanOpen`. A ten-character reason is required to **grant**
+     and not to stop: this is the opposite split from the care-plan review,
+     because the thing being explained is the risk, and here the risk is the
+     grant. It is enforced by the route and by
+     `profiles_pay_later_needs_reason`, and revoking leaves the reason in
+     place -- the CHECK is vacuous while disabled, and why terms were given
+     stays on the record after they are stopped. A **hospital-referred**
+     patient is refused outright: a partner's commission is taken on net
+     revenue and revenue is recognised at completion, so terms would have the
+     clinic owing a cut on money it has not received, and deferring the
+     partner's share to settlement instead would break
+     `clinic share = net - therapist - partner`, which is worse than the
+     problem. One master switch, `site_settings.pay_later_enabled`, off for
+     its first release, read in its own call and failing **closed** -- the
+     opposite direction from the ageing threshold beside it, because that one
+     decides the colour of a warning where neither direction is safe, and this
+     one decides whether work may be delivered without money. It gates
+     **granting** and never stopping, and never a debt already owed.
+     Seven guards land in the same change and are **inert by construction** on
+     the day they land, since nothing can carry `pay_later` until the booking
+     path exists -- which is the point of the ordering: each guard is in place
+     before the thing it guards can exist, so the feature never has a window
+     where it looks broken. `detectCompletionWithoutPayment` and
+     `readSessionsWithoutBacking` both stop counting a session on terms
+     (it **is** backed: the sale is recorded, the revenue counted and the debt
+     on its own screen -- without this every session one of these patients
+     ever has is a high-severity signal and a permanent red row);
+     `complete-session` gains a fourth allowance beside paid, programme and
+     cash, because completing is what *creates* the debt and refusing would
+     make the one session that must be closed the one that cannot be;
+     `assign-appointment` confirms on terms as well as on payment, or the row
+     never leaves `requested` and can never be completed; `TherapistSessionCards`
+     drops `cashDue`, since chasing a trusted patient at a door that does not
+     exist is what the platform's own communication rules exist to prevent;
+     `dashboardFeed` branches its "Payment not completed" item, which was
+     telling a patient their booked session was not booked, and the
+     replacement is informational and **never** `needsYou` -- there is nothing
+     for them to do, and pinning it would put a permanent to-do on the
+     dashboard of the patients the clinic trusts most. And every chip reads
+     `src/lib/sessionPaymentState.ts`, shaped on `refundState.ts` for the same
+     reason: three surfaces printed `payment_status` raw, so a delivered
+     session on terms said **"Unpaid"** beside an abandoned checkout saying the
+     same word, on the screen an admin chases people from.
+     **And the patient reads the same session in a different voice**, through
+     `describeSessionPaymentForPatient()` -- `describeRefundForPatient`'s rule
+     applied to the other direction of money. Two states genuinely differ.
+     **"Written off" must never reach the patient**: it is the clinic's own
+     accounting word for a debt it decided to stop chasing, a decision about
+     them taken without them, and on their own session card it reads as the
+     clinic having given up on them -- what is true for *them* is that there
+     is nothing to pay, which is what it says. And a **cancelled** session on
+     terms says nothing at all, exactly as `not_eligible` says nothing on a
+     refund: the cancelled card already explains itself, and a payment chip
+     beside it announces an arrangement that never came into play. Everything
+     else is the admin's own wording, because those readings are already true
+     for both. The card also stopped offering **Pay Now** on a session on
+     terms: `create-order` refuses one outright, so the button did not merely
+     read wrong, it led nowhere. `payment_terms` is
+     added to every reader through an **isolated** read merged by id, never to
+     a shared select -- verified against a live database missing the columns:
+     PostgREST answers `42703`, supabase-js resolves rather than rejects, the
+     `Promise.all` survives, the card reads "off" and the switch fails closed.
+     **System Health carries a seventh check**, `pay_later`. `off` when the
+     switch is off and nobody is on terms, and **owing money is never a
+     fault** -- a patient on terms owing a large sum is the arrangement
+     working. Its one amber state that matters is `unclosedSessions`: a
+     session that happened and was never marked done produces no debt, no
+     revenue and no therapist pay, and no screen has anything to show, which
+     is the only place in this design where money can silently fail to exist.
+     Its input is null on an unmigrated database and the check reads
+     **"Not set up"**, so an unapplied migration becomes a line on a screen
+     somebody already reads. **Risk carries two rules**, both
+     `RISK_RULE_DOMAIN: "money"`, under their own heading *Trusted patients --
+     follow up*: `pay_later_aged` ships **enabled** despite the no-baseline
+     rule that keeps `plan_conversion_low` off, because the population is tiny
+     and hand-picked so a threshold cannot fire on everyone, and it is the
+     only automatic warning an arrangement with no ceiling has -- it reads the
+     admin's own threshold rather than its own config, so the amber on the
+     screen and the signal can never disagree about what "a while" means;
+     `pay_later_balance_high` ships **disabled**. A third rule counting
+     rejected declarations waits for the phase that builds them, because a
+     rule that can never fire is a queue nobody reads.
+  7. **Booking on terms is its own confirmation route, and it claims
+     discounts like any other booking.**
+     `/api/appointments/confirm-pay-later` is the sibling of `confirm-free`
+     and deliberately the same shape: re-resolve server-side, refuse on the
+     state, then confirm through the sequence the paid path uses.
+     `confirmPaidAppointment` was split for it --
+     `runConfirmation()` holds the roster read, the atomic claim and the Meet
+     event, and the two exports differ only in which payment columns the
+     claim writes. A `markPaid: false` flag was **rejected**: it reads as a
+     lie at the call site, and the callers want different columns rather than
+     one write with a field suppressed. `payment_status` stays `unpaid` and
+     `paid_at` is never stamped, which is the whole reason `payment_terms`
+     exists as a second axis.
+     Four refusals, all re-derived and never sent: the switch, the patient's
+     grant, a **home visit** (travel is a pass-through paid to the therapist
+     in full -- deferring it has them funding their own transport until the
+     patient settles) and a **programme** session (drawn from the credit
+     ledger, which this feature never touches). `decidePayLaterBooking` in
+     `src/lib/payLaterBooking.ts` is that judgement with the database taken
+     out, returning a **named reason** rather than a boolean so the route and
+     the wizard cannot grow two answers to "why not" -- and the two reasons
+     that are about the patient say the *same* sentence on purpose, since
+     somebody never granted terms must not learn the arrangement exists and
+     they are not in it.
+     **A free booking is not a debt of zero**: a discount reaching zero hands
+     the caller back to `confirm-free`, and the quote's `settlement` is a
+     named three-way (`gateway` | `free` | `pay_later`) rather than a second
+     boolean beside `free`, since two booleans can contradict each other.
+     `canPayNow` is separate because it answers a different question --
+     **paying now is never taken away**, and choosing it produces an ordinary
+     prepaid session touching none of this. Once confirmed on terms,
+     `create-order` refuses: paying there would mark it paid outside the
+     settlement path and skip the allocation deciding which delivered
+     sessions the money covers.
+     **The price is frozen inside the same claim that confirms**, so no row
+     is ever pay-later-but-unconfirmed or confirmed-with-no-figure, and the
+     route **returns the figure it wrote** rather than a re-read -- reading
+     the price once to quote and again to render is how the two come to
+     differ.
+     **Discounts apply exactly as they do on every other booking**, which is
+     a decision with a database consequence. Both claim functions counted a
+     claim as spent only while the booking was `paid` or inside a
+     thirty-minute checkout hold -- and a pay-later booking is `unpaid` for
+     its whole life, so thirty minutes after booking its promo claim stopped
+     counting against the cap while `promo_code_id` still pointed at the
+     campaign and the discount stayed frozen into what was owed: a cap of 100
+     handing out more than 100, which is the exact failure the cap exists to
+     prevent. `claim_invite_half` had the mirror -- the booking stopped
+     *holding* its half, so the same half could be spent twice. Both now
+     count a confirmed pay-later booking permanently, exactly as a paid one:
+     the discount has been given and can never be taken back. Re-created in
+     full at the end of `schema.sql` with **their three revokes each**, since
+     a re-created function arrives carrying `anon` and `authenticated` grants
+     again. `scripts/pay-later-sql-checks.sql` asserts both halves of each --
+     the pay-later claim still counting *and* an abandoned prepaid checkout
+     of the same age still giving its claim back, without which a function
+     that counted every claim forever would pass.
+     `settleInvitesOnCapture` is **not** called: an inviter's reward is
+     earned when their friend's first session is paid for, and nothing has
+     been.
+     **And the same decision had a second consequence, one layer up in
+     eligibility rather than in a cap.** "Is this patient new" was asked in
+     three places -- the standing first-session offer, a `first_session_only`
+     promo code, and `claim_invite()`, whose own comment said it was "the
+     same test the first-session offer uses" -- and all three asked
+     `payment_status = 'paid'`. A session on terms is never paid, so a
+     trusted patient read as brand new on **every** booking they ever made:
+     the offer did not fire once, it fired on sessions two, three and four,
+     and an invite welcome was claimable after they had already been
+     treated. Silently, in all three. They now count a **commitment** rather
+     than a capture, through one shared query
+     (`countPriorCommittedSessions`, `src/lib/priorSessionsServer.ts`), and
+     `priorSessions.test.ts` fails when a reader grows its own copy back.
+     Two details are load-bearing. The `status <> 'cancelled'` exclusion
+     applies to the terms arm **alone**: a cancelled pay-later booking was
+     never delivered and owes nothing, while widening the paid arm the same
+     way would hand the offer back to everybody who ever paid and then
+     cancelled. And the terms half is a **second, isolated** count rather
+     than one `or(...)`, because `payment_terms` is migration-dependent and
+     this count fails closed -- folded into one query, an unapplied
+     migration would quietly withdraw the first-session offer from
+     everybody.
+     What the decision also needs is for the discount to be **visible**,
+     since a pay-later booking was the one checkout ending in this app that
+     showed no figure at all: the confirmation names what was frozen and
+     what came off it (the route already returned both and the wizard
+     dropped them), and Money -> Owed by Patients states the list price and
+     the rule beside any session owed less than it -- an unexplained ₹499
+     against a ₹1,200 session, on the screen an admin chases people from,
+     reads as an error.
+
+  8. **Settling is a pool, and a payment never touches a session.**
+     `pay_later_payments` is one row per **payment**;
+     `allocate_pay_later_payment()` covers that patient's delivered,
+     unsettled sessions **oldest first, whole sessions only**, under a
+     `select ... for update` on the patient -- two admins confirming two
+     payments at once is exactly what races. Six rules:
+     - **Settlement writes `amount_paid_paise = amount_due_paise` exactly**,
+       never the payment's share of it. That is the whole safety case: the
+       therapist's cut is computed from that column, so spreading 2,000
+       across four 1,200 sessions as 500 each would silently shrink it on
+       sessions the clinic had already paid out on. `adminMetrics.test.ts`
+       asserts every money figure is byte-identical either side of a
+       settlement, and that is the first test written.
+     - **The pool is fungible across payments, each payment is not.**
+       Requiring one payment to cover one whole session reads tidier and
+       strands money for ever: two 800 instalments leave 1,600 in the
+       clinic's hands and a 1,200 session nothing can close. The session is
+       stamped with the payment that **completed** it, since
+       `pay_later_payment_id` holds one -- which is why a settlement receipt
+       lists the sessions a payment closed rather than claiming its amount
+       is the sum of their prices.
+     - **Allocation runs at two moments**, a payment being confirmed and a
+       session being completed, so a remainder is picked up without anything
+       having to remember it. It reads the whole pool rather than one
+       payment, which is also what makes it idempotent.
+     - **A declaration settles nothing.** `/api/patient/declare-payment`
+       writes a `pending` row and the owed figure does not move; only
+       `/api/admin/confirm-pay-later-payment` reaches the allocator. One
+       waiting at a time. **Confirming needs no reason and rejecting needs
+       ten characters** -- the opposite split from the grant, because here
+       the outcome that takes something away is the refusal, and its reason
+       is the only half the patient can act on.
+     - **An online row is never `pending`** (a CHECK): the gateway is the
+       confirmation. So `record_payment_capture`'s fourth branch claims it on
+       `razorpay_payment_id is null` rather than on the status -- a status
+       guard could never match, and the allocator would never run on the one
+       path it was written for. That bug was found by
+       `scripts/pay-later-sql-checks.sql`, which asserts both halves: the
+       capture closes the session, **and** a retried webhook closes nothing
+       twice.
+     - **The table is append-only by trigger**, permitting exactly
+       `pending -> confirmed|rejected` one way plus the two columns
+       allocation moves, and never a delete. `payments.purpose` is widened to
+       `pay_later_settlement` and `payments.target_pay_later_payment_id`
+       added, so a settlement is not reported as captured money attached to
+       nothing -- read in its **own isolated query** in
+       `readUnmatchedPayments`, since folding the column into the existing
+       one would take the whole check to "unknown" on an unmigrated
+       database. One receipt per payment, not one per session: four receipts
+       for one transfer reads as four payments.
+
+  9. **Money out is a cost, and a refund is a hand-back.** Two paths, and
+     both were half-wired before they existed: `pay_later_outcome =
+     'written_off'` was read in six places and written by nothing, and
+     `refund-session-partial` refused every settled pay-later session
+     because it requires `razorpay_payment_id` **on the appointment**.
+     - **A write-off is a cost, not a revenue reduction.** Completion
+       already counted the revenue and already paid the therapist, so
+       `/api/admin/write-off-pay-later-session` touches **no** money column
+       on the appointment: `amount_due_paise`, `amount_paid_paise` and
+       `payment_status` stay exactly as they are, the session leaves the
+       owed figure through `pay_later_outcome` alone, and the loss is one
+       `business_expenses` row. Reducing the session's amount instead would
+       pull revenue down *and* claw the therapist's share back off money
+       already handed to somebody who had no say in extending the credit.
+       `adminMetrics.test.ts` asserts every figure is byte-identical either
+       side, the same shape as the settlement-invariance test.
+     - **Its cost class is `fixed`, which is the accounting answer rather
+       than the convenient one.** Bad debt is an operating expense: below
+       the gross-profit line, inside break-even's "what has to be covered",
+       and **not** added back in EBITDA. It is also `DEFAULT_COST_CLASS`, so
+       the unmigrated-database fallback insert lands it in the same place.
+       `BAD_DEBT_EXPENSE_CATEGORY` is deliberately **not** in
+       `EXPENSE_CATEGORIES`: that list is what an admin may type by hand, and
+       keeping bad debt out of it is what makes "written-off sessions equal
+       the bad-debt rows" a reconciliation rather than a coincidence.
+       `incurred_on` is the day it was decided, never the session's own date
+       -- back-dating a cost into a month somebody has already read moves a
+       profit figure under them.
+     - **The order of the two writes is the safety case.** The appointment is
+       claimed first (`pay_later_outcome is null`, so a double tap writes one
+       cost row), the cost row second, and a failure on the second **reverts
+       the first** -- same posture as `refund-session-partial` reverting its
+       claim when Razorpay refuses. A session written off with no cost behind
+       it overstates profit by exactly the amount forgiven and says so on no
+       screen, which is worse than a write-off that failed.
+       `business_expenses.source_appointment_id` plus a partial unique index
+       is what ties the two together, and it is what
+       `/api/admin/expenses/delete` refuses to break.
+     - **It is reversible, and reversing needs a reason too.** The opposite
+       split from the grant: there the risk is all on one side, here writing
+       off gives money away and reversing re-imposes a debt on a patient who
+       was told it was forgiven. Written-off sessions get their own list on
+       Money -> Owed by Patients precisely so the undo is a control rather
+       than a claim -- every balance drops them.
+     - **A refund on a settled session is handed back by a person.** The
+       money arrived into a **pool** covering several sessions and an online
+       settlement's gateway id is on the `pay_later_payments` row, so "this
+       session's share of that payment" is not something a gateway refund can
+       express safely. Every settled pay-later session takes the
+       `manual_pending` lane whatever it was settled with, on the same claim
+       and the same ceiling, and is worked from **Refunds to hand back** on
+       Money -> Owed by Patients through the existing
+       `mark-cash-refund-returned`. An **unsettled** session is not a refund
+       at all and the route says so rather than dead-ending: it is the
+       write-off. A session paid by `mark-paid-by-cash` is the same shape and
+       is deliberately left alone -- it has no figure of its own that an
+       unrecorded hand-back would falsify.
+     - **`manual_refunds` splits in two.** It counted every `manual_pending`
+       row and linked to Money -> Payouts, whose Cash Ledger lists home
+       visits -- so a pay-later refund would be counted there and actionable
+       nowhere. `pay_later_refunds` is its own key linking to Owed by
+       Patients; the two sum to the old total, so no count moved.
+     - **System Health gains two states**: refunds owed back and not sent
+       (amber -- a patient is out of pocket and nothing automatic will move
+       it), and written-off sessions disagreeing with the bad debt recorded
+       (red, and **null is not zero** -- a database without
+       `source_appointment_id` reads "could not be checked").
+
 - **A therapist asserts that money changed hands; the system owns the
   number.** `/api/therapist/record-cash-collection` used to accept
   `amountPaise` from the request body, which meant the person holding the
@@ -1619,10 +2055,22 @@ before.
   sends a **name**, never a figure.
   1. **The first-session offer** is standing configuration
      (`first_session_offer_enabled` / `_type` / `_value`, Settings → Offers
-     & Discounts, off by default). Eligibility is `has this patient ever paid for
-     a session`, asked of the database in `/api/razorpay/create-order` -
+     & Discounts, off by default). Eligibility is `has this patient ever
+     committed to paying for a session`, asked of the database in
+     `/api/razorpay/create-order` -
      so it cannot be claimed twice, asked for, or sent from a browser, and a
-     patient is only new once. It fails **closed**: an unreadable answer
+     patient is only new once. **Committed, not paid**, and the word is
+     load-bearing: it was `payment_status = 'paid'` until pay later existed,
+     and a session on terms is never paid - so that test read every trusted
+     patient as brand new on *every* booking they ever made and handed the
+     offer out again each time. A confirmed booking on terms is not an
+     abandoned checkout, because its price and its discount are frozen on it
+     and can never be taken back; a **cancelled** one was never delivered and
+     leaves them new. `countPriorCommittedSessions`
+     (`src/lib/priorSessionsServer.ts`) is the one query all three readers of
+     that question share - the offer, a `first_session_only` promo code and
+     `claim_invite()` - and `priorSessions.test.ts` fails when a reader grows
+     its own copy back. It fails **closed**: an unreadable answer
      means list price, because charging somebody who was owed an offer is a
      complaint while discounting everybody forever is a hole in the revenue
      nobody notices for a month. Video consultations only; a programme comes
@@ -1693,10 +2141,12 @@ before.
        reward that pays out on signups is a reward for creating accounts,
        and somebody will.
      - **A patient is new exactly once**, the same test the first-session
-       offer uses: an invite is claimable only before that patient's first
-       paid session, at most once ever (a unique index on `invitee_id`, not
-       a route check), and never their own code (`claim_invite()` and a
-       CHECK).
+       offer uses - and that phrase was a comment in `claim_invite()` while
+       the two had silently parted: an invite is claimable only before that
+       patient's first **committed** session (paid, or standing on pay-later
+       terms - see the first-session rule above), at most once ever (a unique
+       index on `invitee_id`, not a route check), and never their own code
+       (`claim_invite()` and a CHECK).
      - **Amounts are snapshotted at claim.** Lowering the reward next month
        must not lower what was already promised - the same reason a
        purchased entitlement reads its package snapshot rather than the live
@@ -2548,7 +2998,7 @@ before.
   advance). Offers carries a note saying where promo codes and goodwill
   live, because "where did the promo screen go" is the question a split
   otherwise creates.
-- **System Health is six checks in one shape, and every unhealthy one says
+- **System Health is seven checks in one shape, and every unhealthy one says
   how to fix it.** The screen reports rather than sets, so it is not an
   `AdminFeatureControlTab` view -- `src/lib/systemHealth.ts` decides each
   check's status, its one-line headline, the numbered steps that fix it, and
@@ -2586,7 +3036,7 @@ before.
      says "Checked 4 minutes ago". The relative time is rendered after mount,
      never on the server -- "4 minutes ago" computed server-side is already
      wrong in the browser, and rendering it in both is a hydration mismatch.
-  A seventh check is an entry in that module plus, if it has rows, a card
+  An eighth check is an entry in that module plus, if it has rows, a card
   body in the tab -- never a new panel with its own shape. The two fix
   buttons render only under `scopeCanManage(scope, "settings")`, matching the
   routes.
@@ -2744,6 +3194,21 @@ before.
   Guard the submit with a synchronous ref as well (a `disabled` attribute
   lands a render too late), and catch the request: an unhandled throw inside
   a transition puts nothing on screen at all.
+  **And `await confirm(...)` never goes inside a transition -- that one is a
+  deadlock, not a slow button.** `useConfirm` renders its dialog from state,
+  so wrapping a submit that awaits a decision means the dialog that resolves
+  the decision is itself an update belonging to the transition that is waiting
+  on it: nothing paints, the promise never settles, and the control spins for
+  ever. `PayLaterWriteOffForm` shipped that way and **Write it off did nothing
+  at all** -- and neither did its undo, which is the worse half, because a
+  debt the screen said was forgiven was not. Await the decision first, then
+  transition only the request that follows, which is what
+  `PartialRefundForm` and `HomeVisitCashLedger` already do; where the request
+  wants its own busy state, keep the plain `useState` + `finally` shape above
+  and hand the refresh to the bar. It was invisible to every check this repo
+  has -- the route, its unit tests and its SQL assertions were all correct and
+  all passed -- and `e2e/pay-later.spec.ts` PL-UI-007 is what found it, by
+  being the only thing that ever pressed the button.
   **An append-only log does not belong on the operational realtime channel.**
   Every mutating admin route writes `admin_activity_log`, so while that table
   sat on the 2s channel each action rebuilt the whole dashboard twice -- once
@@ -4083,6 +4548,25 @@ must not have.
   requires it.
 - Comments in this codebase explain *why*, especially where a non-obvious
   constraint or a past bug drove the shape of the code. Match that.
+- **A wrapped JSX sentence containing an HTML entity loses a space, and the
+  browser is the only place you can see it.** Next's compiler decodes entities
+  in the same pass that normalises JSX whitespace, and where a text node both
+  carries an entity (`&apos;`, `&quot;`, `&nbsp;`, …) **and** spans more than
+  one source line, its leading space is dropped. Either half alone is
+  harmless, which is why this survived: the identical sentence on one line is
+  fine, and so is the same wrap without an entity. Eight sentences shipped
+  broken -- "at least 24hours' notice", "For 1 sessionyou've already had",
+  "Only turn this offif the Google account", "₹1,200excluded from this
+  breakdown" -- and none of them is visible in the source, in review, or to
+  esbuild, which keeps the space, so Vitest and Playwright transform the file
+  differently from what the browser is served. It was found by reading pixels
+  in a screenshot. The fix is always to make the space a child in its own
+  right, `{" "}`, which nothing can trim; interpolating the whole sentence as
+  a template literal is better where a ternary sits mid-sentence.
+  `src/lib/jsxEntitySpacing.test.ts` walks every `.tsx` in `src/` and fails on
+  one, the same shape and the same reasoning as `formatDateTime.test.ts`'s
+  walk for unzoned dates -- a mistake that produces no error is one a
+  reviewer will not catch.
 - **`text-slate-400` is a dark-surface token.** On white it is 2.63:1, which
   fails WCAG AA for body text, and an axe-core sweep found it on 62 surfaces
   across the public pages and all four dashboards -- every one of them a label,

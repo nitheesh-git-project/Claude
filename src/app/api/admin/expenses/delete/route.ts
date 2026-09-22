@@ -33,6 +33,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "That cost no longer exists." }, { status: 404 });
   }
 
+  // A cost written against a session is not a hand-typed row and is not a
+  // typo: it is the other half of a written-off debt. Removing it here would
+  // leave the session written off with nothing recording the loss, which
+  // overstates profit by exactly the amount forgiven and says so on no
+  // screen. The reversal that removes both together is on the screen named
+  // below.
+  //
+  // Read separately because `source_appointment_id` is newer than the table:
+  // folded into the select above, a database mid-migration would fail the
+  // whole read and no cost could be deleted at all. An unreadable answer
+  // allows the delete, matching what this route did before the column
+  // existed -- the guard protects a row that only exists once the column
+  // does.
+  const { data: linked } = await admin
+    .from("business_expenses")
+    .select("source_appointment_id")
+    .eq("id", body.id)
+    .maybeSingle();
+  if (linked?.source_appointment_id) {
+    return NextResponse.json(
+      {
+        error:
+          "This cost is a written-off session, so it cannot be removed on its own. Bring the session back on Money → Owed by Patients and this goes with it.",
+      },
+      { status: 409 }
+    );
+  }
+
   const { error } = await admin.from("business_expenses").delete().eq("id", body.id);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

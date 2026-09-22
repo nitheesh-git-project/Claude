@@ -25,6 +25,22 @@ export const EXPENSE_CATEGORIES = [
 ] as const;
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
+/**
+ * What a written-off pay-later session is filed as.
+ *
+ * Deliberately **not** in `EXPENSE_CATEGORIES`: that list is the categories
+ * an admin may choose by hand, and a bad debt is never typed in -- it is
+ * written by `/api/admin/write-off-pay-later-session` against the session it
+ * came from. Keeping it out is what makes "written-off sessions should equal
+ * the bad-debt rows" a reconciliation rather than a coincidence.
+ *
+ * Its cost class is the default, `fixed`, and that is the accounting answer
+ * rather than the lazy one: bad debt is an operating expense -- below the
+ * gross-profit line, inside break-even's "what has to be covered", and not
+ * added back in EBITDA.
+ */
+export const BAD_DEBT_EXPENSE_CATEGORY = "Bad debt";
+
 /** Razorpay's standard domestic card/UPI rate at the time of writing. An
  *  admin can change it in Settings -> Booking Rules; this is only what a
  *  clinic that has never touched the setting gets. */

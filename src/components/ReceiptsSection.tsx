@@ -7,6 +7,10 @@ import Modal from "@/components/admin/Modal";
 import type { PatientReceipt, BookingReceiptStage } from "@/lib/receipts";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
+import {
+  SETTLEMENT_METHOD_LABELS,
+  type SettlementMethod,
+} from "@/lib/payLaterSettlement";
 
 function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
@@ -77,11 +81,23 @@ export default function ReceiptsSection({
       ) : (
         <div className="space-y-3">
           {pageReceipts.map((r) => {
-            const pillLabel = r.kind === "booking" ? STAGE_LABEL[r.stage] : "Payment Failed";
+            const pillLabel =
+              r.kind === "booking"
+                ? STAGE_LABEL[r.stage]
+                : r.kind === "settlement"
+                  ? "Payment Received"
+                  : "Payment Failed";
             const pillStyle =
-              r.kind === "booking" ? STAGE_PILL_STYLE[r.stage] : "text-red-800 bg-red-100";
-            const sessionCode = r.appointmentId
-              ? sessionCodeByAppointmentId?.[r.appointmentId] ?? null
+              r.kind === "booking"
+                ? STAGE_PILL_STYLE[r.stage]
+                : r.kind === "settlement"
+                  ? "text-teal-800 bg-teal-100"
+                  : "text-red-800 bg-red-100";
+            // A settlement covers several sessions, so it has no one session
+            // code to show -- the sessions are listed inside it instead.
+            const appointmentId = r.kind === "settlement" ? null : r.appointmentId;
+            const sessionCode = appointmentId
+              ? sessionCodeByAppointmentId?.[appointmentId] ?? null
               : null;
             const amountLabel =
               r.kind === "booking"
@@ -265,6 +281,56 @@ export default function ReceiptsSection({
                     ? "This session was cancelled and refunded. It can take a few working days to reach your account."
                     : `This session was cancelled - no refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot).`}
                 </p>
+              )}
+            </div>
+          ) : selected.kind === "settlement" ? (
+            /* One payment, and the sessions it closed listed inside it.
+               Four sessions settled by one transfer are one receipt: that is
+               the transaction the patient made and would show somebody, and
+               four receipts for one payment reads as four payments. The
+               amounts below are each session's own price and need not sum to
+               the total -- the pool is fungible, so a session can be closed
+               by two payments and shows against the one that finished it. */
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Paid</span>
+                <span className="font-semibold text-slate-800">
+                  {formatInr(selected.amountPaise)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">How</span>
+                <span className="font-semibold text-slate-800">
+                  {SETTLEMENT_METHOD_LABELS[selected.method as SettlementMethod] ??
+                    selected.method}
+                </span>
+              </div>
+              {selected.reference && (
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-slate-500 shrink-0">Reference</span>
+                  <span className="text-right text-slate-600">{selected.reference}</span>
+                </div>
+              )}
+              {selected.sessions.length > 0 && (
+                <div className="pt-2 border-t border-slate-100">
+                  <p className="text-slate-500 mb-2">This covered</p>
+                  <ul className="space-y-1">
+                    {selected.sessions.map((session) => (
+                      <li
+                        key={session.appointmentId}
+                        className="flex items-baseline justify-between gap-3"
+                      >
+                        <span className="text-slate-600">
+                          {session.title}
+                          {session.slotTime ? ` - ${formatDateTime(session.slotTime)}` : ""}
+                        </span>
+                        <span className="font-semibold text-slate-800 shrink-0">
+                          {formatInr(session.amountPaise)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           ) : (

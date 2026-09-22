@@ -22,6 +22,8 @@ import { isDirectlyPurchasable } from "@/lib/consultationFirst";
 import { readInviteSettings } from "@/lib/acquisitionSettings";
 import { ensureInviteCode, readInviteSummary } from "@/lib/inviteRewardsServer";
 import type { InviteSettings } from "@/lib/inviteRewards";
+import { loadPatientPayLater } from "@/lib/payLaterSettlementServer";
+import type { ReceiptSettlement } from "@/lib/receipts";
 
 // Everything the patient dashboard's screens read, loaded once per
 // request.
@@ -139,6 +141,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { data: sessionCodeLinks },
     { data: meetLinkRows },
     { data: refundDetailRows },
+    { data: payLaterTermRows },
     { data: allPackagePurchases },
     { data: paymentFailures },
     { data: activeCategories },
@@ -194,6 +197,22 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       .from("appointments")
       .select("id, refund_amount_paise, refund_reason, refunded_at")
       .eq("patient_id", user.id),
+
+    // Whether each session is one this patient settles afterwards.
+    //
+    // The feed needs this and had no way to know it: `payment_terms` was
+    // never on the shared select above and nothing merged it in, so
+    // `buildPatientFeed` saw `undefined` on every row and took the prepaid
+    // branch every time. The result was the exact sentence this column
+    // exists to prevent -- a delivered session on terms pinned to the top of
+    // a trusted patient's own dashboard as "Payment not completed. This
+    // session isn't booked until payment goes through." The widget below it
+    // was meanwhile showing them what they owed for that same session.
+    //
+    // Isolated rather than added to the shared select for the usual reason:
+    // absent, this costs one feed item's wording rather than every session
+    // on the screen.
+    supabase.from("appointments").select("id, payment_terms").eq("patient_id", user.id),
 
     // Full purchase history (not just currently-usable packages -- that's
     // ownedPackages below, filtered to paid ones with sessions remaining) so
@@ -413,6 +432,13 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     }
   }
 
+  // Which sessions this patient settles afterwards. Absent on a database
+  // without the column, and every row then reads as prepaid -- which is what
+  // every row was before the column existed.
+  const payLaterTermsById = new Map(
+    (payLaterTermRows ?? []).map((r) => [r.id as string, r.payment_terms as string | null])
+  );
+
   const refundDetailById = new Map(
     (refundDetailRows ?? []).map((r) => [
       r.id,
@@ -439,6 +465,12 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       refund_reason: null as string | null,
       refunded_at: null as string | null,
       ...refundDetailById.get(a.id),
+      // Whether this is a session the patient settles afterwards. Merged
+      // onto the row rather than at one call site, because three surfaces
+      // need it and each of them said the wrong thing without it: the feed
+      // scolded a trusted patient for a session that was booked, and the
+      // session card offered them a Pay Now button that checkout refuses.
+      payment_terms: payLaterTermsById.get(a.id) ?? null,
     };
     return discount
       ? {
@@ -763,6 +795,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       status: a.status,
       visit_mode: visitDetailById.get(a.id)?.visit_mode ?? null,
       payment_status: a.payment_status,
+      // Without this the feed cannot tell an abandoned checkout from a
+      // patient honouring the arrangement the clinic offered them, and it
+      // says the wrong one of those to the patients it trusts most.
+      payment_terms: a.payment_terms,
       created_at: a.slot_time,
       therapist_name: a.therapist_id ? therapistMap.get(a.therapist_id) ?? null : null,
       refund_status: a.refund_status,
@@ -940,12 +976,37 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     }
   }
 
+  // ---- What they owe, for patients who pay after their treatment --------
+  //
+  // Its own isolated pair of reads, merged here rather than folded into the
+  // shared appointment select: `payment_terms`, `amount_due_paise` and
+  // `pay_later_outcome` are recent columns and `pay_later_payments` newer
+  // still, so on a database missing any of them this costs the widget and
+  // nothing else on the screen. Absent, nothing is owed -- which is exactly
+  // right, since a database with no such column has no such debt.
+  //
+  // Overview and the Payments screen only. Every other screen would pay two
+  // round trips to render nothing.
+  let payLater: {
+    owedPaise: number;
+    owedCount: number;
+    unallocatedPaise: number;
+    sessions: { id: string; concern: string | null; slot_time: string | null; timezone: string | null; amount_due_paise: number | null }[];
+    pendingDeclaration: { id: string; amount_paise: number; method: string; declared_at: string | null } | null;
+    lastRejection: { amount_paise: number; rejection_reason: string | null; confirmed_at: string | null } | null;
+    settlements: ReceiptSettlement[];
+  } | null = null;
+  if (needFeed || needReceipts) {
+    payLater = await loadPatientPayLater(admin, user.id);
+  }
+
   return {
     user,
     profile,
     patientCodeRow,
     adminSettings,
     invite,
+    payLater,
     appointments,
     onlineAppointments,
     homeVisitAppointments,

@@ -300,23 +300,35 @@ export function describeDiscount(
 /**
  * Whether this patient qualifies for the first-session offer.
  *
- * The test is "have they ever paid for a session before", asked of the
- * database. Nothing about it can be sent from a browser, and it cannot be
- * claimed twice -- a patient is only new once.
+ * The test is "have they ever **committed** to paying for a session", asked
+ * of the database. Nothing about it can be sent from a browser, and it
+ * cannot be claimed twice -- a patient is only new once.
+ *
+ * "Committed" rather than "paid", and that word is load-bearing. It was
+ * `payment_status = 'paid'` until pay later existed, and a session on terms
+ * sits at `unpaid` for its whole life by design -- so that test read every
+ * trusted patient as brand new on **every** booking they ever made, and
+ * handed out the standing offer again each time. A confirmed booking on
+ * terms is not an abandoned checkout: the price and the discount are frozen
+ * on it and can never be taken back, which is exactly the reasoning
+ * `claim_promo_code` already counts one by. See
+ * `countPriorCommittedSessions` in `src/lib/priorSessionsServer.ts` for the
+ * one query all three readers of this question share.
  *
  * Deliberately counts appointments rather than purchases: a programme can
  * only be bought after a session that was itself paid for, so an
- * appointment is the earlier and simpler fact. The booking being paid for
- * right now is still unpaid at this point and so does not count itself.
+ * appointment is the earlier and simpler fact. The booking being decided
+ * right now is still unconfirmed at this point and so does not count
+ * itself.
  *
  * Fails **closed** -- an unreadable answer means no discount. Charging list
  * price to somebody who was owed an offer is a complaint; discounting for
  * everyone forever because a query failed is a hole in the revenue nobody
  * notices for a month.
  */
-export type PriorPaidLookup = { count: number | null; failed: boolean };
+export type PriorSessionLookup = { count: number | null; failed: boolean };
 
-export function isFirstSessionEligible(prior: PriorPaidLookup): boolean {
+export function isFirstSessionEligible(prior: PriorSessionLookup): boolean {
   if (prior.failed) return false;
   return (prior.count ?? 1) === 0;
 }

@@ -1,11 +1,18 @@
-// Turning a paid booking into a confirmed session.
+// Turning a booking into a confirmed session.
 //
-// Two routes reach this point and they must not drift: `/api/razorpay/verify`
-// after a real capture, and `/api/appointments/confirm-free` when a discount
-// took the price to nothing and no gateway was involved at all. The sequence
-// is identical either way -- read the roster, claim the row, create the Meet
-// event -- and the only difference is whether there is a payment id to
-// record. A rule that lives in two routes becomes two rules.
+// Three routes reach this point and they must not drift: `/api/razorpay/verify`
+// after a real capture, `/api/appointments/confirm-free` when a discount took
+// the price to nothing and no gateway was involved at all, and
+// `/api/appointments/confirm-pay-later` for a trusted patient who will settle
+// afterwards. The sequence is identical for all three -- read the roster,
+// claim the row, create the Meet event -- and the only difference is which
+// payment columns the claim writes. A rule that lives in three routes becomes
+// three rules.
+//
+// The split is by what the write MEANS, not by a flag. A `markPaid: false`
+// argument was rejected: `confirmPaidAppointment(..., { markPaid: false })`
+// reads as a lie at the call site, and the two callers genuinely want
+// different columns rather than the same write with one field suppressed.
 
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -39,15 +46,19 @@ export type ConfirmResult = {
   autoConfirmed: boolean;
 };
 
-export async function confirmPaidAppointment(
+/**
+ * The sequence, with the payment columns handed in.
+ *
+ * Private on purpose: the two exports below name what they mean, and a
+ * caller reaching this directly could confirm a session while writing
+ * whatever it liked to the columns that decide whether money is owed.
+ */
+async function runConfirmation(
   admin: AdminClient,
   args: {
     appointment: ConfirmableAppointment;
-    /** Null for a booking that never went to a gateway. */
-    razorpayPaymentId?: string | null;
-    /** Written only when given, so the paid path keeps the figure
-     *  create-order already resolved rather than re-deriving it. */
-    amountPaidPaise?: number | null;
+    /** Everything the claim writes about money, resolved by the caller. */
+    paymentFields: Record<string, unknown>;
     /** Extra columns to write inside the same claim, so a discount fact can
      *  never be recorded against a booking whose claim was lost. */
     extraFields?: Record<string, unknown>;
@@ -90,12 +101,7 @@ export async function confirmPaidAppointment(
   const { data: claimed, error: claimError } = await admin
     .from("appointments")
     .update({
-      payment_status: "paid",
-      paid_at: new Date().toISOString(),
-      ...(args.razorpayPaymentId ? { razorpay_payment_id: args.razorpayPaymentId } : {}),
-      ...(typeof args.amountPaidPaise === "number"
-        ? { amount_paid_paise: args.amountPaidPaise }
-        : {}),
+      ...args.paymentFields,
       ...(args.extraFields ?? {}),
       ...(shouldAutoConfirm
         ? {
@@ -138,4 +144,76 @@ export async function confirmPaidAppointment(
   }
 
   return { claimed: true, error: null, assignedTherapistId, autoConfirmed: shouldAutoConfirm };
+}
+
+/**
+ * A booking that has been paid for, by a gateway or by a discount reaching
+ * zero. Its exported shape is unchanged -- the three existing callers pass
+ * exactly what they always did.
+ */
+export async function confirmPaidAppointment(
+  admin: AdminClient,
+  args: {
+    appointment: ConfirmableAppointment;
+    /** Null for a booking that never went to a gateway. */
+    razorpayPaymentId?: string | null;
+    /** Written only when given, so the paid path keeps the figure
+     *  create-order already resolved rather than re-deriving it. */
+    amountPaidPaise?: number | null;
+    extraFields?: Record<string, unknown>;
+  }
+): Promise<ConfirmResult> {
+  return runConfirmation(admin, {
+    appointment: args.appointment,
+    paymentFields: {
+      payment_status: "paid",
+      paid_at: new Date().toISOString(),
+      ...(args.razorpayPaymentId ? { razorpay_payment_id: args.razorpayPaymentId } : {}),
+      ...(typeof args.amountPaidPaise === "number"
+        ? { amount_paid_paise: args.amountPaidPaise }
+        : {}),
+    },
+    extraFields: args.extraFields,
+  });
+}
+
+/**
+ * A booking a trusted patient will settle afterwards.
+ *
+ * Everything the paid path does -- the roster's auto-assignment, the atomic
+ * claim, the Meet event -- and **none** of what it writes about money. Three
+ * things are load-bearing:
+ *
+ * 1. **`payment_status` stays `unpaid`, and `paid_at` is never stamped.**
+ *    That is the whole reason `payment_terms` exists as a second axis: this
+ *    row and an abandoned checkout carry the same `unpaid`, and only the
+ *    terms tell them apart.
+ * 2. **The price is frozen here, inside the same claim that confirms.** All
+ *    of it lands or none does, so there is no moment where a row is marked
+ *    pay-later but unconfirmed, or confirmed with no figure on it. Freezing
+ *    matters because `checkoutQuote` reads the LIVE category price -- resolve
+ *    it again at settlement and the patient is charged the new price for work
+ *    already delivered.
+ * 3. **Nothing is owed yet.** `amount_due_paise` is stamped now and counted
+ *    only once the session is `completed`, which is what makes "booking owes
+ *    nothing" and "a late cancellation owes nothing" true with no special
+ *    case anywhere.
+ */
+export async function confirmPayLaterAppointment(
+  admin: AdminClient,
+  args: {
+    appointment: ConfirmableAppointment;
+    /** What this session will cost when it has been delivered. */
+    amountDuePaise: number;
+    extraFields?: Record<string, unknown>;
+  }
+): Promise<ConfirmResult> {
+  return runConfirmation(admin, {
+    appointment: args.appointment,
+    paymentFields: {
+      payment_terms: "pay_later",
+      amount_due_paise: args.amountDuePaise,
+    },
+    extraFields: args.extraFields,
+  });
 }

@@ -115,6 +115,15 @@ export const MONEY_TERMS = {
       "What the clinic owes right now, all time - not scoped to the dates in view, because a debt does not stop existing outside a date range. Already net of any cash therapists are holding, so it is exactly what a payout run would transfer.",
     scope: "now",
   },
+  owed_by_patients: {
+    term: "Owed by patients",
+    meaning:
+      "What trusted patients who pay after their treatment still have to settle. All time, not scoped to the dates in view, because a debt does not stop existing outside a date range. Counted only once a session has been delivered -- a booked session owes nothing, and neither does one that was cancelled. Net of any money already received and not yet applied to a session.",
+    formula: "Delivered, unsettled sessions at their agreed price, less money received and not yet applied",
+    source:
+      "The sessions themselves. Their price is fixed when the session is booked, so re-pricing a treatment later never changes what somebody already owes. Note this is the cash side only: a delivered session counts as revenue the day it happens, so a figure here is revenue already reported and not yet collected.",
+    scope: "now",
+  },
   paid_to_therapists: {
     term: "Paid to therapists",
     meaning: "Already transferred, for sessions scheduled in the range in view.",
@@ -449,6 +458,9 @@ export const GLOSSARY_ORDER: MoneyTermKey[] = [
   "operating_profit",
   "owed_to_therapists",
   "paid_to_therapists",
+  // Beside the therapist balances rather than alphabetically, because it is
+  // the same kind of figure pointing the other way -- money out, money in.
+  "owed_by_patients",
   "package_cash_collected",
   "bookings",
   "discounts_given",

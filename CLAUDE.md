@@ -320,6 +320,104 @@ toggle somebody can flip back on is not the rule being gone. The patient
 dashboard's booking hub is the same: one video consultation, or one visit
 at home.
 
+**A few long-standing patients pay after their treatment, not before.** An
+admin creates the account, hands over the credentials and ticks **Pay later** on
+the profile -- `/api/admin/set-patient-pay-later`, `requireAdminScope("money")`
+because extending credit is a money capability whatever screen the button sits
+on, with a ten-character reason to grant and none to stop, refused for a
+hospital-referred patient (a partner earns a share the moment a session is
+delivered, so terms would pay it out of money nobody has been given), and
+behind one master switch, `pay_later_enabled`, off for its first release and
+read in its own call failing **closed**. Stopping a patient's terms stops new
+bookings only: sessions already booked keep them, and anything already owed
+stays owed, listed and settleable. That patient books an online session through the ordinary wizard --
+`/api/appointments/confirm-pay-later`, the sibling of `confirm-free`: no
+gateway, no `payments` row, `payment_status` left `unpaid` and `paid_at` never
+stamped, with eligibility re-derived server-side because the browser sends an
+appointment id and nothing else. Online only, never against a programme, and
+never when a discount already took the total to nothing -- a free booking is
+not a debt of zero. The price is **frozen inside the same claim that
+confirms**, so no row is ever half-booked, and the route returns the figure it
+wrote rather than a re-read. Paying now is still offered beside it: switching
+this on for somebody must not take away a choice they had. They pay
+nothing, and owe
+nothing until the session has actually been delivered. On completion the frozen
+price appears in three places at once -- what they owe, the clinic's revenue,
+and the therapist's share, which is deliberately **not** made to wait on the
+patient: they did the work and had no say in extending the credit, so the clinic
+carries the gap. `appointments.payment_terms` is the new axis because
+`payment_status = 'unpaid'` already means "abandoned checkout", and telling those
+two apart is what stops an abandoned cart being counted as a debt. The money is
+read on **Money -> Owed by Patients** (`src/lib/patientBalances.ts`), which leads
+with the total and the age of the oldest unsettled session -- there is no ceiling
+on what a trusted patient may owe, so those two figures are the entire early
+warning. How long a balance may sit before it counts as worth chasing is the
+clinic's own (`pay_later_aged_after_days`, 60 days by default, set on that same
+screen beside the figure it colours, with a live count saying how many patients
+that number would flag before it is saved): it is the only automatic warning the
+feature has, and a clinic settling weekly needs a different number from one
+settling quarterly. Whether it warns at all is a switch
+(`pay_later_age_warning_enabled`, on) rather than a zero in that number, because
+zero reads as "chase everything" to one person and "never warn me" to another;
+off means nothing turns amber and the Today alert counts zero, while every total
+still shows. A stored number the app cannot use resolves to the 60-day default
+and the screen **says so** rather than quietly disagreeing with its own
+database, and a desk that cannot change the setting reads the rule in a sentence
+instead of meeting a gap where a control should be. Seven guards ship with the privilege and **before** anything can use it,
+because each one would otherwise make a working feature read as broken: the
+risk detector and System Health both stop counting a session on terms as
+unbacked (it is backed -- the debt is recorded and has its own screen),
+`complete-session` gains a fourth allowance (completing is precisely what
+creates the debt, so refusing would make the one session that must be closed
+the one that cannot be), assignment confirms on terms (or it never reaches
+`confirmed` and can never be completed), the therapist's card stops telling
+them to collect cash at a video call, the patient's feed stops saying their
+booked session "isn't booked", and every chip reads `src/lib/sessionPaymentState.ts`
+rather than printing `payment_status` raw -- "Unpaid" against a patient of two
+years is both wrong and, on the screen an admin chases people from, actively
+misleading. The patient reads the same session in their own voice
+(`describeSessionPaymentForPatient`): **"Written off" never reaches them** --
+it is the clinic's word for a debt it stopped chasing, and on their own card it
+reads as having been given up on, where what is true for them is that there is
+nothing to pay -- a cancelled session on terms says nothing at all, and their
+card no longer offers a Pay Now button that `create-order` refuses anyway.
+**They settle from a pool.** The patient's dashboard carries what they owe,
+each session at the price agreed on the day, and two ways to pay: online,
+which `record_payment_capture` confirms and allocates in one transaction, or a
+**declaration** (cash, UPI, bank transfer) that lands `pending` and **settles
+nothing** -- the figure does not move until an admin confirms the money
+arrived, because a patient who could clear their own total by typing into a box
+is a patient who can. `pay_later_payments` is the pool;
+`allocate_pay_later_payment()` covers delivered sessions **oldest first, whole
+sessions only**, under a row lock on the patient, and writes
+`amount_paid_paise = amount_due_paise` **exactly** -- never the payment's share
+-- which is what makes every money figure and every therapist's pay identical
+either side of a settlement. The pool is fungible across payments, so two part
+payments close a session between them rather than stranding money for ever. One
+receipt per payment, listing the sessions it closed, because four receipts for
+one transfer reads as four payments. Confirming is one tap and rejecting needs
+a ten-character reason the patient reads. System Health carries a seventh
+check, **Pay Later**: owing money is never a fault, a payment waiting to be
+checked is amber, and the only red is the money in disagreeing with the money
+accounted for -- reported, never repaired. Risk carries three rules of its own
+under **Trusted patients -- follow up**. **And money that never arrives is a
+cost, not a reduction.** Writing a session off
+(`/api/admin/write-off-pay-later-session`, money scope, a ten-character reason
+both ways because reversing re-imposes a debt somebody was told was forgiven)
+moves no money column on the appointment -- the clinic delivered the session,
+counted the revenue and has already paid the therapist, so reducing the amount
+would claw back money already handed over. `pay_later_outcome` takes it out of
+the owed figure and the loss is one **Bad debt** row on Money -> Costs, tied to
+the session by `business_expenses.source_appointment_id` and its partial unique
+index; the appointment is claimed first and a cost row that will not write
+reverts the claim, since a write-off with no cost behind it overstates profit by
+exactly the amount forgiven. **A refund on a session they had already settled is
+handed back by a person**: the money arrived into a pool covering several
+sessions, so it takes the `manual_pending` lane and waits under *Refunds to hand
+back* on the same screen -- and refunding one they have **not** settled is not a
+refund at all, which the route says rather than dead-ending. See the pay-later
+rule in `AGENTS.md`.
+
 **The books answer the seven standard questions too.** Money -> Business
 Health reports return on investment, return on ad spend, working capital,
 gross and net margin, EBITDA, break-even and revenue run rate, off one
@@ -342,8 +440,12 @@ rule in `AGENTS.md`.
 Four acquisition discounts exist and no more (`src/lib/discounts.ts`,
 `promoCodes.ts`, `inviteRewards.ts`), recorded as five sources because an
 invite has two halves: a standing **first-session offer**, whose eligibility
-is "has this patient ever paid for a session" asked of the database and so
-cannot be claimed twice or posted from a browser; a **goodwill adjustment**
+is "has this patient ever **committed** to paying for a session" asked of the
+database and so cannot be claimed twice or posted from a browser - committed
+rather than paid, because a session on pay-later terms is never paid and the
+older test therefore read a trusted patient as brand new on every booking
+they made, in all three places that ask it (`src/lib/priorSessionsServer.ts`
+is the one query they now share); a **goodwill adjustment**
 an admin applies to one unpaid session with a mandatory reason and an audit
 row; a **promo code**, a campaign an admin sets up that a patient claims by
 typing its name at checkout; and a **patient invite**, which takes something
@@ -453,7 +555,11 @@ direct-insert purchase or appointment never claims `visits_used` and never
 gets a calendar event, so each one left behind is a permanent red row on
 Settings -> System Health. Its `--reconcile` mode is the one to reach for: it
 releases the credit and cancels the appointment rather than deleting
-anything, which is what the ledger's own append-only trigger asks for. A Playwright
+anything, which is what the ledger's own append-only trigger asks for. Pay
+later's fixture money is the one thing only `--apply` can clear: a confirmed
+settlement has no undo by design, and left behind its unallocated remainder
+nets off the next run's owed figure, so the patient's widget reads less than
+the sessions listed under it. A Playwright
 e2e suite covers the money-critical paths, the public pages' section
 navigation, the catalog detail dialogs, the specialist booking handoff and
 the patient-only booking rule, therapist-suggested sessions, the Home
@@ -462,7 +568,11 @@ an email-confirmation step, the brand splash's cold-open and
 long-absence rules and its admin settings, and the Session Completed cutoff,
 and the therapist roster end to end -- ranges, exceptions, leave,
 authorization, stale and double-clicked saves, and the booking regression --
-and each admin scope's own landing screen
+and each admin scope's own landing screen, and pay later end to end in a
+real browser -- the grant, a booking with no payment screen, completion
+putting the money in three places at once, a declaration that settles
+nothing until an admin confirms it, and a write-off that costs the clinic
+without moving a single money figure
 (`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys - verify a change
 with a build and a lint.

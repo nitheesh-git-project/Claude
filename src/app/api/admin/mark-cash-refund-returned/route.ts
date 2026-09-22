@@ -4,11 +4,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
-// Admin confirming that cash owed back to a patient (a cancelled cash-on-
-// visit booking, flagged refund_status 'manual_pending' by
-// cancelAppointmentAndRefund) has actually been handed back. There is no
-// Razorpay payment behind cash, so nothing can refund itself -- this is the
-// human step that clears the action queue on the Cash Ledger.
+// Admin confirming that money owed back to a patient has actually been handed
+// over. Two things reach `refund_status: 'manual_pending'` and this route
+// clears both: a cancelled cash-on-visit booking, flagged by
+// cancelAppointmentAndRefund and worked on the Cash Ledger, and a session a
+// trusted patient had already settled, refunded through
+// refund-session-partial and worked on Money → Owed by Patients. Neither has
+// a Razorpay payment on the appointment to reverse, so nothing can refund
+// itself -- this is the human step, and until it lands the patient is out of
+// pocket and the queue says so.
+//
+// One route rather than two because the work is identical: the same CAS, the
+// same column, the same audit row. Its action key stays `cash.mark_refund_
+// returned` -- ACTION_DOMAIN and the QA plan quote keys, and renaming one
+// orphans every entry already written -- while its label says "money" rather
+// than "cash", which is true of both.
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("money");
   if (!adminUser) {

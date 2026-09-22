@@ -41,6 +41,21 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     on: "Patients can now pay the therapist at the door.",
     off: "Cash on visit is off. Home visits must be prepaid.",
   },
+  pay_later_enabled: {
+    kind: "boolean",
+    on: "Trusted patients can now be treated first and settle afterwards.",
+    off: "Nobody new can be put on pay later. Anything already owed is still owed, and can still be settled.",
+  },
+  pay_later_age_warning_enabled: {
+    kind: "boolean",
+    on: "Balances that sit too long will turn amber.",
+    off: "Ageing warnings are off. You will still see what every patient owes.",
+  },
+  pay_later_aged_after_days: {
+    kind: "number",
+    describe: (v) =>
+      `A patient who has owed for more than ${plural(v, "day", "days")} now shows as worth chasing.`,
+  },
   home_visit_lead_time_hours: {
     kind: "number",
     describe: (v) => `Home visits must now be booked at least ${plural(v, "hour", "hours")} ahead.`,

@@ -297,14 +297,16 @@ export default async function TherapistHealthProfilesPage() {
         {onboardingCount > 0 && (
           <p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-800">
             {onboardingCount} patient{onboardingCount > 1 ? "s" : ""} need
-            {onboardingCount > 1 ? "" : "s"} onboarding - four questions to set the condition type,
+            {onboardingCount > 1 ? "" : "s"}{" "}
+            onboarding - four questions to set the condition type,
             then that type&apos;s own seven. Their Health Profile stays locked to them until it is
             done.
           </p>
         )}
         {newPatientCount > 0 && (
           <p className="mb-4 rounded-lg bg-teal-50 border border-teal-200 px-3 py-2 text-xs font-semibold text-teal-800">
-            {newPatientCount} new patient{newPatientCount > 1 ? "s" : ""} - you haven&apos;t looked at their Health
+            {newPatientCount} new patient{newPatientCount > 1 ? "s" : ""}{" "}
+            - you haven&apos;t looked at their Health
             Profile yet.
           </p>
         )}

@@ -18,6 +18,7 @@ import {
   type PromoEvaluation,
 } from "@/lib/promoCodes";
 import type { DiscountOutcome } from "@/lib/discounts";
+import { countPriorCommittedSessions } from "@/lib/priorSessionsServer";
 
 type AdminClient = SupabaseClient;
 
@@ -261,14 +262,19 @@ async function countClaims(
   return count ?? 0;
 }
 
+/**
+ * Whether a `first_session_only` code is still open to this patient.
+ *
+ * The same question the standing offer asks, so it reads the same query --
+ * see `countPriorCommittedSessions`. Two readers of "is this patient new"
+ * with two definitions is how one of them comes to say yes to a patient the
+ * other has already turned down.
+ *
+ * Unreadable means "has been here before", which costs a first-session-only
+ * code rather than giving one away.
+ */
 async function countPriorPaid(admin: AdminClient, patientId: string): Promise<number> {
-  const { count, error } = await admin
-    .from("appointments")
-    .select("id", { count: "exact", head: true })
-    .eq("patient_id", patientId)
-    .eq("payment_status", "paid");
-  // Unreadable means "has paid before", which costs a first-session-only
-  // code rather than giving one away.
-  if (error) return 1;
-  return count ?? 0;
+  const prior = await countPriorCommittedSessions(admin, patientId);
+  if (prior.failed) return 1;
+  return prior.count ?? 0;
 }

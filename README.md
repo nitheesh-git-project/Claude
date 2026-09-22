@@ -51,6 +51,15 @@ a dashboard you have to reload.
   so it runs as one SQL transaction over the Supabase Management API and needs
   `SUPABASE_ACCESS_TOKEN` as well.
 
+`--apply` is also the only mode that can clear pay later's fixture money.
+`e2e/pay-later.spec.ts` books, settles, writes off and refunds against one QA
+patient through the real routes, and `pay_later_payments` is append-only - a
+confirmed settlement has no undo, by design. Left behind, its unallocated
+remainder is netted off the next run's owed figure, so that patient's widget
+shows less than the sessions listed under it and the journey fails on a
+working product. `--reconcile` says it cannot clear them rather than
+appearing to.
+
 Both write with full privilege - never point either at a database with real
 patients.
 
@@ -309,7 +318,7 @@ link points here so no client bundle has to know the four paths; see
 | **Today** | Today · Approvals | What is waiting on me right now |
 | **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom |
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
-| **Money** | Summary · Business Health · Transactions · Payouts · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
+| **Money** | Summary · Business Health · Transactions · Payouts · Owed by Patients · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
 | **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
 | **Settings** | Brand & Contact · Public Site · Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions · User Access · System Health · Account Security | How the product behaves. Every screen here states what it is and gives one example, under its heading. |
@@ -896,7 +905,15 @@ cancellation window is 24 hours by default and admin-editable at **Settings
 → Booking Rules** (`site_settings.online_cancellation_refund_hours`, with
 `CANCELLATION_FULL_REFUND_HOURS` as the fallback). Cancellations inside the
 window get no refund; outside it, a Razorpay refund is issued and stamped on
-the appointment. That automatic rule can only say "all" or "nothing", so an
+the appointment. The booking wizard's Step 3 states the **deadline** this
+produces for the slot just chosen ("Free cancellation until 24 Sept 2026,
+9:00 am") rather than restating the rule, and where the slot is already
+nearer than the window - which every booking between the 12-hour lead time
+and this 24-hour window is - it says so there, while the patient can still
+choose a different slot. `src/lib/cancellationWindow.ts` is that judgement,
+and a booking that costs nothing (a discount reaching zero, or a patient on
+pay-later terms) gets its own sentence instead, since a refund window is not
+a fact about a session nobody paid for. That automatic rule can only say "all" or "nothing", so an
 admin can additionally return any amount on a paid session from its own
 record (`/api/admin/refund-session-partial`) - it requires a stated reason,
 caps at what is still refundable, sets `refund_is_manual`, and is recorded
@@ -972,8 +989,11 @@ Four, and deliberately no more.
 Configured at **Settings → Offers & Discounts** - off by default, either a set
 price ("first session ₹499") or a percentage off - and it applies to a video
 consultation only. Eligibility is decided by the server asking *has this
-patient ever paid for a session*, so it cannot be claimed twice, cannot be
-asked for, and cannot be sent from a browser. A patient is only new once.
+patient ever committed to paying for a session* - one that was paid for, or
+one still standing on pay-later terms - so it cannot be claimed twice, cannot
+be asked for, and cannot be sent from a browser. A patient is only new once,
+including a patient the clinic lets pay afterwards. A session they cancelled
+was never delivered and leaves them new.
 Programmes and home visits are never discounted by it: a programme comes
 from a therapist's recommendation, and a visit's travel fee is money that
 goes straight to the therapist.
@@ -1017,8 +1037,9 @@ session, and they get something off their next one - once that friend has
 actually had and paid for a session, never on a signup. Set both amounts and
 a ceiling on how many rewards one patient may earn at **Settings → Offers &
 Discounts**; it is off by default. A code cannot be used by its owner, cannot be
-used twice, and cannot be used by somebody who has already paid for a
-session - you are new exactly once. An amount already promised is honoured
+used twice, and cannot be used by somebody who has already had a session
+here - you are new exactly once, and a session you have yet to settle counts
+just as a paid one does. An amount already promised is honoured
 even if you change the figures or switch the feature off later.
 
 This is **not** the same thing as a hospital referral, which is a partner
@@ -1461,6 +1482,97 @@ attempt and its recorded errors.
 it completes. Aggregates (`src/lib/ratingAggregate.ts`, the
 `public_rating_summary` view) feed the public team page; the admin can hide
 individual ratings, hide a therapist's rating, or hide ratings site-wide.
+
+**Pay later.** A few long-standing patients are treated first and settle
+afterwards -- weekly, monthly, or right after a session. An admin creates the
+account and ticks **Pay later** on the profile; that patient books an online
+session and pays nothing at the time. `appointments.payment_terms`
+(`prepaid` | `pay_later`) marks it, which is what keeps it distinguishable from
+an abandoned checkout -- both are `payment_status = 'unpaid'`, and counting the
+second as a debt would be wrong in every figure.
+
+An admin grants it on the patient's own profile (`/api/admin/set-patient-pay-later`,
+money scope, a ten-character reason to grant and none to stop), behind a master
+switch that is off by default. A hospital-referred patient is refused: that
+partner earns a share of the revenue the moment a session is delivered, so
+terms would have the clinic paying it out of money it has not been given.
+Stopping somebody's terms stops new bookings only -- what is already owed stays
+owed and settleable.
+
+Booking is the ordinary wizard with the payment step replaced: the button
+reads **Confirm booking - pay later**, with **Or pay ₹X now instead** under it, and
+the confirmation says the session is booked rather than that a payment went
+through. Online sessions only, and never one drawn from a programme already
+paid for.
+
+Nothing is owed until the work is done: `amount_due_paise` is frozen when the
+session is booked and counted only once the session is **completed**, so a
+booking owes nothing and a late cancellation owes nothing, with no special case
+either side. On completion that frozen price becomes what the patient owes, the
+clinic's revenue, and the therapist's share all at once -- the therapist is paid
+for delivering rather than for collecting, and the clinic carries the gap.
+
+Read on **Money -> Owed by Patients**, which leads with the total owed and how
+long the oldest unsettled session has been owed. How long that may run before it
+counts as worth chasing is set on that same screen (`pay_later_aged_after_days`,
+60 days by default, 1-365) -- patients who settle weekly want it low, patients
+who settle quarterly want it high, and with no ceiling on what anyone may owe it
+is the only automatic warning there is. The field says how many patients a
+number would flag before it is saved, names any stored value it could not use,
+and reads as a plain sentence for a desk that cannot change it. Whether the
+warning runs at all is its own switch beside it
+(`pay_later_age_warning_enabled`, on by default) rather than a zero in the
+number: off, nothing turns amber and the Today alert counts zero, while every
+total still shows. There is deliberately no
+ceiling on what a trusted patient may owe, so those two figures are the whole of
+the early warning, alongside a list of pay-later sessions that have been and
+gone and were never marked completed -- the one case where nothing is recorded
+anywhere at all.
+
+*Settling.* The patient's own dashboard shows what they owe -- each session at
+the price agreed on the day it was delivered -- with two ways to pay. **Online**
+goes through Razorpay like any other payment, and the capture confirms it and
+closes the sessions it covers in one transaction. **Or they tell the clinic they
+have already paid** (cash, UPI, bank transfer) with a note and a reference: that
+lands as a payment *waiting to be checked* and **changes nothing** -- the figure
+they owe does not move until somebody has found the money, because a patient who
+could clear their own total by typing into a box is a patient who can. Finance
+or a Master Admin answers it on **Money -> Owed by Patients**: Confirm is one
+tap, and turning one down needs a reason of at least ten characters, which the
+patient reads on their own dashboard.
+
+Money joins a **pool** rather than attaching to a session. Allocation then
+covers delivered sessions oldest first and whole sessions only, so ₹2,000
+against ₹4,800 settles one ₹1,200 session and leaves ₹800 held against the next
+one -- stated on both screens rather than quietly netted off. The pool is shared
+across payments, so two part payments close a session between them instead of
+stranding money that no single payment can spend. Each session is settled at its
+own frozen price, never at a share of the payment, which is what keeps every
+revenue figure and every therapist's pay identical either side of a settlement.
+A payment produces **one receipt** listing the sessions it closed, because four
+receipts for one transfer reads as four payments.
+
+*When the money does not come in.* Sometimes it never will -- somebody moved
+away, or after a year has simply stopped. **Writing a session off is a cost,
+not a reduction** (`/api/admin/write-off-pay-later-session`, money scope, a
+ten-character reason): the clinic delivered the session, counted the revenue
+and has already paid the therapist their share, so nothing on the session's
+money columns moves and forgiving the debt would otherwise claw back money
+already handed over. `pay_later_outcome` takes the session out of the owed
+figure, and the loss is recorded as one **Bad debt** row on Money -> Costs,
+linked to the session it came from. It is reversible -- bringing the session
+back as owed removes that cost with it -- and both directions need a reason.
+Written-off sessions are listed on Money -> Owed by Patients so the reversal
+is reachable, and System Health reports any written-off session with no cost
+recorded against it.
+
+*Giving money back.* A session a trusted patient had already settled carries
+no gateway payment of its own -- their money arrived as one payment covering
+several sessions -- so `/api/admin/refund-session-partial` records it as owed
+back rather than calling Razorpay, and it waits under **Refunds to hand back**
+on Money -> Owed by Patients until somebody sends it and confirms. Refunding a
+session they have **not** settled is not a refund at all and the route says so:
+that is the write-off above.
 
 **Payouts.** Each therapist has a `revenue_share_percent`. Earnings are
 computed per completed, paid session (`src/lib/therapistEarnings.ts`,

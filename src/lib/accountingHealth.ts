@@ -107,22 +107,41 @@ async function readBalanceMismatches(admin: AdminClient): Promise<BalanceMismatc
  */
 async function readUnmatchedPayments(admin: AdminClient): Promise<UnmatchedPayment[] | null> {
   try {
-    const { data, error } = await admin
-      .from("payments")
-      .select("id, razorpay_payment_id, amount_paise, captured_at")
-      .eq("status", "captured")
-      .is("target_appointment_id", null)
-      .is("target_package_purchase_id", null)
-      .is("target_home_visit_purchase_id", null)
-      .order("captured_at", { ascending: false })
-      .limit(ROW_LIMIT);
-    if (error) return null;
-    return (data ?? []).map((p) => ({
-      id: p.id,
-      razorpayPaymentId: p.razorpay_payment_id,
-      amountPaise: p.amount_paise ?? 0,
-      capturedAt: p.captured_at,
-    }));
+    const [captured, settlements] = await Promise.all([
+      admin
+        .from("payments")
+        .select("id, razorpay_payment_id, amount_paise, captured_at")
+        .eq("status", "captured")
+        .is("target_appointment_id", null)
+        .is("target_package_purchase_id", null)
+        .is("target_home_visit_purchase_id", null)
+        .order("captured_at", { ascending: false })
+        .limit(ROW_LIMIT),
+      // A pay-later settlement is a fourth thing a payment can be for, and
+      // `target_pay_later_payment_id` is the newest column on this table --
+      // so it is a **second, isolated** read rather than a fourth `.is()`
+      // above. Added to that query, a database without the column answers
+      // 42703, this function returns null, and the whole check reads as
+      // "unknown" on a clinic where nothing is wrong. Read separately, an
+      // unmigrated database simply has no settlements to exclude, which is
+      // exactly right: it cannot have taken one.
+      admin
+        .from("payments")
+        .select("id")
+        .eq("status", "captured")
+        .not("target_pay_later_payment_id", "is", null)
+        .limit(500),
+    ]);
+    if (captured.error) return null;
+    const settled = new Set((settlements.data ?? []).map((p) => p.id));
+    return (captured.data ?? [])
+      .filter((p) => !settled.has(p.id))
+      .map((p) => ({
+        id: p.id,
+        razorpayPaymentId: p.razorpay_payment_id,
+        amountPaise: p.amount_paise ?? 0,
+        capturedAt: p.captured_at,
+      }));
   } catch {
     return null;
   }
@@ -143,7 +162,7 @@ async function readSessionsWithoutBacking(
   try {
     const { data, error } = await admin
       .from("appointments")
-      .select("id, session_code, patient_id, slot_time, package_purchase_id, home_visit_purchase_id, cash_collected_at")
+      .select("id, session_code, patient_id, slot_time, payment_terms, package_purchase_id, home_visit_purchase_id, cash_collected_at")
       .eq("status", "completed")
       .neq("payment_status", "paid")
       .order("slot_time", { ascending: false })
@@ -152,7 +171,16 @@ async function readSessionsWithoutBacking(
     return (data ?? [])
       .filter(
         (a) =>
-          !a.package_purchase_id && !a.home_visit_purchase_id && !a.cash_collected_at
+          !a.package_purchase_id &&
+          !a.home_visit_purchase_id &&
+          !a.cash_collected_at &&
+          // A delivered session on pay-later terms is backed -- the debt is
+          // recorded and has its own screen and its own System Health check.
+          // Filtered here rather than in the query above so a database
+          // without the column still lists every other row: this function
+          // answers null on a failed select, which would read as "unknown"
+          // across the whole check.
+          a.payment_terms !== "pay_later"
       )
       .slice(0, ROW_LIMIT)
       .map((a) => ({

@@ -7,6 +7,7 @@ import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { describeRefundForPatient } from "@/lib/refundState";
+import { describeSessionPaymentForPatient } from "@/lib/sessionPaymentState";
 import { SESSION_FEE_PAISE, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { visitAddressFromAppointment, formatAddressBlock, mapsSearchUrl } from "@/lib/formatAddress";
 import type { PatientDashboardData } from "@/lib/patientDashboardData";
@@ -31,6 +32,11 @@ export function renderPatientSessionCard(
 ): ReactNode {
   const { profile, therapistMap, categoryPriceMap, purchaseCodeById, adminSettings } = data;
     const patientRefund = describeRefundForPatient(a);
+    // One reading of these columns, shared with the admin chip and the
+    // therapist's card, so the three cannot describe one session three ways.
+    // The patient's own reading, not the admin chip: "Written off" is the
+    // clinic's accounting word for having given up on them.
+    const payment = describeSessionPaymentForPatient(a);
     const visitAddress = visit ? visitAddressFromAppointment(visit) : null;
     const addressLines = visitAddress ? formatAddressBlock(visitAddress) : [];
     const mapsUrl = visitAddress ? mapsSearchUrl(visitAddress) : null;
@@ -106,6 +112,36 @@ export function renderPatientSessionCard(
                   No Refund
                 </span>
               )
+            ) : payment?.onTerms ? (
+              // A session this patient settles afterwards is never a Pay Now
+              // button. Two reasons, and the second is the hard one: nothing
+              // is owed until it has been delivered, so asking up front is
+              // wrong -- and once it IS confirmed on terms, `create-order`
+              // refuses it outright, because paying there would mark it paid
+              // outside the settlement path and skip the allocation that
+              // decides which delivered sessions the money covers. So the
+              // button did not merely read wrong, it led nowhere.
+              //
+              // What it says instead comes from the one module every other
+              // surface reads, so this card cannot describe the arrangement
+              // in a fourth way. Settling happens from the widget on their
+              // Overview, against everything owed at once, not per session.
+              <span
+                className={`font-semibold px-3 py-1 rounded-full ${
+                  payment.tone === "warn"
+                    ? "text-amber-700 bg-amber-50"
+                    : payment.tone === "good"
+                      ? "text-green-700 bg-green-50"
+                      : "text-slate-600 bg-slate-100"
+                }`}
+                title={
+                  payment.owed
+                    ? "Added to what you owe. Settle it from your dashboard whenever suits you."
+                    : "Nothing to pay for this one yet - it is added to what you owe once it has happened."
+                }
+              >
+                {payment.label}
+              </span>
             ) : a.payment_status === "unpaid" ? (
               <PayNowButton
                 appointmentId={a.id}

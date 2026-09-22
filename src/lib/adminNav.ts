@@ -189,6 +189,23 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "What you owe each therapist right now, and paying it.",
         example: "Pay a therapist what they have earned, less any cash they are still holding.",
       },
+      // The mirror of Payouts: money out, per person, with the control that
+      // settles it -- and money in, per patient, with the control that settles
+      // that. Its own screen rather than a card on Summary for two reasons.
+      // It is the only place these rows are listed, and a count that opens a
+      // screen not containing the rows it counted is the failure the `?view=`
+      // presets exist to prevent. And it is a balance: true right now, all
+      // time, where every Money screen but Payouts moves with the dates in
+      // view -- so a `now` figure dropped onto a `range` screen is the scope
+      // mixing that ScopeChip exists to paper over.
+      {
+        key: "owing",
+        label: "Owed by Patients",
+        blurb:
+          "Patients you have allowed to pay after their treatment, what they still owe, and settling it.",
+        example:
+          "See that Lakshmi has had four sessions and not settled yet, and record the cash she hands over.",
+      },
       // What the clinic itself spends. Without it the money screens stop at
       // the clinic's share and no figure anywhere can honestly be called
       // profit.

@@ -29,13 +29,14 @@ import {
   type DiscountOutcome,
   type DiscountSource,
   type FirstSessionOffer,
-  type PriorPaidLookup,
+  type PriorSessionLookup,
 } from "@/lib/discounts";
 import { applyInviteDiscount } from "@/lib/inviteRewards";
 import { claimPromoCode, previewPromoCode, releasePromoCode } from "@/lib/promoCodesServer";
 import { claimInviteHalf, readInviteHalves } from "@/lib/inviteRewardsServer";
 import { readPromoCodesEnabled } from "@/lib/acquisitionSettings";
 import { readAppointmentServicePrice } from "@/lib/appointmentPriceServer";
+import { countPriorCommittedSessions } from "@/lib/priorSessionsServer";
 
 type AdminClient = SupabaseClient;
 
@@ -115,10 +116,10 @@ export async function resolveCheckoutQuote(
   const travelFeePaise =
     appointment.visit_mode === "home_visit" ? Math.max(0, appointment.travel_fee_paise ?? 0) : 0;
 
-  // A visitor with no account has never paid for a session, so the offer
+  // A visitor with no account has never had a session here, so the offer
   // they are being shown is the one they will actually get.
-  const priorPaid: PriorPaidLookup = patientId
-    ? await countPriorPaidSessions(admin, patientId)
+  const priorPaid: PriorSessionLookup = patientId
+    ? await countPriorCommittedSessions(admin, patientId)
     : { count: 0, failed: false };
   const [offer, goodwillPaise, promoCodesEnabled, halves] = await Promise.all([
     readFirstSessionOffer(admin),
@@ -244,31 +245,6 @@ async function readFirstSessionOffer(admin: AdminClient): Promise<FirstSessionOf
     };
   } catch {
     return off;
-  }
-}
-
-/**
- * Has this patient ever paid for a session before?
- *
- * The whole eligibility rule, asked of the database rather than of anything
- * the browser sent. `failed` is carried rather than swallowed so
- * `isFirstSessionEligible` can fail closed on it -- an unreadable answer
- * must not become a discount for everybody.
- */
-async function countPriorPaidSessions(
-  admin: AdminClient,
-  patientId: string
-): Promise<PriorPaidLookup> {
-  try {
-    const { count, error } = await admin
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", patientId)
-      .eq("payment_status", "paid");
-    if (error) return { count: null, failed: true };
-    return { count: count ?? 0, failed: false };
-  } catch {
-    return { count: null, failed: true };
   }
 }
 

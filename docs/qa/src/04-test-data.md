@@ -25,6 +25,20 @@ Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `ac
 
 ### 8.3 Patients
 
+**Patient E is made only for §16.4 (pay later), and is made late on purpose.** That section turns on an arrangement where work is delivered before money arrives, and half of it asks *"is this patient new?"* - a question the app answers **once ever** per patient. Patients A and B both carry paid sessions from the reference dataset by the time Finance runs, so reusing either would spend the first-session offer before `PL-BOOK-007` could watch it fire. Create Patient E as an **admin-made account** (Settings → User Access) rather than a self-signup, because that is how these patients really arrive: the clinic makes the account and hands over the credentials.
+
+| Field | **Patient E** (pay later) |
+| --- | --- |
+| Full name | `QA Patient E` |
+| Email | `qa.patient.e@example.test` |
+| Password | Generated, shown **once** on User Access - write it down |
+| Phone | `+91 98765 43213` |
+| Date of birth | `1968-07-21` |
+| PIN code | `560038` |
+| Referral code | *(blank - a referred patient can never be granted terms; that is `PL-GRANT-003`, which uses **Patient C**)* |
+| Concern | `Chronic shoulder pain` |
+| Pay later reason | `Patient of six years, settles monthly by bank transfer` |
+
 | Field | **Patient A** (main journey) | **Patient B** (isolation/negative) | **Patient C** (hospital-referred) |
 | --- | --- | --- | --- |
 | Full name | `QA Patient A` | `QA Patient B` | `QA Referred Patient C` |

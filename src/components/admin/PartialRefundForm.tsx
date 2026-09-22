@@ -4,8 +4,15 @@ import { useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
 
-// A refund for an amount the admin chooses, on a session that has a real
-// Razorpay payment behind it.
+// A refund for an amount the admin chooses.
+//
+// Two lanes, and `byHand` is which. Most sessions have a real Razorpay
+// payment behind them and the gateway reverses it. A session a trusted
+// patient settled does not -- the money arrived as one payment covering
+// several sessions -- so the decision is recorded and a person sends it back.
+// The form is the same shape either way; only what it promises differs,
+// because a confirmation saying "via Razorpay" over a bank transfer is the
+// one thing a money control must not say.
 //
 // The automatic rule (full outside the cancellation window, none inside)
 // still runs on cancellation and is untouched. This is the case that rule
@@ -17,10 +24,16 @@ export default function PartialRefundForm({
   appointmentId,
   paidPaise,
   alreadyRefundedPaise,
+  byHand = false,
 }: {
   appointmentId: string;
   paidPaise: number;
   alreadyRefundedPaise: number;
+  /** No gateway payment on this session to reverse -- a trusted patient
+   *  settled it as part of one payment covering several sessions. The
+   *  decision is recorded here and a person sends the money, so the wording
+   *  must not promise a card refund that is not going to happen. */
+  byHand?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [amountInr, setAmountInr] = useState("");
@@ -62,7 +75,9 @@ export default function PartialRefundForm({
     }
 
     const ok = await confirm(
-      `Refund ₹${rupees.toLocaleString("en-IN")} to the patient via Razorpay? This cannot be undone from here.`
+      byHand
+        ? `Record ₹${rupees.toLocaleString("en-IN")} as owed back to this patient? Nothing is sent automatically - it waits on Money → Owed by Patients until somebody confirms it was handed over.`
+        : `Refund ₹${rupees.toLocaleString("en-IN")} to the patient via Razorpay? This cannot be undone from here.`
     );
     if (!ok) return;
 
@@ -91,7 +106,7 @@ export default function PartialRefundForm({
         onClick={() => setOpen(true)}
         className="text-[11px] font-semibold text-slate-600 hover:underline"
       >
-        Refund part of this payment
+        {byHand ? "Give some of this back" : "Refund part of this payment"}
       </button>
     );
   }
@@ -102,6 +117,13 @@ export default function PartialRefundForm({
         ₹{(remainingPaise / 100).toLocaleString("en-IN")} of ₹
         {(paidPaise / 100).toLocaleString("en-IN")} is still refundable.
       </p>
+      {byHand && (
+        <p className="text-[11px] text-slate-600">
+          This patient settled as part of one payment covering several sessions, so there
+          is no card payment to reverse. Recording it here puts it on the hand-back list on
+          Money → Owed by Patients.
+        </p>
+      )}
       <input
         type="number"
         min="1"
@@ -125,7 +147,7 @@ export default function PartialRefundForm({
           disabled={isPending}
           className="rounded-lg bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
         >
-          {isPending ? "Refunding…" : "Refund"}
+          {isPending ? (byHand ? "Recording…" : "Refunding…") : byHand ? "Record it" : "Refund"}
         </button>
         <button
           onClick={() => setOpen(false)}

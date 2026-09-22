@@ -72,6 +72,11 @@ describe("which desk a rule belongs to", () => {
       "completion_without_payment",
       "cash_variance",
       "manual_adjustment_volume",
+      // What trusted patients owe, and for how long. A money question, and
+      // the only automatic warning an arrangement with no ceiling has.
+      "pay_later_aged",
+      "pay_later_balance_high",
+      "pay_later_declaration_rejected",
     ]);
     // A cash variance is not an operations question, and a contact leak is
     // not a finance one.

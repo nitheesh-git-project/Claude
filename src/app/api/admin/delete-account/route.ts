@@ -43,6 +43,13 @@ const PROBES: { table: string; column: string; group: keyof AccountReferences }[
   { table: "appointments", column: "preferred_therapist_id", group: "sessions" },
   { table: "appointments", column: "cash_collected_by", group: "sessions" },
   { table: "payments", column: "patient_id", group: "money" },
+  // A trusted patient's settlements. Folds into the existing `money`
+  // group rather than earning a seventh: "3 sessions and 4 money records"
+  // is how a person describes this, and `accountDeletion.ts` does not
+  // change. Without the probe, deleting such an account is refused with a
+  // raw Postgres foreign-key string instead of a sentence.
+  { table: "pay_later_payments", column: "patient_id", group: "money" },
+  { table: "pay_later_payments", column: "confirmed_by", group: "money" },
   { table: "therapist_payout_batches", column: "therapist_id", group: "money" },
   { table: "therapist_payout_batches", column: "settled_by", group: "money" },
   { table: "business_expenses", column: "created_by", group: "money" },

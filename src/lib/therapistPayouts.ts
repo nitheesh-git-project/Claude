@@ -6,11 +6,16 @@
 // touching working, tested code for the sake of sharing ~10 lines wasn't
 // worth the regression risk.
 
+import { sessionAmountPaise } from "@/lib/sessionAmount";
+
 export type PayoutAppointment = {
   id: string;
   status: string;
   payment_status: string;
   amount_paid_paise: number | null;
+  // Pay later, optional for the usual migration-tolerance reason.
+  payment_terms?: string | null;
+  amount_due_paise?: number | null;
   therapist_id: string | null;
   patient_id: string;
   category_id: string | null;
@@ -91,17 +96,28 @@ export function computeTherapistPayoutSummary(
   // for a home visit is revenue minus (share + travel), so it comes out
   // correctly lower by exactly the travel amount without any special case
   // for profitPaise below.
-  const paidAppointments = therapistAppointments.filter((a) => a.payment_status === "paid");
-  const revenuePaise = paidAppointments.reduce((sum, a) => sum + (a.amount_paid_paise ?? 0), 0);
+  // Pay later: a delivered session counts even though the patient has not paid
+  // yet. The clinic recognises that revenue at completion (see moneyLineFor)
+  // and the therapist's share is earned with it, so both halves move together
+  // and profitPaise below stays the truth rather than showing a loss in the
+  // month the work was done and a windfall in the month it was collected.
+  const earned = (a: PayoutAppointment) =>
+    a.payment_status === "paid" || a.payment_terms === "pay_later";
 
-  const completedPaid = completed.filter((a) => a.payment_status === "paid");
+  const paidAppointments = therapistAppointments.filter(earned);
+  // Fallback stays 0, exactly as it was -- see sessionAmount.ts. Raising it to
+  // the standard fee here would start paying a share on already-paid sessions
+  // that carry no amount, which contribute nothing today.
+  const revenuePaise = paidAppointments.reduce((sum, a) => sum + sessionAmountPaise(a, 0), 0);
+
+  const completedPaid = completed.filter(earned);
   let cutPaise = 0;
   let paidOutPaise = 0;
   if (sharePercent !== null) {
     for (const a of completedPaid) {
       const isHomeVisit = a.visit_mode === "home_visit";
       const effectiveShare = isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent;
-      const feePaise = a.amount_paid_paise ?? 0;
+      const feePaise = sessionAmountPaise(a, 0);
       const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
       const isSettled = !!a.therapist_payout_paid_at;
       const thisCutPaise = isSettled

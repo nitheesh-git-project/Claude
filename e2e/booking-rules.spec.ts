@@ -14,6 +14,7 @@ import {
   wholeHourFromNow,
   E2E_MARKERS,
   deleteHomeVisitFixturePurchases,
+  browserCookiesFor,
 } from "./helpers";
 
 test.describe("home-visit lead time (regression for the bulk scheduler bug)", () => {
@@ -325,6 +326,158 @@ test.describe("online single-session booking (/api/appointments/create)", () => 
       expect(row!.visit_mode).toBe("online");
     } finally {
       if (createdId) await admin.from("appointments").delete().eq("id", createdId);
+    }
+  });
+});
+
+/**
+ * The cancellation notice on Step 3 -- the one line on this screen a patient
+ * reads as a promise about their money.
+ *
+ * It had no guard at all. `e2e/pay-later.spec.ts` PL-UI-003 asserts the
+ * *pay-later* branch and, beside it, that the page carries no `\d+hours`
+ * collapse -- but that branch quotes no number, so the assertion could never
+ * have failed there and the branch every ordinary patient sees was pinned by
+ * nothing. Three regressions are invisible to every other test in this repo
+ * and all three have happened or nearly happened:
+ *
+ *  1. The sentence rendered as "within 24hours of the slot", because a JSX
+ *     text node carrying an entity loses its leading space when it wraps.
+ *     `src/lib/jsxEntitySpacing.test.ts` now catches that shape in the
+ *     source; this catches it in the pixels, which is where it was found.
+ *  2. The number came from the `CANCELLATION_FULL_REFUND_HOURS` constant
+ *     rather than `online_cancellation_refund_hours`, so a clinic that
+ *     changed its window had the old one quoted back at every patient. That
+ *     is the same defect AGENTS.md records for the patient card's no-refund
+ *     hover, one screen over.
+ *  3. The sentence claimed free cancellation to patients whose booking was
+ *     already inside the window -- see below.
+ *
+ * It drives the browser rather than the route deliberately: none of the
+ * three produces an error, a failed request or a wrong row.
+ */
+test.describe("the cancellation notice a patient is shown before paying", () => {
+  const SHOTS = "e2e/screenshots/booking-rules";
+
+  /** Sign in and walk an ordinary prepaid patient to Step 3. */
+  async function reachStepThree(page: import("@playwright/test").Page) {
+    const cookies = await browserCookiesFor(QA_EMAILS.patientA);
+    await page.context().clearCookies();
+    await page.context().addCookies(cookies);
+    await page.goto(`${BASE}/book`);
+    await page.waitForLoadState("networkidle");
+
+    // Step 1 opens with a bookable day and hour already chosen.
+    await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
+    await page.waitForTimeout(1200);
+
+    const concern = page.locator("select").filter({
+      has: page.locator("option", { hasText: /Select what you need help with/i }),
+    });
+    await concern.selectOption({ index: 1 });
+    await page.getByRole("checkbox").first().check();
+    await page.waitForTimeout(300);
+
+    await page.getByRole("button", { name: /Review Booking/i }).click();
+    // The quote is a server round trip, and on a cold dev server the route
+    // compiles the first time it is called.
+    await expect(page.getByText(/Free cancellation|so cancelling it isn't refunded/i)).toBeVisible({
+      timeout: 30_000,
+    });
+    return (await page.textContent("body")) ?? "";
+  }
+
+  test.beforeAll(async () => {
+    // A prepaid patient, explicitly. If Patient A were ever left on terms by
+    // another run this whole block would assert the pay-later sentence and
+    // fail describing a working product -- the exact trap PL-UI-003 fell into
+    // the other way round.
+    const admin = adminClient();
+    await admin
+      .from("profiles")
+      .update({ pay_later_enabled: false })
+      .eq("email", QA_EMAILS.patientA);
+  });
+
+  test("BR-CANCEL-001 it names a real deadline, in words, with its spaces intact", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const admin = adminClient();
+    const { data: before } = await admin
+      .from("site_settings")
+      .select("online_cancellation_refund_hours")
+      .maybeSingle();
+
+    // 6 hours, so that every slot the picker can offer (12h lead time at the
+    // least) is comfortably outside the window and the notice is the
+    // deadline one. Anything longer and a same-day slot would legitimately
+    // produce the "already inside" sentence instead, making this test's
+    // subject depend on what hour it is run at.
+    await admin.from("site_settings").update({ online_cancellation_refund_hours: 6 }).eq("id", true);
+    try {
+      const body = await reachStepThree(page);
+      await page.screenshot({ path: `${SHOTS}/cancel-notice-deadline.png`, fullPage: true });
+
+      expect(body).toContain("Free cancellation until");
+      // A date, not a rule -- a deadline the patient cannot read off the
+      // screen is exactly the thing this replaced. The month is 3-5 letters
+      // because `en-IN` renders September as "Sept", which is one more than
+      // formatDateTime's own doc comment implies: assert the shape, not a
+      // spelling Intl owns.
+      expect(body).toMatch(/Free cancellation until \d{1,2} \w{3,5} \d{4}, \d{1,2}:\d{2}\s?[ap]m/i);
+      // The regression that was found by cropping a screenshot: a number and
+      // its unit fused into one word.
+      expect(body).not.toMatch(/\d+(hours|hour|minutes|days)\b/);
+      // And the pay-later wording must not leak onto a prepaid checkout.
+      expect(body).not.toContain("you won't owe anything for it");
+    } finally {
+      await admin
+        .from("site_settings")
+        .update({
+          online_cancellation_refund_hours: before?.online_cancellation_refund_hours ?? 24,
+        })
+        .eq("id", true);
+    }
+  });
+
+  test("BR-CANCEL-002 the window is the clinic's setting, not the built-in constant", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const admin = adminClient();
+    const { data: before } = await admin
+      .from("site_settings")
+      .select("online_cancellation_refund_hours")
+      .maybeSingle();
+
+    // 720 hours -- 30 days. Deliberately far larger than any slot the picker
+    // offers, so every booking is inside the window and the notice has to
+    // quote the clinic's own number. CANCELLATION_FULL_REFUND_HOURS is 24, so
+    // a screen still reading the constant renders a deadline instead and
+    // fails here rather than passing on the default by coincidence.
+    await admin
+      .from("site_settings")
+      .update({ online_cancellation_refund_hours: 720 })
+      .eq("id", true);
+    try {
+      const body = await reachStepThree(page);
+      await page.screenshot({ path: `${SHOTS}/cancel-notice-inside-window.png`, fullPage: true });
+
+      expect(body).toContain("This slot is less than 720 hours away");
+      expect(body).toContain("isn't refunded");
+      // The point of the sentence: it tells them while they can still do
+      // something about it.
+      expect(body).toContain("Pick a later slot");
+      expect(body).not.toContain("Free cancellation");
+      expect(body).not.toMatch(/\d+(hours|hour|minutes|days)\b/);
+    } finally {
+      await admin
+        .from("site_settings")
+        .update({
+          online_cancellation_refund_hours: before?.online_cancellation_refund_hours ?? 24,
+        })
+        .eq("id", true);
     }
   });
 });

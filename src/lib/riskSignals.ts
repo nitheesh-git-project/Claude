@@ -15,6 +15,9 @@ export const RISK_RULE_KEYS = [
   "manual_adjustment_volume",
   "plan_conversion_low",
   "post_consultation_dropout",
+  "pay_later_aged",
+  "pay_later_balance_high",
+  "pay_later_declaration_rejected",
 ] as const;
 
 export type RiskRuleKey = (typeof RISK_RULE_KEYS)[number];
@@ -144,6 +147,11 @@ export const RISK_RULE_DOMAIN: Record<RiskRuleKey, "sessions" | "money"> = {
   completion_without_payment: "money",
   cash_variance: "money",
   manual_adjustment_volume: "money",
+  // Trusted patients. Money questions -- what is owed and for how long --
+  // and the only automatic warning an arrangement with no ceiling has.
+  pay_later_aged: "money",
+  pay_later_balance_high: "money",
+  pay_later_declaration_rejected: "money",
 };
 
 /** The rules a desk may read, given the sections it can work. A Master

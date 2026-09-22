@@ -127,6 +127,23 @@ export const RATE_LIMITS = {
     windowSeconds: 600,
     message: "We couldn't start that payment just now.",
   },
+
+  /**
+   * A patient telling the clinic they have paid what they owe.
+   *
+   * Its own scope rather than `checkout`, on the one-scope-per-flow rule: a
+   * patient comparing a promo code re-quotes several times on one screen, and
+   * spending that allowance would leave somebody who has genuinely sent money
+   * unable to say so. Tight, because there is nothing to re-try -- one
+   * declaration is refused outright while it is waiting to be checked, so a
+   * second attempt is a correction rather than a retry.
+   */
+  settlementDeclaration: {
+    scope: "settlement-declaration",
+    limit: 6,
+    windowSeconds: 3600,
+    message: "We couldn't record that just now.",
+  },
 } as const satisfies Record<string, RateLimit>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

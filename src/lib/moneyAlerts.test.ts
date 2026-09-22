@@ -110,3 +110,39 @@ describe("buildMoneyAlerts", () => {
     }
   });
 });
+
+describe("the two kinds of refund somebody has to hand back", () => {
+  // They are one column -- `refund_status = 'manual_pending'` -- and two
+  // rows, because they are worked on two different screens. A cancelled cash
+  // visit is handed back from the Cash Ledger on Payouts, which lists home
+  // visits; a session a trusted patient had already settled is handed back
+  // from the list on Owed by Patients. One row covering both would put a
+  // figure on the strip that the screen it opens cannot bring down.
+  it("sends each to the screen that can actually clear it", () => {
+    const alerts = buildMoneyAlerts(
+      { ...NONE, manualRefundsPending: 2, payLaterRefundsPending: 3 },
+      ALL_SECTIONS
+    );
+    const byKey = new Map(alerts.map((a) => [a.key, a]));
+
+    expect(byKey.get("manual_refunds")?.count).toBe(2);
+    expect(byKey.get("manual_refunds")?.tab).toBe("payouts");
+
+    expect(byKey.get("pay_later_refunds")?.count).toBe(3);
+    expect(byKey.get("pay_later_refunds")?.tab).toBe("owing");
+  });
+
+  it("counts a pay-later refund as urgent - the patient is out of pocket", () => {
+    const alerts = buildMoneyAlerts({ ...NONE, payLaterRefundsPending: 1 }, ALL_SECTIONS);
+    expect(alerts.map((a) => a.key)).toEqual(["pay_later_refunds"]);
+    expect(alerts[0].urgent).toBe(true);
+  });
+
+  it("reads a database without the column as no pay-later refunds at all", () => {
+    // The count is optional, and absent it must not become a row: before pay
+    // later existed every manual_pending refund was the cash-visit kind, and
+    // that is exactly what this has to keep reporting.
+    const alerts = buildMoneyAlerts({ ...NONE, manualRefundsPending: 1 }, ALL_SECTIONS);
+    expect(alerts.map((a) => a.key)).toEqual(["manual_refunds"]);
+  });
+});

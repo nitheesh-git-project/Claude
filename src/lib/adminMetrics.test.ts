@@ -577,3 +577,137 @@ describe("comparePeriod", () => {
     expect(change.label).toBe("100% less than the month before");
   });
 });
+
+/**
+ * A settlement moves no money figure. This is the whole safety case for the
+ * pay-later pool, and it is the one assertion the design stands on.
+ *
+ * Revenue is recognised at **completion** rather than at collection, because
+ * the therapist's share is: counting at collection would report a loss in the
+ * month the work was done and a windfall in the month it was paid, both
+ * months wrong for one session. That is only safe if settlement then changes
+ * nothing -- so `allocate_pay_later_payment` writes
+ * `amount_paid_paise = amount_due_paise` **exactly**, never the payment's
+ * share of it.
+ *
+ * Spreading a 2,000 payment as 500 across four 1,200 sessions -- the obvious
+ * alternative -- would rewrite each session's amount, and the therapist's cut
+ * is computed from that amount, so it would silently shrink on sessions the
+ * clinic had already paid out on. The pool exists to make that impossible,
+ * and this test is what proves it.
+ */
+describe("a settlement changes no figure", () => {
+  const OWED = appointment({
+    id: "owed",
+    status: "completed",
+    payment_status: "unpaid",
+    payment_terms: "pay_later",
+    amount_paid_paise: null,
+    amount_due_paise: 199900,
+    paid_at: null,
+  } as Partial<MetricsAppointment>);
+
+  // Exactly what allocate_pay_later_payment writes when the money arrives.
+  const SETTLED = appointment({
+    ...OWED,
+    payment_status: "paid",
+    amount_paid_paise: 199900,
+    paid_at: IN_RANGE,
+  } as Partial<MetricsAppointment>);
+
+  it("reports the same gross, net and every share before and after", () => {
+    expect(run([SETTLED])).toEqual(run([OWED]));
+  });
+
+  it("reports the same figures as an ordinary prepaid session of the same price", () => {
+    // Not merely stable across settlement -- equal to what the clinic would
+    // have earned had the patient paid up front, which is what "the clinic
+    // carries the gap" has to mean arithmetically.
+    const prepaid = appointment({ id: "owed" });
+    expect(run([OWED])).toEqual(run([prepaid]));
+  });
+
+  it("counts nothing at all until the session has been delivered", () => {
+    // Booking owes nothing and earns nothing. There is no state to unwind on
+    // a late cancellation because nothing was ever counted.
+    const booked = appointment({
+      ...OWED,
+      status: "confirmed",
+    } as Partial<MetricsAppointment>);
+    expect(run([booked]).gross).toBe(0);
+
+    const cancelled = appointment({
+      ...OWED,
+      status: "cancelled",
+    } as Partial<MetricsAppointment>);
+    expect(run([cancelled]).gross).toBe(0);
+    expect(run([cancelled]).therapist).toBe(0);
+  });
+
+  it("puts the same lines behind the total either side of settlement", () => {
+    // The drill-down is derived from moneyLineFor, so if the totals match and
+    // the lines do not, one of the two is lying about the other.
+    const rates = {
+      therapistSharePercent: SHARES,
+      patientHospitalSharePercent: HOSPITAL_SHARES,
+      hospitalReferredPatientIds: REFERRED,
+      therapistHomeVisitSharePercent: HOME_SHARES,
+    };
+    expect(explainMoneyLines([SETTLED], [BUCKET], rates)).toEqual(
+      explainMoneyLines([OWED], [BUCKET], rates)
+    );
+  });
+});
+
+describe("a write-off changes no figure either", () => {
+  // The other half of the safety case. A settlement must not move a figure
+  // because the money arriving is not what earned it; a write-off must not
+  // move one because the money NOT arriving is not what earned it either.
+  // The clinic delivered the session, counted the revenue and paid the
+  // therapist their share -- so forgiving the debt is a cost, recorded on
+  // Money -> Costs, and nothing here is allowed to notice.
+  const OWED = appointment({
+    id: "owed",
+    status: "completed",
+    payment_status: "unpaid",
+    payment_terms: "pay_later",
+    amount_paid_paise: null,
+    amount_due_paise: 199900,
+    paid_at: null,
+  } as Partial<MetricsAppointment>);
+
+  // Exactly what /api/admin/write-off-pay-later-session writes: one column,
+  // and deliberately none of the money ones.
+  const WRITTEN_OFF = appointment({
+    ...OWED,
+    pay_later_outcome: "written_off",
+  } as Partial<MetricsAppointment>);
+
+  it("reports the same gross, net and every share before and after", () => {
+    expect(run([WRITTEN_OFF])).toEqual(run([OWED]));
+  });
+
+  it("leaves the therapist's share exactly where it was", () => {
+    // Stated on its own because it is the failure the design exists to
+    // prevent: reducing the session's amount to clear the debt would claw
+    // back money already handed to somebody who had no say in the credit.
+    expect(run([WRITTEN_OFF]).therapist).toBe(run([OWED]).therapist);
+    expect(run([WRITTEN_OFF]).therapist).toBeGreaterThan(0);
+  });
+
+  it("still reports what an ordinary prepaid session of the same price would", () => {
+    expect(run([WRITTEN_OFF])).toEqual(run([appointment({ id: "owed" })]));
+  });
+
+  it("puts the same lines behind the total", () => {
+    const rates = {
+      therapistSharePercent: SHARES,
+      patientHospitalSharePercent: HOSPITAL_SHARES,
+      hospitalReferredPatientIds: REFERRED,
+      therapistHomeVisitSharePercent: HOME_SHARES,
+    };
+    expect(explainMoneyLines([WRITTEN_OFF], [BUCKET], rates)).toEqual(
+      explainMoneyLines([OWED], [BUCKET], rates)
+    );
+  });
+});
