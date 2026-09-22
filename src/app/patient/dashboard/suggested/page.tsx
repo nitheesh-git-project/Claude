@@ -125,6 +125,7 @@ export default async function Page() {
               expiresAt: version.expiresAt,
               isHomeVisit: version.offerKind === "home_visit_package",
             }}
+            homeVisitEnabled={d.adminSettings.homeVisitEnabled}
             patientName={d.profile?.full_name ?? ""}
             patientEmail={d.profile?.email ?? ""}
             savedAddresses={addressRows ?? []}

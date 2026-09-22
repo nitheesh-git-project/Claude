@@ -14,11 +14,24 @@ export const metadata: Metadata = {
   description: "Book a physiotherapist to visit you at home.",
 };
 
-// Same reasoning as /book: createPublicClient() never touches cookies(), so
-// this stays ISR-cached rather than being forced dynamic. The wizard's own
-// client-side getUser() handles logged-in autofill after hydration; this
-// just gets the package list on screen immediately.
-export const revalidate = 300;
+// Rendered per request, unlike /book and every other public page here, and
+// the master switch is the whole reason.
+//
+// This page exists only while the clinic sells home visits: it reads
+// `home_visit_enabled` and 404s when it is off. Under ISR that judgement is
+// made when the page is *generated*, so an admin who switches home visits
+// off is relying on a cache being purged for the door to actually close --
+// `update-setting` does call `revalidatePath`, but anything that changes the
+// column another way (a hand edit, a data reset, a restore) leaves the
+// booking funnel for a service the clinic has stopped offering open until
+// the window lapses. A patient reaching it is quoted a price and asked to
+// pay for a visit nobody will make.
+//
+// The cost is two reads per view on a page reached by a deliberate tap, and
+// every route behind it re-checks the switch server-side anyway. /home-visit
+// stays ISR-cached: it is a marketing page rather than a checkout, and the
+// same revalidate keeps it honest.
+export const dynamic = "force-dynamic";
 
 export default async function BookHomeVisitPage() {
   const supabase = createPublicClient();

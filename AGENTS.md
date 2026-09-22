@@ -4846,6 +4846,32 @@ must not have.
   under a name of its own at the end of `schema.sql` -- a CHECK cannot be
   altered in place, and the original was created unnamed inside `create
   table`.
+- **A page whose existence is a switch cannot be ISR-cached.**
+  `/book-home-visit` reads `home_visit_enabled` and 404s when it is off --
+  and under `revalidate = 300` that judgement was made when the page was
+  *generated*, so closing the door depended on a cache being purged.
+  `/api/admin/update-setting` does call `revalidatePath` for this key, which
+  is why the switch appears to work; anything else that changes the column --
+  a hand edit in the table editor, a data reset, a restore -- leaves the
+  cached page serving a booking funnel for a service the clinic has stopped
+  offering, and the patient is quoted a price for a visit nobody will make.
+  It is `dynamic = "force-dynamic"` now: two reads on a page reached by a
+  deliberate tap, against a door that has to be shut the moment it is shut.
+  `/home-visit` stays ISR-cached -- it is a marketing page rather than a
+  checkout, and the same revalidate keeps it honest.
+  **And a recommendation outlives the switch.** A home-visit programme
+  approved while visits were on still rendered its Accept & pay button after
+  they were switched off: `check-area` answers 403, `care-plan/create-order`
+  refuses, and the patient met "we couldn't work out the travel fee for this
+  address" over a button that could never succeed. `CarePlanOfferCard` takes
+  `homeVisitEnabled` and says the mode is paused instead -- the same rule
+  that took the Pay Now button off a pay-later session, where a control the
+  server refuses outright must not render. The booking hub's own subtitle
+  moved with it, since "Video consultations and home visits, in one place"
+  advertises the mode on the screen a patient opens to book it.
+  `e2e/home-visit-disabled.spec.ts` walks it with the column flipped in the
+  database rather than through the route, which is the case the cache could
+  not survive.
 
 ## Gotchas
 
