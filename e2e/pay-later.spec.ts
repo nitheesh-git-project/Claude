@@ -164,6 +164,22 @@ test("PL-UI-002 the grant card, before and after the switch", async ({ page }) =
 });
 
 test("PL-UI-003 booking on terms, with no payment step", async ({ page }) => {
+  // Stand this test up on its own rather than on PL-UI-002's side effect.
+  // Both halves are re-derived server-side by the quote, so if either is off
+  // the wizard correctly shows the ordinary prepaid checkout -- and the
+  // failure then reads as "pay later is broken" when what actually happened
+  // is that a retry, a restored database or a run of this file against a
+  // clinic that had switched the feature back off left the grant behind.
+  // That is exactly what happened once, and it cost a diagnosis.
+  await setting("pay_later_enabled", true);
+  await db
+    .from("profiles")
+    .update({
+      pay_later_enabled: true,
+      pay_later_reason: "Patient of six years, settles monthly by bank transfer",
+    })
+    .eq("id", patientId);
+
   const errors: string[] = [];
   page.on("console", (m) => {
     if (m.type() === "error") errors.push(m.text());
@@ -202,8 +218,20 @@ test("PL-UI-003 booking on terms, with no payment step", async ({ page }) => {
   // The point of the whole phase: the primary action does not ask for money.
   await expect(page.getByRole("button", { name: /Confirm booking - pay later/i })).toBeVisible();
 
-  // And the choice the arrangement must never take away.
+  // And the choice the arrangement must never take away. This link used to be
+  // gated on an appointment id that does not exist until the account does, so
+  // for a patient booking on terms it never rendered at all.
   await expect(page.getByRole("button", { name: /Or pay .* now instead/i })).toBeVisible();
+
+  // The notice, in its own words and with its own spacing. Two things were
+  // wrong here and both are invisible to a route test: it quoted the refund
+  // window at somebody who owes nothing until the session happens, and the
+  // prepaid wording it quoted rendered as "24hours" -- a JSX text node
+  // carrying an entity loses its leading space when it wraps.
+  const notice = (await page.textContent("body")) ?? "";
+  expect(notice).toContain("Cancel any time before your slot");
+  expect(notice).not.toContain("Free cancellation up to");
+  expect(notice).not.toMatch(/\d+hours/);
 
   await page.getByRole("button", { name: /Confirm booking - pay later/i }).click();
   await page.waitForTimeout(4000);

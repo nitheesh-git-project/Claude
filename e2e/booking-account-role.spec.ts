@@ -52,9 +52,15 @@ test.describe("Only a patient account can book", () => {
     await signInAs(page, QA_EMAILS.hospital);
     await page.goto(`${BASE}/book`);
     await expect(page.getByText("You're signed in as a hospital partner")).toBeVisible();
+    // `/dashboard?hash=refer`, not `/hospital/dashboard#refer`. This is a
+    // public bundle, and no client component in it may map a role to its
+    // dashboard path -- `/dashboard` resolves the role server-side and the
+    // `hash` param becomes a real fragment there. The assertion was left
+    // behind when that rule landed, so it had been asserting the one thing
+    // the rule exists to forbid.
     await expect(page.getByRole("link", { name: /Refer a patient/i })).toHaveAttribute(
       "href",
-      "/hospital/dashboard#refer"
+      "/dashboard?hash=refer"
     );
   });
 
