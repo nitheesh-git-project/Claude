@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useConfirm } from "@/lib/useConfirm";
 import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import { compressImage } from "@/lib/compressImage";
@@ -62,6 +63,7 @@ export default function MedicalDocumentsPanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<{ blob: Blob; name: string; mimeType: string } | null>(null);
   const { show } = useToast();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [title, setTitle] = useState("");
   const [documentType, setDocumentType] = useState<MedicalDocumentType>("lab_report");
   const [takenOn, setTakenOn] = useState("");
@@ -162,9 +164,14 @@ export default function MedicalDocumentsPanel({
   }
 
   async function handleDelete(documentId: string, documentTitle: string) {
-    if (!window.confirm(`Delete "${documentTitle}"? Your therapist will no longer be able to see it.`)) {
-      return;
-    }
+    // The app's own dialog rather than window.confirm: the native prompt is
+    // unstyled, differently placed on every browser and blocks the render.
+    // Awaited before anything else starts, per the rule that a decision
+    // rendered from state must never be awaited inside a transition.
+    const goAhead = await confirm(
+      `Delete "${documentTitle}"? Your therapist will no longer be able to see it.`
+    );
+    if (!goAhead) return;
     setDeletingId(documentId);
     setError(null);
     try {
@@ -341,6 +348,7 @@ export default function MedicalDocumentsPanel({
           )}
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

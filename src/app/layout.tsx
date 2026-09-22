@@ -13,6 +13,7 @@ import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings"
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
 import RouteProgress from "@/components/system/RouteProgress";
+import FormValidationChrome from "@/components/system/FormValidationChrome";
 import ToastViewport from "@/components/system/ToastViewport";
 import { ToastProvider } from "@/lib/toast";
 import { PendingWorkProvider } from "@/lib/pendingWork";
@@ -181,6 +182,11 @@ export default async function RootLayout({
           <ToastProvider>
           <RouteProgress />
           <ToastViewport />
+          {/* Replaces the browser's own grey validation bubble everywhere at
+              once. One listener at the root rather than a change to every
+              form, because `invalid` is fired by the browser on every
+              control it refuses and no form has to opt in. */}
+          <FormValidationChrome />
         {showDebugNav && <DebugNav />}
         <Navbar
           offsetTop={showDebugNav}

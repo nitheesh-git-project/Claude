@@ -4703,6 +4703,55 @@ must not have.
   It takes an `active` flag because `Modal.tsx` stays mounted and toggles
   `open` -- a hook that locked body scroll while closed is the bug that flag
   exists to prevent.
+- **No browser default ever speaks to a person.** Two of them used to.
+  Submitting a form with a blank `required` box popped the operating
+  system's own grey tooltip -- "Please fill out this field." -- unstyled,
+  differently worded and differently placed on every browser, and the one
+  piece of UI in the product nobody designed, since it comes free with the
+  attribute. `FormValidationChrome`
+  (`src/components/system/FormValidationChrome.tsx`) is mounted once in the
+  root layout and replaces it everywhere: it listens for `invalid` in the
+  **capture** phase (the event does not bubble, so a listener on `document`
+  in the bubble phase hears nothing at all), calls `preventDefault` to
+  suppress the native bubble -- the submit stays cancelled, which is the
+  browser's doing rather than the bubble's -- and renders the app's own
+  message anchored to the field, with a red ring on the control through a
+  `data-invalid` attribute that `globals.css` paints.
+  One listener at the root rather than an edit to 34 forms is the point: a
+  form that has never heard of this file is covered, including the next one
+  written. Four rules hold it:
+  1. **The message is the first refused field's, looked up rather than
+     inferred from the event.** The browser fires one `invalid` per refused
+     control as separate dispatches, with a microtask checkpoint between
+     them -- so a "first event of this burst" guard is released before the
+     second event arrives and the message ends up describing the *last*
+     refused control. A condition form with a blank name at the top pointed
+     at the price near the bottom. The handler asks the control's own form
+     which field is first invalid, reading `validity.valid` and never
+     `checkValidity()`, which fires `invalid` again into this same listener.
+  2. **One message, never one per field**, and the reader is focused and
+     scrolled to it. Nine tooltips is worse than the bubble.
+  3. **It clears the moment the reader acts** -- on input, on Escape, on a
+     tap elsewhere, and when the control leaves the page under it (a
+     `router.refresh()` replaces the row it sat on). A red ring on a field
+     already corrected is the "never tell someone they did something they
+     did not do" rule in its smallest form.
+  4. **The wording is `src/lib/formValidationMessage.ts`**, dependency-free
+     and unit-tested, because it is a judgement about language. It names the
+     field from its own label (`tidyFieldLabel` drops the `*`, the colon and
+     the "(required)" the message would otherwise repeat), words a choice as
+     a choice ("Choose therapist", "needs ticking"), says what an acceptable
+     value would look like rather than only that this one was refused, and
+     lets a `setCustomValidity` message or a pattern's own `title` win
+     outright -- both were written by somebody who knew more than this
+     module can. A refusal whose bound the browser did not expose must never
+     print "undefined" at anybody.
+  `window.confirm` was the other default, and `useConfirm` had already
+  replaced it everywhere but `MedicalDocumentsPanel`, which now uses it too
+  -- awaited **before** the transition, per the deadlock rule above.
+  `e2e/form-validation-chrome.spec.ts` is the guard, on one admin screen and
+  one public page deliberately: nothing here changes a route or a row, so
+  what is worth proving is that a form nobody edited is covered.
 
 ## Gotchas
 

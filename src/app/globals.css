@@ -365,3 +365,47 @@ html[data-splash] body {
     }
   }
 }
+
+/* The ring on a control the browser refused.
+   Painted from an attribute rather than a class because the chrome that
+   sets it (FormValidationChrome) is one listener at the root and knows
+   nothing about any form's own styling -- every control in the app carries
+   its own Tailwind classes, and adding to those from JavaScript would mean
+   guessing which ones to take away again. The attribute is removed the
+   moment the reader types, so this can never outlive the message. */
+[data-invalid="true"] {
+  border-color: var(--color-red-300, #fca5a5) !important;
+  box-shadow: 0 0 0 3px rgb(254 202 202 / 0.7);
+}
+
+/* The refused control is focused, and the browser's own focus outline is
+   near-black -- which sits on top of the red and reads as the ring being
+   black. Colouring the outline while the field is refused is what keeps the
+   two saying the same thing. */
+[data-invalid="true"]:focus,
+[data-invalid="true"]:focus-visible {
+  outline-color: var(--color-red-500, #ef4444);
+}
+
+/* Reduced motion keeps the message and drops the movement -- same rule the
+   toast follows. The message is the point. */
+.form-validation-message {
+  animation: form-validation-in 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes form-validation-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .form-validation-message {
+    animation: none;
+  }
+}

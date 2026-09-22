@@ -192,6 +192,19 @@ public and the bar names `/admin/login` and `/admin/dashboard`. The
 database-wipe flag (`ALLOW_DEBUG_DATA_RESET`) is a separate, server-only
 thing and stays unset.
 
+**Nothing the browser draws itself speaks to a person.** A blank `required`
+box used to be answered by the operating system's own grey tooltip, which is
+the one piece of UI here nobody designed - it arrives with the attribute,
+reads like a form from 2005 and looks different on every browser.
+`FormValidationChrome`, mounted once in the root layout, suppresses it and
+renders the clinic's own message anchored to the field with a red ring on
+it; the wording is `src/lib/formValidationMessage.ts`, which names the field
+from its own label and says what an acceptable value would look like. It is
+one listener at the root rather than an edit to every form, so a form nobody
+has touched - including the next one written - is covered. `window.confirm`
+is the same rule one control over and `useConfirm` is its replacement. See
+the browser-defaults rule in `AGENTS.md`.
+
 The health profile is **per specialty**: a condition profile carries
 `specialty` (`ortho`, `neuro`, `pediatrics`), and that decides its seven
 questions, its summary card, its snapshot figures and its progress line.
