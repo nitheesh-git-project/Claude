@@ -3572,6 +3572,10 @@ before.
   record's history". Without it the only exit from a dialog that replaced
   another was closing to the table and finding the entry again -- the cost
   of the one-at-a-time rule, paid by the reader rather than by the design.
+  `e2e/logs-subject-timeline.spec.ts` is the guard, driven as a screen
+  because nothing here is visible to an API test -- the routes are unchanged
+  and both dialogs read the same rows either way -- and it skips itself on a
+  log whose entries name no record.
   The way back is a real row, never a re-derivation: `timelineOrigin` holds
   the subject row the timeline was keyed on, because rebuilding it from the
   entry now on screen would open a different record's history. An entry
