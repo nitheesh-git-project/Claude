@@ -230,11 +230,22 @@ export default function TreatmentCategoryForm({
           <input
             type="number"
             step="1"
+            min={0}
+            inputMode="numeric"
             value={displayOrder}
             onChange={(e) => setDisplayOrder(e.target.value)}
             required
             className="w-full p-2 rounded-lg border border-slate-300"
           />
+          {/* "Order" on its own names a category rather than an action --
+              the same failure the Settings screens' blurbs fix. A number
+              box beside a price and a session length reads as another
+              measurement until it says what it decides. */}
+          <span className="mt-1 block text-[11px] text-slate-500">
+            Where this condition sits in the list, on the home page and on
+            Conditions. Lowest first. The arrows above reorder the whole list
+            for you, which is usually easier than typing a number here.
+          </span>
         </label>
         <label className="block">
           <span className="block font-semibold mb-1">Button Text</span>

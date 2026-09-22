@@ -4752,6 +4752,39 @@ must not have.
   `e2e/form-validation-chrome.spec.ts` is the guard, on one admin screen and
   one public page deliberately: nothing here changes a route or a row, so
   what is worth proving is that a form nobody edited is covered.
+- **A number box takes digits, and the browser does not enforce that.**
+  `<input type="number">` accepts `e` and `E` (scientific notation) and `+`
+  in every browser, and Chromium keeps the character on screen while
+  reporting `value` as the empty string. Typing a letter into the condition
+  form's **Order** box therefore left a stray "e" in the field, refused
+  every keystroke after it, and submitted as though the box had been left
+  blank -- a form that looks filled in and arrives empty. `NumericInputGuard`
+  (`src/components/system/NumericInputGuard.tsx`) is mounted in the root
+  layout beside the validation chrome and covers all 26 of the app's number
+  boxes, including the next one written. Three rules:
+  1. **It listens for `beforeinput`, not `keydown`** -- the one event
+     covering typing, pasting and drag-and-drop alike, carrying the text
+     being inserted rather than a key name. A pasted "₹1,200" is judged by
+     the same rule as a typed comma, and an untested keyboard layout is not
+     a hole.
+  2. **The judgement is on the resulting string.** A minus is meaningful in
+     front and meaningless in the middle; one decimal point is fine where a
+     second is not. `src/lib/numericInputGuard.ts` holds it, dependency-free
+     with its own tests, and it never blocks a deletion or a value somebody
+     is part-way through typing ("-", "1.", ".5").
+  3. **What the field allows is read off the field**, from `step` and `min`
+     -- so a price still takes 499.50 and a field with no floor still takes
+     a minus. A stricter rule invented here would be one listener overriding
+     forms it knows nothing about.
+  The routes were the other half: `create-`/`update-treatment-category`
+  accepted any finite number as `display_order` and rounded it, so a
+  negative or fractional order sorted a condition somewhere nobody chose.
+  Both refuse anything but a whole number of 0 or more now, re-derived
+  server-side like every other figure a browser sends. And **Order** says
+  what it decides on the screen itself: a number box between a price and a
+  session length reads as a third measurement until it does.
+  `e2e/numeric-input.spec.ts` is the guard -- the rule is unit-tested, and
+  what needs a real browser is the browser's own handling being overridden.
 
 ## Gotchas
 

@@ -14,6 +14,7 @@ import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
 import RouteProgress from "@/components/system/RouteProgress";
 import FormValidationChrome from "@/components/system/FormValidationChrome";
+import NumericInputGuard from "@/components/system/NumericInputGuard";
 import ToastViewport from "@/components/system/ToastViewport";
 import { ToastProvider } from "@/lib/toast";
 import { PendingWorkProvider } from "@/lib/pendingWork";
@@ -187,6 +188,11 @@ export default async function RootLayout({
               form, because `invalid` is fired by the browser on every
               control it refuses and no form has to opt in. */}
           <FormValidationChrome />
+          {/* A number box takes digits and nothing else. The browser's own
+              type="number" also accepts e, E and +, and then reports the
+              value as empty -- so one listener here rather than a rule each
+              of the app's number boxes has to remember. */}
+          <NumericInputGuard />
         {showDebugNav && <DebugNav />}
         <Navbar
           offsetTop={showDebugNav}

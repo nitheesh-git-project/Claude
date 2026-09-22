@@ -204,6 +204,14 @@ one listener at the root rather than an edit to every form, so a form nobody
 has touched - including the next one written - is covered. `window.confirm`
 is the same rule one control over and `useConfirm` is its replacement. See
 the browser-defaults rule in `AGENTS.md`.
+**A number box takes digits too.** The browser's own `type="number"` accepts
+`e`, `E` and `+`, then reports the box as empty - which is what made the
+condition form's Order field take one letter and refuse the rest.
+`NumericInputGuard` is the other root listener, reading each field's own
+`step` and `min` so a price keeps its decimal while a count does not, and
+the two treatment-category routes refuse an order that is not a whole
+number of 0 or more. Order itself now says what it decides: where the
+condition sits in the list, lowest first.
 
 The health profile is **per specialty**: a condition profile carries
 `specialty` (`ortho`, `neuro`, `pediatrics`), and that decides its seven

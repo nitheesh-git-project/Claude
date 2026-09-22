@@ -53,8 +53,15 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  if (Number.isNaN(order)) {
-    return NextResponse.json({ error: "Order must be a number" }, { status: 400 });
+  // Not merely "a number": the browser's own number box accepts `1e5` and
+  // `-3`, and a display order that is negative or fractional sorts a
+  // condition somewhere nobody chose. Re-derived here rather than trusted
+  // from the form, like every other figure a browser sends.
+  if (!Number.isFinite(order) || order < 0 || !Number.isInteger(order)) {
+    return NextResponse.json(
+      { error: "Order has to be a whole number, 0 or more" },
+      { status: 400 }
+    );
   }
 
   const pointsList = Array.isArray(points)
