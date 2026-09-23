@@ -592,6 +592,15 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 #### `ADM-CAT-011` - The home-visit waitlist · P2
 **Expected Result.** Entries from `PAT-HV-003` appear with status `new`, raising the Service Areas badge. Updating a status clears the badge. `Unknown status` is refused for an invalid value.
 
+#### `ADM-CAT-011a` - Marking one served offers to open the area · P1
+**Steps.** On a `new` request for a pincode you do not serve, tap **served**. Read the dialog, then tap **No, just mark served**. Set the row back to `new` (or use another request) and this time tap **Yes, add it and mark served**.
+**Expected Result.** Tapping served opens a dialog headed *"Do you visit 560099 now?"* carrying the request's pincode and who asked, with City prefilled from the request and **Travel fee prefilled with what you already charge in that city** - and a line saying so. A city with no areas yet starts at `0` and says that is a placeholder rather than a price.
+* **No, just mark served** - the request becomes `served` and **no service area is created**. That pincode still falls through to the waitlist on `/book-home-visit`.
+* **Yes, add it and mark served** - the area is created with the city, area name and fee shown, the request becomes `served`, and `/book-home-visit` now accepts that pincode.
+* Closing the dialog with **×** is the third outcome: nothing changes at all, not even the status.
+* A pincode that is **already** a service area is told so in the dialog with the clinic's own city and fee, and is offered **Mark served** alone - there is nothing to add.
+* The area is written **first**: if it cannot be created, the status stays where it was and the dialog says why.
+
 #### `ADM-CAT-014` - Purchases · P1
 **Steps.** Open **Catalog → Purchases**. Open a package purchase's detail modal; then a home-visit purchase's.
 **Expected Result.** Both list every purchase with balances. The detail modals are **viewer-scoped, not role-branched** - the route queries with the caller's own RLS-scoped client, so a row coming back **is** the authorization. Money controls inside the modal render only for an admin with `money` scope.

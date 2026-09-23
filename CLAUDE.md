@@ -222,6 +222,14 @@ switch in place as the sidebar does, and `LinkProgress` (one listener in the
 root layout) draws the teal bar for every other link in the app, whoever
 wrote it. See the navigation rule in `AGENTS.md`.
 
+**Marking an out-of-area request served offers to open the area.** The
+waitlist is demand the clinic turned away, and tapping *served* used to move
+a word while the pincode stayed unserved - so the next patient from that
+street met the same refusal. It asks first now, prefilled from the request
+and from what the clinic already charges in that city, with two answers:
+open the area and mark it served, or mark it served alone. See the waitlist
+rule in `AGENTS.md`.
+
 The health profile is **per specialty**: a condition profile carries
 `specialty` (`ortho`, `neuro`, `pediatrics`), and that decides its seven
 questions, its summary card, its snapshot figures and its progress line.

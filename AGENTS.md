@@ -4912,6 +4912,37 @@ must not have.
      one of its own); the URL changing is what "arrived" means; and the
      marker expires after 20s so a navigation nothing else can see cannot
      leave a bar running for ever.
+- **Marking an out-of-area request served is a decision about the catchment,
+  so it offers to open it.** The waitlist on Catalog -> Service Areas is
+  demand the clinic had to turn away: somebody tried to book from a pincode
+  nobody visits. Tapping **served** set a status and nothing else -- so the
+  pincode stayed unserved, the next patient from that street met the same
+  refusal, and the row saying the clinic had been there sat on a screen
+  nobody would think to doubt. It now opens a dialog with two answers, and
+  four rules:
+  1. **It is a small form, not a yes/no**, because the one thing this app
+     cannot know is what the trip costs. City and pincode come from the
+     request; the travel fee is prefilled with what the clinic already
+     charges in that city (the commonest of its areas' fees, ties to the
+     lower) and the field **says where the number came from** -- a prefilled
+     price nobody explains is a price nobody chose. A city with no areas yet
+     starts at zero and says that is a placeholder rather than a price.
+  2. **Declining is an answer, not a cancel.** "No, just mark served" still
+     moves the status: an admin who sent somebody as a one-off has not
+     decided to sell visits there. Closing the dialog outright is the third
+     outcome and leaves the status alone, which is why the X is not either
+     button.
+  3. **The area is written first.** A request marked served against a
+     pincode nobody visits is the exact state this exists to prevent, so a
+     failed insert leaves the status where it was and says why.
+  4. **A pincode already served is told, not offered.**
+     `describeAreaPrefill` (`src/lib/homeVisitWaitlistArea.ts`, dependency-free
+     and unit-tested) answers that from the areas the screen already has, so
+     the dialog does not offer an insert `create-home-visit-areas` would
+     refuse -- and it shows the clinic's own city and fee for it rather than
+     what the request typed.
+  Both routes are unchanged. `e2e/waitlist-serve-area.spec.ts` walks both
+  answers against the database.
 
 ## Gotchas
 
