@@ -1,4 +1,4 @@
-import Link from "next/link";
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
 import { adminScreenHref } from "@/lib/adminNav";
 import { healthBannerText, type HealthCheck } from "@/lib/systemHealth";
 
@@ -19,7 +19,7 @@ export default function AdminHealthBanner({ checks }: { checks: HealthCheck[] })
   if (!banner) return null;
 
   return (
-    <Link
+    <AdminScreenLink
       href={adminScreenHref("settings", "health")}
       className="flex items-start gap-3 rounded-2xl border border-red-300 bg-red-50 p-4 shadow-sm transition hover:border-red-400 sm:p-5"
     >
@@ -38,6 +38,6 @@ export default function AdminHealthBanner({ checks }: { checks: HealthCheck[] })
           Open System Health to fix it →
         </span>
       </span>
-    </Link>
+    </AdminScreenLink>
   );
 }

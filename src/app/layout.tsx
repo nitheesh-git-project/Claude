@@ -14,6 +14,7 @@ import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
 import RouteProgress from "@/components/system/RouteProgress";
 import FormValidationChrome from "@/components/system/FormValidationChrome";
+import LinkProgress from "@/components/system/LinkProgress";
 import NumericInputGuard from "@/components/system/NumericInputGuard";
 import ToastViewport from "@/components/system/ToastViewport";
 import { ToastProvider } from "@/lib/toast";
@@ -182,6 +183,13 @@ export default async function RootLayout({
               underneath re-renders, this does not unmount. */}
           <ToastProvider>
           <RouteProgress />
+          {/* Every link reports itself, not only the ones written through
+              ProgressLink or useRouter. useSearchParams inside it makes this
+              subtree opt into client rendering, hence the Suspense -- the
+              pages under it stay statically rendered. */}
+          <Suspense fallback={null}>
+            <LinkProgress />
+          </Suspense>
           <ToastViewport />
           {/* Replaces the browser's own grey validation bubble everywhere at
               once. One listener at the root rather than a change to every

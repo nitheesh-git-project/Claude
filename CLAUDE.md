@@ -213,6 +213,15 @@ the two treatment-category routes refuse an order that is not a whole
 number of 0 or more. Order itself now says what it decides: where the
 condition sits in the list, lowest first.
 
+**A tap is acknowledged, and a screen already on the page is not fetched
+again.** Tapping a Today count used to be an ordinary link to
+`/admin/dashboard?section=...`, which rebuilt the whole dashboard from ~49
+queries to show a screen already in the DOM - seconds of silence, then a
+jump. `AdminScreenLink` hands those to the shell's own navigate, so they
+switch in place as the sidebar does, and `LinkProgress` (one listener in the
+root layout) draws the teal bar for every other link in the app, whoever
+wrote it. See the navigation rule in `AGENTS.md`.
+
 The health profile is **per specialty**: a condition profile carries
 `specialty` (`ortho`, `neuro`, `pediatrics`), and that decides its seven
 questions, its summary card, its snapshot figures and its progress line.

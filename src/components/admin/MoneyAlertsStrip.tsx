@@ -1,4 +1,4 @@
-import Link from "next/link";
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
 import { adminScreenHref, type AdminSectionKey } from "@/lib/adminNav";
 import { buildMoneyAlerts, moneyAlertsHeadline, type MoneyAlertCounts } from "@/lib/moneyAlerts";
 
@@ -56,7 +56,7 @@ export default function MoneyAlertsStrip({
       <ul className="mt-3 space-y-2">
         {alerts.map((alert) => (
           <li key={alert.key}>
-            <Link
+            <AdminScreenLink
               href={adminScreenHref(alert.section, alert.tab, alert.view)}
               className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 transition hover:border-teal-300 hover:bg-teal-50/40"
             >
@@ -70,7 +70,7 @@ export default function MoneyAlertsStrip({
               <span className="text-xs font-semibold text-slate-800">{alert.label}</span>
               <span className="min-w-0 flex-1 text-[11px] text-slate-500">{alert.hint}</span>
               <i aria-hidden className="fa-solid fa-arrow-right text-[10px] text-slate-300" />
-            </Link>
+            </AdminScreenLink>
           </li>
         ))}
       </ul>

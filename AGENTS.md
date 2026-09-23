@@ -4872,6 +4872,46 @@ must not have.
   `e2e/home-visit-disabled.spec.ts` walks it with the column flipped in the
   database rather than through the route, which is the case the cache could
   not survive.
+- **Every link says it heard you, and a screen already rendered is never
+  fetched again.** Two failures that both read as a dead button, and the
+  Today screen had them together. Tapping a count -- "Out-of-area requests",
+  "Unassigned sessions" -- was an ordinary link to
+  `/admin/dashboard?section=...&tab=...`: the same route with a different
+  query, which is a real navigation, so Next threw away a rendered dashboard
+  and rebuilt it from ~49 queries to show markup that was already in the DOM.
+  Seconds of nothing, then a jump. And the wait itself was silent, because
+  the teal bar knew about `useRouter`, about `ProgressLink` and about
+  `useLeavingPage`, and about nothing else -- a bare `next/link` or a plain
+  `<a>` reported no work at all.
+  Two answers, and both are one place rather than a rule every call site has
+  to remember:
+  1. **`AdminScreenLink`** (`src/components/admin/`) reads the shell's own
+     navigate out of `AdminScreenNavigationProvider`
+     (`src/lib/adminScreenNavigation.tsx`) and switches screens in place, the
+     way the sidebar always has. It stays a real `<a>` with a real href, so
+     middle-click, Copy Link Address and opening in a new tab keep working
+     and a screen is still linkable; only the plain left click is
+     intercepted. Outside the shell -- the admin detail routes render some of
+     the same components -- the context is null and it is an ordinary anchor.
+     `ProgressLink` defers to it for an admin screen href, so the shared
+     dashboard surfaces (quick actions, the feed, `StatStrip`'s figures) need
+     no per-call-site branch. Measured: 291ms and zero requests, against a
+     full dashboard rebuild.
+     The `?view=` preset travels with it -- `navigate` keeps the key when one
+     is passed rather than only deleting it -- and `useSearchParams` follows
+     a `pushState`, which is what lets the target screen apply the filter
+     during its own render. `e2e/navigation-feedback.spec.ts` NAV-003 is the
+     guard on that pair.
+  2. **`LinkProgress`** (`src/components/system/`) is a capture-phase click
+     listener at the root that marks pending work for any anchor the browser
+     will actually act on, and releases it when the URL changes. It covers
+     every link written without one of the three older mechanisms, including
+     the ones written next. Four rules, all in the file: a modified click,
+     an off-site href and a bare hash are left alone; a click some handler
+     cancels is released on the next tick (`AdminScreenLink` cancels every
+     one of its own); the URL changing is what "arrived" means; and the
+     marker expires after 20s so a navigation nothing else can see cannot
+     leave a bar running for ever.
 
 ## Gotchas
 

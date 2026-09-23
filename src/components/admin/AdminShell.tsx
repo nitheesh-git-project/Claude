@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
 import { LiveUpdatesProvider } from "@/lib/liveUpdates";
+import { AdminScreenNavigationProvider } from "@/lib/adminScreenNavigation";
 import AdminGlobalSearch, { type SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import { useLeavingPage } from "@/lib/useLeavingPage";
@@ -297,7 +298,7 @@ export default function AdminShell({
     return () => window.removeEventListener("popstate", applyFromLocation);
   }, [allowedSections, manageSections, limitedScope]);
 
-  function navigate(nextSection: string, nextTab: string) {
+  function navigate(nextSection: string, nextTab: string, view?: string | null) {
     setSectionKey(nextSection);
     setTabKey(nextTab);
     // The notice describes the link they arrived on, not the screen they
@@ -312,6 +313,13 @@ export default function AdminShell({
     // re-applying that filter every time they came back to the tab -- and
     // would also stop a repeat tap on the same row from re-applying it.
     params.delete("view");
+    // ...unless this navigation *is* one of those presets. A Today count
+    // linking to the rows it counted carries `view`, and it has to survive
+    // into the URL for the target screen to read it -- `useSearchParams`
+    // follows a pushState, so the screen applies it during its own render
+    // rather than after a mount it never has (every screen is already
+    // mounted).
+    if (view) params.set("view", view);
     window.history.pushState(null, "", `${window.location.pathname}?${params.toString()}`);
   }
 
@@ -539,6 +547,7 @@ export default function AdminShell({
     // the person reading is waiting on. The other three dashboards still
     // refresh themselves: there a rebuild is cheap and the reader usually
     // is waiting for that row.
+    <AdminScreenNavigationProvider value={{ goToScreen: navigate }}>
     <LiveUpdatesProvider>
     <div className="min-h-screen bg-slate-50">
       <RealtimeRefresh
@@ -729,5 +738,6 @@ export default function AdminShell({
       </div>
     </div>
     </LiveUpdatesProvider>
+    </AdminScreenNavigationProvider>
   );
 }
