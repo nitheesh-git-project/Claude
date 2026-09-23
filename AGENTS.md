@@ -5019,26 +5019,52 @@ must not have.
   committed file - `ALLOW_DEBUG_DATA_RESET` belongs in a server environment,
   set deliberately, against a project whose data is throwaway. Check the
   hosting dashboard's own env vars too, since a file cannot clear those.
-- **The page behind an intercepted overlay has to look like the app.** The
-  admin's patient, therapist and condition details are normally an overlay --
-  the dashboard intercepts the route (`@modal/(.)patients/[id]`) and draws
-  the detail over the screen you were on. Interception applies to
-  **client-side navigation only**, so a reload, a shared link, a new tab and
-  the `router.refresh()` an action inside the overlay fires all land on the
-  real page underneath. That page was a bare `<section>` with a small
-  "← Back to Dashboard" link and no chrome at all, so pressing Mark Done on a
-  patient's profile appeared to throw the admin out of the back office onto a
-  different, plainer site.
-  `AdminDetailFrame` is what those three wear now: the same dark rail, the
-  same section list, the same header shape. It reads `ADMIN_SECTIONS` and the
-  scope grid exactly as the shell's sidebar does, so the two cannot list
-  different sections or offer one this admin cannot open, and every entry is
-  built with `adminScreenHref` rather than a hardcoded `?section=`. It is
-  **deliberately reduced** -- no collapse, no badges, no global search, no tab
-  state -- because this is a leaf page and all of those belong to the screen
-  you return to; reproducing them would be a second shell to drift from the
-  first. A route that gets this frame also needs its `loading.tsx` to pass
-  `withSidebar`, or the chrome blanks while the page resolves.
+- **The page behind an intercepted overlay is the dashboard, not a frame
+  that looks like it.** The admin's patient, therapist and condition details
+  are normally an overlay -- the dashboard intercepts the route
+  (`@modal/(.)patients/[id]`) and draws the detail over the screen you were
+  on. Interception applies to **client-side navigation only**, so a reload, a
+  shared link, a new tab and any refresh that misses the router's own state
+  land on the real page underneath.
+  That page went through two wrong answers before this one. First a bare
+  `<section>` with a "← Back to Dashboard" link and no chrome at all. Then
+  `AdminDetailFrame`, which reproduced the rail and the section list and was
+  **deliberately reduced** -- no badges, no search, no tab state -- on the
+  reasoning that a leaf page does not need them. That reduction *is* the
+  bug: a second shell missing three things the first one has does not read
+  as a leaf page, it reads as a different, plainer site, and it was reported
+  as exactly that from the one flow that refreshes (reassigning a session
+  from a therapist's profile).
+  `AdminDetailDashboard` renders **the dashboard page itself** with the same
+  `DetailOverlayModal` on top, so the two ways in are pixel-identical. Three
+  rules:
+  1. **It renders the real page, never a copy of its chrome.** A second
+     implementation of the shell is a second thing to drift, and the last
+     two attempts both drifted in the same direction.
+  2. **The cost is on the rare path only.** Tapped from inside the dashboard
+     the detail costs its own queries and nothing more -- the dashboard
+     behind it is already rendered. A direct load pays the dashboard's ~49
+     queries as well, which is what that URL would have cost had they
+     reached it the usual way.
+  3. **Closing is a URL change and nothing else.** `router.push` would
+     re-run those ~49 queries to paint what is already on screen, so
+     `DetailOverlayModal` takes a `closeHref` and uses
+     `history.replaceState` plus a local flag -- the same History-API rule
+     `AdminShell`'s own tab state follows. `replaceState` rather than
+     `pushState`, since a direct load has no entry of ours behind it and
+     Back would otherwise reopen the overlay just shut. Without a
+     `closeHref` (the intercepted case) it is still `router.back()`, which
+     returns to the exact screen, filters and scroll the admin left.
+  **And the shell honours the screen the server chose when the URL names
+  none.** `applyFromLocation` read `?section=`/`?tab=` alone, so on a detail
+  route -- which carries no query at all -- it threw the server's answer
+  away on mount and reset the dashboard behind the overlay to Today.
+  Closing then revealed a screen nobody had asked for. The URL still wins
+  whenever it names a screen, which is what keeps a deep link, a pushState
+  and the Back button landing where they say; `initialSection`/`initialTab`
+  are the fallback, not the override. `e2e/admin-detail-overlay.spec.ts` is
+  the guard, driven as screens because the routes and the data are
+  unchanged and all of this is what a person sees.
 - **A full-screen overlay opened from inside another one must be portalled.**
   `position: fixed` is relative to the viewport *until* an ancestor carries
   `transform`, `filter`, `backdrop-filter`, `perspective`, `contain` or

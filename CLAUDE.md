@@ -222,6 +222,17 @@ switch in place as the sidebar does, and `LinkProgress` (one listener in the
 root layout) draws the teal bar for every other link in the app, whoever
 wrote it. See the navigation rule in `AGENTS.md`.
 
+**A patient's or therapist's own page is the dashboard, not a page that
+looks like it.** Those details are an overlay over whatever screen you were
+on, and a reload, a new tab, a shared link or a refresh lands on the real
+route instead. That route used to wear a reduced frame -- same rail, no
+badges, no search -- which read as being thrown out of the back office onto
+a plainer site, and it was reported from the one flow that refreshes:
+reassigning a session from a therapist's profile. It renders the dashboard
+itself now (`AdminDetailDashboard`) with the same overlay on top, and
+closing is a URL change rather than a rebuild of a screen already on view.
+See the intercepted-overlay rule in `AGENTS.md`.
+
 **Marking an out-of-area request served offers to open the area.** The
 waitlist is demand the clinic turned away, and tapping *served* used to move
 a word while the pincode stayed unserved - so the next patient from that

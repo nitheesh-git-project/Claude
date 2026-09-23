@@ -283,9 +283,17 @@ export default function AdminShell({
       // so a limited desk deep-linking to Today -> Activity, or walking back
       // to it, landed on Today's overview instead, having resolved the URL
       // differently from the server that had just rendered it.
+      // The URL wins when it names a screen -- that is what makes a deep
+      // link, a pushState and the Back button all land where they say. When
+      // it names nothing, the server's own answer does, and that second half
+      // is load-bearing on the detail routes: `/admin/dashboard/patients/<id>`
+      // carries no query at all, so reading the URL alone threw away the
+      // screen the server had just rendered and reset the dashboard behind
+      // the overlay to Today. Closing the overlay then revealed a screen the
+      // admin had never asked for.
       const found = findTab(
-        params.get("section"),
-        params.get("tab"),
+        params.get("section") ?? initialSection ?? null,
+        params.get("tab") ?? initialTab ?? null,
         allowedSections,
         manageSections,
         limitedScope
@@ -296,7 +304,7 @@ export default function AdminShell({
     applyFromLocation();
     window.addEventListener("popstate", applyFromLocation);
     return () => window.removeEventListener("popstate", applyFromLocation);
-  }, [allowedSections, manageSections, limitedScope]);
+  }, [allowedSections, manageSections, limitedScope, initialSection, initialTab]);
 
   function navigate(nextSection: string, nextTab: string, view?: string | null) {
     setSectionKey(nextSection);
