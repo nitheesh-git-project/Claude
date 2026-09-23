@@ -479,6 +479,12 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 #### `ADM-PEOP-005` - Therapists directory · P1
 **Expected Result.** A paged list with approval state, active state, leave state, team visibility, revenue share and rating visibility.
 
+#### `ADM-PEOP-005a` - Filter therapists by specialisation · P1
+
+**Steps.** Open **People → Therapists**. Read the **specialisation chip** under each card's credentials. Open the **Any specialisation** dropdown and choose one. Then switch to **List** and read the **Specialist in** column. Then put the dropdown back to **Any specialisation**.
+**Expected Result.** The dropdown offers only specialisations somebody on this screen actually has, each with its own count in brackets - never an option matching nobody. Choosing one narrows the grid to exactly those therapists and the pager's own count agrees with what is on screen. A therapist whose stored value is free text somebody typed before this list existed shows that text on a neutral chip and files under **Something else**; one with nothing recorded shows **no chip at all** (not "Unknown") and files under **Not set**. Searching by a specialisation's name finds those therapists too. The same chip appears on **Sessions → Roster**, on the therapist's own detail page, and in **Today → Approvals** for a therapist waiting on a credentials check.
+**Critical check:** the patients and partners directories - same component - show **no** specialisation filter and no column at all.
+
 #### `ADM-PEOP-006` - Therapist detail and revenue share · P0
 **Steps.** Open `QA Therapist A`. Set **Revenue share %** to `60`, and the home-visit share to `65`. Save. Then try `-5` and `150`.
 **Expected Result.** Valid values save and immediately change the therapist's Earnings and the Money screens' split. Invalid values are refused with `Enter a percentage between 0 and 100.` The change is audited.

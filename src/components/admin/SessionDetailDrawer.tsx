@@ -138,7 +138,7 @@ export default function SessionDetailDrawer({
   appointment: SessionDetailAppointment;
   peopleMap: Map<string, string>;
   categoryMap: Map<string, CategoryInfo>;
-  therapists: { id: string; full_name: string; active?: boolean }[];
+  therapists: { id: string; full_name: string; active?: boolean; specialization?: string | null }[];
   categories: CategoryInfo[];
   reassignmentLogs: ReassignmentLogEntry[];
   // Present only when this session is a home visit. Everything a visit needs

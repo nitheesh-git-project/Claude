@@ -94,6 +94,7 @@ import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
 import AdminPayoutRequestsTab, { type PayoutRequestRow } from "@/components/admin/AdminPayoutRequestsTab";
 import AdminPaymentHistoryTab from "@/components/admin/AdminPaymentHistoryTab";
 import AdminRosterTab from "@/components/admin/AdminRosterTab";
+import SpecialtyChip from "@/components/SpecialtyChip";
 import LeadStatusButtons from "@/components/admin/LeadStatusButtons";
 import DeclineReferralButton from "@/components/admin/DeclineReferralButton";
 import ReferralCapacityNoteForm from "@/components/admin/ReferralCapacityNoteForm";
@@ -308,7 +309,11 @@ export default async function AdminDashboardPage({
     // (the admin vetted them when issuing the invite).
     admin
       .from("profiles")
-      .select("id, role, full_name, email, phone, credentials, avatar_url, created_at")
+      // specialization comes along because an application now carries one:
+      // "who is this person for?" is half of the credentials check this
+      // queue exists to make, and it was answerable only by approving them
+      // first and opening their profile.
+      .select("id, role, full_name, email, phone, credentials, specialization, avatar_url, created_at")
       .in("role", ["therapist", "patient"])
       .eq("approved", false)
       .order("created_at", { ascending: false }),
@@ -329,7 +334,10 @@ export default async function AdminDashboardPage({
     // preserve.
     admin
       .from("profiles")
-      .select("id, full_name, active")
+      // specialization rides along so every picker built from this list can
+      // say what each therapist takes -- a dropdown of eight names is not
+      // enough to choose between them for a stroke patient.
+      .select("id, full_name, active, specialization")
       .eq("role", "therapist")
       .eq("approved", true)
       .order("full_name"),
@@ -1535,6 +1543,11 @@ export default async function AdminDashboardPage({
                       {isTherapist && p.credentials && (
                         <p className="text-slate-500 mt-1">{p.credentials}</p>
                       )}
+                      {isTherapist && (
+                        <span className="mt-1.5 block">
+                          <SpecialtyChip specialization={p.specialization} />
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2162,6 +2175,9 @@ export default async function AdminDashboardPage({
             approved: t.approved,
             created_at: t.created_at,
             code: roleCodeMap.get(t.id)?.therapist_code ?? null,
+            // Passing it at all is what puts the specialisation filter and
+            // column on this directory rather than the patients one.
+            specialization: t.specialization ?? null,
           }))}
         />
       )}
@@ -2220,7 +2236,11 @@ export default async function AdminDashboardPage({
   const newBookingTab = (
     <AdminNewBookingTab
       patients={patients.map((p) => ({ id: p.id, full_name: p.full_name, email: p.email }))}
-      therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+      therapists={activeApprovedTherapists.map((t) => ({
+        id: t.id,
+        full_name: t.full_name,
+        specialization: t.specialization ?? null,
+      }))}
       categories={categoriesForReassign}
       leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
     />
@@ -2630,6 +2650,7 @@ export default async function AdminDashboardPage({
       therapists={allTherapists.map((t) => ({
         id: t.id,
         full_name: t.full_name,
+        specialization: t.specialization ?? null,
         timezone: t.timezone,
         on_leave: onLeaveMap.get(t.id) ?? false,
         on_leave_from: leaveDetailById.get(t.id)?.from ?? null,
@@ -2809,7 +2830,11 @@ export default async function AdminDashboardPage({
           purchases={packagePurchaseRows}
           packages={(packages ?? []).map((p) => ({ id: p.id, title: p.title }))}
           categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
-          therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+          therapists={activeApprovedTherapists.map((t) => ({
+            id: t.id,
+            full_name: t.full_name,
+            specialization: t.specialization ?? null,
+          }))}
         />
       </div>
 
@@ -2824,7 +2849,11 @@ export default async function AdminDashboardPage({
           canSeeMoney={canSeeMoney}
           purchases={homeVisitPurchaseRows}
           packages={(homeVisitPackages ?? []).map((p) => ({ id: p.id, title: p.title }))}
-          therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+          therapists={activeApprovedTherapists.map((t) => ({
+            id: t.id,
+            full_name: t.full_name,
+            specialization: t.specialization ?? null,
+          }))}
         />
       </div>
     </div>

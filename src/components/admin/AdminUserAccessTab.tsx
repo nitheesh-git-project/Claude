@@ -4,6 +4,7 @@ import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import { Fragment, useRef, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
+import { THERAPIST_SPECIALTIES } from "@/lib/therapistSpecialties";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import Spinner from "@/components/system/Spinner";
 import { formatIST } from "@/lib/formatIST";
@@ -437,6 +438,7 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [credentials, setCredentials] = useState("");
+  const [specialization, setSpecialization] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<
     { email: string; password: string; role: string } | null
@@ -463,6 +465,7 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
         email,
         phone: phone.trim() || null,
         credentials: credentials.trim() || null,
+        specialization: specialization || null,
         adminScope,
       });
       const send = () =>
@@ -591,17 +594,42 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
             />
           </div>
           {role === "therapist" && (
-            <div>
-              <label className={labelCls} htmlFor="new-account-credentials">
-                Credentials
-              </label>
-              <input
-                id="new-account-credentials"
-                value={credentials}
-                onChange={(e) => setCredentials(e.target.value)}
-                className={fieldCls}
-              />
-            </div>
+            <>
+              <div>
+                <label className={labelCls} htmlFor="new-account-credentials">
+                  Credentials
+                </label>
+                <input
+                  id="new-account-credentials"
+                  value={credentials}
+                  onChange={(e) => setCredentials(e.target.value)}
+                  className={fieldCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="new-account-specialization">
+                  Specialist in
+                </label>
+                {/* Asked for here as well as on the public application form,
+                    so a therapist hired offline is not the one profile on
+                    /team with nothing where everybody else has a
+                    specialisation. Blank is allowed -- they can set it
+                    themselves -- which is why it is not required. */}
+                <select
+                  id="new-account-specialization"
+                  value={specialization}
+                  onChange={(e) => setSpecialization(e.target.value)}
+                  className={fieldCls}
+                >
+                  <option value="">Not set yet</option>
+                  {THERAPIST_SPECIALTIES.map((s) => (
+                    <option key={s.key} value={s.label}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
           )}
         </div>
       )}

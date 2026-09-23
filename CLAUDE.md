@@ -260,6 +260,22 @@ roster is the clinic's planning record; it does not filter the patient's
 booking picker, and availability never touches an appointment. See the
 "Nobody edits an hour" rule in `AGENTS.md`.
 
+A therapist carries a **specialisation**, and it is a value rather than a
+sentence: the eight the clinic recognises live in
+`src/lib/therapistSpecialties.ts`, the column stores the canonical label
+("Orthopaedic", never "ortho"), and free text written before that list
+existed still renders exactly as its author wrote it and files under
+"Something else". It is asked for on the public application form and on
+User Access's create-account form, editable by the therapist through the
+ordinary admin review, and shown wherever that therapist is -- /team and the
+booking wizard's requested-therapist card, the admin's therapist directory,
+detail page, roster and approvals queue, and every picker that assigns one.
+People -> Therapists carries a **filter by specialisation** built from the
+people on screen, so an option matching nobody is never offered. Nothing is
+shown for a therapist who has not said: a chip reading "Unknown" on every
+such profile is a label on an absence. See the specialisation rule in
+`AGENTS.md`.
+
 Nobody is admitted to a session by hand. Meet's default access admits only
 signed-in Google users who are on the invite and makes everyone else knock,
 which for patients registering with whatever email they have meant both

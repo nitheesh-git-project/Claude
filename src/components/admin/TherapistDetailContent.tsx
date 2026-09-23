@@ -28,6 +28,8 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import SpecialtyChip from "@/components/SpecialtyChip";
+import { specialtyLabel } from "@/lib/therapistSpecialties";
 
 // Shared body for both the standalone /admin/dashboard/therapists/[id] page
 // (hard navigation, shareable link) and the @modal intercepted route that
@@ -269,6 +271,9 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
               <p className="text-xs text-slate-500 mt-1">
                 {therapist.credentials} • Joined {formatClinicDate(therapist.created_at)}
               </p>
+              <span className="mt-1.5 block">
+                <SpecialtyChip specialization={therapist.specialization} />
+              </span>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -309,7 +314,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           <div className="mt-4 pt-4 border-t border-slate-100 text-xs space-y-1">
             <p className="font-semibold text-slate-700">Professional Details</p>
             <p className="text-slate-600">
-              Specialist in: {therapist.specialization || "Not set"}
+              Specialist in: {specialtyLabel(therapist.specialization) ?? "Not set"}
             </p>
             <p className="text-slate-600">
               {therapist.years_experience !== null

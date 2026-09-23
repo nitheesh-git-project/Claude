@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
 import { BOOKING_LEAD_TIME_HOURS, leadTimeMsFromHours } from "@/lib/bookingSlots";
+import { specialtyLabel } from "@/lib/therapistSpecialties";
 
 export default function AssignReferralForm({
   referralId,
@@ -11,7 +12,7 @@ export default function AssignReferralForm({
   leadTimeHours = BOOKING_LEAD_TIME_HOURS,
 }: {
   referralId: string;
-  therapists: { id: string; full_name: string }[];
+  therapists: { id: string; full_name: string; specialization?: string | null }[];
   /** The clinic's own booking lead time. This form defaulted to the constant
    *  while `/api/appointments/create` read the setting, so a clinic that
    *  widened its window promised a referred patient a slot its own booking
@@ -143,7 +144,9 @@ export default function AssignReferralForm({
         >
           {therapists.map((t) => (
             <option key={t.id} value={t.id}>
-              {t.full_name}
+              {specialtyLabel(t.specialization)
+                ? `${t.full_name} - ${specialtyLabel(t.specialization)}`
+                : t.full_name}
             </option>
           ))}
         </select>

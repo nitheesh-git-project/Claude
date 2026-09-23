@@ -5,6 +5,7 @@ import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/Admi
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
+import { specialtyLabel } from "@/lib/therapistSpecialties";
 
 // Booking on someone's behalf -- the phone call the dashboard could not
 // answer before this. Every field here is a decision only the person on the
@@ -21,7 +22,7 @@ export default function AdminNewBookingTab({
   leadTimeHours,
 }: {
   patients: Person[];
-  therapists: { id: string; full_name: string }[];
+  therapists: { id: string; full_name: string; specialization?: string | null }[];
   categories: Category[];
   leadTimeHours: number;
 }) {
@@ -227,7 +228,9 @@ export default function AdminNewBookingTab({
             <option value="">Leave unassigned (goes to the queue)</option>
             {therapists.map((t) => (
               <option key={t.id} value={t.id}>
-                {t.full_name}
+                {specialtyLabel(t.specialization)
+                  ? `${t.full_name} - ${specialtyLabel(t.specialization)}`
+                  : t.full_name}
               </option>
             ))}
           </select>

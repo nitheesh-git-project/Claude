@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import ListPager from "@/components/dashboard/ListPager";
 import FilterChips from "@/components/dashboard/FilterChips";
 import SurfaceCard, { EmptyState, StatusPill } from "@/components/dashboard/SurfaceCard";
+import SpecialtyChip from "@/components/SpecialtyChip";
 import WeekScheduleSummary from "@/components/roster/WeekScheduleSummary";
 import WeeklyScheduleEditor from "@/components/roster/WeeklyScheduleEditor";
 import ScheduleExceptionsPanel from "@/components/roster/ScheduleExceptionsPanel";
@@ -42,6 +43,7 @@ import type { OverrideRow, TemplateRow } from "@/lib/therapistAvailability";
 type Therapist = {
   id: string;
   full_name: string | null;
+  specialization: string | null;
   timezone: string | null;
   on_leave: boolean;
   on_leave_from: string | null;
@@ -242,8 +244,15 @@ export default function AdminRosterTab({
                       }`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-display text-sm font-bold text-slate-900">
-                          {row.therapist.full_name ?? "Unknown therapist"}
+                        <span className="flex min-w-0 flex-wrap items-center gap-2">
+                          <span className="font-display text-sm font-bold text-slate-900">
+                            {row.therapist.full_name ?? "Unknown therapist"}
+                          </span>
+                          {/* Who this person takes, where the roster is
+                              read: deciding whose week to open is a
+                              question about the patient waiting, and the
+                              name alone does not answer it. */}
+                          <SpecialtyChip specialization={row.therapist.specialization} size="xs" />
                         </span>
                         <StatusPill tone={STATUS_TONE[row.status]}>
                           {ROSTER_STATUS_LABELS[row.status]}

@@ -375,6 +375,7 @@ src/lib/accountDeletion.ts what blocks deleting an account, and what to say
 src/lib/listOrdering.ts  moving a row up or down a hand-ordered admin list
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
+src/lib/therapistSpecialties.ts what a therapist is a specialist in, as a value
 src/lib/conditionSpecialty.ts the three condition specialties, the triage
                          questions and the suggestion rule
 src/lib/intakeOrtho.ts   the orthopaedic intake question set
@@ -1098,6 +1099,47 @@ before.
   Writing a date exception is an admin capability and stays one: a therapist
   reads theirs. Widening that is its own decision, not a side effect of a
   screen.
+- **A specialisation is a value, not a sentence.** `profiles.specialization`
+  was free text: one line of prose written on the therapist's own profile
+  screen and printed raw on /team. That was enough until an admin needed to
+  answer "who do we have for a stroke patient?", at which point "Neuro
+  rehab", "neurological physiotherapy" and "Neuro" are three strings and no
+  filter can be built out of them.
+  `src/lib/therapistSpecialties.ts` is the list and the judgements; the
+  column is unchanged and still text, and is deliberately **not** CHECKed
+  against that list. Five rules:
+  1. **What is stored is the canonical label** (`"Orthopaedic"`, never
+     `"ortho"`). That is what keeps every surface which already printed the
+     column raw -- a profile change-request card, an export, a screen nobody
+     has touched -- correct with no edit, and it is why a therapist already
+     described as "Orthopaedic" needs no backfill. The key exists for
+     filtering and for the chip's colour, and is derived on read.
+  2. **Free text is honoured, never blanked.** `specialtyLabel` prints an
+     unrecognised value exactly as its author wrote it and
+     `normalizeSpecialty` answers null for it; the filter files it under
+     *Something else*, separately from *Not set*, because the two ask for
+     different work -- one is a value to tidy up, the other one to collect.
+     The alias table is explicit on purpose: guessing that "sports injury
+     clinic - neuro trained" is one of the eight is how somebody ends up
+     filed under a specialty nobody chose.
+  3. **Nothing is shown for nobody having said.** `SpecialtyChip` renders
+     null rather than "Unknown" -- a label on an absence, on every such
+     profile, buries the ones carrying a fact.
+  4. **It is asked for where an account is made**, both doors: the public
+     application form (required, carried in the signup's own metadata and
+     copied onto the profile by `handle_new_user` beside `credentials`) and
+     User Access's create-account form (optional -- they can set it
+     themselves). `/api/admin/create-account` re-derives it through
+     `storableSpecialty` rather than storing what the browser sent.
+  5. **The therapist's own editor is a dropdown that includes their current
+     value** when it is not one of the eight. Without that second half a
+     legacy value has no matching `<option>`, the browser shows the first
+     one instead, and the screen misreports what is stored -- on a field
+     that goes to patients and through admin review.
+  A new surface showing a therapist shows the chip; a new list of
+  therapists takes the filter. `e2e/therapist-specialty.spec.ts` is the
+  guard, driven as screens because none of this changes what a route
+  answers.
 - **Payments** must be verified server-side: `/api/razorpay/verify` checks the
   signature before anything is confirmed. Never confirm on a client callback.
   **A capture is applied in exactly one place**: `record_payment_capture` in

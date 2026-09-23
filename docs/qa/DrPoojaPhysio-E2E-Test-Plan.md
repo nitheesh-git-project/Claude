@@ -1882,11 +1882,13 @@ Five rules shape almost every screen:
 4. Tap **Email Address**. Enter `qa.therapist.a@example.test`.
 5. Tap the phone field. Enter `+91 90000 10001`.
 6. Tap **Qualifications & License / Council Reg No.** Enter `MPT (Ortho), KSCP Reg 44821`.
-7. Tap **Password**. Enter `QaTest!2024pass`.
-8. Tap **Confirm Password**. Enter `QaTest!2024pass`.
-9. Tap **Submit Application**.
+7. Tap **Specialist In**. It is a **dropdown**, not a text box, and it lists exactly eight: Orthopaedic, Neurological, Paediatric, Sports, Geriatric, Cardiopulmonary, Women's health, General physiotherapy. Choose **Orthopaedic**.
+8. Tap **Password**. Enter `QaTest!2024pass`.
+9. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+10. Tap **Submit Application**.
 
-**Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`. **No "check your email" step appears anywhere.** The application shows in Admin → Today → Approvals and raises that tab's badge.
+**Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`, and `specialization='Orthopaedic'` - the exact label, not a code. **No "check your email" step appears anywhere.** The application shows in Admin → Today → Approvals, **carrying the specialisation chip**, and raises that tab's badge. Submitting with **Specialist In** left on its placeholder is refused by the form's own validation, in the clinic's wording rather than the browser's.
+**Critical check:** the specialisation reaches the profile row through the signup trigger (`handle_new_user`). A database that has not had the schema re-applied writes the rest of the application and leaves that column null - the account is still created, and the therapist sets it from their own dashboard.
 **Cleanup.** Leave for `ADM-APPR-002`.
 
 #### `THR-AUTH-002` - An unapproved therapist is held at the door · P0
@@ -1947,7 +1949,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 **Feature.** `/therapist/dashboard/profile`. **Role.** Therapist.
 **Purpose.** Prove the line between a detail a therapist owns and a credential patients rely on: the first saves on the spot, the second becomes an admin review request and locks the field until it is decided.
 **Preconditions.** `THR-AUTH-003`. An admin is available to decide the request in `ADM-APPR-004`.
-**Test Data.** Bio `Works with desk-based patients on posture-driven back pain.` · Languages `English, Kannada, Hindi` · Years of Experience `15` (a deliberate wrong value - it is declined, never approved, so Therapist A stays at the §8.8 value of `9`) · Specialist In `Spine, hip and knee rehabilitation`.
+**Test Data.** Bio `Works with desk-based patients on posture-driven back pain.` · Languages `English, Kannada, Hindi` · Years of Experience `15` (a deliberate wrong value - it is declined, never approved, so Therapist A stays at the §8.8 value of `9`) · Specialist In `Neurological` (a **dropdown** now, not a text box).
 
 **Steps**
 1. In the sidebar tap **Edit Profile**.
@@ -1956,7 +1958,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 4. Tap **Save**.
 5. Reload the page and confirm both values survived.
 6. Under **Credentials & Specialization**, tap **Years of Experience**. Enter `15`.
-7. Tap **Specialist In**. Enter `Spine, hip and knee rehabilitation`.
+7. Tap **Specialist In** and choose `Neurological` from the dropdown.
 8. Tap **Request Changes**.
 9. Read the two fields you just changed.
 10. Tap **Withdraw** beside **Specialist In**.
@@ -1968,7 +1970,8 @@ The therapist Overview is where a clinician starts every shift: what is on today
 **Expected Result.**
 * **Public Details save instantly.** The button reads `Saving...` then `Save`; the values survive the reload at step 5. No admin sees anything.
 * **Credentials do not.** Step 8 shows `Your request has been submitted for admin review.` Each requested field is replaced by its **new** value on a slate panel with an amber `Pending Review` chip and a **Withdraw** link, and **cannot be edited again** until the request is decided. The live public profile still shows the **old** value - `/team` and the patient's therapist card must not change yet.
-* Step 10's **Withdraw** returns the field to an editable input immediately, with the old value.
+* Step 10's **Withdraw** returns the field to an editable control immediately, with the old value.
+* **Specialist In is a dropdown of the eight the clinic recognises.** A therapist whose stored value is free text written before this list existed is offered that value as a ninth option and it is **preselected** - the screen must never show a different specialisation from the one in the database because the stored one had no matching option.
 * After step 12's decline the field is editable again and carries `Last request declined: Send the council registration number first.` in red. Nothing on the public profile ever changed.
 * The note under the credential fields reads `Changes to these fields need admin approval before they take effect.`
 * **Profile photo** uploads on the spot (no review) and appears on `/team` once the therapist is visible there.
@@ -3007,6 +3010,12 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 #### `ADM-PEOP-005` - Therapists directory · P1
 **Expected Result.** A paged list with approval state, active state, leave state, team visibility, revenue share and rating visibility.
 
+#### `ADM-PEOP-005a` - Filter therapists by specialisation · P1
+
+**Steps.** Open **People → Therapists**. Read the **specialisation chip** under each card's credentials. Open the **Any specialisation** dropdown and choose one. Then switch to **List** and read the **Specialist in** column. Then put the dropdown back to **Any specialisation**.
+**Expected Result.** The dropdown offers only specialisations somebody on this screen actually has, each with its own count in brackets - never an option matching nobody. Choosing one narrows the grid to exactly those therapists and the pager's own count agrees with what is on screen. A therapist whose stored value is free text somebody typed before this list existed shows that text on a neutral chip and files under **Something else**; one with nothing recorded shows **no chip at all** (not "Unknown") and files under **Not set**. Searching by a specialisation's name finds those therapists too. The same chip appears on **Sessions → Roster**, on the therapist's own detail page, and in **Today → Approvals** for a therapist waiting on a credentials check.
+**Critical check:** the patients and partners directories - same component - show **no** specialisation filter and no column at all.
+
 #### `ADM-PEOP-006` - Therapist detail and revenue share · P0
 **Steps.** Open `QA Therapist A`. Set **Revenue share %** to `60`, and the home-visit share to `65`. Save. Then try `-5` and `150`.
 **Expected Result.** Valid values save and immediately change the therapist's Earnings and the Money screens' split. Invalid values are refused with `Enter a percentage between 0 and 100.` The change is audited.
@@ -3119,6 +3128,15 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 
 #### `ADM-CAT-011` - The home-visit waitlist · P2
 **Expected Result.** Entries from `PAT-HV-003` appear with status `new`, raising the Service Areas badge. Updating a status clears the badge. `Unknown status` is refused for an invalid value.
+
+#### `ADM-CAT-011a` - Marking one served offers to open the area · P1
+**Steps.** On a `new` request for a pincode you do not serve, tap **served**. Read the dialog, then tap **No, just mark served**. Set the row back to `new` (or use another request) and this time tap **Yes, add it and mark served**.
+**Expected Result.** Tapping served opens a dialog headed *"Do you visit 560099 now?"* carrying the request's pincode and who asked, with City prefilled from the request and **Travel fee prefilled with what you already charge in that city** - and a line saying so. A city with no areas yet starts at `0` and says that is a placeholder rather than a price.
+* **No, just mark served** - the request becomes `served` and **no service area is created**. That pincode still falls through to the waitlist on `/book-home-visit`.
+* **Yes, add it and mark served** - the area is created with the city, area name and fee shown, the request becomes `served`, and `/book-home-visit` now accepts that pincode.
+* Closing the dialog with **×** is the third outcome: nothing changes at all, not even the status.
+* A pincode that is **already** a service area is told so in the dialog with the clinic's own city and fee, and is offered **Mark served** alone - there is nothing to add.
+* The area is written **first**: if it cannot be created, the status stays where it was and the dialog says why.
 
 #### `ADM-CAT-014` - Purchases · P1
 **Steps.** Open **Catalog → Purchases**. Open a package purchase's detail modal; then a home-visit purchase's.
@@ -4569,7 +4587,7 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 
 **Feature.** A course of treatment is a clinical recommendation, so the public site does not carry a price list of them. Removed outright rather than hidden behind a setting: a toggle somebody can flip back on is not the rule being gone.
 
-**Preconditions.** Packages P1–P3 exist, are `active`, and have `visible_on_home` and `visible_on_conditions` on. That matters - this is an absence tested against rows that genuinely could have rendered.
+**Preconditions.** Packages P1–P3 exist and are `active` and `recommendable`. That matters - this is an absence tested against rows that genuinely could have rendered. The three "show it here" flags these rows used to carry are gone from the table: they decided where a programme was advertised, and there is nowhere public left for them to decide about.
 
 **Steps.** Read `/` and `/conditions` end to end, including inside every programme detail dialog. Then read `/home-visit`.
 **Expected Result**

@@ -12081,3 +12081,87 @@ alter table treatment_category_packages
 alter table treatment_category_packages
   add constraint treatment_category_packages_session_count_positive
   check (session_count >= 1);
+
+-- ---------------------------------------------------------------------------
+-- Feature: a therapist's specialisation is a value, not a sentence
+-- ---------------------------------------------------------------------------
+-- `profiles.specialization` has been free text since it was added, written
+-- on the therapist's own profile screen and printed raw on /team. That was
+-- enough while it was one line of prose on one page. It stopped being
+-- enough once an admin needed to ask "who do we have for a stroke
+-- patient?", because "Neuro rehab", "neurological physiotherapy" and
+-- "Neuro" are three strings and no filter can be built from them.
+--
+-- The column stays text and is deliberately **not** constrained to a list:
+-- what is stored is now the canonical label from
+-- `src/lib/therapistSpecialties.ts` ("Orthopaedic", never "ortho"), and a
+-- CHECK would refuse every value already in the table and every value a
+-- clinic adds to that list later without a migration. The app normalises on
+-- read, so free text that predates this still renders as its author wrote
+-- it and files under "Something else" in the filter.
+--
+-- What changes here is the one place the app could not reach: a therapist
+-- applying through the public form. `handle_new_user` copies the signup's
+-- own metadata into the profile row, and specialisation is asked for on
+-- that form now -- so it is copied beside `credentials`, which it sits next
+-- to on the form and answers the same kind of question. Anything the
+-- browser sends is display text on an unapproved account that an admin
+-- reads before approving; it grants nothing, exactly as `credentials` does
+-- not.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_referred_by uuid;
+  v_role text;
+begin
+  -- Unchanged: raw_user_meta_data is fully client-controlled, so it must
+  -- never be trusted to grant 'admin' or 'hospital'. 'therapist' is the only
+  -- self-serve role beyond the 'patient' default, and both start unapproved.
+  v_role := case
+    when new.raw_user_meta_data->>'role' = 'therapist' then 'therapist'
+    else 'patient'
+  end;
+
+  if new.raw_user_meta_data->>'referral_code' is not null then
+    select id into v_referred_by from public.profiles
+      where referral_code = new.raw_user_meta_data->>'referral_code'
+      and role = 'hospital';
+  end if;
+
+  insert into public.profiles (
+    id, role, full_name, email, phone, credentials, specialization,
+    approved, referred_by_hospital_id
+  )
+  values (
+    new.id,
+    v_role,
+    coalesce(new.raw_user_meta_data->>'full_name', ''),
+    new.email,
+    new.raw_user_meta_data->>'phone',
+    new.raw_user_meta_data->>'credentials',
+    -- Only a therapist has one; a patient signup carrying this key is
+    -- ignored rather than written, so the column cannot be used as free
+    -- storage on an account it means nothing for. Capped to match
+    -- MAX_SPECIALTY_LENGTH, since every public profile prints it.
+    case
+      when v_role = 'therapist'
+        then left(nullif(btrim(coalesce(new.raw_user_meta_data->>'specialization', '')), ''), 80)
+      else null
+    end,
+    false,
+    v_referred_by
+  );
+  return new;
+end;
+$$;
+
+-- CREATE OR REPLACE keeps the existing ACL, so the revoke above still
+-- holds -- restated here because this file is re-applied against fresh
+-- databases too, where the function is created anew by this statement and
+-- arrives carrying the default grants.
+revoke all on function public.handle_new_user() from public;
+revoke all on function public.handle_new_user() from anon;
+revoke all on function public.handle_new_user() from authenticated;
