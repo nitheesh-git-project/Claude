@@ -2286,10 +2286,12 @@ scripts/                 One-off tooling (Google refresh-token helper,
                          build-test-plan.py, which builds the manual QA plan,
                          and seed-qa-accounts.mjs, which recreates its
                          fixture accounts after a data reset)
-docs/qa/                 The manual E2E test plan (sources under src/) and
-                         the same application as one ordered run that seeds
-                         its own data (sources under run-src/), plus the
-                         generated PDF and DOCX for each
+docs/qa/                 The manual E2E test plan (sources under src/), the
+                         same application as one ordered run that seeds its
+                         own data (sources under run-src/), and one
+                         self-contained document per kind of user (sources
+                         under roles/<role>/), plus the generated PDF and
+                         DOCX for each
 public/                  Static assets
 public/photos/           The public pages' photography (licence-free stock)
 ```

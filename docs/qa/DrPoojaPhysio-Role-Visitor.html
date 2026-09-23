@@ -1,0 +1,362 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Dr. Pooja&#x27;s Physio - Signed-Out Visitor Test Plan</title><style>
+@page { size: A4; margin: 18mm 15mm 20mm 15mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "DejaVu Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #1e293b; margin: 0;
+}
+.cover { page-break-after: always; padding-top: 55mm; text-align: center; }
+.cover .rule { width: 60mm; height: 4px; background: #0f766e; margin: 0 auto 14mm; }
+.cover h1 { font-size: 26pt; line-height: 1.2; color: #0f172a; margin: 0 0 10mm; }
+.cover .sub { font-size: 12pt; color: #475569; margin-bottom: 22mm; }
+.cover dl { display: inline-block; text-align: left; font-size: 10pt; color: #334155; }
+.cover dt { font-weight: 700; color: #0f766e; margin-top: 5mm; }
+.toc { page-break-after: always; }
+.toc h2 { border: none; }
+.toc ul { columns: 2; column-gap: 12mm; font-size: 9pt; padding-left: 0; list-style: none; }
+.toc li { margin-bottom: 1.6mm; break-inside: avoid; }
+h1 { font-size: 17pt; color: #0f172a; margin: 10mm 0 3mm; page-break-after: avoid; }
+h2 {
+  font-size: 13.5pt; color: #0f172a; margin: 9mm 0 3mm;
+  padding-bottom: 1.5mm; border-bottom: 2px solid #0f766e; page-break-after: avoid;
+}
+h3 { font-size: 11.5pt; color: #0f766e; margin: 6mm 0 2mm; page-break-after: avoid; }
+h4 {
+  font-size: 10pt; color: #0f172a; margin: 5mm 0 1.5mm;
+  page-break-after: avoid; page-break-inside: avoid;
+}
+h5, h6 { font-size: 9.6pt; color: #334155; margin: 4mm 0 1.5mm; }
+p { margin: 0 0 2.4mm; }
+ul, ol { margin: 0 0 2.6mm; padding-left: 6mm; }
+li { margin-bottom: 1.1mm; }
+code {
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8.4pt;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px; padding: 0 1.2mm;
+  word-break: break-word;
+}
+pre {
+  background: #0f172a; color: #e2e8f0; padding: 3mm 4mm; border-radius: 4px;
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8pt;
+  line-height: 1.45; overflow-x: auto; white-space: pre-wrap;
+  page-break-inside: avoid; margin: 0 0 3mm;
+}
+pre code { background: none; border: none; color: inherit; padding: 0; font-size: inherit; }
+blockquote {
+  margin: 0 0 3mm; padding: 2.5mm 4mm; background: #fffbeb;
+  border-left: 3px solid #d97706; color: #78350f; font-size: 9pt;
+}
+table {
+  width: 100%; border-collapse: collapse; margin: 0 0 3.5mm;
+  font-size: 8.3pt; page-break-inside: auto;
+}
+th, td {
+  border: 1px solid #cbd5e1; padding: 1.4mm 1.8mm; text-align: left;
+  vertical-align: top; word-break: normal; overflow-wrap: anywhere;
+}
+th { background: #0f766e; color: #fff; font-weight: 700; }
+tr { page-break-inside: avoid; }
+tbody tr:nth-child(even) { background: #f8fafc; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 6mm 0; }
+a { color: #0f766e; text-decoration: none; word-break: break-all; }
+strong { color: #0f172a; }
+</style></head><body>
+<div class="cover">
+  <div class="rule"></div>
+  <h1>Dr. Pooja&#x27;s Physio - Signed-Out Visitor Test Plan</h1>
+  <p class="sub">What a stranger sees, what they may buy, and what must never be reachable</p>
+  <dl><dt>Role</dt><dd>Signed-Out Visitor</dd><dt>Document version</dt><dd>1.0</dd><dt>Audience</dt><dd>A tester checking this role end to end</dd><dt>Environment</dt><dd>Throwaway Supabase project · Razorpay test mode · npm run dev</dd><dt>Read first</dt><dd>Section 1 - who this is, and what has to exist before you start</dd></dl>
+</div>
+<div class="toc">
+  <h2>Contents</h2>
+  <ul><li>1. Who this is, and what must exist first</li><li>2. The eight pages</li><li>3. What the catalogue shows a stranger</li><li>4. What a visitor may buy</li><li>5. Registering without booking</li><li>6. The public doors, knocked on</li><li>7. Where a visitor is sent</li><li>8. Across every page</li><li>9. Sign-off</li></ul>
+</div>
+<h2>1. Who this is, and what must exist first</h2>
+<p><strong>The account.</strong> None. This is a stranger: somebody who has never used this clinic, arriving on the marketing site with no session cookie at all. They are the largest group of people who will ever look at this product, and the only one with nothing to sign in with.</p>
+<p><strong>Three questions this document answers.</strong> What a visitor <em>sees</em>; what they may <em>buy</em>; and what must never be <em>reachable</em> without an account. The third is where the P0s are - every public door is a door somebody will knock on.</p>
+<p><strong>Use a private window throughout.</strong> Running any of this in a window where you are signed in sends your cookie and proves nothing. Every step here assumes no session; where a step needs one, it says so and tells you to use a second browser.</p>
+<h3>1.1 Before you start</h3>
+<p>A visitor sees whatever the clinic has published, so this plan needs a clinic that has published something.</p>
+<table><thead><tr><th>Must exist</th><th>Set up by</th></tr></thead><tbody><tr><td>Three treatment categories, priced and active, at least two <strong>featured</strong></td><td>Master Admin</td></tr><tr><td>One with an uploaded, positioned cover image</td><td>Master Admin</td></tr><tr><td>Home visits <strong>on</strong>, with a service area covering <code>560038</code> at ₹150</td><td>Master Admin</td></tr><tr><td>One single-visit home package, and one multi-visit one</td><td>Master Admin</td></tr><tr><td>Two approved therapists visible on <code>/team</code>, one hidden</td><td>Master Admin</td></tr><tr><td>Testimonials, FAQs and the mission bands populated</td><td>Master Admin</td></tr><tr><td>A partner hospital with a referral code</td><td>Master Admin</td></tr><tr><td>Razorpay in <strong>test</strong> mode</td><td>whoever set the environment up</td></tr></tbody></table>
+<p><strong>The prices this plan quotes</strong> assume <code>QA Back &amp; Spine Care</code> at <strong>₹1,999 / 60 min</strong> and a single home visit at <strong>₹2,499</strong> plus <strong>₹150</strong> travel.</p>
+<h3>1.2 How to record a result</h3>
+<p>Mark every step <strong>Pass</strong>, <strong>Fail</strong>, <strong>Blocked</strong> or <strong>N/A</strong>. Raise a failure with: the step id, what you did, what you expected, what happened, a screenshot, any console error in full, how many times out of how many it reproduced, and <strong>which browser and window</strong> you used - private or not, since that is the whole premise here.</p>
+<p><strong>Severity.</strong> <strong>P0</strong> - money, clinical data or access control is wrong: stop and report. <strong>P1</strong> - a main journey is broken with no workaround. <strong>P2</strong> - wrong with a workaround. <strong>P3</strong> - cosmetic.</p>
+<h3>1.3 Calling a route without a terminal</h3>
+<p>Several steps knock on a public door. <strong>Use a private window with no session.</strong> Press <strong>F12</strong>, open <strong>Console</strong>, paste and press Enter:</p>
+<pre><code>const r = await fetch(&quot;/api/some/route&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ some: &quot;value&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p>Confirm you are anonymous first - run <code>document.cookie</code> and check there is no Supabase session in it. Never paste the URL in the address bar: that sends a GET, these are POSTs, and you will get 405 and think you found something.</p>
+<hr>
+<h2>2. The eight pages</h2>
+<h3><code>VI-01</code> - Every page exists and is one template · P1</h3>
+<p><strong>Do this.</strong> Open each in turn and read it top to bottom.</p>
+<table><thead><tr><th>Page</th><th></th></tr></thead><tbody><tr><td><code>/</code></td><td>☐</td></tr><tr><td><code>/conditions</code></td><td>☐</td></tr><tr><td><code>/how-it-works</code></td><td>☐</td></tr><tr><td><code>/home-visit</code></td><td>☐</td></tr><tr><td><code>/team</code></td><td>☐</td></tr><tr><td><code>/mission</code></td><td>☐</td></tr><tr><td><code>/faq</code></td><td>☐</td></tr><tr><td><code>/hospitals</code></td><td>☐</td></tr></tbody></table>
+<p><strong>Expect</strong></p>
+<ul><li>Each opens with a <strong>hero: a photograph, one headline, one sentence and up to two calls to action</strong>.</li><li>Each <strong>ends the same way</strong> - seven of the eight on the same closing band, <code>/hospitals</code> on its referral form instead. Wherever a visitor stops reading, the next step is in the same place.</li><li>They read as <strong>one site</strong>, not seven. Eight bespoke heroes and eight different closing blocks is what this replaced: <strong>P2</strong> if one page clearly has its own layout.</li></ul>
+<h3><code>VI-02</code> - The photography is load-bearing · P2</h3>
+<p><strong>Do this.</strong> Blur your eyes, or open each page&#x27;s images alone.</p>
+<p><strong>Expect</strong></p>
+<ul><li><strong>You can tell what each page is about from the pictures.</strong></li><li><strong>Every photograph has a device in frame</strong> - a laptop, tablet or phone - <strong>except the two home-visit ones</strong>, which show hands-on treatment. This clinic sells video consultations; a site of clinic photography reads as a walk-in practice, which is the opposite of what it is. <strong>A cropped-off laptop is a P2</strong>, and it is the commonest way this regresses: the source has the device low in frame and a centre crop loses it.</li><li><strong>Every photograph shows a face</strong>, visible and glad to be there - except the clinician reading a scan, who is concentrating, because somebody grinning at an X-ray is the opposite of reassuring. <strong>A back of a head, a torso-only frame or an empty desk is a P2.</strong></li><li>No image is broken, and none is a remote URL.</li></ul>
+<h3><code>VI-03</code> - One idea per band, and short · P3</h3>
+<p><strong>Expect.</strong> No band carries two ideas, and no slot carries a paragraph. A hero subtitle runs to about a dozen words; a section&#x27;s single lede to about nine, or is dropped entirely when the heading already says it; a card&#x27;s body to ten.</p>
+<p><strong>A lede that restates its heading is worse than none.</strong> If you find yourself skimming, that is the finding: report the band.</p>
+<h3><code>VI-04</code> - The section rail and the scroll arrow · P1</h3>
+<p><strong>Do this.</strong> On each page with a section rail:</p>
+<ol><li>Tap each rail entry.</li><li>Use the bottom-right scroll arrow repeatedly, from the top.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Every rail entry lands on a section that <strong>actually rendered</strong>. Several bands are conditional on the catalogue, so an entry for a band that is not there is a <strong>P1</strong>.</li><li>The arrow walks the sections <strong>top to bottom, in order</strong>. An entry out of order sends it <strong>backwards</strong>, which is the tell.</li></ul>
+<h3><code>VI-05</code> - The Explore band ends on booking · P2</h3>
+<p><strong>Do this.</strong> Scroll to the &quot;where to go next&quot; grid on <code>/</code> and then on each of the other six.</p>
+<p><strong>Expect</strong></p>
+<ul><li>Every one of them ends on <strong>booking</strong>, not on another page to read. A band still answering &quot;what now?&quot; with &quot;here is more to look at&quot; is the thing the site&#x27;s whole shape is against: <strong>P2</strong>.</li><li>The page you are on is <strong>absent</strong> from its own grid.</li><li>The rows <strong>square up</strong> - no single tile left alone beside two empty cells. Count them: with Home Visit switched off there is one fewer, so the layout has to work at both counts.</li></ul>
+<hr>
+<h2>3. What the catalogue shows a stranger</h2>
+<h3><code>VI-06</code> - Four conditions on the home page, the rest a tap away · P2</h3>
+<p><strong>Do this.</strong> Open <code>/</code>, then <code>/conditions</code>.</p>
+<p><strong>Expect</strong></p>
+<ul><li><code>/</code> leads with the <strong>featured</strong> conditions, up to <strong>four</strong>, with a control leading on to <code>/conditions</code>.</li><li><code>/conditions</code> shows <strong>everything</strong>.</li><li>With nothing featured, <code>/</code> falls back to the <strong>first four</strong> - an empty band reads as the clinic having shut.</li><li><strong>Nothing on either page rearranges itself when a booking lands.</strong> There is no &quot;most popular&quot; ordering; which four lead is somebody&#x27;s decision.</li></ul>
+<h3><code>VI-07</code> - There is no programme catalogue, anywhere · P0</h3>
+<p><strong>Do this.</strong> Search <code>/</code> and <code>/conditions</code> - the rendered page and the page source - for a <strong>multi-session programme</strong> and its price.</p>
+<p><strong>Expect</strong></p>
+<ul><li><strong>Nothing.</strong> The public pages carry treatment <strong>categories</strong> and their <strong>consultation price</strong>, and no programme price list at all.</li><li><code>/home-visit</code> shows <strong>single visits only</strong>. The multi-visit package is not on it.</li><li><strong>A programme price on a public page is a P0.</strong> Treatment volume is never sold before an assessment: a programme comes from a clinician&#x27;s recommendation, and a patient must not be able to shop from a price list.</li><li>There is <strong>no setting anywhere</strong> that brings one back. A toggle somebody can flip is not the rule being gone.</li></ul>
+<h3><code>VI-08</code> - The card, and the dialog behind it · P2</h3>
+<p><strong>Do this.</strong> On <code>/conditions</code>, tap a condition&#x27;s card body, then close it and tap <strong>Book</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The <strong>card body opens a detail dialog</strong>; the <strong>Book</strong> link is a separate control <strong>below</strong> it, not nested inside it.</li><li>In the dialog, the photograph gets the <strong>full width with nothing on top of it</strong>, and the heading sits on its own band <strong>below</strong>. Text over a photograph needs a scrim dark enough for any image: <strong>P2</strong> if the heading is over the picture.</li><li>The card is <strong>4:3</strong>, the dialog is <strong>16:9</strong>, and the subject is <strong>correctly placed in both</strong>. <strong>A head cut off in one of the two is a P2.</strong></li><li>A condition with <strong>no</strong> cover shows a <strong>tinted panel at the same height</strong> with an illustration - it must look like one whose photo has not been chosen yet, never like one whose image failed to load.</li><li>Escape closes the dialog, Tab is trapped inside it, focus returns to the card, and the page behind does not scroll.</li></ul>
+<h3><code>VI-09</code> - <code>/team</code> · P1</h3>
+<p><strong>Do this.</strong> Open <code>/team</code>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The two visible therapists, with their bio, languages, qualification and specialism.</li><li><strong>The hidden one is absent.</strong> So is any suspended or unapproved one - check by having the Master Admin suspend one in another browser and reloading: they come off <strong>immediately</strong>, not five minutes later when a cache lapses. <strong>A suspended clinician still on the public page is a P2.</strong></li><li><strong>No therapist&#x27;s phone number or email address is on this page.</strong></li><li>A rating renders only if the admin has left ratings public.</li><li>Tapping a therapist opens a popup, with the same dialog behaviour as <code>VI-08</code>.</li></ul>
+<h3><code>VI-10</code> - <code>/mission</code> · P2</h3>
+<p><strong>Expect</strong></p>
+<ul><li>The mission and the vision, in full.</li><li>The <strong>promises</strong> band and the <strong>limits</strong> band. With a band&#x27;s rows all switched off, <strong>the band and its rail entry both disappear</strong> - a rail entry pointing at a section that did not render is <code>VI-04</code>&#x27;s bug.</li><li><strong>No heading counts the cards.</strong> &quot;Four things, every patient&quot; over three cards is a number nobody remembered to change: <strong>P3</strong>.</li><li>On <code>/</code>, the mission band gives the mission and vision <strong>in full</strong> and the promises as <strong>titles only</strong>, each linking into <code>/mission</code>. The two pages must quote the <strong>same</strong> sentence - a home page teasing a different wording is a <strong>P2</strong>.</li></ul>
+<h3><code>VI-11</code> - <code>/faq</code> and the testimonials · P3</h3>
+<p><strong>Expect</strong></p>
+<ul><li>The FAQs, in the admin&#x27;s order.</li><li>Testimonials on <code>/</code> and <code>/mission</code>, with a photo or the person&#x27;s initial - never a generic silhouette, which is a worse signal than no photo.</li><li>The public rating summary is the <strong>only</strong> place a real number is quoted.</li></ul>
+<h3><code>VI-12</code> - <code>/home-visit</code> when the switch is off · P1</h3>
+<p><strong>Do this.</strong> Have the Master Admin switch home visits <strong>off</strong>. Then, as a visitor:</p>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Open <code>/home-visit</code></td><td><strong>404</strong></td></tr><tr><td>Look in the header nav</td><td>Home Visit is <strong>gone</strong></td></tr><tr><td>Look in the footer</td><td>Gone</td></tr><tr><td>Look in <code>/</code>&#x27;s connector grid</td><td>Gone</td></tr><tr><td>Look in the &quot;where to go next&quot; strip on the other pages</td><td>Gone</td></tr></tbody></table>
+<p><strong>A link to a 404 is a P1.</strong> Switch it back on.</p>
+<hr>
+<h2>4. What a visitor may buy</h2>
+<h3><code>VI-13</code> - Book and register on one screen · P0</h3>
+<p>This is the commonest real path into the product: a stranger books, registers and pays without ever having had an account.</p>
+<p><strong>Do this</strong></p>
+<ol><li>From <code>/conditions</code>, tap <strong>Book Assessment</strong> on <code>QA Back &amp; Spine Care</code>.</li><li><strong>Step 1</strong>: read what is pre-selected before changing anything - a date, an hour, a language, and the detected timezone stated on screen.</li><li>Choose tomorrow at <strong>4:00 PM</strong>.</li><li><strong>Step 2</strong>: fill in a new patient&#x27;s details and tick the telehealth consent.</li><li><strong>Step 3</strong>: read the whole screen and note the figure on the button.</li><li>Pay with the Razorpay test card.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 3: <strong>no hour inside the 12-hour lead time is offered at all</strong>, and no half-hour anywhere. Slots start on the hour.</li><li>Step 4: <strong>the account is created and you are signed in immediately.</strong> There is <strong>no &quot;check your email&quot; step</strong> anywhere - email confirmation is off in this product by design. <strong>A confirm-your-address step is a P1</strong>, and means the project&#x27;s setting was turned back on.</li><li>Step 5: <strong>the figure on the button is the figure the Razorpay sheet opens with.</strong> <strong>A screen that quotes one price and charges another is a P0</strong> - it is the single worst outcome a payment screen can produce.</li><li>Step 6 lands on a <strong>confirmation with one next step</strong>, not on a blank screen and not on a balance.</li><li>Paying <strong>approves the patient on the attempt</strong>, so they land in their dashboard rather than on a waiting screen.</li></ul>
+<h3><code>VI-14</code> - Abandon checkout, and come back · P1</h3>
+<p><strong>Do this.</strong> Start the same flow with a new address, get as far as the Razorpay sheet, and <strong>close it</strong> without paying. Then find your way back in.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The account <strong>exists</strong> and you can sign in.</li><li>The session is there as <strong>unpaid / pending</strong>, not lost.</li><li>You are <strong>in your dashboard</strong>, not bounced to a waiting screen - somebody who genuinely tried to pay has already shown intent.</li></ul>
+<h3><code>VI-15</code> - A first-session offer, quoted and charged the same · P0</h3>
+<p>With the offer on at <strong>₹500 off</strong>:</p>
+<p><strong>Do this.</strong> Register and reach step 3 as a brand-new visitor.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The quote <strong>and</strong> the charge both carry the offer. The wizard once printed the category price while checkout silently applied the offer behind it, so a patient owed ₹1,499 read &quot;Pay ₹1,999 Now&quot; and watched a different figure open in the sheet. <strong>P0.</strong></li><li>The visitor is <strong>not asked for the offer and cannot send it</strong> - eligibility is &quot;has this patient ever paid&quot;, asked of the database.</li><li>With the offer at <strong>100%</strong>, the total is <strong>zero</strong>, there is <strong>no gateway order at all</strong>, and <strong>no ₹1 is charged</strong>. A clinic advertising a free first session charging ₹1 is a <strong>P0</strong>.</li></ul>
+<h3><code>VI-16</code> - A promo code, typed by a stranger · P0</h3>
+<p>With <code>QALAUNCH</code> at 20% and promo codes on:</p>
+<p><strong>Do this.</strong> At step 3, type the code.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The quote says <strong>what it takes off</strong>, and <strong>the request carries no amount</strong> - check the Network tab. <strong>A browser-sent figure is a P0</strong>; the code is an identifier and every number comes from the row an admin created.</li><li>Type a nonsense code: refused, saying so.</li><li>Type a <strong>paused</strong> or <strong>expired</strong> one: it does nothing, and <strong>says which</strong>.</li><li>Turn promo codes <strong>off</strong> and reload: the code field is <strong>gone</strong>. A code field with no campaign behind it teaches every patient there is a discount they are missing.</li></ul>
+<h3><code>VI-17</code> - A home visit, and the address check · P1</h3>
+<p><strong>Do this.</strong> From <code>/home-visit</code>, book the single visit.</p>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Enter pincode <code>560038</code></td><td>Serviceable, travel quoted at <strong>₹150</strong></td></tr><tr><td>Enter <code>560025</code></td><td><strong>Not serviceable</strong>, said plainly, and the flow stops before an address is collected</td></tr><tr><td>Read the total</td><td>Programme <strong>plus travel</strong>, itemised - <strong>not</strong> the programme price on a button that charges more</td></tr><tr><td>Drop the connection and check a good pincode</td><td><strong>&quot;We could not check&quot;</strong>, not &quot;we do not visit your address&quot;. <strong>A failed lookup reported as unserviceable is a P1</strong></td></tr><tr><td>Check twenty pincodes in a row</td><td>You are <strong>held off</strong>, with a message carrying <strong>no numbers and no blame</strong>, and a measured wait</td></tr></tbody></table>
+<h3><code>VI-18</code> - A multi-visit home package cannot be bought directly · P0</h3>
+<p><strong>Do this.</strong> In the console, try to create an order for the <strong>four-visit</strong> package:</p>
+<pre><code>const r = await fetch(&quot;/api/home-visit/create-order&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ packageId: &quot;PASTE_THE_4_VISIT_ID&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect a refusal.</strong> A single visit is a consultation; two or more is a programme, and a programme comes from a care plan. <strong>A 200 is a P0.</strong></p>
+<p>Try <code>/api/home-visit/book-cash</code> with the same package: <strong>also refused</strong>. Paying at the door is a payment method, not a different product.</p>
+<h3><code>VI-19</code> - A stale <code>?package=</code> link is answered, not ignored · P1</h3>
+<p><strong>Do this.</strong> Open <code>/book?package=SOME_OLD_ID</code> and <code>/book-home-visit?package=...</code>.</p>
+<p><strong>Expect.</strong> The wizard <strong>says something</strong> about it rather than silently selling you a single consultation. <strong>Taking a different amount of money than somebody came for is the one outcome a removed checkout must not produce.</strong></p>
+<h3><code>VI-20</code> - Asking for a named specialist · P2</h3>
+<p><strong>Do this.</strong> From <code>/team</code>, use the control that books a named therapist. Then edit the URL to name a therapist who is <strong>hidden</strong> from <code>/team</code>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The first: a chip naming that therapist, carried into the booking as a <strong>request</strong>.</li><li><strong>It is never worded as a confirmed booking.</strong> Only the admin can see whether that therapist is free for the slot. <strong>&quot;Your session with X is confirmed&quot; is a P1.</strong></li><li>The second: the request is <strong>dropped silently</strong> and the booking proceeds. It does not fail, and it does not name somebody the public cannot see.</li></ul>
+<hr>
+<h2>5. Registering without booking</h2>
+<h3><code>VI-21</code> - <code>/patient/register</code> waits on a human · P1</h3>
+<p><strong>Do this.</strong> Register a patient at <code>/patient/register</code> with no booking.</p>
+<p><strong>Expect</strong></p>
+<ul><li>You are <strong>signed in immediately</strong> - again, no email-confirmation step.</li><li>You land on <strong>`/pending-approval`</strong>, and stay there until an admin approves you.</li><li>That is deliberate: auto-approval exists for <strong>genuine payment intent</strong>, and a bare signup must not be a free way to skip the queue.</li></ul>
+<h3><code>VI-22</code> - <code>/therapist/register</code> the same · P1</h3>
+<p>Register a therapist with no booking: signed in immediately, then <code>/pending-approval</code>, and <strong>not</strong> on <code>/team</code>.</p>
+<h3><code>VI-23</code> - The referral registration link · P1</h3>
+<p><strong>Do this.</strong> With a hospital referral assigned a slot, open the registration link <strong>in a private window</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The screen says <strong>registration link</strong>, never &quot;invite link&quot;.</li><li>It carries the patient&#x27;s details forward.</li><li>Setting a password lands them in their dashboard with the agreed session there.</li><li>Open it <strong>again</strong>: it does not create a second account.</li><li>Mangle the token: refused, saying the link is not valid.</li><li><strong>Drop the connection and open a good link</strong>: it says <strong>&quot;we could not check&quot;</strong>, not <strong>&quot;this link has expired&quot;</strong>. <strong>A good link reported as expired is a P1</strong> - it sends a patient to ring the hospital about a link that works.</li></ul>
+<hr>
+<h2>6. The public doors, knocked on</h2>
+<h3><code>VI-24</code> - Every public route is rate limited · P1</h3>
+<p><strong>In a private window with no session</strong>, hammer each of these:</p>
+<pre><code>async function hammer(route, body, n = 25) {
+  const out = [];
+  for (let i = 0; i &lt; n; i++) {
+    const r = await fetch(route, {
+      method: &quot;POST&quot;,
+      headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+      body: JSON.stringify(body),
+    });
+    out.push(r.status);
+  }
+  return { route, statuses: out.join(&quot;,&quot;) };
+}
+console.table([
+  await hammer(&quot;/api/hospitals/inquiry&quot;, { name: &quot;QA&quot;, email: &quot;qa@example.test&quot; }),
+  await hammer(&quot;/api/home-visit/check-area&quot;, { pincode: &quot;560038&quot; }),
+  await hammer(&quot;/api/hospital/verify-code&quot;, { code: &quot;QAHOSPA&quot; }),
+  await hammer(&quot;/api/appointments/quote&quot;, { categoryId: &quot;PASTE_ONE&quot; }),
+]);</code></pre>
+<p><strong>Expect</strong></p>
+<ul><li>Each one starts refusing with <strong>429</strong> after its own allowance.</li><li><strong>One flow&#x27;s allowance is not another&#x27;s.</strong> Exhausting the referral-code door must leave the area lookup working: a partner checking codes must not spend the allowance a patient needs to find out whether the clinic visits their street. <strong>A shared bucket is a P1.</strong></li><li>The refusal carries <strong>no numbers</strong> and <strong>no blame</strong>, and the wait is specific because it is measured.</li><li><strong>A refused request still counts</strong>, or somebody who keeps trying holds their own window open.</li></ul>
+<h3><code>VI-25</code> - A 429 is never read as a &quot;no&quot; · P0</h3>
+<p>This is the rule that matters most in this section.</p>
+<p><strong>Do this.</strong> Exhaust the area-lookup allowance, then immediately go to a booking screen and enter a <strong>serviceable</strong> address.</p>
+<p><strong>Expect.</strong> The screen says <strong>it could not check</strong>, and the pay button is not disabled with a sentence saying the clinic does not visit that address.</p>
+<p><strong>Then the same for the referral code</strong>: exhaust <code>verify-code</code>, then open a <strong>valid</strong> registration link.</p>
+<p><strong>Expect.</strong> It says <strong>it could not check</strong>, never <strong>&quot;expired&quot;</strong>.</p>
+<p><strong>Both of these are P0s in the direction that matters</strong>: they tell a patient holding a good link or living at a serviceable address that the clinic has refused them, over a limiter that simply could not answer. A route whose 200 body carries a boolean cannot be read without checking the status first, and the honest third state is &quot;we could not ask&quot; rather than a falsy one.</p>
+<h3><code>VI-26</code> - A malformed body is a 400, never a 500 · P1</h3>
+<p><strong>In a private window</strong>, send rubbish to every public POST:</p>
+<pre><code>const routes = [
+  &quot;/api/hospitals/inquiry&quot;,
+  &quot;/api/home-visit/check-area&quot;,
+  &quot;/api/hospital/verify-code&quot;,
+  &quot;/api/appointments/quote&quot;,
+  &quot;/api/patient/register-via-referral&quot;,
+  &quot;/api/razorpay/create-order&quot;,
+  &quot;/api/razorpay/verify&quot;,
+];
+const bodies = [&quot;{&quot;, &quot;null&quot;, &quot;[]&quot;, &#x27;&quot;hello&quot;&#x27;, &quot;&quot;];
+for (const route of routes) {
+  for (const body of bodies) {
+    const r = await fetch(route, {
+      method: &quot;POST&quot;,
+      headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+      body,
+    });
+    if (r.status &gt;= 500) console.log(&quot;500:&quot;, route, JSON.stringify(body));
+  }
+}
+console.log(&quot;done - anything logged above is a defect&quot;);</code></pre>
+<p><strong>Expect nothing logged.</strong> A malformed body is the caller&#x27;s mistake, so the honest answer is <strong>400</strong>. <strong>A 500 is a P1</strong>: it means the body was parsed before anything checked it, and <code>null</code>, <code>[]</code> and a bare string are the three that slip past a naive check and arrive as a crash further down.</p>
+<h3><code>VI-27</code> - The admin surface, from outside · P0</h3>
+<pre><code>const routes = [
+  &quot;/api/admin/approve-account&quot;,
+  &quot;/api/admin/create-account&quot;,
+  &quot;/api/admin/delete-account&quot;,
+  &quot;/api/admin/set-admin-scope&quot;,
+  &quot;/api/admin/settle-therapist-payout&quot;,
+  &quot;/api/admin/refund-session-partial&quot;,
+  &quot;/api/admin/grant-session-credits&quot;,
+  &quot;/api/admin/apply-goodwill-discount&quot;,
+  &quot;/api/admin/clear-activity-log&quot;,
+  &quot;/api/admin/activity-log&quot;,
+  &quot;/api/admin/start-impersonation&quot;,
+  &quot;/api/admin/update-setting&quot;,
+  &quot;/api/admin/debug-reset&quot;,
+  &quot;/api/admin/mark-paid-by-cash&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 401 or 403 on every one, and never a 500.</strong> <strong>Any 200 is a P0 that stops the run.</strong></p>
+<p><strong>`debug-reset` in particular.</strong> With the flag unset in the server environment it must answer <strong>404</strong>, not 403 - the route does not exist as far as a stranger is concerned.</p>
+<h3><code>VI-28</code> - The other roles&#x27; doors, from outside · P0</h3>
+<pre><code>const routes = [
+  &quot;/api/therapist/reveal-contact&quot;,
+  &quot;/api/therapist/record-cash-collection&quot;,
+  &quot;/api/therapist/suggest-session&quot;,
+  &quot;/api/patient/condition-profile/export&quot;,
+  &quot;/api/patient/respond-suggestion&quot;,
+  &quot;/api/hospital/withdraw-referral&quot;,
+  &quot;/api/appointments/complete-session&quot;,
+  &quot;/api/appointments/confirm-free&quot;,
+  &quot;/api/medical-documents/view&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect a refusal on every one.</strong></p>
+<p><strong>`medical-documents/view` is the sharpest.</strong> A scan report is the most sensitive thing this product holds, and its bucket is private precisely so the object URL is not the only secret. <strong>A 200 here is a P0 that stops the run.</strong></p>
+<p><strong>`confirm-free` is the second.</strong> It is the route that books a session for nothing when a discount takes the total to zero. <strong>An anonymous 200 would be a way to book anything for free.</strong></p>
+<h3><code>VI-29</code> - What a database query can reach · P0</h3>
+<p>The public pages read the database with an anonymous key, so some tables are readable by anybody. Confirm which.</p>
+<p><strong>In a private window</strong>, from a page of the app:</p>
+<table><thead><tr><th>Try to read</th><th>Expect</th></tr></thead><tbody><tr><td>The <strong>treatment categories</strong></td><td>Readable. They are on the public pages</td></tr><tr><td>The <strong>therapist public profiles</strong></td><td>Readable - and containing <strong>no phone number and no email address</strong></td></tr><tr><td><code>promo_codes</code></td><td><strong>Nothing.</strong> A patient who can list it reads every campaign the clinic has ever scheduled, including the ones not yet running. <strong>P0</strong></td></tr><tr><td><code>appointments</code></td><td><strong>Nothing</strong></td></tr><tr><td><code>profiles</code></td><td><strong>Nothing</strong> beyond your own, and you have none</td></tr><tr><td><code>patient_condition_profiles</code>, <code>pain_assessments</code>, <code>session_notes</code></td><td><strong>Nothing.</strong> <strong>P0</strong></td></tr><tr><td><code>admin_activity_log</code></td><td><strong>Nothing.</strong> <strong>P0</strong></td></tr><tr><td><code>payments</code></td><td><strong>Nothing.</strong> <strong>P0</strong></td></tr></tbody></table>
+<h3><code>VI-30</code> - The functions that mint things · P0</h3>
+<p>Some database functions move money or create sessions. None of them may be callable by a stranger holding the public key.</p>
+<p><strong>Do this.</strong> In a private window, attempt to call each of these through the database&#x27;s own API: <code>record_payment_capture</code>, <code>grant_session_credits</code>, <code>adjust_session_credits</code>, <code>void_session_credits</code>, <code>claim_promo_code</code>, <code>claim_invite</code>, <code>purge_admin_activity_log</code>, <code>debug_reset_all_data</code>, <code>revoke_user_sessions</code>.</p>
+<p><strong>Expect a permission error on every one.</strong></p>
+<p><strong>This is the single most serious check in this document.</strong> Eleven of these were once callable over the public API by anybody holding the publishable key - no account needed - because the revoke naming only two roles left a third&#x27;s grant in place. The statement succeeded, the permissions changed, and nothing was protected. <strong>Any one of these executing is a P0 that stops the run immediately.</strong></p>
+<hr>
+<h2>7. Where a visitor is sent</h2>
+<h3><code>VI-31</code> - The back office is never named · P0</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Open <code>/admin/dashboard</code> <strong>signed out</strong></td><td>The sign-in screen or a bounce - never a rendered dashboard</td></tr><tr><td>Open <code>/admin/dashboard</code> <strong>signed in as a patient</strong></td><td>Redirected to <strong>`/get-started`</strong>. <strong>Never to `/admin/login`</strong></td></tr><tr><td>View <code>/admin/login</code>&#x27;s source</td><td><code>noindex</code></td></tr><tr><td>Search every public page&#x27;s markup for <code>/admin</code></td><td><strong>Only the debug bar</strong>, which is removed at launch</td></tr><tr><td>Call <code>/api/admin/stop-impersonation</code> anonymously</td><td>The body says <strong>`/dashboard`</strong> - never <code>/admin/dashboard</code> and never <code>/admin/login</code></td></tr></tbody></table>
+<p><strong>A response body naming the back office is a P1.</strong> Check what a route <em>says</em> as well as what it lets you do: that route runs no admin check by design, so its refusal branches are reachable by anybody.</p>
+<h3><code>VI-32</code> - <code>/dashboard</code> resolves the role server-side · P1</h3>
+<p><strong>Do this.</strong> Open <code>/dashboard</code>.</p>
+<table><thead><tr><th>As</th><th>Expect</th></tr></thead><tbody><tr><td>A stranger</td><td><code>/get-started</code></td></tr><tr><td>A patient</td><td>their dashboard</td></tr><tr><td>An unapproved patient</td><td><code>/pending-approval</code></td></tr><tr><td>A suspended one</td><td><code>/account-suspended</code></td></tr></tbody></table>
+<p><strong>Expect.</strong> The admin path is <strong>never</strong> in a public bundle. Search the page source: no client component maps a role to <code>/admin/dashboard</code>.</p>
+<h3><code>VI-33</code> - The navbar&#x27;s one button · P1</h3>
+<p><strong>Do this.</strong> Signed out, then signed in as each of: an approved patient, an unapproved one, a suspended one.</p>
+<table><thead><tr><th>State</th><th>The navbar should show</th></tr></thead><tbody><tr><td>Signed out</td><td><strong>Sign In</strong> and <strong>Get Started</strong></td></tr><tr><td>Approved</td><td><strong>Go to Dashboard</strong>, linking to <code>/dashboard</code></td></tr><tr><td>Unapproved</td><td><strong>Approval pending</strong>, linking to <code>/pending-approval</code></td></tr><tr><td>Suspended</td><td><strong>Account suspended</strong>, linking to <code>/account-suspended</code></td></tr></tbody></table>
+<p><strong>Expect</strong></p>
+<ul><li><strong>The label names the real destination.</strong> A button reading &quot;Go to Dashboard&quot; that opens a waiting screen is telling somebody they did something they did not do: <strong>P2</strong>.</li><li><strong>Nobody signed in is left with nothing.</strong> Sign In is hidden the moment somebody is signed in, so whatever replaces it is their only route back into the app. <strong>A signed-in visitor with no Sign In and no button at all is a P1</strong> - and it is exactly what an unapproved account used to get.</li><li>While it is still working out which, it shows <strong>nothing</strong> rather than briefly showing the wrong thing.</li><li>On <code>/pending-approval</code> and <code>/account-suspended</code> the button is <strong>absent</strong> - it must not point at the page it is on.</li></ul>
+<h3><code>VI-34</code> - The booking wizard&#x27;s way out · P2</h3>
+<p><strong>Do this.</strong> Open <code>/book</code> signed out, then signed in as a patient.</p>
+<table><thead><tr><th>State</th><th>The exit link should read</th></tr></thead><tbody><tr><td>Signed out</td><td><strong>Back to Home</strong> (or Back to Home Visit on the other wizard)</td></tr><tr><td>Signed in</td><td><strong>Back to Dashboard</strong>, going there</td></tr></tbody></table>
+<p>A patient who came from their own dashboard to book was being sent to the public home page: <strong>P2</strong>.</p>
+<h3><code>VI-35</code> - The splash greets a cold open and nothing else · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Open the site in a fresh tab</td><td>The teal sheet, then the page</td></tr><tr><td>Navigate between pages</td><td><strong>No splash</strong></td></tr><tr><td><strong>Reload</strong></td><td><strong>No splash</strong></td></tr><tr><td>Switch tabs and come back within a minute</td><td><strong>No splash</strong></td></tr><tr><td>Leave the tab for longer than the away threshold and return</td><td>The splash</td></tr><tr><td>Ask for reduced motion</td><td><strong>No splash at all</strong></td></tr></tbody></table>
+<p><strong>Expect.</strong> It appears <strong>before</strong> the page is readable, not on top of a page you can already read - which looks like a fault.</p>
+<p><strong>The case that matters</strong>: a patient paying by UPI leaves the tab for their bank&#x27;s app and comes back mid-checkout. <strong>A splash over a payment in progress is a P1.</strong></p>
+<hr>
+<h2>8. Across every page</h2>
+<h3><code>VI-36</code> - Dates, money and the clinic&#x27;s clock · P1</h3>
+<table><thead><tr><th>Check</th><th>Expect</th></tr></thead><tbody><tr><td>Every date and time</td><td><strong>India Standard Time</strong>, whatever your machine is set to</td></tr><tr><td>A session slot in the wizard</td><td>Built in <strong>your</strong> local time, with the detected timezone <strong>stated on screen</strong></td></tr><tr><td>Money</td><td>Rupees. The word &quot;paise&quot; appears nowhere</td></tr><tr><td>A price that an admin changed a moment ago</td><td>Live <strong>immediately</strong>, not in five minutes</td></tr></tbody></table>
+<p><strong>Set your machine to a different timezone and reload.</strong> A session for 6 PM IST that prints as 12:30 PM is a <strong>P1</strong>, and it is invisible to anybody testing in India.</p>
+<h3><code>VI-37</code> - On a phone · P2</h3>
+<p><strong>Do this.</strong> Run <code>VI-01</code>, <code>VI-08</code> and <code>VI-13</code> again at phone width.</p>
+<p><strong>Expect</strong></p>
+<ul><li>No horizontal scrolling on any of the eight pages.</li><li>Tap targets are reachable with a thumb.</li><li>The booking wizard is usable start to finish.</li><li>The dialogs fill the screen sensibly rather than shrinking.</li></ul>
+<h3><code>VI-38</code> - Readability and keyboard · P2</h3>
+<table><thead><tr><th>Check</th><th>Expect</th></tr></thead><tbody><tr><td>Small grey text on white</td><td>Readable. A label or hint you have to lean in for is a <strong>P2</strong></td></tr><tr><td>Tab through a page</td><td>Focus is visible and follows the reading order</td></tr><tr><td>Every icon-only control</td><td>Has an accessible name</td></tr><tr><td>Every image</td><td>Has alt text <strong>describing the picture</strong>, not repeating the page&#x27;s own blurb</td></tr><tr><td>A dialog</td><td>Escape closes it, Tab is trapped, focus returns, the page behind does not scroll</td></tr></tbody></table>
+<h3><code>VI-39</code> - Security headers · P1</h3>
+<p><strong>Do this.</strong> In the Network tab, open any public page and read the response headers.</p>
+<p><strong>Expect</strong> all of: <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code>, <code>Permissions-Policy</code>, and HSTS.</p>
+<p><strong>Then try to frame a page</strong> from a scratch HTML file.</p>
+<p><strong>Expect.</strong> It refuses. Without this, the patient&#x27;s health profile and the admin dashboard are framable by any site, and an appointment id in a URL travels as a full referrer to third parties. <strong>A missing `X-Frame-Options` is a P1.</strong></p>
+<p>A <strong>report-only</strong> content security policy is expected and correct. It must not be enforcing: Razorpay&#x27;s checkout injects its own script and iframe, and a policy written blind takes down checkout.</p>
+<h3><code>VI-40</code> - An error page does not leak · P1</h3>
+<p><strong>Do this.</strong> Open a nonsense URL, and a detail route with an invalid id.</p>
+<p><strong>Expect.</strong> A <strong>reference code and nothing else</strong> - no column name, no row id, no stack trace. Patients see these screens. <strong>A thrown message on screen is a P1.</strong></p>
+<hr>
+<h2>9. Sign-off</h2>
+<table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Steps run</td><td>40</td></tr><tr><td>Pass</td><td></td></tr><tr><td>Fail</td><td></td></tr><tr><td>Blocked</td><td></td></tr><tr><td>N/A</td><td></td></tr><tr><td>P0 raised</td><td></td></tr><tr><td>P1 raised</td><td></td></tr></tbody></table>
+<p><strong>Confirm each of these before signing.</strong></p>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>All eight pages open, read as one site, and end the same way</td><td>☐</td></tr><tr><td>Every photograph shows a device and a face, in the cropped file</td><td>☐</td></tr><tr><td>Every rail entry matched a section that rendered, in order</td><td>☐</td></tr><tr><td>Every Explore band ended on booking, with its rows squared up</td><td>☐</td></tr><tr><td><strong>No programme price on any public page, and no setting to bring one back</strong></td><td>☐</td></tr><tr><td>A stranger registered and paid on one screen, with no email-confirmation step</td><td>☐</td></tr><tr><td>The figure on the button matched the figure in the payment sheet</td><td>☐</td></tr><tr><td>A 100% discount was free, not ₹1</td><td>☐</td></tr><tr><td>A promo code was sent as a name and never as an amount</td><td>☐</td></tr><tr><td>An unserviceable address refused; a failed lookup <strong>not</strong> reported as unserviceable</td><td>☐</td></tr><tr><td>A 429 was never read as &quot;invalid&quot; or &quot;expired&quot;</td><td>☐</td></tr><tr><td>A multi-visit home package could not be bought directly</td><td>☐</td></tr><tr><td>Every public route rate limited, with separate allowances per flow</td><td>☐</td></tr><tr><td>Every malformed body answered 400, never 500</td><td>☐</td></tr><tr><td>401 or 403 on every admin route; <code>debug-reset</code> answered 404</td><td>☐</td></tr><tr><td><strong>Nothing readable from the database beyond the public pages&#x27; own content</strong></td><td>☐</td></tr><tr><td><strong>Every money-moving database function refused</strong></td><td>☐</td></tr><tr><td>The back office was never named, in a page or in a response body</td><td>☐</td></tr><tr><td>A signed-in account always had a button, and the label named the real page</td><td>☐</td></tr><tr><td>The splash greeted a cold open and nothing else</td><td>☐</td></tr><tr><td>Security headers present, and framing refused</td><td>☐</td></tr></tbody></table>
+<p><strong>Signed</strong> ......................... <strong>Date</strong> .................</p>
+<p><strong>Build / commit tested</strong> .........................</p>
+<hr>
+<p><strong>What a clean run of this document proves.</strong> That what a stranger can see, buy and reach behaved on one machine, in one browser, against test payment keys, once. It does not prove the signed-in journeys behind those doors - each role has a document of its own - and it does not cover real payment processing, email or SMS delivery, search engine behaviour, load, or other browsers. Those are not covered here and a clean run should not be read as covering them.</p></body></html>

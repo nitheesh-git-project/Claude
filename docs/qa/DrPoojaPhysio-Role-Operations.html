@@ -1,0 +1,312 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Dr. Pooja&#x27;s Physio - Operations Admin Test Plan</title><style>
+@page { size: A4; margin: 18mm 15mm 20mm 15mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "DejaVu Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #1e293b; margin: 0;
+}
+.cover { page-break-after: always; padding-top: 55mm; text-align: center; }
+.cover .rule { width: 60mm; height: 4px; background: #0f766e; margin: 0 auto 14mm; }
+.cover h1 { font-size: 26pt; line-height: 1.2; color: #0f172a; margin: 0 0 10mm; }
+.cover .sub { font-size: 12pt; color: #475569; margin-bottom: 22mm; }
+.cover dl { display: inline-block; text-align: left; font-size: 10pt; color: #334155; }
+.cover dt { font-weight: 700; color: #0f766e; margin-top: 5mm; }
+.toc { page-break-after: always; }
+.toc h2 { border: none; }
+.toc ul { columns: 2; column-gap: 12mm; font-size: 9pt; padding-left: 0; list-style: none; }
+.toc li { margin-bottom: 1.6mm; break-inside: avoid; }
+h1 { font-size: 17pt; color: #0f172a; margin: 10mm 0 3mm; page-break-after: avoid; }
+h2 {
+  font-size: 13.5pt; color: #0f172a; margin: 9mm 0 3mm;
+  padding-bottom: 1.5mm; border-bottom: 2px solid #0f766e; page-break-after: avoid;
+}
+h3 { font-size: 11.5pt; color: #0f766e; margin: 6mm 0 2mm; page-break-after: avoid; }
+h4 {
+  font-size: 10pt; color: #0f172a; margin: 5mm 0 1.5mm;
+  page-break-after: avoid; page-break-inside: avoid;
+}
+h5, h6 { font-size: 9.6pt; color: #334155; margin: 4mm 0 1.5mm; }
+p { margin: 0 0 2.4mm; }
+ul, ol { margin: 0 0 2.6mm; padding-left: 6mm; }
+li { margin-bottom: 1.1mm; }
+code {
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8.4pt;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px; padding: 0 1.2mm;
+  word-break: break-word;
+}
+pre {
+  background: #0f172a; color: #e2e8f0; padding: 3mm 4mm; border-radius: 4px;
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8pt;
+  line-height: 1.45; overflow-x: auto; white-space: pre-wrap;
+  page-break-inside: avoid; margin: 0 0 3mm;
+}
+pre code { background: none; border: none; color: inherit; padding: 0; font-size: inherit; }
+blockquote {
+  margin: 0 0 3mm; padding: 2.5mm 4mm; background: #fffbeb;
+  border-left: 3px solid #d97706; color: #78350f; font-size: 9pt;
+}
+table {
+  width: 100%; border-collapse: collapse; margin: 0 0 3.5mm;
+  font-size: 8.3pt; page-break-inside: auto;
+}
+th, td {
+  border: 1px solid #cbd5e1; padding: 1.4mm 1.8mm; text-align: left;
+  vertical-align: top; word-break: normal; overflow-wrap: anywhere;
+}
+th { background: #0f766e; color: #fff; font-weight: 700; }
+tr { page-break-inside: avoid; }
+tbody tr:nth-child(even) { background: #f8fafc; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 6mm 0; }
+a { color: #0f766e; text-decoration: none; word-break: break-all; }
+strong { color: #0f172a; }
+</style></head><body>
+<div class="cover">
+  <div class="rule"></div>
+  <h1>Dr. Pooja&#x27;s Physio - Operations Admin Test Plan</h1>
+  <p class="sub">The operations desk: what it opens, what it changes, and what it is refused</p>
+  <dl><dt>Role</dt><dd>Operations Admin</dd><dt>Document version</dt><dd>1.0</dd><dt>Audience</dt><dd>A tester checking this role end to end</dd><dt>Environment</dt><dd>Throwaway Supabase project · Razorpay test mode · npm run dev</dd><dt>Read first</dt><dd>Section 1 - who this is, and what has to exist before you start</dd></dl>
+</div>
+<div class="toc">
+  <h2>Contents</h2>
+  <ul><li>1. Who this is, and what must exist first</li><li>2. Signing in, and what the screen says you are</li><li>3. Today</li><li>4. Sessions - manage, which is the whole of this desk&#x27;s day</li><li>5. People - manage, with one control that is not theirs</li><li>6. Catalog - manage</li><li>7. What Operations must never reach</li><li>8. Suspension, and the scope itself</li><li>9. Sign-off</li></ul>
+</div>
+<h2>1. Who this is, and what must exist first</h2>
+<p><strong>The desk.</strong> <strong>Operations</strong> runs the day: sessions, the people in them, and the catalogue they are booked against. They do not touch the books, they cannot read the activity log, and they cannot change how the product behaves.</p>
+<p><strong>What this desk opens, exactly.</strong> Four of the seven sections, all at the level that changes things:</p>
+<table><thead><tr><th>Section</th><th>Operations</th></tr></thead><tbody><tr><td><strong>Today</strong></td><td>manage</td></tr><tr><td><strong>Sessions</strong></td><td>manage</td></tr><tr><td><strong>People</strong></td><td>manage</td></tr><tr><td><strong>Catalog</strong></td><td>manage</td></tr><tr><td>Money</td><td><strong>none</strong></td></tr><tr><td>Logs</td><td><strong>none</strong></td></tr><tr><td>Settings</td><td><strong>none</strong></td></tr></tbody></table>
+<p><strong>That table is the whole of this plan.</strong> Everything below either confirms a capability that grid grants, or confirms a refusal it implies - at the screen <strong>and</strong> at the route, because a session cookie can call a route around a hidden button.</p>
+<p><strong>The account.</strong></p>
+<table><thead><tr><th>Label</th><th>Email</th><th>Password</th></tr></thead><tbody><tr><td><strong>Operations</strong></td><td><code>qa.admin.ops@example.test</code></td><td><em>generated when the Master Admin creates it</em></td></tr></tbody></table>
+<p><strong>The password is generated and shown once</strong> when the account is created. Write it down then.</p>
+<h3>1.1 Before you start</h3>
+<table><thead><tr><th>Must exist</th><th>Set up by</th></tr></thead><tbody><tr><td>This Operations account, created from <strong>Settings → User Access</strong></td><td>Master Admin</td></tr><tr><td>A catalogue: at least two treatment categories and one programme</td><td>Master Admin</td></tr><tr><td>Two approved therapists, one with a roster</td><td>Master Admin + Therapist</td></tr><tr><td>At least one patient with a <strong>paid, unassigned</strong> session</td><td>Patient</td></tr><tr><td>At least one patient with a <strong>completed</strong> session and a <strong>refund</strong> on it</td><td>Master Admin</td></tr><tr><td>A partner hospital with a revenue share and one referral</td><td>Master Admin + Hospital</td></tr><tr><td>One queued recommendation</td><td>Therapist</td></tr></tbody></table>
+<p><strong>Two of those matter particularly.</strong> A refunded session is what proves this desk cannot read the money on it, and the partner hospital is what proves a section they <em>can</em> open still hides the controls that are not theirs.</p>
+<h3>1.2 How to record a result</h3>
+<p>Mark every step <strong>Pass</strong>, <strong>Fail</strong>, <strong>Blocked</strong> or <strong>N/A</strong>. Raise a failure with: the step id, what you did, what you expected, what happened, a screenshot, any console error in full, how many times out of how many it reproduced, and <strong>which account you were signed in as</strong>.</p>
+<p><strong>Severity.</strong> <strong>P0</strong> - money, clinical data or access control is wrong: stop and report. <strong>P1</strong> - a main journey is broken with no workaround. <strong>P2</strong> - wrong with a workaround. <strong>P3</strong> - cosmetic.</p>
+<p><strong>In this document, a refusal that does not happen is almost always a P0.</strong> This desk exists to be narrower than the Master Admin&#x27;s, so a control that works when it should not is the failure this plan is for.</p>
+<h3>1.3 Calling a route without a terminal</h3>
+<p>Most refusals here are checked twice - once by the screen hiding a control, once by the route refusing the call - and <strong>only the second is the rule</strong>. Sign in as Operations, press <strong>F12</strong>, open <strong>Console</strong>, paste and press Enter:</p>
+<pre><code>const r = await fetch(&quot;/api/some/route&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ some: &quot;value&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p>The request is same-origin, so the browser attaches this admin&#x27;s cookie itself. Use a <strong>second browser profile</strong> for a different account, not a second tab - tabs share cookies. Never paste the URL in the address bar: that sends a GET, these are POSTs, and you will get 405.</p>
+<hr>
+<h2>2. Signing in, and what the screen says you are</h2>
+<h3><code>OP-01</code> - The dashboard names itself · P2</h3>
+<p><strong>Do this.</strong> Sign in as the Operations admin.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The sidebar brand reads <strong>`Operations`</strong>, above &quot;Admin Panel&quot;.</li><li>The <strong>eyebrow over the section heading</strong> reads <code>Operations</code> too.</li><li><strong>Both</strong>, not one. The sidebar collapses to icons and is a closed drawer on a phone; the header is on every screen at every width. <strong>A dashboard that just says &quot;Admin Panel&quot; is a P2</strong> - four desks that differ only in which sidebar entries are missing make an admin infer which one they are on from an absence.</li></ul>
+<h3><code>OP-02</code> - The &quot;Your access&quot; card · P2</h3>
+<p><strong>Expect</strong> a card naming which sections this desk covers.</p>
+<p><strong>A shorter sidebar with no explanation reads as a fault.</strong> This card is the sentence saying the missing sections were hidden on purpose. <strong>P2 if it is absent.</strong></p>
+<p>It carries <strong>no scope name of its own</strong> - the brand and the header both say <code>Operations</code> on that same screen already.</p>
+<h3><code>OP-03</code> - The sidebar has four entries, and three are gone · P0</h3>
+<p><strong>Expect</strong> in the sidebar: <strong>Today</strong>, <strong>Sessions</strong>, <strong>People</strong>, <strong>Catalog</strong>.</p>
+<p><strong>Expect absent:</strong> <strong>Money</strong>, <strong>Logs</strong>, <strong>Settings</strong>.</p>
+<p><strong>Any of those three rendering is a P1</strong> at the screen level - and the routes below are what decide whether it is a P0.</p>
+<hr>
+<h2>3. Today</h2>
+<h3><code>OP-04</code> - Operations leads with unassigned sessions · P1</h3>
+<p><strong>Expect</strong></p>
+<ul><li>The headline figure is <strong>unassigned sessions</strong> - this desk&#x27;s own first question. Finance leads with what is owed, Clinical with the recommendation queue, and that difference is deliberate.</li><li><strong>No money figure is anywhere on this screen.</strong> Not unlinked, not greyed - <strong>the page does not compute it</strong>. A rupee figure on an Operations Today is a <strong>P1</strong>.</li></ul>
+<h3><code>OP-05</code> - &quot;Needs you&quot; agrees with the list under it · P2</h3>
+<p><strong>Do this.</strong> Read the &quot;needs a person&quot; figure, then count the queue rows beneath it.</p>
+<p><strong>Expect</strong></p>
+<ul><li>They <strong>match</strong>. A figure that sums every queue while the list beside it is already filtered to what you can open is the commonest defect in this product&#x27;s history.</li><li>It counts only the queues this desk can <strong>work</strong>. A section readable but not manageable holds no work for them - a figure nothing they could do would ever bring down is worse than no figure.</li></ul>
+<h3><code>OP-06</code> - Every quick action lands somewhere you can open · P1</h3>
+<p><strong>Do this.</strong> Tap each quick action and come back.</p>
+<p><strong>Expect</strong></p>
+<ul><li><strong>Every one lands on a screen Operations can open.</strong> An action for an unreachable section is <strong>dropped</strong>, never rendered.</li><li><strong>None lands back on Today.</strong> That is what a link into a section you cannot open does - it falls back to the first section you <em>can</em> open, silently. <strong>A quick action that reloads Today is a P1</strong>, and it is the exact failure this rule exists to catch.</li></ul>
+<h3><code>OP-07</code> - The queue order is emphasis, never permission · P2</h3>
+<p><strong>Expect.</strong> This desk&#x27;s own domains sit at the top, and <strong>nothing is removed</strong>. What a scope may work is the routes&#x27; decision; a UI that hid a reachable queue would be a second permission model to disagree with the first. <strong>A queue you can open that is missing from this list is a P2.</strong></p>
+<h3><code>OP-08</code> - Activity is their own desk&#x27;s · P2</h3>
+<p><strong>Do this.</strong> Open <strong>Today → Activity</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>Entries whose action belongs to a section <strong>this desk can work</strong> <em>and</em> whose <strong>actor sits at this desk</strong>.</li><li>It will look <strong>sparse</strong> - in a small clinic the Master Admin does most of the work. That is why <strong>the screen says the list is their desk&#x27;s</strong> rather than showing an empty panel that reads as &quot;nothing happened&quot;. <strong>P2 if it just looks empty.</strong></li><li><strong>This is not the Logs section.</strong> It is a feed of their own work, and it is the only exception to &quot;ordering is emphasis, never permission&quot; - a queue is work waiting on somebody, so hiding one hides their job; a log is a record of what other people did.</li></ul>
+<h3><code>OP-09</code> - Risk, scoped by rule · P2</h3>
+<p><strong>Do this.</strong> Open <strong>Today → Risk</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The rules whose <strong>domain</strong> is a section this desk can act on - a contact leak and an early completion are sessions questions, so they are here. A cash variance is a money question and is <strong>not</strong>.</li><li><strong>The flagged messages panel and the contact reveal log are absent.</strong> Those quote what a colleague wrote and name every patient contact they opened, and stay Master-Admin-only. <strong>Either rendering here is a P0.</strong></li><li>The thresholds themselves are not editable here.</li><li><strong>No action buttons on the tab</strong>, same as every desk. A flag is never an accusation and never carries a penalty.</li></ul>
+<hr>
+<h2>4. Sessions - manage, which is the whole of this desk&#x27;s day</h2>
+<h3><code>OP-10</code> - Assign, reassign, reschedule · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Open the unassigned queue from Today</td><td>Exactly the rows it counted, with the other filters cleared first</td></tr><tr><td>Assign a session</td><td><strong>Succeeds.</strong> Sessions is <code>manage</code></td></tr><tr><td>Read the control on a never-assigned session</td><td><strong>Tap to assign</strong>, not &quot;Reschedule / Reassign&quot;</td></tr><tr><td>Reschedule a confirmed session</td><td><strong>Succeeds</strong>, with the same calendar and hour chips a patient sees</td></tr><tr><td>Try a time like <code>6:52</code></td><td>Cannot be produced at all</td></tr><tr><td>Book a new session inside the 12-hour window</td><td>Refused, until the override box is ticked</td></tr><tr><td>Book into the past with the box ticked</td><td>Refused</td></tr></tbody></table>
+<h3><code>OP-11</code> - Complete and reopen · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Complete a paid session on a therapist&#x27;s behalf</td><td><strong>Succeeds.</strong> An admin is subject to neither of the therapist&#x27;s two gates</td></tr><tr><td>Reopen a completed session</td><td><strong>Succeeds</strong>, warning first that both sides&#x27; ratings are destroyed</td></tr><tr><td>Check the completion timestamp after reopening</td><td><strong>Cleared</strong>, not left behind</td></tr></tbody></table>
+<h3><code>OP-12</code> - Cancelling, and what they cannot see about the refund · P0</h3>
+<p><strong>Do this.</strong> Cancel a paid session outside the 24-hour window.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The cancellation <strong>succeeds</strong> - it is a Sessions capability.</li><li><strong>Look hard at what the screen now tells you about the money.</strong> The refund amount is a <strong>money</strong> reading; confirm what this desk sees against the Master Admin&#x27;s view of the same row in another browser.</li><li>Check the same on <strong>All Sessions</strong>: the <strong>amount and the refund columns do not render</strong> for this desk.</li></ul>
+<h3><code>OP-13</code> - The export follows the screen · P0</h3>
+<p><strong>Do this.</strong> Filter <strong>All Sessions</strong>, then export as <strong>CSV</strong> and as <strong>PDF</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>Both are offered, and both describe the <strong>same filtered rows</strong>.</li><li><strong>Neither file contains the amount or the refund.</strong> They do not render on screen for this desk, and <strong>a scope enforced in the markup but not in the file the markup produces is not enforced</strong>. An export is the easiest place to forget it. <strong>Money in this file is a P0.</strong></li></ul>
+<h3><code>OP-14</code> - The roster · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Open <strong>Sessions → Roster</strong></td><td>A <strong>list of therapists</strong>, not a calendar grid</td></tr><tr><td>Edit a weekly schedule</td><td><strong>Succeeds</strong>, in periods rather than hourly cells</td></tr><tr><td>Write a <strong>date exception</strong></td><td><strong>Succeeds</strong> - this is an admin capability, and Operations has Sessions at manage</td></tr><tr><td>Set somebody <strong>on leave</strong></td><td>Succeeds, and the weekly schedule survives intact</td></tr><tr><td>Remove hours a session sits in</td><td>It <strong>names who is affected</strong> and says the session <strong>stays as booked</strong>. <strong>P0 if it cancels or moves one</strong></td></tr></tbody></table>
+<h3><code>OP-15</code> - Recommendations · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Open <strong>Sessions → Recommendations</strong></td><td>The queue, oldest first, aged in words</td></tr><tr><td>Approve one</td><td><strong>Succeeds</strong></td></tr><tr><td>Turn one down with <code>ok</code></td><td>Refused - ten characters</td></tr><tr><td>Approve one with different numbers</td><td><strong>Succeeds</strong>, writing a new version attributed to the clinician and entered by you</td></tr><tr><td>Write one on a therapist&#x27;s behalf</td><td><strong>Succeeds</strong>, with a mandatory reason, and <strong>no price, session-count or discount field anywhere on the form</strong></td></tr><tr><td>Withdraw a <strong>purchased</strong> plan</td><td><strong>Refused</strong> - the patient has paid and the sessions exist</td></tr></tbody></table>
+<p><strong>A price input on that form is a P0</strong>, whichever desk is looking at it.</p>
+<h3><code>OP-16</code> - Delivery, and the figures that are not money · P2</h3>
+<p><strong>Do this.</strong> Open <strong>Sessions → Delivery</strong>.</p>
+<p><strong>Expect.</strong> No-show rate, cancellation rate, repeat-booking rate, sessions per therapist. These live under <strong>Sessions, not Money</strong> - a no-show rate is about how the clinic runs, not about its books, which is exactly why this desk can read them while Money is closed to it.</p>
+<hr>
+<h2>5. People - manage, with one control that is not theirs</h2>
+<h3><code>OP-17</code> - The directories · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Open <strong>People → Patients</strong>, open one</td><td>Sessions, documents, notes - all readable and editable</td></tr><tr><td>Look at the money controls on that patient</td><td><strong>They do not render</strong></td></tr><tr><td>Approve a pending signup</td><td><strong>Succeeds</strong></td></tr><tr><td>Suspend an account</td><td><strong>Succeeds</strong></td></tr><tr><td>Reset somebody&#x27;s password</td><td><strong>Succeeds</strong>, with the password shown once and never in the log</td></tr><tr><td>Open <strong>People → Therapists</strong></td><td>The directory, with the <code>/team</code> visibility control</td></tr><tr><td>Change a therapist&#x27;s <strong>revenue share</strong></td><td><strong>There is no such control.</strong> That is a money capability</td></tr></tbody></table>
+<h3><code>OP-18</code> - Partners, and the control that must not render · P1</h3>
+<p><strong>Do this.</strong> Open <strong>People → Partners</strong> and open Hospital A.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The partner&#x27;s record, their referrals, and the referral capacity note - all editable.</li><li><strong>The revenue-share editor and the two share figures do not render.</strong> Partners sits on People, which this desk opens, but changing a revenue share is a <strong>money</strong> route. <strong>A section a desk can open does not mean every control on it is theirs.</strong> <strong>P1 if it renders</strong>, because pressing it produces a 403 with nothing on screen to explain it.</li></ul>
+<h3><code>OP-19</code> - Deleting an account is full scope only · P0</h3>
+<p><strong>Do this.</strong> Find the delete control on an account with no history at all, and press it.</p>
+<p><strong>Expect. Refused.</strong> Every desk that manages People can already suspend, and this one is irreversible - so it is checked against <strong>full scope directly</strong>, not through People. <strong>Operations deleting an account is a P0.</strong></p>
+<p>Then confirm at the route:</p>
+<pre><code>const r = await fetch(&quot;/api/admin/delete-account&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ userId: &quot;PASTE_AN_ID&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect a refusal.</strong></p>
+<h3><code>OP-20</code> - Impersonation is full scope only · P0</h3>
+<p><strong>Do this.</strong> Look for the impersonation control on a patient&#x27;s profile.</p>
+<p><strong>Expect.</strong> <strong>Absent.</strong> Then call it:</p>
+<pre><code>const r = await fetch(&quot;/api/admin/start-impersonation&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ targetUserId: &quot;PASTE_AN_ID&quot;, reason: &quot;Checking a reported bug&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect 403.</strong> This is checked against <strong>full scope directly</strong> rather than through a section, precisely so a section scope cannot hand the most dangerous capability in the product to whoever can edit a phone number. <strong>A 200 here is a P0 that stops the run.</strong></p>
+<hr>
+<h2>6. Catalog - manage</h2>
+<h3><code>OP-21</code> - Building and editing what the clinic sells · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Create a treatment category</td><td><strong>Succeeds</strong>, and reaches the public pages immediately</td></tr><tr><td>Reorder the list and <strong>Save order</strong></td><td><strong>Succeeds</strong>, renumbering the whole list</td></tr><tr><td>Upload and position a cover</td><td><strong>Succeeds</strong></td></tr><tr><td>Tick <strong>featured</strong></td><td><strong>Succeeds</strong></td></tr><tr><td>Create a programme and a home-visit package</td><td><strong>Succeeds</strong></td></tr><tr><td>Add a service area with a travel fee</td><td><strong>Succeeds</strong></td></tr><tr><td>Delete a category that has bookings</td><td><strong>Refused</strong>, in a dialog, naming and counting what is in the way and offering to turn it off instead</td></tr></tbody></table>
+<h3><code>OP-22</code> - Purchases: the screen opens, the money controls do not · P0</h3>
+<p><strong>Do this.</strong> Open <strong>Catalog → Purchases</strong> and open a programme purchase.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The purchase detail opens - Catalog is <code>manage</code>.</li><li><strong>The money controls do not render</strong>: refund, grant credits, reverse a credit, revive an entitlement. A refund is a <strong>money</strong> capability even though its button lives on a Catalog screen - <strong>the section is chosen by the capability, not by where the button happens to sit</strong>.</li><li>Extending an expiry and reassigning the locked therapist are catalogue actions and <strong>do</strong> render.</li></ul>
+<p>Confirm at the routes:</p>
+<pre><code>const routes = [
+  &quot;/api/admin/refund-package&quot;,
+  &quot;/api/admin/grant-session-credits&quot;,
+  &quot;/api/admin/reverse-session-credit&quot;,
+  &quot;/api/admin/revive-entitlement&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on all four.</strong> <strong>Any 200 is a P0.</strong></p>
+<hr>
+<h2>7. What Operations must never reach</h2>
+<h3><code>OP-23</code> - Money, at the screen · P1</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Find <strong>Money</strong> in the sidebar</td><td><strong>Absent</strong></td></tr><tr><td>Open the Money URL directly</td><td>Refused, and <strong>the screen says their scope is why</strong>, in one dismissible amber line</td></tr><tr><td>Read that line</td><td>It names a screen that <strong>exists</strong>. Telling somebody they lack access to a screen that was never there is worse than silence</td></tr><tr><td>Use <strong>global search</strong> for a purchase or payment code</td><td>They are told it does not exist. A result opening a screen they cannot open would be a dead link that looked like it worked</td></tr></tbody></table>
+<p><strong>A silent landing somewhere else is the failure here.</strong> The fallback landing somewhere valid is correct - a stale bookmark must not produce a blank page - but on its own the tap just goes somewhere and looks like it worked. <strong>P2 if nothing is said.</strong></p>
+<h3><code>OP-24</code> - Money, at the routes · P0</h3>
+<pre><code>const routes = [
+  &quot;/api/admin/settle-therapist-payout&quot;,
+  &quot;/api/admin/refund-session-partial&quot;,
+  &quot;/api/admin/apply-goodwill-discount&quot;,
+  &quot;/api/admin/correct-cash-amount&quot;,
+  &quot;/api/admin/mark-cash-remitted&quot;,
+  &quot;/api/admin/mark-cash-refund-returned&quot;,
+  &quot;/api/admin/update-hospital-revenue-share&quot;,
+  &quot;/api/admin/update-therapist-revenue-share&quot;,
+  &quot;/api/admin/save-promo-code&quot;,
+  &quot;/api/admin/delete-promo-code&quot;,
+  &quot;/api/admin/expenses&quot;,
+  &quot;/api/admin/finance&quot;,
+  &quot;/api/admin/mark-paid-by-cash&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on every one.</strong> Not 404, not 500, and not a 400 that reads as &quot;give me better arguments&quot; - that is a route that checked the body before it checked who was asking. <strong>Any 200 is a P0 that stops the run.</strong></p>
+<h3><code>OP-25</code> - Logs, at the screen and at both routes · P0</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Find <strong>Logs</strong> in the sidebar</td><td><strong>Absent</strong></td></tr><tr><td>Open the Logs URL</td><td>Refused, with the scope line</td></tr></tbody></table>
+<pre><code>const routes = [&quot;/api/admin/activity-log&quot;, &quot;/api/admin/clear-activity-log&quot;];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on both.</strong> <strong>Logs is Master Admin&#x27;s alone</strong> - it is the record of who impersonated whom, who settled which payout and who cleared the log. <strong>A limited desk reading it is a P0.</strong></p>
+<h3><code>OP-26</code> - Settings, at the screen and at the routes · P0</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Find <strong>Settings</strong> in the sidebar</td><td><strong>Absent</strong></td></tr><tr><td>Open Settings → User Access by URL</td><td>Refused</td></tr><tr><td>Open Settings → System Health by URL</td><td>Refused</td></tr></tbody></table>
+<pre><code>const routes = [
+  &quot;/api/admin/update-setting&quot;,
+  &quot;/api/admin/set-admin-scope&quot;,
+  &quot;/api/admin/set-admin-active&quot;,
+  &quot;/api/admin/create-account&quot;,
+  &quot;/api/admin/save-mission-principle&quot;,
+  &quot;/api/admin/intake-questions&quot;,
+  &quot;/api/admin/debug-reset&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on every one.</strong></p>
+<p><strong>`create-account` matters most.</strong> The Back office group is absent from their picker, but that is <strong>presentation</strong> - the full-only check inside the route is what actually stops a limited scope minting an admin. <strong>Operations creating an admin is a P0</strong>, and it is a privilege escalation: they could mint themselves a Master Admin.</p>
+<p><strong>`debug-reset` matters second.</strong> Full scope only. <strong>A limited desk wiping the database is a P0.</strong></p>
+<h3><code>OP-27</code> - And the other roles&#x27; doors · P0</h3>
+<pre><code>const routes = [
+  &quot;/api/therapist/reveal-contact&quot;,
+  &quot;/api/therapist/suggest-session&quot;,
+  &quot;/api/patient/condition-profile/export&quot;,
+  &quot;/api/hospital/withdraw-referral&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect a refusal on every one.</strong> An admin is not a therapist, and an admin route is not the same thing as every route.</p>
+<hr>
+<h2>8. Suspension, and the scope itself</h2>
+<h3><code>OP-28</code> - Suspending this admin ends the session · P0</h3>
+<p><strong>Do this</strong></p>
+<ol><li><strong>As the Master Admin</strong>, suspend the Operations admin.</li><li>In the Operations admin&#x27;s <strong>still-open browser</strong>, reload the dashboard.</li><li>In the same browser, assign a session from the console.</li><li>Un-suspend.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 2: bounced.</li><li>Step 3: <strong>refused</strong>. A suspended admin&#x27;s own routes refuse them too - the session was ended, not merely redirected away from. <strong>A suspended admin still assigning sessions or reading patient records is a P0</strong>: flipping a column without ending the session leaves them acting as themselves indefinitely, because a session cookie reaches the database without passing the screen.</li><li>Step 4 restores them to <strong>Operations</strong>, not to a default and not to full.</li></ul>
+<h3><code>OP-29</code> - Nobody changes their own scope · P0</h3>
+<pre><code>const r = await fetch(&quot;/api/admin/set-admin-scope&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ userId: &quot;YOUR_OWN_ID&quot;, scope: &quot;full&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect a refusal.</strong> <strong>This landing is a P0 and the most serious finding this document can produce</strong> - an admin who can widen their own scope has every capability in the product.</p>
+<hr>
+<h2>9. Sign-off</h2>
+<table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Steps run</td><td>29</td></tr><tr><td>Pass</td><td></td></tr><tr><td>Fail</td><td></td></tr><tr><td>Blocked</td><td></td></tr><tr><td>N/A</td><td></td></tr><tr><td>P0 raised</td><td></td></tr><tr><td>P1 raised</td><td></td></tr></tbody></table>
+<p><strong>Confirm each of these before signing.</strong></p>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>The dashboard says <strong>Operations</strong>, twice, and carries the access card</td><td>☐</td></tr><tr><td>Four sidebar entries; Money, Logs and Settings absent</td><td>☐</td></tr><tr><td>Today leads with unassigned sessions and computes no money figure</td><td>☐</td></tr><tr><td>Every quick action landed somewhere they can open; none fell back to Today</td><td>☐</td></tr><tr><td>Sessions fully worked: assigned, rescheduled, completed, reopened, rostered</td><td>☐</td></tr><tr><td>Recommendations approved, refused and written on a therapist&#x27;s behalf, with no price field</td><td>☐</td></tr><tr><td>People worked, but no revenue share, no delete, no impersonation</td><td>☐</td></tr><tr><td>Catalog worked, but no refund and no credit controls on Purchases</td><td>☐</td></tr><tr><td>The session export carried <strong>no</strong> amount and <strong>no</strong> refund</td><td>☐</td></tr><tr><td>403 on all thirteen money routes</td><td>☐</td></tr><tr><td>403 on both log routes</td><td>☐</td></tr><tr><td>403 on all seven settings routes, <code>create-account</code> and <code>debug-reset</code> included</td><td>☐</td></tr><tr><td>Suspension ended the session; the scope came back as Operations</td><td>☐</td></tr><tr><td>They could not widen their own scope</td><td>☐</td></tr></tbody></table>
+<p><strong>Signed</strong> ......................... <strong>Date</strong> .................</p>
+<p><strong>Build / commit tested</strong> .........................</p>
+<hr>
+<p><strong>What a clean run of this document proves.</strong> That the Operations scope grants what the grid says it grants and refuses what it says it refuses, at the screen and at the route, on one machine, once. It does not prove the other two desks are correctly narrowed - each has a document of its own - and it does not prove the capabilities themselves are correct, which is the Master Admin&#x27;s document.</p></body></html>

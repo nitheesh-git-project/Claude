@@ -1,0 +1,370 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Dr. Pooja&#x27;s Physio - Finance Admin Test Plan</title><style>
+@page { size: A4; margin: 18mm 15mm 20mm 15mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "DejaVu Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #1e293b; margin: 0;
+}
+.cover { page-break-after: always; padding-top: 55mm; text-align: center; }
+.cover .rule { width: 60mm; height: 4px; background: #0f766e; margin: 0 auto 14mm; }
+.cover h1 { font-size: 26pt; line-height: 1.2; color: #0f172a; margin: 0 0 10mm; }
+.cover .sub { font-size: 12pt; color: #475569; margin-bottom: 22mm; }
+.cover dl { display: inline-block; text-align: left; font-size: 10pt; color: #334155; }
+.cover dt { font-weight: 700; color: #0f766e; margin-top: 5mm; }
+.toc { page-break-after: always; }
+.toc h2 { border: none; }
+.toc ul { columns: 2; column-gap: 12mm; font-size: 9pt; padding-left: 0; list-style: none; }
+.toc li { margin-bottom: 1.6mm; break-inside: avoid; }
+h1 { font-size: 17pt; color: #0f172a; margin: 10mm 0 3mm; page-break-after: avoid; }
+h2 {
+  font-size: 13.5pt; color: #0f172a; margin: 9mm 0 3mm;
+  padding-bottom: 1.5mm; border-bottom: 2px solid #0f766e; page-break-after: avoid;
+}
+h3 { font-size: 11.5pt; color: #0f766e; margin: 6mm 0 2mm; page-break-after: avoid; }
+h4 {
+  font-size: 10pt; color: #0f172a; margin: 5mm 0 1.5mm;
+  page-break-after: avoid; page-break-inside: avoid;
+}
+h5, h6 { font-size: 9.6pt; color: #334155; margin: 4mm 0 1.5mm; }
+p { margin: 0 0 2.4mm; }
+ul, ol { margin: 0 0 2.6mm; padding-left: 6mm; }
+li { margin-bottom: 1.1mm; }
+code {
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8.4pt;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px; padding: 0 1.2mm;
+  word-break: break-word;
+}
+pre {
+  background: #0f172a; color: #e2e8f0; padding: 3mm 4mm; border-radius: 4px;
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8pt;
+  line-height: 1.45; overflow-x: auto; white-space: pre-wrap;
+  page-break-inside: avoid; margin: 0 0 3mm;
+}
+pre code { background: none; border: none; color: inherit; padding: 0; font-size: inherit; }
+blockquote {
+  margin: 0 0 3mm; padding: 2.5mm 4mm; background: #fffbeb;
+  border-left: 3px solid #d97706; color: #78350f; font-size: 9pt;
+}
+table {
+  width: 100%; border-collapse: collapse; margin: 0 0 3.5mm;
+  font-size: 8.3pt; page-break-inside: auto;
+}
+th, td {
+  border: 1px solid #cbd5e1; padding: 1.4mm 1.8mm; text-align: left;
+  vertical-align: top; word-break: normal; overflow-wrap: anywhere;
+}
+th { background: #0f766e; color: #fff; font-weight: 700; }
+tr { page-break-inside: avoid; }
+tbody tr:nth-child(even) { background: #f8fafc; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 6mm 0; }
+a { color: #0f766e; text-decoration: none; word-break: break-all; }
+strong { color: #0f172a; }
+</style></head><body>
+<div class="cover">
+  <div class="rule"></div>
+  <h1>Dr. Pooja&#x27;s Physio - Finance Admin Test Plan</h1>
+  <p class="sub">The finance desk: the books, and the sessions it may read but never change</p>
+  <dl><dt>Role</dt><dd>Finance Admin</dd><dt>Document version</dt><dd>1.0</dd><dt>Audience</dt><dd>A tester checking this role end to end</dd><dt>Environment</dt><dd>Throwaway Supabase project · Razorpay test mode · npm run dev</dd><dt>Read first</dt><dd>Section 1 - who this is, and what has to exist before you start</dd></dl>
+</div>
+<div class="toc">
+  <h2>Contents</h2>
+  <ul><li>1. Who this is, and what must exist first</li><li>2. Signing in, and what the screen says you are</li><li>3. Today</li><li>4. Sessions at <code>view</code> - the whole of the middle level</li><li>5. Money - manage, and the books are the job</li><li>6. People - manage, with the money controls that are theirs</li><li>7. What Finance must never reach</li><li>8. Suspension, and the scope itself</li><li>9. Sign-off</li></ul>
+</div>
+<h2>1. Who this is, and what must exist first</h2>
+<p><strong>The desk.</strong> <strong>Finance</strong> keeps the books: revenue, costs, payouts, refunds, discounts and the seven standard finance figures. They can <strong>read</strong> sessions and cannot change one - and that single <code>view</code> grant is the most interesting thing in this document, because it is the only place in the product where a desk is deliberately given a section it must not write to.</p>
+<p><strong>What this desk opens, exactly.</strong></p>
+<table><thead><tr><th>Section</th><th>Finance</th></tr></thead><tbody><tr><td><strong>Today</strong></td><td>manage</td></tr><tr><td><strong>Sessions</strong></td><td><strong>view</strong></td></tr><tr><td><strong>People</strong></td><td>manage</td></tr><tr><td><strong>Money</strong></td><td>manage</td></tr><tr><td>Catalog</td><td><strong>none</strong></td></tr><tr><td>Logs</td><td><strong>none</strong></td></tr><tr><td>Settings</td><td><strong>none</strong></td></tr></tbody></table>
+<p><strong>Why `view` exists at all.</strong> The question finance actually asks - <em>what was this ₹1,200 for?</em> - was answerable only by asking somebody else. Handing them the section outright would let the person reconciling the books cancel the sessions they are reconciling. There is deliberately <strong>no</strong> &quot;write only&quot;: a dashboard cannot let somebody change a row they are not allowed to see, so the third box a permissions matrix usually draws is one this product has no honest meaning for.</p>
+<p><strong>What makes `view` real.</strong> Every admin route guarded by a scope check asks for <strong>manage</strong>. So a section granted at <code>view</code> is read-only at <strong>all</strong> of them, without a single one being edited and without any screen remembering to hide a button. This plan proves that at the screen and at the route.</p>
+<p><strong>The account.</strong></p>
+<table><thead><tr><th>Label</th><th>Email</th><th>Password</th></tr></thead><tbody><tr><td><strong>Finance</strong></td><td><code>qa.admin.finance@example.test</code></td><td><em>generated when the Master Admin creates it</em></td></tr></tbody></table>
+<h3>1.1 Before you start</h3>
+<table><thead><tr><th>Must exist</th><th>Set up by</th></tr></thead><tbody><tr><td>This Finance account, created from <strong>Settings → User Access</strong></td><td>Master Admin</td></tr><tr><td>Several <strong>paid and completed</strong> sessions, online and home visit</td><td>Patient + Therapist</td></tr><tr><td>One session <strong>refunded</strong>, and one refund <strong>awaiting cash by hand</strong></td><td>Master Admin</td></tr><tr><td>A therapist with a revenue share, <strong>holding cash</strong>, and owed a payout</td><td>Therapist</td></tr><tr><td>A partner hospital on a revenue share with a completed referral</td><td>Hospital</td></tr><tr><td>At least one programme purchase and one cash-on-visit home visit</td><td>Patient</td></tr><tr><td>A promo code with at least one claim</td><td>Master Admin</td></tr></tbody></table>
+<p><strong>The cash matters.</strong> A therapist holding cash and owed a payout is what makes the netting arithmetic at <code>FI-19</code> testable, and that is the single most expensive bug this desk could miss.</p>
+<h3>1.2 How to record a result</h3>
+<p>Mark every step <strong>Pass</strong>, <strong>Fail</strong>, <strong>Blocked</strong> or <strong>N/A</strong>. Raise a failure with: the step id, what you did, what you expected, what happened, a screenshot, any console error in full, how many times out of how many it reproduced, and <strong>which account you were signed in as</strong>.</p>
+<p><strong>Severity.</strong> <strong>P0</strong> - money, clinical data or access control is wrong: stop and report. <strong>P1</strong> - a main journey is broken with no workaround. <strong>P2</strong> - wrong with a workaround. <strong>P3</strong> - cosmetic.</p>
+<h3>1.3 Calling a route without a terminal</h3>
+<p>The <code>view</code> grant is only real at the routes, so a good half of this document is console work. Sign in as Finance, press <strong>F12</strong>, open <strong>Console</strong>, paste and press Enter:</p>
+<pre><code>const r = await fetch(&quot;/api/some/route&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ some: &quot;value&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p>The request is same-origin, so the browser attaches this admin&#x27;s cookie itself. Use a <strong>second browser profile</strong> for a different account, not a second tab. Never paste the URL in the address bar: that sends a GET, these are POSTs, and you will get 405.</p>
+<hr>
+<h2>2. Signing in, and what the screen says you are</h2>
+<h3><code>FI-01</code> - The dashboard names itself · P2</h3>
+<p><strong>Do this.</strong> Sign in as the Finance admin.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The sidebar brand reads <strong>`Finance`</strong>, and the <strong>eyebrow over the section heading</strong> reads <code>Finance</code> too. <strong>Both.</strong> <strong>A dashboard that just says &quot;Admin Panel&quot; is a P2.</strong></li><li>A <strong>&quot;Your access&quot; card</strong> naming which sections this desk covers. A shorter sidebar with no explanation reads as a fault.</li></ul>
+<h3><code>FI-02</code> - The sidebar · P1</h3>
+<p><strong>Expect present:</strong> <strong>Today</strong>, <strong>Sessions</strong>, <strong>People</strong>, <strong>Money</strong>.</p>
+<p><strong>Expect absent:</strong> <strong>Catalog</strong>, <strong>Logs</strong>, <strong>Settings</strong>.</p>
+<p><strong>Sessions is present</strong> - <code>view</code> is enough to open a section. That is the point: what <code>view</code> costs them is every control on it, not the section itself.</p>
+<hr>
+<h2>3. Today</h2>
+<h3><code>FI-03</code> - Finance leads with what is owed · P1</h3>
+<p><strong>Expect</strong></p>
+<ul><li>The headline figure is <strong>what is owed to therapists</strong> - this desk&#x27;s own first question. Operations leads with unassigned sessions and Clinical with the recommendation queue.</li><li>That is <strong>emphasis</strong>, not permission: nothing reachable is hidden further down.</li></ul>
+<h3><code>FI-04</code> - An unassigned session is not their work · P1</h3>
+<p><strong>Do this.</strong> Read the &quot;needs a person&quot; figure and the queue list beneath it.</p>
+<p><strong>Expect</strong></p>
+<ul><li><strong>Unassigned sessions are not counted.</strong> A queue is a piece of work, and Finance reads Sessions without being able to assign one - so counting an unassigned session here would put a figure on their screen that nothing they could do would ever bring down. <strong>P1 if it is counted.</strong></li><li>Sessions they <strong>can</strong> work appear; sessions they can only <strong>read</strong> do not produce work.</li><li>The figure and the list <strong>agree</strong>.</li></ul>
+<p>This is the sharpest test of the difference between <code>view</code> and <code>manage</code> anywhere in the product: the section is open, and it still holds no work.</p>
+<h3><code>FI-05</code> - Quick actions land inside this scope · P1</h3>
+<p><strong>Do this.</strong> Tap each quick action and come back.</p>
+<p><strong>Expect</strong></p>
+<ul><li>Every one lands on a screen Finance can open.</li><li><strong>None lands back on Today.</strong> A link into a section they cannot open falls back silently to the first one they can - <strong>a quick action that reloads Today is a P1</strong>.</li><li>A quick action that would <strong>change</strong> a session is <strong>dropped</strong>, not rendered and then refused.</li></ul>
+<h3><code>FI-06</code> - Activity is their own desk&#x27;s · P2</h3>
+<p><strong>Do this.</strong> Open <strong>Today → Activity</strong>.</p>
+<p><strong>Expect</strong> entries whose action belongs to a section this desk can <strong>work</strong> and whose <strong>actor</strong> sits at this desk. It runs <strong>sparse</strong>, and the screen <strong>says the list is their desk&#x27;s</strong> rather than showing an empty panel that reads as &quot;nothing happened&quot;. <strong>P2 if it just looks empty.</strong></p>
+<h3><code>FI-07</code> - Risk, the money rules only · P2</h3>
+<p><strong>Do this.</strong> Open <strong>Today → Risk</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The rules whose domain is <strong>money</strong>: a cash variance, a session completed with no payment.</li><li><strong>Not</strong> the clinical ones - a contact leak is a sessions question.</li><li><strong>The flagged messages panel and the contact reveal log are absent.</strong> Those quote what a colleague wrote and name every patient contact a therapist opened. <strong>Either rendering here is a P0.</strong></li><li><strong>No action buttons on the tab.</strong> A flag is never an accusation.</li><li>Review a money signal with a real note: <strong>succeeds</strong>. With <code>ok</code>: refused.</li></ul>
+<hr>
+<h2>4. Sessions at <code>view</code> - the whole of the middle level</h2>
+<p>This section is the reason this document exists. Work it carefully.</p>
+<h3><code>FI-08</code> - The section opens, and reads properly · P1</h3>
+<p><strong>Do this.</strong> Open <strong>Sessions → All Sessions</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The list renders in full, with filters, paging and the date range.</li><li><strong>The amount and the refund are readable</strong> - Finance is precisely the desk that may see money. This is the opposite of Operations and Clinical, whose exports and screens omit both.</li><li>Open a session&#x27;s detail drawer: the payment, the refund state, the discount facts and the travel fee are all there.</li><li>Open <strong>Sessions → Delivery</strong>: no-show, cancellation and repeat-booking rates render.</li></ul>
+<h3><code>FI-09</code> - Every control that changes a session is gone · P1</h3>
+<p><strong>Do this.</strong> Look at a session&#x27;s detail drawer, and at a row in the list.</p>
+<p><strong>Expect absent</strong></p>
+<table><thead><tr><th>Control</th><th></th></tr></thead><tbody><tr><td>Assign / Tap to assign</td><td>☐</td></tr><tr><td>Reschedule</td><td>☐</td></tr><tr><td>Cancel</td><td>☐</td></tr><tr><td>Complete</td><td>☐</td></tr><tr><td>Reopen</td><td>☐</td></tr><tr><td>Edit booking</td><td>☐</td></tr></tbody></table>
+<p><strong>A control an admin&#x27;s scope cannot call must not render</strong>, or they get a 403 with nothing on screen to explain it. <strong>Each one that renders is a P1.</strong></p>
+<p><strong>And the two on the patient&#x27;s profile.</strong> Open <strong>People → Patients</strong>, open a patient, and look at their session list: the <strong>Complete</strong> and <strong>Reopen</strong> buttons must not be there either.</p>
+<h3><code>FI-10</code> - The routes refuse, which is what makes <code>view</code> real · P0</h3>
+<pre><code>const routes = [
+  &quot;/api/admin/assign-appointment&quot;,
+  &quot;/api/admin/update-appointment&quot;,
+  &quot;/api/admin/cancel-appointment&quot;,
+  &quot;/api/admin/create-booking&quot;,
+  &quot;/api/admin/reopen-session&quot;,
+  &quot;/api/admin/assign-referral&quot;,
+  &quot;/api/admin/save-therapist-availability&quot;,
+  &quot;/api/admin/set-availability-exception&quot;,
+  &quot;/api/admin/set-therapist-on-leave&quot;,
+  &quot;/api/admin/review-care-plan&quot;,
+  &quot;/api/admin/edit-and-approve-care-plan&quot;,
+  &quot;/api/admin/author-care-plan&quot;,
+  &quot;/api/admin/withdraw-care-plan&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on every one.</strong> These are all POSTs that change something, so every one of them asks for <code>manage</code> and Finance has <code>view</code>.</p>
+<p><strong>Any 200 is a P0 that stops the run.</strong> The whole meaning of <code>view</code> is that it holds at all of them without one being edited.</p>
+<h3><code>FI-11</code> - Completing a session is the one they must not reach · P0</h3>
+<p>This route is shared between a therapist and an admin, so it cannot simply guard on the section - it has to tell &quot;an admin who may not&quot; from &quot;not an admin at all&quot;.</p>
+<pre><code>const r = await fetch(&quot;/api/appointments/complete-session&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ appointmentId: &quot;PASTE_A_PAID_SESSION_ID&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect a refusal.</strong></p>
+<p><strong>A Finance admin completing a session is a P0</strong>, and it is the most consequential one in this document. <code>completed</code> <strong>and</strong> <code>paid</code> is the exact and only condition that makes a therapist&#x27;s revenue share payable - so completing a session <strong>creates the payout obligation</strong>. Finance holds Sessions at <code>view</code> precisely so the person reconciling the books cannot create the obligation they are then asked to settle, and this route is exempt from both of the gates a therapist faces.</p>
+<h3><code>FI-12</code> - The roster reads and does not write · P1</h3>
+<p><strong>Do this.</strong> Open <strong>Sessions → Roster</strong>.</p>
+<p><strong>Expect.</strong> It opens and reads. <strong>No save control, no exception control, no leave switch.</strong> The routes above already covered it; confirm the screen agrees.</p>
+<h3><code>FI-13</code> - Recommendations read and do not decide · P1</h3>
+<p><strong>Do this.</strong> Open <strong>Sessions → Recommendations</strong>.</p>
+<p><strong>Expect.</strong> The queue renders. <strong>No Approve, no Turn down, no Approve with changes, and no panel offering to write one on a therapist&#x27;s behalf.</strong> All four are <code>manage</code>.</p>
+<hr>
+<h2>5. Money - manage, and the books are the job</h2>
+<h3><code>FI-14</code> - Summary, and the two identities · P0</h3>
+<p><strong>Do this.</strong> Open <strong>Money → Summary</strong>.</p>
+<p><strong>Expect</strong> both identities hold, every time:</p>
+<ul><li><strong>net = gross − refunds</strong></li><li><strong>clinic share = splittable net − therapists&#x27; share − partners&#x27; share</strong></li></ul>
+<p><strong>Either failing is a P0.</strong></p>
+<p>And the three rules behind the split:</p>
+<table><thead><tr><th>Rule</th><th>Check</th></tr></thead><tbody><tr><td>A therapist&#x27;s share is earned by <strong>delivering</strong></td><td>A paid session not yet completed adds <strong>nothing</strong>. Counting every paid one deducts a share nobody will be paid and understates the clinic&#x27;s take on every forfeited late cancellation</td></tr><tr><td>A home visit&#x27;s <strong>travel is the therapist&#x27;s, never revenue</strong></td><td>Confirm travel is not in the revenue lines</td></tr><tr><td>A <strong>refund reverses the partner&#x27;s commission, not the therapist&#x27;s</strong></td><td>A refunded session was cancelled, so it never earned a therapist share</td></tr></tbody></table>
+<ul><li>A session whose split is <strong>unknowable</strong> - no therapist share set, or a partner with none configured - is <strong>excluded from the split and surfaced as a named count</strong>. <strong>A guessed percentage to make the numbers tie is a P0.</strong></li><li><strong>Each figure appears once on the screen.</strong> Net revenue printed twice is a <strong>P2</strong>.</li></ul>
+<h3><code>FI-15</code> - Open a total · P2</h3>
+<p><strong>Do this.</strong> Tap <strong>See the sessions</strong> on each of the four split figures.</p>
+<p><strong>Expect.</strong> Each lists <strong>exactly the rows behind it</strong>, and those rows <strong>sum to the figure that opened them</strong>. <strong>A drill-down that disagrees with its own total is a P1</strong> - it makes a correct figure look wrong.</p>
+<p>The drill-down exports like every other table: CSV and PDF, same rows.</p>
+<h3><code>FI-16</code> - Scope chips: flows move, balances do not · P1</h3>
+<p><strong>Do this.</strong> Narrow the date range and watch each figure.</p>
+<p><strong>Expect</strong></p>
+<ul><li>Flows move: revenue, refunds, what was settled in the period.</li><li><strong>&quot;Owed to therapists&quot; does not.</strong> It is <strong>all-time and net of cash held</strong>, matching the Payouts screen and what the Pay button actually transfers. <strong>A real debt reading as nothing because you narrowed to a quiet week is a P1.</strong></li><li>Every figure carries a <strong>scope chip</strong> - <code>range</code>, <code>now</code> or <code>setting</code> - so watching one fall while the one beside it holds still does not read as a half-broken screen.</li></ul>
+<h3><code>FI-17</code> - The alerts strip · P1</h3>
+<p><strong>Expect</strong> it at the top of <strong>all</strong> the Money screens, counting: payout requests waiting, cash a therapist is holding, refunds to hand back by hand, and payments attached to nothing.</p>
+<table><thead><tr><th>Check</th><th>Expect</th></tr></thead><tbody><tr><td>Refunds awaiting cash</td><td>Counts <strong>both</strong> cash home visits <strong>and</strong> sessions refunded by hand</td></tr><tr><td>Cash home visits</td><td>Counted <strong>once</strong>, not twice. The home-visit rows are the same table filtered, not a second table - summing the two puts a figure on the strip that the ledger beneath it disagrees with</td></tr><tr><td>A <strong>failed</strong> refund</td><td><strong>Not on this strip.</strong> It is fixed on <strong>Sessions</strong>, which Finance can only read - so counting it here would put a figure on their screen that nothing they could do would bring down</td></tr><tr><td>Each item</td><td>Links to <strong>the rows it counted</strong></td></tr><tr><td>A zero row</td><td><strong>Dropped</strong>, not shown as a zero</td></tr></tbody></table>
+<p>That failed-refund rule is the same one as <code>FI-04</code>, in a second place. <strong>A failed refund counted on the Finance strip is a P2.</strong></p>
+<h3><code>FI-18</code> - Costs · P1</h3>
+<p><strong>Do this.</strong> Add three costs, one of each kind:</p>
+<table><thead><tr><th>Description</th><th>Amount</th><th>Kind</th></tr></thead><tbody><tr><td><code>QA Clinic rent - month 1</code></td><td><code>40000</code></td><td>fixed</td></tr><tr><td><code>QA Physiotherapy consumables</code></td><td><code>6000</code></td><td>variable</td></tr><tr><td><code>QA Loan interest</code></td><td><code>3500</code></td><td>interest</td></tr></tbody></table>
+<p><strong>Expect</strong></p>
+<ul><li>Each carries a <strong>kind</strong>, deciding whether it sits above or below the gross-profit line, whether it is inside break-even&#x27;s fixed costs, and whether EBITDA adds it back. <strong>Nothing is inferred from the wording.</strong></li><li>The <strong>gateway fee</strong> is derived from what was collected <strong>online</strong>, charged on <strong>gross</strong> - a processor keeps its fee through a refund - and <strong>skipped for cash on visit</strong>, which never touched a gateway.</li><li>It is labelled <strong>Gateway fee %</strong> here, a rate, distinct from the resulting amount Summary calls Payment fees. <strong>Two figures under one name is a P2.</strong></li><li>Costs are dated by <strong>when they were incurred</strong>, not when somebody typed them.</li><li><strong>Discounts given</strong> is <strong>stated, never deducted</strong>. It is already inside gross revenue as a smaller number; subtracting it from profit would count it twice and understate profit by exactly the amount given away. <strong>A discount deducted from operating profit is a P0.</strong></li><li>With no costs recorded, <strong>Operating profit is a ceiling and the screen says so</strong>.</li><li>Nothing here is labelled &quot;net profit&quot;, and nothing is post-tax.</li><li><strong>The promo-code campaigns are on this screen</strong>, beside <strong>Discounts given</strong> - the figure they cost. <strong>P2 if they are somewhere else</strong>, because following a note that says they are here and finding no promo codes is a dead end.</li></ul>
+<h3><code>FI-19</code> - Payouts, and the netting that must happen once · P0</h3>
+<p><strong>Do this.</strong> With a therapist holding cash and owed a share:</p>
+<ol><li>Open <strong>Money → Payouts</strong>.</li><li>Settle it.</li><li>Read the cash ledger.</li><li>Settle a <strong>second</strong> payout for the same therapist later.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>The transfer is the earned figure <strong>minus the cash they are holding</strong>, and <strong>exactly those visits are marked remitted in the same run</strong>.</li><li>Step 4 <strong>does not deduct the same cash again</strong>. <strong>A second deduction is a P0</strong> - the same rupees taken twice, and it asks somebody to chase money already recovered.</li><li>Where the cash <strong>exceeds</strong> what is owed, the transfer <strong>floors at zero</strong>, the difference stays as still-owed-to-the-clinic, and those collections stay <strong>open on the cash ledger</strong> for a person to chase. It does not go negative.</li></ul>
+<h3><code>FI-20</code> - Correcting a cash amount · P1</h3>
+<p>The person holding the cash does not get to say how much of it the clinic knows about; this is the lane that belongs to somebody who is not holding it.</p>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Correct a cash amount with a reason of <code>ok</code></td><td>Refused</td></tr><tr><td>Correct it with a real reason</td><td><strong>Succeeds</strong>, with an audit row</td></tr><tr><td>Correct one whose cash has <strong>already been remitted</strong></td><td><strong>Refused.</strong> That transfer has gone out, so the fix is an adjustment against the next payout rather than a silent edit of a settled one</td></tr></tbody></table>
+<h3><code>FI-21</code> - Business Health: a refusal beats a zero · P0</h3>
+<p><strong>Do this.</strong> Open <strong>Money → Business Health</strong> with <strong>nothing</strong> entered on Your Numbers.</p>
+<p><strong>Expect</strong></p>
+<ul><li>Seven figures: return on investment, return on ad spend, working capital, gross and net margin, EBITDA, break-even, revenue run rate.</li><li><strong>A figure that cannot be worked out is a sentence naming the missing input, with a link to the screen that takes it - never a zero.</strong> A zero is read as a measurement and acted on. <strong>A zero here is a P1.</strong></li><li>Revenue and the split come from the <strong>same functions Summary reads</strong>, so the two screens <strong>cannot disagree about what the clinic earned</strong>. Compare them figure by figure.</li><li>Every (i) carries the <strong>formula and where each input came from</strong>, not merely what the word means.</li><li><strong>Working capital</strong> counts money taken for sessions not yet delivered as a <strong>current liability</strong>, valued at <strong>what was actually paid</strong> and never at the live catalogue price.</li><li>Move the three cost-classification switches. <strong>Gross margin moves; operating income and net profit do not.</strong> A switch that moved the bottom line would be a way to report a different profit: <strong>P0</strong>.</li><li>Apply a <strong>dimension filter</strong> - one therapist. An <strong>amber line</strong> says the comparison is one slice&#x27;s revenue against the whole clinic&#x27;s costs, because rent is not attributable to a therapist. <strong>Silently filtered profit is a P1.</strong></li></ul>
+<h3><code>FI-22</code> - Your Numbers · P1</h3>
+<p><strong>Do this.</strong> Enter an investment with a life in months, an ad campaign traced by a promo code, some untraceable ad spend, and a dated snapshot.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The <strong>life in months</strong> produces the depreciation and amortization inside EBITDA.</li><li>A campaign is traced <strong>by promo code or not at all</strong>. Untraceable spend is <strong>stated separately and held out of the division</strong> - leaving it in the denominator reports a campaign as a failure purely because nobody tagged it.</li><li>A <strong>hand-entered</strong> revenue figure is allowed and is <strong>labelled as the owner&#x27;s own</strong> wherever it shows.</li><li>Spend is <strong>pro-rated across the campaign&#x27;s own days</strong>, and an open-ended one runs to <strong>today</strong> - never to the end of the range in view, or one row would read as a different daily budget every time you moved the dates.</li><li>Snapshots sharing an <code>as of</code> date are <strong>one snapshot</strong>, and the most recent at or before the range end is read. Entering this month&#x27;s bank balance does <strong>not</strong> erase last month&#x27;s.</li></ul>
+<h3><code>FI-23</code> - Discounts, from the books&#x27; side · P0</h3>
+<p><strong>Do this.</strong> Open a discounted booking and read what was recorded.</p>
+<p><strong>Expect</strong> all four facts on every one: <strong>list price</strong>, <strong>amount off</strong>, <strong>which rule</strong>, and <strong>why</strong>.</p>
+<p><strong>A discount implemented by simply charging less leaves the books unable to tell &quot;we sold this cheap&quot; from &quot;we discounted it&quot;</strong> - and that difference is the one number that decides whether an offer continues. <strong>A missing fact is a P1.</strong></p>
+<p>Then check the rules themselves from this desk:</p>
+<table><thead><tr><th>Check</th><th>Expect</th></tr></thead><tbody><tr><td>Two discounts both apply</td><td><strong>One</strong> applies - the largest - and the loser is <strong>released</strong> so it does not count against its own cap for nothing</td></tr><tr><td>A tie</td><td>Goes to the more deliberate decision: goodwill, then the typed code, then the campaign that runs itself</td></tr><tr><td>A <strong>home visit</strong></td><td>The discount is on the <strong>service line only</strong>; travel is added back <strong>undiscounted</strong>. <strong>Discounted travel is a P0</strong></td></tr><tr><td>A <strong>100%</strong> discount</td><td>The total is <strong>zero</strong>, with <strong>no gateway order and no `payments` row</strong> - and never a ₹1 charge</td></tr><tr><td>A goodwill amount at or above the session price</td><td><strong>Refused</strong></td></tr><tr><td>Apply goodwill, then collect <strong>by cash</strong></td><td>The recorded cash is the <strong>discounted</strong> figure with the list price beside it. Recording the full price overstates the cash ledger and gross revenue by exactly the amount given away: <strong>P0</strong></td></tr></tbody></table>
+<h3><code>FI-24</code> - The money glossary, and one word per figure · P2</h3>
+<p>On every Money screen:</p>
+<ol><li><strong>Two lines under the heading</strong> - what the screen is in a clinic owner&#x27;s words, and one concrete example of something you would come here to do.</li><li>The <strong>glossary</strong> at the foot, and an <strong>(i)</strong> on each figure. The glossary is the fallback for reading the whole set; the (i) is the answer, because a definition at the bottom of the screen is as far from the number as the page allows.</li><li><strong>No word does two jobs.</strong> &quot;Package cash collected&quot; is what came into the bank up front; recognised revenue is that same money earned one session at a time. <strong>Two figures meaning the same thing is a P2</strong> - delete one rather than explaining the difference.</li></ol>
+<hr>
+<h2>6. People - manage, with the money controls that are theirs</h2>
+<h3><code>FI-25</code> - The directories · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Open <strong>People → Patients</strong>, open one</td><td>Their sessions, purchases and payments - <strong>with the money readable</strong></td></tr><tr><td>Approve a pending signup</td><td><strong>Succeeds</strong></td></tr><tr><td>Suspend an account</td><td><strong>Succeeds</strong></td></tr><tr><td>Reset a password</td><td><strong>Succeeds</strong>, shown once, never in the log</td></tr><tr><td>Look at the <strong>Complete</strong> and <strong>Reopen</strong> buttons on a session row</td><td><strong>Absent</strong> - those are Sessions writes</td></tr></tbody></table>
+<h3><code>FI-26</code> - Partners, and a control that is theirs · P1</h3>
+<p><strong>Do this.</strong> Open <strong>People → Partners</strong> and open Hospital A.</p>
+<p><strong>Expect</strong></p>
+<ul><li><strong>The revenue-share editor and the two share figures DO render.</strong> Unlike Operations and Clinical, changing a revenue share is a <strong>money</strong> route and Finance holds Money at manage. <strong>Their absence here is a P1.</strong></li><li>Change it: <strong>succeeds</strong>, with an audit row.</li><li>The partner&#x27;s commission on the Money screens moves to match.</li></ul>
+<p>This is the mirror image of the Operations case, and worth checking in both documents: the section is the same, the control is the same, and the two desks must answer differently.</p>
+<h3><code>FI-27</code> - Delete and impersonation are still full scope only · P0</h3>
+<pre><code>const routes = [
+  &quot;/api/admin/delete-account&quot;,
+  &quot;/api/admin/start-impersonation&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect a refusal on both</strong>, and no control for either on screen. Both are checked against <strong>full scope directly</strong> rather than through People, precisely so a section scope cannot hand them out. <strong>A 200 on impersonation is a P0 that stops the run.</strong></p>
+<hr>
+<h2>7. What Finance must never reach</h2>
+<h3><code>FI-28</code> - Catalog, at the screen and at the routes · P0</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Find <strong>Catalog</strong> in the sidebar</td><td><strong>Absent</strong></td></tr><tr><td>Open the Catalog URL</td><td>Refused, with a dismissible line <strong>saying their scope is why</strong> and naming a screen that exists</td></tr></tbody></table>
+<pre><code>const routes = [
+  &quot;/api/admin/create-treatment-category&quot;,
+  &quot;/api/admin/update-treatment-category&quot;,
+  &quot;/api/admin/delete-treatment-category&quot;,
+  &quot;/api/admin/reorder-treatment-categories&quot;,
+  &quot;/api/admin/create-package&quot;,
+  &quot;/api/admin/update-package&quot;,
+  &quot;/api/admin/create-home-visit-package&quot;,
+  &quot;/api/admin/create-home-visit-areas&quot;,
+  &quot;/api/admin/upload-catalog-image&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on every one.</strong> Finance must not be able to re-price the catalogue - which would change what future patients pay - from the desk that reports on what they paid.</p>
+<p><strong>But note the split.</strong> The <strong>refund</strong> and <strong>credit</strong> controls that live on Catalog → Purchases are <strong>money</strong> routes, so those are Finance&#x27;s:</p>
+<pre><code>const mine = [
+  &quot;/api/admin/refund-package&quot;,
+  &quot;/api/admin/grant-session-credits&quot;,
+  &quot;/api/admin/reverse-session-credit&quot;,
+  &quot;/api/admin/revive-entitlement&quot;,
+];
+console.table(await Promise.all(mine.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect a validation error, not 403</strong> - the empty body is wrong, but the caller is allowed. <strong>403 here is a P1</strong>: the section is chosen by the capability, not by where the button happens to sit, and a refund is money.</p>
+<h3><code>FI-29</code> - Logs, at the screen and at both routes · P0</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Find <strong>Logs</strong> in the sidebar</td><td><strong>Absent</strong></td></tr><tr><td>Open the Logs URL</td><td>Refused, with the scope line</td></tr></tbody></table>
+<pre><code>const routes = [&quot;/api/admin/activity-log&quot;, &quot;/api/admin/clear-activity-log&quot;];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on both.</strong> <strong>Logs is Master Admin&#x27;s alone</strong> - the record of who settled which payout, among other things. A desk that settles payouts reading and clearing the record of its own settlements is exactly the separation this refusal keeps. <strong>A 200 on `clear-activity-log` is a P0.</strong></p>
+<p>Finance reads their own desk&#x27;s work on <strong>Today → Activity</strong> instead.</p>
+<h3><code>FI-30</code> - Settings, at the screen and at the routes · P0</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Find <strong>Settings</strong> in the sidebar</td><td><strong>Absent</strong></td></tr><tr><td>Open Settings → Offers &amp; Discounts by URL</td><td>Refused</td></tr><tr><td>Open Settings → User Access by URL</td><td>Refused</td></tr></tbody></table>
+<pre><code>const routes = [
+  &quot;/api/admin/update-setting&quot;,
+  &quot;/api/admin/set-admin-scope&quot;,
+  &quot;/api/admin/set-admin-active&quot;,
+  &quot;/api/admin/create-account&quot;,
+  &quot;/api/admin/debug-reset&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on every one.</strong></p>
+<p><strong>`update-setting` matters most here.</strong> The first-session offer and the invite rewards are <strong>settings</strong>, not Money screens - so Finance can report what discounting cost and <strong>cannot change what the clinic gives away</strong>. <strong>A 200 here is a P0.</strong></p>
+<p><strong>`create-account` is the escalation case</strong>: the Back office group is absent from their picker, but that is presentation - the full-only check inside the route is what stops a limited scope minting itself a Master Admin.</p>
+<p><strong>Note the one that is theirs.</strong> The promo-code switch sits on <strong>Money → Costs</strong>, beside the campaigns it governs, rather than in Settings - because an admin who has just written a code and cannot see why it does nothing is the failure that placement avoids. Confirm <code>save-promo-code</code> and <code>delete-promo-code</code> <strong>succeed</strong> for Finance.</p>
+<h3><code>FI-31</code> - The other roles&#x27; doors · P0</h3>
+<pre><code>const routes = [
+  &quot;/api/therapist/reveal-contact&quot;,
+  &quot;/api/therapist/record-cash-collection&quot;,
+  &quot;/api/patient/condition-profile/export&quot;,
+  &quot;/api/hospital/withdraw-referral&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect a refusal on every one.</strong> <code>record-cash-collection</code> in particular: the figure a therapist asserts nets straight off what they owe, and a finance desk asserting it on their behalf would be the books writing their own inputs.</p>
+<hr>
+<h2>8. Suspension, and the scope itself</h2>
+<h3><code>FI-32</code> - Suspending this admin ends the session · P0</h3>
+<p><strong>Do this</strong></p>
+<ol><li><strong>As the Master Admin</strong>, suspend the Finance admin.</li><li>In the Finance admin&#x27;s <strong>still-open browser</strong>, reload the dashboard.</li><li>In the same browser, settle a payout from the console.</li><li>Un-suspend.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 2: bounced.</li><li>Step 3: <strong>refused</strong>. A suspended admin&#x27;s own routes refuse them too - the session was ended, not merely redirected away from. <strong>A suspended finance admin still settling payouts is a P0</strong>: money would leave the clinic on the authority of an account somebody closed.</li><li>Step 4 restores them to <strong>Finance</strong>, not to full and not to a default.</li></ul>
+<h3><code>FI-33</code> - Nobody changes their own scope · P0</h3>
+<pre><code>const r = await fetch(&quot;/api/admin/set-admin-scope&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ userId: &quot;YOUR_OWN_ID&quot;, scope: &quot;full&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect a refusal.</strong> <strong>This landing is a P0 and the most serious finding this document can produce.</strong></p>
+<hr>
+<h2>9. Sign-off</h2>
+<table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Steps run</td><td>33</td></tr><tr><td>Pass</td><td></td></tr><tr><td>Fail</td><td></td></tr><tr><td>Blocked</td><td></td></tr><tr><td>N/A</td><td></td></tr><tr><td>P0 raised</td><td></td></tr><tr><td>P1 raised</td><td></td></tr></tbody></table>
+<p><strong>Confirm each of these before signing.</strong></p>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>The dashboard says <strong>Finance</strong>, twice, and carries the access card</td><td>☐</td></tr><tr><td>Four sidebar entries; Catalog, Logs and Settings absent</td><td>☐</td></tr><tr><td>Today leads with what is owed, and <strong>does not count unassigned sessions</strong></td><td>☐</td></tr><tr><td>Sessions <strong>opened and read in full</strong>, money included</td><td>☐</td></tr><tr><td><strong>Every</strong> session-changing control absent from the screen</td><td>☐</td></tr><tr><td>403 on all thirteen session-changing routes</td><td>☐</td></tr><tr><td><strong>`complete-session` refused</strong></td><td>☐</td></tr><tr><td>Both money identities held, on Summary and Business Health alike</td><td>☐</td></tr><tr><td>A balance did not move when the date range did</td><td>☐</td></tr><tr><td>A payout settled once, with the cash netted <strong>once</strong></td><td>☐</td></tr><tr><td>Business Health refused rather than printing a zero</td><td>☐</td></tr><tr><td>A cost switch moved gross margin and not the bottom line</td><td>☐</td></tr><tr><td>All four discount facts recorded, travel never discounted, zero never ₹1</td><td>☐</td></tr><tr><td>The partner revenue-share editor <strong>did</strong> render, and changing it worked</td><td>☐</td></tr><tr><td>403 on the catalogue routes, and <strong>not</strong> on the refund and credit routes</td><td>☐</td></tr><tr><td>403 on both log routes, <code>clear-activity-log</code> included</td><td>☐</td></tr><tr><td>403 on <code>update-setting</code> and <code>create-account</code>; promo codes still theirs</td><td>☐</td></tr><tr><td>Suspension ended the session; the scope came back as Finance</td><td>☐</td></tr><tr><td>They could not widen their own scope</td><td>☐</td></tr></tbody></table>
+<p><strong>Signed</strong> ......................... <strong>Date</strong> .................</p>
+<p><strong>Build / commit tested</strong> .........................</p>
+<hr>
+<p><strong>What a clean run of this document proves.</strong> That the Finance scope grants what the grid says it grants and refuses what it says it refuses - in particular that Sessions at <code>view</code> is read-only at every route and not merely on the screens that remembered to hide a button - on one machine, once. It does not prove the money figures themselves are right against a real ledger, and it does not cover the other two desks, each of which has a document of its own.</p></body></html>

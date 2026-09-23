@@ -1,0 +1,407 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Dr. Pooja&#x27;s Physio - Therapist Test Plan</title><style>
+@page { size: A4; margin: 18mm 15mm 20mm 15mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "DejaVu Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #1e293b; margin: 0;
+}
+.cover { page-break-after: always; padding-top: 55mm; text-align: center; }
+.cover .rule { width: 60mm; height: 4px; background: #0f766e; margin: 0 auto 14mm; }
+.cover h1 { font-size: 26pt; line-height: 1.2; color: #0f172a; margin: 0 0 10mm; }
+.cover .sub { font-size: 12pt; color: #475569; margin-bottom: 22mm; }
+.cover dl { display: inline-block; text-align: left; font-size: 10pt; color: #334155; }
+.cover dt { font-weight: 700; color: #0f766e; margin-top: 5mm; }
+.toc { page-break-after: always; }
+.toc h2 { border: none; }
+.toc ul { columns: 2; column-gap: 12mm; font-size: 9pt; padding-left: 0; list-style: none; }
+.toc li { margin-bottom: 1.6mm; break-inside: avoid; }
+h1 { font-size: 17pt; color: #0f172a; margin: 10mm 0 3mm; page-break-after: avoid; }
+h2 {
+  font-size: 13.5pt; color: #0f172a; margin: 9mm 0 3mm;
+  padding-bottom: 1.5mm; border-bottom: 2px solid #0f766e; page-break-after: avoid;
+}
+h3 { font-size: 11.5pt; color: #0f766e; margin: 6mm 0 2mm; page-break-after: avoid; }
+h4 {
+  font-size: 10pt; color: #0f172a; margin: 5mm 0 1.5mm;
+  page-break-after: avoid; page-break-inside: avoid;
+}
+h5, h6 { font-size: 9.6pt; color: #334155; margin: 4mm 0 1.5mm; }
+p { margin: 0 0 2.4mm; }
+ul, ol { margin: 0 0 2.6mm; padding-left: 6mm; }
+li { margin-bottom: 1.1mm; }
+code {
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8.4pt;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px; padding: 0 1.2mm;
+  word-break: break-word;
+}
+pre {
+  background: #0f172a; color: #e2e8f0; padding: 3mm 4mm; border-radius: 4px;
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8pt;
+  line-height: 1.45; overflow-x: auto; white-space: pre-wrap;
+  page-break-inside: avoid; margin: 0 0 3mm;
+}
+pre code { background: none; border: none; color: inherit; padding: 0; font-size: inherit; }
+blockquote {
+  margin: 0 0 3mm; padding: 2.5mm 4mm; background: #fffbeb;
+  border-left: 3px solid #d97706; color: #78350f; font-size: 9pt;
+}
+table {
+  width: 100%; border-collapse: collapse; margin: 0 0 3.5mm;
+  font-size: 8.3pt; page-break-inside: auto;
+}
+th, td {
+  border: 1px solid #cbd5e1; padding: 1.4mm 1.8mm; text-align: left;
+  vertical-align: top; word-break: normal; overflow-wrap: anywhere;
+}
+th { background: #0f766e; color: #fff; font-weight: 700; }
+tr { page-break-inside: avoid; }
+tbody tr:nth-child(even) { background: #f8fafc; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 6mm 0; }
+a { color: #0f766e; text-decoration: none; word-break: break-all; }
+strong { color: #0f172a; }
+</style></head><body>
+<div class="cover">
+  <div class="rule"></div>
+  <h1>Dr. Pooja&#x27;s Physio - Therapist Test Plan</h1>
+  <p class="sub">Everything a clinician can do, from applying to being paid</p>
+  <dl><dt>Role</dt><dd>Therapist</dd><dt>Document version</dt><dd>1.0</dd><dt>Audience</dt><dd>A tester checking this role end to end</dd><dt>Environment</dt><dd>Throwaway Supabase project · Razorpay test mode · npm run dev</dd><dt>Read first</dt><dd>Section 1 - who this is, and what has to exist before you start</dd></dl>
+</div>
+<div class="toc">
+  <h2>Contents</h2>
+  <ul><li>1. Who this is, and what must exist first</li><li>2. Becoming a therapist</li><li>3. The therapist&#x27;s own dashboard</li><li>4. The roster</li><li>5. Sessions: the clinician&#x27;s half</li><li>6. The patient&#x27;s clinical record</li><li>7. My Patients, and the two ways to look at it</li><li>8. Recommending treatment</li><li>9. Proposing the next session</li><li>10. Home visits, from the therapist&#x27;s side</li><li>11. Earnings, and asking to be paid</li><li>12. Edit Profile: the line between a detail and a credential</li><li>13. What a therapist must never be able to do</li><li>14. Sign-off</li></ul>
+</div>
+<h2>1. Who this is, and what must exist first</h2>
+<p><strong>The account.</strong> A clinician who delivers care. They self-register, wait for an admin to approve them, and then own one dashboard: their roster, their assigned sessions, their patients&#x27; clinical records, the recommendations they write, and what they are owed.</p>
+<p><strong>What a therapist is not.</strong> They do not set prices, they do not see a patient&#x27;s email address, they do not book a session, they do not approve their own credentials, and they do not write a date exception on their own roster. Every one of those is checked in this plan, because each is a rule the screen and the route both have to keep.</p>
+<p><strong>The accounts this plan uses.</strong> All of them use the same password, and every address ends <code>@example.test</code>, a reserved domain that cannot deliver to a real inbox.</p>
+<table><thead><tr><th>Label</th><th>Email</th><th>Password</th><th>Why this plan needs them</th></tr></thead><tbody><tr><td><strong>Therapist A</strong></td><td><code>qa.therapist.a@example.test</code></td><td><code>QaTest!2024pass</code></td><td>The main journey. Assigned, delivers, writes, is paid.</td></tr><tr><td><strong>Therapist B</strong></td><td><code>qa.therapist.b@example.test</code></td><td><code>QaTest!2024pass</code></td><td>Never assigned to Patient A. Proves one clinician cannot reach another&#x27;s patient.</td></tr><tr><td><strong>Therapist C</strong></td><td><code>qa.therapist.c@example.test</code></td><td><code>QaTest!2024pass</code></td><td>Registers and is left <strong>unapproved</strong>, so the waiting screen has somebody on it.</td></tr></tbody></table>
+<p>Their details, used where the steps name them:</p>
+<table><thead><tr><th></th><th>Therapist A</th><th>Therapist B</th></tr></thead><tbody><tr><td>Full name</td><td><code>QA Therapist A</code></td><td><code>QA Therapist B</code></td></tr><tr><td>Phone</td><td><code>+91 98765 43220</code></td><td><code>+91 98765 43221</code></td></tr><tr><td>Qualification</td><td><code>MPT (Orthopaedics)</code></td><td><code>MPT (Neurology)</code></td></tr><tr><td>Years of experience</td><td><code>12</code></td><td><code>8</code></td></tr><tr><td>Specialist in</td><td><code>Lower back and post-operative knee rehabilitation</code></td><td><code>Stroke and Parkinson&#x27;s rehabilitation</code></td></tr><tr><td>Languages</td><td><code>English, Kannada, Hindi</code></td><td><code>English, Tamil</code></td></tr><tr><td>Revenue share (set by the admin)</td><td><code>60%</code> online, <code>65%</code> home visit</td><td><code>55%</code> online, <code>60%</code> home visit</td></tr></tbody></table>
+<h3>1.1 Before you start</h3>
+<p>A therapist cannot do anything until somebody has built a clinic around them. Each line below is one line of somebody else&#x27;s plan.</p>
+<table><thead><tr><th>Must exist</th><th>Set up by</th></tr></thead><tbody><tr><td>At least two treatment categories, priced and active</td><td>Master Admin</td></tr><tr><td>A six-session programme under one of those categories, marked recommendable</td><td>Master Admin</td></tr><tr><td>Home visits <strong>on</strong>, one service area, one single-visit package</td><td>Master Admin</td></tr><tr><td>A patient who has paid for a session</td><td>Patient</td></tr><tr><td>An admin who can approve accounts, assign sessions and settle payouts</td><td>Master Admin</td></tr><tr><td>Therapist-Suggested Sessions <strong>on</strong> (Settings → Programmes &amp; Home Visits)</td><td>Master Admin</td></tr></tbody></table>
+<p><strong>The figures this plan quotes</strong> assume <code>QA Back &amp; Spine Care</code> at <strong>₹1,999</strong>, a six-session programme at <strong>₹9,999</strong>, a home visit at <strong>₹2,499</strong> plus <strong>₹150</strong> travel, and Therapist A on <strong>60% / 65%</strong>. If yours differ, the arithmetic changes and the rules do not.</p>
+<h3>1.2 How to record a result</h3>
+<p>Mark every step <strong>Pass</strong>, <strong>Fail</strong>, <strong>Blocked</strong> or <strong>N/A</strong>. Raise a failure with: the step id, what you did, what you expected, what happened, a screenshot, any console error in full, how many times out of how many it reproduced, and <strong>which account you were signed in as</strong>.</p>
+<p><strong>Severity.</strong> <strong>P0</strong> - money, clinical data or access control is wrong: stop and report. <strong>P1</strong> - a main journey is broken with no workaround. <strong>P2</strong> - wrong with a workaround. <strong>P3</strong> - cosmetic.</p>
+<h3>1.3 Calling a route without a terminal</h3>
+<p>Several steps call an API directly, because this application enforces its rules twice - once in the screen, once in the route - and a hidden button proves only the first. Sign in as the person the step names, press <strong>F12</strong>, open <strong>Console</strong>, paste and press Enter:</p>
+<pre><code>const r = await fetch(&quot;/api/some/route&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ some: &quot;value&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p>The request is same-origin, so the browser attaches that account&#x27;s cookie itself. For a <strong>different</strong> user use a second browser profile, not a second tab - tabs share cookies. Never paste the URL in the address bar: that sends a GET, these are POSTs, and you will get 405 and think you found something.</p>
+<hr>
+<h2>2. Becoming a therapist</h2>
+<h3><code>TH-01</code> - Register, and wait · P1</h3>
+<p><strong>Do this</strong></p>
+<ol><li>Signed out, open <code>/therapist/register</code>.</li><li>Fill in Therapist A&#x27;s details from the table in §1, with password <code>QaTest!2024pass</code>.</li><li>Submit.</li><li>Repeat for Therapist B and Therapist C.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li><strong>You are signed in immediately.</strong> There is no &quot;check your email&quot; step anywhere in this flow - email confirmation is off in this product by design, and the admin&#x27;s approval is the only gate. <strong>A sign-up that asks you to confirm an address is a P1</strong>, and means the Supabase project has had that setting turned back on.</li><li>You land on <code>/pending-approval</code>, which says what is waiting and on whom.</li><li>Signing out and back in returns you to the same waiting screen, not to a dashboard.</li></ul>
+<h3><code>TH-02</code> - What an unapproved therapist cannot reach · P0</h3>
+<p>Stay signed in as <strong>Therapist C</strong>, who nobody has approved.</p>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Open <code>/therapist/dashboard</code></td><td>Bounced to <code>/pending-approval</code></td></tr><tr><td>Open <code>/therapist/dashboard/earnings</code></td><td>The same</td></tr><tr><td>Open <code>/admin/dashboard</code></td><td>Redirected to <strong>`/get-started`</strong>, never to <code>/admin/login</code></td></tr><tr><td>Look at <code>/team</code></td><td>Therapist C is <strong>not</strong> on it</td></tr></tbody></table>
+<p>Then in the console, as Therapist C:</p>
+<pre><code>const r = await fetch(&quot;/api/therapist/save-availability&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: &quot;{}&quot;,
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect</strong> a refusal, not a 200. The waiting screen is a door, not a curtain: a session cookie can call a route around the UI, so the route has to refuse too. <strong>A 200 here is a P0.</strong></p>
+<h3><code>TH-03</code> - Approval, and what it changes · P1</h3>
+<p><strong>As the admin</strong>, open <strong>Today → Approvals</strong> and approve Therapist A and Therapist B. Leave Therapist C pending - the rest of this plan needs somebody on that screen.</p>
+<p><strong>Expect</strong></p>
+<ul><li>Both therapists&#x27; next page load lands on <code>/therapist/dashboard</code>.</li><li><strong>Both now appear on `/team`</strong> - <code>visible_on_team</code> defaults to true, so an approved therapist belongs there at once. If <code>/team</code> still shows the old list after a reload, that page&#x27;s cache was not invalidated by the approval: <strong>P2</strong>.</li><li>Therapist C is still absent from <code>/team</code> and still on the waiting screen.</li></ul>
+<hr>
+<h2>3. The therapist&#x27;s own dashboard</h2>
+<h3><code>TH-04</code> - Read the Overview before tapping anything · P1</h3>
+<p><strong>Do this.</strong> Sign in as Therapist A and open <code>/therapist/dashboard</code>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The header greets them by name and states <strong>what they are paid and how they are rated</strong>: <code>Your Revenue Share: 60%</code> and, before any rating, <code>No ratings yet</code>. Once Step <code>TH-18</code> has left a rating it reads <code>Your Rating: 4.0 (1 rating)</code>. If the admin has hidden that rating from the public pages, the line ends <code> - hidden from public pages</code>.</li><li>The greeting is <code>Your practice today</code>, and the headline names the <strong>next</strong> session and its patient - or, with nothing booked, <code>No sessions booked yet - keep your availability open and the clinic assigns work to it.</code></li><li>Four figures, in this order: <strong>Today</strong>, <strong>Upcoming</strong>, <strong>Notes to write</strong>, <strong>Owed to you</strong>.</li><li>Then the feed, then quick actions. Every dashboard in this product is that shape, in that order, because that is the order people ask &quot;how am I doing / what needs me / what do I do next&quot;.</li></ul>
+<h3><code>TH-05</code> - Every figure agrees with the screen it opens · P2</h3>
+<table><thead><tr><th>Tap</th><th>Lands on</th><th>The count there should</th></tr></thead><tbody><tr><td><strong>Today</strong></td><td>the session list</td><td>match, with <code>Next at H:MM</code> beneath the figure</td></tr><tr><td><strong>Upcoming</strong></td><td>the session list</td><td>count confirmed <strong>and</strong> awaiting-assignment work</td></tr><tr><td><strong>Notes to write</strong></td><td><code>/therapist/dashboard/sessions</code></td><td>match the delivered sessions with nothing written</td></tr><tr><td><strong>Owed to you</strong></td><td><code>/therapist/dashboard/earnings</code></td><td>match, as a rupee figure</td></tr></tbody></table>
+<p><strong>Also expect</strong></p>
+<ul><li><strong>Notes to write</strong> is amber above zero and emerald at zero, reading <code>Every delivered session is written up</code>.</li><li><strong>Owed to you</strong> carries its state: <code>Not yet requested</code>, <code>Payout request under review</code>, or <code>Payout request sent</code>.</li><li><strong>A figure that disagrees with the list it opens is a P2</strong> - and it is the commonest defect in this product&#x27;s history, so look properly rather than glancing.</li></ul>
+<h3><code>TH-06</code> - The four quick actions all land somewhere real · P2</h3>
+<p>Tap each and come back.</p>
+<table><thead><tr><th>Action</th><th>Must land on</th></tr></thead><tbody><tr><td>Set your availability</td><td><code>/therapist/dashboard/availability</code>, <strong>with the weekly editor on screen</strong></td></tr><tr><td>Your assigned sessions</td><td><code>/therapist/dashboard/sessions</code></td></tr><tr><td>Patient health profiles</td><td><code>/therapist/dashboard/health-profile</code></td></tr><tr><td>Earnings and payouts</td><td><code>/therapist/dashboard/earnings</code></td></tr></tbody></table>
+<p><strong>A quick action that reloads the Overview and changes nothing is a defect.</strong> Availability in particular is its own route, not an anchor.</p>
+<h3><code>TH-07</code> - No patient contact detail is on this screen · P0</h3>
+<p>Read the whole Overview - every figure, every feed item, every quick action - and confirm <strong>no patient&#x27;s phone number or email address appears anywhere on it</strong>.</p>
+<p>A patient&#x27;s phone is masked on every therapist surface and their email is not loaded there at all. The real number comes one session at a time and is logged (<code>TH-17</code>). <strong>A plain number or an address on this screen is a P0</strong>: this is the control that keeps treatment being paid for through the platform.</p>
+<h3><code>TH-08</code> - Back to the public site, and the way out · P3</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Find <strong>Back to Home</strong> in the sidebar</td><td>Present in all three renders: expanded, collapsed rail, and the mobile drawer</td></tr><tr><td>Tap it</td><td>The public home page, still signed in</td></tr><tr><td>Press the browser Back button</td><td>Back on the dashboard, not signed out</td></tr><tr><td>Use the header <strong>Refresh</strong> button</td><td>The screen re-runs; the button is disabled while it does</td></tr></tbody></table>
+<p>Without an explicit link the only exit from a dashboard is Log Out, which also ends the session. <strong>A dashboard with no way back to the site is a P2.</strong></p>
+<hr>
+<h2>4. The roster</h2>
+<p>Availability is three separate things and must read as three: a <strong>weekly schedule</strong> (what you normally work), <strong>exceptions</strong> (a date that differs), and <strong>time off</strong> (off the roster entirely). Nothing here books, moves or cancels an appointment.</p>
+<h3><code>TH-09</code> - The weekly schedule, as periods not cells · P1</h3>
+<p><strong>Do this</strong></p>
+<ol><li>Open <strong>Set your availability</strong>.</li><li>Set Monday to Friday, <strong>9:00 AM - 1:00 PM</strong> and <strong>2:00 PM - 6:00 PM</strong>.</li><li>Save.</li><li>Reload the page.</li><li>Add Saturday <strong>10:00 AM - 1:00 PM</strong> and save.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>You are editing <strong>working periods</strong>, not an eighteen-column grid of hourly cells. Nobody edits an hour.</li><li>Step 3 confirms with a sentence naming what was saved.</li><li>Step 4: everything reads back exactly as entered. A period that comes back an hour short or an hour long is a <strong>P1</strong> - the periods are converted to hour rows underneath, and that conversion has to round-trip.</li><li>An end time before its start is refused.</li><li>Overlapping periods on one day are refused or merged, and whichever it does, it says so.</li></ul>
+<h3><code>TH-10</code> - A stale save, and a double-clicked one · P1</h3>
+<p>This is a compare-and-swap under a real row lock, and the two failure modes are deliberately different.</p>
+<p><strong>Do this</strong></p>
+<ol><li>Open the availability screen in <strong>two tabs</strong> of the therapist&#x27;s browser.</li><li>In tab 1, change Monday to <code>10:00 AM - 4:00 PM</code> and save.</li><li>In tab 2 - which still holds the old version - change Monday to <code>8:00 AM - 12:00 PM</code> and save.</li><li>Now reload both tabs. In one, <strong>double-click Save</strong> without changing anything.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 3 is <strong>refused with a 409</strong> and a sentence telling you the schedule moved underneath you. It does not silently overwrite tab 1&#x27;s work.</li><li>Step 4 is a <strong>no-op success</strong>, not an error and not two saves. Two identical requests carrying the same version are one logical change.</li><li><strong>Never a silent overwrite.</strong> If tab 2&#x27;s save lands and tab 1&#x27;s work vanishes without a word, that is a <strong>P0</strong> for a clinic that rosters from two screens.</li></ul>
+<h3><code>TH-11</code> - A therapist reads exceptions, and cannot write one · P0</h3>
+<p><strong>Do this.</strong> Look for a control that sets a <strong>date exception</strong> - a single date whose hours differ from the weekly pattern.</p>
+<p><strong>Expect.</strong> There is <strong>none</strong> on the therapist&#x27;s own screen. They can see an exception an admin has set; they cannot create one. Widening that is a product decision, not a screen&#x27;s.</p>
+<p>Now prove the route agrees. In the console, as Therapist A:</p>
+<pre><code>const routes = [
+  &quot;/api/admin/set-availability-exception&quot;,
+  &quot;/api/admin/save-therapist-availability&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on both.</strong> A 200 or a 400 that suggests it merely wanted better arguments is a <strong>P0</strong>.</p>
+<h3><code>TH-12</code> - Time off does not clear the schedule · P1</h3>
+<p><strong>Do this</strong></p>
+<ol><li>Turn <strong>time off</strong> on.</li><li>Look at the weekly schedule.</li><li>Turn it back off.</li><li>Look again.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>The weekly schedule is <strong>untouched</strong> throughout. Leave takes somebody off the roster; it does not delete what they normally work, because there would then be nothing to restore on the way back. <strong>A schedule emptied by turning leave on is a P1</strong>, and it is not recoverable by turning it off again.</li><li>Step 3 restores them to exactly the pattern from <code>TH-09</code>.</li></ul>
+<h3><code>TH-13</code> - Removing hours a session is booked into · P1</h3>
+<p><strong>Do this.</strong> With a confirmed session already in the diary (from <code>TH-15</code>), remove the working period that contains it, and save.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The save <strong>names who is affected</strong> and says the session <strong>stays as booked</strong>.</li><li>Nothing is cancelled, moved or flagged. The two systems are separate and <strong>the booking wins</strong>.</li><li>Reload and check the patient&#x27;s own screen: their session is exactly where it was, at the same time, with the same link.</li><li><strong>A roster edit that moves or cancels an appointment is a P0.</strong></li></ul>
+<h3><code>TH-14</code> - The roster does not filter the patient&#x27;s booking picker · P1</h3>
+<p><strong>Do this.</strong> With Therapist A rostered <strong>9 AM - 6 PM only</strong>, open <code>/book</code> as a patient and look at the hours offered for tomorrow.</p>
+<p><strong>Expect.</strong> The picker offers the clinic&#x27;s ordinary bookable hours, <strong>not</strong> only the hours Therapist A works. The roster is the clinic&#x27;s planning record - who can be <em>offered</em> a session - and it deliberately does not narrow what a patient may choose. Only the 12-hour lead time does that.</p>
+<p>This looks wrong the first time you see it and is correct. <strong>A picker that has started following the roster is a P1</strong>, because it is a product change nobody asked for and it silently shrinks the bookable week.</p>
+<hr>
+<h2>5. Sessions: the clinician&#x27;s half</h2>
+<p>Part of this overlaps with the patient&#x27;s plan on purpose - the same session, from the other side. Where a step says <em>check the patient&#x27;s screen</em>, use a second browser profile.</p>
+<h3><code>TH-15</code> - A session arrives · P1</h3>
+<p><strong>As the admin</strong>, assign Patient A&#x27;s paid session to Therapist A.</p>
+<p><strong>Then as Therapist A</strong>, open <strong>Your assigned sessions</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The session is listed with the patient&#x27;s name, the condition, the date and time <strong>in clinic time</strong>, and a meeting link for a video session.</li><li>The <strong>Upcoming</strong> figure on the Overview has moved by one.</li><li>The patient&#x27;s <strong>phone is masked</strong> on this row and their <strong>email is absent</strong>.</li><li>It is <strong>one list</strong> with filters - Upcoming / Past / Cancelled, and a Video / Home visit filter that only appears once this therapist has both. Two separate sidebar entries for video sessions and home visits would be the same rows listed twice: <strong>P2</strong>.</li></ul>
+<h3><code>TH-16</code> - The join window, and what the button says outside it · P1</h3>
+<table><thead><tr><th>When</th><th>The control should read</th></tr></thead><tbody><tr><td>More than the join window before the slot</td><td>Not yet joinable, and it says when</td></tr><tr><td>Inside the join window</td><td><strong>Tap to Join</strong>, opening the meeting</td></tr><tr><td>After the Session Completed cutoff</td><td><strong>Session Completed</strong></td></tr></tbody></table>
+<p><strong>Expect</strong></p>
+<ul><li>The cutoff is an admin setting in minutes after the slot time, and it reads <strong>the same way on every screen a session appears on</strong> - the therapist&#x27;s, the patient&#x27;s and the admin&#x27;s. A session an hour past its start that still says &quot;Tap to Join&quot; on one screen and &quot;Session Completed&quot; on another is a <strong>P1</strong>.</li><li>A <strong>home visit</strong> has no meeting link at all, by design. There is nothing to join - the therapist is going to the address. <strong>A home visit showing a broken or missing-link error is a P2</strong>, and one showing a Meet link is a <strong>P1</strong>.</li></ul>
+<h3><code>TH-17</code> - Reveal a patient&#x27;s phone, and leave a trace · P0</h3>
+<p><strong>Do this</strong></p>
+<ol><li>On an upcoming <strong>video</strong> session, well before its join window, look for the control that reveals the patient&#x27;s phone number.</li><li>Wait until inside the join window and use it.</li><li>On a <strong>home visit</strong>, use it on the visit&#x27;s own day.</li><li>On a <strong>cancelled</strong> session, try.</li><li><strong>As the admin</strong>, open the contact reveal log.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 1: refused, or the control is absent. Outside the window there is no reason to have it.</li><li>Step 2: the <strong>full number</strong> appears, once, for that session.</li><li>Step 3: allowed at any time on the day of the visit - a therapist driving to somebody&#x27;s house needs to be able to ring them.</li><li>Step 4: <strong>refused</strong>. A cancelled session is not a reason to reach anybody.</li><li>Step 5: <strong>every</strong> reveal above is in the log, with who, which patient and when. The log is admin-read-only and append-only.</li><li><strong>A reveal that is not recorded is a P0.</strong> This one route refuses rather than proceeding if it cannot write its own trace - which is the opposite of how the audit log behaves, and deliberate.</li></ul>
+<h3><code>TH-18</code> - Completing a session, and the two refusals · P0</h3>
+<p>Completing is a financial write with a clinical name: <code>completed</code> <strong>and</strong> <code>paid</code> is the exact condition that makes the therapist&#x27;s share payable.</p>
+<p><strong>Do this</strong></p>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Complete a session <strong>before</strong> its join window has opened</td><td><strong>Refused.</strong> A therapist could otherwise be owed for a session that had not started</td></tr><tr><td>Complete a session with <strong>no payment</strong> behind it</td><td><strong>Refused</strong></td></tr><tr><td>Complete a <strong>cash home visit</strong> before recording the cash</td><td><strong>Refused.</strong> Collect first, which is the right order anyway</td></tr><tr><td>Complete a paid, in-window session</td><td>Succeeds, and <strong>Notes to write</strong> goes up by one</td></tr></tbody></table>
+<p><strong>Then the admin&#x27;s override.</strong> As the Master Admin, complete a session that the therapist was just refused - a backfill or a correction is exactly what that lane is for.</p>
+<p><strong>Expect.</strong> It works. An admin is subject to neither gate.</p>
+<p><strong>And the desk that may not.</strong> Sign in as the <strong>Finance</strong> admin and try the same thing.</p>
+<p><strong>Expect. Refused.</strong> Finance reads Sessions and cannot change one: the whole point is that the person reconciling the books cannot close the session that creates the payout obligation. <strong>Finance completing a session is a P0.</strong> The two buttons should not render for them either - a control an admin&#x27;s scope cannot call must not be on screen.</p>
+<h3><code>TH-19</code> - The session note, and the 24-hour window · P1</h3>
+<p><strong>Do this</strong></p>
+<ol><li>On the completed session, open the note dialog.</li><li>Fill in what was treated, how the patient responded, the home exercise and the plan for next time.</li><li>Save.</li><li>Edit it, and save again.</li><li><strong>As Patient A</strong>, look everywhere for that note - the session card, the health profile, the PDF export.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>The note saves, and the <strong>Notes to write</strong> figure falls by one.</li><li>Step 4 is allowed <strong>inside 24 hours</strong> of the session, and what it replaced is kept as a revision. Past the window, editing is refused.</li><li>Step 5: <strong>the patient can see none of it, anywhere.</strong> These are working notes written in the register clinicians use with each other, and they are excluded from the patient&#x27;s data export and printable profile on purpose. <strong>A session note reaching a patient on any surface is a P0.</strong></li><li>Completion was never blocked on writing one. The nudge is a feed item and the Overview figure, not a gate.</li></ul>
+<h3><code>TH-20</code> - The contact scanner: what is refused and what is recorded · P0</h3>
+<p>Every string one role writes and another reads is scanned. There are two tiers, because a scanner that treats digits as suspicious fires on every dose and every exercise prescription.</p>
+<p><strong>Do this.</strong> In a session note or a suggestion note, try each of these in turn:</p>
+<table><thead><tr><th>Type this</th><th>Expect</th></tr></thead><tbody><tr><td><code>Pay me directly at qatherapist@okaxis</code></td><td><strong>Refused.</strong> The write does not land. A payment handle is a block-tier hit</td></tr><tr><td><code>https://razorpay.me/@qatherapist</code></td><td><strong>Refused.</strong> A payment link is the same tier</td></tr><tr><td><code>Call me on 9876543210</code></td><td><strong>Delivered, and recorded.</strong> A phone number is flag tier</td></tr><tr><td><code>Reach me at qa.therapist.a@gmail.com</code></td><td><strong>Delivered, and recorded</strong></td></tr><tr><td><code>3 sets of 12, twice daily, 10 second holds</code></td><td><strong>Delivered, and nothing recorded.</strong> Clinical text full of numbers is left alone</td></tr><tr><td><code>Order ref 4455667788</code></td><td><strong>Delivered, and nothing recorded.</strong> Phone matching is the Indian mobile shape, not a loose digit run</td></tr></tbody></table>
+<p><strong>Then as the admin</strong>, open the flagged-messages panel.</p>
+<p><strong>Expect</strong> the two flag-tier writes are there with the text quoted, and the two block-tier attempts are visible as refusals. That panel is <strong>Master-Admin-only</strong> - it quotes what a colleague wrote.</p>
+<p><strong>A payment handle that lands is a P0.</strong> So is a clinical instruction that is refused: a check that cries wolf is a check nobody reads, and this one runs over medical text.</p>
+<hr>
+<h2>6. The patient&#x27;s clinical record</h2>
+<h3><code>TH-21</code> - Triage a patient, and write the first record · P1</h3>
+<p>A patient&#x27;s health record does not exist until a therapist triages them. This needs only that the therapist is <strong>assigned</strong>, and it writes <strong>live</strong> with no review step - because the approval queue cannot sit in front of the first record ever existing, and the patient is locked out of their own health profile until it lands.</p>
+<p><strong>Do this</strong></p>
+<ol><li>Open <strong>Patient health profiles</strong> and pick Patient A.</li><li>Open the triage dialog and answer its four questions.</li><li>Read the suggested condition type <strong>and its stated reason</strong>.</li><li>Accept it, and fill the seven questions that follow.</li><li>Submit.</li><li><strong>As Patient A</strong>, open the health profile.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 3: the suggestion is a <strong>suggestion</strong>, with the reason shown, and is never auto-accepted. You can override it.</li><li>The therapist&#x27;s dialog shows <strong>everything at once with headings</strong> - a clinician filling this in after every assignment wants to scan it. The patient&#x27;s version paces it one question at a time; that difference is deliberate and both are correct.</li><li>Step 5 goes <strong>live immediately</strong>. No queue.</li><li>Step 6: the patient&#x27;s record now exists and <strong>they can now edit it</strong>. Before this step they were read-only, with the call to action and the answered counter <strong>absent</strong> rather than greyed out.</li><li>The onboarding is recorded in the ordinary <strong>Review History</strong> as an already-approved entry. Live is not unrecorded.</li></ul>
+<h3><code>TH-22</code> - Submitting the same thing twice writes nothing · P1</h3>
+<p><strong>Do this.</strong> Submit the identical intake again, unchanged. Then <strong>tap submit ten times in a row</strong> on an unchanged form.</p>
+<p><strong>Expect</strong></p>
+<ul><li><strong>Nothing at all is written</strong> - no record update, no history entry. The test is whether the request changed anything clinical, not who got there first.</li><li>Ten taps produce <strong>zero</strong> new history entries, not ten and not two. Two is the answer a naive fix gives, because the route has an insert path and an update path and a burst splits across both; both callers then believe they were first. <strong>Two entries here is a P1.</strong></li><li>Change one answer and resubmit: <strong>one</strong> entry, correctly.</li></ul>
+<h3><code>TH-23</code> - Re-triage keeps the previous record · P0</h3>
+<p><strong>Do this.</strong> Re-triage Patient A to a <strong>different</strong> condition type - neurological if they were orthopaedic - and fill the new set.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The new record renders with the new type&#x27;s questions, summary card, snapshot figures and progress line.</li><li><strong>The previous specialty&#x27;s answers are still there</strong>, hidden rather than deleted. Re-triage merges; it does not replace.</li><li><strong>A re-triage that wipes the orthopaedic record is a P0</strong> - it is a patient&#x27;s clinical history deleted by a dropdown.</li><li>The &quot;we&#x27;ve changed some of these questions&quot; banner does <strong>not</strong> fire at every patient just because one type&#x27;s questions were versioned.</li></ul>
+<h3><code>TH-24</code> - The Pain Map is orthopaedic, and stays one · P1</h3>
+<p><strong>Do this</strong></p>
+<ol><li>On an <strong>orthopaedic</strong> patient, open the body map.</li><li>Tap a region on the figure and record an exam through the dialog.</li><li>Record a second exam on the same region.</li><li>Now open a <strong>neurological</strong> or <strong>paediatric</strong> patient&#x27;s profile.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 1: front and back <strong>stack on a phone</strong> rather than shrinking each tap target below a fingertip.</li><li>Step 2: the region is chosen by <strong>tapping the figure</strong> or a chip, never a dropdown, and it stays in the dialog header while you type. Questions are <strong>grouped</strong>, not listed flat.</li><li>It posts <strong>live</strong>, with no review step.</li><li>Step 3: a re-assessment is a <strong>new row</strong>, never an edit, so the screen can show a trend against the previous visit.</li><li>Step 4: there is <strong>no body map at all</strong> - not a hidden one, not an empty one. The other two exam layers are deliberately deferred.</li><li>Every pain figure on screen reads <strong>out of ten</strong>, whatever is stored. A percentage sitting beside an out-of-ten figure in the same strip reads as two different measurements: <strong>P2</strong>.</li></ul>
+<h3><code>TH-25</code> - Read access is automatic; edit access is asked for · P0</h3>
+<p><strong>Do this</strong></p>
+<ol><li>As Therapist A, read Patient A&#x27;s health profile and Pain Map.</li><li>Try to <strong>edit</strong> the live intake record on the patient&#x27;s behalf.</li><li>Find the &quot;Request access to edit&quot; card.</li><li>Request it, and have the admin approve it.</li><li>Edit, and submit.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 1 needs <strong>no request</strong>: reading their assigned patient&#x27;s record is automatic.</li><li>Step 2 is refused until Step 4. The line is <strong>create versus edit</strong>: writing down what a patient told you in a session you ran is your own clinical record; editing their live record is editing their own account of their history.</li><li>Step 3: the request card is <strong>inside the Pain Map card</strong> - beside the thing it unlocks - and states what is readable regardless and what needs approval. A gate three sections above what it gates is a <strong>P2</strong>.</li><li>Step 5 goes through <strong>review</strong>, not live.</li></ul>
+<h3><code>TH-26</code> - A therapist cannot reach a patient who is not theirs · P0</h3>
+<p><strong>As Therapist B</strong>, who has never been assigned to Patient A:</p>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Open <strong>My Patients</strong></td><td>Patient A is <strong>not</strong> listed</td></tr><tr><td>Open Patient A&#x27;s health profile by URL</td><td>Refused, and <strong>no clinical data renders</strong></td></tr><tr><td>Open Patient A&#x27;s Pain Map by URL</td><td>The same</td></tr><tr><td>Call <code>/api/therapist/pain-assessments</code> for Patient A in the console</td><td>Refused</td></tr></tbody></table>
+<p><strong>A path by which an unassigned clinician reads a patient&#x27;s record is a P0 that stops the run.</strong></p>
+<hr>
+<h2>7. My Patients, and the two ways to look at it</h2>
+<h3><code>TH-27</code> - One set of rows, two arrangements · P2</h3>
+<p><strong>Do this</strong></p>
+<ol><li>As Therapist A, open <strong>My Patients</strong>.</li><li>Find the <strong>Patients / Programmes</strong> toggle and switch between them.</li><li>Sign in as <strong>Therapist B</strong>, who has no programme patients, and look again.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>The toggle renders the <strong>same</strong> cards arranged differently, not two different lists. A session in one view and not the other is a <strong>P1</strong>.</li><li>Step 3: the toggle is <strong>absent</strong> for Therapist B rather than showing an empty panel. A screen that can only ever be empty is not offered.</li><li>Patient A&#x27;s <strong>phone is masked</strong> and their <strong>email is not shown at all</strong>, on every card and every detail panel.</li></ul>
+<hr>
+<h2>8. Recommending treatment</h2>
+<p>A therapist recommends; the clinic prices. This is the only route by which a patient buys a programme.</p>
+<h3><code>TH-28</code> - Write a care plan from the session note · P1</h3>
+<p><strong>Do this</strong></p>
+<ol><li>On the <strong>completed</strong> session from <code>TH-18</code>, open the care plan control.</li><li>Answer the two questions: <strong>which condition</strong>, and <strong>how many sessions</strong>.</li><li>Fill the four clinical fields: hands-on required, frequency per week, the clinical rationale, and the instructions.</li><li>Submit.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li><strong>There is no price field. No session-count field you type. No discount field.</strong> The two answers select exactly one admin-configured package, and everything money comes from that row. <strong>A price input anywhere on this form is a P0</strong> - it is not a policy anybody enforces here, it is a thing the schema cannot express.</li><li>The programmes offered are <strong>narrowed to the chosen session&#x27;s own condition</strong>. A programme for a different condition appearing in this list is a <strong>P1</strong>.</li><li>The four clinical fields are yours; the rest is the clinic&#x27;s.</li></ul>
+<h3><code>TH-29</code> - It needs a completed session you ran · P0</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Write a plan against a session that is <strong>not completed</strong></td><td>Refused</td></tr><tr><td>Write one against a session <strong>another therapist</strong> ran</td><td>Refused</td></tr><tr><td>Write one with no source session at all</td><td>Refused - the route re-derives the appointment rather than trusting what is sent</td></tr></tbody></table>
+<p>This is what makes &quot;recommend to everyone and see who bites&quot; impossible rather than merely discouraged. <strong>Any of these landing is a P0.</strong></p>
+<h3><code>TH-30</code> - The clinic approves it before the patient sees it · P1</h3>
+<p>With <strong>Recommendations require approval</strong> on (the default):</p>
+<p><strong>Do this</strong></p>
+<ol><li>Submit a recommendation.</li><li><strong>As Patient A</strong>, look at Suggested Sessions and the Health Profile.</li><li>In the console <strong>as Patient A</strong>, try to create an order against that plan.</li><li><strong>As the admin</strong>, open <strong>Sessions → Recommendations</strong> and approve it.</li><li>As Patient A, look again.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 2: <strong>nothing.</strong> Not a greyed-out card, not a &quot;pending&quot; chip - the plan is absent from the patient&#x27;s screens entirely.</li><li>Step 3 is <strong>refused</strong>. Hiding a card is presentation; refusing the order is the rule. <strong>A patient who can pay for an unapproved recommendation is a P0.</strong></li><li>Step 4: the queue is <strong>oldest first</strong>, aged in words rather than dated, and each card states <strong>how many sessions that patient already has unused</strong> - the commonest reason to turn one down.</li><li>Step 5: now it is there, with the offer window counting from <strong>approval</strong>, not from when you wrote it. A plan that waited two days must not reach the patient with two days already spent.</li></ul>
+<h3><code>TH-31</code> - Rejected, and rewritten · P1</h3>
+<p><strong>Do this.</strong> Have the admin turn a recommendation down with the reason:</p>
+<pre><code>Patient still has four sessions unused on the current programme.</code></pre>
+<p><strong>Then as Therapist A</strong>, look at the Overview and at Patient A&#x27;s chart.</p>
+<p><strong>Expect</strong></p>
+<ul><li>It is a <strong>needs-you feed item carrying the reason</strong>, and it is <strong>also on the patient&#x27;s chart beside the thread</strong>. Both, because the feed scrolls away and the chart is where a clinician goes to rewrite.</li><li>The reason is the actionable half. &quot;Not approved&quot; says it is gone; only the reason says what to write instead. <strong>A rejection with no reason reaching the therapist is a P1.</strong></li><li>You rewrite it. The admin does not edit your judgement from the back office.</li></ul>
+<h3><code>TH-32</code> - Approved with different numbers · P1</h3>
+<p>Have the admin approve one <strong>with changes</strong> - a different package.</p>
+<p><strong>Expect</strong></p>
+<ul><li>A <strong>new version</strong> appears in the thread, attributed to <strong>you</strong> as the clinician, and recorded as <strong>entered by the admin</strong>. Your original is still there, superseded.</li><li><strong>Your version is not rewritten.</strong> Versions are append-only; an edit under a clinician&#x27;s name would be a lie about who decided what, and the database refuses it anyway. <strong>Your original disappearing is a P0.</strong></li></ul>
+<h3><code>TH-33</code> - A purchased plan is closed · P1</h3>
+<p><strong>Do this.</strong> After Patient A has <strong>paid</strong> for the programme, try to write a new version on that same thread.</p>
+<p><strong>Expect.</strong> Refused - and a later recommendation opens a <strong>new</strong> thread rather than re-versioning the purchased one. Editing a purchased plan would change the description of something already paid for.</p>
+<p>Also: at most <strong>one open plan per patient</strong>. Try to submit a second while one is pending or active.</p>
+<p><strong>Expect.</strong> Refused. A patient must never see two competing recommendations.</p>
+<hr>
+<h2>9. Proposing the next session</h2>
+<p>A therapist may <strong>suggest</strong> a time on a programme locked to them. They cannot book it - the patient does that.</p>
+<h3><code>TH-34</code> - Suggest a time · P1</h3>
+<p><strong>Do this</strong></p>
+<ol><li>Confirm <strong>Therapist-Suggested Sessions</strong> is on.</li><li>Open Patient A&#x27;s programme and use the suggest control.</li><li>Pick a date and hour at least a couple of days out, with the note:</li></ol>
+<pre><code>Let&#x27;s keep to Tuesdays while the pain settles.</code></pre>
+<ol><li>Submit. Then try a <strong>second</strong> suggestion on the same programme.</li><li><strong>Double-tap</strong> submit on a fresh one.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>The control offers the <strong>same compact calendar and hour chips</strong> the patient sees, obeying the same lead time. A raw date box beside an hour dropdown could offer a time the patient&#x27;s own screen would then refuse: <strong>P1</strong>.</li><li>A time like <code>6:52</code> cannot be produced at all. Slots start on the hour.</li><li>Step 4 is <strong>refused</strong>: at most one pending suggestion per programme, and it is the database that enforces it, not a check the screen does first.</li><li>Step 5 produces <strong>exactly one</strong>, not two.</li><li><strong>No slot is held.</strong> Nothing is reserved, and your calendar is re-checked when the patient answers.</li></ul>
+<h3><code>TH-35</code> - The patient answers · P1</h3>
+<p><strong>As Patient A</strong>, open <strong>Suggested Sessions</strong>.</p>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Read it</td><td>The proposed time and your note, with <strong>Accept</strong> and <strong>Decline</strong></td></tr><tr><td><strong>Accept</strong></td><td>It is booked, <strong>auto-assigned to Therapist A and confirmed</strong>, with its own meeting link, because the programme is locked to you. The balance falls by one <strong>now</strong>, not before</td></tr><tr><td><strong>Decline</strong> another</td><td>Nothing is spent</td></tr><tr><td>Let one run inside the 12-hour lead time</td><td>It simply <strong>stops being acceptable</strong>. Nothing anywhere writes it as &quot;expired&quot; - the state is worked out when it is read</td></tr><tr><td>Answer one from <strong>two browsers at once</strong></td><td>One wins, the other is told so. Not two bookings</td></tr><tr><td>Accept with the network dropped mid-request</td><td>The patient is left <strong>exactly where they were</strong>, suggestion still on screen, not cleared into a state that never happened</td></tr></tbody></table>
+<p><strong>A suggestion that spends a session before it is accepted is a P1</strong> - a decline would then have to refund one.</p>
+<h3><code>TH-36</code> - Withdraw one, and switch the feature off · P2</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Withdraw a pending suggestion</td><td>It is gone from the patient&#x27;s screen, and nothing was spent</td></tr><tr><td>Have the admin switch the feature <strong>off</strong>, then reload</td><td>The suggest control is <strong>gone</strong> from your screen</td></tr><tr><td>Call <code>/api/therapist/suggest-session</code> in the console while it is off</td><td><strong>Refused.</strong> A hidden control is not the rule</td></tr></tbody></table>
+<p>Switch it back on before continuing.</p>
+<hr>
+<h2>10. Home visits, from the therapist&#x27;s side</h2>
+<h3><code>TH-37</code> - A home visit is a different job · P1</h3>
+<p><strong>Do this.</strong> With a confirmed home visit assigned to Therapist A, open it.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The <strong>street address and any access notes</strong> are on the session and on the calendar invite. That invite is the only outbound message this platform sends - <strong>a home visit whose invite carries a Meet link and no address is a P0</strong>, because the therapist is handed a video call instead of somewhere to drive to.</li><li>There is <strong>no meeting link</strong>, and the absence is not reported as a failure anywhere.</li><li>The address is the one <strong>snapshotted at booking</strong>. Change the patient&#x27;s saved address afterwards and this visit does not move.</li></ul>
+<h3><code>TH-38</code> - Recording cash, and who owns the number · P0</h3>
+<p><strong>Do this</strong></p>
+<ol><li>On a cash-on-visit home visit, record the collection.</li><li>Look for a field where you type the <strong>amount</strong>.</li><li>In the console, try to send your own figure:</li></ol>
+<pre><code>const r = await fetch(&quot;/api/therapist/record-cash-collection&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ appointmentId: &quot;PASTE_THE_ID&quot;, amountPaise: 100 }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect</strong></p>
+<ul><li>Step 2: <strong>there is no amount field.</strong> The therapist asserts that money changed hands; the system owns the number, reconstructed from the purchase.</li><li>Step 3: the <code>amountPaise</code> is <strong>ignored</strong>, and the recorded figure is the real one. It is not a ₹1 collection. <strong>An accepted client-sent amount is a P0</strong> - that figure nets straight off what the therapist owes the clinic, so it would be a one-field withdrawal.</li><li>The correction lane belongs to somebody <strong>not holding the money</strong>: an admin, on Money, with a mandatory reason and an audit row. Confirm the therapist has no such control.</li></ul>
+<h3><code>TH-39</code> - Cash shows up as owed back · P1</h3>
+<p><strong>As Therapist A</strong>, open <strong>Earnings</strong>.</p>
+<p><strong>Expect.</strong> Cash collected and not yet remitted is shown as <strong>owed back to the clinic</strong>, and the screen says it will be netted off the next payout. It is real exposure, not a note.</p>
+<hr>
+<h2>11. Earnings, and asking to be paid</h2>
+<h3><code>TH-40</code> - What the figure counts, and what it does not · P0</h3>
+<p><strong>Expect</strong></p>
+<ul><li>The sidebar word is <strong>Earnings</strong> - the same word the hospital&#x27;s sidebar uses. Money owed <em>to</em> somebody is Earnings. A third word for the same thing is a <strong>P2</strong>.</li><li>It counts <strong>completed and paid</strong> sessions only. A session paid for and not yet delivered contributes <strong>nothing</strong>: a therapist is paid for delivering, not for being booked. <strong>A booked-but-undelivered session in this figure is a P0</strong> - it deducts a share nobody will ever be paid and understates the clinic&#x27;s take.</li><li>A <strong>forfeited late cancellation</strong> - paid, never delivered - contributes <strong>nothing</strong>.</li><li>A <strong>home visit</strong> contributes at the home-visit rate (65%) with the <strong>travel fee in full</strong> on top. Travel is a pass-through reimbursement, never discounted and never revenue. <strong>Travel split at the revenue share is a P0</strong> - the therapist would be funding their own transport.</li></ul>
+<h3><code>TH-41</code> - Request a payout, and watch the state · P1</h3>
+<table><thead><tr><th>Stage</th><th>Overview&#x27;s <strong>Owed to you</strong> should read</th></tr></thead><tbody><tr><td>Before requesting</td><td><code>Not yet requested</code></td></tr><tr><td>After requesting</td><td><code>Payout request under review</code></td></tr><tr><td>After the admin settles it</td><td><code>Payout request sent</code></td></tr></tbody></table>
+<p><strong>Then try to request twice</strong> without an admin acting in between.</p>
+<p><strong>Expect.</strong> Refused, or a no-op. <strong>Two open requests for one balance is a P1</strong> - somebody will pay both.</p>
+<h3><code>TH-42</code> - The settlement, and what it nets off · P0</h3>
+<p><strong>As the admin</strong>, settle Therapist A&#x27;s payout.</p>
+<p><strong>Then as Therapist A</strong>, check Earnings.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The transfer is the earned figure <strong>minus the cash they are holding</strong>, and exactly those visits are now marked remitted.</li><li><strong>Check the next payout does not deduct the same cash again.</strong> It is the commonest arithmetic bug in a netting model, and it asks somebody to chase money already recovered: <strong>P0</strong>.</li><li>If the cash held <strong>exceeds</strong> what is owed, the transfer floors at <strong>zero</strong>, the difference stays as still-owed-to-the-clinic, and those collections stay open on the admin&#x27;s cash ledger for a person to chase. It does not go negative.</li></ul>
+<hr>
+<h2>12. Edit Profile: the line between a detail and a credential</h2>
+<h3><code>TH-43</code> - What saves instantly · P2</h3>
+<p><strong>Do this</strong></p>
+<ol><li>Open <strong>Edit Profile</strong>.</li><li>Under <strong>Public Details</strong>, set:</li></ol>
+<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody><tr><td>Short Bio</td><td><code>Works with desk-based patients on posture-driven back pain.</code></td></tr><tr><td>Languages Spoken</td><td><code>English, Kannada, Hindi</code></td></tr></tbody></table>
+<ol><li><strong>Save</strong>, then reload.</li></ol>
+<p><strong>Expect.</strong> Both survive the reload, and <strong>no admin ever saw them</strong>. A bio is the therapist&#x27;s own.</p>
+<h3><code>TH-44</code> - What the clinic approves · P1</h3>
+<p><strong>Do this</strong></p>
+<ol><li>Under <strong>Credentials &amp; Specialization</strong>, set <strong>Years of Experience</strong> to <code>15</code> and <strong>Specialist In</strong> to <code>Spine, hip and knee rehabilitation</code>.</li><li>Tap <strong>Request Changes</strong>.</li><li>Read the two fields you just changed.</li><li>Tap <strong>Withdraw</strong> beside <strong>Specialist In</strong>.</li><li>Request it again and leave it pending.</li><li><strong>As the admin</strong>, open <strong>Today → Approvals</strong> and decline both with:</li></ol>
+<pre><code>Send the council registration number first.</code></pre>
+<ol><li>Back as the therapist, reopen <strong>Edit Profile</strong>.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 5: <code>Your request has been submitted for admin review.</code></li><li>Step 6: each requested field is replaced by its <strong>new</strong> value on a slate panel with an amber <strong>Pending Review</strong> chip and a <strong>Withdraw</strong> link, and <strong>cannot be edited again</strong> until it is decided.</li><li><strong>The live profile still shows the old value.</strong> Check <code>/team</code> and the patient&#x27;s view of their therapist - neither may change yet. <strong>A credential that goes live before approval is a P1</strong>: these are what a patient relies on when choosing somebody.</li><li>Step 7: Withdraw returns the field to an editable input immediately, holding the <strong>old</strong> value.</li><li>Step 10: editable again, carrying <code>Last request declined: Send the council registration number first.</code> in red. Nothing on the public profile ever changed.</li><li>The note under those fields reads <code>Changes to these fields need admin approval before they take effect.</code></li></ul>
+<h3><code>TH-45</code> - Photo, password, and visibility · P2</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Upload a profile photo</td><td>Saves on the spot, no review, and appears on <code>/team</code></td></tr><tr><td><strong>Account Security → Send password reset email</strong></td><td>The reset is sent and the screen says so. <strong>No password is ever typed or shown on this screen</strong></td></tr><tr><td>Have the admin hide you from <code>/team</code></td><td>You come off the public page; your dashboard is unchanged</td></tr><tr><td>Have the admin <strong>suspend</strong> you</td><td>You come off <code>/team</code> <strong>immediately</strong> - not five minutes later when a cache lapses. <strong>P2</strong> if the page still lists a suspended clinician</td></tr></tbody></table>
+<hr>
+<h2>13. What a therapist must never be able to do</h2>
+<h3><code>TH-46</code> - The wrong dashboards · P0</h3>
+<p>Each signed in as Therapist A:</p>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Open <code>/admin/dashboard</code></td><td>Redirected to <strong>`/get-started`</strong> - never to <code>/admin/login</code>, which would confirm the back office exists and name its door</td></tr><tr><td>Open <code>/patient/dashboard</code></td><td>Bounced. One account carries one role</td></tr><tr><td>Open <code>/hospital/dashboard</code></td><td>Bounced</td></tr><tr><td>Open <code>/book</code></td><td>The <strong>wrong-account panel</strong>, telling a clinician wanting therapy to sign out and use a separate patient account - not a booking form, and not a bare error</td></tr><tr><td>Open <code>/book-home-visit</code></td><td>The same panel</td></tr></tbody></table>
+<p><strong>A therapist who can complete a booking is a P0</strong>: that session would be invisible to every dashboard afterwards, and money would have moved.</p>
+<h3><code>TH-47</code> - The route sweep · P0</h3>
+<p>In the console, as Therapist A:</p>
+<pre><code>const routes = [
+  &quot;/api/admin/approve-account&quot;,
+  &quot;/api/admin/settle-therapist-payout&quot;,
+  &quot;/api/admin/save-therapist-availability&quot;,
+  &quot;/api/admin/set-availability-exception&quot;,
+  &quot;/api/admin/create-booking&quot;,
+  &quot;/api/admin/refund-session-partial&quot;,
+  &quot;/api/admin/grant-session-credits&quot;,
+  &quot;/api/admin/apply-goodwill-discount&quot;,
+  &quot;/api/admin/clear-activity-log&quot;,
+  &quot;/api/admin/start-impersonation&quot;,
+  &quot;/api/patient/condition-profile/export&quot;,
+  &quot;/api/hospital/withdraw-referral&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on every single one.</strong> Not 404, not 500, and not a 400 that reads as &quot;give me better arguments&quot; - that is a route that checked the body before it checked who was asking. <strong>Any 200 is a P0 that stops the run.</strong></p>
+<h3><code>TH-48</code> - Suspension reaches further than the screen · P0</h3>
+<p><strong>Do this</strong></p>
+<ol><li><strong>As the admin</strong>, suspend Therapist A.</li><li>In the therapist&#x27;s <strong>still-open browser</strong>, reload the dashboard.</li><li>In the same browser, run the route sweep from <code>TH-47</code> again, plus one route that is genuinely theirs:</li></ol>
+<pre><code>const r = await fetch(&quot;/api/therapist/save-availability&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: &quot;{}&quot;,
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<ol><li>Have the admin un-suspend them.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 2: bounced to the suspended screen.</li><li>Step 3: <strong>refused</strong>. A suspended account&#x27;s own routes refuse it too - the session was ended, not merely redirected away from. <strong>A suspended therapist still saving a roster or reading a patient is a P0</strong>: flipping a column without ending the session leaves them acting as themselves indefinitely.</li><li>They are off <code>/team</code> while suspended.</li><li>Step 4 restores them to exactly the visibility setting the admin had chosen, not to a default.</li></ul>
+<hr>
+<h2>14. Sign-off</h2>
+<table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Steps run</td><td>48</td></tr><tr><td>Pass</td><td></td></tr><tr><td>Fail</td><td></td></tr><tr><td>Blocked</td><td></td></tr><tr><td>N/A</td><td></td></tr><tr><td>P0 raised</td><td></td></tr><tr><td>P1 raised</td><td></td></tr></tbody></table>
+<p><strong>Confirm each of these before signing.</strong></p>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>Registered, waited, was approved, and appeared on <code>/team</code></td><td>☐</td></tr><tr><td>Roster saved as periods, round-tripped, refused a stale save, no-opped a double click</td><td>☐</td></tr><tr><td>Leave did not clear the schedule; removing hours did not move a booking</td><td>☐</td></tr><tr><td>The patient&#x27;s booking picker is <strong>not</strong> filtered by the roster</td><td>☐</td></tr><tr><td>A session joined in its window, completed only when paid and in-window, and refused to Finance</td><td>☐</td></tr><tr><td>A contact revealed inside the window only, and every reveal logged</td><td>☐</td></tr><tr><td>A payment handle refused, a phone number recorded, a dose left alone</td><td>☐</td></tr><tr><td>A patient triaged, the first record written live, a re-submit writing nothing</td><td>☐</td></tr><tr><td>Re-triage kept the previous specialty&#x27;s answers</td><td>☐</td></tr><tr><td>An unassigned therapist reached nothing</td><td>☐</td></tr><tr><td>A recommendation written with no price field, held until approved, rejected with a reason, rewritten</td><td>☐</td></tr><tr><td>A session suggested, accepted, declined, and never holding a slot</td><td>☐</td></tr><tr><td>Cash recorded without the therapist naming the amount</td><td>☐</td></tr><tr><td>Earnings counting delivered work only, travel in full, paid once</td><td>☐</td></tr><tr><td>Credentials held for approval while the public profile never changed</td><td>☐</td></tr><tr><td>403 on all twelve admin routes, and again after suspension</td><td>☐</td></tr></tbody></table>
+<p><strong>Signed</strong> ......................... <strong>Date</strong> .................</p>
+<p><strong>Build / commit tested</strong> .........................</p>
+<hr>
+<p><strong>What a clean run of this document proves.</strong> That a therapist&#x27;s own journey - approval, roster, sessions, clinical records, recommendations, suggestions and money - behaved on one machine, in one browser, against test payment keys, once. It does not prove the other roles&#x27; views of the same rows agree; that is each of their own documents, and the run-order document is where all four are exercised side by side.</p></body></html>

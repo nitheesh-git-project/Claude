@@ -1,0 +1,342 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Dr. Pooja&#x27;s Physio - Clinical Admin Test Plan</title><style>
+@page { size: A4; margin: 18mm 15mm 20mm 15mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "DejaVu Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #1e293b; margin: 0;
+}
+.cover { page-break-after: always; padding-top: 55mm; text-align: center; }
+.cover .rule { width: 60mm; height: 4px; background: #0f766e; margin: 0 auto 14mm; }
+.cover h1 { font-size: 26pt; line-height: 1.2; color: #0f172a; margin: 0 0 10mm; }
+.cover .sub { font-size: 12pt; color: #475569; margin-bottom: 22mm; }
+.cover dl { display: inline-block; text-align: left; font-size: 10pt; color: #334155; }
+.cover dt { font-weight: 700; color: #0f766e; margin-top: 5mm; }
+.toc { page-break-after: always; }
+.toc h2 { border: none; }
+.toc ul { columns: 2; column-gap: 12mm; font-size: 9pt; padding-left: 0; list-style: none; }
+.toc li { margin-bottom: 1.6mm; break-inside: avoid; }
+h1 { font-size: 17pt; color: #0f172a; margin: 10mm 0 3mm; page-break-after: avoid; }
+h2 {
+  font-size: 13.5pt; color: #0f172a; margin: 9mm 0 3mm;
+  padding-bottom: 1.5mm; border-bottom: 2px solid #0f766e; page-break-after: avoid;
+}
+h3 { font-size: 11.5pt; color: #0f766e; margin: 6mm 0 2mm; page-break-after: avoid; }
+h4 {
+  font-size: 10pt; color: #0f172a; margin: 5mm 0 1.5mm;
+  page-break-after: avoid; page-break-inside: avoid;
+}
+h5, h6 { font-size: 9.6pt; color: #334155; margin: 4mm 0 1.5mm; }
+p { margin: 0 0 2.4mm; }
+ul, ol { margin: 0 0 2.6mm; padding-left: 6mm; }
+li { margin-bottom: 1.1mm; }
+code {
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8.4pt;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px; padding: 0 1.2mm;
+  word-break: break-word;
+}
+pre {
+  background: #0f172a; color: #e2e8f0; padding: 3mm 4mm; border-radius: 4px;
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8pt;
+  line-height: 1.45; overflow-x: auto; white-space: pre-wrap;
+  page-break-inside: avoid; margin: 0 0 3mm;
+}
+pre code { background: none; border: none; color: inherit; padding: 0; font-size: inherit; }
+blockquote {
+  margin: 0 0 3mm; padding: 2.5mm 4mm; background: #fffbeb;
+  border-left: 3px solid #d97706; color: #78350f; font-size: 9pt;
+}
+table {
+  width: 100%; border-collapse: collapse; margin: 0 0 3.5mm;
+  font-size: 8.3pt; page-break-inside: auto;
+}
+th, td {
+  border: 1px solid #cbd5e1; padding: 1.4mm 1.8mm; text-align: left;
+  vertical-align: top; word-break: normal; overflow-wrap: anywhere;
+}
+th { background: #0f766e; color: #fff; font-weight: 700; }
+tr { page-break-inside: avoid; }
+tbody tr:nth-child(even) { background: #f8fafc; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 6mm 0; }
+a { color: #0f766e; text-decoration: none; word-break: break-all; }
+strong { color: #0f172a; }
+</style></head><body>
+<div class="cover">
+  <div class="rule"></div>
+  <h1>Dr. Pooja&#x27;s Physio - Clinical Admin Test Plan</h1>
+  <p class="sub">The clinical desk: patients, sessions and care records, and nothing financial</p>
+  <dl><dt>Role</dt><dd>Clinical Admin</dd><dt>Document version</dt><dd>1.0</dd><dt>Audience</dt><dd>A tester checking this role end to end</dd><dt>Environment</dt><dd>Throwaway Supabase project · Razorpay test mode · npm run dev</dd><dt>Read first</dt><dd>Section 1 - who this is, and what has to exist before you start</dd></dl>
+</div>
+<div class="toc">
+  <h2>Contents</h2>
+  <ul><li>1. Who this is, and what must exist first</li><li>2. Signing in, and what the screen says you are</li><li>3. Today</li><li>4. Sessions - manage</li><li>5. Recommendations - the heart of this desk</li><li>6. People, and the clinical record</li><li>7. What Clinical must never reach</li><li>8. Suspension, and the scope itself</li><li>9. Sign-off</li></ul>
+</div>
+<h2>1. Who this is, and what must exist first</h2>
+<p><strong>The desk.</strong> <strong>Clinical</strong> looks after care: the patients, the sessions they are in, the health records behind them and the recommendations a clinician has written. They see no money at all, they cannot touch the catalogue, they cannot read the activity log, and they cannot change how the product behaves.</p>
+<p><strong>What this desk opens, exactly.</strong></p>
+<table><thead><tr><th>Section</th><th>Clinical</th></tr></thead><tbody><tr><td><strong>Today</strong></td><td>manage</td></tr><tr><td><strong>Sessions</strong></td><td>manage</td></tr><tr><td><strong>People</strong></td><td>manage</td></tr><tr><td>Money</td><td><strong>none</strong></td></tr><tr><td>Catalog</td><td><strong>none</strong></td></tr><tr><td>Logs</td><td><strong>none</strong></td></tr><tr><td>Settings</td><td><strong>none</strong></td></tr></tbody></table>
+<p><strong>Three sections, and it is the narrowest of the four desks.</strong> Operations has Catalog as well; Finance has Money and reads Sessions. Clinical has the care and nothing else.</p>
+<p><strong>The account.</strong></p>
+<table><thead><tr><th>Label</th><th>Email</th><th>Password</th></tr></thead><tbody><tr><td><strong>Clinical</strong></td><td><code>qa.admin.clinical@example.test</code></td><td><em>generated when the Master Admin creates it</em></td></tr></tbody></table>
+<h3>1.1 Before you start</h3>
+<table><thead><tr><th>Must exist</th><th>Set up by</th></tr></thead><tbody><tr><td>This Clinical account, created from <strong>Settings → User Access</strong></td><td>Master Admin</td></tr><tr><td>Two patients with <strong>health records already filled</strong> by a therapist, on different condition types</td><td>Therapist</td></tr><tr><td>At least one patient with a <strong>paid, unassigned</strong> session</td><td>Patient</td></tr><tr><td>A <strong>queued</strong> recommendation waiting for review</td><td>Therapist</td></tr><tr><td>One patient with a <strong>completed</strong> session and a <strong>refunded</strong> one</td><td>Master Admin</td></tr><tr><td>Two approved therapists, one with a roster</td><td>Master Admin + Therapist</td></tr><tr><td>A <strong>flagged message</strong> - a therapist writing a phone number into a note</td><td>Therapist</td></tr></tbody></table>
+<p><strong>The refunded session matters.</strong> It is what proves this desk cannot read the money on a row it can otherwise fully work. <strong>The flagged message matters too</strong>: it is the one piece of evidence that stays Master-Admin-only even though the rule that produced it is this desk&#x27;s.</p>
+<h3>1.2 How to record a result</h3>
+<p>Mark every step <strong>Pass</strong>, <strong>Fail</strong>, <strong>Blocked</strong> or <strong>N/A</strong>. Raise a failure with: the step id, what you did, what you expected, what happened, a screenshot, any console error in full, how many times out of how many it reproduced, and <strong>which account you were signed in as</strong>.</p>
+<p><strong>Severity.</strong> <strong>P0</strong> - money, clinical data or access control is wrong: stop and report. <strong>P1</strong> - a main journey is broken with no workaround. <strong>P2</strong> - wrong with a workaround. <strong>P3</strong> - cosmetic.</p>
+<h3>1.3 Calling a route without a terminal</h3>
+<p>Most refusals here are checked twice - once by the screen hiding a control, once by the route refusing the call - and <strong>only the second is the rule</strong>. Sign in as Clinical, press <strong>F12</strong>, open <strong>Console</strong>, paste and press Enter:</p>
+<pre><code>const r = await fetch(&quot;/api/some/route&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ some: &quot;value&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p>The request is same-origin, so the browser attaches this admin&#x27;s cookie itself. Use a <strong>second browser profile</strong> for a different account, not a second tab. Never paste the URL in the address bar: that sends a GET, these are POSTs, and you will get 405.</p>
+<hr>
+<h2>2. Signing in, and what the screen says you are</h2>
+<h3><code>CL-01</code> - The dashboard names itself · P2</h3>
+<p><strong>Do this.</strong> Sign in as the Clinical admin.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The sidebar brand reads <strong>`Clinical`</strong>, and the <strong>eyebrow over the section heading</strong> reads <code>Clinical</code> too. <strong>Both</strong> - the sidebar collapses to icons and is a closed drawer on a phone, while the header is on every screen at every width. <strong>A dashboard that just says &quot;Admin Panel&quot; is a P2.</strong></li></ul>
+<h3><code>CL-02</code> - The &quot;Your access&quot; card · P2</h3>
+<p><strong>Expect</strong> a card naming which sections this desk covers. This is the narrowest of the four sidebars, so it is the one most likely to read as a fault - <strong>P2 if the card is absent</strong>.</p>
+<p>It carries <strong>no scope name of its own</strong>; the brand and the header both say <code>Clinical</code> on that same screen already.</p>
+<h3><code>CL-03</code> - Three sidebar entries, and four are gone · P1</h3>
+<p><strong>Expect present:</strong> <strong>Today</strong>, <strong>Sessions</strong>, <strong>People</strong>.</p>
+<p><strong>Expect absent:</strong> <strong>Money</strong>, <strong>Catalog</strong>, <strong>Logs</strong>, <strong>Settings</strong>.</p>
+<hr>
+<h2>3. Today</h2>
+<h3><code>CL-04</code> - Clinical leads with the recommendation queue · P1</h3>
+<p><strong>Expect</strong></p>
+<ul><li>The headline figure is <strong>the recommendations a patient is waiting on</strong> - this desk&#x27;s own first question. Operations leads with unassigned sessions, Finance with what is owed.</li><li><strong>No money figure is anywhere on this screen.</strong> Not unlinked, not greyed - <strong>the page does not compute it</strong>. A rupee figure on a Clinical Today is a <strong>P1</strong>.</li></ul>
+<h3><code>CL-05</code> - &quot;Needs you&quot; agrees with the list under it · P2</h3>
+<p><strong>Do this.</strong> Read the &quot;needs a person&quot; figure, then count the queue rows beneath it.</p>
+<p><strong>Expect.</strong> They <strong>match</strong>. This desk is where the bug was first noticed: a clinical admin read <strong>23</strong> over a list of <strong>four</strong>, because the figure summed every queue while the list beside it was already filtered to what they could open. <strong>P2 if the two disagree.</strong></p>
+<h3><code>CL-06</code> - Every quick action lands somewhere you can open · P1</h3>
+<p><strong>Do this.</strong> Tap each quick action and come back.</p>
+<p><strong>Expect</strong></p>
+<ul><li>Every one lands on a screen Clinical can open.</li><li><strong>None lands back on Today.</strong> A link into a section they cannot open falls back silently to the first one they can. With four sections closed, this desk has the most ways to hit it - <strong>a quick action that reloads Today is a P1</strong>.</li><li>No action offers a Money or Catalog destination at all; it is <strong>dropped</strong>, not written carefully.</li></ul>
+<h3><code>CL-07</code> - The global search is filtered the same way · P2</h3>
+<p><strong>Do this.</strong> Search a patient&#x27;s name, a session code, and a <strong>purchase</strong> code.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The patient and the session open.</li><li>The <strong>purchase code is reported as not existing</strong>. A result that opened a screen this desk cannot open would be a dead link that looked like it worked.</li></ul>
+<h3><code>CL-08</code> - Activity is their own desk&#x27;s · P2</h3>
+<p><strong>Do this.</strong> Open <strong>Today → Activity</strong>.</p>
+<p><strong>Expect</strong> entries whose action belongs to a section this desk can <strong>work</strong> and whose <strong>actor</strong> sits at this desk. It runs <strong>sparse</strong> - in a small clinic the Master Admin does most of the work - which is why <strong>the screen says the list is their desk&#x27;s</strong> rather than showing an empty panel that reads as &quot;nothing happened&quot;. <strong>P2 if it just looks empty.</strong></p>
+<p><strong>This is not the Logs section</strong>, and it is the only place this desk reads a record of anything.</p>
+<h3><code>CL-09</code> - Risk: their rules, and the two panels that are not theirs · P0</h3>
+<p><strong>Do this.</strong> Open <strong>Today → Risk</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The rules whose domain is <strong>sessions</strong> - a contact leak, an early completion.</li><li><strong>Not</strong> the money ones: a cash variance and a session completed with no payment belong to Finance.</li><li><strong>The flagged messages panel is absent, and so is the contact reveal log.</strong> Those quote what a colleague wrote and name every patient contact a therapist opened, and they stay <strong>Master-Admin-only</strong> - even though the rule that raised the signal is this desk&#x27;s. <strong>Either rendering here is a P0.</strong></li><li>The <strong>thresholds</strong> are not editable from this desk.</li><li><strong>No action buttons on the tab.</strong> A flag is never an accusation and never carries a penalty: nothing here suspends an account, holds a payout or hides a therapist. <strong>An action button is a P1</strong> - that separation is what makes running heuristics over clinical data safe at all.</li><li>Open a signal: it <strong>links to the rows behind it</strong>, not to a score.</li><li>Review one with <code>ok</code>: <strong>refused</strong>. With a real note: it lands, and <strong>appends</strong> - you cannot edit or delete a review.</li></ul>
+<hr>
+<h2>4. Sessions - manage</h2>
+<h3><code>CL-10</code> - Assigning and scheduling · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Open the unassigned queue from Today</td><td>Exactly the rows it counted, with the other filters cleared first</td></tr><tr><td>Assign a session</td><td><strong>Succeeds</strong></td></tr><tr><td>Read the control on a never-assigned session</td><td><strong>Tap to assign</strong>, not &quot;Reschedule / Reassign&quot;</td></tr><tr><td>Reschedule a confirmed session</td><td><strong>Succeeds</strong>, with the same calendar and hour chips a patient sees</td></tr><tr><td>Try a time like <code>6:52</code></td><td>Cannot be produced at all</td></tr><tr><td>Book inside the 12-hour window</td><td>Refused, until the override box is ticked</td></tr></tbody></table>
+<h3><code>CL-11</code> - Completing, reopening and cancelling · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Complete a paid session on a therapist&#x27;s behalf</td><td><strong>Succeeds</strong> - an admin is subject to neither of the therapist&#x27;s gates</td></tr><tr><td>Reopen a completed session</td><td><strong>Succeeds</strong>, warning that both sides&#x27; ratings are destroyed, and <strong>clearing the completion time</strong></td></tr><tr><td>Cancel a session</td><td><strong>Succeeds</strong></td></tr></tbody></table>
+<h3><code>CL-12</code> - What they cannot see about the money · P0</h3>
+<p><strong>Do this.</strong> Open <strong>All Sessions</strong> and look at a <strong>refunded</strong> session, then at one that was paid.</p>
+<p><strong>Expect</strong></p>
+<ul><li><strong>Neither the amount nor the refund renders</strong>, on the row or in the detail drawer. Compare against the Master Admin&#x27;s view of the same row in another browser.</li><li>The <strong>clinical</strong> content of the row is all there: patient, therapist, condition, status, notes.</li></ul>
+<h3><code>CL-13</code> - The export follows the screen · P0</h3>
+<p><strong>Do this.</strong> Filter <strong>All Sessions</strong>, then export as <strong>CSV</strong> and as <strong>PDF</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>Both offered, both describing the <strong>same filtered rows</strong>.</li><li><strong>Neither file contains the amount or the refund.</strong> A scope enforced in the markup but not in the file the markup produces is not enforced, and an export is the easiest place to forget it. <strong>Money in this file is a P0.</strong></li></ul>
+<h3><code>CL-14</code> - The roster · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Open <strong>Sessions → Roster</strong></td><td>A <strong>list of therapists</strong>, not a calendar grid</td></tr><tr><td>Edit a weekly schedule</td><td><strong>Succeeds</strong>, in periods rather than hourly cells</td></tr><tr><td>Write a <strong>date exception</strong></td><td><strong>Succeeds</strong> - this is an admin capability, and Clinical has Sessions at manage</td></tr><tr><td>Set somebody <strong>on leave</strong></td><td>Succeeds, and the weekly schedule survives intact</td></tr><tr><td>Remove hours a session sits in</td><td>It <strong>names who is affected</strong> and says the session <strong>stays as booked</strong>. <strong>P0 if it cancels or moves one</strong></td></tr></tbody></table>
+<h3><code>CL-15</code> - Delivery reads as operations, not money · P2</h3>
+<p><strong>Do this.</strong> Open <strong>Sessions → Delivery</strong>.</p>
+<p><strong>Expect.</strong> No-show rate, cancellation rate, repeat-booking rate, sessions per therapist - and <strong>no revenue figure among them</strong>. These live under Sessions precisely because a no-show rate is about how the clinic runs, not about its books, which is what lets this desk read them.</p>
+<hr>
+<h2>5. Recommendations - the heart of this desk</h2>
+<h3><code>CL-16</code> - The queue reads as work · P1</h3>
+<p><strong>Do this.</strong> Open <strong>Sessions → Recommendations</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li><strong>Oldest first</strong>, aged in words rather than dated.</li><li>Anything past four hours is <strong>coloured</strong>, and Today&#x27;s inbox row is urgent on <strong>that</strong> count - never on the queue merely being non-empty. A badge that is always on is a badge nobody reads, which is how the one queue with a patient waiting behind it stops being looked at. <strong>P2 if the badge is always red.</strong></li><li>Each card states <strong>how many sessions or visits that patient already has unused</strong> - the commonest reason to turn one down, and previously invisible without leaving the queue.</li><li>That figure is <strong>stated, never acted on</strong>: a patient with sessions left may well need a different programme, and the clinician has seen them.</li></ul>
+<h3><code>CL-17</code> - The three outcomes · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Approve one, plainly</td><td><strong>One tap, no reason required.</strong> Taxing an approval with a sentence meaning &quot;fine&quot; is how a reason column fills with &quot;ok&quot; and stops being worth reading - and how a patient waits longer for a recommendation nobody objected to</td></tr><tr><td>Turn one down with <code>ok</code></td><td><strong>Refused.</strong> Ten characters, for the two outcomes that take something away from somebody</td></tr><tr><td>Turn one down with a real reason</td><td>The therapist reads it in their feed <strong>and</strong> on the patient&#x27;s chart. The reason is the actionable half: &quot;Not approved&quot; says it is gone, and only the reason says what to write instead</td></tr><tr><td>Approve one <strong>with different numbers</strong></td><td>A <strong>new version</strong> attributed to the clinician and entered by you, with the original left in the thread as superseded. <strong>The clinician&#x27;s version being rewritten is a P0</strong></td></tr></tbody></table>
+<h3><code>CL-18</code> - The catalogue is re-checked before publishing · P1</h3>
+<p><strong>Do this.</strong> Have the Master Admin <strong>re-price</strong> a package that a queued recommendation points at. Then try to approve it.</p>
+<p><strong>Expect</strong></p>
+<ul><li><strong>Blocked</strong>, with a sentence naming the drift. Better you catch it than the patient discovering the clinic&#x27;s stale data by having their payment refused at the last step of checkout.</li><li>Now <strong>reject</strong> a recommendation whose package moved: <strong>allowed</strong>. Refusing to let you close a thread because its package moved would trap exactly the recommendation that most needs closing.</li></ul>
+<h3><code>CL-19</code> - The offer window is stamped at approval · P1</h3>
+<p><strong>Do this.</strong> Approve a recommendation that has been sitting in the queue, and read its expiry on the patient&#x27;s screen.</p>
+<p><strong>Expect.</strong> The window counts from <strong>approval</strong>, not from when the therapist wrote it. <strong>A plan that waited two days reaching the patient with two days already spent is a P1</strong> - it is the plans the clinic took longest over that arrive with the least time on them.</p>
+<h3><code>CL-20</code> - Nothing reaches the patient before it is approved · P0</h3>
+<p><strong>Do this.</strong> With a recommendation still queued, check as the patient:</p>
+<table><thead><tr><th>Where</th><th>Expect</th></tr></thead><tbody><tr><td>Suggested Sessions</td><td><strong>Nothing.</strong> Not a greyed-out card, not a &quot;pending&quot; chip - absent entirely</td></tr><tr><td>Health Profile</td><td>The same</td></tr><tr><td>Create an order against it from the console</td><td><strong>Refused</strong></td></tr></tbody></table>
+<p><strong>Hiding a card is presentation; refusing the order is the rule.</strong> <strong>A patient who can pay for an unapproved recommendation is a P0.</strong></p>
+<h3><code>CL-21</code> - Writing one on a therapist&#x27;s behalf · P1</h3>
+<p><strong>Do this.</strong> Use the panel that writes a recommendation for a clinician who cannot reach their dashboard.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The <strong>same rules as the therapist&#x27;s own dialog</strong>: the package comes from the admin whitelist, the source has to be a <strong>completed session that therapist ran</strong>, the text is scanned, and <strong>there is no price, session-count or discount field</strong>. <strong>A price input is a P0</strong> - this desk sees no money, and the form must not be where it gets one.</li><li>Programmes are <strong>narrowed to the chosen session&#x27;s own condition</strong>, and changing the session <strong>drops the draft</strong>.</li><li><strong>Whose name it goes out in is stated at the button.</strong></li><li>A mandatory reason.</li><li>With no session to write against or no recommendable package, the panel <strong>still renders and says which of the two is missing</strong>. An admin opens this screen because a patient is waiting: <strong>P2</strong> if it is simply absent.</li></ul>
+<h3><code>CL-22</code> - Withdrawing · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Withdraw an <strong>active</strong> plan with a real reason</td><td><strong>Succeeds</strong></td></tr><tr><td>Withdraw a <strong>queued</strong> one</td><td><strong>Succeeds</strong> - otherwise the queue holds a thread nobody intends to approve while the patient&#x27;s one-plan slot stays taken</td></tr><tr><td>Withdraw a <strong>purchased</strong> one</td><td><strong>Refused.</strong> The patient has paid and the sessions exist; the honest lane is a refund - which is a <strong>money</strong> screen this desk cannot open, so the refusal has to say so rather than offering a control</td></tr></tbody></table>
+<hr>
+<h2>6. People, and the clinical record</h2>
+<h3><code>CL-23</code> - The directories · P1</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Open <strong>People → Patients</strong>, open one</td><td>Sessions, documents, notes, health record - all there</td></tr><tr><td>Read the money on their sessions and purchases</td><td><strong>Not rendered</strong></td></tr><tr><td>Approve a pending signup</td><td><strong>Succeeds</strong></td></tr><tr><td>Suspend an account</td><td><strong>Succeeds</strong></td></tr><tr><td>Reset a password</td><td><strong>Succeeds</strong>, shown once, never in the log</td></tr><tr><td>Open <strong>People → Therapists</strong></td><td>The directory, with the <code>/team</code> visibility control</td></tr><tr><td>Change a therapist&#x27;s <strong>revenue share</strong></td><td><strong>No such control</strong> - that is money</td></tr><tr><td>Open <strong>People → Partners</strong>, look at the revenue-share editor</td><td><strong>Does not render</strong>, for the same reason</td></tr></tbody></table>
+<h3><code>CL-24</code> - The health record · P1</h3>
+<p><strong>Do this.</strong> Open a patient&#x27;s health profile from the directory.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The record renders for its <strong>own condition type</strong> - the right seven questions, the right summary card, the right snapshot figures and progress line.</li><li>On an <strong>orthopaedic</strong> patient the Pain Map renders. On a <strong>neurological</strong> or <strong>paediatric</strong> one there is <strong>no body map at all</strong> - not a hidden one, not an empty one.</li><li>Every pain figure reads <strong>out of ten</strong>. A percentage beside an out-of-ten figure in the same strip reads as two different measurements: <strong>P2</strong>.</li><li><strong>Session notes are not here, and must never be.</strong> They are clinician-only working notes. Check the patient&#x27;s export too.</li></ul>
+<h3><code>CL-25</code> - Condition change requests · P1</h3>
+<p><strong>Do this.</strong> With a therapist&#x27;s request to edit a patient&#x27;s live record waiting:</p>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Open the request</td><td>The <strong>proposed</strong> values beside the current ones</td></tr><tr><td>Approve it</td><td>It <strong>merges</strong>, keeping every answer the incoming condition type does not own. <strong>A re-triaged patient losing their previous specialty&#x27;s record is a P0</strong></td></tr><tr><td>Decline one with a reason</td><td>The therapist reads it</td></tr><tr><td>Grant a therapist edit access</td><td><strong>Succeeds</strong></td></tr></tbody></table>
+<h3><code>CL-26</code> - The clinical question bank is not theirs · P1</h3>
+<p><strong>Do this.</strong> Look for a way to reword an intake question, or to remove a condition type from triage.</p>
+<p><strong>Expect. There is none</strong> - that is <strong>Settings → Clinical Questions</strong>, and this desk has no Settings. Confirm at the route:</p>
+<pre><code>const r = await fetch(&quot;/api/admin/intake-questions&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: &quot;{}&quot;,
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect 403.</strong> This is the one refusal in this document that may read as surprising - the questions are clinical - and it is correct: changing them changes what every patient in the product is asked, which is a product behaviour rather than a patient&#x27;s care.</p>
+<h3><code>CL-27</code> - Delete and impersonation are full scope only · P0</h3>
+<pre><code>const routes = [
+  &quot;/api/admin/delete-account&quot;,
+  &quot;/api/admin/start-impersonation&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect a refusal on both</strong>, and no control for either on screen. Both are checked against <strong>full scope directly</strong> rather than through People, precisely so a section scope cannot hand them out. <strong>A 200 on impersonation is a P0 that stops the run</strong> - this desk already reads clinical records, and impersonation would let them write as the patient.</p>
+<hr>
+<h2>7. What Clinical must never reach</h2>
+<h3><code>CL-28</code> - Money, at the screen · P1</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Find <strong>Money</strong> in the sidebar</td><td><strong>Absent</strong></td></tr><tr><td>Open the Money URL directly</td><td>Refused, and <strong>the screen says their scope is why</strong>, in one dismissible amber line naming a screen that <strong>exists</strong></td></tr></tbody></table>
+<p><strong>A silent landing somewhere else is the failure here.</strong> The fallback landing somewhere valid is correct; saying nothing about it is not. <strong>P2.</strong></p>
+<h3><code>CL-29</code> - Money, at the routes · P0</h3>
+<pre><code>const routes = [
+  &quot;/api/admin/settle-therapist-payout&quot;,
+  &quot;/api/admin/refund-session-partial&quot;,
+  &quot;/api/admin/refund-package&quot;,
+  &quot;/api/admin/apply-goodwill-discount&quot;,
+  &quot;/api/admin/grant-session-credits&quot;,
+  &quot;/api/admin/reverse-session-credit&quot;,
+  &quot;/api/admin/revive-entitlement&quot;,
+  &quot;/api/admin/correct-cash-amount&quot;,
+  &quot;/api/admin/mark-cash-remitted&quot;,
+  &quot;/api/admin/update-hospital-revenue-share&quot;,
+  &quot;/api/admin/update-therapist-revenue-share&quot;,
+  &quot;/api/admin/save-promo-code&quot;,
+  &quot;/api/admin/expenses&quot;,
+  &quot;/api/admin/finance&quot;,
+  &quot;/api/admin/mark-paid-by-cash&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on every one.</strong> Not 404, not 500, and not a 400 that reads as &quot;give me better arguments&quot; - that is a route that checked the body before it checked who was asking. <strong>Any 200 is a P0 that stops the run.</strong></p>
+<p><strong>`grant-session-credits` matters most.</strong> It is the override lane that can mint sessions out of nothing. <strong>A clinical desk minting credits is a P0.</strong></p>
+<h3><code>CL-30</code> - Catalog, at the screen and at the routes · P0</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Find <strong>Catalog</strong> in the sidebar</td><td><strong>Absent</strong></td></tr><tr><td>Open the Catalog URL</td><td>Refused, with the scope line</td></tr></tbody></table>
+<pre><code>const routes = [
+  &quot;/api/admin/create-treatment-category&quot;,
+  &quot;/api/admin/update-treatment-category&quot;,
+  &quot;/api/admin/delete-treatment-category&quot;,
+  &quot;/api/admin/reorder-treatment-categories&quot;,
+  &quot;/api/admin/create-package&quot;,
+  &quot;/api/admin/update-package&quot;,
+  &quot;/api/admin/create-home-visit-package&quot;,
+  &quot;/api/admin/create-home-visit-areas&quot;,
+  &quot;/api/admin/upload-catalog-image&quot;,
+  &quot;/api/admin/extend-package-expiry&quot;,
+  &quot;/api/admin/reassign-package-therapist&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on every one.</strong> A clinical desk that could re-price the programmes it recommends would be setting the price of the treatment it prescribes, which is the whole reason a therapist picks a package rather than a price.</p>
+<h3><code>CL-31</code> - Logs, at the screen and at both routes · P0</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Find <strong>Logs</strong> in the sidebar</td><td><strong>Absent</strong></td></tr><tr><td>Open the Logs URL</td><td>Refused, with the scope line</td></tr></tbody></table>
+<pre><code>const routes = [&quot;/api/admin/activity-log&quot;, &quot;/api/admin/clear-activity-log&quot;];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on both.</strong> <strong>Logs is Master Admin&#x27;s alone.</strong> Clinical reads their own desk&#x27;s work on <strong>Today → Activity</strong> instead.</p>
+<h3><code>CL-32</code> - Settings, at the screen and at the routes · P0</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Find <strong>Settings</strong> in the sidebar</td><td><strong>Absent</strong></td></tr><tr><td>Open Settings → Clinical Questions by URL</td><td>Refused</td></tr><tr><td>Open Settings → User Access by URL</td><td>Refused</td></tr></tbody></table>
+<pre><code>const routes = [
+  &quot;/api/admin/update-setting&quot;,
+  &quot;/api/admin/set-admin-scope&quot;,
+  &quot;/api/admin/set-admin-active&quot;,
+  &quot;/api/admin/create-account&quot;,
+  &quot;/api/admin/intake-questions&quot;,
+  &quot;/api/admin/pain-map-questions&quot;,
+  &quot;/api/admin/save-mission-principle&quot;,
+  &quot;/api/admin/debug-reset&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on every one.</strong></p>
+<p><strong>`create-account` is the escalation case.</strong> The Back office group is absent from their picker, but that is presentation - the full-only check inside the route is what stops a limited scope minting itself a Master Admin. <strong>A 200 is a P0.</strong></p>
+<p><strong>`debug-reset` is the other.</strong> Full scope only. <strong>A limited desk wiping the database is a P0.</strong></p>
+<h3><code>CL-33</code> - The other roles&#x27; doors · P0</h3>
+<pre><code>const routes = [
+  &quot;/api/therapist/reveal-contact&quot;,
+  &quot;/api/therapist/suggest-session&quot;,
+  &quot;/api/therapist/record-cash-collection&quot;,
+  &quot;/api/patient/condition-profile/export&quot;,
+  &quot;/api/hospital/withdraw-referral&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect a refusal on every one.</strong> <code>reveal-contact</code> particularly: an admin is not the treating therapist, and every reveal is logged against a session&#x27;s own window.</p>
+<hr>
+<h2>8. Suspension, and the scope itself</h2>
+<h3><code>CL-34</code> - Suspending this admin ends the session · P0</h3>
+<p><strong>Do this</strong></p>
+<ol><li><strong>As the Master Admin</strong>, suspend the Clinical admin.</li><li>In the Clinical admin&#x27;s <strong>still-open browser</strong>, reload the dashboard.</li><li>In the same browser, open a patient&#x27;s health profile by URL.</li><li>In the same browser, approve a recommendation from the console.</li><li>Un-suspend.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 2: bounced.</li><li>Steps 3 and 4: <strong>refused</strong>. A suspended admin&#x27;s own routes refuse them too, and the database refuses them as well - the session was ended, not merely redirected away from. <strong>A suspended clinical admin still reading patient records is a P0</strong>: flipping a column without ending the session leaves them reading every patient record indefinitely, because a session cookie reaches the database without passing the screen.</li><li>Step 5 restores them to <strong>Clinical</strong>, not to full and not to a default.</li></ul>
+<h3><code>CL-35</code> - Nobody changes their own scope · P0</h3>
+<pre><code>const r = await fetch(&quot;/api/admin/set-admin-scope&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ userId: &quot;YOUR_OWN_ID&quot;, scope: &quot;full&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect a refusal.</strong> <strong>This landing is a P0 and the most serious finding this document can produce.</strong></p>
+<hr>
+<h2>9. Sign-off</h2>
+<table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Steps run</td><td>35</td></tr><tr><td>Pass</td><td></td></tr><tr><td>Fail</td><td></td></tr><tr><td>Blocked</td><td></td></tr><tr><td>N/A</td><td></td></tr><tr><td>P0 raised</td><td></td></tr><tr><td>P1 raised</td><td></td></tr></tbody></table>
+<p><strong>Confirm each of these before signing.</strong></p>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>The dashboard says <strong>Clinical</strong>, twice, and carries the access card</td><td>☐</td></tr><tr><td>Three sidebar entries; Money, Catalog, Logs and Settings absent</td><td>☐</td></tr><tr><td>Today leads with the recommendation queue and computes no money figure</td><td>☐</td></tr><tr><td>The &quot;needs you&quot; figure matched the list beneath it</td><td>☐</td></tr><tr><td>Every quick action landed somewhere they can open; none fell back to Today</td><td>☐</td></tr><tr><td>Risk showed their rules, and <strong>neither</strong> evidence panel</td><td>☐</td></tr><tr><td>Sessions fully worked: assigned, rescheduled, completed, reopened, rostered</td><td>☐</td></tr><tr><td><strong>No amount and no refund</strong> on screen or in the export</td><td>☐</td></tr><tr><td>All three recommendation outcomes, with a stale package blocked and a rejection allowed</td><td>☐</td></tr><tr><td>The offer window stamped at approval</td><td>☐</td></tr><tr><td>Nothing reached the patient before approval, at the screen <strong>and</strong> at the route</td><td>☐</td></tr><tr><td>A recommendation written on a therapist&#x27;s behalf, with no price field</td><td>☐</td></tr><tr><td>Health records readable per condition type, with no session note anywhere</td><td>☐</td></tr><tr><td>A condition change approved and <strong>merged</strong>, not replaced</td><td>☐</td></tr><tr><td>No revenue share, no delete, no impersonation</td><td>☐</td></tr><tr><td>403 on all fifteen money routes, <code>grant-session-credits</code> included</td><td>☐</td></tr><tr><td>403 on all eleven catalogue routes</td><td>☐</td></tr><tr><td>403 on both log routes</td><td>☐</td></tr><tr><td>403 on all eight settings routes, <code>create-account</code> and <code>debug-reset</code> included</td><td>☐</td></tr><tr><td>Suspension ended the session; the scope came back as Clinical</td><td>☐</td></tr><tr><td>They could not widen their own scope</td><td>☐</td></tr></tbody></table>
+<p><strong>Signed</strong> ......................... <strong>Date</strong> .................</p>
+<p><strong>Build / commit tested</strong> .........................</p>
+<hr>
+<p><strong>What a clean run of this document proves.</strong> That the Clinical scope grants what the grid says it grants and refuses what it says it refuses, at the screen and at the route, on one machine, once. It does not prove the clinical capabilities themselves are correct - that is the Master Admin&#x27;s and the Therapist&#x27;s documents - nor that the other two desks are correctly narrowed, each of which has a document of its own.</p></body></html>

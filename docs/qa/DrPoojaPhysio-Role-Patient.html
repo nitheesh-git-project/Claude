@@ -1,0 +1,332 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Dr. Pooja&#x27;s Physio - Patient Test Plan</title><style>
+@page { size: A4; margin: 18mm 15mm 20mm 15mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "DejaVu Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #1e293b; margin: 0;
+}
+.cover { page-break-after: always; padding-top: 55mm; text-align: center; }
+.cover .rule { width: 60mm; height: 4px; background: #0f766e; margin: 0 auto 14mm; }
+.cover h1 { font-size: 26pt; line-height: 1.2; color: #0f172a; margin: 0 0 10mm; }
+.cover .sub { font-size: 12pt; color: #475569; margin-bottom: 22mm; }
+.cover dl { display: inline-block; text-align: left; font-size: 10pt; color: #334155; }
+.cover dt { font-weight: 700; color: #0f766e; margin-top: 5mm; }
+.toc { page-break-after: always; }
+.toc h2 { border: none; }
+.toc ul { columns: 2; column-gap: 12mm; font-size: 9pt; padding-left: 0; list-style: none; }
+.toc li { margin-bottom: 1.6mm; break-inside: avoid; }
+h1 { font-size: 17pt; color: #0f172a; margin: 10mm 0 3mm; page-break-after: avoid; }
+h2 {
+  font-size: 13.5pt; color: #0f172a; margin: 9mm 0 3mm;
+  padding-bottom: 1.5mm; border-bottom: 2px solid #0f766e; page-break-after: avoid;
+}
+h3 { font-size: 11.5pt; color: #0f766e; margin: 6mm 0 2mm; page-break-after: avoid; }
+h4 {
+  font-size: 10pt; color: #0f172a; margin: 5mm 0 1.5mm;
+  page-break-after: avoid; page-break-inside: avoid;
+}
+h5, h6 { font-size: 9.6pt; color: #334155; margin: 4mm 0 1.5mm; }
+p { margin: 0 0 2.4mm; }
+ul, ol { margin: 0 0 2.6mm; padding-left: 6mm; }
+li { margin-bottom: 1.1mm; }
+code {
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8.4pt;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px; padding: 0 1.2mm;
+  word-break: break-word;
+}
+pre {
+  background: #0f172a; color: #e2e8f0; padding: 3mm 4mm; border-radius: 4px;
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8pt;
+  line-height: 1.45; overflow-x: auto; white-space: pre-wrap;
+  page-break-inside: avoid; margin: 0 0 3mm;
+}
+pre code { background: none; border: none; color: inherit; padding: 0; font-size: inherit; }
+blockquote {
+  margin: 0 0 3mm; padding: 2.5mm 4mm; background: #fffbeb;
+  border-left: 3px solid #d97706; color: #78350f; font-size: 9pt;
+}
+table {
+  width: 100%; border-collapse: collapse; margin: 0 0 3.5mm;
+  font-size: 8.3pt; page-break-inside: auto;
+}
+th, td {
+  border: 1px solid #cbd5e1; padding: 1.4mm 1.8mm; text-align: left;
+  vertical-align: top; word-break: normal; overflow-wrap: anywhere;
+}
+th { background: #0f766e; color: #fff; font-weight: 700; }
+tr { page-break-inside: avoid; }
+tbody tr:nth-child(even) { background: #f8fafc; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 6mm 0; }
+a { color: #0f766e; text-decoration: none; word-break: break-all; }
+strong { color: #0f172a; }
+</style></head><body>
+<div class="cover">
+  <div class="rule"></div>
+  <h1>Dr. Pooja&#x27;s Physio - Patient Test Plan</h1>
+  <p class="sub">Everything a patient can do, from never having heard of the clinic to a delivered programme</p>
+  <dl><dt>Role</dt><dd>Patient</dd><dt>Document version</dt><dd>1.0</dd><dt>Audience</dt><dd>A tester checking this role end to end</dd><dt>Environment</dt><dd>Throwaway Supabase project · Razorpay test mode · npm run dev</dd><dt>Read first</dt><dd>Section 1 - who this is, and what has to exist before you start</dd></dl>
+</div>
+<div class="toc">
+  <h2>Contents</h2>
+  <ul><li>1. Who this is, and what must exist first</li><li>2. Getting an account</li><li>3. Paying</li><li>4. The dashboard</li><li>5. The health record</li><li>6. Sessions</li><li>7. Buying a programme</li><li>8. Home visits</li><li>9. Money off</li><li>10. Payments and refunds</li><li>11. What a patient must never be able to do</li><li>12. On a phone</li><li>13. Sign-off</li></ul>
+</div>
+<h2>1. Who this is, and what must exist first</h2>
+<p><strong>The account.</strong> One person who books and pays for their own care. They self-register, wait for an admin to approve them - unless they pay, which approves them on the attempt - and then own one dashboard: their sessions, their programmes, their payments and their health record.</p>
+<p><strong>The accounts this plan uses.</strong> Create them as you go; the steps say where. All of them use the same password, and every address ends <code>@example.test</code>, which is a reserved domain that cannot deliver to a real inbox.</p>
+<table><thead><tr><th>Label</th><th>Email</th><th>Password</th><th>Why this plan needs them</th></tr></thead><tbody><tr><td><strong>Patient A</strong></td><td><code>qa.patient.a@example.test</code></td><td><code>QaTest!2024pass</code></td><td>The main journey. Registers through the booking wizard.</td></tr><tr><td><strong>Patient B</strong></td><td><code>qa.patient.b@example.test</code></td><td><code>QaTest!2024pass</code></td><td>Registers the other way, through <code>/patient/register</code>. Proves one patient cannot reach another&#x27;s anything.</td></tr><tr><td><strong>Patient D</strong></td><td><code>qa.patient.d@example.test</code></td><td><code>QaTest!2024pass</code></td><td>Has never paid. The discounts need somebody new.</td></tr><tr><td><strong>Patient E</strong></td><td><code>qa.patient.e@example.test</code></td><td><code>QaTest!2024pass</code></td><td>The second never-paid patient, for the second discount.</td></tr></tbody></table>
+<p>Other details, used where the steps name them:</p>
+<table><thead><tr><th></th><th>Patient A</th><th>Patient B</th></tr></thead><tbody><tr><td>Full name</td><td><code>QA Patient A</code></td><td><code>QA Patient B</code></td></tr><tr><td>Phone</td><td><code>+91 98765 43210</code></td><td><code>+91 98765 43211</code></td></tr><tr><td>Date of birth</td><td><code>1990-04-12</code></td><td><code>1985-11-30</code></td></tr><tr><td>Address</td><td><code>12, 3rd Cross, Indiranagar</code> / <code>Near Metro Station</code></td><td><code>44 Residency Road</code></td></tr><tr><td>City / State / PIN</td><td><code>Bengaluru</code> / <code>Karnataka</code> / <code>560038</code></td><td><code>Bengaluru</code> / <code>Karnataka</code> / <code>560025</code></td></tr><tr><td>Emergency contact</td><td><code>QA Contact A</code>, <code>+91 98765 43299</code></td><td><em>leave blank</em></td></tr></tbody></table>
+<p><strong>`560038` is a serviceable pincode and `560025` is not.</strong> That is deliberate: Patient B&#x27;s address is the one that cannot be visited at home.</p>
+<hr>
+<h3>1.1 Before you start</h3>
+<p>A patient cannot do anything until somebody has built a clinic around them. These must already be true. Each is one line of somebody else&#x27;s plan.</p>
+<table><thead><tr><th>Must exist</th><th>Set up by</th></tr></thead><tbody><tr><td>At least one treatment category, priced and active</td><td>Master Admin</td></tr><tr><td>Home visits switched <strong>on</strong>, with a service area covering <code>560038</code> at ₹150 a visit</td><td>Master Admin</td></tr><tr><td>A single-visit home package that can be bought</td><td>Master Admin</td></tr><tr><td>At least one approved therapist with a roster</td><td>Master Admin + Therapist</td></tr><tr><td>An admin who can approve accounts and assign sessions</td><td>Master Admin</td></tr><tr><td>Razorpay in <strong>test</strong> mode</td><td>whoever set the environment up</td></tr></tbody></table>
+<p><strong>The prices this plan quotes</strong> assume a category called <code>QA Back &amp; Spine Care</code> at <strong>₹1,999 / 60 min</strong>, a second at <code>QA Knee &amp; Joint Care</code> at <strong>₹1,799 / 45 min</strong>, a six-session programme at <strong>₹9,999</strong>, and a single home visit at <strong>₹2,499</strong> plus <strong>₹150</strong> travel. If your catalogue differs, the arithmetic changes and the rules do not.</p>
+<h3>1.2 How to record a result</h3>
+<p>Mark every step <strong>Pass</strong>, <strong>Fail</strong>, <strong>Blocked</strong> or <strong>N/A</strong>. Raise a failure with: the step id, what you did, what you expected, what happened, a screenshot, any console error in full, how many times out of how many it reproduced, and <strong>which account you were signed in as</strong>.</p>
+<p><strong>Severity.</strong> <strong>P0</strong> - money, clinical data or access control is wrong: stop and report. <strong>P1</strong> - a main journey is broken with no workaround. <strong>P2</strong> - wrong with a workaround. <strong>P3</strong> - cosmetic.</p>
+<h3>1.3 Calling a route without a terminal</h3>
+<p>Four steps ask you to call an API directly, because this application enforces its rules twice - once in the screen, once in the route - and a hidden button proves only the first. Sign in as the person the step names, press <strong>F12</strong>, open <strong>Console</strong>, paste and press Enter:</p>
+<pre><code>const r = await fetch(&quot;/api/some/route&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ some: &quot;value&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p>The request is same-origin, so the browser attaches that account&#x27;s cookie itself. For an <strong>anonymous</strong> call use a private window; for a <strong>different</strong> user use a second browser profile, not a second tab - tabs share cookies. Never paste the URL in the address bar: that sends a GET, these are POSTs, and you will get 405 and think you found something.</p>
+<hr>
+<h2>2. Getting an account</h2>
+<h3><code>PT-01</code> - Register inside the booking wizard · P0</h3>
+<p>The commonest real path: a stranger books and registers on one screen. The account, the booking and the payment all happen on <code>/book</code>.</p>
+<p><strong>Do this</strong></p>
+<ol><li>Signed out, open <code>/conditions</code> and tap <strong>Book Assessment</strong> on <code>QA Back &amp; Spine Care</code>.</li><li><strong>Step 1.</strong> Read what is already chosen before changing anything - a date, an hour and a language are pre-selected, and the detected timezone is stated on screen.</li><li>Choose <strong>tomorrow</strong> and <strong>4:00 PM</strong>.</li><li><strong>Continue.</strong> On Step 2, fill in:</li></ol>
+<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody><tr><td>Full Name</td><td><code>QA Patient A</code></td></tr><tr><td>Email Address</td><td><code>qa.patient.a@example.test</code></td></tr><tr><td>Password</td><td><code>QaTest!2024pass</code></td></tr><tr><td>Confirm Password</td><td><code>QaTest!2024pass</code></td></tr><tr><td>Phone</td><td><code>+91 98765 43210</code></td></tr><tr><td>Referral Code</td><td><em>leave blank</em></td></tr><tr><td>What would you like help with?</td><td><code>QA Back &amp; Spine Care</code></td></tr><tr><td>Anything else we should know?</td><td><code>Desk job, pain worse after sitting all day. Goal: sit through a full workday.</code></td></tr></tbody></table>
+<ol><li>Tick the telehealth consent box. <strong>Continue.</strong></li><li><strong>Step 3.</strong> Read the whole screen. Note the figure on the button.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li><strong>Today is usually not offerable.</strong> The booking lead time is 12 hours, so at 10 AM the first bookable slot is 10 PM tonight, and after midday today drops off the calendar. That is the rule working. The boundary day is <em>partly</em> available - early hours greyed, later ones live.</li><li><strong>Changing the date re-picks the hour.</strong> Your old pick is not carried across; it might not clear the lead time on the new date.</li><li><strong>Step 3 quotes what it will charge.</strong> Session Fee <strong>₹1,999</strong>, button reads <strong>Request Booking</strong>, and with no discount running those two and the Razorpay sheet must all be <strong>the same number</strong>. A payment screen showing one figure and charging another is a <strong>P0</strong>.</li><li>The cancellation line reads <em>&quot;Free cancellation up to 24 hours before your slot&quot;</em> - an admin setting, so check it against what the admin has set.</li><li>The exit link at the foot reads <strong>Back to Home</strong> and goes to <code>/</code>, because you are signed out.</li><li><strong>No &quot;check your email&quot; step appears anywhere.</strong> Email confirmation is off in this product by design. A screen telling this patient to check their inbox is a <strong>P1</strong>: nothing will arrive and they will wait for ever.</li></ul>
+<h3><code>PT-02</code> - What the wizard refuses · P1</h3>
+<p>One at a time, returning to Step 1 between attempts.</p>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Email <code>not-an-email</code></td><td>An invalid-email message. No account created.</td></tr><tr><td>Password <code>abc12</code></td><td>A minimum-length message. No account created.</td></tr><tr><td>Confirm Password <code>QaTest!2024pas</code></td><td>A passwords-do-not-match message.</td></tr><tr><td>Phone <code>12345</code></td><td>An invalid-phone message.</td></tr><tr><td>Referral Code <code>ZZZZZZ</code></td><td><code>Code not recognized - double-check it or leave blank</code> in red, and <strong>Continue is blocked</strong></td></tr><tr><td>Consent box unticked</td><td>Refused, readably</td></tr><tr><td>No condition chosen</td><td>Refused</td></tr><tr><td>Email that already exists</td><td>A &quot;user already registered&quot; message, and <strong>no second profile row</strong></td></tr></tbody></table>
+<p><strong>In every case</strong> the form stays on screen with what you typed intact, the message is plain English, and <strong>no stack trace, column name or row id appears anywhere</strong>. A raw Postgres string such as <em>&quot;new row violates row-level security policy&quot;</em> here is a <strong>P0</strong>.</p>
+<h3><code>PT-03</code> - Register the other way, and wait · P0</h3>
+<p><strong>Do this.</strong> Signed out, open <code>/patient/login</code> → <strong>Register Account</strong> and create <strong>Patient B</strong> with the details in §1. Then type <code>/patient/dashboard</code> into the address bar.</p>
+<p><strong>Expect</strong></p>
+<ul><li>You land on <strong>`/pending-approval`</strong>, not the dashboard, and not a &quot;check your email&quot; screen.</li><li>The address bar attempt redirects back to <code>/pending-approval</code>.</li><li><strong>Standalone registration always waits for a human.</strong> Unlike PT-01, nothing here approves them - paying is what does that, and they have not.</li></ul>
+<p><strong>Then prove the gate is in the route too.</strong> Still as Patient B, console:</p>
+<pre><code>const r = await fetch(&quot;/api/appointments/create&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ slotTime: &quot;2026-12-01T10:30:00.000Z&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect: `200`, and an unpaid unassigned session appears.</strong> That is correct and is <strong>not</strong> a defect: this route gates on the account being <em>active</em>, not approved, because an unapproved self-signup patient has to be able to hold the row they are about to pay for, and an unpaid row grants nothing.</p>
+<blockquote><strong>Why `10:30:00.000Z`.</strong> A slot must start on the hour <strong>in the booking&#x27;s own timezone</strong>, and with no timezone in the body that is India. <code>10:00Z</code> is 15:30 IST and is correctly refused with <code>Sessions start on the hour. Pick a time like 6:00 or 7:00.</code> <code>10:30Z</code> is 4 PM IST.</blockquote>
+<h3><code>PT-04</code> - Sign in, sign out, reset a password · P2</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Sign in at <code>/patient/login</code></td><td>Lands on <code>/patient/dashboard</code>. The public navbar is <strong>not</strong> rendered there.</td></tr><tr><td>Sign out</td><td>The session ends, you land on a public page, and a farewell banner shows for the admin-set number of seconds. <code>/patient/dashboard</code> now redirects to <code>/patient/login</code>.</td></tr><tr><td><strong>Forgot password</strong> → enter the address → <strong>Send Reset Link</strong></td><td><code>Sending...</code>, then a confirmation, with <strong>← Back to Sign In</strong>. <code>/reset-password</code> renders. Delivery cannot be checked with a <code>.test</code> address.</td></tr><tr><td>Sign in while <strong>suspended</strong> (ask the admin to suspend you)</td><td>You reach <strong>`/account-suspended`</strong>, and a console call to any patient route is <strong>refused</strong></td></tr></tbody></table>
+<hr>
+<h2>3. Paying</h2>
+<h3><code>PT-05</code> - Pay for the first session · P0</h3>
+<p><strong>Do this.</strong> Back on Step 3 of the wizard, tap <strong>Request Booking</strong>, then pay:</p>
+<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody><tr><td>Card</td><td><code>4111 1111 1111 1111</code></td></tr><tr><td>Expiry</td><td>any future date, <code>12/30</code></td></tr><tr><td>CVV</td><td>any three digits</td></tr><tr><td>OTP / 3DS</td><td>choose <strong>Success</strong></td></tr></tbody></table>
+<p><strong>Expect</strong></p>
+<ul><li>The Razorpay sheet says <strong>Test Mode</strong> and shows <strong>₹1,999</strong> - the figure the button quoted.</li><li>Step 3 is replaced by a <strong>Payment Confirmed</strong> panel with <strong>Go to Dashboard</strong>.</li><li>Tapping it lands on <code>/patient/dashboard</code> <strong>without bouncing to `/pending-approval`</strong>. Genuinely attempting checkout approves the patient - deliberately on the <em>attempt</em>, not on success, so somebody whose card fails three times still reaches their dashboard.</li><li>The session is listed <strong>Pending</strong>: paid, nobody assigned yet.</li></ul>
+<h3><code>PT-06</code> - Every other payment outcome · P1</h3>
+<table><thead><tr><th>What you do</th><th>Expect</th></tr></thead><tbody><tr><td>Close the Razorpay sheet without paying</td><td><em>&quot;Payment was not completed. You can try again below.&quot;</em> The button now reads <strong>Pay ₹1,999 Now</strong>, not Request Booking. The appointment exists, unpaid.</td></tr><tr><td>Choose <strong>Failure</strong> on the 3DS page</td><td>An error; the attempt counter increments; the appointment stays unpaid</td></tr><tr><td>Fail three times</td><td>An amber escape hatch: <em>&quot;Having trouble paying? Your booking is saved as pending…&quot;</em> with <strong>Go to Dashboard</strong></td></tr><tr><td>Tap <strong>Pay ₹1,999 Now</strong> again</td><td>Checkout re-opens against the <strong>same</strong> appointment. <strong>No second appointment, no second order.</strong></td></tr><tr><td>Press <strong>Back</strong> from Step 3 to Step 2</td><td>The draft is abandoned and the button returns to <strong>Request Booking</strong>. The unpaid appointment stays in the dashboard.</td></tr><tr><td>Reload mid-wizard</td><td>It restarts at Step 1. No wizard state is kept. Any appointment already created is in the dashboard, unpaid.</td></tr><tr><td>Close the tab after paying, before the confirmation</td><td>The booking still becomes paid - the gateway&#x27;s own callback confirms it server-side. <strong>If it does not</strong>, the webhook secret is unset; that is a real finding and belongs on the admin&#x27;s System Health.</td></tr></tbody></table>
+<h3><code>PT-07</code> - Pay twice, fast · P0</h3>
+<p><strong>Do this.</strong> Double-tap <strong>Request Booking</strong>. Then, on a fresh booking, double-tap <strong>Pay … Now</strong>.</p>
+<p><strong>Expect.</strong> <strong>One</strong> appointment and <strong>one</strong> payment, both times. Two appointments from one tap, or two charges, is a <strong>P0</strong>.</p>
+<hr>
+<h2>4. The dashboard</h2>
+<h3><code>PT-08</code> - The Overview · P1</h3>
+<p><strong>Expect</strong>, in this order: a strip of <strong>four figures</strong>, the activity feed, then quick actions. That order is the same on every dashboard in this product because it is the order people ask <em>how am I doing / what needs me / what do I do next</em>.</p>
+<ul><li>The sidebar shows <strong>Overview, Book a Session, Sessions, Payments, Health Profile, Edit Profile</strong>, with <strong>Back to Home</strong> at the foot.</li><li><strong>Programmes is absent</strong> until they own one. A screen that can only ever be empty is not in the sidebar. Booking is the deliberate exception - always shown, because it is how a patient gets their first of anything.</li><li><strong>Every time on this screen is India Standard Time</strong>, whatever your laptop is set to. A session booked for 4 PM must not read <code>10:30 AM</code> anywhere - <strong>P1</strong>, because two people reading one screen then disagree about when it is.</li><li>Nothing in the feed claims the patient did something they did not do.</li></ul>
+<h3><code>PT-09</code> - Every screen says what it is loading · P2</h3>
+<p><strong>Do this.</strong> DevTools → Network → <strong>Slow 3G</strong>, then walk every sidebar entry.</p>
+<p><strong>Expect</strong> a skeleton with <strong>its own label</strong> each time - <code>Loading your dashboard</code>, <code>Loading booking</code>, <code>Loading suggested sessions</code>, <code>Loading your sessions</code>, <code>Loading your programmes</code>, <code>Loading your payments</code>, <code>Loading your health profile</code>, <code>Loading your profile</code> - and <strong>the sidebar stays on screen throughout</strong>. A screen that blanks the chrome, flashes white, or shows another screen&#x27;s label is the defect.</p>
+<h3><code>PT-10</code> - Edit Profile and the address book · P2</h3>
+<p><strong>Do this.</strong> Fill every field from §1, save, reload. Then add a second address and remove it.</p>
+<p><strong>Expect.</strong> Everything survives the reload - a patient&#x27;s own details save immediately, with no review step. Removing a saved address does <strong>not</strong> alter any visit already booked: a visit&#x27;s address is copied onto the appointment at purchase, never referenced live.</p>
+<h3><code>PT-11</code> - Upload reports · P1</h3>
+<p><strong>Do this.</strong> On <strong>Health Profile</strong>, use the reports uploader.</p>
+<table><thead><tr><th>File</th><th>Type</th><th>Expect</th></tr></thead><tbody><tr><td><code>Spine_Report_E2E.pdf</code></td><td><code>Scan or X-ray</code></td><td>Uploads, listed</td></tr><tr><td>Anything over <strong>10 MB</strong></td><td>-</td><td>Refused with a size message</td></tr><tr><td>A <code>.txt</code> file</td><td>-</td><td>The picker will not accept it</td></tr><tr><td>A 21st file</td><td>-</td><td>Refused - 20 per patient</td></tr></tbody></table>
+<p><strong>The uploader works even while the health profile itself is locked</strong> (PT-12). It is the one useful thing a patient can do beforehand.</p>
+<hr>
+<h2>5. The health record</h2>
+<h3><code>PT-12</code> - Locked until a therapist writes the first record · P1</h3>
+<p><strong>Do this.</strong> Before any therapist has triaged you, open <strong>Health Profile</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li><strong>No</strong> call to action to start, and <strong>no</strong> answered counter. Both are <strong>absent</strong>, not greyed out - the record is not the patient&#x27;s to start.</li><li>The Overview&#x27;s health cell reads <strong>`-` on slate</strong>, not <code>0%</code> on amber. Amber would be asking the patient for something they cannot give.</li><li>No amber banner telling them to complete anything.</li><li>The reports uploader still works.</li></ul>
+<h3><code>PT-13</code> - Unlocked, and answered in the patient&#x27;s own words · P0</h3>
+<p><strong>Preconditions.</strong> A therapist has triaged you and written the first record.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The record renders, showing <strong>answers, not inputs</strong>.</li><li>The Overview&#x27;s health cell shows a real percentage.</li><li><strong>Nothing claims the patient answered questions a clinician wrote.</strong> A counter reading <code>3 of 7 answered</code> over &quot;Add the missing answers&quot; for answers the patient never gave is a <strong>P1</strong> - attribution is not a nicety on a medical record.</li><li>The word on screen is <strong>Health Profile</strong>, to the patient, everywhere. Not &quot;Patient Care Intake&quot;, not &quot;condition data&quot;, not &quot;the questionnaire&quot;, and never &quot;chart&quot; - that is clinician register.</li><li>The patient is <strong>never shown a category word</strong>. Their care reads as <em>Orthopaedic physiotherapy</em>, never <code>ortho</code>, and the words &quot;triage&quot; and &quot;onboarding&quot; appear nowhere on their screens.</li></ul>
+<h3><code>PT-14</code> - Answer the questions, one at a time · P1</h3>
+<p><strong>Do this.</strong> Where the patient may edit or add answers, open the wizard.</p>
+<p><strong>Expect</strong></p>
+<ul><li>It is a <strong>one-question-at-a-time pop-up</strong>, never a wall of seven fields on the dashboard. Each question carries help text saying why the answer matters, in the patient&#x27;s words.</li><li>A draft saves as you go, and coming back says where you left off - <strong>only if it was you who left off.</strong> A therapist&#x27;s abandoned edit must never tell the patient <em>&quot;You left off part-way through&quot;</em>. <strong>P1.</strong></li><li>Every pain figure on screen is out of <strong>ten</strong>, matching how the patient rates their own. A strip reading <em>&quot;How you rate it 6/10&quot;</em> beside <em>&quot;Last exam found 34%&quot;</em> is two measurements on one screen - <strong>P2</strong>.</li></ul>
+<h3><code>PT-15</code> - Export the record · P1</h3>
+<p><strong>Do this.</strong> Use the export on Health Profile.</p>
+<p><strong>Expect</strong></p>
+<ul><li>A <strong>PDF</strong> downloads, named <code>QA Patient A_PT####.pdf</code> using that patient&#x27;s own code, typeset and readable - what a patient does with an export is hand it to another clinician.</li><li><strong>Session notes are not in it.</strong> Neither in the PDF nor in <code>?format=json</code>. A patient who can read a session note is a <strong>P0</strong>.</li><li>Uploaded reports are listed as metadata.</li></ul>
+<hr>
+<h2>6. Sessions</h2>
+<h3><code>PT-16</code> - One list, three filters · P1</h3>
+<p><strong>Expect.</strong> <strong>Sessions</strong> is one screen with <strong>Upcoming / Past / Cancelled</strong>, plus a <strong>Video / Home visit</strong> filter that appears only once this patient has both. Video sessions and home visits are <strong>not</strong> separate sidebar entries - &quot;what is next?&quot; must not be a two-screen question.</p>
+<p>There is also a <strong>List / Calendar</strong> toggle, rendering the <strong>same</strong> cards. The two views can never disagree about a session.</p>
+<h3><code>PT-17</code> - Waiting, confirmed, joined · P0</h3>
+<table><thead><tr><th>Moment</th><th>Expect on the patient&#x27;s card</th></tr></thead><tbody><tr><td>Paid, nobody assigned</td><td><strong>Pending</strong>. No therapist named, no join link.</td></tr><tr><td>Admin assigns a therapist</td><td><strong>Confirmed</strong>, therapist named, a meeting link appears</td></tr><tr><td>Well before the slot</td><td>The join control is <strong>not live</strong>, and <strong>names when it opens</strong> rather than being a dead button</td></tr><tr><td>Inside the join window</td><td><strong>Tap to Join</strong> works</td></tr><tr><td>Past the Session Completed cutoff</td><td>It reads <strong>Session Completed</strong> instead</td></tr></tbody></table>
+<p><strong>The therapist and the admin must see the same answer at the same moments.</strong> A window open for one party and shut for the other is a <strong>P1</strong> - somebody sits waiting in a meeting nobody else can enter.</p>
+<p><strong>If there is no meeting link</strong>, ask the admin to check System Health before you raise it: an unconfigured Google account is a state, not a fault, and a <strong>home visit never has one by design</strong>.</p>
+<h3><code>PT-18</code> - Cancel, and the refund window · P0</h3>
+<p><strong>Do this.</strong> Cancel a paid session <strong>outside</strong> the 24-hour window, then another <strong>inside</strong> it.</p>
+<p><strong>Expect</strong></p>
+<table><thead><tr><th></th><th>Outside</th><th>Inside</th></tr></thead><tbody><tr><td>Refund</td><td><strong>Full</strong></td><td><strong>None</strong></td></tr><tr><td>The card says</td><td>The refund and when</td><td><strong>Why not</strong>, naming the window that applied</td></tr></tbody></table>
+<ul><li>Every refund <strong>states a reason</strong>, including the forfeiture. A blank reason line on a cancelled session is a <strong>P2</strong>.</li><li>The no-refund explanation names <strong>the window that actually applied</strong> - a home visit has its own, different window, so quoting the online 24 hours on a cancelled visit is wrong.</li><li>A refund the clinic has decided is <strong>not owed</strong> says <strong>nothing</strong> to the patient. The cancelled card already explains the window; repeating it as a refund line announces a refund to somebody who is not getting one.</li></ul>
+<h3><code>PT-19</code> - Rate a delivered session · P2</h3>
+<p><strong>Do this.</strong> Rate a completed session <strong>4 stars</strong> with a comment.</p>
+<p><strong>Expect.</strong> It saves, and the therapist&#x27;s own header starts quoting it. If an admin later reopens that session, <strong>the rating is destroyed</strong> - and the patient was not promised otherwise.</p>
+<hr>
+<h2>7. Buying a programme</h2>
+<p>A patient cannot buy a programme from a price list. It comes only from a recommendation a therapist wrote after a session they ran.</p>
+<h3><code>PT-20</code> - Nothing is visible until the clinic approves it · P0</h3>
+<p><strong>Preconditions.</strong> A therapist has submitted a recommendation for you, and no admin has approved it.</p>
+<p><strong>Expect: nothing.</strong> Not a greyed-out card, not &quot;your therapist has recommended something, pending approval&quot; - <strong>nothing at all</strong> on any of your screens. A visible pending recommendation is a <strong>P1</strong>.</p>
+<p><strong>Then try to buy it anyway</strong>, in the console:</p>
+<pre><code>const r = await fetch(&quot;/api/care-plan/create-order&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ carePlanId: &quot;&lt;any uuid&gt;&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect. Refused.</strong> Hiding a card is presentation; refusing the order is the rule. A <code>200</code> is a <strong>P0</strong>.</p>
+<h3><code>PT-21</code> - Read and buy the offer · P0</h3>
+<p><strong>Preconditions.</strong> The admin has approved it.</p>
+<p><strong>Do this.</strong> Open <strong>Suggested Sessions</strong>, read the card, and pay with the test card.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The card quotes <strong>₹9,999</strong> and <strong>6 sessions</strong> - the figures from the clinic&#x27;s catalogue, never anything the therapist typed. There is no price, session count or discount a clinician could have set.</li><li>An expiry, counted from <strong>when the clinic approved it</strong>, not from when the therapist wrote it. A plan that waited two days in a queue must not reach you with two days already spent.</li><li>After paying, the screen lands on <strong>a confirmation and one next step</strong> - what arrived, what you own, then the scheduler. <strong>A blank screen here is a P1</strong>: this is the highest-intent moment in the product.</li><li>&quot;I&#x27;ll do it later&quot; is a real, unpunished option.</li></ul>
+<h3><code>PT-22</code> - Schedule the whole run · P0</h3>
+<p><strong>Expect.</strong> The calendar opens <strong>already answered</strong> - a whole run of dates proposed from the clinician&#x27;s own cadence (twice a week, 24 hours apart, maximum three a week, inside the 90-day validity).</p>
+<ul><li>A day that cannot take the run&#x27;s hour is <strong>skipped, not substituted</strong>. Somebody who asked for five o&#x27;clock and was handed nine in the evening has been given a schedule they did not ask for.</li><li>It <strong>stops at the validity</strong> - fewer sessions rather than sessions you would lose.</li><li>Every booked session is <strong>auto-assigned to the same therapist and confirmed</strong>, each with its own meeting link. The first therapist on a programme locks it.</li><li>A slot that clashes is <strong>fixable in place</strong>, not a list you can only close.</li></ul>
+<p><strong>Then the two batch rules.</strong> Try to book two sessions <strong>12 hours apart</strong>, and <strong>four in one week</strong>.</p>
+<p><strong>Expect.</strong> Both refused, readably. Those are the programme&#x27;s own rules reaching the booking.</p>
+<h3><code>PT-23</code> - The dashboard keeps asking · P1</h3>
+<p><strong>Do this.</strong> Leave one session of the programme unbooked and open <strong>Overview</strong>.</p>
+<p><strong>Expect.</strong> An item <strong>pinned to the top</strong> of the feed until the balance is spent. It does not sink as it ages - a programme paid for a month ago with a session unbooked is exactly the item that must not drift down the list.</p>
+<p><strong>And the balance agrees everywhere</strong>: the programme widget, the scheduler, and what the admin&#x27;s Purchases screen shows. A figure that disagrees between two of them is a <strong>P1</strong>.</p>
+<h3><code>PT-24</code> - A therapist proposes a time · P1</h3>
+<p><strong>Preconditions.</strong> Therapist-suggested sessions is on, and your therapist has proposed one.</p>
+<p><strong>Do this.</strong> Open <strong>Suggested Sessions</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The proposed time and the therapist&#x27;s note, with <strong>Accept</strong> and <strong>Decline</strong>.</li><li><strong>Accepting books it</strong> - and only then does the balance fall by one. A suggestion that spends a session before you accept is a <strong>P1</strong>: declining would then have to refund one.</li><li><strong>Declining costs nothing.</strong></li><li>A suggestion whose slot has fallen inside the 12-hour lead time simply <strong>stops being acceptable</strong>. Nothing anywhere marks it &quot;expired&quot;.</li><li>Answer the same suggestion from two browsers at once: <strong>one wins</strong>, not two bookings.</li><li>Accept with the network dropped mid-request: you are left <strong>exactly where you were</strong>, not cleared into a state that never happened.</li></ul>
+<hr>
+<h2>8. Home visits</h2>
+<h3><code>PT-25</code> - Book a visit, paying online · P0</h3>
+<p><strong>Do this.</strong> Open <code>/book-home-visit</code> (header should read <strong>Step 1 of 4</strong>), enter pincode <code>560038</code>, tap <strong>Check</strong>, then work through.</p>
+<p><strong>Expect</strong></p>
+<ul><li>A teal line: <em>&quot;Yes - we visit Indiranagar, Bengaluru. Travel to this area is ₹150 per visit.&quot;</em></li><li>The notice says home visits need at least <strong>24 hours&#x27;</strong> notice - deliberately longer than the online 12, and read from its own setting.</li><li><strong>Review and pay shows three figures</strong>: programme <code>₹2,499</code>, travel <code>₹150</code>, total <code>₹2,649</code>.</li><li><strong>The button charges ₹2,649</strong> - the total shown, not the programme price. Quoting one figure and charging another is a <strong>P0</strong>, and this is where it has happened before.</li><li>The visit appears on <strong>Sessions</strong>, and the <strong>Video / Home visit</strong> filter now appears because you have both.</li></ul>
+<h3><code>PT-26</code> - The address is frozen at purchase · P1</h3>
+<p><strong>Do this.</strong> Change your saved address, then re-open the booked visit.</p>
+<p><strong>Expect.</strong> The visit still carries the <strong>old</strong> address. Editing a saved address must never rewrite a visit already booked or delivered.</p>
+<h3><code>PT-27</code> - An address we do not visit · P1</h3>
+<p><strong>Do this.</strong> Enter <code>560025</code> and tap <strong>Check</strong>. Then leave a waitlist entry.</p>
+<p><strong>Expect</strong></p>
+<ul><li>An amber panel: <em>&quot;We don&#x27;t visit 560025 yet.&quot;</em> and <em>&quot;Leave your number and we&#x27;ll tell you the moment we do. Nothing has been charged.&quot;</em></li><li><strong>No address form and no package picker appear.</strong> Serviceability is checked before an address is even collected.</li><li>A link to an <strong>online consultation</strong>, which is available anywhere.</li><li>After submitting: <em>&quot;Thanks - we&#x27;ll be in touch.&quot;</em></li></ul>
+<p><strong>And the four bad pincodes:</strong> <code>56003</code>, <code>0560038</code>, <code>abcdef</code> and blank are each refused with <code>Enter a valid 6-digit pincode.</code></p>
+<h3><code>PT-28</code> - A four-visit package cannot be bought · P0</h3>
+<p><strong>Expect.</strong> Only the <strong>single</strong> visit has a Book button, on <code>/home-visit</code> and on the dashboard&#x27;s booking screen. Two or more visits is a programme, and a programme comes from a recommendation.</p>
+<p><strong>Then call the route directly</strong> with a multi-visit package id:</p>
+<pre><code>const r = await fetch(&quot;/api/home-visit/create-order&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ packageId: &quot;&lt;the 4-visit package id&gt;&quot;, pincode: &quot;560038&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect. Refused.</strong></p>
+<p><strong>And a stale link.</strong> Open <code>/book?package=&lt;any id&gt;</code>.</p>
+<p><strong>Expect.</strong> Not silence and not a different amount of money - a panel reading <em>&quot;Programmes come from your therapist now&quot;</em> with a <strong>Book a first session</strong> link.</p>
+<h3><code>PT-29</code> - Pay at the door · P1</h3>
+<p><strong>Do this.</strong> Book a visit choosing <strong>Pay at the visit</strong>.</p>
+<p><strong>Expect.</strong> The purchase is created and the visit confirmed, and it stays <strong>unpaid</strong> for its whole life. <strong>That is correct for cash</strong> - never read a home-visit purchase&#x27;s payment status the way you would an online one.</p>
+<p><strong>Then, with cash switched off</strong> by the admin: the option is gone from Step 4, and the route refuses it if called directly.</p>
+<h3><code>PT-30</code> - Cancel a visit · P0</h3>
+<p><strong>Expect.</strong> The home visit&#x27;s <strong>own</strong> refund window applies - not the online one. Outside it, the refund <strong>includes the travel</strong> that was charged; refunding the service line alone leaves you paying for a journey nobody made. A <strong>cash</strong> visit becomes a hand-back for somebody at the clinic to do, and the card says so.</p>
+<hr>
+<h2>9. Money off</h2>
+<p>Four discounts exist, and the patient can trigger two of them. Every one of them sends a <strong>name</strong>, never a figure.</p>
+<h3><code>PT-31</code> - The first-session offer · P0</h3>
+<p><strong>Preconditions.</strong> The admin has switched it on at <strong>₹500</strong> off.</p>
+<p><strong>Do this.</strong> As <strong>Patient D</strong> (never paid), reach Step 3 on a ₹1,999 category.</p>
+<p><strong>Expect. ₹1,499</strong>, on the screen <em>and</em> in the Razorpay sheet. Then book a <strong>second</strong> session: <strong>full ₹1,999</strong>. A patient is new exactly once, and that is asked of the database rather than remembered in a browser.</p>
+<p><strong>And in a private window, signed into nothing</strong>, reach Step 3 on the same category: <strong>₹1,499 again</strong>. A visitor with no account yet is exactly who the offer is for.</p>
+<p><strong>The offer is video consultations only.</strong> A home visit still quotes travel and no offer.</p>
+<h3><code>PT-32</code> - A promo code · P1</h3>
+<p><strong>Preconditions.</strong> The admin has created <code>QASPINE20</code>, 20% off, cap 2.</p>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Type <code>QASPINE20</code> at Step 3</td><td><strong>₹1,599</strong>. The request carries the <strong>code</strong>, never an amount</td></tr><tr><td>Be the third patient to claim it</td><td>Refused - the cap means two</td></tr><tr><td>Apply it, abandon checkout, wait out the hold</td><td>The claim <strong>stops counting</strong>. Nothing writes an &quot;expired&quot; status</td></tr><tr><td>A code that does not exist</td><td>Refused, readably</td></tr><tr><td>A <strong>paused</strong> campaign</td><td>Nothing applied, and the screen says which</td></tr><tr><td>Apply a valid code, have the admin pause it, <strong>then pay</strong></td><td><strong>Checkout refuses</strong> rather than quietly charging list price. You were shown a figure with the code applied, and taking more money than somebody was quoted is the one outcome a payment screen must never produce</td></tr></tbody></table>
+<h3><code>PT-33</code> - An invite from another patient · P1</h3>
+<p><strong>Preconditions.</strong> Invites on; friend gets ₹200, inviter gets ₹200.</p>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>A brand-new patient claims Patient A&#x27;s code and pays</td><td>Their first session is ₹200 cheaper</td></tr><tr><td>Look at Patient A&#x27;s next booking</td><td>₹200 cheaper, <strong>once</strong> - and only after the friend actually <strong>paid</strong>, never on their signup</td></tr><tr><td>Patient A claims <strong>their own</strong> code</td><td>Refused</td></tr><tr><td>The friend claims <strong>a second</strong> invite</td><td>Refused</td></tr><tr><td>A patient who has already paid claims one</td><td>Refused</td></tr><tr><td>The admin lowers the reward before an unspent one is used</td><td>The patient gets <strong>what was promised</strong>. Amounts are snapshotted at claim</td></tr></tbody></table>
+<h3><code>PT-34</code> - A goodwill discount · P1</h3>
+<p>An admin applies this to one <strong>unpaid</strong> session of yours with a reason.</p>
+<p><strong>Expect.</strong> Your Step 3 quotes the reduced figure and checkout charges it. Applied to something already <strong>paid</strong>, it is refused - that would be a refund, which has its own route.</p>
+<h3><code>PT-35</code> - When it all comes off · P0</h3>
+<table><thead><tr><th>Do</th><th>Expect</th></tr></thead><tbody><tr><td>Qualify for two discounts at once</td><td><strong>One</strong> applies - the <strong>largest</strong>. They never stack, and you pay the lowest price any rule would have given</td></tr><tr><td>Apply any discount to a <strong>home visit</strong></td><td>It comes off the <strong>service line only</strong>; travel is added back at full price. Discounted travel makes the therapist fund their own transport - <strong>P0</strong></td></tr><tr><td>Use a <strong>100%-off</strong> code</td><td>Total reads <strong>Free</strong>, the button reads <strong>Confirm booking - free</strong>, and <strong>no Razorpay screen opens at all</strong>. Being charged ₹1 instead is a <strong>P0</strong></td></tr><tr><td>Double-tap that free confirmation</td><td><strong>One</strong> booking. It is idempotent</td></tr></tbody></table>
+<p><strong>And prove the browser does not decide.</strong> With <strong>no</strong> discount running:</p>
+<pre><code>const r = await fetch(&quot;/api/appointments/confirm-free&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ appointmentId: &quot;&lt;an unpaid appointment of yours&gt;&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect: 409</strong>, <em>&quot;This booking still has an amount to pay.&quot;</em>, and the booking stays unpaid. If a booking can be confirmed free by asking, every session in the app is free - <strong>P0</strong>.</p>
+<hr>
+<h2>10. Payments and refunds</h2>
+<h3><code>PT-36</code> - The Payments screen · P1</h3>
+<p><strong>Expect</strong></p>
+<ul><li>Every payment this patient has made, each opening a receipt.</li><li>The sidebar word is <strong>Payments</strong> - money going <em>out</em> from the patient. Not &quot;Earnings&quot;, which is what money owed <em>to</em> somebody is called.</li><li>A refunded session shows the refund <strong>in the patient&#x27;s voice</strong>: whether they are getting their money back and when, with the clinic&#x27;s stated reason - not the admin&#x27;s chip wording.</li><li>A <strong>failed</strong> refund is a <strong>pinned item on the Overview</strong>. It is the one refund state nothing in the clinic&#x27;s screens will move without the patient.</li><li>A <strong>partly</strong> refunded completed session shows the refund as its own line - the session still reads delivered, not &quot;Refunded&quot;.</li></ul>
+<hr>
+<h2>11. What a patient must never be able to do</h2>
+<h3><code>PT-37</code> - Another patient&#x27;s anything · P0</h3>
+<p>Signed in as <strong>Patient B</strong>, try to reach Patient A&#x27;s health profile, sessions, receipts and uploaded documents - by URL where there is no link.</p>
+<p><strong>Expect. Refused, every time</strong>, and no error names a table or a column. Any path by which one patient&#x27;s clinical data or money reaches another is a <strong>P0</strong> that stops the run.</p>
+<h3><code>PT-38</code> - Any other role&#x27;s screens · P0</h3>
+<table><thead><tr><th>Open</th><th>Expect</th></tr></thead><tbody><tr><td><code>/therapist/dashboard</code></td><td>Bounced. One account carries one role.</td></tr><tr><td><code>/hospital/dashboard</code></td><td>Bounced</td></tr><tr><td><code>/admin/dashboard</code></td><td>Redirected to <strong>`/get-started`</strong> - never to <code>/admin/login</code>, which would confirm the back office exists and name its door</td></tr></tbody></table>
+<h3><code>PT-39</code> - Any route that is not theirs · P0</h3>
+<p>Signed in as the patient:</p>
+<pre><code>const routes = [
+  &quot;/api/admin/approve-account&quot;,
+  &quot;/api/admin/settle-therapist-payout&quot;,
+  &quot;/api/admin/cancel-appointment&quot;,
+  &quot;/api/therapist/save-availability&quot;,
+  &quot;/api/therapist/care-plan/submit&quot;,
+  &quot;/api/therapist/reveal-contact&quot;,
+  &quot;/api/hospital/withdraw-referral&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect. 403 on every one.</strong></p>
+<h3><code>PT-40</code> - Tampering · P0</h3>
+<table><thead><tr><th>Send</th><th>Expect</th></tr></thead><tbody><tr><td><code>{&quot;role&quot;:&quot;admin&quot;}</code> to a profile-update route</td><td>Ignored or refused</td></tr><tr><td>Somebody else&#x27;s appointment id to cancel</td><td>Refused</td></tr><tr><td>An amount in the body of <code>create-order</code></td><td><strong>Ignored</strong> - the figure is re-derived server-side from the category row</td></tr><tr><td>Invalid JSON, an empty body, an array, a bare string</td><td>Always <strong>4xx</strong>, never a <strong>500</strong></td></tr></tbody></table>
+<hr>
+<h2>12. On a phone</h2>
+<h3><code>PT-41</code> - The whole journey at 390px · P2</h3>
+<p>Walk the home page, <code>/book</code> end to end, and every dashboard screen.</p>
+<p><strong>Expect.</strong> Nothing scrolls sideways. Tap targets are finger-sized. The sidebar becomes a drawer with <strong>Back to Home</strong> in it. Dialogs fill the screen rather than sitting half off it. The Razorpay sheet works. A dialog opened from inside another dialog covers the <strong>whole screen</strong>, not just the panel it came from.</p>
+<h3><code>PT-42</code> - Keyboard and screen reader · P2</h3>
+<p>Tab through <code>/book</code> and the dashboard with the mouse away.</p>
+<p><strong>Expect.</strong> Every control reachable in a sensible order with a <strong>visible focus ring</strong>. A dialog moves focus into itself, traps Tab, closes on <strong>Escape</strong>, and returns focus to whatever opened it. Every control has a name. Small grey text on white is readable - a pale label, count or hint is a real accessibility failure, not a taste question.</p>
+<hr>
+<h2>13. Sign-off</h2>
+<table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Steps run</td><td>42</td></tr><tr><td>Pass</td><td></td></tr><tr><td>Fail</td><td></td></tr><tr><td>Blocked</td><td></td></tr><tr><td>N/A</td><td></td></tr><tr><td>P0 raised</td><td></td></tr><tr><td>P1 raised</td><td></td></tr></tbody></table>
+<p><strong>Confirm each of these before signing.</strong></p>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>Registered inside the booking wizard, with no email-confirmation step</td><td>☐</td></tr><tr><td>The figure on the button matched the figure in the payment sheet</td><td>☐</td></tr><tr><td>Paying approved them on the attempt; abandoning checkout still let them in</td><td>☐</td></tr><tr><td>The dashboard opened on four figures, a feed and quick actions, in that order</td><td>☐</td></tr><tr><td>Read-only on the health record until a therapist filled it, with the CTA absent rather than disabled</td><td>☐</td></tr><tr><td>Their own record exported as a PDF named after them, with no session note in it</td><td>☐</td></tr><tr><td>A session joined only in its window, and cancelled inside and outside the refund window</td><td>☐</td></tr><tr><td>A refund read in the patient&#x27;s own voice, with a failed one pinned on the dashboard</td><td>☐</td></tr><tr><td>A recommendation invisible until approved, then bought, then scheduled</td><td>☐</td></tr><tr><td>Unbooked sessions kept asking until the balance was spent</td><td>☐</td></tr><tr><td>A home visit quoted programme <strong>plus travel</strong>, and an unserviceable address refused honestly</td><td>☐</td></tr><tr><td>Every discount quoted what checkout charged; a free total took nothing</td><td>☐</td></tr><tr><td>A 429 was never read as &quot;invalid&quot; or &quot;expired&quot;</td><td>☐</td></tr><tr><td>One patient reached nothing of another&#x27;s, at the screen and at the routes</td><td>☐</td></tr><tr><td>The whole journey worked at phone width</td><td>☐</td></tr></tbody></table>
+<p><strong>Signed</strong> ......................... <strong>Date</strong> .................</p>
+<p><strong>Build / commit tested</strong> .........................</p>
+<hr>
+<p><strong>Any open P0 is a No.</strong> For this role that means: charged a figure they were not quoted, a free total taking money, another patient&#x27;s record reachable, a route answering 200 that should refuse, or a programme buyable without a recommendation.</p>
+<p><strong>What a clean run of this document proves.</strong> That a patient&#x27;s own journey - registering, paying, being treated, being recommended to and being refunded - behaved on one machine, in one browser, against test payment keys, once. It does not cover real money (Razorpay is in test mode), email or SMS delivery (<code>.test</code> addresses cannot receive), load, browsers other than the one you used, or the database&#x27;s own guards. Nor does it prove the other roles&#x27; views of the same rows agree; each of them has a document of its own.</p></body></html>

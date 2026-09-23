@@ -175,6 +175,27 @@ in a phase that needs a later one to have run first. When a rule changes, both
 documents want the edit -- the plan states it as a case, the run states it as
 an expectation on a step.
 
+**And there are eight more, one per kind of user, because the third way
+somebody executes this is role by role.** `docs/qa/roles/<role>/plan.md` builds
+`DrPoojaPhysio-Role-<Name>` for each of Patient, Therapist, Partner Hospital,
+Master Admin, Operations, Finance, Clinical and Signed-Out Visitor. The run
+document interleaves the roles on purpose -- four people looking at one session
+is where the disagreements are -- and that is the wrong shape for handing one
+tester one role, or for re-running a single role after a change that only
+touched it. Each role document is therefore **self-contained**: its own
+accounts table, its own prerequisites naming which other roles must set
+something up first, its own console recipe and its own sign-off sheet, with
+step ids prefixed per role (`PT-`, `TH-`, `HO-`, `MA-`, `OP-`, `FI-`, `CL-`,
+`VI-`). The three scoped-admin documents are written against
+`src/lib/adminScope.ts` directly rather than against prose, since their whole
+content is what that grid grants and refuses -- so a change to `SECTION_ACCESS`
+wants the edit in whichever of the four admin documents it moves, and the
+mirror-image checks are deliberately duplicated across them (the partner
+revenue-share editor must be absent for Operations and Clinical and **present**
+for Finance, and each document says so). A rule change can now want the edit in
+three places -- the plan as a case, the run as an expectation on a step, and
+the role document of whoever the rule is about.
+
 `scripts/seed-qa-accounts.mjs` (`npm run seed:qa`) recreates every account
 the manual plan names -- four admins, three patients, three therapists, two
 hospitals -- with the fixture password, straight after a data reset. The reset

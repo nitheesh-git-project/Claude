@@ -1,0 +1,247 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Dr. Pooja&#x27;s Physio - Partner Hospital Test Plan</title><style>
+@page { size: A4; margin: 18mm 15mm 20mm 15mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "DejaVu Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 9.4pt; line-height: 1.5; color: #1e293b; margin: 0;
+}
+.cover { page-break-after: always; padding-top: 55mm; text-align: center; }
+.cover .rule { width: 60mm; height: 4px; background: #0f766e; margin: 0 auto 14mm; }
+.cover h1 { font-size: 26pt; line-height: 1.2; color: #0f172a; margin: 0 0 10mm; }
+.cover .sub { font-size: 12pt; color: #475569; margin-bottom: 22mm; }
+.cover dl { display: inline-block; text-align: left; font-size: 10pt; color: #334155; }
+.cover dt { font-weight: 700; color: #0f766e; margin-top: 5mm; }
+.toc { page-break-after: always; }
+.toc h2 { border: none; }
+.toc ul { columns: 2; column-gap: 12mm; font-size: 9pt; padding-left: 0; list-style: none; }
+.toc li { margin-bottom: 1.6mm; break-inside: avoid; }
+h1 { font-size: 17pt; color: #0f172a; margin: 10mm 0 3mm; page-break-after: avoid; }
+h2 {
+  font-size: 13.5pt; color: #0f172a; margin: 9mm 0 3mm;
+  padding-bottom: 1.5mm; border-bottom: 2px solid #0f766e; page-break-after: avoid;
+}
+h3 { font-size: 11.5pt; color: #0f766e; margin: 6mm 0 2mm; page-break-after: avoid; }
+h4 {
+  font-size: 10pt; color: #0f172a; margin: 5mm 0 1.5mm;
+  page-break-after: avoid; page-break-inside: avoid;
+}
+h5, h6 { font-size: 9.6pt; color: #334155; margin: 4mm 0 1.5mm; }
+p { margin: 0 0 2.4mm; }
+ul, ol { margin: 0 0 2.6mm; padding-left: 6mm; }
+li { margin-bottom: 1.1mm; }
+code {
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8.4pt;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px; padding: 0 1.2mm;
+  word-break: break-word;
+}
+pre {
+  background: #0f172a; color: #e2e8f0; padding: 3mm 4mm; border-radius: 4px;
+  font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8pt;
+  line-height: 1.45; overflow-x: auto; white-space: pre-wrap;
+  page-break-inside: avoid; margin: 0 0 3mm;
+}
+pre code { background: none; border: none; color: inherit; padding: 0; font-size: inherit; }
+blockquote {
+  margin: 0 0 3mm; padding: 2.5mm 4mm; background: #fffbeb;
+  border-left: 3px solid #d97706; color: #78350f; font-size: 9pt;
+}
+table {
+  width: 100%; border-collapse: collapse; margin: 0 0 3.5mm;
+  font-size: 8.3pt; page-break-inside: auto;
+}
+th, td {
+  border: 1px solid #cbd5e1; padding: 1.4mm 1.8mm; text-align: left;
+  vertical-align: top; word-break: normal; overflow-wrap: anywhere;
+}
+th { background: #0f766e; color: #fff; font-weight: 700; }
+tr { page-break-inside: avoid; }
+tbody tr:nth-child(even) { background: #f8fafc; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 6mm 0; }
+a { color: #0f766e; text-decoration: none; word-break: break-all; }
+strong { color: #0f172a; }
+</style></head><body>
+<div class="cover">
+  <div class="rule"></div>
+  <h1>Dr. Pooja&#x27;s Physio - Partner Hospital Test Plan</h1>
+  <p class="sub">Everything a referring partner can do, from enquiry to commission</p>
+  <dl><dt>Role</dt><dd>Partner Hospital</dd><dt>Document version</dt><dd>1.0</dd><dt>Audience</dt><dd>A tester checking this role end to end</dd><dt>Environment</dt><dd>Throwaway Supabase project · Razorpay test mode · npm run dev</dd><dt>Read first</dt><dd>Section 1 - who this is, and what has to exist before you start</dd></dl>
+</div>
+<div class="toc">
+  <h2>Contents</h2>
+  <ul><li>1. Who this is, and what must exist first</li><li>2. Becoming a partner</li><li>3. The hospital&#x27;s dashboard</li><li>4. Referring a patient</li><li>5. What the clinic does with a referral</li><li>6. Money</li><li>7. The hospital&#x27;s profile</li><li>8. What a hospital must never be able to do</li><li>9. Sign-off</li></ul>
+</div>
+<h2>1. Who this is, and what must exist first</h2>
+<p><strong>The account.</strong> A referring partner - a hospital, a clinic or a practice - that sends patients to this practice under a commercial agreement and takes a share of what those patients pay. They are <strong>provisioned by an admin</strong>; they do not self-register.</p>
+<p><strong>The one word that matters.</strong> A <strong>referral</strong> is a hospital sending a patient under a commercial agreement. An <strong>invite</strong> is one patient telling another. They are different things with different tables, different rewards and different screens, and the words stay apart. The link a hospital sends its referred patient is a <strong>registration link</strong>, never an &quot;invite link&quot;. A screen in this flow saying &quot;invite&quot; is a <strong>P2</strong> - one back office cannot have two things called an invite.</p>
+<p><strong>The accounts this plan uses.</strong></p>
+<table><thead><tr><th>Label</th><th>Email</th><th>Password</th><th>Why this plan needs them</th></tr></thead><tbody><tr><td><strong>Hospital A</strong></td><td><code>qa.hospital.a@example.test</code></td><td><em>generated - shown once</em></td><td>The main journey. Refers, tracks, is paid a share.</td></tr><tr><td><strong>Hospital B</strong></td><td><code>qa.hospital.b@example.test</code></td><td><em>generated - shown once</em></td><td>Never sees Hospital A&#x27;s referrals. Proves one partner cannot reach another&#x27;s.</td></tr></tbody></table>
+<p><strong>The password is generated by the admin who creates the account and shown once.</strong> Write it down at <code>HO-01</code>. If you lose it, the admin&#x27;s reset control generates a new one and shows that once too - the clinic stores the credential it issued precisely so a &quot;it won&#x27;t let me in&quot; call can be answered without resetting a working password.</p>
+<p>Their details, used where the steps name them:</p>
+<table><thead><tr><th></th><th>Hospital A</th><th>Hospital B</th></tr></thead><tbody><tr><td>Name</td><td><code>QA Partner Hospital A</code></td><td><code>QA Partner Hospital B</code></td></tr><tr><td>Contact person</td><td><code>QA Hospital Admin A</code></td><td><code>QA Hospital Admin B</code></td></tr><tr><td>Phone</td><td><code>+91 98765 43230</code></td><td><code>+91 98765 43231</code></td></tr><tr><td>City</td><td><code>Bengaluru</code></td><td><code>Mysuru</code></td></tr><tr><td>Revenue share</td><td><code>15%</code></td><td><code>10%</code></td></tr><tr><td>Referral code</td><td><em>generated at creation - record it</em></td><td><em>generated</em></td></tr></tbody></table>
+<p><strong>The patients this plan refers.</strong> Neither exists before this plan runs.</p>
+<table><thead><tr><th></th><th>Referral 1</th><th>Referral 2</th></tr></thead><tbody><tr><td>Name</td><td><code>QA Referred Patient One</code></td><td><code>QA Referred Patient Two</code></td></tr><tr><td>Phone</td><td><code>+91 98765 43240</code></td><td><code>+91 98765 43241</code></td></tr><tr><td>Email</td><td><code>qa.referred.one@example.test</code></td><td><code>qa.referred.two@example.test</code></td></tr><tr><td>Condition</td><td><code>QA Back &amp; Spine Care</code></td><td><code>QA Knee &amp; Joint Care</code></td></tr><tr><td>Preferred language</td><td><code>English</code></td><td><code>Kannada</code></td></tr><tr><td>Delivery</td><td>video consultation</td><td><strong>home visit</strong>, at <code>12, 3rd Cross, Indiranagar, Bengaluru 560038</code></td></tr><tr><td>Notes</td><td><code>Post-discharge, lumbar. Discharged 3 days ago.</code></td><td><code>Knee replacement, week 2. Cannot travel.</code></td></tr></tbody></table>
+<h3>1.1 Before you start</h3>
+<table><thead><tr><th>Must exist</th><th>Set up by</th></tr></thead><tbody><tr><td>At least two treatment categories, priced and active</td><td>Master Admin</td></tr><tr><td>Home visits <strong>on</strong>, with a service area covering <code>560038</code></td><td>Master Admin</td></tr><tr><td>At least one approved therapist with a roster</td><td>Master Admin + Therapist</td></tr><tr><td>An admin who can create partners, assign referrals and settle</td><td>Master Admin</td></tr><tr><td>Razorpay in <strong>test</strong> mode</td><td>whoever set the environment up</td></tr></tbody></table>
+<p><strong>The figures this plan quotes</strong> assume <code>QA Back &amp; Spine Care</code> at <strong>₹1,999</strong>, a home visit at <strong>₹2,499</strong> plus <strong>₹150</strong> travel, and Hospital A on a <strong>15%</strong> revenue share.</p>
+<h3>1.2 How to record a result</h3>
+<p>Mark every step <strong>Pass</strong>, <strong>Fail</strong>, <strong>Blocked</strong> or <strong>N/A</strong>. Raise a failure with: the step id, what you did, what you expected, what happened, a screenshot, any console error in full, how many times out of how many it reproduced, and <strong>which account you were signed in as</strong>.</p>
+<p><strong>Severity.</strong> <strong>P0</strong> - money, clinical data or access control is wrong: stop and report. <strong>P1</strong> - a main journey is broken with no workaround. <strong>P2</strong> - wrong with a workaround. <strong>P3</strong> - cosmetic.</p>
+<h3>1.3 Calling a route without a terminal</h3>
+<p>Several steps call an API directly, because this application enforces its rules twice - once in the screen, once in the route - and a hidden button proves only the first. Sign in as the person the step names, press <strong>F12</strong>, open <strong>Console</strong>, paste and press Enter:</p>
+<pre><code>const r = await fetch(&quot;/api/some/route&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ some: &quot;value&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p>For an <strong>anonymous</strong> call use a private window - running it where you are signed in sends your cookie and proves nothing. For a <strong>different</strong> partner use a second browser profile, not a second tab; tabs share cookies. Never paste the URL in the address bar: that sends a GET, these are POSTs, and you will get 405 and think you found something.</p>
+<hr>
+<h2>2. Becoming a partner</h2>
+<h3><code>HO-01</code> - The enquiry on the public page · P1</h3>
+<p>Before an account exists, a hospital arrives as a lead.</p>
+<p><strong>Do this</strong></p>
+<ol><li><strong>Signed out, in a private window</strong>, open <code>/hospitals</code>.</li><li>Read the page, then fill in the enquiry form:</li></ol>
+<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody><tr><td>Hospital / clinic name</td><td><code>QA Partner Hospital A</code></td></tr><tr><td>Contact person</td><td><code>QA Hospital Admin A</code></td></tr><tr><td>Email</td><td><code>qa.hospital.a@example.test</code></td></tr><tr><td>Phone</td><td><code>+91 98765 43230</code></td></tr><tr><td>City</td><td><code>Bengaluru</code></td></tr><tr><td>Message</td><td><code>200-bed orthopaedic unit, ~30 post-discharge physio referrals a month.</code></td></tr></tbody></table>
+<ol><li>Submit.</li><li>Submit it again, immediately. And again, and again - a dozen times.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 3 confirms, with a sentence saying somebody will be in touch. No account is created and nothing signs you in.</li><li>Step 4: after several attempts you are <strong>held off</strong>, with a message that carries <strong>no numbers</strong> (the cap and the window are configuration) and <strong>no blame</strong> - a limit is reached by a shared office address or a retrying connection far more often than by anybody doing anything wrong. &quot;Too many attempts&quot; reads as an accusation: <strong>P3</strong>.</li><li>The wait itself is specific, because it is measured: the screen says roughly how long.</li><li><strong>This is a real route, not a browser-side database insert.</strong> Confirm in the Network tab that submitting hits <code>/api/hospitals/inquiry</code>. A public write with no server-side door has nothing to put a limit in: <strong>P1</strong>.</li></ul>
+<h3><code>HO-02</code> - The admin creates the account · P1</h3>
+<p><strong>As the Master Admin</strong>, open <strong>People → Partners</strong> and create Hospital A from the details in §1, with a <strong>15%</strong> revenue share. Then create Hospital B at <strong>10%</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>A <strong>password is generated and shown once</strong>. Write it down now.</li><li>A <strong>referral code</strong> is generated. Write that down too - Step <code>HO-05</code> needs it.</li><li><strong>The generated password stays on screen.</strong> It must not vanish mid-sentence because the screen refreshed for its own write. If it disappears before you have copied it, that is a <strong>P1</strong>: the clinic has just issued a credential nobody has.</li><li>The password does <strong>not</strong> appear in the activity log. The log is readable by every admin - who reset what and when is the part with audit value.</li></ul>
+<h3><code>HO-03</code> - First sign-in · P2</h3>
+<p><strong>Do this.</strong> Sign in at the ordinary sign-in screen as Hospital A with the generated password. Then set your own password through the account screen, and sign in again with the new one.</p>
+<p><strong>Expect</strong></p>
+<ul><li>You land on <code>/hospital/dashboard</code>.</li><li>Once you have set your own, the clinic&#x27;s stored copy of the issued password is <strong>cleared</strong>. An admin looking at your row should see you are no longer on a password they issued.</li><li><strong>No screen anywhere shows you a password you chose yourself.</strong> That value does not exist in the database - only a hash does. A screen offering to display it is a <strong>P0</strong>, because it would mean something is storing it.</li></ul>
+<hr>
+<h2>3. The hospital&#x27;s dashboard</h2>
+<h3><code>HO-04</code> - Read the Overview · P1</h3>
+<p><strong>Do this.</strong> As Hospital A, open <code>/hospital/dashboard</code> and read it top to bottom before tapping anything.</p>
+<p><strong>Expect</strong></p>
+<ul><li>A strip of four figures, then the feed, then quick actions - the same shape as every other dashboard in this product.</li><li>The figures cover referrals made, patients converted, sessions delivered and <strong>what is owed to you</strong>.</li><li>The sidebar word for money is <strong>Earnings</strong>. Money owed <em>to</em> somebody is Earnings, in the therapist&#x27;s sidebar and in yours. <strong>&quot;Revenue &amp; Payouts&quot; or any third word for the same thing is a P2</strong> - it reads as a different concept.</li><li>Each figure opens the rows it counted, and the count there matches.</li><li><strong>Back to Home</strong> is in the sidebar in all three renders: expanded, collapsed rail, and the mobile drawer.</li></ul>
+<hr>
+<h2>4. Referring a patient</h2>
+<h3><code>HO-05</code> - Refer a patient for a video consultation · P1</h3>
+<p><strong>Do this</strong></p>
+<ol><li>Open <strong>Refer a patient</strong>.</li><li>Fill in Referral 1 from the table in §1.</li><li>Submit.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>The <strong>phone number is required</strong> and is validated the way every other number in this app is. A referral is the one flow where the clinic must reach somebody who has no account yet - they agree a time by phone and only then send the registration link. <strong>A referral form with no phone field is a P1.</strong></li><li>The <strong>preferred language</strong> is captured.</li><li>The referral appears in <strong>My Referrals</strong> as awaiting the clinic.</li><li>No account has been created for the patient, and nothing has been emailed to them by this app.</li></ul>
+<h3><code>HO-06</code> - Refer a patient for a home visit · P1</h3>
+<p><strong>Do this.</strong> Refer Referral 2, choosing the <strong>home visit</strong> delivery mode, with the address from §1.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The address is collected, and its pincode is checked against the service areas <strong>before</strong> the referral is accepted.</li><li>Try an unserviceable pincode - <code>560025</code>: the form says the clinic does not visit that address and does not accept the referral.</li><li>Now drop the connection and try again on a serviceable one.</li></ul>
+<p><strong>Expect</strong> a third answer: <em>we could not check</em>. Not &quot;we do not visit your address&quot;. <strong>A failed lookup reported as an unserviceable address is a P1</strong> - it tells a partner the clinic refuses a patient it would happily see.</p>
+<h3><code>HO-07</code> - Withdraw one · P2</h3>
+<p><strong>Do this.</strong> Withdraw Referral 2, then look at the list.</p>
+<p><strong>Expect.</strong> It is withdrawn, visibly, with its reason if one was asked for. Then try to withdraw it a second time from the console:</p>
+<pre><code>const r = await fetch(&quot;/api/hospital/withdraw-referral&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: JSON.stringify({ referralId: &quot;PASTE_THE_ID&quot; }),
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect</strong> a refusal or a no-op, never a second withdrawal. Then re-refer Referral 2 so the rest of the plan has it.</p>
+<h3><code>HO-08</code> - One partner cannot see another&#x27;s referrals · P0</h3>
+<p><strong>As Hospital B</strong>, in a second browser profile:</p>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Open <strong>My Referrals</strong></td><td><strong>Empty.</strong> Hospital A&#x27;s two referrals are not there</td></tr><tr><td>Open one of Hospital A&#x27;s referrals by URL</td><td>Refused, and no patient detail renders</td></tr><tr><td>Call <code>/api/hospital/withdraw-referral</code> with Hospital A&#x27;s referral id</td><td><strong>Refused</strong></td></tr><tr><td>Open Hospital A&#x27;s revenue screen by URL</td><td>Refused</td></tr></tbody></table>
+<p><strong>Any of Hospital A&#x27;s patients&#x27; names, phone numbers or conditions reaching Hospital B is a P0 that stops the run.</strong> These are referred patients&#x27; identities and medical issues.</p>
+<hr>
+<h2>5. What the clinic does with a referral</h2>
+<p>These steps are the admin&#x27;s, and they are here because the hospital has to be able to see the result.</p>
+<h3><code>HO-09</code> - The admin reads the referral · P1</h3>
+<p><strong>As the Master Admin</strong>, open <strong>People → Partners → Patient Referrals</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>Both referrals are listed under Hospital A, with the <strong>patient&#x27;s phone number and preferred language directly under their name</strong>. That is what the screen is for: the clinic rings before it links.</li><li>The capacity note beside the list renders. If the phone is missing but the note is there, the column is simply not on this database yet - that is tolerated by design, and the rest of the card must still render. <strong>The whole card failing because of one column is a P1.</strong></li></ul>
+<h3><code>HO-10</code> - Assigning a slot obeys the platform&#x27;s own rule · P1</h3>
+<p><strong>Do this.</strong> As the admin, assign Referral 1 a session time.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The control is the <strong>same compact calendar and hour chips</strong> a patient sees, obeying the <strong>same 12-hour lead time</strong>.</li><li>It is <strong>not a raw date-and-time box</strong>. An admin could otherwise promise a referred patient a slot the platform&#x27;s own rule refuses - two answers to &quot;when can this be booked&quot;, in the one flow where the person choosing is not the person who lives with it. <strong>A native `datetime-local` here is a P1.</strong></li><li>A time like <code>6:52</code> cannot be produced. Slots start on the hour.</li><li>It is <strong>not a dialog</strong>: the slot is chosen against the referral it sits inside.</li><li>Try to assign a slot inside the lead time. <strong>Refused</strong>, by the route and not only by the grid - confirm by calling <code>/api/admin/assign-referral</code> directly with an early time.</li></ul>
+<h3><code>HO-11</code> - The registration link · P1</h3>
+<p><strong>Do this.</strong> Have the admin send the registration link for Referral 1. Copy it, and open it <strong>in a private window</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The screen says <strong>registration link</strong>, not &quot;invite link&quot;, anywhere it names itself.</li><li>It carries the patient&#x27;s details forward - they are not typing their own name and condition again.</li><li>The patient sets a password and lands in their own dashboard with the agreed session already there.</li><li><strong>Open the same link a second time</strong> after it has been used: it does not create a second account.</li><li><strong>Open a link with a mangled token</strong>: refused, with a sentence saying the link is not valid.</li><li><strong>Now drop the connection and open a good link.</strong> It must say <em>we could not check</em>, not <em>this link has expired</em>. <strong>A good link reported as expired is a P1</strong> - it sends a patient to ring the hospital about a link that works.</li></ul>
+<hr>
+<h2>6. Money</h2>
+<h3><code>HO-12</code> - The share is earned on net revenue · P0</h3>
+<p><strong>Do this.</strong> Have Referral 1&#x27;s patient pay for and <strong>complete</strong> a session. Then open the hospital&#x27;s <strong>Earnings</strong>.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The commission is <strong>15% of net revenue</strong> on that session, not of the list price and not of the gross before refunds.</li><li><strong>Travel is not in it.</strong> On Referral 2&#x27;s home visit, the ₹150 travel fee is a pass-through reimbursement paid to the therapist in full. A commission taken on travel is a <strong>P0</strong>.</li><li>A session that is <strong>paid but not yet delivered</strong> contributes nothing.</li><li>Every figure carries an (i) explaining what it means, and each says whether it moves with the date range or is true right now. <strong>A balance that shrinks when you narrow the date range is a P1</strong> - a debt does not stop existing outside a filter.</li></ul>
+<h3><code>HO-13</code> - A refund reverses the commission · P0</h3>
+<p><strong>Do this.</strong> Have the admin refund Referral 1&#x27;s session. Then look at Earnings again.</p>
+<p><strong>Expect</strong></p>
+<ul><li>The commission is <strong>reversed</strong>. A refunded session was cancelled, so there is nothing to take a share of.</li><li>Check the same figure on the admin&#x27;s Money screens: the two must agree. <strong>The clinic&#x27;s own share and the partner&#x27;s share disagreeing across two screens is a P0</strong> - there is one place this is calculated precisely so they cannot.</li></ul>
+<h3><code>HO-14</code> - What the hospital cannot see about the money · P1</h3>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Look for the <strong>therapist&#x27;s</strong> revenue share</td><td>Not shown. What the clinic pays its clinicians is not the partner&#x27;s business</td></tr><tr><td>Look for the clinic&#x27;s own operating costs or profit</td><td>Not shown</td></tr><tr><td>Look for another partner&#x27;s share or referrals</td><td>Not shown</td></tr><tr><td>Look for a control to <strong>change your own revenue share</strong></td><td><strong>There is none.</strong> That is an admin capability, and specifically a <strong>money</strong> one</td></tr></tbody></table>
+<p>Then prove the route agrees, as Hospital A:</p>
+<pre><code>const r = await fetch(&quot;/api/admin/update-hospital-revenue-share&quot;, {
+  method: &quot;POST&quot;,
+  headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+  body: &quot;{}&quot;,
+});
+({ status: r.status, body: await r.text() });</code></pre>
+<p><strong>Expect 403.</strong> <strong>A partner who can raise their own commission is a P0.</strong></p>
+<hr>
+<h2>7. The hospital&#x27;s profile</h2>
+<h3><code>HO-15</code> - Edit what you own · P2</h3>
+<p><strong>Do this.</strong> Open the profile screen, change the contact person, the phone and the city, and save. Reload.</p>
+<p><strong>Expect.</strong> They save and survive the reload. Then confirm what is <strong>not</strong> editable here: the revenue share, the referral code, and the account&#x27;s own approval state. A partner editing any of those is a <strong>P0</strong>.</p>
+<hr>
+<h2>8. What a hospital must never be able to do</h2>
+<h3><code>HO-16</code> - The wrong dashboards · P0</h3>
+<p>Each signed in as Hospital A:</p>
+<table><thead><tr><th>Try</th><th>Expect</th></tr></thead><tbody><tr><td>Open <code>/admin/dashboard</code></td><td>Redirected to <strong>`/get-started`</strong> - never to <code>/admin/login</code>, which would confirm the back office exists and name its door</td></tr><tr><td>Open <code>/patient/dashboard</code></td><td>Bounced. One account carries one role</td></tr><tr><td>Open <code>/therapist/dashboard</code></td><td>Bounced</td></tr><tr><td>Open <code>/book</code></td><td>The <strong>wrong-account panel</strong>, routing a hospital to <strong>refer</strong> rather than to book - not a booking form and not a bare error</td></tr><tr><td>Open <code>/book-home-visit</code></td><td>The same panel</td></tr></tbody></table>
+<p><strong>A hospital that can complete a booking is a P0</strong>: that session belongs to no patient dashboard and money has moved.</p>
+<h3><code>HO-17</code> - The route sweep · P0</h3>
+<p>In the console, as Hospital A:</p>
+<pre><code>const routes = [
+  &quot;/api/admin/approve-account&quot;,
+  &quot;/api/admin/assign-referral&quot;,
+  &quot;/api/admin/update-hospital-revenue-share&quot;,
+  &quot;/api/admin/create-booking&quot;,
+  &quot;/api/admin/settle-therapist-payout&quot;,
+  &quot;/api/admin/refund-session-partial&quot;,
+  &quot;/api/admin/clear-activity-log&quot;,
+  &quot;/api/therapist/reveal-contact&quot;,
+  &quot;/api/therapist/suggest-session&quot;,
+  &quot;/api/patient/condition-profile/export&quot;,
+  &quot;/api/appointments/create&quot;,
+  &quot;/api/appointments/complete-session&quot;,
+];
+console.table(await Promise.all(routes.map(async (route) =&gt; {
+  const r = await fetch(route, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: &quot;{}&quot;,
+  });
+  return { route, status: r.status, body: (await r.text()).slice(0, 90) };
+})));</code></pre>
+<p><strong>Expect 403 on every one.</strong> Not 404, not 500, and not a 400 that reads as &quot;give me better arguments&quot; - that is a route that checked the body before it checked who was asking. <strong>Any 200 is a P0 that stops the run.</strong></p>
+<h3><code>HO-18</code> - The public referral-code door · P0</h3>
+<p>A referral code identifies a partner, and anybody can type one. Two things must be true.</p>
+<p><strong>Do this, in a private window</strong> with no session at all:</p>
+<pre><code>const codes = [&quot;QAHOSPA&quot;, &quot;QAHOSPB&quot;, &quot;AAAA01&quot;, &quot;AAAA02&quot;, &quot;AAAA03&quot;, &quot;AAAA04&quot;,
+               &quot;AAAA05&quot;, &quot;AAAA06&quot;, &quot;AAAA07&quot;, &quot;AAAA08&quot;, &quot;AAAA09&quot;, &quot;AAAA10&quot;];
+for (const code of codes) {
+  const r = await fetch(&quot;/api/hospital/verify-code&quot;, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: JSON.stringify({ code }),
+  });
+  console.log(code, r.status, (await r.text()).slice(0, 120));
+}</code></pre>
+<p><strong>Expect</strong></p>
+<ul><li>A valid code answers with <strong>the partner&#x27;s name and nothing else</strong> - never a list of their referrals, never a patient&#x27;s name, never a medical issue.</li><li>After a handful of attempts the door <strong>holds you off</strong>, so codes cannot be enumerated one guess at a time.</li><li>The refusal is a <strong>429 with a wait</strong>, and whatever calls it must treat that as &quot;we could not ask&quot; rather than &quot;that code is invalid&quot;. Confirm on the registration screen: a rate-limited check must not tell a real referred patient their link is bad.</li></ul>
+<h3><code>HO-19</code> - Suspension ends the session · P0</h3>
+<p><strong>Do this</strong></p>
+<ol><li><strong>As the admin</strong>, suspend Hospital A.</li><li>In the hospital&#x27;s <strong>still-open browser</strong>, reload the dashboard.</li><li>In the same browser, try to refer a patient from the console.</li><li>Un-suspend.</li></ol>
+<p><strong>Expect</strong></p>
+<ul><li>Step 2: bounced to the suspended screen.</li><li>Step 3: <strong>refused</strong>. A suspended account&#x27;s own routes refuse it too - the session was ended, not merely redirected away from. <strong>A suspended partner still referring patients or reading referral detail is a P0.</strong></li><li>Step 4 restores them exactly as they were, with their referrals, their code and their share intact. <strong>Suspending is never deleting</strong> - the partner&#x27;s id is on every row they wrote.</li></ul>
+<hr>
+<h2>9. Sign-off</h2>
+<table><thead><tr><th></th><th>Should be</th></tr></thead><tbody><tr><td>Steps run</td><td>19</td></tr><tr><td>Pass</td><td></td></tr><tr><td>Fail</td><td></td></tr><tr><td>Blocked</td><td></td></tr><tr><td>N/A</td><td></td></tr><tr><td>P0 raised</td><td></td></tr><tr><td>P1 raised</td><td></td></tr></tbody></table>
+<p><strong>Confirm each of these before signing.</strong></p>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>The public enquiry went through a route and was rate limited without numbers or blame</td><td>☐</td></tr><tr><td>The account was created with a password shown once that stayed on screen</td><td>☐</td></tr><tr><td>Two referrals made, one video and one home visit, with a phone number on both</td><td>☐</td></tr><tr><td>An unserviceable address refused, and a failed lookup <strong>not</strong> reported as unserviceable</td><td>☐</td></tr><tr><td>Hospital B saw nothing of Hospital A&#x27;s</td><td>☐</td></tr><tr><td>The slot assignment used the same picker and the same lead time as a patient&#x27;s</td><td>☐</td></tr><tr><td>The link is called a <strong>registration link</strong> everywhere, and works once</td><td>☐</td></tr><tr><td>Commission on net revenue, never on travel, reversed by a refund</td><td>☐</td></tr><tr><td>No therapist share, no clinic costs and no other partner visible</td><td>☐</td></tr><tr><td>403 on all twelve routes, and on changing your own share</td><td>☐</td></tr><tr><td>Referral codes cannot be enumerated, and a 429 is not read as &quot;invalid&quot;</td><td>☐</td></tr><tr><td>Suspension ended the session, and un-suspension restored everything</td><td>☐</td></tr></tbody></table>
+<p><strong>Signed</strong> ......................... <strong>Date</strong> .................</p>
+<p><strong>Build / commit tested</strong> .........................</p>
+<hr>
+<p><strong>What a clean run of this document proves.</strong> That a partner hospital&#x27;s own journey - enquiry, provisioning, referring, tracking and commission - behaved on one machine, once, against test payment keys. It does not prove the clinic&#x27;s own view of those referrals agrees with the partner&#x27;s; that is the Master Admin&#x27;s document, and the run-order document is where both are exercised side by side.</p></body></html>
