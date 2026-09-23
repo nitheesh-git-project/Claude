@@ -49,6 +49,7 @@ import {
   TrendBarChart,
   TrendLineChart,
 } from "@/components/admin/TrendCharts";
+import { rowActivationProps } from "@/lib/rowActivation";
 
 export type { MetricsAppointment };
 
@@ -970,8 +971,8 @@ export default function AdminMetricsTab({
                   {therapistLedgerPage.map((row) => (
                     <tr
                       key={row.id}
-                      onClick={() => setSelectedTherapistId(row.id)}
-                      className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
+                      {...rowActivationProps(() => setSelectedTherapistId(row.id))}
+                      className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition focus:outline-none focus-visible:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600"
                     >
                       <td className="py-2 pr-3 font-bold text-slate-900 whitespace-nowrap">{row.name}</td>
                       <td className="py-2 pr-3 text-slate-600">{row.summary.completedCount}</td>
@@ -1031,8 +1032,8 @@ export default function AdminMetricsTab({
                   {patientLedgerPage.map((row) => (
                     <tr
                       key={row.id}
-                      onClick={() => setSelectedPatientId(row.id)}
-                      className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
+                      {...rowActivationProps(() => setSelectedPatientId(row.id))}
+                      className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition focus:outline-none focus-visible:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600"
                     >
                       <td className="py-2 pr-3 font-bold text-slate-900 whitespace-nowrap">{row.name}</td>
                       <td className="py-2 pr-3 text-slate-600">{row.sessionCount}</td>

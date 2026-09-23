@@ -18,6 +18,7 @@ import StatStrip from "@/components/dashboard/StatStrip";
 import type { CsvColumn } from "@/lib/csvExport";
 import { formatSlotRange, istDateKey, istMinutesOfDay } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { rowActivationProps } from "@/lib/rowActivation";
 
 // The one list of sessions.
 //
@@ -719,8 +720,8 @@ export default function AdminAllSessionsTab({
               visibleRows.map(({ a, patientName, therapistName, categoryTitle, price, isVisit }) => (
                 <tr
                   key={a.id}
-                  onClick={() => setSelectedId(a.id)}
-                  className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
+                  {...rowActivationProps(() => setSelectedId(a.id))}
+                  className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition focus:outline-none focus-visible:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600"
                 >
                   <td className="py-2 pr-3 text-slate-500 font-mono">{a.session_code ?? "-"}</td>
                   <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">

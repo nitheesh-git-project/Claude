@@ -610,6 +610,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       return [
         {
           id: p.id,
+          patientId: p.patient_id,
           patientName: patientNameById.get(p.patient_id) ?? "A patient",
           title: p.current_version_id
             ? answeredTitleByVersion.get(p.current_version_id) ?? "Treatment programme"
@@ -624,6 +625,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       .filter((p) => p.accepted_at || p.declined_at)
       .map((p) => ({
         id: p.id,
+        patientId: p.patient_id,
         patientName: patientNameById.get(p.patient_id) ?? "A patient",
         title: p.current_version_id
           ? answeredTitleByVersion.get(p.current_version_id) ?? "Treatment programme"

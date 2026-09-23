@@ -373,6 +373,7 @@ src/lib/financeSettingsServer.ts how Business Health reads the same money
 src/lib/adminScope.ts    admin scopes and which sections each one may open
 src/lib/accountDeletion.ts what blocks deleting an account, and what to say
 src/lib/listOrdering.ts  moving a row up or down a hand-ordered admin list
+src/lib/rowActivation.ts a tappable row, reachable by keyboard as well
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
 src/lib/conditionSpecialty.ts the three condition specialties, the triage
@@ -4688,6 +4689,25 @@ must not have.
   It takes an `active` flag because `Modal.tsx` stays mounted and toggles
   `open` -- a hook that locked body scroll while closed is the bug that flag
   exists to prevent.
+- **A row you can tap spreads `rowActivationProps`** (`src/lib/rowActivation.ts`),
+  never a bare `onClick`. Nine `<tr>`/`<li>` rows shipped with a click handler
+  and nothing else -- no tab stop, no key handler, and in every one of the nine
+  no focusable child doing the same job -- so the detail dialog behind them
+  could not be opened without a pointing device at all. That is the whole of
+  Logs -> All Activity (the dialog saying what changed from what), All Sessions
+  and the Calendar (the drawer that assigns, reschedules and refunds), Catalog
+  -> Purchases, Money -> Breakdown's two ledgers, and the session list on every
+  patient and therapist profile. The helper returns props rather than a
+  component so it fits any element and changes no layout, and three things
+  about it are load-bearing: it does **not** put `role="button"` on a `<tr>`
+  (that takes the row out of the table for a screen reader, trading one group's
+  access for another's -- the row's semantics were never what was missing, a
+  tab stop was), it returns early when the key was pressed on a control
+  *inside* the row (the keyboard counterpart of the `stopPropagation()` those
+  cells already do for clicks), and it prevents the default on Space alone,
+  since a row that opened a dialog and scrolled the page underneath it would be
+  worse than one that did nothing. A focus-visible ring goes on the row in the
+  same change: a tab stop nobody can see is half a fix.
 
 ## Gotchas
 

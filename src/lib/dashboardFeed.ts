@@ -373,6 +373,7 @@ export function buildTherapistFeed({
    *  learned the answer has to go hunting through a chart for it. */
   carePlanAnswers?: {
     id: string;
+    patientId: string;
     patientName: string;
     title: string;
     status: "accepted" | "declined";
@@ -388,6 +389,7 @@ export function buildTherapistFeed({
    *  never reports back teaches a therapist to stop trusting the queue. */
   carePlanDecisions?: {
     id: string;
+    patientId: string;
     patientName: string;
     title: string;
     decision: "approved" | "rejected" | "edited_and_approved";
@@ -430,7 +432,11 @@ export function buildTherapistFeed({
           ? `The clinic approved your recommendation for ${decision.patientName}, with changes`
           : `The clinic approved your recommendation for ${decision.patientName}`,
       detail: `${decision.title} - ${decision.reason}`,
-      href: "/therapist/dashboard/patients",
+      // The patient's own chart, not a list: a rejection is rewritten from
+      // the thread it sits beside. `/therapist/dashboard/patients` was a
+      // route that has never existed -- My Patients is `health-profile` --
+      // so both of these care-plan items 404'd for their whole life.
+      href: `/therapist/dashboard/health-profile/${decision.patientId}`,
     });
   }
 
@@ -447,7 +453,7 @@ export function buildTherapistFeed({
       detail: accepted
         ? `${plan.title} - their sessions are ready to book.`
         : `${plan.title} - you can recommend again after their next session.`,
-      href: "/therapist/dashboard/patients",
+      href: `/therapist/dashboard/health-profile/${plan.patientId}`,
     });
   }
 

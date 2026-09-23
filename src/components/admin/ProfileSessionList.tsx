@@ -15,6 +15,7 @@ import SessionDetailDrawer, {
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { describeSessionPayment } from "@/lib/sessionPaymentState";
+import { rowActivationProps } from "@/lib/rowActivation";
 
 type Category = {
   id: string;
@@ -93,8 +94,8 @@ export default function ProfileSessionList({
           return (
             <li
               key={a.id}
-              onClick={() => setSelectedAppointment(a)}
-              className="p-4 rounded-xl border border-slate-200 space-y-1.5 cursor-pointer hover:border-teal-300 transition"
+              {...rowActivationProps(() => setSelectedAppointment(a))}
+              className="p-4 rounded-xl border border-slate-200 space-y-1.5 cursor-pointer hover:border-teal-300 transition focus:outline-none focus-visible:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600"
             >
               <div className="flex items-center justify-between flex-wrap gap-2">
                 {variant === "therapist" ? (

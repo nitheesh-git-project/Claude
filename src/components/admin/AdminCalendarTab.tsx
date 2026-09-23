@@ -9,6 +9,7 @@ import type { HomeVisitRow } from "@/components/admin/HomeVisitVisitActions";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange, istDateKey } from "@/lib/formatSlotRange";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { rowActivationProps } from "@/lib/rowActivation";
 
 type Person = { id: string; full_name: string | null };
 type Category = {
@@ -235,8 +236,8 @@ export default function AdminCalendarTab({
               sessionsForSelectedDate.map((a) => (
                 <tr
                   key={a.id}
-                  onClick={() => setSelectedAppointment(a)}
-                  className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
+                  {...rowActivationProps(() => setSelectedAppointment(a))}
+                  className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition focus:outline-none focus-visible:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600"
                 >
                   <td className="py-2 pr-3 text-slate-500 font-mono">{a.session_code ?? "-"}</td>
                   <td className="py-2 pr-3 font-bold text-slate-900">
