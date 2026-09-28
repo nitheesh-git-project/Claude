@@ -17,7 +17,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 // the Logs section is Master Admin's alone, and `requireAdminScope` asking
 // for `manage` is exactly the grant only they hold. A limited desk reads its
 // own history on Today -> Activity, from rows the page already filtered.
-export const PAGE_SIZE = 200;
+const PAGE_SIZE = 200;
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("logs");
