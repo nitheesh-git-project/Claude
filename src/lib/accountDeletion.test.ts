@@ -52,6 +52,30 @@ describe("describeAccountBlockers", () => {
     expect(result?.total).toBe(23);
   });
 
+  // A table with a blocking foreign key and no word for it yet still has to
+  // be counted and named as *something*. Folding it into the nearest group
+  // would send an admin to the wrong screen to clear it.
+  it("counts a reference it has no word for rather than dropping it", () => {
+    const result = describeAccountBlockers(refs({ other: 2 }), "Asha");
+    expect(result?.message).toContain("2 other records");
+    expect(result?.total).toBe(2);
+  });
+
+  it("pluralises the catch-all group on its own count", () => {
+    const result = describeAccountBlockers(refs({ other: 1 }), "Asha");
+    expect(result?.message).toContain("1 other record");
+    expect(result?.message).not.toContain("1 other records");
+  });
+
+  it("puts the catch-all last, after every group that has a name", () => {
+    const result = describeAccountBlockers(refs({ sessions: 1, other: 1 }), "Asha");
+    expect(result?.message).toContain("1 session and 1 other record");
+  });
+
+  it("counts the catch-all in the total", () => {
+    expect(countAccountReferences(refs({ sessions: 2, other: 3 }))).toBe(5);
+  });
+
   it("reads as a sentence, with 'and' before the last group", () => {
     const result = describeAccountBlockers(refs({ sessions: 1, money: 1 }), "Asha");
     expect(result?.message).toContain("1 session and 1 money record");

@@ -3043,6 +3043,43 @@ before.
      distinguishable. The counted groups are for the human; the database is
      still the authority, and a foreign key the probes do not cover produces
      `ACCOUNT_DELETE_REFUSED` rather than a Postgres string.
+  3b. **What blocks a delete is asked of the database, never listed.** The
+     route kept a hand-written list of the columns to count, and it drifted:
+     35 foreign keys into `profiles(id)` carry no ON DELETE behaviour and the
+     list named 13 of them. For the other 22 the screen offered a delete, the
+     database refused, and the admin met `ACCOUNT_DELETE_REFUSED` -- a
+     sentence apologising for a list being out of date.
+     `account_blocking_references(uuid)` reads `pg_constraint` for every
+     single-column FK into `profiles` whose delete action is NO ACTION or
+     RESTRICT and counts the rows each holds, so a table added tomorrow is
+     counted the day it arrives. The route keeps a table -> group map for the
+     six words a person reads; that is **wording only**, and an unmapped
+     table still counts and still blocks -- it lands in `other` rather than
+     being folded into the nearest group, because "2 back-office actions"
+     about a clinical table sends an admin to the wrong screen. Cascading and
+     set-null references are deliberately not counted: they do not refuse.
+     A read that fails is a **503**, never "nothing is in the way" -- the
+     rule at the top of this file, applied to the one action with no undo.
+  3c. **And the guard that counts Master Admins runs as its owner.**
+     `profiles_keep_one_master_admin` had no `security definer`, so it ran as
+     whoever issued the statement. Every writer in this app uses the
+     service-role client, so it was correct everywhere except the one caller
+     that is not this app: `auth.admin.deleteUser` executes as GoTrue's
+     `supabase_auth_admin`, which has **no SELECT on public.profiles**.
+     Deleting the auth user cascades into profiles, the AFTER-DELETE trigger
+     fires as that role, its `select count(*) from profiles` is refused, and
+     the refusal aborts the cascade -- so GoTrue answered 500 with an empty
+     body and **no admin account could ever be deleted**, from any screen,
+     however empty. A patient or therapist was unaffected, because the guard
+     returns at `touched` when the statement removed no Master Admin and so
+     never reads the unreadable table -- which is exactly what made it look
+     like a data problem. It is `security definer` now; granting GoTrue
+     SELECT on the whole of profiles to satisfy one count would have been the
+     wider fix. It takes no revokes, per `check-function-grants.mjs`: a
+     trigger function cannot be called by name, so an EXECUTE grant on one is
+     not reachable. `e2e/admin-account-delete.spec.ts` is the guard, and its
+     negative control is worth keeping in mind -- re-introducing either blind
+     spot reproduces the reported sentence verbatim.
   4. **Suspending is not deleting.** `/api/admin/set-admin-active` mirrors
      `set-admin-scope`'s two guards (not yourself, not the last Master Admin
      who can still sign in) and flips `profiles.active`, which `getAdminUser`

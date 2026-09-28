@@ -244,6 +244,17 @@ one component that renders that list on both profiles, so the two screens
 cannot disagree. The money lists beside it still run by when the money moved.
 See the session-order rule in `AGENTS.md`.
 
+**An account is deleted only when nothing points at it, and what points at
+it is asked of the database.** The route kept a hand-written list of the
+columns that refuse a delete; 35 foreign keys into `profiles` block one and
+the list named 13, so for the rest the screen offered a delete the database
+then refused with "did not say why". `account_blocking_references()` reads
+`pg_constraint` instead, so a table added tomorrow is counted the day it
+arrives. Underneath that sat a second fault: the Master Admin guard ran as
+its caller, and the caller for a delete is GoTrue's own role, which cannot
+read `profiles` -- so **no admin account could be deleted at all**. It is
+`security definer` now. See the account-deletion rules in `AGENTS.md`.
+
 **Marking an out-of-area request served offers to open the area.** The
 waitlist is demand the clinic turned away, and tapping *served* used to move
 a word while the pincode stayed unserved - so the next patient from that

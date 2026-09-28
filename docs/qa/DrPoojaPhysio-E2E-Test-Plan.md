@@ -3504,6 +3504,7 @@ The screen warns you to turn it on only once System Health has been clean.
 
 **Steps**
 1. Create a throwaway patient with a typo'd email and, without doing anything else with it, delete it from their profile.
+1b. Create a throwaway **admin** (Back office - any access level) and, without doing anything else with it, delete it from its row.
 2. Delete a patient who has at least one session, one payment and a programme.
 3. Delete a therapist who has run sessions and written notes.
 4. Delete an admin who has performed any action at all.
@@ -3515,7 +3516,8 @@ The screen warns you to turn it on only once System Health has been clean.
 
 **Expected Result**
 * Step 1: a **dialog** first, naming the account and saying this only works with no history, with Suspend named as the alternative. Confirming deletes it; the page returns to the directory it came from.
-* Steps 2–4: **nothing is deleted**, and a dialog names what is on file - *"3 sessions, 2 money records, 1 programme and 12 back-office actions"* - and says to suspend instead. Each group is counted separately and pluralised on its own count. A refusal is never an 11px line beside the button: it is a paragraph and it belongs in a dialog.
+* Step 1b: it deletes, exactly as the patient did. This is a regression check with a real history: the Master Admin guard used to run as its caller, and the caller for a delete is Supabase Auth's own role, which cannot read `profiles` - so its count was refused, the refusal aborted the delete, and **no admin account could be deleted at all**, however empty. Patients and therapists were unaffected, which is what made it read as a data problem. If this step fails with *"the database refused ... and did not say why"*, that is the same fault returning.
+* Steps 2–4: **nothing is deleted**, and a dialog names what is on file - *"3 sessions, 2 money records, 1 programme and 12 back-office actions"* - and says to suspend instead. Each group is counted separately and pluralised on its own count. A refusal is never an 11px line beside the button: it is a paragraph and it belongs in a dialog. The counts come from the database's own list of the foreign keys that refuse a delete, rather than a list kept in the route - so a refusal always **names** something. *"The database refused ... and did not say why"* is the fallback for a cause outside those keys and should not appear in this test at all; if it does, record which account produced it.
 * Step 5: refused - *"You can't delete your own account."* The button does not render on your own row either.
 * Step 6: refused - the last Master Admin who can still sign in cannot be deleted, the same guard suspension carries, and this one has no undo at all.
 * Step 7: **no button** for any of the three, and the direct POST is **403** for all three - deleting is Master Admin's alone even though every one of those desks can manage People.

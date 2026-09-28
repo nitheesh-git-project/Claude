@@ -12165,3 +12165,159 @@ $$;
 revoke all on function public.handle_new_user() from public;
 revoke all on function public.handle_new_user() from anon;
 revoke all on function public.handle_new_user() from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The Master Admin guard has to run as its owner, or no admin can be deleted
+-- ---------------------------------------------------------------------------
+--
+-- `profiles_keep_one_master_admin` was created without `security definer`, so
+-- it ran as whoever issued the statement. That is correct for every writer
+-- inside this app -- they all use the service-role client -- and wrong for the
+-- one caller that is not this app: `auth.admin.deleteUser` is executed by
+-- GoTrue as `supabase_auth_admin`, which has **no SELECT on public.profiles**.
+--
+-- Deleting the auth user cascades into profiles (`profiles.id references
+-- auth.users(id) on delete cascade`), this AFTER-DELETE statement trigger
+-- fires as that role, and its `select count(*) from profiles` is refused. The
+-- refusal aborts the whole delete, and GoTrue answers 500 with an empty body --
+-- so the route could only report "the database refused to delete that account
+-- and did not say why", which was literally true: the reason never left
+-- Postgres.
+--
+-- The effect was that **no admin account could ever be deleted**, from any
+-- screen, however empty it was. A patient or therapist deleted cleanly, which
+-- is what made it look like a data problem rather than a permissions one: the
+-- guard returns at `touched` when the statement removed no Master Admin, so
+-- for everybody else the unreadable table is never touched.
+--
+-- `security definer` runs it as its owner instead. That is the narrow fix; the
+-- alternative is granting GoTrue SELECT on the whole of profiles to satisfy
+-- one count, which widens a role that should stay narrow. The body is
+-- unchanged -- the advisory lock and the race it closes are still exactly as
+-- they were.
+--
+-- No revokes accompany it, deliberately, and that is the rule rather than an
+-- omission: a trigger function cannot be called by name (Postgres refuses with
+-- "trigger functions can only be called as triggers"), so an EXECUTE grant on
+-- one is not reachable -- which is why `check-function-grants.mjs` skips them
+-- and why `handle_new_user` carries none either.
+create or replace function public.profiles_keep_one_master_admin()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  remaining integer;
+  touched boolean;
+begin
+  select exists (
+    select 1 from removed
+    where role = 'admin'
+      and coalesce(admin_scope, 'full') = 'full'
+      and active is not false
+  ) into touched;
+
+  if not touched then
+    return null;
+  end if;
+
+  -- Serialise the check against any other statement doing the same one.
+  --
+  -- Without this the guard passes both halves of a real race and still ends
+  -- at zero: under READ COMMITTED each transaction's count runs on its own
+  -- snapshot, so two sessions suspending two different Master Admins each
+  -- see the other as still active, each counts one remaining, and both
+  -- commit. Verified -- two concurrent psql sessions left zero active
+  -- Master Admins with the count alone in place.
+  --
+  -- The advisory lock is transaction-scoped, so it is released on commit or
+  -- rollback with nothing to clean up. Taking it makes the second statement
+  -- wait for the first to finish; the count below is then a *new* statement
+  -- taking a fresh snapshot, which is what lets it see the change it was
+  -- racing and refuse. Taken after the `touched` test, so an ordinary
+  -- profile update -- a patient editing their own name -- never queues on
+  -- it.
+  perform pg_advisory_xact_lock(hashtext('profiles_keep_one_master_admin'));
+
+  select count(*) into remaining
+  from profiles
+  where role = 'admin'
+    and coalesce(admin_scope, 'full') = 'full'
+    and active is not false;
+
+  if remaining = 0 then
+    raise exception
+      'at least one Master Admin must be able to sign in: this would leave the back office with nobody who can restore anyone';
+  end if;
+
+  return null;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- What still points at an account, asked of the database rather than listed
+-- ---------------------------------------------------------------------------
+--
+-- `/api/admin/delete-account` carried a hand-written list of the columns that
+-- refuse a delete, so it could name what an account still has ("3 sessions and
+-- 12 back-office actions") rather than handing a clinic owner a Postgres
+-- string. The list was right when it was written and then drifted: 35 foreign
+-- keys to `profiles(id)` carry no ON DELETE behaviour and the list covered 13
+-- of them. For the other 22 the screen said the account was deletable, the
+-- delete was attempted, Postgres refused, and the admin met the "did not say
+-- why" fallback -- a message apologising for a list being out of date.
+--
+-- So the list is not maintained any more. This reads `pg_constraint` for every
+-- single-column foreign key into `profiles` whose delete action is NO ACTION or
+-- RESTRICT -- exactly the ones that refuse -- and counts the rows each holds
+-- for this id. A table added tomorrow with a blocking reference is counted the
+-- day it is added, which a copy in TypeScript cannot be. The route still maps
+-- table names to the six words a person reads; that map is about wording, and
+-- an unmapped table is still counted and still blocks, so getting it wrong
+-- costs a vaguer sentence rather than a wrong answer.
+--
+-- Cascading and set-null references are deliberately **not** counted: they do
+-- not refuse, and counting them would refuse deletes the database is happy to
+-- perform. `profiles.id -> auth.users(id)` is the delete's own path and is a
+-- cascade, so it is correctly absent.
+create or replace function public.account_blocking_references(p_user_id uuid)
+returns table (source_table text, source_column text, row_count bigint)
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  fk record;
+  n bigint;
+begin
+  for fk in
+    select
+      con.conrelid::regclass::text as tbl,
+      att.attname::text            as col
+    from pg_constraint con
+    join pg_attribute att
+      on att.attrelid = con.conrelid
+     and att.attnum = con.conkey[1]
+    where con.contype = 'f'
+      and con.confrelid = 'public.profiles'::regclass
+      -- 'a' = NO ACTION, 'r' = RESTRICT. Both refuse; 'c'/'n'/'d' do not.
+      and con.confdeltype in ('a', 'r')
+      and array_length(con.conkey, 1) = 1
+  loop
+    execute format('select count(*) from %s where %I = $1', fk.tbl, fk.col)
+      into n
+      using p_user_id;
+    if n > 0 then
+      source_table := fk.tbl;
+      source_column := fk.col;
+      row_count := n;
+      return next;
+    end if;
+  end loop;
+end;
+$$;
+
+-- Not a trigger function, so it takes the three revokes in full -- see the
+-- function-grant rule in AGENTS.md for why naming only two of them is a hole.
+revoke all on function public.account_blocking_references(uuid) from public;
+revoke all on function public.account_blocking_references(uuid) from anon;
+revoke all on function public.account_blocking_references(uuid) from authenticated;

@@ -26,6 +26,12 @@
  * it rather than one entry per foreign key. Fifty columns across thirty-five
  * tables is a true list and an unreadable one; "3 sessions and 12 back-office
  * actions" is what an admin can act on.
+ *
+ * The counting is the database's job, not this module's:
+ * `account_blocking_references()` reads `pg_constraint` for the foreign keys
+ * that actually refuse a delete. The route turns those table names into these
+ * groups. That split is deliberate -- correctness cannot drift, and the worst
+ * a missing word can do is land a count in `other`.
  */
 export type AccountReferences = {
   /** Appointments they booked, ran, cancelled, were asked for, or took cash for. */
@@ -40,6 +46,16 @@ export type AccountReferences = {
   backOffice: number;
   /** Referrals they sent, were assigned or became. */
   referrals: number;
+  /** Anything else the database refuses to let go of.
+   *
+   *  The counts come from `account_blocking_references()`, which asks
+   *  Postgres which foreign keys actually refuse rather than reading a list
+   *  somebody maintained -- so a table added tomorrow arrives counted and
+   *  with no word for it yet. It lands here rather than being folded into
+   *  the nearest group, because "2 back-office actions" about a clinical
+   *  table is the one thing worse than "2 other records": it is wrong, and
+   *  it sends an admin to the wrong screen to clear it. */
+  other: number;
 };
 
 export const NO_ACCOUNT_REFERENCES: AccountReferences = {
@@ -49,6 +65,7 @@ export const NO_ACCOUNT_REFERENCES: AccountReferences = {
   clinical: 0,
   backOffice: 0,
   referrals: 0,
+  other: 0,
 };
 
 export function countAccountReferences(refs: AccountReferences): number {
@@ -58,7 +75,8 @@ export function countAccountReferences(refs: AccountReferences): number {
     refs.programmes +
     refs.clinical +
     refs.backOffice +
-    refs.referrals
+    refs.referrals +
+    refs.other
   );
 }
 
@@ -90,6 +108,7 @@ export function describeAccountBlockers(
     parts.push(plural(refs.backOffice, "back-office action", "back-office actions"));
   }
   if (refs.referrals > 0) parts.push(plural(refs.referrals, "referral", "referrals"));
+  if (refs.other > 0) parts.push(plural(refs.other, "other record", "other records"));
 
   if (parts.length === 0) return null;
 
@@ -117,6 +136,14 @@ export const CANNOT_DELETE_LAST_ADMIN =
  *  each -- unlike a silent success covering both. */
 export const ACCOUNT_ALREADY_GONE =
   "That account has already been deleted. Refresh to see the current list.";
+
+/** The counter itself could not be asked. A check that could not be run is
+ *  not a check that came back negative -- the rule at the top of AGENTS.md --
+ *  so this is a retryable 503 rather than either a refusal or a green light.
+ *  Offering the delete on an unreadable count would put the one irreversible
+ *  action in the product behind a guess. */
+export const ACCOUNT_DELETE_UNCHECKED =
+  "Could not check what still points at that account, so nothing has been deleted. Try again in a moment - and if it keeps happening, suspend the account instead.";
 
 export const ACCOUNT_DELETE_REFUSED =
   "The database refused to delete that account and did not say why. Nothing has changed - something still points at it that this screen did not count. Suspend the account instead.";
