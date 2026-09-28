@@ -672,6 +672,36 @@ The fix buttons (Retry a session's calendar event, Open the door on a
 meeting) render only for a scope that may call them - both routes are
 `requireAdminScope("settings")`, and a button that 403s explains nothing.
 
+### What a therapist is a specialist in
+
+Every therapist carries a **specialisation** - one of eight the clinic
+recognises (Orthopaedic, Neurological, Paediatric, Sports, Geriatric,
+Cardiopulmonary, Women's health, General physiotherapy), defined once in
+`src/lib/therapistSpecialties.ts`.
+
+It is asked for in the two places an account is made: the public
+application form at `/therapist/login` → **Apply to Join** (required, and
+carried onto the profile row by the signup trigger) and **Settings → User
+Access → Create an account** when an admin hires somebody offline
+(optional - they can set it themselves). A therapist changes theirs on
+their own Edit Profile screen, where it goes through the ordinary admin
+review that `credentials` and `years_experience` already did.
+
+`profiles.specialization` is unchanged - still text, and deliberately not
+constrained to the list. What is stored is the canonical **label**
+("Orthopaedic", never a code), so every screen that already printed the
+column raw still reads correctly, and free text written before the list
+existed still shows exactly as its author wrote it.
+
+It is shown wherever a therapist is: as a chip on `/team` and in the
+booking wizard's requested-therapist card, on the admin's therapist
+directory, detail page and roster, in **Today → Approvals** (who this
+applicant is for is half of the credentials check), and as part of the name
+in every picker that assigns one. **People → Therapists** carries a
+**filter by specialisation**, built from the people on screen with a count
+per option, plus *Something else* for free text and *Not set* for nobody
+having said. A therapist who has not said shows no chip at all.
+
 ### Therapist roster and availability
 
 A therapist's availability is three separate things, and the screens say so.

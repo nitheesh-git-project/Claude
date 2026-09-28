@@ -1882,11 +1882,13 @@ Five rules shape almost every screen:
 4. Tap **Email Address**. Enter `qa.therapist.a@example.test`.
 5. Tap the phone field. Enter `+91 90000 10001`.
 6. Tap **Qualifications & License / Council Reg No.** Enter `MPT (Ortho), KSCP Reg 44821`.
-7. Tap **Password**. Enter `QaTest!2024pass`.
-8. Tap **Confirm Password**. Enter `QaTest!2024pass`.
-9. Tap **Submit Application**.
+7. Tap **Specialist In**. It is a **dropdown**, not a text box, and it lists exactly eight: Orthopaedic, Neurological, Paediatric, Sports, Geriatric, Cardiopulmonary, Women's health, General physiotherapy. Choose **Orthopaedic**.
+8. Tap **Password**. Enter `QaTest!2024pass`.
+9. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+10. Tap **Submit Application**.
 
-**Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`. **No "check your email" step appears anywhere.** The application shows in Admin → Today → Approvals and raises that tab's badge.
+**Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`, and `specialization='Orthopaedic'` - the exact label, not a code. **No "check your email" step appears anywhere.** The application shows in Admin → Today → Approvals, **carrying the specialisation chip**, and raises that tab's badge. Submitting with **Specialist In** left on its placeholder is refused by the form's own validation, in the clinic's wording rather than the browser's.
+**Critical check:** the specialisation reaches the profile row through the signup trigger (`handle_new_user`). A database that has not had the schema re-applied writes the rest of the application and leaves that column null - the account is still created, and the therapist sets it from their own dashboard.
 **Cleanup.** Leave for `ADM-APPR-002`.
 
 #### `THR-AUTH-002` - An unapproved therapist is held at the door · P0
@@ -1947,7 +1949,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 **Feature.** `/therapist/dashboard/profile`. **Role.** Therapist.
 **Purpose.** Prove the line between a detail a therapist owns and a credential patients rely on: the first saves on the spot, the second becomes an admin review request and locks the field until it is decided.
 **Preconditions.** `THR-AUTH-003`. An admin is available to decide the request in `ADM-APPR-004`.
-**Test Data.** Bio `Works with desk-based patients on posture-driven back pain.` · Languages `English, Kannada, Hindi` · Years of Experience `15` (a deliberate wrong value - it is declined, never approved, so Therapist A stays at the §8.8 value of `9`) · Specialist In `Spine, hip and knee rehabilitation`.
+**Test Data.** Bio `Works with desk-based patients on posture-driven back pain.` · Languages `English, Kannada, Hindi` · Years of Experience `15` (a deliberate wrong value - it is declined, never approved, so Therapist A stays at the §8.8 value of `9`) · Specialist In `Neurological` (a **dropdown** now, not a text box).
 
 **Steps**
 1. In the sidebar tap **Edit Profile**.
@@ -1956,7 +1958,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 4. Tap **Save**.
 5. Reload the page and confirm both values survived.
 6. Under **Credentials & Specialization**, tap **Years of Experience**. Enter `15`.
-7. Tap **Specialist In**. Enter `Spine, hip and knee rehabilitation`.
+7. Tap **Specialist In** and choose `Neurological` from the dropdown.
 8. Tap **Request Changes**.
 9. Read the two fields you just changed.
 10. Tap **Withdraw** beside **Specialist In**.
@@ -1968,7 +1970,8 @@ The therapist Overview is where a clinician starts every shift: what is on today
 **Expected Result.**
 * **Public Details save instantly.** The button reads `Saving...` then `Save`; the values survive the reload at step 5. No admin sees anything.
 * **Credentials do not.** Step 8 shows `Your request has been submitted for admin review.` Each requested field is replaced by its **new** value on a slate panel with an amber `Pending Review` chip and a **Withdraw** link, and **cannot be edited again** until the request is decided. The live public profile still shows the **old** value - `/team` and the patient's therapist card must not change yet.
-* Step 10's **Withdraw** returns the field to an editable input immediately, with the old value.
+* Step 10's **Withdraw** returns the field to an editable control immediately, with the old value.
+* **Specialist In is a dropdown of the eight the clinic recognises.** A therapist whose stored value is free text written before this list existed is offered that value as a ninth option and it is **preselected** - the screen must never show a different specialisation from the one in the database because the stored one had no matching option.
 * After step 12's decline the field is editable again and carries `Last request declined: Send the council registration number first.` in red. Nothing on the public profile ever changed.
 * The note under the credential fields reads `Changes to these fields need admin approval before they take effect.`
 * **Profile photo** uploads on the spot (no review) and appears on `/team` once the therapist is visible there.
@@ -2992,13 +2995,15 @@ Withdrawal also covers a plan **still waiting for approval** - refusing would le
 3. Under **Admin Notes**, tap the notes box. Enter `Prefers early evening slots. Referred by QA Partner Hospital.`
 4. Tap **Save Notes**.
 5. Close the overlay, reopen the same row, and confirm the note survived.
-6. Copy the id out of the URL and open `/admin/dashboard/patients/<id>` directly in a new tab.
-7. Sign in as the **finance** admin and open the same URL.
+6. Read the session dates down **Booking History**, then down **Payment History**.
+7. Copy the id out of the URL and open `/admin/dashboard/patients/<id>` directly in a new tab.
+8. Sign in as the **finance** admin and open the same URL.
 
-**Expected Result.** Tapping opens an **overlay modal**; the direct URL at step 6 renders the **same content as a full page** (a real route, not only an intercepted one). The panel carries **Personal Details**, **Contact Info**, **Admin Notes**, **Therapist Ratings of This Patient**, **Session Performance**, **Booking History**, **Payment History**, **Profit Breakdown** and **Profile Change Request History**, plus contact edit and password reset.
+**Expected Result.** Tapping opens an **overlay modal**; the direct URL at step 7 renders the **same content as a full page** (a real route, not only an intercepted one). The panel carries **Personal Details**, **Contact Info**, **Admin Notes**, **Therapist Ratings of This Patient**, **Session Performance**, **Booking History**, **Payment History**, **Profit Breakdown** and **Profile Change Request History**, plus contact edit and password reset.
 The notes box is placeheld `Private notes about this patient - never shown to them.` and reads `No notes saved yet.` when empty; the button reads `Saving...` then `Save Notes`. **The note must never appear on any patient-facing screen** - check the patient's own dashboard and their exported PDF.
-`ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` - **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it. At step 7 the finance admin reads the money sections and has **no** control that changes a session.
-The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Save Notes** there posts `update-therapist-notes`).
+`ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` - **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it. At step 8 the finance admin reads the money sections and has **no** control that changes a session.
+At step 6 **Booking History runs by the session's own date and time, newest first** - the session furthest in the future at the top, then today, then the past, with any session whose slot is not yet agreed (**Slot to be confirmed**) **last**. It is deliberately **not** ordered by when the booking was made, which is also session-code order: a session rescheduled to another month must move in this list. **Payment History** is unchanged and still runs by when the money moved.
+The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Save Notes** there posts `update-therapist-notes`), and **Assigned Sessions** there is ordered the same way as Booking History, with **Payout History** left on when the money moved.
 
 #### `ADM-PEOP-004` - Condition access grants and change requests · P0
 **Steps.** Approve a therapist's access-grant request. Then approve a patient's condition change request. Then approve a **therapist-submitted** edit for a re-triaged patient.
@@ -3006,6 +3011,12 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 
 #### `ADM-PEOP-005` - Therapists directory · P1
 **Expected Result.** A paged list with approval state, active state, leave state, team visibility, revenue share and rating visibility.
+
+#### `ADM-PEOP-005a` - Filter therapists by specialisation · P1
+
+**Steps.** Open **People → Therapists**. Read the **specialisation chip** under each card's credentials. Open the **Any specialisation** dropdown and choose one. Then switch to **List** and read the **Specialist in** column. Then put the dropdown back to **Any specialisation**.
+**Expected Result.** The dropdown offers only specialisations somebody on this screen actually has, each with its own count in brackets - never an option matching nobody. Choosing one narrows the grid to exactly those therapists and the pager's own count agrees with what is on screen. A therapist whose stored value is free text somebody typed before this list existed shows that text on a neutral chip and files under **Something else**; one with nothing recorded shows **no chip at all** (not "Unknown") and files under **Not set**. Searching by a specialisation's name finds those therapists too. The same chip appears on **Sessions → Roster**, on the therapist's own detail page, and in **Today → Approvals** for a therapist waiting on a credentials check.
+**Critical check:** the patients and partners directories - same component - show **no** specialisation filter and no column at all.
 
 #### `ADM-PEOP-006` - Therapist detail and revenue share · P0
 **Steps.** Open `QA Therapist A`. Set **Revenue share %** to `60`, and the home-visit share to `65`. Save. Then try `-5` and `150`.
@@ -3119,6 +3130,15 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 
 #### `ADM-CAT-011` - The home-visit waitlist · P2
 **Expected Result.** Entries from `PAT-HV-003` appear with status `new`, raising the Service Areas badge. Updating a status clears the badge. `Unknown status` is refused for an invalid value.
+
+#### `ADM-CAT-011a` - Marking one served offers to open the area · P1
+**Steps.** On a `new` request for a pincode you do not serve, tap **served**. Read the dialog, then tap **No, just mark served**. Set the row back to `new` (or use another request) and this time tap **Yes, add it and mark served**.
+**Expected Result.** Tapping served opens a dialog headed *"Do you visit 560099 now?"* carrying the request's pincode and who asked, with City prefilled from the request and **Travel fee prefilled with what you already charge in that city** - and a line saying so. A city with no areas yet starts at `0` and says that is a placeholder rather than a price.
+* **No, just mark served** - the request becomes `served` and **no service area is created**. That pincode still falls through to the waitlist on `/book-home-visit`.
+* **Yes, add it and mark served** - the area is created with the city, area name and fee shown, the request becomes `served`, and `/book-home-visit` now accepts that pincode.
+* Closing the dialog with **×** is the third outcome: nothing changes at all, not even the status.
+* A pincode that is **already** a service area is told so in the dialog with the clinic's own city and fee, and is offered **Mark served** alone - there is nothing to add.
+* The area is written **first**: if it cannot be created, the status stays where it was and the dialog says why.
 
 #### `ADM-CAT-014` - Purchases · P1
 **Steps.** Open **Catalog → Purchases**. Open a package purchase's detail modal; then a home-visit purchase's.
@@ -3454,25 +3474,29 @@ The screen warns you to turn it on only once System Health has been clean.
 * A suspended admin **stays listed**, with a note saying how many are suspended.
 * Only a **Master Admin** sees the Suspend button at all, and `POST /api/admin/set-admin-active` answers **403** to any other scope.
 
-#### `ADM-PEOP-011` - The detail page behind the overlay is still the back office · P1
+#### `ADM-PEOP-011` - The detail page behind the overlay **is** the dashboard · P1
 
-**Feature.** A patient's, therapist's or condition's detail is normally an overlay over the dashboard. Interception only covers client-side navigation, so a reload, a shared link, a new tab and any `router.refresh()` from inside the overlay land on the real page - which used to be a bare panel with a small "Back to Dashboard" link and none of the dashboard around it.
+**Feature.** A patient's, therapist's or condition's detail is normally an overlay over the dashboard. Interception only covers client-side navigation, so a reload, a shared link, a new tab and any refresh that misses the router's own state land on the real route. That route has been wrong twice: first a bare panel with a "Back to Dashboard" link, then a frame that reproduced the rail but dropped the badges, the search and the tab state - which read as a different, plainer site rather than as a leaf page. It renders the dashboard itself now, with the same overlay on top.
 
 **Steps**
-1. **People → Patients → a patient → Profile.** Press **Mark Done** on a session and confirm.
-2. Look at what you are on afterwards: is there a sidebar?
+1. **People → Therapists → a therapist.** On an **upcoming** session press **Reschedule / Reassign**, change the therapist or the time, and **Save**.
+2. Look at what you are on afterwards.
 3. Copy the URL, open it in a **new tab**, and reload it.
-4. Use the sidebar from that page - tap **Sessions**, then come back and tap **Back to the dashboard**.
-5. Repeat 1–4 for a **therapist** and for a **patient condition**.
-6. Sign in as **Operations**, then **Finance**, then **Clinical**, and open a patient detail URL directly.
-7. Watch the screen while it loads on a slow connection.
+4. Press the overlay's **×**.
+5. Watch the address bar and the screen as you do.
+6. Repeat 1–4 for a **patient** and for a **patient condition**.
+7. Sign in as **Operations**, then **Finance**, then **Clinical**, and open a patient detail URL directly.
+8. Watch the screen while it loads on a slow connection.
 
 **Expected Result**
-* Steps 1–3: the dark **sidebar**, the **Master Admin** brand and the section list are all present. It reads as the back office, not as a different, plainer site.
-* Step 4: every entry lands on a **real dashboard screen**, and Back to the dashboard returns to Today.
-* Step 5: identical on all three.
-* Step 6: the sidebar shows **only the sections that scope can open** - it is built from the same list and the same scope grid the dashboard's own sidebar uses, so the two can never disagree. Logs is absent for all three.
-* Step 7: the skeleton **keeps the sidebar rail** rather than blanking the chrome and putting it back.
+* Steps 1–3: the full dashboard is behind the overlay - the dark sidebar with its **badges**, the **Master Admin** brand, the header's **Refresh** button and the **global search**. There is **no "Back to the dashboard" link anywhere**: that link belonged to the reduced frame this replaced.
+* Step 3: the screen behind the overlay is **People → Therapists** - the screen this detail belongs to - never Today.
+* Steps 4–5: the overlay closes **instantly**, with no skeleton and no page load, onto that same screen; the address bar becomes `/admin/dashboard?section=people&tab=therapists`. Closing a dashboard that is already on screen must not refetch it.
+* Step 6: identical on all three.
+* Step 7: the sidebar shows **only the sections that scope can open**, exactly as the dashboard's own does. Logs is absent for all three.
+* Step 8: the skeleton **keeps the sidebar rail** rather than blanking the chrome and putting it back.
+
+**Critical check.** A direct load pays for a whole dashboard render as well as the detail's own, which is the deliberate cost of there being one design rather than two. Tapping a name from inside the dashboard must **not** pay it twice - the dashboard behind the overlay is the one already rendered.
 
 #### `ADM-SET-025d` - Delete an account, and be refused when it has history · P0
 
@@ -4569,7 +4593,7 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 
 **Feature.** A course of treatment is a clinical recommendation, so the public site does not carry a price list of them. Removed outright rather than hidden behind a setting: a toggle somebody can flip back on is not the rule being gone.
 
-**Preconditions.** Packages P1–P3 exist, are `active`, and have `visible_on_home` and `visible_on_conditions` on. That matters - this is an absence tested against rows that genuinely could have rendered.
+**Preconditions.** Packages P1–P3 exist and are `active` and `recommendable`. That matters - this is an absence tested against rows that genuinely could have rendered. The three "show it here" flags these rows used to carry are gone from the table: they decided where a programme was advertised, and there is nowhere public left for them to decide about.
 
 **Steps.** Read `/` and `/conditions` end to end, including inside every programme detail dialog. Then read `/home-visit`.
 **Expected Result**

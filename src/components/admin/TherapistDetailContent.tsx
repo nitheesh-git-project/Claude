@@ -28,6 +28,8 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import SpecialtyChip from "@/components/SpecialtyChip";
+import { specialtyLabel } from "@/lib/therapistSpecialties";
 
 // Shared body for both the standalone /admin/dashboard/therapists/[id] page
 // (hard navigation, shareable link) and the @modal intercepted route that
@@ -106,6 +108,11 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
         "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note"
       )
       .eq("therapist_id", id)
+      // Not what decides the list's order any more -- ProfileSessionList
+      // orders by the session's own slot_time (src/lib/sessionOrdering.ts).
+      // This is the deterministic input that comparator's created_at
+      // tie-break reads, and it keeps the money lists below, which sort
+      // themselves by paid_at, falling back to a settled order.
       .order("created_at", { ascending: false }),
     admin
       .from("profile_change_requests")
@@ -269,6 +276,9 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
               <p className="text-xs text-slate-500 mt-1">
                 {therapist.credentials} • Joined {formatClinicDate(therapist.created_at)}
               </p>
+              <span className="mt-1.5 block">
+                <SpecialtyChip specialization={therapist.specialization} />
+              </span>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -309,7 +319,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           <div className="mt-4 pt-4 border-t border-slate-100 text-xs space-y-1">
             <p className="font-semibold text-slate-700">Professional Details</p>
             <p className="text-slate-600">
-              Specialist in: {therapist.specialization || "Not set"}
+              Specialist in: {specialtyLabel(therapist.specialization) ?? "Not set"}
             </p>
             <p className="text-slate-600">
               {therapist.years_experience !== null

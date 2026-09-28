@@ -19,9 +19,6 @@ type Package = {
   image_focal_x?: number | null;
   image_focal_y?: number | null;
   promises: string[];
-  badge_label: string | null;
-  highlight: boolean;
-  terms: string | null;
   session_count: number;
   price_paise: number;
   compare_at_paise: number | null;
@@ -33,10 +30,8 @@ type Package = {
   min_gap_hours: number | null;
   max_sessions_per_week: number | null;
   max_purchases_per_patient: number | null;
-  visible_on_home: boolean;
-  visible_on_conditions: boolean;
-  visible_in_dashboard: boolean;
   active: boolean;
+  recommendable: boolean;
 };
 
 function inputCls() {
@@ -49,13 +44,23 @@ export default function PackageCatalogForm({
   defaultCategoryId,
   onCancel,
 }: {
-  categories: { id: string; title: string; price_paise: number }[];
+  categories: { id: string; title: string; price_paise: number; active?: boolean }[];
   pkg?: Package;
   defaultCategoryId?: string;
   onCancel?: () => void;
 }) {
   const isEdit = !!pkg;
-  const [categoryId] = useState(pkg?.category_id ?? defaultCategoryId ?? categories[0]?.id ?? "");
+  // Chosen at creation and fixed afterwards. It used to be fixed at
+  // creation too: the control was rendered `disabled` on the new-package
+  // form, which pinned every package ever created to `categories[0]` --
+  // the first condition by display order -- with a hint underneath
+  // explaining that it could not be changed. That reads as a rule and was
+  // a control nobody had enabled: this form is opened from a flat "Add
+  // Package" button with no category behind it, so there is nothing for it
+  // to have inherited.
+  const [categoryId, setCategoryId] = useState(
+    pkg?.category_id ?? defaultCategoryId ?? categories[0]?.id ?? ""
+  );
   const [title, setTitle] = useState(pkg?.title ?? "");
   const [subtitle, setSubtitle] = useState(pkg?.subtitle ?? "");
   const [description, setDescription] = useState(pkg?.description ?? "");
@@ -68,9 +73,6 @@ export default function PackageCatalogForm({
       : `draft-${Date.now()}`
   );
   const [promisesText, setPromisesText] = useState((pkg?.promises ?? []).join("\n"));
-  const [badgeLabel, setBadgeLabel] = useState(pkg?.badge_label ?? "");
-  const [highlight, setHighlight] = useState(pkg?.highlight ?? false);
-  const [terms, setTerms] = useState(pkg?.terms ?? "");
 
   const [sessionCount, setSessionCount] = useState(pkg ? String(pkg.session_count) : "5");
   const [priceInr, setPriceInr] = useState(pkg ? String(pkg.price_paise / 100) : "");
@@ -95,10 +97,16 @@ export default function PackageCatalogForm({
     pkg?.max_purchases_per_patient ? String(pkg.max_purchases_per_patient) : ""
   );
 
-  const [visibleOnHome, setVisibleOnHome] = useState(pkg?.visible_on_home ?? true);
-  const [visibleOnConditions, setVisibleOnConditions] = useState(pkg?.visible_on_conditions ?? true);
-  const [visibleInDashboard, setVisibleInDashboard] = useState(pkg?.visible_in_dashboard ?? true);
+  // The three "show it here" switches this form used to carry are gone, and
+  // so are their columns. A programme is not advertised anywhere: the public
+  // pages carry no programme catalogue at all and the patient's booking hub
+  // sells one consultation or one visit, so all three decided nothing while
+  // reading as the controls that placed a package on the site.
   const [active, setActive] = useState(pkg?.active ?? true);
+  // This is the switch that actually decides where a programme reaches a
+  // patient, and it had no control at all -- while Sessions ->
+  // Recommendations told admins to "turn one on under Catalog -> Packages".
+  const [recommendable, setRecommendable] = useState(pkg?.recommendable ?? true);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,9 +139,6 @@ export default function PackageCatalogForm({
       imageFocalX: focalX,
       imageFocalY: focalY,
       promises,
-      badgeLabel: badgeLabel || null,
-      highlight,
-      terms: terms || null,
       sessionCount,
       priceInr,
       compareAtInr: compareAtInr || null,
@@ -145,9 +150,7 @@ export default function PackageCatalogForm({
       minGapHours: minGapHours || null,
       maxSessionsPerWeek: maxSessionsPerWeek || null,
       maxPurchasesPerPatient: maxPurchasesPerPatient || null,
-      visibleOnHome,
-      visibleOnConditions,
-      visibleInDashboard,
+      recommendable,
       active,
     };
 
@@ -180,11 +183,24 @@ export default function PackageCatalogForm({
       <fieldset className="space-y-3">
         <legend className="font-bold text-slate-700 mb-1">Identity</legend>
         {!isEdit && (
-          <Field label="Category" hint="Fixes the session type, duration, and list price. Cannot be changed after creation.">
-            <select value={categoryId} disabled className="w-full p-2 rounded-lg border border-slate-300 bg-slate-100">
+          <Field
+            label="Category"
+            hint="Which condition from Catalog - Conditions this package is sold under. It fixes the session type, the duration and the list price the saving is worked out against, and it cannot be changed once the package exists, because live purchases reference it."
+          >
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              required
+              className={inputCls()}
+            >
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.title}
+                  {/* The list price is part of the choice rather than a
+                      detail of it: every saving figure on this form is
+                      computed against it, so picking blind means checking
+                      the Conditions screen and coming back. */}
+                  {c.title} — ₹{(c.price_paise / 100).toLocaleString("en-IN")} a session
+                  {c.active === false ? " (inactive)" : ""}
                 </option>
               ))}
             </select>
@@ -221,25 +237,16 @@ export default function PackageCatalogForm({
         <Field label="What We Promise" hint="One per line. Becomes a ticked list on the card. 3–5 is the sweet spot.">
           <textarea value={promisesText} onChange={(e) => setPromisesText(e.target.value)} rows={4} placeholder={"Weekly 1-on-1 sessions\nSame therapist throughout\nProgress reviewed every 4 sessions"} className={inputCls()} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Badge" hint="Corner ribbon text. Blank = none.">
-            <input value={badgeLabel} onChange={(e) => setBadgeLabel(e.target.value)} placeholder="Most chosen" className={inputCls()} />
-          </Field>
-          <label className="flex items-center gap-2 font-semibold pt-6">
-            <input type="checkbox" checked={highlight} onChange={(e) => setHighlight(e.target.checked)} className="w-4 h-4 accent-teal-600" />
-            Feature this package
-          </label>
-        </div>
-        <Field label="Terms" hint="Fine print shown at checkout and on the receipt.">
-          <textarea value={terms} onChange={(e) => setTerms(e.target.value)} rows={2} className={inputCls()} />
-        </Field>
       </fieldset>
 
       <fieldset className="space-y-3">
         <legend className="font-bold text-slate-700 mb-1">Commercial</legend>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Sessions Included" hint="Editing this later never changes packages already sold.">
-            <input type="number" min={2} step="1" value={sessionCount} onChange={(e) => setSessionCount(e.target.value)} required className={inputCls()} />
+          <Field
+            label="Sessions Included"
+            hint="1 is allowed, for a clinician recommending a single follow-up. Editing this later never changes packages already sold."
+          >
+            <input type="number" min={1} step="1" value={sessionCount} onChange={(e) => setSessionCount(e.target.value)} required className={inputCls()} />
           </Field>
           <Field label="Bundle Price (₹)" hint="What the patient pays, once, upfront.">
             <input type="number" min={1} step="0.01" value={priceInr} onChange={(e) => setPriceInr(e.target.value)} required className={inputCls()} />
@@ -293,22 +300,38 @@ export default function PackageCatalogForm({
       </fieldset>
 
       <fieldset className="space-y-2">
-        <legend className="font-bold text-slate-700 mb-1">Placement &amp; Status</legend>
-        <label className="flex items-center gap-2 font-semibold">
-          <input type="checkbox" checked={visibleOnHome} onChange={(e) => setVisibleOnHome(e.target.checked)} className="w-4 h-4 accent-teal-600" />
-          Show on Home page
+        <legend className="font-bold text-slate-700 mb-1">Status</legend>
+        <label className="flex items-start gap-2 font-semibold">
+          <input
+            type="checkbox"
+            checked={recommendable}
+            onChange={(e) => setRecommendable(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-teal-600"
+          />
+          <span>
+            A therapist may recommend this
+            <span className="block font-normal text-slate-500">
+              A programme is only ever sold through a recommendation written
+              after a session, so this is where it reaches a patient. Off, it
+              stays in the catalogue and no clinician can put it in front of
+              anybody.
+            </span>
+          </span>
         </label>
-        <label className="flex items-center gap-2 font-semibold">
-          <input type="checkbox" checked={visibleOnConditions} onChange={(e) => setVisibleOnConditions(e.target.checked)} className="w-4 h-4 accent-teal-600" />
-          Show on Conditions page
-        </label>
-        <label className="flex items-center gap-2 font-semibold">
-          <input type="checkbox" checked={visibleInDashboard} onChange={(e) => setVisibleInDashboard(e.target.checked)} className="w-4 h-4 accent-teal-600" />
-          Show in Patient Dashboard
-        </label>
-        <label className="flex items-center gap-2 font-semibold">
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="w-4 h-4 accent-teal-600" />
-          Active (master switch - off hides it everywhere and blocks purchase; existing purchases are unaffected)
+        <label className="flex items-start gap-2 font-semibold">
+          <input
+            type="checkbox"
+            checked={active}
+            onChange={(e) => setActive(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-teal-600"
+          />
+          <span>
+            Active
+            <span className="block font-normal text-slate-500">
+              The master switch. Off blocks purchase outright; programmes
+              already bought are unaffected.
+            </span>
+          </span>
         </label>
       </fieldset>
 

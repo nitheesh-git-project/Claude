@@ -464,13 +464,15 @@ Withdrawal also covers a plan **still waiting for approval** - refusing would le
 3. Under **Admin Notes**, tap the notes box. Enter `Prefers early evening slots. Referred by QA Partner Hospital.`
 4. Tap **Save Notes**.
 5. Close the overlay, reopen the same row, and confirm the note survived.
-6. Copy the id out of the URL and open `/admin/dashboard/patients/<id>` directly in a new tab.
-7. Sign in as the **finance** admin and open the same URL.
+6. Read the session dates down **Booking History**, then down **Payment History**.
+7. Copy the id out of the URL and open `/admin/dashboard/patients/<id>` directly in a new tab.
+8. Sign in as the **finance** admin and open the same URL.
 
-**Expected Result.** Tapping opens an **overlay modal**; the direct URL at step 6 renders the **same content as a full page** (a real route, not only an intercepted one). The panel carries **Personal Details**, **Contact Info**, **Admin Notes**, **Therapist Ratings of This Patient**, **Session Performance**, **Booking History**, **Payment History**, **Profit Breakdown** and **Profile Change Request History**, plus contact edit and password reset.
+**Expected Result.** Tapping opens an **overlay modal**; the direct URL at step 7 renders the **same content as a full page** (a real route, not only an intercepted one). The panel carries **Personal Details**, **Contact Info**, **Admin Notes**, **Therapist Ratings of This Patient**, **Session Performance**, **Booking History**, **Payment History**, **Profit Breakdown** and **Profile Change Request History**, plus contact edit and password reset.
 The notes box is placeheld `Private notes about this patient - never shown to them.` and reads `No notes saved yet.` when empty; the button reads `Saving...` then `Save Notes`. **The note must never appear on any patient-facing screen** - check the patient's own dashboard and their exported PDF.
-`ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` - **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it. At step 7 the finance admin reads the money sections and has **no** control that changes a session.
-The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Save Notes** there posts `update-therapist-notes`).
+`ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` - **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it. At step 8 the finance admin reads the money sections and has **no** control that changes a session.
+At step 6 **Booking History runs by the session's own date and time, newest first** - the session furthest in the future at the top, then today, then the past, with any session whose slot is not yet agreed (**Slot to be confirmed**) **last**. It is deliberately **not** ordered by when the booking was made, which is also session-code order: a session rescheduled to another month must move in this list. **Payment History** is unchanged and still runs by when the money moved.
+The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Save Notes** there posts `update-therapist-notes`), and **Assigned Sessions** there is ordered the same way as Booking History, with **Payout History** left on when the money moved.
 
 #### `ADM-PEOP-004` - Condition access grants and change requests · P0
 **Steps.** Approve a therapist's access-grant request. Then approve a patient's condition change request. Then approve a **therapist-submitted** edit for a re-triaged patient.
@@ -478,6 +480,12 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 
 #### `ADM-PEOP-005` - Therapists directory · P1
 **Expected Result.** A paged list with approval state, active state, leave state, team visibility, revenue share and rating visibility.
+
+#### `ADM-PEOP-005a` - Filter therapists by specialisation · P1
+
+**Steps.** Open **People → Therapists**. Read the **specialisation chip** under each card's credentials. Open the **Any specialisation** dropdown and choose one. Then switch to **List** and read the **Specialist in** column. Then put the dropdown back to **Any specialisation**.
+**Expected Result.** The dropdown offers only specialisations somebody on this screen actually has, each with its own count in brackets - never an option matching nobody. Choosing one narrows the grid to exactly those therapists and the pager's own count agrees with what is on screen. A therapist whose stored value is free text somebody typed before this list existed shows that text on a neutral chip and files under **Something else**; one with nothing recorded shows **no chip at all** (not "Unknown") and files under **Not set**. Searching by a specialisation's name finds those therapists too. The same chip appears on **Sessions → Roster**, on the therapist's own detail page, and in **Today → Approvals** for a therapist waiting on a credentials check.
+**Critical check:** the patients and partners directories - same component - show **no** specialisation filter and no column at all.
 
 #### `ADM-PEOP-006` - Therapist detail and revenue share · P0
 **Steps.** Open `QA Therapist A`. Set **Revenue share %** to `60`, and the home-visit share to `65`. Save. Then try `-5` and `150`.
@@ -591,6 +599,15 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 
 #### `ADM-CAT-011` - The home-visit waitlist · P2
 **Expected Result.** Entries from `PAT-HV-003` appear with status `new`, raising the Service Areas badge. Updating a status clears the badge. `Unknown status` is refused for an invalid value.
+
+#### `ADM-CAT-011a` - Marking one served offers to open the area · P1
+**Steps.** On a `new` request for a pincode you do not serve, tap **served**. Read the dialog, then tap **No, just mark served**. Set the row back to `new` (or use another request) and this time tap **Yes, add it and mark served**.
+**Expected Result.** Tapping served opens a dialog headed *"Do you visit 560099 now?"* carrying the request's pincode and who asked, with City prefilled from the request and **Travel fee prefilled with what you already charge in that city** - and a line saying so. A city with no areas yet starts at `0` and says that is a placeholder rather than a price.
+* **No, just mark served** - the request becomes `served` and **no service area is created**. That pincode still falls through to the waitlist on `/book-home-visit`.
+* **Yes, add it and mark served** - the area is created with the city, area name and fee shown, the request becomes `served`, and `/book-home-visit` now accepts that pincode.
+* Closing the dialog with **×** is the third outcome: nothing changes at all, not even the status.
+* A pincode that is **already** a service area is told so in the dialog with the clinic's own city and fee, and is offered **Mark served** alone - there is nothing to add.
+* The area is written **first**: if it cannot be created, the status stays where it was and the dialog says why.
 
 #### `ADM-CAT-014` - Purchases · P1
 **Steps.** Open **Catalog → Purchases**. Open a package purchase's detail modal; then a home-visit purchase's.

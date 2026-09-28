@@ -3,7 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
+import { useToast } from "@/lib/toast";
+import Modal from "@/components/admin/Modal";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
+import { describeAreaPrefill, type AreaPrefill } from "@/lib/homeVisitWaitlistArea";
 
 export type ServiceAreaRow = {
   id: string;
@@ -301,9 +304,169 @@ function AreaRow({ area }: { area: ServiceAreaRow }) {
   );
 }
 
-function WaitlistItem({ entry }: { entry: WaitlistRow }) {
+// Marking an out-of-area request **served** is a decision about the
+// catchment, so it offers to open the area rather than only changing a word.
+//
+// Before this, "served" set a status and nothing else: the pincode stayed
+// unserved, the next patient from that street met the same refusal, and the
+// row claiming otherwise sat on a screen nobody would think to doubt. The
+// dialog is prefilled from the request itself and from the clinic's own fee
+// for that city (`describeAreaPrefill`), and it is a real form rather than a
+// yes/no because the one thing this app cannot know is what the trip costs.
+//
+// Declining is a first-class answer, not a cancel: an admin who served
+// somebody as a one-off -- a favour, a therapist who was passing -- has not
+// decided to sell visits there, and the status still moves. Closing the
+// dialog outright leaves the status alone, which is the third outcome and
+// why the X is not the same as either button.
+function ServeWaitlistDialog({
+  entry,
+  prefill,
+  onClose,
+  onDone,
+}: {
+  entry: WaitlistRow;
+  prefill: AreaPrefill;
+  onClose: () => void;
+  /** Mark the request served. `addArea` decides whether the catchment opens
+   *  with it. */
+  onDone: (opts: { addArea: boolean; city: string; areaName: string; travelFeeInr: string }) => Promise<void>;
+}) {
+  const [city, setCity] = useState(prefill.city);
+  const [areaName, setAreaName] = useState(prefill.areaName);
+  const [travelFeeInr, setTravelFeeInr] = useState(prefill.travelFeeInr);
+  const [busy, setBusy] = useState<"add" | "only" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run(addArea: boolean) {
+    if (busy) return;
+    if (addArea && !city.trim()) {
+      setError("Which city is this pincode in?");
+      return;
+    }
+    setBusy(addArea ? "add" : "only");
+    setError(null);
+    try {
+      await onDone({ addArea, city: city.trim(), areaName: areaName.trim(), travelFeeInr });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save. Please try again.");
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Modal
+      title={`Do you visit ${entry.pincode} now?`}
+      subtitle="Marking this served says the clinic went. Opening the area is what lets the next patient there book."
+      onClose={onClose}
+    >
+      {prefill.alreadyServed ? (
+        <div className="space-y-4 text-xs">
+          <p className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5 font-semibold text-teal-800">
+            {entry.pincode} is already a service area
+            {prefill.city ? ` in ${prefill.city}` : ""} at ₹{prefill.travelFeeInr} a visit, so
+            there is nothing to add.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => run(false)}
+              disabled={busy !== null}
+              className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+            >
+              {busy ? "Saving…" : "Mark served"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy !== null}
+              className="rounded-lg bg-slate-200 px-4 py-2 font-semibold text-slate-800 transition hover:bg-slate-300 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+          </div>
+          {error && <p className="font-semibold text-red-600">{error}</p>}
+        </div>
+      ) : (
+        <div className="space-y-4 text-xs">
+          <dl className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div>
+              <dt className="text-[11px] font-semibold text-slate-500">Pincode</dt>
+              <dd className="mt-0.5 font-mono font-bold text-slate-900">{entry.pincode}</dd>
+            </div>
+            <div>
+              <dt className="text-[11px] font-semibold text-slate-500">Who asked</dt>
+              <dd className="mt-0.5 font-semibold text-slate-800">
+                {entry.name ?? "No name"} · {entry.phone}
+              </dd>
+            </div>
+          </dl>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block">
+              <span className="text-[11px] font-semibold text-slate-600">City</span>
+              <input value={city} onChange={(e) => setCity(e.target.value)} className={inputCls()} />
+            </label>
+            <label className="block">
+              <span className="text-[11px] font-semibold text-slate-600">Area name (optional)</span>
+              <input
+                value={areaName}
+                onChange={(e) => setAreaName(e.target.value)}
+                placeholder="e.g. Indiranagar"
+                className={inputCls()}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[11px] font-semibold text-slate-600">Travel fee (₹ per visit)</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={travelFeeInr}
+                onChange={(e) => setTravelFeeInr(e.target.value)}
+                className={inputCls()}
+              />
+            </label>
+          </div>
+
+          {/* Where the number came from, because a prefilled fee that nobody
+              explains is a price somebody did not choose. */}
+          <p className="text-[11px] text-slate-500">
+            {prefill.travelFeeSource === "city"
+              ? `Prefilled with what you already charge in ${prefill.city || "this city"}. Change it if the trip is longer.`
+              : "You have no areas in this city yet, so this starts at zero. The therapist is paid this in full, so set what the trip is worth."}
+          </p>
+
+          <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+            <button
+              type="button"
+              onClick={() => run(true)}
+              disabled={busy !== null}
+              className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+            >
+              {busy === "add" ? "Adding…" : "Yes, add it and mark served"}
+            </button>
+            <button
+              type="button"
+              onClick={() => run(false)}
+              disabled={busy !== null}
+              className="rounded-lg bg-slate-200 px-4 py-2 font-semibold text-slate-800 transition hover:bg-slate-300 disabled:opacity-60"
+            >
+              {busy === "only" ? "Saving…" : "No, just mark served"}
+            </button>
+          </div>
+          {error && <p className="font-semibold text-red-600">{error}</p>}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function WaitlistItem({ entry, areas }: { entry: WaitlistRow; areas: ServiceAreaRow[] }) {
   const [isPending, startTransition] = useTransition();
+  const [serving, setServing] = useState(false);
   const router = useRouter();
+  const { show } = useToast();
 
   function setStatus(status: string) {
     startTransition(async () => {
@@ -314,6 +477,52 @@ function WaitlistItem({ entry }: { entry: WaitlistRow }) {
       });
       if (res.ok) router.refresh();
     });
+  }
+
+  async function markStatus(status: string) {
+    const res = await fetch("/api/admin/update-home-visit-waitlist-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: entry.id, status }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error ?? "Could not update that request.");
+    }
+  }
+
+  async function handleServe(opts: {
+    addArea: boolean;
+    city: string;
+    areaName: string;
+    travelFeeInr: string;
+  }) {
+    if (opts.addArea) {
+      // The area first: a request marked served against a pincode nobody
+      // visits is the exact state this dialog exists to prevent, so a
+      // failure here must not leave the status moved.
+      const res = await fetch("/api/admin/create-home-visit-areas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city: opts.city,
+          areaName: opts.areaName || null,
+          pincodes: entry.pincode,
+          travelFeeInr: opts.travelFeeInr,
+          notes: `Opened from an out-of-area request on ${entry.pincode}.`,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Could not add that service area.");
+    }
+    await markStatus("served");
+    setServing(false);
+    show(
+      opts.addArea
+        ? `${entry.pincode} is a service area now, and the request is marked served.`
+        : `Request marked served. ${entry.pincode} is still outside the areas you visit.`
+    );
+    router.refresh();
   }
 
   return (
@@ -336,7 +545,10 @@ function WaitlistItem({ entry }: { entry: WaitlistRow }) {
         {(["contacted", "served", "declined"] as const).map((s) => (
           <button
             key={s}
-            onClick={() => setStatus(s)}
+            // "served" asks first -- see ServeWaitlistDialog. The other two
+            // say only what the clinic did about one request and change
+            // nothing else.
+            onClick={() => (s === "served" ? setServing(true) : setStatus(s))}
             disabled={isPending || entry.status === s}
             className="text-[11px] text-teal-700 font-semibold hover:underline disabled:opacity-40"
           >
@@ -344,6 +556,14 @@ function WaitlistItem({ entry }: { entry: WaitlistRow }) {
           </button>
         ))}
       </div>
+      {serving && (
+        <ServeWaitlistDialog
+          entry={entry}
+          prefill={describeAreaPrefill(entry, areas)}
+          onClose={() => setServing(false)}
+          onDone={handleServe}
+        />
+      )}
     </li>
   );
 }
@@ -374,7 +594,10 @@ export default function HomeVisitAreaManager({
             No service areas yet - home visits can&apos;t be booked anywhere until you add one.
           </p>
         ) : (
-          <ul className="space-y-2">
+          // Named, because this screen carries two lists of the same shape
+          // and a screen reader meeting the second one has nothing to say
+          // which it is.
+          <ul aria-label="Service areas" className="space-y-2">
             {areas.map((area) => (
               <AreaRow key={area.id} area={area} />
             ))}
@@ -412,9 +635,9 @@ export default function HomeVisitAreaManager({
         {waitlist.length === 0 ? (
           <p className="text-xs text-slate-500 py-2">No requests yet.</p>
         ) : (
-          <ul className="space-y-2">
+          <ul aria-label="Out-of-area requests" className="space-y-2">
             {waitlist.map((entry) => (
-              <WaitlistItem key={entry.id} entry={entry} />
+              <WaitlistItem key={entry.id} entry={entry} areas={areas} />
             ))}
           </ul>
         )}

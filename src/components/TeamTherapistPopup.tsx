@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
+import SpecialtyChip from "@/components/SpecialtyChip";
+import { specialtyLabel } from "@/lib/therapistSpecialties";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import Modal, { useLastNonNull } from "@/components/Modal";
 import { Stagger, StaggerItem } from "@/components/motion/primitives";
@@ -114,6 +116,13 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                         {t.credentials}
                       </span>
                     )}
+                    {/* The specialisation is the first thing somebody
+                        scanning this grid is looking for -- "who takes a
+                        stroke patient?" -- so it sits with the name rather
+                        than as a sentence further down the card. */}
+                    <span className="mt-1.5 block">
+                      <SpecialtyChip specialization={t.specialization} />
+                    </span>
                     <span className="mt-1.5 block">
                       <Rating avg={t.avg_rating} count={t.rating_count} />
                     </span>
@@ -138,13 +147,6 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                     </dd>
                   </div>
                 </dl>
-
-                {t.specialization && (
-                  <p className="mt-4 text-xs leading-relaxed text-slate-600">
-                    <span className="font-semibold text-slate-700">Focus:</span>{" "}
-                    {t.specialization}
-                  </p>
-                )}
 
                 <span className="mt-auto inline-flex items-center gap-1.5 pt-5 text-xs font-semibold text-teal-700">
                   View full profile
@@ -241,7 +243,7 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                       Treatment focus
                     </h4>
                     <p className="mt-2 text-sm leading-relaxed text-slate-700">
-                      Specialist in {open.specialization}.
+                      {`Specialist in ${specialtyLabel(open.specialization)}.`}
                     </p>
                   </section>
                 )}

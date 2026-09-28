@@ -4,7 +4,7 @@ import { useState } from "react";
 import FilterChips from "@/components/dashboard/FilterChips";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
-import Link from "next/link";
+import ProgressLink from "@/components/system/ProgressLink";
 import { countNeedsYou, type FeedItem } from "@/lib/dashboardFeed";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 
@@ -121,9 +121,9 @@ export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; 
           return (
             <li key={item.id}>
               {item.href ? (
-                <Link href={item.href} className="block">
+                <ProgressLink href={item.href} className="block">
                   {row}
-                </Link>
+                </ProgressLink>
               ) : (
                 row
               )}

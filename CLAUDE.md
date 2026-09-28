@@ -192,6 +192,66 @@ public and the bar names `/admin/login` and `/admin/dashboard`. The
 database-wipe flag (`ALLOW_DEBUG_DATA_RESET`) is a separate, server-only
 thing and stays unset.
 
+**Nothing the browser draws itself speaks to a person.** A blank `required`
+box used to be answered by the operating system's own grey tooltip, which is
+the one piece of UI here nobody designed - it arrives with the attribute,
+reads like a form from 2005 and looks different on every browser.
+`FormValidationChrome`, mounted once in the root layout, suppresses it and
+renders the clinic's own message anchored to the field with a red ring on
+it; the wording is `src/lib/formValidationMessage.ts`, which names the field
+from its own label and says what an acceptable value would look like. It is
+one listener at the root rather than an edit to every form, so a form nobody
+has touched - including the next one written - is covered. `window.confirm`
+is the same rule one control over and `useConfirm` is its replacement. See
+the browser-defaults rule in `AGENTS.md`.
+**A number box takes digits too.** The browser's own `type="number"` accepts
+`e`, `E` and `+`, then reports the box as empty - which is what made the
+condition form's Order field take one letter and refuse the rest.
+`NumericInputGuard` is the other root listener, reading each field's own
+`step` and `min` so a price keeps its decimal while a count does not, and
+the two treatment-category routes refuse an order that is not a whole
+number of 0 or more. Order itself now says what it decides: where the
+condition sits in the list, lowest first.
+
+**A tap is acknowledged, and a screen already on the page is not fetched
+again.** Tapping a Today count used to be an ordinary link to
+`/admin/dashboard?section=...`, which rebuilt the whole dashboard from ~49
+queries to show a screen already in the DOM - seconds of silence, then a
+jump. `AdminScreenLink` hands those to the shell's own navigate, so they
+switch in place as the sidebar does, and `LinkProgress` (one listener in the
+root layout) draws the teal bar for every other link in the app, whoever
+wrote it. See the navigation rule in `AGENTS.md`.
+
+**A patient's or therapist's own page is the dashboard, not a page that
+looks like it.** Those details are an overlay over whatever screen you were
+on, and a reload, a new tab, a shared link or a refresh lands on the real
+route instead. That route used to wear a reduced frame -- same rail, no
+badges, no search -- which read as being thrown out of the back office onto
+a plainer site, and it was reported from the one flow that refreshes:
+reassigning a session from a therapist's profile. It renders the dashboard
+itself now (`AdminDetailDashboard`) with the same overlay on top, and
+closing is a URL change rather than a rebuild of a screen already on view.
+See the intercepted-overlay rule in `AGENTS.md`.
+
+**And the sessions on that page are listed by when they are, not by when they
+were booked.** Booking History and Assigned Sessions were ordered by
+`created_at`, which is the order session codes are handed out in -- so the
+list read as being sorted by session ID, and a session rescheduled to next
+month stayed wherever it was first booked. `src/lib/sessionOrdering.ts` is
+the one answer: the session's own `slot_time`, newest first, a session with no
+slot agreed yet last, ties broken on the booking time. It is applied in the
+one component that renders that list on both profiles, so the two screens
+cannot disagree. The money lists beside it still run by when the money moved.
+See the session-order rule in `AGENTS.md`.
+
+**Marking an out-of-area request served offers to open the area.** The
+waitlist is demand the clinic turned away, and tapping *served* used to move
+a word while the pincode stayed unserved - so the next patient from that
+street met the same refusal. It asks first now, prefilled from the request
+and from what the clinic already charges in that city, with two answers:
+open the area and mark it served, or mark it served alone. See the waitlist
+rule in `AGENTS.md`.
+
 The health profile is **per specialty**: a condition profile carries
 `specialty` (`ortho`, `neuro`, `pediatrics`), and that decides its seven
 questions, its summary card, its snapshot figures and its progress line.
@@ -221,6 +281,22 @@ converts between periods and the hour rows the tables have always held. The
 roster is the clinic's planning record; it does not filter the patient's
 booking picker, and availability never touches an appointment. See the
 "Nobody edits an hour" rule in `AGENTS.md`.
+
+A therapist carries a **specialisation**, and it is a value rather than a
+sentence: the eight the clinic recognises live in
+`src/lib/therapistSpecialties.ts`, the column stores the canonical label
+("Orthopaedic", never "ortho"), and free text written before that list
+existed still renders exactly as its author wrote it and files under
+"Something else". It is asked for on the public application form and on
+User Access's create-account form, editable by the therapist through the
+ordinary admin review, and shown wherever that therapist is -- /team and the
+booking wizard's requested-therapist card, the admin's therapist directory,
+detail page, roster and approvals queue, and every picker that assigns one.
+People -> Therapists carries a **filter by specialisation** built from the
+people on screen, so an option matching nobody is never offered. Nothing is
+shown for a therapist who has not said: a chip reading "Unknown" on every
+such profile is a label on an absence. See the specialisation rule in
+`AGENTS.md`.
 
 Nobody is admitted to a session by hand. Meet's default access admits only
 signed-in Google users who are on the invite and makes everyone else knock,

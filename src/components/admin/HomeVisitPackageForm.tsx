@@ -34,9 +34,9 @@ export type HomeVisitPackage = {
   max_purchases_per_patient: number | null;
   category_id: string | null;
   display_order: number;
-  visible_on_home: boolean;
   visible_on_home_visit_page: boolean;
   visible_in_dashboard: boolean;
+  recommendable: boolean;
   active: boolean;
 };
 
@@ -130,12 +130,15 @@ export default function HomeVisitPackageForm({
   const [categoryId, setCategoryId] = useState(pkg?.category_id ?? "");
   const [displayOrder, setDisplayOrder] = useState(pkg ? String(pkg.display_order) : "0");
 
-  const [visibleOnHome, setVisibleOnHome] = useState(pkg?.visible_on_home ?? false);
   const [visibleOnHomeVisitPage, setVisibleOnHomeVisitPage] = useState(
     pkg?.visible_on_home_visit_page ?? true
   );
   const [visibleInDashboard, setVisibleInDashboard] = useState(pkg?.visible_in_dashboard ?? true);
   const [active, setActive] = useState(pkg?.active ?? true);
+  // A visit package is sold two ways -- bought directly (a one-visit package
+  // is the home-visit consultation) and recommended by a clinician. This is
+  // the second door, and it had no control at all.
+  const [recommendable, setRecommendable] = useState(pkg?.recommendable ?? true);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -183,9 +186,9 @@ export default function HomeVisitPackageForm({
       maxPurchasesPerPatient: maxPurchasesPerPatient || null,
       categoryId: categoryId || null,
       displayOrder,
-      visibleOnHome,
       visibleOnHomeVisitPage,
       visibleInDashboard,
+      recommendable,
       active,
     };
 
@@ -413,11 +416,16 @@ export default function HomeVisitPackageForm({
           onChange={setVisibleOnHomeVisitPage}
           label="Show on the Home Visit page"
         />
-        <Check checked={visibleOnHome} onChange={setVisibleOnHome} label="Show on the home page" />
         <Check
           checked={visibleInDashboard}
           onChange={setVisibleInDashboard}
           label="Show in the patient dashboard"
+        />
+        <Check
+          checked={recommendable}
+          onChange={setRecommendable}
+          label="A therapist may recommend this"
+          hint="Whether a clinician can put this in front of one patient after a session. Separate from the two switches above, which decide where it is advertised: a package you have stopped selling on the website may still be the right treatment."
         />
       </div>
 

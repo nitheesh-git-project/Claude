@@ -8,6 +8,7 @@ import PhoneNumberField from "@/components/PhoneNumberField";
 import ConfirmPasswordField from "./ConfirmPasswordField";
 import EmailField from "./EmailField";
 import PasswordField from "./PasswordField";
+import { THERAPIST_SPECIALTIES } from "@/lib/therapistSpecialties";
 
 export default function TherapistAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
@@ -71,6 +72,7 @@ export default function TherapistAuthCard() {
     const fullName = formData.get("fullName") as string;
     const phone = formData.get("phone") as string;
     const credentials = formData.get("credentials") as string;
+    const specialization = formData.get("specialization") as string;
 
     if (!isValidEmail(email)) {
       setLoading(false);
@@ -94,7 +96,10 @@ export default function TherapistAuthCard() {
       email,
       password,
       options: {
-        data: { role: "therapist", full_name: fullName, phone, credentials },
+        // specialization rides along with credentials: the trigger copies
+        // both onto the profile row, and both are display text on an
+        // account that waits on an admin's approval either way.
+        data: { role: "therapist", full_name: fullName, phone, credentials, specialization },
       },
     });
     if (error) {
@@ -324,6 +329,28 @@ export default function TherapistAuthCard() {
                 maxLength={200}
                 className="w-full p-3 rounded-xl border border-slate-300"
               />
+            </label>
+            <label className="block">
+              <span className="block font-semibold mb-1">Specialist In</span>
+              <select
+                name="specialization"
+                required
+                defaultValue=""
+                className="w-full p-3 rounded-xl border border-slate-300 bg-white"
+              >
+                <option value="" disabled>
+                  Choose your main area
+                </option>
+                {THERAPIST_SPECIALTIES.map((s) => (
+                  <option key={s.key} value={s.label}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <span className="block text-slate-500 mt-1">
+                Patients see this on your profile. Pick the one you mostly
+                take - you can change it later from your dashboard.
+              </span>
             </label>
             <PasswordField
               autoComplete="new-password"

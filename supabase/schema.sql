@@ -12012,3 +12012,156 @@ create unique index if not exists business_expenses_one_per_source_appointment
 -- failure naming it, not a silent drop of whatever it was.
 alter table site_settings drop column if exists session_packages_visible restrict;
 alter table site_settings drop column if exists show_programme_prices restrict;
+
+-- A session package's placement flags, and its marketing text, follow the
+-- same reasoning one table over.
+--
+-- `visible_on_home`, `visible_on_conditions` and `visible_in_dashboard` each
+-- decided where a programme was advertised. The consultation-first cutover
+-- removed every one of those surfaces: `/` and `/conditions` carry no
+-- programme catalogue at all, and the patient's booking hub sells one
+-- consultation or one visit. Nothing has read any of the three since, while
+-- the admin form went on offering them as three ticked boxes above the only
+-- switch that still did anything -- which is worse than a dead column,
+-- because it reads as a placement somebody chose.
+--
+-- `badge_label`, `highlight` and `terms` are the same story as content
+-- rather than placement: a corner ribbon, a featured ring and fine print,
+-- all of them for the public programme card that was deleted. `terms` was
+-- still being selected into the care-plan offer snapshot, where it reached
+-- no screen either.
+--
+-- The switch that does decide where a programme reaches a patient is
+-- `recommendable`, and it had no control on that form at all -- while
+-- Sessions -> Recommendations told admins to "turn one on under Catalog ->
+-- Packages". It has one now, on both catalog forms.
+--
+-- `home_visit_packages` keeps its badge, its highlight, its terms and both
+-- of its live placement flags: a home visit is still sold directly, so
+-- `/home-visit` and the booking hub both render it. Only `visible_on_home`
+-- goes, because the home page carries a link band to that page and has
+-- never listed visit packages.
+--
+-- `restrict` rather than `cascade`, for the reason above: a dependency
+-- written since should fail loudly rather than be dropped silently.
+alter table treatment_category_packages drop column if exists visible_on_home restrict;
+alter table treatment_category_packages drop column if exists visible_on_conditions restrict;
+alter table treatment_category_packages drop column if exists visible_in_dashboard restrict;
+alter table treatment_category_packages drop column if exists badge_label restrict;
+alter table treatment_category_packages drop column if exists highlight restrict;
+alter table treatment_category_packages drop column if exists terms restrict;
+alter table home_visit_packages drop column if exists visible_on_home restrict;
+
+-- A session package may hold one session.
+--
+-- `session_count >= 2` dates from when a package was a bundle sold off a
+-- public price list: a one-session "package" was the consultation a patient
+-- could already buy on its own, so the floor cost nothing and stopped a
+-- duplicate product. Both halves of that stopped being true. There is no
+-- public programme catalogue and no `/book?package=` checkout, so a session
+-- package reaches a patient only through a recommendation their own
+-- clinician wrote after seeing them -- and "come back once more" is among
+-- the commonest things a clinician wants to recommend, which a floor of two
+-- made impossible to express. `home_visit_packages.visit_count` has allowed
+-- one since it shipped, for the same reason read from the other end: one
+-- visit is that patient's consultation.
+--
+-- Nothing about consultation-first changes. `isDirectlyPurchasable` is read
+-- for home-visit packages alone -- session packages have no direct purchase
+-- path left to widen -- so a one-session programme is still something only a
+-- therapist can put in front of somebody.
+--
+-- Dropped and re-added rather than altered: a CHECK cannot be modified in
+-- place, and the original was created unnamed inside `create table`, so it
+-- carries Postgres's own generated name.
+alter table treatment_category_packages
+  drop constraint if exists treatment_category_packages_session_count_check;
+alter table treatment_category_packages
+  drop constraint if exists treatment_category_packages_session_count_positive;
+alter table treatment_category_packages
+  add constraint treatment_category_packages_session_count_positive
+  check (session_count >= 1);
+
+-- ---------------------------------------------------------------------------
+-- Feature: a therapist's specialisation is a value, not a sentence
+-- ---------------------------------------------------------------------------
+-- `profiles.specialization` has been free text since it was added, written
+-- on the therapist's own profile screen and printed raw on /team. That was
+-- enough while it was one line of prose on one page. It stopped being
+-- enough once an admin needed to ask "who do we have for a stroke
+-- patient?", because "Neuro rehab", "neurological physiotherapy" and
+-- "Neuro" are three strings and no filter can be built from them.
+--
+-- The column stays text and is deliberately **not** constrained to a list:
+-- what is stored is now the canonical label from
+-- `src/lib/therapistSpecialties.ts` ("Orthopaedic", never "ortho"), and a
+-- CHECK would refuse every value already in the table and every value a
+-- clinic adds to that list later without a migration. The app normalises on
+-- read, so free text that predates this still renders as its author wrote
+-- it and files under "Something else" in the filter.
+--
+-- What changes here is the one place the app could not reach: a therapist
+-- applying through the public form. `handle_new_user` copies the signup's
+-- own metadata into the profile row, and specialisation is asked for on
+-- that form now -- so it is copied beside `credentials`, which it sits next
+-- to on the form and answers the same kind of question. Anything the
+-- browser sends is display text on an unapproved account that an admin
+-- reads before approving; it grants nothing, exactly as `credentials` does
+-- not.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_referred_by uuid;
+  v_role text;
+begin
+  -- Unchanged: raw_user_meta_data is fully client-controlled, so it must
+  -- never be trusted to grant 'admin' or 'hospital'. 'therapist' is the only
+  -- self-serve role beyond the 'patient' default, and both start unapproved.
+  v_role := case
+    when new.raw_user_meta_data->>'role' = 'therapist' then 'therapist'
+    else 'patient'
+  end;
+
+  if new.raw_user_meta_data->>'referral_code' is not null then
+    select id into v_referred_by from public.profiles
+      where referral_code = new.raw_user_meta_data->>'referral_code'
+      and role = 'hospital';
+  end if;
+
+  insert into public.profiles (
+    id, role, full_name, email, phone, credentials, specialization,
+    approved, referred_by_hospital_id
+  )
+  values (
+    new.id,
+    v_role,
+    coalesce(new.raw_user_meta_data->>'full_name', ''),
+    new.email,
+    new.raw_user_meta_data->>'phone',
+    new.raw_user_meta_data->>'credentials',
+    -- Only a therapist has one; a patient signup carrying this key is
+    -- ignored rather than written, so the column cannot be used as free
+    -- storage on an account it means nothing for. Capped to match
+    -- MAX_SPECIALTY_LENGTH, since every public profile prints it.
+    case
+      when v_role = 'therapist'
+        then left(nullif(btrim(coalesce(new.raw_user_meta_data->>'specialization', '')), ''), 80)
+      else null
+    end,
+    false,
+    v_referred_by
+  );
+  return new;
+end;
+$$;
+
+-- CREATE OR REPLACE keeps the existing ACL, so the revoke above still
+-- holds -- restated here because this file is re-applied against fresh
+-- databases too, where the function is created anew by this statement and
+-- arrives carrying the default grants.
+revoke all on function public.handle_new_user() from public;
+revoke all on function public.handle_new_user() from anon;
+revoke all on function public.handle_new_user() from authenticated;

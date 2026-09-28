@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
 
 // The four-figure strip that opens every dashboard: the same shape on the
 // patient's Health Profile, the therapist's week, the hospital's referrals
@@ -97,10 +98,19 @@ function Cell({ cell }: { cell: StatCell }) {
   );
 
   if (cell.href) {
+    // AdminScreenLink rather than a bare anchor: inside the admin dashboard
+    // a figure links to one of its own screens, and every screen is already
+    // rendered, so this switches in place instead of throwing the dashboard
+    // away and asking the server to build another one. Everywhere else --
+    // the patient, therapist and hospital strips -- it is exactly the plain
+    // anchor it was, which is what those shells want.
     return (
-      <a href={cell.href} className="flex flex-col px-4 py-3 transition hover:bg-slate-50 sm:px-5">
+      <AdminScreenLink
+        href={cell.href}
+        className="flex flex-col px-4 py-3 transition hover:bg-slate-50 sm:px-5"
+      >
         {body}
-      </a>
+      </AdminScreenLink>
     );
   }
   if (cell.onSelect) {

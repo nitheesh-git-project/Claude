@@ -9,6 +9,7 @@ import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import { THERAPIST_SPECIALTY_LABELS } from "@/lib/therapistSpecialties";
 
 export const metadata: Metadata = {
   title: "Edit Profile | Dr. Pooja's Physio",
@@ -60,6 +61,17 @@ export default async function TherapistProfilePage() {
       .maybeSingle()
   ]);
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
+
+  // The eight the clinic recognises, plus whatever this therapist already
+  // has if it is not one of them. Without that second half a legacy
+  // free-text value would have no matching <option>, the browser would show
+  // the first one instead, and the screen would quietly misreport what is
+  // stored -- on a field that goes to patients and through admin review.
+  const currentSpecialization = profile?.specialization ?? "";
+  const specializationOptions =
+    currentSpecialization && !THERAPIST_SPECIALTY_LABELS.includes(currentSpecialization)
+      ? [...THERAPIST_SPECIALTY_LABELS, currentSpecialization]
+      : THERAPIST_SPECIALTY_LABELS;
   const adminSettings = parseAdminSettings(settingsRow);
 
   // This page hides the shared Navbar entirely, so it needs the debug
@@ -123,7 +135,12 @@ export default async function TherapistProfilePage() {
               label: "Qualifications & License / Council Reg No.",
               type: "text",
             },
-            { name: "specialization", label: "Specialist In", type: "text" },
+            {
+              name: "specialization",
+              label: "Specialist In",
+              type: "select",
+              options: specializationOptions,
+            },
             {
               name: "years_experience",
               label: "Years of Experience",
@@ -135,7 +152,7 @@ export default async function TherapistProfilePage() {
           currentValues={{
             full_name: profile?.full_name ?? "",
             credentials: profile?.credentials ?? "",
-            specialization: profile?.specialization ?? "",
+            specialization: currentSpecialization,
             years_experience:
               profile?.years_experience !== null && profile?.years_experience !== undefined
                 ? String(profile.years_experience)

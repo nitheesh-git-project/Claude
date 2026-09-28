@@ -1,5 +1,7 @@
 "use client";
 
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
+
 import { useMemo, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -94,12 +96,12 @@ export default function AdminFinanceInputsTab({
       <SurfaceCard title="What this screen is for" icon="fa-circle-info">
         <p className="text-xs leading-relaxed text-slate-600">
           Four things decide half the figures on{" "}
-          <a
+          <AdminScreenLink
             href={adminScreenHref("money", "health")}
             className="font-semibold text-teal-700 hover:underline"
           >
             Business Health
-          </a>{" "}
+          </AdminScreenLink>{" "}
           and none of them is anything this app can see: what you have put into the clinic, what you
           spend on advertising, what you own and owe outside this app, and how you want a few of
           those figures read. Enter them here and every figure on that screen fills in. Leave one
@@ -107,12 +109,12 @@ export default function AdminFinanceInputsTab({
         </p>
         <p className="mt-2 text-xs leading-relaxed text-slate-600">
           Interest and tax are the fifth, and they are not here: they are ordinary costs, recorded on{" "}
-          <a
+          <AdminScreenLink
             href={adminScreenHref("money", "costs")}
             className="font-semibold text-teal-700 hover:underline"
           >
             Costs
-          </a>{" "}
+          </AdminScreenLink>{" "}
           and filed under their own kind.
         </p>
       </SurfaceCard>
@@ -589,12 +591,12 @@ function CampaignsPanel({
           Give the campaign a promo code and advertise that code in the ad. Every booking that types
           it is then traceable to this campaign, and the return is real rather than a guess. Set up
           codes on{" "}
-          <a
+          <AdminScreenLink
             href={adminScreenHref("money", "costs")}
             className="font-semibold text-teal-700 hover:underline"
           >
             Costs
-          </a>
+          </AdminScreenLink>
           . For an ad that makes the phone ring instead, put what you believe it brought in in the
           last box - Business Health will show it as your own figure, never as a traced one.
         </p>

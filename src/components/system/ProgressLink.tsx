@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useLinkStatus } from "next/link";
 import { useEffect, useRef, type ComponentProps } from "react";
 import { usePendingWork } from "@/lib/pendingWork";
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
+import {
+  parseAdminScreenHref,
+  useAdminScreenNavigation,
+} from "@/lib/adminScreenNavigation";
 
 // A <Link> that tells the teal bar it is going somewhere.
 //
@@ -56,6 +61,27 @@ export default function ProgressLink({
   children,
   ...props
 }: ComponentProps<typeof Link>) {
+  // Inside the admin dashboard, a link to another of its screens is not a
+  // navigation at all -- every screen is already rendered, and the shell
+  // switches between them with setState. Going through Next would throw the
+  // rendered dashboard away and rebuild it from ~49 queries to show markup
+  // that is already in the DOM, which is the multi-second dead tap this
+  // component exists to report on. Better not to have it to report.
+  const adminNav = useAdminScreenNavigation();
+  const href = typeof props.href === "string" ? props.href : null;
+  if (adminNav && href && parseAdminScreenHref(href)) {
+    // `href` is replaced rather than spread through: Link's own href type is
+    // wider than an anchor's, and this branch has already narrowed it to the
+    // string case.
+    const { href: _linkHref, ...rest } = props;
+    void _linkHref;
+    return (
+      <AdminScreenLink href={href} {...rest}>
+        {children}
+      </AdminScreenLink>
+    );
+  }
+
   return (
     <Link {...props}>
       {children}

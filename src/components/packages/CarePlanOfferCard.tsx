@@ -55,6 +55,7 @@ export type SavedAddress = {
 
 export default function CarePlanOfferCard({
   offer,
+  homeVisitEnabled = true,
   patientName,
   patientEmail,
   savedAddresses,
@@ -62,6 +63,11 @@ export default function CarePlanOfferCard({
   bulkScheduleMax,
 }: {
   offer: CarePlanOffer;
+  /** The clinic's master switch. A recommendation written while home
+   *  visits were on outlives the switch being turned off, and every route
+   *  behind this card refuses once it is -- so the card has to say so
+   *  rather than offer a button that cannot work. */
+  homeVisitEnabled?: boolean;
   patientName: string;
   patientEmail: string;
   /** Home-visit recommendations only: what the patient already has on file. */
@@ -260,7 +266,14 @@ export default function CarePlanOfferCard({
     });
   }
 
-  const actionable = state === "awaiting_patient";
+  // Home visits switched off after this was recommended: `check-area`
+  // answers 403, `care-plan/create-order` refuses, and without this the
+  // patient met "we couldn't work out the travel fee" over a button that
+  // could never succeed. Same rule as the Pay Now button a pay-later session
+  // stopped offering -- a control the server refuses outright must not
+  // render.
+  const homeVisitWithdrawn = offer.isHomeVisit && !homeVisitEnabled;
+  const actionable = state === "awaiting_patient" && !homeVisitWithdrawn;
 
   // What the patient sees the instant the payment clears, in place of the
   // card they were reading. It stays until they schedule or dismiss it --
@@ -431,6 +444,13 @@ export default function CarePlanOfferCard({
             </dl>
           )}
         </div>
+      )}
+
+      {homeVisitWithdrawn && state === "awaiting_patient" && (
+        <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800">
+          Visits at home are paused at the moment, so this cannot be booked
+          just now. Your therapist will be in touch about what to do instead.
+        </p>
       )}
 
       {actionable ? (

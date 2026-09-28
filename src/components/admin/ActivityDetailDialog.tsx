@@ -42,10 +42,13 @@ export function describeAction(action: string) {
 export default function ActivityDetailDialog({
   row,
   onClose,
+  onBack,
   onOpenSubject,
 }: {
   row: ActivityRow;
   onClose: () => void;
+  /** Back to the timeline this entry was picked from, where there is one. */
+  onBack?: () => void;
   /** Trace this entry's subject through the whole log. Offered only where
    *  the reader can actually call for it -- the Logs section -- so the desk
    *  screens, whose scope the route refuses, get no button that 403s. */
@@ -60,6 +63,8 @@ export default function ActivityDetailDialog({
       title={describeAction(row.action)}
       subtitle={`${row.actorName} · ${formatWhen(row.createdAt)}`}
       onClose={onClose}
+      onBack={onBack}
+      backLabel="Back to this record's history"
     >
       <div className="space-y-5">
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -1,5 +1,7 @@
 "use client";
 
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
+
 import { useMemo, useState } from "react";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import StatStrip from "@/components/dashboard/StatStrip";
@@ -1423,12 +1425,12 @@ export default function AdminBusinessHealthTab({
               Your Numbers
             </a>
             ; interest and tax are ordinary costs on{" "}
-            <a
+            <AdminScreenLink
               href={adminScreenHref("money", "costs")}
               className="font-semibold text-teal-700 hover:underline"
             >
               Costs
-            </a>
+            </AdminScreenLink>
             , filed under their own kind.
           </p>
         </SurfaceCard>

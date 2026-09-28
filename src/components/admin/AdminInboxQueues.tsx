@@ -1,4 +1,4 @@
-import Link from "next/link";
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
 import { adminScreenHref, type AdminSectionKey, type InboxGroup } from "@/lib/adminNav";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 
@@ -44,7 +44,7 @@ export default function AdminInboxQueues({
               <ul className="space-y-1.5">
                 {group.items.map((item) => (
                   <li key={item.label}>
-                    <Link
+                    <AdminScreenLink
                       href={adminScreenHref(item.section, item.tab, item.view)}
                       className={`flex items-center gap-3 rounded-xl border px-3.5 py-2.5 transition hover:bg-teal-50/40 ${
                         item.urgent ? "border-red-200 bg-red-50/40" : "border-slate-200 hover:border-teal-300"
@@ -62,7 +62,7 @@ export default function AdminInboxQueues({
                         {item.hint && <span className="block text-[11px] text-slate-500">{item.hint}</span>}
                       </span>
                       <i aria-hidden className="fa-solid fa-arrow-right text-[11px] text-slate-300" />
-                    </Link>
+                    </AdminScreenLink>
                   </li>
                 ))}
               </ul>

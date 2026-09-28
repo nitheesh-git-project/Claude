@@ -68,7 +68,7 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 
 **Feature.** A course of treatment is a clinical recommendation, so the public site does not carry a price list of them. Removed outright rather than hidden behind a setting: a toggle somebody can flip back on is not the rule being gone.
 
-**Preconditions.** Packages P1–P3 exist, are `active`, and have `visible_on_home` and `visible_on_conditions` on. That matters - this is an absence tested against rows that genuinely could have rendered.
+**Preconditions.** Packages P1–P3 exist and are `active` and `recommendable`. That matters - this is an absence tested against rows that genuinely could have rendered. The three "show it here" flags these rows used to carry are gone from the table: they decided where a programme was advertised, and there is nowhere public left for them to decide about.
 
 **Steps.** Read `/` and `/conditions` end to end, including inside every programme detail dialog. Then read `/home-visit`.
 **Expected Result**

@@ -15,6 +15,7 @@ import SessionDetailDrawer, {
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { describeSessionPayment } from "@/lib/sessionPaymentState";
+import { sortSessionsNewestFirst } from "@/lib/sessionOrdering";
 
 type Category = {
   id: string;
@@ -77,10 +78,18 @@ export default function ProfileSessionList({
     return <p className="text-xs text-slate-500 py-4 text-center">{emptyMessage}</p>;
   }
 
+  // Ordered here rather than by whichever query fetched the rows: this one
+  // component renders the list on both the patient and the therapist profile,
+  // so the two screens cannot grow two answers to "what order is this in", and
+  // a third caller added later gets the order without having to remember it.
+  // Same posture as SessionNoteHistory and the drawer's reassignment log,
+  // which both sort what they are handed.
+  const ordered = sortSessionsNewestFirst(appointments);
+
   return (
     <>
       <ul className="space-y-3 text-xs">
-        {appointments.map((a) => {
+        {ordered.map((a) => {
           const category = a.category_id ? categoryMap.get(a.category_id) : null;
           const feePaise = a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE;
           const durationMinutes =

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
 import PagedList from "@/components/dashboard/PagedList";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
@@ -329,12 +330,12 @@ export default function AdminOwingTab({
           </ul>
           <p className="mt-3 text-xs text-slate-500">
             Close them on{" "}
-            <Link
+            <AdminScreenLink
               href={adminScreenHref("sessions", "all")}
               className="font-semibold text-teal-700 hover:underline"
             >
               All Sessions
-            </Link>
+            </AdminScreenLink>
             , and the money appears everywhere at once.
           </p>
         </SurfaceCard>

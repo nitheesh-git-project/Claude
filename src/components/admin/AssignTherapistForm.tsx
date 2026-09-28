@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import Spinner from "@/components/system/Spinner";
+import { specialtyLabel } from "@/lib/therapistSpecialties";
 
 export default function AssignTherapistForm({
   appointmentId,
@@ -11,7 +12,7 @@ export default function AssignTherapistForm({
   preferredTherapistId,
 }: {
   appointmentId: string;
-  therapists: { id: string; full_name: string }[];
+  therapists: { id: string; full_name: string; specialization?: string | null }[];
   preferredTherapistId?: string | null;
 }) {
   const preferredIsAvailable =
@@ -70,7 +71,13 @@ export default function AssignTherapistForm({
       >
         {therapists.map((t) => (
           <option key={t.id} value={t.id}>
-            {t.full_name}
+            {/* An <option> cannot carry the chip every other surface shows,
+                so the specialty is part of the name here. Choosing who to
+                assign is a clinical question, and eight bare names do not
+                answer it. */}
+            {specialtyLabel(t.specialization)
+              ? `${t.full_name} - ${specialtyLabel(t.specialization)}`
+              : t.full_name}
             {t.id === preferredTherapistId ? " (requested)" : ""}
           </option>
         ))}

@@ -8,6 +8,7 @@ import { isValidEmail } from "@/lib/validateEmail";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { ADMIN_SCOPES, type AdminScope } from "@/lib/adminScope";
+import { storableSpecialty } from "@/lib/therapistSpecialties";
 
 // Creates a patient, therapist or admin account by hand.
 //
@@ -50,6 +51,7 @@ type Body = {
   email?: string;
   phone?: string | null;
   credentials?: string | null;
+  specialization?: string | null;
   adminScope?: string;
 };
 
@@ -156,6 +158,12 @@ export async function POST(request: NextRequest) {
       full_name: fullName,
       phone,
       credentials: role === "therapist" ? body.credentials?.trim() || null : null,
+      // Re-derived rather than stored as sent: the picker offers the eight
+      // canonical labels, so anything else is either free text an admin
+      // typed into the request by hand or nothing at all. Same rule every
+      // other admin-configured value follows -- the browser names it, the
+      // server decides what that name is worth.
+      specialization: role === "therapist" ? storableSpecialty(body.specialization) : null,
       // An account an admin created by hand has already been vetted by the
       // act of creating it -- there is nothing for the approval queue to
       // add. This is the same judgement register-via-referral makes.

@@ -12,7 +12,19 @@ export default async function Page() {
   const d = await loadPatientDashboard("book");
 
   return (
-    <PatientDashboardShell data={d} title="Book a Session" subtitle="Video consultations and home visits, in one place.">
+    <PatientDashboardShell
+      data={d}
+      title="Book a Session"
+      // Named rather than fixed: with home visits switched off the hub shows
+      // consultations alone, and a subtitle promising visits at home is the
+      // clinic advertising something it has stopped offering -- on the one
+      // screen a patient comes to in order to book it.
+      subtitle={
+        d.adminSettings.homeVisitEnabled
+          ? "Video consultations and home visits, in one place."
+          : "Everything you can book, in one place."
+      }
+    >
       <SurfaceCard
         id="book"
         title="Book a Session"

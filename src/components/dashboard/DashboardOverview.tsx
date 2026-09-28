@@ -1,4 +1,4 @@
-import Link from "next/link";
+import ProgressLink from "@/components/system/ProgressLink";
 import type { ReactNode } from "react";
 import StatStrip, { type StatCell } from "@/components/dashboard/StatStrip";
 import SurfaceCard from "@/components/dashboard/SurfaceCard";
@@ -84,7 +84,7 @@ export default function DashboardOverview({
             <ul className="space-y-2">
               {actions.map((action) => (
                 <li key={action.href + action.label}>
-                  <Link
+                  <ProgressLink
                     href={action.href}
                     className={`flex items-center gap-3 rounded-xl px-3.5 py-3 transition ${
                       action.primary
@@ -114,7 +114,7 @@ export default function DashboardOverview({
                         action.primary ? "text-teal-100" : "text-slate-300"
                       }`}
                     />
-                  </Link>
+                  </ProgressLink>
                 </li>
               ))}
             </ul>

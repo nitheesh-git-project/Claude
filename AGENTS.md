@@ -375,6 +375,7 @@ src/lib/accountDeletion.ts what blocks deleting an account, and what to say
 src/lib/listOrdering.ts  moving a row up or down a hand-ordered admin list
 src/lib/availabilityRanges.ts the roster's range layer over its hour rows
 src/lib/availabilityRequest.ts server-side validation both save doors share
+src/lib/therapistSpecialties.ts what a therapist is a specialist in, as a value
 src/lib/conditionSpecialty.ts the three condition specialties, the triage
                          questions and the suggestion rule
 src/lib/intakeOrtho.ts   the orthopaedic intake question set
@@ -1098,6 +1099,47 @@ before.
   Writing a date exception is an admin capability and stays one: a therapist
   reads theirs. Widening that is its own decision, not a side effect of a
   screen.
+- **A specialisation is a value, not a sentence.** `profiles.specialization`
+  was free text: one line of prose written on the therapist's own profile
+  screen and printed raw on /team. That was enough until an admin needed to
+  answer "who do we have for a stroke patient?", at which point "Neuro
+  rehab", "neurological physiotherapy" and "Neuro" are three strings and no
+  filter can be built out of them.
+  `src/lib/therapistSpecialties.ts` is the list and the judgements; the
+  column is unchanged and still text, and is deliberately **not** CHECKed
+  against that list. Five rules:
+  1. **What is stored is the canonical label** (`"Orthopaedic"`, never
+     `"ortho"`). That is what keeps every surface which already printed the
+     column raw -- a profile change-request card, an export, a screen nobody
+     has touched -- correct with no edit, and it is why a therapist already
+     described as "Orthopaedic" needs no backfill. The key exists for
+     filtering and for the chip's colour, and is derived on read.
+  2. **Free text is honoured, never blanked.** `specialtyLabel` prints an
+     unrecognised value exactly as its author wrote it and
+     `normalizeSpecialty` answers null for it; the filter files it under
+     *Something else*, separately from *Not set*, because the two ask for
+     different work -- one is a value to tidy up, the other one to collect.
+     The alias table is explicit on purpose: guessing that "sports injury
+     clinic - neuro trained" is one of the eight is how somebody ends up
+     filed under a specialty nobody chose.
+  3. **Nothing is shown for nobody having said.** `SpecialtyChip` renders
+     null rather than "Unknown" -- a label on an absence, on every such
+     profile, buries the ones carrying a fact.
+  4. **It is asked for where an account is made**, both doors: the public
+     application form (required, carried in the signup's own metadata and
+     copied onto the profile by `handle_new_user` beside `credentials`) and
+     User Access's create-account form (optional -- they can set it
+     themselves). `/api/admin/create-account` re-derives it through
+     `storableSpecialty` rather than storing what the browser sent.
+  5. **The therapist's own editor is a dropdown that includes their current
+     value** when it is not one of the eight. Without that second half a
+     legacy value has no matching `<option>`, the browser shows the first
+     one instead, and the screen misreports what is stored -- on a field
+     that goes to patients and through admin review.
+  A new surface showing a therapist shows the chip; a new list of
+  therapists takes the filter. `e2e/therapist-specialty.spec.ts` is the
+  guard, driven as screens because none of this changes what a route
+  answers.
 - **Payments** must be verified server-side: `/api/razorpay/verify` checks the
   signature before anything is confirmed. Never confirm on a client callback.
   **A capture is applied in exactly one place**: `record_payment_capture` in
@@ -3222,6 +3264,32 @@ before.
   stale) and paints at most 200 rows before offering "Show all" -- the page
   server-renders every screen at once, so an unbounded table is HTML every
   admin downloads whether they open that screen or not.
+- **A person's session list is ordered by the session, not by the booking.**
+  The admin's patient and therapist profiles ordered **Booking History** and
+  **Assigned Sessions** by `created_at` descending -- when the booking row was
+  written, which is also the order `session_code` is handed out in, so the
+  list read as being sorted by session ID. A session rescheduled to next month
+  stayed wherever it was first booked, which is precisely the case the list
+  exists to show. `src/lib/sessionOrdering.ts` is the one answer --
+  `slot_time` descending (furthest ahead first, then today, then the past),
+  a session with no slot **last** (the column is nullable, and "nulls last" is
+  the order `schema.sql` already uses wherever it sorts by slot), and a tie
+  broken on `created_at` descending **explicitly**, never by leaning on
+  `Array.prototype.sort` being stable. Three details are load-bearing. It is
+  applied in `ProfileSessionList`, the one component rendering that list on
+  both profiles, so the two screens cannot grow two answers and a third caller
+  gets the order without remembering it -- same posture as
+  `SessionNoteHistory` and the drawer's reassignment log, which both sort what
+  they are handed. An unreadable date is treated as an absent one rather than
+  compared as `NaN`, which would leave the array in an arbitrary order with no
+  error anywhere. And both queries keep their `.order("created_at")`, now as
+  the deterministic input that tie-break reads rather than as a second copy of
+  the slot rule to drift from the tested one. **Payment History** and
+  **Payout History** on the same profiles stay on `paid_at` descending: when
+  money moved is a different axis from when the session was, the same reason
+  `refundState` keeps its own. `e2e/admin-profile-session-order.spec.ts` is
+  the guard, driven as screens because the routes and the rows are unchanged
+  and the order is only visible to somebody reading the page.
 - **Every list pages, and every list that has a dimension filters.**
   A list of rows ends with `ListPager` (`src/components/dashboard/`), the
   one control: a "Show N per page" number field, Previous/Next that grey
@@ -3566,6 +3634,21 @@ before.
   on rather than claiming to be everything. One dialog is open at a time:
   opening a timeline closes the entry behind it, since two stacked modals
   over a table leave a reader unable to tell which Escape closes what.
+  **So each replacement carries the way back itself.** `Modal` takes an
+  optional `onBack` (with its own label), the timeline offers "Back to this
+  entry", and an entry opened *from* a timeline offers "Back to this
+  record's history". Without it the only exit from a dialog that replaced
+  another was closing to the table and finding the entry again -- the cost
+  of the one-at-a-time rule, paid by the reader rather than by the design.
+  `e2e/logs-subject-timeline.spec.ts` is the guard, driven as a screen
+  because nothing here is visible to an API test -- the routes are unchanged
+  and both dialogs read the same rows either way -- and it skips itself on a
+  log whose entries name no record.
+  The way back is a real row, never a re-derivation: `timelineOrigin` holds
+  the subject row the timeline was keyed on, because rebuilding it from the
+  entry now on screen would open a different record's history. An entry
+  opened from the table clears it, so no back button points at a timeline
+  nobody came from.
 - **An audit entry is read months later, so it says what changed from what.**
   Tapping a row in the Logs section -- or on a limited desk's
   Today -> Activity -- opens the whole entry
@@ -4688,6 +4771,246 @@ must not have.
   It takes an `active` flag because `Modal.tsx` stays mounted and toggles
   `open` -- a hook that locked body scroll while closed is the bug that flag
   exists to prevent.
+- **No browser default ever speaks to a person.** Two of them used to.
+  Submitting a form with a blank `required` box popped the operating
+  system's own grey tooltip -- "Please fill out this field." -- unstyled,
+  differently worded and differently placed on every browser, and the one
+  piece of UI in the product nobody designed, since it comes free with the
+  attribute. `FormValidationChrome`
+  (`src/components/system/FormValidationChrome.tsx`) is mounted once in the
+  root layout and replaces it everywhere: it listens for `invalid` in the
+  **capture** phase (the event does not bubble, so a listener on `document`
+  in the bubble phase hears nothing at all), calls `preventDefault` to
+  suppress the native bubble -- the submit stays cancelled, which is the
+  browser's doing rather than the bubble's -- and renders the app's own
+  message anchored to the field, with a red ring on the control through a
+  `data-invalid` attribute that `globals.css` paints.
+  One listener at the root rather than an edit to 34 forms is the point: a
+  form that has never heard of this file is covered, including the next one
+  written. Four rules hold it:
+  1. **The message is the first refused field's, looked up rather than
+     inferred from the event.** The browser fires one `invalid` per refused
+     control as separate dispatches, with a microtask checkpoint between
+     them -- so a "first event of this burst" guard is released before the
+     second event arrives and the message ends up describing the *last*
+     refused control. A condition form with a blank name at the top pointed
+     at the price near the bottom. The handler asks the control's own form
+     which field is first invalid, reading `validity.valid` and never
+     `checkValidity()`, which fires `invalid` again into this same listener.
+  2. **One message, never one per field**, and the reader is focused and
+     scrolled to it. Nine tooltips is worse than the bubble.
+  3. **It clears the moment the reader acts** -- on input, on Escape, on a
+     tap elsewhere, and when the control leaves the page under it (a
+     `router.refresh()` replaces the row it sat on). A red ring on a field
+     already corrected is the "never tell someone they did something they
+     did not do" rule in its smallest form.
+  4. **The wording is `src/lib/formValidationMessage.ts`**, dependency-free
+     and unit-tested, because it is a judgement about language. It names the
+     field from its own label (`tidyFieldLabel` drops the `*`, the colon and
+     the "(required)" the message would otherwise repeat), words a choice as
+     a choice ("Choose therapist", "needs ticking"), says what an acceptable
+     value would look like rather than only that this one was refused, and
+     lets a `setCustomValidity` message or a pattern's own `title` win
+     outright -- both were written by somebody who knew more than this
+     module can. A refusal whose bound the browser did not expose must never
+     print "undefined" at anybody.
+  `window.confirm` was the other default, and `useConfirm` had already
+  replaced it everywhere but `MedicalDocumentsPanel`, which now uses it too
+  -- awaited **before** the transition, per the deadlock rule above.
+  `e2e/form-validation-chrome.spec.ts` is the guard, on one admin screen and
+  one public page deliberately: nothing here changes a route or a row, so
+  what is worth proving is that a form nobody edited is covered.
+- **A number box takes digits, and the browser does not enforce that.**
+  `<input type="number">` accepts `e` and `E` (scientific notation) and `+`
+  in every browser, and Chromium keeps the character on screen while
+  reporting `value` as the empty string. Typing a letter into the condition
+  form's **Order** box therefore left a stray "e" in the field, refused
+  every keystroke after it, and submitted as though the box had been left
+  blank -- a form that looks filled in and arrives empty. `NumericInputGuard`
+  (`src/components/system/NumericInputGuard.tsx`) is mounted in the root
+  layout beside the validation chrome and covers all 26 of the app's number
+  boxes, including the next one written. Three rules:
+  1. **It listens for `beforeinput`, not `keydown`** -- the one event
+     covering typing, pasting and drag-and-drop alike, carrying the text
+     being inserted rather than a key name. A pasted "₹1,200" is judged by
+     the same rule as a typed comma, and an untested keyboard layout is not
+     a hole.
+  2. **The judgement is on the resulting string.** A minus is meaningful in
+     front and meaningless in the middle; one decimal point is fine where a
+     second is not. `src/lib/numericInputGuard.ts` holds it, dependency-free
+     with its own tests, and it never blocks a deletion or a value somebody
+     is part-way through typing ("-", "1.", ".5").
+  3. **What the field allows is read off the field**, from `step` and `min`
+     -- so a price still takes 499.50 and a field with no floor still takes
+     a minus. A stricter rule invented here would be one listener overriding
+     forms it knows nothing about.
+  The routes were the other half: `create-`/`update-treatment-category`
+  accepted any finite number as `display_order` and rounded it, so a
+  negative or fractional order sorted a condition somewhere nobody chose.
+  Both refuse anything but a whole number of 0 or more now, re-derived
+  server-side like every other figure a browser sends. And **Order** says
+  what it decides on the screen itself: a number box between a price and a
+  session length reads as a third measurement until it does.
+  `e2e/numeric-input.spec.ts` is the guard -- the rule is unit-tested, and
+  what needs a real browser is the browser's own handling being overridden.
+- **A control that is disabled everywhere is a rule; one disabled by
+  accident is a bug wearing a rule's clothes.** A session package's category
+  is genuinely immutable *after* creation -- live purchases reference it --
+  and `PackageCatalogForm` rendered that lock on the **new**-package form
+  too, with the hint "cannot be changed after creation" underneath it. The
+  form is opened from a flat "+ Add Package" button with no category behind
+  it, so `defaultCategoryId` was never passed and every package ever created
+  was pinned to `categories[0]`, the first condition by display order. The
+  sentence explaining the lock is what made it survive: the screen read as
+  having a reason. It is a real picker at creation now, still a plain
+  read-only line on edit, and its options carry each condition's own list
+  price, because every saving figure on that form is computed against it and
+  choosing blind meant a trip to Conditions and back. A condition that is
+  switched off is labelled rather than dropped -- a package under it is not
+  on sale either way, and an option silently missing reads as data lost.
+  `/api/admin/create-package` already took and re-checked `categoryId`, so
+  nothing server-side moved. `e2e/package-category-picker.spec.ts` is the
+  guard.
+- **A switch that decides nothing is worse than no switch.** The
+  session-package form carried three placement ticks -- *Show on Home page*,
+  *Show on Conditions page*, *Show in Patient Dashboard* -- plus a Badge, a
+  *Feature this package* ring and a Terms box. Every one of them was for the
+  public programme card the consultation-first cutover deleted: `/` and
+  `/conditions` carry no programme catalogue, the booking hub sells one
+  consultation or one visit, and `terms` was selected into the care-plan
+  offer snapshot and rendered on no screen. Three ticked boxes above the one
+  switch that still worked read as a placement somebody chose. They are gone
+  from the form, from `validatePackagePayload`, from the dashboard's select
+  and from the table (`drop column if exists ... restrict` at the end of
+  `schema.sql`, the `show_programme_prices` precedent).
+  **And the switch that does decide it had no control at all.**
+  `recommendable` is what lets a clinician put a programme in front of a
+  patient -- the only route a programme is sold by now -- while Sessions ->
+  Recommendations told admins to "turn one on under Catalog -> Packages", a
+  screen with no such control. Both catalog forms have it now, and the
+  package list chips *Not recommendable* rather than a badge nobody renders.
+  **Home visits are not the same case and were not treated as one.** A visit
+  package is still sold directly (a one-visit package is that patient's
+  consultation), so `/home-visit` and the booking hub both render it: its
+  badge, highlight, terms, `visible_on_home_visit_page` and
+  `visible_in_dashboard` all stay. Only `visible_on_home` goes, because the
+  home page carries a link band to that page and has never listed visit
+  packages. `e2e/package-form-flags.spec.ts` holds both halves.
+- **A session package may hold one session.** `session_count >= 2` was a
+  rule from when a package was a bundle sold off a public price list: a
+  one-session "package" was the consultation a patient could already buy on
+  its own, so the floor cost nothing and stopped a duplicate product. Both
+  halves of that stopped being true at the consultation-first cutover --
+  there is no public programme catalogue and no `/book?package=` checkout,
+  so a session package reaches a patient only through a recommendation their
+  own clinician wrote, and "come back once more" is among the commonest
+  things a clinician wants to recommend. With a floor of two it could not be
+  expressed at all. `home_visit_packages.visit_count` has allowed one since
+  it shipped, for the same reason read from the other end.
+  Nothing about consultation-first widens: `isDirectlyPurchasable` is read
+  for home-visit packages alone, since session packages have no direct
+  purchase path left, so a one-session programme is still something only a
+  therapist can put in front of somebody. The CHECK is dropped and re-added
+  under a name of its own at the end of `schema.sql` -- a CHECK cannot be
+  altered in place, and the original was created unnamed inside `create
+  table`.
+- **A page whose existence is a switch cannot be ISR-cached.**
+  `/book-home-visit` reads `home_visit_enabled` and 404s when it is off --
+  and under `revalidate = 300` that judgement was made when the page was
+  *generated*, so closing the door depended on a cache being purged.
+  `/api/admin/update-setting` does call `revalidatePath` for this key, which
+  is why the switch appears to work; anything else that changes the column --
+  a hand edit in the table editor, a data reset, a restore -- leaves the
+  cached page serving a booking funnel for a service the clinic has stopped
+  offering, and the patient is quoted a price for a visit nobody will make.
+  It is `dynamic = "force-dynamic"` now: two reads on a page reached by a
+  deliberate tap, against a door that has to be shut the moment it is shut.
+  `/home-visit` stays ISR-cached -- it is a marketing page rather than a
+  checkout, and the same revalidate keeps it honest.
+  **And a recommendation outlives the switch.** A home-visit programme
+  approved while visits were on still rendered its Accept & pay button after
+  they were switched off: `check-area` answers 403, `care-plan/create-order`
+  refuses, and the patient met "we couldn't work out the travel fee for this
+  address" over a button that could never succeed. `CarePlanOfferCard` takes
+  `homeVisitEnabled` and says the mode is paused instead -- the same rule
+  that took the Pay Now button off a pay-later session, where a control the
+  server refuses outright must not render. The booking hub's own subtitle
+  moved with it, since "Video consultations and home visits, in one place"
+  advertises the mode on the screen a patient opens to book it.
+  `e2e/home-visit-disabled.spec.ts` walks it with the column flipped in the
+  database rather than through the route, which is the case the cache could
+  not survive.
+- **Every link says it heard you, and a screen already rendered is never
+  fetched again.** Two failures that both read as a dead button, and the
+  Today screen had them together. Tapping a count -- "Out-of-area requests",
+  "Unassigned sessions" -- was an ordinary link to
+  `/admin/dashboard?section=...&tab=...`: the same route with a different
+  query, which is a real navigation, so Next threw away a rendered dashboard
+  and rebuilt it from ~49 queries to show markup that was already in the DOM.
+  Seconds of nothing, then a jump. And the wait itself was silent, because
+  the teal bar knew about `useRouter`, about `ProgressLink` and about
+  `useLeavingPage`, and about nothing else -- a bare `next/link` or a plain
+  `<a>` reported no work at all.
+  Two answers, and both are one place rather than a rule every call site has
+  to remember:
+  1. **`AdminScreenLink`** (`src/components/admin/`) reads the shell's own
+     navigate out of `AdminScreenNavigationProvider`
+     (`src/lib/adminScreenNavigation.tsx`) and switches screens in place, the
+     way the sidebar always has. It stays a real `<a>` with a real href, so
+     middle-click, Copy Link Address and opening in a new tab keep working
+     and a screen is still linkable; only the plain left click is
+     intercepted. Outside the shell -- the admin detail routes render some of
+     the same components -- the context is null and it is an ordinary anchor.
+     `ProgressLink` defers to it for an admin screen href, so the shared
+     dashboard surfaces (quick actions, the feed, `StatStrip`'s figures) need
+     no per-call-site branch. Measured: 291ms and zero requests, against a
+     full dashboard rebuild.
+     The `?view=` preset travels with it -- `navigate` keeps the key when one
+     is passed rather than only deleting it -- and `useSearchParams` follows
+     a `pushState`, which is what lets the target screen apply the filter
+     during its own render. `e2e/navigation-feedback.spec.ts` NAV-003 is the
+     guard on that pair.
+  2. **`LinkProgress`** (`src/components/system/`) is a capture-phase click
+     listener at the root that marks pending work for any anchor the browser
+     will actually act on, and releases it when the URL changes. It covers
+     every link written without one of the three older mechanisms, including
+     the ones written next. Four rules, all in the file: a modified click,
+     an off-site href and a bare hash are left alone; a click some handler
+     cancels is released on the next tick (`AdminScreenLink` cancels every
+     one of its own); the URL changing is what "arrived" means; and the
+     marker expires after 20s so a navigation nothing else can see cannot
+     leave a bar running for ever.
+- **Marking an out-of-area request served is a decision about the catchment,
+  so it offers to open it.** The waitlist on Catalog -> Service Areas is
+  demand the clinic had to turn away: somebody tried to book from a pincode
+  nobody visits. Tapping **served** set a status and nothing else -- so the
+  pincode stayed unserved, the next patient from that street met the same
+  refusal, and the row saying the clinic had been there sat on a screen
+  nobody would think to doubt. It now opens a dialog with two answers, and
+  four rules:
+  1. **It is a small form, not a yes/no**, because the one thing this app
+     cannot know is what the trip costs. City and pincode come from the
+     request; the travel fee is prefilled with what the clinic already
+     charges in that city (the commonest of its areas' fees, ties to the
+     lower) and the field **says where the number came from** -- a prefilled
+     price nobody explains is a price nobody chose. A city with no areas yet
+     starts at zero and says that is a placeholder rather than a price.
+  2. **Declining is an answer, not a cancel.** "No, just mark served" still
+     moves the status: an admin who sent somebody as a one-off has not
+     decided to sell visits there. Closing the dialog outright is the third
+     outcome and leaves the status alone, which is why the X is not either
+     button.
+  3. **The area is written first.** A request marked served against a
+     pincode nobody visits is the exact state this exists to prevent, so a
+     failed insert leaves the status where it was and says why.
+  4. **A pincode already served is told, not offered.**
+     `describeAreaPrefill` (`src/lib/homeVisitWaitlistArea.ts`, dependency-free
+     and unit-tested) answers that from the areas the screen already has, so
+     the dialog does not offer an insert `create-home-visit-areas` would
+     refuse -- and it shows the clinic's own city and fee for it rather than
+     what the request typed.
+  Both routes are unchanged. `e2e/waitlist-serve-area.spec.ts` walks both
+  answers against the database.
 
 ## Gotchas
 
@@ -4722,26 +5045,52 @@ must not have.
   committed file - `ALLOW_DEBUG_DATA_RESET` belongs in a server environment,
   set deliberately, against a project whose data is throwaway. Check the
   hosting dashboard's own env vars too, since a file cannot clear those.
-- **The page behind an intercepted overlay has to look like the app.** The
-  admin's patient, therapist and condition details are normally an overlay --
-  the dashboard intercepts the route (`@modal/(.)patients/[id]`) and draws
-  the detail over the screen you were on. Interception applies to
-  **client-side navigation only**, so a reload, a shared link, a new tab and
-  the `router.refresh()` an action inside the overlay fires all land on the
-  real page underneath. That page was a bare `<section>` with a small
-  "← Back to Dashboard" link and no chrome at all, so pressing Mark Done on a
-  patient's profile appeared to throw the admin out of the back office onto a
-  different, plainer site.
-  `AdminDetailFrame` is what those three wear now: the same dark rail, the
-  same section list, the same header shape. It reads `ADMIN_SECTIONS` and the
-  scope grid exactly as the shell's sidebar does, so the two cannot list
-  different sections or offer one this admin cannot open, and every entry is
-  built with `adminScreenHref` rather than a hardcoded `?section=`. It is
-  **deliberately reduced** -- no collapse, no badges, no global search, no tab
-  state -- because this is a leaf page and all of those belong to the screen
-  you return to; reproducing them would be a second shell to drift from the
-  first. A route that gets this frame also needs its `loading.tsx` to pass
-  `withSidebar`, or the chrome blanks while the page resolves.
+- **The page behind an intercepted overlay is the dashboard, not a frame
+  that looks like it.** The admin's patient, therapist and condition details
+  are normally an overlay -- the dashboard intercepts the route
+  (`@modal/(.)patients/[id]`) and draws the detail over the screen you were
+  on. Interception applies to **client-side navigation only**, so a reload, a
+  shared link, a new tab and any refresh that misses the router's own state
+  land on the real page underneath.
+  That page went through two wrong answers before this one. First a bare
+  `<section>` with a "← Back to Dashboard" link and no chrome at all. Then
+  `AdminDetailFrame`, which reproduced the rail and the section list and was
+  **deliberately reduced** -- no badges, no search, no tab state -- on the
+  reasoning that a leaf page does not need them. That reduction *is* the
+  bug: a second shell missing three things the first one has does not read
+  as a leaf page, it reads as a different, plainer site, and it was reported
+  as exactly that from the one flow that refreshes (reassigning a session
+  from a therapist's profile).
+  `AdminDetailDashboard` renders **the dashboard page itself** with the same
+  `DetailOverlayModal` on top, so the two ways in are pixel-identical. Three
+  rules:
+  1. **It renders the real page, never a copy of its chrome.** A second
+     implementation of the shell is a second thing to drift, and the last
+     two attempts both drifted in the same direction.
+  2. **The cost is on the rare path only.** Tapped from inside the dashboard
+     the detail costs its own queries and nothing more -- the dashboard
+     behind it is already rendered. A direct load pays the dashboard's ~49
+     queries as well, which is what that URL would have cost had they
+     reached it the usual way.
+  3. **Closing is a URL change and nothing else.** `router.push` would
+     re-run those ~49 queries to paint what is already on screen, so
+     `DetailOverlayModal` takes a `closeHref` and uses
+     `history.replaceState` plus a local flag -- the same History-API rule
+     `AdminShell`'s own tab state follows. `replaceState` rather than
+     `pushState`, since a direct load has no entry of ours behind it and
+     Back would otherwise reopen the overlay just shut. Without a
+     `closeHref` (the intercepted case) it is still `router.back()`, which
+     returns to the exact screen, filters and scroll the admin left.
+  **And the shell honours the screen the server chose when the URL names
+  none.** `applyFromLocation` read `?section=`/`?tab=` alone, so on a detail
+  route -- which carries no query at all -- it threw the server's answer
+  away on mount and reset the dashboard behind the overlay to Today.
+  Closing then revealed a screen nobody had asked for. The URL still wins
+  whenever it names a screen, which is what keeps a deep link, a pushState
+  and the Back button landing where they say; `initialSection`/`initialTab`
+  are the fallback, not the override. `e2e/admin-detail-overlay.spec.ts` is
+  the guard, driven as screens because the routes and the data are
+  unchanged and all of this is what a person sees.
 - **A full-screen overlay opened from inside another one must be portalled.**
   `position: fixed` is relative to the viewport *until* an ancestor carries
   `transform`, `filter`, `backdrop-filter`, `perspective`, `contain` or

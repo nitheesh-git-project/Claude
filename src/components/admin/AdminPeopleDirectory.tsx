@@ -6,6 +6,13 @@ import { useState } from "react";
 import Link from "next/link";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatIST } from "@/lib/formatIST";
+import SpecialtyChip from "@/components/SpecialtyChip";
+import {
+  SPECIALTY_FILTER_ALL,
+  matchesSpecialtyFilter,
+  specialtyFilterOptions,
+  specialtyLabel,
+} from "@/lib/therapistSpecialties";
 
 type Person = {
   id: string;
@@ -25,6 +32,11 @@ type Person = {
   // and a separate tab meant holding a patient's identity in your head while
   // switching screens to look it up.
   careStatus?: string | null;
+  // What this therapist is a specialist in, when the caller has it
+  // (patients and partners have none, so they pass nothing). Same shape as
+  // careStatus above: undefined means "this directory is not about that",
+  // and the filter and the column appear only where somebody passed it.
+  specialization?: string | null;
 };
 
 const CARE_STATUS_LABELS: Record<string, string> = {
@@ -61,14 +73,23 @@ export default function AdminPeopleDirectory({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [careFilter, setCareFilter] = useState("all");
+  const [specialtyFilter, setSpecialtyFilter] = useState<string>(SPECIALTY_FILTER_ALL);
 
   const hasCareStatus = people.some((p) => p.careStatus !== undefined);
+  const hasSpecialty = people.some((p) => p.specialization !== undefined);
+  // Built from the people on screen rather than from the eight the clinic
+  // recognises: an option matching nobody is a dead end, and the count is
+  // what says whether it is worth opening. Same rule the rest of this
+  // dashboard's filters follow.
+  const specialtyOptions = hasSpecialty
+    ? specialtyFilterOptions(people.map((p) => p.specialization))
+    : [];
 
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = people
     .filter((p) =>
       normalizedQuery
-        ? [p.full_name, p.subtitle, p.code]
+        ? [p.full_name, p.subtitle, p.code, specialtyLabel(p.specialization)]
             .filter((v): v is string => !!v)
             .some((v) => v.toLowerCase().includes(normalizedQuery))
         : true
@@ -79,7 +100,8 @@ export default function AdminPeopleDirectory({
       if (statusFilter === "suspended") return !p.active;
       return p.active && p.approved !== false;
     })
-    .filter((p) => careFilter === "all" || (p.careStatus ?? "not_started") === careFilter);
+    .filter((p) => careFilter === "all" || (p.careStatus ?? "not_started") === careFilter)
+    .filter((p) => !hasSpecialty || matchesSpecialtyFilter(p.specialization, specialtyFilter));
 
   // Both views page off the same filtered list, so switching grid/list
   // keeps you looking at the same people rather than jumping.
@@ -130,6 +152,20 @@ export default function AdminPeopleDirectory({
           <option value="pending">Waiting for approval</option>
           <option value="suspended">Suspended</option>
         </select>
+        {hasSpecialty && (
+          <select
+            aria-label="Filter by specialisation"
+            value={specialtyFilter}
+            onChange={(e) => setSpecialtyFilter(e.target.value)}
+            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+          >
+            {specialtyOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label} ({o.count})
+              </option>
+            ))}
+          </select>
+        )}
         {hasCareStatus && (
           <select
             aria-label="Filter by care status"
@@ -181,6 +217,11 @@ export default function AdminPeopleDirectory({
               <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">{p.full_name}</p>
               {p.code && <p className="text-slate-500 text-[10px] font-mono">{p.code}</p>}
               <p className="text-slate-500 text-[11px] line-clamp-1">{p.subtitle}</p>
+              {p.specialization && (
+                <span className="mt-1">
+                  <SpecialtyChip specialization={p.specialization} size="xs" />
+                </span>
+              )}
               {p.careStatus && (
                 <span
                   className={`mt-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${
@@ -202,6 +243,7 @@ export default function AdminPeopleDirectory({
                 <th className="py-2 pr-3 font-semibold">ID</th>
                 <th className="py-2 pr-3 font-semibold">Name</th>
                 <th className="py-2 pr-3 font-semibold">Details</th>
+                {hasSpecialty && <th className="py-2 pr-3 font-semibold">Specialist in</th>}
                 <th className="py-2 pr-3 font-semibold">Status</th>
                 <th className="py-2 pr-3 font-semibold">Joined (IST)</th>
               </tr>
@@ -220,6 +262,11 @@ export default function AdminPeopleDirectory({
                     </Link>
                   </td>
                   <td className="py-2 pr-3 text-slate-500">{p.subtitle}</td>
+                  {hasSpecialty && (
+                    <td className="py-2 pr-3 text-slate-500">
+                      {specialtyLabel(p.specialization) ?? "-"}
+                    </td>
+                  )}
                   <td className="py-2 pr-3">{badge(p) ?? <span className="text-slate-500">Active</span>}</td>
                   <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{formatIST(p.created_at)}</td>
                 </tr>
