@@ -173,7 +173,11 @@ export type MarketingConnector = Omit<MarketingPage, "key"> & { key: string };
 export const BOOK_CONNECTOR: MarketingConnector = {
   key: "book",
   href: "/book",
-  label: "Book a session",
+  // Names the mode, because /book sells the video consultation alone -- a
+  // home visit is its own page and its own wizard. "Book a session" read as
+  // the choice between the two, most sharply on the home page, whose
+  // headline offers both one band above this tile.
+  label: "Book a video session",
   blurb: "Pick a time. Meet your therapist.",
   icon: "fa-calendar-check",
   photo: "step-book",

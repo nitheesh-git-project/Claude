@@ -15,7 +15,7 @@ import { BOOK_TILE_SPAN, exploreTileSpans } from "@/lib/exploreGridSpans";
  *
  * The list comes from `marketingNav.ts` rather than being written out here,
  * so a page cannot be added to the site and quietly left out of its index,
- * and it always ends on Book a session -- on every public page, not only the
+ * and it always ends on Book a video session -- on every public page, not only
  * home one. Wherever a visitor stops reading, the next step is in the same
  * place.
  *

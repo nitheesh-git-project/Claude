@@ -1329,7 +1329,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Steps**
 1. Open `/`.
-2. Tap **Book a session** in the header (or the **Book now** card in the connector grid at the foot of the page).
+2. Tap **Book a video session** in the header (or the **Book now** card in the connector grid at the foot of the page).
 3. Observe the URL and the wizard header.
 
 **Expected Result.** The URL is `/book`. The dark header reads **Step 1 of 3** and **Book Virtual Physical Therapy Session**. Because no concern is chosen yet, the subtitle reads *"HD Video Call & Custom Rehab Plan - pricing shown once you pick a concern"*.
@@ -4535,12 +4535,12 @@ The eight public pages are **one template, not eight layouts**. Every page assem
 
 The site's own index lives in **one array**, which the header nav, the footer's Explore column, the home page's connector grid and every "Where to go next" strip all read. So a page cannot exist in the header and be missing from the index, and a renamed page cannot leave a stale description behind.
 
-**Every Explore band ends on Book a session**, on all eight pages, in the same full-width photo-beside-text tile - booking was on the home page's grid alone, so the six inner pages ended their index on another page to read. And **the page tiles above it square up**: the count varies (the page you are on is always missing, and Home Visit drops out when the clinic switches it off), so a row that would end short stretches its leftover tiles across it rather than leaving dead cells on the right.
+**Every Explore band ends on Book a video session**, on all eight pages, in the same full-width photo-beside-text tile - booking was on the home page's grid alone, so the six inner pages ended their index on another page to read. And **the page tiles above it square up**: the count varies (the page you are on is always missing, and Home Visit drops out when the clinic switches it off), so a row that would end short stretches its leftover tiles across it rather than leaving dead cells on the right.
 
 #### `PUB-EXP-001` - The Explore band, on every public page · P1
 
 **Steps.** Open each of `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals` and read the Explore band at the foot.
-**Expected Result.** Every one ends with **Book a session** → `/book`, as the last tile, full width, photo beside the text. Above it: every other page, never the one you are on, and never Home Visit while the master switch is off.
+**Expected Result.** Every one ends with **Book a video session** → `/book`, as the last tile, full width, photo beside the text. Above it: every other page, never the one you are on, and never Home Visit while the master switch is off.
 **Alignment.** With the usual **seven** page tiles: two rows of three, then the seventh **stretched across the whole row** in the same wide layout - no empty cells to the right of it. Switch Home Visit off and reload: **six** tiles, two clean rows of three, nothing stretched. Narrow the window to the two-column breakpoint and repeat both: the last row must still be full.
 **Critical check:** this is arithmetic, not a hand-placed exception (`src/lib/exploreGridSpans.ts`, unit-tested). A tile that is full width on a tablet and half width on a desktop must **not** switch to the photo-beside-text layout - that would read as two designs rather than one stretched tile.
 
