@@ -44,7 +44,17 @@ which is the same shape of failure: the statement succeeds, the ACL
 changes, and nothing is protected. `scripts/check-live-grants.mjs` is its
 runtime counterpart and is run by hand against a real project after
 applying a schema change, because the file and the database can disagree
-in both directions. The e2e suite (Playwright, `e2e/`) covers the
+in both directions. It reports **three** outcomes rather than two, and the
+third is what makes the other two worth reading: RLS filters rows rather
+than raising, so a suspended admin's refused read and a permitted read of
+an **empty table** are byte-identical on the wire (`HTTP 200 []`). On an
+empty table the positive assertion cannot be proven and the negative one is
+vacuous, so both are reported as *not proven* rather than as a pass, and the
+summary names them. The old script collapsed all of it into a row count: it
+passed on `admin_activity_log` because that table had rows and failed on
+`appointments` because it had none, so its verdict moved with how much data
+happened to be lying around -- a false alarm on a database whose policies
+were perfect, which is exactly how a red line stops being read. The e2e suite (Playwright, `e2e/`) covers the
 money-critical paths and the admin back office - booking + payment,
 concurrency/CAS guards, bulk limits, admin route authorization for every
 role, input validation, payout/refund maths, the dashboard's own
