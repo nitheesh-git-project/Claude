@@ -244,6 +244,17 @@ one component that renders that list on both profiles, so the two screens
 cannot disagree. The money lists beside it still run by when the money moved.
 See the session-order rule in `AGENTS.md`.
 
+**And every account says when it was created, with the time on it.**
+`profiles.created_at` was the date alone on the patient and therapist detail
+headers, date and time on the People directory, and absent from the Partners
+card and the approvals queue although both queries had always selected it.
+One helper now, `formatClinicDateTimeWithZone` -- the old `formatIST.ts`
+folded into `formatDateTime.ts`, keeping the `IST` suffix because this is the
+one figure read down a phone line rather than off the screen it is printed on
+-- on all of those plus each role's own Edit Profile screen, through
+`AccountCreatedNote`. It shows nothing rather than a dash when the stamp is
+missing. See the account-stamp rule in `AGENTS.md`.
+
 **An account is deleted only when nothing points at it, and what points at
 it is asked of the database.** The route kept a hand-written list of the
 columns that refuse a delete; 35 foreign keys into `profiles` block one and

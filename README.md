@@ -2445,7 +2445,11 @@ Notable conventions:
 
 - Money is stored in paise (integers), never floats.
 - Times are stored as `timestamptz`; display helpers live in
-  `src/lib/formatIST.ts`, `formatSlotTime.ts`, and `formatSlotRange.ts`.
+  `src/lib/formatDateTime.ts`, `formatSlotTime.ts`, and `formatSlotRange.ts`.
+  Every account carries its own creation stamp -- date **and** time, with the
+  zone named -- and it renders on the People directory, the patient and
+  therapist detail headers, the Partners card, the approvals queue, and each
+  role's own Edit Profile screen.
 - Business math is kept in dependency-free modules under `src/lib/` so it can
   be reasoned about (and tested) without rendering components.
 - Newer, migration-dependent columns (e.g. `session_code`,

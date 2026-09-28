@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
-import { formatIST } from "@/lib/formatIST";
+import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { useConfirm } from "@/lib/useConfirm";
 
 export default function ResetHospitalPasswordButton({
@@ -63,7 +63,7 @@ export default function ResetHospitalPasswordButton({
           <span className="text-slate-500">Password:</span>{" "}
           <strong className="font-mono">{result.password}</strong>
         </p>
-        {result.setAt && <p className="text-teal-700">Set {formatIST(result.setAt)}</p>}
+        {result.setAt && <p className="text-teal-700">Set {formatClinicDateTimeWithZone(result.setAt)}</p>}
         <div className="flex gap-2 pt-1">
           <button
             onClick={() => {

@@ -11,8 +11,9 @@
 // operates in one country, its admins are there, and the alternative -- each
 // viewer's own zone -- means two people reading the same screen disagree
 // about when a session is, with nothing on screen to say why. That is the
-// same reasoning `formatIST` was written with; this module is that decision
-// applied everywhere rather than on one surface.
+// same reasoning the old `formatIST` was written with; this module is that
+// decision applied everywhere rather than on one surface, and that helper is
+// folded in below as `formatClinicDateTimeWithZone`.
 //
 // **A session slot is the one exception.** It is formatted in the zone the
 // patient booked it in (`appointments.patient_timezone`), by
@@ -66,4 +67,23 @@ export function formatClinicTime(value: string | number | Date | null | undefine
 /** `12 Sep 2026, 6:00 pm` */
 export function formatClinicDateTime(value: string | number | Date | null | undefined) {
   return safe(value, DATE_TIME);
+}
+
+/** `12 Sep 2026, 6:00 pm IST` -- the same instant with its zone named out loud.
+ *
+ *  Reserved for the stamps a person reads as a fact about an *account* rather
+ *  than about their own care: when it was created, and when a credential was
+ *  issued. Two reasons the zone is spelled out only here. These figures get
+ *  quoted back down a phone line ("you created it at ten past four") by an
+ *  admin in India to somebody who may not be, where every other figure in the
+ *  app is read on the screen it is printed on. And this is what
+ *  `src/lib/formatIST.ts` did before it was folded in -- it was a second
+ *  formatter over the same locale and the same zone, written for exactly this
+ *  surface, so deleting it without keeping the suffix would have quietly
+ *  dropped information from five screens. */
+export function formatClinicDateTimeWithZone(value: string | number | Date | null | undefined) {
+  const rendered = formatClinicDateTime(value);
+  // A dash means there was nothing to read; "- IST" would attach a zone to an
+  // absence.
+  return rendered === "-" ? rendered : `${rendered} IST`;
 }

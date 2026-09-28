@@ -7,7 +7,7 @@ import { useRouter } from "@/lib/useRouter";
 import { THERAPIST_SPECIALTIES } from "@/lib/therapistSpecialties";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import Spinner from "@/components/system/Spinner";
-import { formatIST } from "@/lib/formatIST";
+import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { useToast } from "@/lib/toast";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import {
@@ -425,7 +425,7 @@ function IssuedPassword({ row }: { row: AdminRow }) {
         {copied ? "Copied" : "Copy"}
       </button>
       {row.tempPasswordSetAt && (
-        <span className="text-slate-500">Issued {formatIST(row.tempPasswordSetAt)}</span>
+        <span className="text-slate-500">Issued {formatClinicDateTimeWithZone(row.tempPasswordSetAt)}</span>
       )}
     </p>
   );

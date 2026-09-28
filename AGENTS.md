@@ -2840,6 +2840,29 @@ before.
   name. The check earns its keep because this failure is invisible locally:
   a developer's machine is often in the same zone as the clinic, and it only
   shows on a UTC host.
+- **An account says when it was created, with the time on it, wherever that
+  account has a screen.** `profiles.created_at` was rendered three ways and
+  not at all in two places: the People directory carried the date *and* the
+  time, the patient and therapist detail headers carried the date alone, and
+  the Partners card and the Pending Approvals queue carried nothing -- both of
+  which had selected the column all along. A date with no time answers
+  "roughly when" and not "which of the two accounts this person made on
+  Tuesday", which is the question an admin holds while the person is on the
+  phone; and on the approvals queue it is how long somebody has waited, on the
+  one list whose rows get more urgent the longer they sit. It is
+  `formatClinicDateTimeWithZone` everywhere, on all six surfaces plus each
+  role's own Edit Profile screen, through `AccountCreatedNote` for the three
+  dashboards. That helper is the old `src/lib/formatIST.ts` folded into
+  `formatDateTime.ts` rather than a second formatter over the same locale and
+  the same zone; the `IST` suffix stayed with it, because this is the one
+  family of figures read down a phone line by an admin in India to somebody
+  who may not be, where every other figure is read on the screen it is printed
+  on. It renders **nothing** for an absent stamp: the column is `not null`, so
+  a missing value means the read failed or the select forgot it, and
+  "Account created -" is a label on an absence.
+  `e2e/account-created-stamp.spec.ts` is the guard, driven as screens because
+  no route and no row changed -- every one of these values was already in the
+  page's own data.
 - **One pain scale on screen, whatever the column says.** Assessments are
   stored 0–100 and a patient rates their own pain 0–10; both used to be
   printed raw, so "How you rate it 6/10" sat beside "Last exam found 34%"

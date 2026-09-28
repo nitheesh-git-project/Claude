@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
+import {
+  formatClinicDate,
+  formatClinicDateTime,
+  formatClinicDateTimeWithZone,
+} from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
@@ -339,7 +343,12 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                 </Link>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Joined {formatClinicDate(patient.created_at)}
+                {/* The date alone answered "roughly when" and not "which of
+                    the two accounts this person made on Tuesday" -- which is
+                    the question an admin on the phone is actually holding,
+                    and the reason the People directory has always carried
+                    the time. */}
+                Joined {formatClinicDateTimeWithZone(patient.created_at)}
                 {hospital?.organization_name && (
                   <> • Referred by {hospital.organization_name}</>
                 )}

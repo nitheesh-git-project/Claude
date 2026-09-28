@@ -21,6 +21,7 @@ import AdminLogRetentionTab from "@/components/admin/AdminLogRetentionTab";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
 import AdminCostsTab from "@/components/admin/AdminCostsTab";
 import { istDateKey } from "@/lib/formatSlotRange";
+import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { sumDiscountsGiven } from "@/lib/discounts";
 import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
 import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
@@ -1548,6 +1549,13 @@ export default async function AdminDashboardPage({
                           <SpecialtyChip specialization={p.specialization} />
                         </span>
                       )}
+                      {/* How long they have waited. The query has always
+                          ordered on this column and never printed it, so the
+                          one queue whose rows get more urgent the longer they
+                          sit was the one with no date on it. */}
+                      <p className="text-slate-500 mt-1">
+                        Registered {formatClinicDateTimeWithZone(p.created_at)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1757,6 +1765,15 @@ export default async function AdminDashboardPage({
                       </div>
                       <p className="text-slate-500">
                         {h.full_name} • {h.email}
+                      </p>
+                      {/* A partner's card carried no creation stamp at all,
+                          although the query has always selected the column --
+                          so "when did we onboard them" was answerable only
+                          from the audit log. Patients and therapists read
+                          theirs off the People directory, which has no
+                          Partners view. */}
+                      <p className="text-slate-500">
+                        Onboarded {formatClinicDateTimeWithZone(h.created_at)}
                       </p>
                     </div>
                     <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">

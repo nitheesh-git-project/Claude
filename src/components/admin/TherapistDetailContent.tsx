@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatClinicDate } from "@/lib/formatDateTime";
+import { formatClinicDate, formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
@@ -274,7 +274,9 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                {therapist.credentials} • Joined {formatClinicDate(therapist.created_at)}
+                {/* Date and time, for the reason the patient page says. */}
+                {therapist.credentials} • Joined{" "}
+                {formatClinicDateTimeWithZone(therapist.created_at)}
               </p>
               <span className="mt-1.5 block">
                 <SpecialtyChip specialization={therapist.specialization} />
