@@ -26,7 +26,7 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 // With it unset, this route answers 404 -- not 403 -- so a probe cannot even
 // learn that a reset endpoint is here.
 
-export const CONFIRMATION_PHRASE = "RESET ALL DATA";
+const CONFIRMATION_PHRASE = "RESET ALL DATA";
 
 type Body = { confirm?: string };
 
