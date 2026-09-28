@@ -91,6 +91,11 @@ export type SessionDetailAppointment = {
   // New/migration-dependent (see supabase/schema.sql's Google Calendar
   // section) -- same optional-field convention as session_code above.
   meet_link?: string | null;
+  // When the booking row was written. Not rendered anywhere -- it is the
+  // tie-break `compareSessionsNewestFirst` reads when two sessions share an
+  // hour. Optional so every existing caller of this shared type keeps
+  // compiling; the two admin profile queries both select it.
+  created_at?: string | null;
 };
 
 export type ReassignmentLogEntry = {

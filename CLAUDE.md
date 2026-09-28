@@ -233,6 +233,17 @@ itself now (`AdminDetailDashboard`) with the same overlay on top, and
 closing is a URL change rather than a rebuild of a screen already on view.
 See the intercepted-overlay rule in `AGENTS.md`.
 
+**And the sessions on that page are listed by when they are, not by when they
+were booked.** Booking History and Assigned Sessions were ordered by
+`created_at`, which is the order session codes are handed out in -- so the
+list read as being sorted by session ID, and a session rescheduled to next
+month stayed wherever it was first booked. `src/lib/sessionOrdering.ts` is
+the one answer: the session's own `slot_time`, newest first, a session with no
+slot agreed yet last, ties broken on the booking time. It is applied in the
+one component that renders that list on both profiles, so the two screens
+cannot disagree. The money lists beside it still run by when the money moved.
+See the session-order rule in `AGENTS.md`.
+
 **Marking an out-of-area request served offers to open the area.** The
 waitlist is demand the clinic turned away, and tapping *served* used to move
 a word while the pincode stayed unserved - so the next patient from that

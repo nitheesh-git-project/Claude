@@ -3264,6 +3264,32 @@ before.
   stale) and paints at most 200 rows before offering "Show all" -- the page
   server-renders every screen at once, so an unbounded table is HTML every
   admin downloads whether they open that screen or not.
+- **A person's session list is ordered by the session, not by the booking.**
+  The admin's patient and therapist profiles ordered **Booking History** and
+  **Assigned Sessions** by `created_at` descending -- when the booking row was
+  written, which is also the order `session_code` is handed out in, so the
+  list read as being sorted by session ID. A session rescheduled to next month
+  stayed wherever it was first booked, which is precisely the case the list
+  exists to show. `src/lib/sessionOrdering.ts` is the one answer --
+  `slot_time` descending (furthest ahead first, then today, then the past),
+  a session with no slot **last** (the column is nullable, and "nulls last" is
+  the order `schema.sql` already uses wherever it sorts by slot), and a tie
+  broken on `created_at` descending **explicitly**, never by leaning on
+  `Array.prototype.sort` being stable. Three details are load-bearing. It is
+  applied in `ProfileSessionList`, the one component rendering that list on
+  both profiles, so the two screens cannot grow two answers and a third caller
+  gets the order without remembering it -- same posture as
+  `SessionNoteHistory` and the drawer's reassignment log, which both sort what
+  they are handed. An unreadable date is treated as an absent one rather than
+  compared as `NaN`, which would leave the array in an arbitrary order with no
+  error anywhere. And both queries keep their `.order("created_at")`, now as
+  the deterministic input that tie-break reads rather than as a second copy of
+  the slot rule to drift from the tested one. **Payment History** and
+  **Payout History** on the same profiles stay on `paid_at` descending: when
+  money moved is a different axis from when the session was, the same reason
+  `refundState` keeps its own. `e2e/admin-profile-session-order.spec.ts` is
+  the guard, driven as screens because the routes and the rows are unchanged
+  and the order is only visible to somebody reading the page.
 - **Every list pages, and every list that has a dimension filters.**
   A list of rows ends with `ListPager` (`src/components/dashboard/`), the
   one control: a "Show N per page" number field, Previous/Next that grey

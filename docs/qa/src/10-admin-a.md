@@ -464,13 +464,15 @@ Withdrawal also covers a plan **still waiting for approval** - refusing would le
 3. Under **Admin Notes**, tap the notes box. Enter `Prefers early evening slots. Referred by QA Partner Hospital.`
 4. Tap **Save Notes**.
 5. Close the overlay, reopen the same row, and confirm the note survived.
-6. Copy the id out of the URL and open `/admin/dashboard/patients/<id>` directly in a new tab.
-7. Sign in as the **finance** admin and open the same URL.
+6. Read the session dates down **Booking History**, then down **Payment History**.
+7. Copy the id out of the URL and open `/admin/dashboard/patients/<id>` directly in a new tab.
+8. Sign in as the **finance** admin and open the same URL.
 
-**Expected Result.** Tapping opens an **overlay modal**; the direct URL at step 6 renders the **same content as a full page** (a real route, not only an intercepted one). The panel carries **Personal Details**, **Contact Info**, **Admin Notes**, **Therapist Ratings of This Patient**, **Session Performance**, **Booking History**, **Payment History**, **Profit Breakdown** and **Profile Change Request History**, plus contact edit and password reset.
+**Expected Result.** Tapping opens an **overlay modal**; the direct URL at step 7 renders the **same content as a full page** (a real route, not only an intercepted one). The panel carries **Personal Details**, **Contact Info**, **Admin Notes**, **Therapist Ratings of This Patient**, **Session Performance**, **Booking History**, **Payment History**, **Profit Breakdown** and **Profile Change Request History**, plus contact edit and password reset.
 The notes box is placeheld `Private notes about this patient - never shown to them.` and reads `No notes saved yet.` when empty; the button reads `Saving...` then `Save Notes`. **The note must never appear on any patient-facing screen** - check the patient's own dashboard and their exported PDF.
-`ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` - **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it. At step 7 the finance admin reads the money sections and has **no** control that changes a session.
-The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Save Notes** there posts `update-therapist-notes`).
+`ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` - **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it. At step 8 the finance admin reads the money sections and has **no** control that changes a session.
+At step 6 **Booking History runs by the session's own date and time, newest first** - the session furthest in the future at the top, then today, then the past, with any session whose slot is not yet agreed (**Slot to be confirmed**) **last**. It is deliberately **not** ordered by when the booking was made, which is also session-code order: a session rescheduled to another month must move in this list. **Payment History** is unchanged and still runs by when the money moved.
+The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Save Notes** there posts `update-therapist-notes`), and **Assigned Sessions** there is ordered the same way as Booking History, with **Payout History** left on when the money moved.
 
 #### `ADM-PEOP-004` - Condition access grants and change requests · P0
 **Steps.** Approve a therapist's access-grant request. Then approve a patient's condition change request. Then approve a **therapist-submitted** edit for a re-triaged patient.
