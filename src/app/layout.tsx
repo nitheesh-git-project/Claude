@@ -5,6 +5,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import FarewellBanner from "@/components/FarewellBanner";
 import Footer from "@/components/Footer";
+import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
 import { SectionNavProvider } from "@/components/SectionNavContext";
 import { createPublicClient } from "@/lib/supabase/public";
@@ -60,8 +61,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // The debug navigation is retired from all deploys. See
-  // debugNavVisible.ts for the deliberate, constant false value.
+  // On in every environment while the app is pre-launch - see
+  // debugNavVisible.ts for why, and for the one kill switch.
   const showDebugNav = isDebugNavVisible();
 
   // Brand & Contact Details (admin Site Content tab) -- the Navbar/Footer
@@ -180,6 +181,7 @@ export default async function RootLayout({
           <ToastProvider>
           <RouteProgress />
           <ToastViewport />
+        {showDebugNav && <DebugNav />}
         <Navbar
           offsetTop={showDebugNav}
           siteName={brand.siteName}
