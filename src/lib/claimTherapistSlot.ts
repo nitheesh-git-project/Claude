@@ -162,3 +162,108 @@ export function describeClaimFailure(
       };
   }
 }
+
+/**
+ * The same reservation, for a referral that holds a slot before any
+ * appointment exists for it.
+ *
+ * A hospital referral reserves a therapist and an hour while the patient is
+ * still registering, so the hold lives on `patient_referrals`. See
+ * `claim_therapist_referral_slot` in schema.sql for why this replaced a
+ * deterministic tiebreak rather than keeping one: the tiebreak only existed
+ * because two concurrent writes were never serialised.
+ */
+export type ClaimReferralOutcome =
+  | { ok: true; previousStatus: string | null }
+  | {
+      ok: false;
+      reason:
+        | "conflict"
+        | "already_moved"
+        | "no_referral"
+        | "no_therapist"
+        | "bad_request"
+        | "unavailable";
+      currentStatus?: string | null;
+    };
+
+export async function claimReferralSlot(
+  admin: SupabaseClient,
+  input: {
+    referralId: string;
+    therapistId: string;
+    slotTime: string;
+    inviteToken: string;
+    bufferMinutes?: number;
+    durationMinutes?: number;
+    expectedStatuses?: string[];
+  }
+): Promise<ClaimReferralOutcome> {
+  const { data, error } = await admin.rpc("claim_therapist_referral_slot", {
+    p_referral_id: input.referralId,
+    p_therapist_id: input.therapistId,
+    p_slot_time: input.slotTime,
+    p_invite_token: input.inviteToken,
+    p_buffer_minutes: input.bufferMinutes ?? 0,
+    p_duration_minutes: input.durationMinutes ?? 60,
+    p_expected_statuses: input.expectedStatuses ?? ["pending_review", "therapist_assigned"],
+  });
+
+  if (error) {
+    console.error("claim_therapist_referral_slot failed", error.message);
+    return { ok: false, reason: "unavailable" };
+  }
+
+  const result = data as {
+    ok?: boolean;
+    reason?: string;
+    current_status?: string | null;
+    previous_status?: string | null;
+  } | null;
+
+  if (!result) return { ok: false, reason: "unavailable" };
+  if (result.ok) return { ok: true, previousStatus: result.previous_status ?? null };
+
+  const reason = result.reason;
+  if (
+    reason === "conflict" ||
+    reason === "already_moved" ||
+    reason === "no_referral" ||
+    reason === "no_therapist" ||
+    reason === "bad_request"
+  ) {
+    return { ok: false, reason, currentStatus: result.current_status ?? null };
+  }
+  return { ok: false, reason: "unavailable" };
+}
+
+export function describeReferralClaimFailure(
+  outcome: Extract<ClaimReferralOutcome, { ok: false }>
+): { status: number; error: string } {
+  switch (outcome.reason) {
+    case "conflict":
+      return {
+        status: 409,
+        error:
+          "That therapist already has another session or referral overlapping this time. Pick a different therapist or slot.",
+      };
+    case "already_moved":
+      return {
+        status: 409,
+        error:
+          "This referral has already moved on - someone else sent an invite or declined it. Refresh to see where it stands.",
+      };
+    case "no_referral":
+      return { status: 404, error: "That referral no longer exists." };
+    case "no_therapist":
+      return { status: 404, error: "That therapist no longer exists." };
+    case "bad_request":
+      return { status: 400, error: "Missing the referral, the therapist or the slot." };
+    case "unavailable":
+      return {
+        status: 503,
+        error:
+          "We couldn't reserve that slot just now. Nothing has been changed - please try again.",
+      };
+  }
+}

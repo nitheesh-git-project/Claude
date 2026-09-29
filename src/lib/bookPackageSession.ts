@@ -1,8 +1,8 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { mirrorReserve } from "@/lib/sessionCreditMirror";
+import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -151,27 +151,22 @@ export async function bookPackageSession(
     ? Math.round(purchase.amount_paid_paise / purchase.session_count)
     : 0;
 
-  // Continuity: a locked therapist takes every session on the purchase
-  // automatically. Only attempt the assignment if they're actually free
-  // for this slot -- findTherapistConflict is the same check
-  // /api/admin/assign-appointment runs, so a package session is held to
-  // the identical no-double-booking guarantee as a manually assigned one.
-  let assignedTherapistId: string | null = null;
-  if (purchase.locked_therapist_id) {
-    const conflict = await findTherapistConflict(
-      admin,
-      purchase.locked_therapist_id,
-      new Date(slotDateTime).toISOString(),
-      durationMinutes
-    );
-    if (!conflict) {
-      assignedTherapistId = purchase.locked_therapist_id;
-    }
-  }
-  // Paid already, and either no lock exists or the locked therapist is
-  // confirmed free -- nothing left for an admin to approve.
-  const shouldAutoConfirm = !!assignedTherapistId;
-
+  // The session is inserted UNASSIGNED, and the locked therapist is then
+  // reserved through the one atomic claim.
+  //
+  // It used to check for a clash and then insert with `therapist_id` set,
+  // which is the read-then-write this codebase has now removed everywhere
+  // else: two sessions on the same locked therapist at overlapping times
+  // both passed the check before either insert landed, and the clinic owed
+  // two patients the same hour. Inserting unassigned first gives the claim
+  // a real appointment id to lock against, and costs nothing when it
+  // succeeds -- the row is assigned and confirmed a moment later, in one
+  // statement.
+  //
+  // When the claim is refused the session simply stays `requested` and
+  // unassigned, which is exactly the documented behaviour for a locked
+  // therapist who is busy: a scheduling clash never fails the booking, it
+  // lands in the admin's queue.
   const { data: appointment, error: insertError } = await admin
     .from("appointments")
     .insert({
@@ -182,9 +177,9 @@ export async function bookPackageSession(
       category_id: purchase.category_id,
       duration_minutes: durationMinutes,
       notes: notes || null,
-      status: shouldAutoConfirm ? "confirmed" : "requested",
-      therapist_id: assignedTherapistId,
-      preferred_therapist_id: assignedTherapistId ? null : preferredTherapistId || null,
+      status: "requested",
+      therapist_id: null,
+      preferred_therapist_id: preferredTherapistId || null,
       payment_status: "paid",
       amount_paid_paise: perSessionAmountPaise,
       paid_at: new Date().toISOString(),
@@ -229,6 +224,37 @@ export async function bookPackageSession(
       status: 500,
       error: insertError?.message ?? "Could not book this session. Please try again.",
     };
+  }
+
+  // Reserve the locked therapist, if there is one. Atomic: the overlap
+  // test, the compare-and-set and the write happen together under a row
+  // lock on that therapist.
+  let assignedTherapistId: string | null = null;
+  let shouldAutoConfirm = false;
+  if (purchase.locked_therapist_id) {
+    const claim = await claimTherapistSlot(admin, {
+      appointmentId: appointment.id,
+      therapistId: purchase.locked_therapist_id,
+      expectUnassigned: true,
+      // Paid already, and a locked therapist who is free leaves nothing
+      // for an admin to approve -- so the confirmation happens in the same
+      // statement as the assignment, and a session can never be confirmed
+      // with nobody on it.
+      confirm: true,
+    });
+    if (claim.ok) {
+      assignedTherapistId = purchase.locked_therapist_id;
+      shouldAutoConfirm = true;
+      // The preference was only ever a fallback for an unassigned session.
+      await admin
+        .from("appointments")
+        .update({ preferred_therapist_id: null })
+        .eq("id", appointment.id);
+    }
+    // Refused: the session stays `requested` and unassigned in the admin's
+    // queue. That is the documented outcome for a busy locked therapist,
+    // and it is deliberately not an error -- a clash must never fail a
+    // booking the patient has already paid for.
   }
 
   // Dual-write: the counter above is still what the app reads, and this

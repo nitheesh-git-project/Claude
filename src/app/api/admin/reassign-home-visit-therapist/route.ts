@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
-import { findTherapistConflict } from "@/lib/checkTherapistConflict";
-import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { updateMeetEventForAppointment } from "@/lib/googleCalendarSync";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import {
+  claimTherapistSlot,
+  describeClaimFailure,
+} from "@/lib/claimTherapistSlot";
 
 // The home-visit twin of /api/admin/reassign-package-therapist. Only touches
 // visits still ahead of the patient -- completed visits keep whoever
@@ -79,43 +81,21 @@ export async function POST(request: NextRequest) {
       skipped.push({ appointmentId: appointment.id, reason: "No slot time recorded." });
       continue;
     }
-    const conflict = await findTherapistConflict(
-      admin,
+    // The overlap test and the compare-and-set together, under a row lock
+    // on the incoming therapist -- see reassign-package-therapist for the
+    // same correction. It matters more here: a home visit's clash is
+    // judged with travel padding, so moving a run of visits onto one
+    // therapist is exactly the case where several checks all run before any
+    // write lands, and the result is one person sent to two addresses.
+    const claim = await claimTherapistSlot(admin, {
+      appointmentId: appointment.id,
       therapistId,
-      appointment.slot_time,
-      appointment.duration_minutes ?? BASE_DURATION_MINUTES,
-      { excludeAppointmentId: appointment.id, bufferMinutes: travelBufferMinutes }
-    );
-    if (conflict) {
-      skipped.push({
-        appointmentId: appointment.id,
-        reason: "The new therapist already has another visit too close to that time.",
-      });
-      continue;
-    }
-
-    // CAS on the therapist_id this request actually read -- without this,
-    // two concurrent reassigns of the same purchase to different
-    // therapists could both pass the conflict check above and then both
-    // write, leaving whichever wrote last as the silent winner with no
-    // trace of the race. A lost claim here means someone else already
-    // moved this visit; it's correctly reported as skipped, not retried.
-    const { data: claimedAppointment, error: updateError } = await admin
-      .from("appointments")
-      .update({ therapist_id: therapistId })
-      .eq("id", appointment.id)
-      .eq("therapist_id", appointment.therapist_id)
-      .select("id")
-      .maybeSingle();
-    if (updateError) {
-      skipped.push({ appointmentId: appointment.id, reason: updateError.message });
-      continue;
-    }
-    if (!claimedAppointment) {
-      skipped.push({
-        appointmentId: appointment.id,
-        reason: "This visit's therapist was changed concurrently by another request.",
-      });
+      expectedTherapistId: appointment.therapist_id,
+      bufferMinutes: travelBufferMinutes,
+    });
+    if (!claim.ok) {
+      const { error: claimMessage } = describeClaimFailure(claim);
+      skipped.push({ appointmentId: appointment.id, reason: claimMessage });
       continue;
     }
 

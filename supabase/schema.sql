@@ -12856,3 +12856,126 @@ $$;
 revoke all on function public.claim_therapist_slot(uuid, uuid, uuid, boolean, integer, boolean, uuid, timestamptz, integer, uuid) from public;
 revoke all on function public.claim_therapist_slot(uuid, uuid, uuid, boolean, integer, boolean, uuid, timestamptz, integer, uuid) from anon;
 revoke all on function public.claim_therapist_slot(uuid, uuid, uuid, boolean, integer, boolean, uuid, timestamptz, integer, uuid) from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The same atomic reservation, for a referral that holds a slot.
+-- ---------------------------------------------------------------------------
+-- A hospital referral reserves a therapist and an hour before any
+-- appointment row exists for it: the patient has not registered yet, so the
+-- slot is held on `patient_referrals` until the invite is taken up. That gave
+-- `/api/admin/assign-referral` the same read-then-write problem as the
+-- appointment paths, and one extra wrinkle -- two referrals assigned to the
+-- same therapist and hour at once both wrote, then both saw the other on the
+-- re-check, so a plain re-check rolled BOTH back and neither admin got an
+-- assignment. The workaround was a deterministic tiebreak (earliest
+-- created_at wins, ties broken by id) applied from both sides so exactly one
+-- would keep its write.
+--
+-- That tiebreak exists only because the two writes were never serialised.
+-- Under a real lock the second request simply finds the first's committed row
+-- and is refused, which is the answer the tiebreak was reconstructing -- so
+-- it goes, along with the un-compare-and-set rollback beside it that could
+-- restore four columns over a third admin's assignment.
+create or replace function claim_therapist_referral_slot(
+  p_referral_id uuid,
+  p_therapist_id uuid,
+  p_slot_time timestamptz,
+  p_invite_token uuid,
+  p_buffer_minutes integer default 0,
+  -- Referrals carry no treatment category, so the flat base duration --
+  -- passed in rather than hard-coded so the two halves of this rule cannot
+  -- drift from BASE_DURATION_MINUTES in pricing.ts.
+  p_duration_minutes integer default 60,
+  -- The statuses the caller believes this referral may still be in. The
+  -- compare-and-set: an admin who read a pending referral must not overwrite
+  -- an invite somebody else has already sent.
+  p_expected_statuses text[] default array['pending_review', 'therapist_assigned']
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_ref record;
+  v_buffer_ms bigint;
+  v_start timestamptz;
+  v_end timestamptz;
+  v_conflict_id uuid;
+  v_updated uuid;
+begin
+  if p_referral_id is null or p_therapist_id is null or p_slot_time is null then
+    return jsonb_build_object('ok', false, 'reason', 'bad_request');
+  end if;
+
+  perform 1 from profiles where id = p_therapist_id for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'no_therapist');
+  end if;
+
+  select id, status, assigned_therapist_id, assigned_slot_time
+    into v_ref
+    from patient_referrals
+   where id = p_referral_id
+   for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'no_referral');
+  end if;
+
+  if not (v_ref.status = any(p_expected_statuses)) then
+    return jsonb_build_object('ok', false, 'reason', 'already_moved', 'current_status', v_ref.status);
+  end if;
+
+  v_buffer_ms := greatest(0, coalesce(p_buffer_minutes, 0)) * 60000;
+  v_start := p_slot_time - make_interval(secs => v_buffer_ms / 1000.0);
+  v_end := p_slot_time
+           + make_interval(mins => coalesce(p_duration_minutes, 60))
+           + make_interval(secs => v_buffer_ms / 1000.0);
+
+  select a.id into v_conflict_id
+    from appointments a
+   where a.therapist_id = p_therapist_id
+     and a.status <> 'cancelled'
+     and a.slot_time is not null
+     and a.slot_time < v_end
+     and (a.slot_time + make_interval(mins => coalesce(a.duration_minutes, 60))) > v_start
+   limit 1;
+
+  if v_conflict_id is not null then
+    return jsonb_build_object('ok', false, 'reason', 'conflict', 'conflict_appointment_id', v_conflict_id);
+  end if;
+
+  select r.id into v_conflict_id
+    from patient_referrals r
+   where r.assigned_therapist_id = p_therapist_id
+     and r.status = 'invite_sent'
+     and r.assigned_slot_time is not null
+     and r.id <> p_referral_id
+     and r.assigned_slot_time < v_end
+     and (r.assigned_slot_time + make_interval(mins => 60)) > v_start
+   limit 1;
+
+  if v_conflict_id is not null then
+    return jsonb_build_object('ok', false, 'reason', 'conflict', 'conflict_referral_id', v_conflict_id);
+  end if;
+
+  update patient_referrals
+     set assigned_therapist_id = p_therapist_id,
+         assigned_slot_time = p_slot_time,
+         invite_token = p_invite_token,
+         status = 'invite_sent'
+   where id = p_referral_id
+     and status = any(p_expected_statuses)
+  returning id into v_updated;
+
+  if v_updated is null then
+    return jsonb_build_object('ok', false, 'reason', 'already_moved');
+  end if;
+
+  return jsonb_build_object('ok', true, 'previous_status', v_ref.status);
+end;
+$$;
+
+revoke all on function public.claim_therapist_referral_slot(uuid, uuid, timestamptz, uuid, integer, integer, text[]) from public;
+revoke all on function public.claim_therapist_referral_slot(uuid, uuid, timestamptz, uuid, integer, integer, text[]) from anon;
+revoke all on function public.claim_therapist_referral_slot(uuid, uuid, timestamptz, uuid, integer, integer, text[]) from authenticated;
