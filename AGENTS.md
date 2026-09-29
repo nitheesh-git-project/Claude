@@ -24,10 +24,13 @@ Commands: `npm run dev`, `npm run build`, `npm start`,
 `npm run start:cluster` (several workers on one port -- see the clustering
 rule under "Supabase clients"), `npm run lint`,
 `npm run test`, `npm run check:realtime`, `npm run check:grants`,
-`npm run test:e2e`,
+`npm run test:e2e` (the whole browser suite -- once before a merge, not once
+per fix; see the two gears under the e2e section below),
 `npm run seed:qa` (recreate the QA fixture accounts after a data reset),
 `npm run clean:e2e` (delete the fixture rows earlier e2e runs left behind),
-and `npm run verify` (lint + test + build, the one to run before pushing).
+and `npm run verify` (lint + test + build, the one to run before pushing --
+and, for a change a browser can see, alongside the two or three specs
+covering what moved rather than all sixty-five).
 `npm run test` is Vitest over `src/**/*.test.ts` - the dependency-free
 modules in `src/lib`, which is why the business maths lives there rather
 than inside components. It needs no database and no browser; anything that
@@ -133,6 +136,37 @@ It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
+
+**The whole suite runs once before a merge, never once per fix.** It is
+`workers: 1` against one Supabase project and one app instance by design, so
+it is slow by design too -- running all of it after each bug fix spends
+minutes to re-prove a few hundred cases the change could not have touched,
+and the cost is paid on every commit rather than on the one that matters.
+Worse, it is the habit that makes a red run routine: a suite run so often
+that its six known no-egress failures are scrolled past is a suite nobody is
+reading, which is the same failure mode as a badge that is always on. Two
+gears:
+
+1. **Per change -- a quick retest and a regression.** `npm run verify`
+   (lint + unit tests + build, which is what `verify` is for) plus **the
+   specs that cover what moved**, by file:
+   `npx playwright test e2e/<the-spec>.spec.ts`. The retest is the case the
+   change was made for; the regression is the rest of that file and any spec
+   over the same screen or the same money rule. Two or three files, not
+   sixty-five. A change that cannot reach a test project stops at `verify`,
+   as above.
+2. **Once before the merge -- `npm run test:e2e` in full**, on the branch as
+   it will land. That is the run whose six known failures get read (see the
+   no-egress note above), and the only one that catches a spec broken by a
+   change in a file it does not name.
+
+**Updating the suite is part of the change, not part of the merge.** A fix
+that changes what a person sees, a rule, a route or a row updates or adds its
+spec **in the same commit** -- the same rule the docs follow, and for the same
+reason: a suite updated later is a suite that spends the intervening commits
+asserting a product that no longer exists. Adding a spec is not the same as
+running all of them; the new file is what gear 1 runs, and gear 2 is where it
+first runs beside everything else.
 
 **The suite runs in the clinic's zone, pinned in `playwright.config.ts`.**
 Specs build a bookable slot with `d.setHours(hour, 0, 0, 0)` -- a whole hour
@@ -5019,6 +5053,16 @@ without checking. Anything in this list means the docs need a look:
 `src/`, `supabase/`, `scripts/`, `package.json`, `next.config.ts`, or
 `.env.example` without touching a doc. It is a reminder, not a gate - a
 change that genuinely needs no doc update can ignore it.
+
+**The suite is kept current the same way, and in the same commit.** Every
+trigger in the list above is also a trigger to look at `e2e/` and
+`docs/qa/src/` - a changed rule, a moved route or a reworded screen leaves a
+spec asserting a product that no longer exists, and a spec that goes stale
+silently is worse than a doc that does, because it keeps passing. Write or
+amend the spec beside the fix; do **not** run the whole browser suite to
+prove it (see the two gears under the e2e section above - the new file is
+what the per-change gear runs, and the pre-merge run is where it first runs
+beside everything else).
 
 **Security headers ship from `next.config.ts`.** `X-Frame-Options: DENY`,
 `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`,

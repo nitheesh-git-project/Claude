@@ -1086,7 +1086,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 
 ### 10.8 How payment is connected
 
-1. Step 3's primary button reads **Request Booking** the first time.
+1. Step 3's primary button reads **Request Booking** the first time. It is **never disabled while a price is being fetched** - a tap arriving during that read is queued and acted on once the figure lands, rather than refused. Check this deliberately on a slow connection: throttle the network, arrive at Step 3, and the button must be pressable immediately.
 2. Tapping it creates the account (guest only), runs a client-side self-overlap check, then calls `POST /api/appointments/create`. That route **re-derives** concern, duration, lead time, therapist preference and language server-side, scans the notes for contact leaks (record-only for a patient), and inserts the appointment as `status: 'requested'`, `payment_status: 'unpaid'`, `therapist_id: null`, `visit_mode: 'online'`.
 3. The wizard then immediately opens Razorpay checkout via `POST /api/razorpay/create-order`. **That call flips the patient's `approved` flag to true** - on the attempt, not on success.
 4. On checkout success, `POST /api/razorpay/verify` checks the signature server-side, marks the appointment paid, auto-confirms it **only if a therapist is already assigned**, creates the Meet event if so, and records the capture.
@@ -1104,6 +1104,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 | **Retry** | Tapping **Pay … Now** re-opens checkout against the **same** appointment. `create-order` re-checks the prior order: if Razorpay says it is already paid, the appointment is claimed as paid rather than a second order being minted. | No second appointment, no second order for a paid one |
 | **3+ failed attempts** | An amber escape hatch appears: *"Having trouble paying? Your booking is saved as pending…"* with a **Go to Dashboard** link | Nothing new |
 | **Back from Step 3 to Step 2** | The draft appointment is deliberately abandoned; the button returns to **Request Booking** | The unpaid appointment remains in the dashboard, exactly as if the tab had been closed |
+| **Tapped while the price is still loading** | The button is pressable and immediately reads **Please wait...**; the booking then proceeds on the price that lands. It must never be greyed out waiting for the figure | Same as an ordinary tap - nothing extra |
 
 ### 10.10 Refusals the wizard renders instead of the form
 
@@ -1161,6 +1162,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 * **Shows:** Name, Email, Preferred Time, Language, Concern, and Session Fee, plus two notices - the Razorpay/secure-payment line and the cancellation-window line reading the admin's configured hours.
 * **Controls:** **Back** (⅓ width) and the primary button (⅔ width) reading **Request Booking**, then **Pay ₹… Now** after an appointment exists.
 * **Records created:** on **Request Booking** - the Supabase auth user (guest only) and the appointment row. On payment success - the `payments` row, the appointment's paid/confirmed state, and (when a therapist is already assigned) the Google Calendar/Meet event.
+* **The primary button is tappable the moment the step renders**, including while the price is still being fetched from the server. Arriving at Step 3 and applying a promo code each start a price read, and during one the screen shows *"Checking the latest price for you..."* under the Total - the wait is **stated, never enforced**. Tapping during that read is acknowledged at once (the button reads **Please wait...**) and the booking proceeds on the figure that lands. A button that greys out for a second or two on arriving at this step, or after applying a code, is the regression: the figures are re-resolved server-side at checkout regardless, so there is nothing a disabled button here would protect.
 
 ---
 

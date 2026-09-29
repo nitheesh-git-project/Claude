@@ -730,7 +730,24 @@ staying tappable while its price loads
 but needs a test Supabase project and Razorpay test keys - verify a change
 with a build and a lint.
 
-These three docs describe the app, so keep them current: whenever a change
+**Two gears, and the whole suite is the slower one.** A bug fix or a code
+change gets a **quick retest and a regression**: `npm run verify` plus the
+two or three specs covering what moved
+(`npx playwright test e2e/<the-spec>.spec.ts`) - the case the change was made
+for, and the rest of that file plus anything over the same screen or money
+rule. The **whole** suite is run **once before the merge**, on the branch as
+it will land. It is `workers: 1` against one project and one app instance by
+design, so running all sixty-five files after every fix spends minutes
+re-proving cases the change could not have touched - and it is how a red run
+becomes routine, which is a suite nobody reads. **Updating the suite is part
+of the change**, though, not part of the merge: a fix that alters what a
+person sees, a rule, a route or a row writes or amends its spec in the same
+commit, the same rule these docs follow. See the two gears in `AGENTS.md`.
+
+These three docs describe the app, so keep them current - and the same
+triggers keep `e2e/` and `docs/qa/src/` current, in the same commit, since a
+spec left asserting a product that no longer exists goes stale silently and
+keeps passing: whenever a change
 adds or removes a route, role, environment variable, npm script, or alters a
 documented rule (booking lead time, refund window, payment verification, Meet
 sync, payout math) or a schema flow, update the docs in that same change
