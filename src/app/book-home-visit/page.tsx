@@ -10,7 +10,7 @@ import { Reveal } from "@/components/motion/primitives";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
-  title: "Book a Home Visit | MoveRestore | Physiotherapy",
+  title: "Book a Home Visit | MoveRestore",
   description: "Book a physiotherapist to visit you at home.",
 };
 

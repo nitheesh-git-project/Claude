@@ -5,7 +5,7 @@ import ReceiptsSection from "@/components/ReceiptsSection";
 import { buildPatientReceipts } from "@/lib/receipts";
 
 export const metadata: Metadata = {
-  title: "Payments | MoveRestore | Physiotherapy",
+  title: "Payments | MoveRestore",
 };
 
 export default async function Page() {

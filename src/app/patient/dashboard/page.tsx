@@ -11,7 +11,7 @@ import { formatSlotTime } from "@/lib/formatSlotTime";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
 
 export const metadata: Metadata = {
-  title: "Patient Dashboard | MoveRestore | Physiotherapy",
+  title: "Patient Dashboard | MoveRestore",
 };
 
 // The dashboard's landing screen. Everything else -- booking, sessions,

@@ -10,7 +10,7 @@ import { Reveal } from "@/components/motion/primitives";
 import { parseBookingLanguages } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
-  title: "Book a Session | MoveRestore | Physiotherapy",
+  title: "Book a Session | MoveRestore",
   description: "Book your virtual physical therapy session.",
 };
 

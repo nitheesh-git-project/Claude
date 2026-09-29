@@ -6,7 +6,7 @@ import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 
 export const metadata: Metadata = {
-  title: "Earnings | MoveRestore | Physiotherapy",
+  title: "Earnings | MoveRestore",
 };
 
 const STATUS_STYLES: Record<string, string> = {

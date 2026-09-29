@@ -11,7 +11,7 @@ import { Stagger, StaggerItem } from "@/components/motion/primitives";
 import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 
 export const metadata: Metadata = {
-  title: "Our Team | MoveRestore | Physiotherapy",
+  title: "Our Team | MoveRestore",
   description:
     "Meet the licensed physiotherapists who deliver every session - tap a profile to read their background and request them for your booking.",
 };

@@ -5,7 +5,7 @@ import AdminDetailDashboard from "@/components/admin/AdminDetailDashboard";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
 
 export const metadata: Metadata = {
-  title: "Patient Condition | MoveRestore | Physiotherapy",
+  title: "Patient Condition | MoveRestore",
 };
 
 // The real page behind the dashboard's overlay. Interception only covers

@@ -9,7 +9,7 @@ import {
 import { loadTherapistDashboard } from "@/lib/therapistDashboardData";
 
 export const metadata: Metadata = {
-  title: "Sessions | MoveRestore | Physiotherapy",
+  title: "Sessions | MoveRestore",
 };
 
 // One list of everything assigned to this therapist. Video consultations

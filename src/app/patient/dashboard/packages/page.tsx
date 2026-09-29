@@ -5,7 +5,7 @@ import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
 import HomeVisitPackageWidget from "@/components/patient/HomeVisitPackageWidget";
 
 export const metadata: Metadata = {
-  title: "Your Programmes | MoveRestore | Physiotherapy",
+  title: "Your Programmes | MoveRestore",
 };
 
 export default async function Page() {
