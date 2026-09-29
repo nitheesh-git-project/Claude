@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import InviteRegisterCard from "@/components/auth/InviteRegisterCard";
 
 export const metadata: Metadata = {
-  title: "Complete Your Registration | MoveRestore",
+  title: "Complete Your Registration | MoveRestore | Physiotherapy",
 };
 
 export default function PatientRegisterPage() {

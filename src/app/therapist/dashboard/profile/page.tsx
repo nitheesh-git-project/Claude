@@ -13,7 +13,7 @@ import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import { THERAPIST_SPECIALTY_LABELS } from "@/lib/therapistSpecialties";
 
 export const metadata: Metadata = {
-  title: "Edit Profile | MoveRestore",
+  title: "Edit Profile | MoveRestore | Physiotherapy",
 };
 
 export default async function TherapistProfilePage() {

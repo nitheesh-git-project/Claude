@@ -9,7 +9,7 @@ import ClosingCta from "@/components/marketing/ClosingCta";
 import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 
 export const metadata: Metadata = {
-  title: "FAQ | MoveRestore",
+  title: "FAQ | MoveRestore | Physiotherapy",
   description:
     "Cost, refunds, privacy and how a video physiotherapy session actually runs - answered before you book.",
 };

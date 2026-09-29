@@ -4,7 +4,7 @@ import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import { loadTherapistDashboard } from "@/lib/therapistDashboardData";
 
 export const metadata: Metadata = {
-  title: "Therapist Dashboard | MoveRestore",
+  title: "Therapist Dashboard | MoveRestore | Physiotherapy",
 };
 
 // The landing screen. Availability, Assigned Sessions, Home Visits,

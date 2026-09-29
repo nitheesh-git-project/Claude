@@ -5,7 +5,7 @@ import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import PatientBookingHub from "@/components/patient/PatientBookingHub";
 
 export const metadata: Metadata = {
-  title: "Book a Session | MoveRestore",
+  title: "Book a Session | MoveRestore | Physiotherapy",
 };
 
 export default async function Page() {

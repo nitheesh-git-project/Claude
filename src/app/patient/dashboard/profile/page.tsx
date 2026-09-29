@@ -14,7 +14,7 @@ import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 export const metadata: Metadata = {
-  title: "Edit Profile | MoveRestore",
+  title: "Edit Profile | MoveRestore | Physiotherapy",
 };
 
 export default async function PatientProfilePage() {

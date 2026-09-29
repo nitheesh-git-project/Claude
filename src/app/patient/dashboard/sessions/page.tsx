@@ -8,7 +8,7 @@ import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
 
 export const metadata: Metadata = {
-  title: "Your Sessions | MoveRestore",
+  title: "Your Sessions | MoveRestore | Physiotherapy",
 };
 
 // One screen for every session -- video and home visit together, as a

@@ -3,7 +3,7 @@ import { Reveal, Stagger, StaggerItem, MotionButton, FloatingOrbs } from "@/comp
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 
 export const metadata: Metadata = {
-  title: "Get Started | MoveRestore",
+  title: "Get Started | MoveRestore | Physiotherapy",
   description:
     "Book a consultation, sign in to the patient or partner portal, or join the therapist network.",
 };

@@ -5,7 +5,7 @@ import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import SubmitReferralForm from "@/components/hospital/SubmitReferralForm";
 
 export const metadata: Metadata = {
-  title: "Refer a Patient | MoveRestore",
+  title: "Refer a Patient | MoveRestore | Physiotherapy",
 };
 
 export default async function Page() {

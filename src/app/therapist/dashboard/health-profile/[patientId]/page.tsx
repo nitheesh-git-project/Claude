@@ -36,7 +36,7 @@ import {
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 export const metadata: Metadata = {
-  title: "Patient Health Profile | MoveRestore",
+  title: "Patient Health Profile | MoveRestore | Physiotherapy",
 };
 
 export default async function TherapistPatientHealthProfilePage({

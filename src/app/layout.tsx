@@ -54,7 +54,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "MoveRestore | Global Virtual Physical Therapy",
+  title: "MoveRestore | Physiotherapy",
   description:
     "Expert 1-on-1 virtual physical therapy for global patients. Evidence-based rehabilitation from licensed specialists, from the comfort of home.",
 };
