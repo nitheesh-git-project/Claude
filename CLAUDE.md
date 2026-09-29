@@ -765,7 +765,8 @@ commit, the same rule these docs follow. See the two gears in `AGENTS.md`.
 These three docs describe the app, so keep them current - and the same
 triggers keep `e2e/` and `docs/qa/src/` current, in the same commit, since a
 spec left asserting a product that no longer exists goes stale silently and
-keeps passing: whenever a change
+keeps passing - the QA plan's **source** only, never its PDF, DOCX or HTML,
+which are built on request and never as part of a fix: whenever a change
 adds or removes a route, role, environment variable, npm script, or alters a
 documented rule (booking lead time, refund window, payment verification, Meet
 sync, payout math) or a schema flow, update the docs in that same change
