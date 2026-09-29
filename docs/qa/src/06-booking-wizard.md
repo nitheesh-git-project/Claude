@@ -61,7 +61,9 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 | `online_booking_lead_time_hours` | Settings → Booking Rules → **How far ahead a session must be booked** | Which dates/hours the calendar offers, the note under *Preferred Date* (*"at least N hours from now"*), and the server's own validator. Step 1 used to filter on a hardcoded 12 hours while the route read this column, so widening the window offered a slot checkout then refused - check the note, the greyed-out dates and a boundary booking all move together. |
 | `online_cancellation_refund_hours` | Settings → Booking Rules → **Free cancellation window** | The sentence on Step 3 and the refund actually paid. The sentence names the **deadline** rather than the rule - *"Free cancellation until 24 Sept 2026, 9:00 am."* - computed from the chosen slot minus this window. A slot nearer than the window reads *"This slot is less than N hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* instead, which is the common case whenever this setting is larger than the booking lead time |
 | **Booking Languages** | Settings → Booking Rules → Booking Languages | The chips on Step 1. An empty list degrades to `English` - booking must never present an empty language picker. |
-| Treatment categories | Catalog → Conditions | The "What would you like help with?" dropdown, each entry showing `Title - ₹price / duration min`. An **inactive** category disappears, and a booking against it is refused server-side. |
+| Treatment categories | Catalog → Conditions | One card per active condition inside the Step 1 service picker, each showing its cover photograph, description, duration, ticks and price. An **inactive** category disappears, and a booking against it is refused server-side. |
+| Category **cover photograph** and its focal point | Catalog → Conditions | The card's 4:3 cover and the detail view's 16:9 cover. The focal point is honoured in **both**, which is the point of it - a photograph correct on the card must stay correct in the dialog. A category with no cover renders the placeholder at the same height. |
+| Category **description** and **points** | Catalog → Conditions | The card's one-line summary and its tick list, and the same in the detail view. Blank simply renders nothing. |
 | Category **price** and **duration** | Catalog → Conditions | The header price line, Step 3's Session Fee, the Razorpay amount, and the appointment's duration. **All re-derived server-side from the category row, never from the browser** - `/book` is ISR-cached, so the copy the patient filled in can legitimately be older than the one being charged. |
 | Therapist `visible_on_team` / approval / active | People → Therapists | Whether a `?therapist=` link resolves at all |
 
@@ -93,7 +95,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 | --- | --- |
 | Signed in as therapist / hospital / admin | A **wrong account** panel routing each role to what is theirs (hospitals refer; admins use New Booking; a clinician wanting therapy signs out and uses a separate patient account). Checked **before** every other branch. |
 | `?package=<id>` in the URL | *"Programmes come from your therapist now"* plus the explanation and a **Book a first session** link. Ordered **after** the wrong-account branch on purpose. |
-| No treatment categories exist | *"No condition categories are available right now - please contact us directly to book."* and no dropdown |
+| No treatment categories exist | *"No condition categories are available right now - please contact us directly to book."* in place of the service picker, and no Continue |
 
 ### 10.11 What happens on Back, Refresh and abandonment
 
@@ -119,22 +121,26 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 
 ### 10.13 Step-by-step screen reference
 
-#### Step 1 - "When suits you?"
+#### Step 1 - what you need, and when
 
-* **Means:** pick a time you would like. It is a *request*, not a locked slot.
-* **Expected of the user:** confirm or change three auto-picked values.
-* **Controls:** a month calendar (tappable day cells; ineligible days are greyed and not tappable), a row of hour chips, a row of language chips, and **Continue**.
-* **On selection:** the day cell highlights; the hour list re-filters to that day's eligible hours; the "we picked this for you" hint disappears from whichever value you changed and never re-fires.
-* **Validation on Continue:** date and hour must be set (*"Please select a preferred date and time."*); the slot must clear the lead time (*"Please choose a time at least 12 hours from now."*); a language must be set (*"Please select a preferred language."*).
+* **Means:** choose the consultation, then pick a time you would like. The time is a *request*, not a locked slot.
+* **Expected of the user:** choose a service, then confirm or change three auto-picked values.
+* **Controls, in order:** the **service picker** (a dashed panel reading *"What would you like help with?"* over *"N consultations to choose from, with prices and what each covers"*), then a month calendar (tappable day cells; ineligible days are greyed and not tappable), a row of hour chips, a row of language chips, and **Continue**.
+* **The picker** opens one dialog holding a card per active condition - cover photograph, one-line description, chips for duration / *Video session* / *1-on-1*, up to four ticks, and the price. Each card carries **Choose this session** and **View full details →**. *View details* replaces the dialog's contents with that condition's own detail view - photograph in 16:9 with **nothing laid over it**, the heading on its own band below, figures, description, and what it covers - plus **Choose this session** and **← Back to all services**. It is always **one** dialog on screen, never two stacked. Escape closes it and focus returns to the control that opened it.
+* **Once chosen:** the dialog closes and the panel becomes a summary card - photograph, `VIDEO CONSULTATION`, the title, `₹price · N min` - with **Change** and **View details**. The wizard header stops reading *"pricing shown once you pick a concern"* and quotes the figure from here on.
+* **A condition with no cover photograph** draws the same tinted panel at the same height, so the card reads as a photo not yet chosen rather than one that failed to load.
+* **`/book?category=<id>`** opens Step 1 with that service already in the summary card. `/book` with no parameter never guesses one.
+* **Continue is not on screen until all four are answered** - service, date, hour, language. There is no disabled button and no browser tooltip.
+* **Validation on Continue:** a service must be chosen (*"Please choose what you'd like help with."*); date and hour must be set (*"Please select a preferred date and time."*); the slot must clear the lead time (*"Please choose a time at least 12 hours from now."*); a language must be set (*"Please select a preferred language."*).
 * **Nothing is created.** No appointment, no account, no charge.
 
-#### Step 2 - Your details and your concern
+#### Step 2 - Your details
 
 * **Means:** who you are and what you need.
 * **Guest:** Full Name, Email, Create Password (min 6), Phone, Confirm Password, Referral Code (optional). A signed-in patient sees only a teal *"Booking as **Name** (email)"* strip.
-* **Everyone:** the concern dropdown, optional therapist preference, optional notes, and a **required** telehealth consent checkbox.
+* **Everyone:** a read-only teal line naming the service chosen on Step 1 (photograph, *"Booking a **Title** - ₹price, N min"*) with a **Change** link back to Step 1, optional therapist preference, optional notes, and a **required** telehealth consent checkbox. There is no dropdown here any more; the service is chosen on Step 1.
 * **Referral code** is validated on blur: `Checking code...` → either `Valid - referred by <Hospital>` in teal, or `Code not recognized - double-check it or leave blank` in red. An invalid code **blocks Continue**; a blank one does not.
-* **Validation on Review Booking →**, in this order: name/email/password present and password ≥ 6 (*"Please fill in your name, email, and a password (min 6 characters)."*); email shape (*"Please enter a valid email address."*); phone shape (*"Please enter a valid phone number."*); passwords match (*"Passwords do not match. Please re-enter them."*); referral code not invalid; a category is chosen (*"Please select what you'd like help with."*); consent ticked (*"Please agree to the telehealth consent terms to continue."*).
+* **Validation on Review Booking →**, in this order: name/email/password present and password ≥ 6 (*"Please fill in your name, email, and a password (min 6 characters)."*); email shape (*"Please enter a valid email address."*); phone shape (*"Please enter a valid phone number."*); passwords match (*"Passwords do not match. Please re-enter them."*); referral code not invalid; consent ticked (*"Please agree to the telehealth consent terms to continue."*).
 * **Nothing is created.**
 
 #### Step 3 - Review and pay

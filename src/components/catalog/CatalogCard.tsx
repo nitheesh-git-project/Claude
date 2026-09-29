@@ -58,18 +58,55 @@ export type CatalogCardData = {
   priceUnit: string;
   /** Shown beside a struck-through compare-at price. */
   savingsPaise?: number | null;
-  bookHref: string;
-  bookLabel: string;
+  /** Where booking this goes. Required in link mode; a card in select mode
+   *  does not navigate at all, so it has none - see the props union below. */
+  bookHref?: string;
+  bookLabel?: string;
   /** Vector fallback when there is no photograph. */
   art?: CareIllustrationId;
   icon?: string;
 };
 
+/**
+ * The card has two modes, and they are a union rather than a pile of
+ * optional props so that a card with neither a destination nor a handler
+ * cannot be written at all.
+ *
+ * **Link mode** is what every existing caller uses: the primary action is a
+ * `ProgressLink` to `bookHref`, and the card is a shop window.
+ *
+ * **Select mode** is the booking wizards' picker: the primary action is a
+ * button that reports the choice back, because the patient is already inside
+ * the wizard and navigating anywhere would throw away the date, hour and
+ * language they have entered. It was added here rather than by writing a
+ * second card, per the rule at the top of this file - two cards is how two
+ * screens grow two ideas of what an offering looks like.
+ */
+type LinkMode = {
+  data: CatalogCardData & { bookHref: string; bookLabel: string };
+  onSelect?: never;
+  selected?: never;
+  selectLabel?: never;
+};
+
+type SelectMode = {
+  data: CatalogCardData;
+  /** Reports the choice. Its presence is what puts the card in select mode. */
+  onSelect: () => void;
+  /** Draws the ring and the check chip, and sets `aria-pressed`. */
+  selected?: boolean;
+  /** "Choose this session", "Choose this visit" - the caller words it,
+   *  because only the caller knows which of the two catalogues this is. */
+  selectLabel: string;
+};
+
 export default function CatalogCard({
   data,
   onOpenDetails,
-}: {
-  data: CatalogCardData;
+  onSelect,
+  selected = false,
+  selectLabel,
+}: (LinkMode | SelectMode) & {
   /**
    * Opens the detail dialog. Optional: the patient's booking screen has the
    * wizard one tap away and no dialog of its own, and a "View full details"
@@ -95,13 +132,22 @@ export default function CatalogCard({
           {data.badge}
         </span>
       )}
+      {/* The chip is on the cover rather than beside the title because a
+          grid of these is scanned by picture, and "which one did I pick"
+          has to be answerable without reading anything. */}
+      {selected && (
+        <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full bg-teal-700 px-2.5 py-1 text-[10.5px] font-bold text-white shadow-sm">
+          <i aria-hidden className="fa-solid fa-check text-[9px]" />
+          Chosen
+        </span>
+      )}
     </div>
   );
 
   return (
     <article
       className={`flex h-full flex-col rounded-2xl border bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${
-        data.highlight
+        selected || data.highlight
           ? "border-teal-500 ring-[3px] ring-teal-50"
           : "border-slate-200 hover:border-teal-400"
       }`}
@@ -194,13 +240,33 @@ export default function CatalogCard({
       </div>
 
       <div className="flex flex-col gap-1.5 px-2 pb-1.5 pt-3">
-        <Link
-          href={data.bookHref}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2.5 text-[13.5px] font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-        >
-          <i aria-hidden className="fa-solid fa-calendar-check text-xs" />
-          {data.bookLabel}
-        </Link>
+        {/* Select mode is a button, link mode is a link, and the difference
+            is not styling: inside the wizard there is nowhere to navigate to
+            -- the patient's date, hour and language are in React state on
+            the screen they are standing on. `aria-pressed` rather than
+            `role="radio"` because this card also carries a second action,
+            and a radio that contains another control is not a radio. */}
+        {onSelect ? (
+          <button
+            type="button"
+            onClick={onSelect}
+            aria-pressed={selected}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-[13.5px] font-bold text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+              selected ? "bg-slate-900 hover:bg-slate-800" : "bg-teal-700 hover:bg-teal-800"
+            }`}
+          >
+            <i aria-hidden className={`fa-solid text-xs ${selected ? "fa-check" : "fa-hand-pointer"}`} />
+            {selected ? "Chosen" : selectLabel}
+          </button>
+        ) : (
+          <Link
+            href={data.bookHref as string}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2.5 text-[13.5px] font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+          >
+            <i aria-hidden className="fa-solid fa-calendar-check text-xs" />
+            {data.bookLabel}
+          </Link>
+        )}
         {onOpenDetails && (
           <button
             type="button"

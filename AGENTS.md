@@ -30,7 +30,7 @@ per fix; see the two gears under the e2e section below),
 `npm run clean:e2e` (delete the fixture rows earlier e2e runs left behind),
 and `npm run verify` (lint + test + build, the one to run before pushing --
 and, for a change a browser can see, alongside the two or three specs
-covering what moved rather than all sixty-five).
+covering what moved rather than the whole suite).
 `npm run test` is Vitest over `src/**/*.test.ts` - the dependency-free
 modules in `src/lib`, which is why the business maths lives there rather
 than inside components. It needs no database and no browser; anything that
@@ -153,7 +153,7 @@ gears:
    `npx playwright test e2e/<the-spec>.spec.ts`. The retest is the case the
    change was made for; the regression is the rest of that file and any spec
    over the same screen or the same money rule. Two or three files, not
-   sixty-five. A change that cannot reach a test project stops at `verify`,
+   the whole suite. A change that cannot reach a test project stops at `verify`,
    as above.
 2. **Once before the merge -- `npm run test:e2e` in full**, on the branch as
    it will land. That is the run whose six known failures get read (see the
@@ -215,12 +215,15 @@ Three environment notes for the browser specs:
   Step 2 offering *Full Name*, *Create Password* and "Already have an account?
   Sign in first" to a patient the spec had just signed in, so the four cases
   after it fail on a booking that was never made rather than on anything
-  pay-later. A whole-suite run here is therefore **258 passed, 6 failed**, and
-  those six are these three pairs -- all six fail identically on a stashed,
-  unmodified tree. Check that before reading a red pay-later run as a money
-  bug.
-  `booking-pay-button-live.spec.ts` is the same case a fourth time, and it
-  reads as the very regression it guards: all three of its cases walk the same
+  pay-later. A whole-suite run here was **258 passed, 6 failed** when that was
+  measured, and those six are these three pairs -- all six fail identically on
+  a stashed, unmodified tree. Check that before reading a red pay-later run as
+  a money bug. Take the **pairs** as the invariant and not the total: the
+  total moves with every spec added, so a run that does not match it is
+  telling you the suite has grown, not that something broke.
+  `booking-pay-button-live.spec.ts` is the same case a fourth time -- three
+  more cases, and the reason the count above is no longer the one to check
+  against. It reads as the very regression it guards: all three walk the same
   Step 1 -> Step 3 path as BR-CANCEL, so with no browser egress the walk stops
   at Step 2 and the failure is the pay button *not found* -- which looks
   exactly like a button that was never rendered. A dead button and an absent
@@ -1005,6 +1008,50 @@ before.
   `AdminNewBookingTab` passes 0 only while its existing
   "book inside the window anyway" box is ticked, so the grid opens up exactly
   when the route would accept it. Zero still cannot reach into the past.
+  **The service is chosen before the slot, from one picker.** Both public
+  wizards used a native `<select>` of one line per option -- `/book` in Step
+  2, so a patient picked a date and an hour while the header still read
+  *"pricing shown once you pick a concern"*, and the session length that
+  decides whether that slot clashes with anything was not on screen either;
+  `/book-home-visit` in Step 3, where `sellablePackages.length > 1` gated it,
+  so with one package it never rendered and the patient reached the payment
+  screen never having seen what they bought. `ServicePicker`
+  (`src/components/booking/ServicePicker.tsx`) is the replacement and it is
+  the first block of Step 1 on both. Five rules:
+  1. **One dialog, two views, never two dialogs.** *View details* swaps the
+     dialog's contents and offers `← Back to all services`. The public
+     `src/components/Modal.tsx` is not portalled and sets `backdrop-blur-sm`,
+     so a nested `fixed` overlay is measured against that panel's scrolling
+     box rather than the viewport -- the failure `OverlayPortal` exists to fix
+     elsewhere. It is also the better reading: two stacked sheets leave
+     somebody unsure which Escape closes what.
+  2. **The cards are `CatalogCard`**, in its select mode (`onSelect`,
+     `selected`, `selectLabel`, typed as a union with link mode so a card
+     with neither a destination nor a handler cannot compile). A second card
+     is how two screens grow two ideas of what the clinic sells. Choosing is
+     a **button**, never a link: the patient is inside a wizard holding a
+     date, an hour and a language in React state, and navigating throws all
+     of it away.
+  3. **`src/lib/serviceOptions.ts` maps the rows**, dependency-free and
+     unit-tested, because which chips, which price unit and which figures a
+     patient reads is a judgement rather than markup. It never defaults a
+     focal point to a number: `clampFocal` answers an absent one with dead
+     centre, and a `0` handed to it is the top-left corner.
+  4. **With exactly one option there is no picker.** It is stated as chosen,
+     with its photograph, its price and a way to read the detail -- a dialog
+     that opens to show a single card asks somebody to tap twice to confirm
+     the only thing on offer. `/book-home-visit` keeps its default-to-first
+     initializer, so that case behaves exactly as it did.
+  5. **Continue appears once a service is chosen**, which is `serviceChosen`
+     in `BookingStepOne`'s `ready`. Step 1 has always revealed it only when
+     the screen is complete; a disabled control would be a new pattern there.
+     Steps 2 and 3 keep the choice as one read-only line with a Change link,
+     never a second control over the same value.
+  Only what `isDirectlyPurchasable` allows is ever offered, so a programme
+  still reaches a patient through a recommendation alone.
+  `e2e/service-picker.spec.ts` is the guard, driven as screens because no
+  route, no request body and no row changed.
+
   **A slot starts on the hour, and the routes say so.** `isWholeHourSlot()` in
   `bookingSlots.ts` refuses anything else at all nine doors that write a slot
   time - `/api/appointments/create`, `book-package-sessions`,

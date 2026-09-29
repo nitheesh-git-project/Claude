@@ -26,17 +26,39 @@ export default async function BookPage() {
   const supabase = createPublicClient();
   const [
     { data: categories },
+    { data: categoryImages },
+    { data: categoryFocals },
     { data: settingsRow },
     { data: promoRow },
     { data: cancelRow },
     { data: leadRow },
   ] = await Promise.all([
+    // `description` and `points` are what the service picker's cards and
+    // detail view read. They have existed on this table since it was
+    // created and render on /conditions already; this page simply never
+    // asked for them, which is why its picker was a line of text per
+    // option.
     supabase
       .from("treatment_categories")
-      .select("id, title, price_paise, duration_minutes")
+      .select("id, title, price_paise, duration_minutes, description, points")
       .eq("active", true)
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),
+
+    // The cover photograph, in its own call: `image_url` is
+    // migration-dependent (added at the end of schema.sql), and one
+    // unknown-column error must cost the pictures rather than the whole
+    // list of things a patient can book. Same shape as /conditions.
+    supabase.from("treatment_categories").select("id, image_url").eq("active", true),
+
+    // Where the subject of each cover sits, split from the read above
+    // rather than folded into it: these columns are newer than `image_url`,
+    // so one query would lose the photographs as well as their positions on
+    // a database mid-migration. Apart, they degrade separately.
+    supabase
+      .from("treatment_categories")
+      .select("id, image_focal_x, image_focal_y")
+      .eq("active", true),
 
     // Step 1's language chips. Kept as its own query (rather than joined
     // into the one above) for the same migration-tolerance reason as the
@@ -66,6 +88,21 @@ export default async function BookPage() {
     supabase.from("site_settings").select("online_booking_lead_time_hours").maybeSingle(),
   ]);
 
+  const imageByCategoryId = new Map(
+    (categoryImages ?? []).map((row) => [row.id, row.image_url])
+  );
+  const focalByCategoryId = new Map(
+    (categoryFocals ?? []).map((row) => [
+      row.id,
+      { image_focal_x: row.image_focal_x, image_focal_y: row.image_focal_y },
+    ])
+  );
+  const bookableCategories = (categories ?? []).map((c) => ({
+    ...c,
+    image_url: imageByCategoryId.get(c.id) ?? null,
+    ...(focalByCategoryId.get(c.id) ?? {}),
+  }));
+
   return (
     <section className="py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-teal-50/50 to-slate-100 min-h-screen">
       <div className="max-w-2xl mx-auto">
@@ -83,7 +120,7 @@ export default async function BookPage() {
               Suspense boundary. */}
           <BookingBackToSessions />
           <BookingWizard
-            initialCategories={categories ?? []}
+            initialCategories={bookableCategories}
             bookingLanguages={parseBookingLanguages(settingsRow?.booking_languages)}
             promoCodesEnabled={promoRow?.promo_codes_enabled === true}
             cancellationRefundHours={

@@ -33,7 +33,14 @@ import {
 } from "@/lib/homeVisitPayment";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { rateLimitNotice } from "@/lib/rateLimit";
+import ServicePicker from "@/components/booking/ServicePicker";
+import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
+import { homeVisitServiceOption } from "@/lib/serviceOptions";
 
+// The six fields this wizard has always read, plus what the service picker
+// shows. The optional ones are optional for two different reasons: the focal
+// pair is migration-dependent and read in its own query, and the rest are
+// nullable columns an admin may simply not have filled in.
 export type WizardPackage = {
   id: string;
   title: string;
@@ -41,6 +48,18 @@ export type WizardPackage = {
   price_paise: number;
   visit_duration_minutes: number;
   travel_fee_included: boolean;
+  subtitle?: string | null;
+  description?: string | null;
+  terms?: string | null;
+  badge_label?: string | null;
+  highlight?: boolean | null;
+  benefits?: unknown;
+  compare_at_paise?: number | null;
+  validity_days?: number | null;
+  therapist_locked?: boolean | null;
+  image_url?: string | null;
+  image_focal_x?: number | null;
+  image_focal_y?: number | null;
 };
 
 type AreaCheck =
@@ -149,6 +168,39 @@ export default function HomeVisitBookingWizard({
 
   const selectedPackage =
     sellablePackages.find((p) => p.id === packageId) ?? sellablePackages[0] ?? null;
+
+  // Mapped once: these rows arrive as props and never change, and the
+  // picker's dialog re-renders on every tap inside it.
+  const serviceOptions = useMemo(
+    () => sellablePackages.map((p) => homeVisitServiceOption(p)),
+    [sellablePackages]
+  );
+  // The same row the picker is showing, so Step 3's statement of it cannot
+  // describe the visit differently from the control that chose it.
+  const selectedOption =
+    serviceOptions.find((o) => o.id === selectedPackage?.id) ?? null;
+
+  // The picker lives on Step 1, above the pincode, because the serviceable
+  // answer below it has to say whether travel is charged on top -- and that
+  // is `travel_fee_included` on whichever visit was chosen. Asking for the
+  // pincode first and the package two steps later meant that sentence was
+  // written before the thing it describes had been picked.
+  const servicePicker = (
+    <ServicePicker
+      options={serviceOptions}
+      value={selectedPackage?.id ?? ""}
+      onChange={setPackageId}
+      label="Your visit"
+      browseHeading="Which visit do you need?"
+      browseBlurb={(count) =>
+        `${count} visit${count === 1 ? "" : "s"} available to book, with prices and what each covers.`
+      }
+      chooseLabel="Choose this visit"
+      aboutTitle="About this visit"
+      emptyMessage="No home visits are available to book right now - please contact us directly."
+      singleOptionNote="This is the only visit on offer today, so it is already chosen for you."
+    />
+  );
 
   useEffect(() => {
     // The browser's detected timezone is only knowable once mounted on the
@@ -528,12 +580,14 @@ export default function HomeVisitBookingWizard({
 
       {step === 1 && (
         <div className="space-y-5">
+          {servicePicker}
+
           <div>
             <h2 className="font-display text-lg font-bold text-slate-900">
               Where should we come?
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Start with your pincode - we&apos;ll check we can reach you before anything else.
+              We&apos;ll check we can reach you before anything is charged.
             </p>
           </div>
 
@@ -713,21 +767,27 @@ export default function HomeVisitBookingWizard({
             <h2 className="font-display text-lg font-bold text-slate-900">About you</h2>
           </div>
 
-          {sellablePackages.length > 1 && (
-            <label className="block">
-              <span className="text-xs font-semibold text-slate-700">Package</span>
-              <select
-                value={packageId}
-                onChange={(e) => setPackageId(e.target.value)}
-                className={inputCls()}
-              >
-                {sellablePackages.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title} - {p.visit_count === 1 ? "1 visit" : `${p.visit_count} visits`}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {/* The visit was chosen on Step 1, where its price, its length and
+              whether travel is added could all be read. Here it is a
+              statement with a way back, not a second control over the same
+              value -- and it renders whether or not there was a choice to
+              make, which the old dropdown did not: with one sellable package
+              it was absent entirely and the patient reached the payment
+              screen never having seen what they were buying. */}
+          {selectedOption && (
+            <ChosenServiceSummary
+              option={selectedOption}
+              compact
+              actions={
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="rounded-lg border border-teal-200 bg-white px-3 py-1.5 text-xs font-bold text-teal-800 transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                >
+                  Change
+                </button>
+              }
+            />
           )}
 
           <label className="block">

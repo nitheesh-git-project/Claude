@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Service Picker Prototype</title>
+<!--
+  MoveRestore - public booking service picker, clickable prototype.
+
+  This file is a DESIGN PROTOTYPE, not app code. It is hand-written CSS and
+  vanilla JS with no CDN and no network: the sandbox this was built in has no
+  outbound access, and a mock whose stylesheet fails to load is worse than no
+  mock at all.
+
+  The cover photographs are inline SVG data URIs rather than JPGs, so that
+  `object-position` (the focal point the admin sets per row) is really being
+  exercised here rather than merely described - one card is deliberately
+  positioned at 75% 30% and one deliberately has no cover at all.
+
+  Everything here maps onto components that already exist in the app:
+    card                -> src/components/catalog/CatalogCard.tsx
+    dialog header       -> src/components/catalog/CatalogDialogHeader.tsx
+    stat tiles / ticks  -> src/components/catalog/CatalogVisuals.tsx
+    cover + focal point -> src/components/catalog/CatalogImage.tsx
+                           src/lib/catalogImage.ts
+    the dialog itself   -> src/components/Modal.tsx
+-->
+<style>
+  :root {
+    --teal-50:#f0fdfa; --teal-100:#ccfbf1; --teal-200:#99f6e4; --teal-400:#2dd4bf;
+    --teal-500:#14b8a6; --teal-600:#0d9488; --teal-700:#0f766e; --teal-800:#115e59;
+    --slate-50:#f8fafc; --slate-100:#f1f5f9; --slate-200:#e2e8f0; --slate-300:#cbd5e1;
+    --slate-400:#94a3b8; --slate-500:#64748b; --slate-600:#475569; --slate-700:#334155;
+    --slate-800:#1e293b; --slate-900:#0f172a;
+    --amber-50:#fffbeb; --amber-200:#fde68a; --amber-700:#b45309; --amber-800:#92400e; --amber-900:#78350f;
+    --red-600:#dc2626; --red-50:#fef2f2; --red-200:#fecaca; --red-700:#b91c1c;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --shadow-sm: 0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.05);
+    --shadow-lg: 0 10px 22px rgba(15,23,42,.10), 0 4px 8px rgba(15,23,42,.06);
+    --shadow-xl: 0 20px 45px rgba(15,23,42,.16);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body {
+    font-family: var(--sans);
+    background: var(--slate-100);
+    color: var(--slate-900);
+    -webkit-font-smoothing: antialiased;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  h1,h2,h3,h4 { font-family: var(--display); margin:0; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  /* ---------------- prototype chrome (not part of the design) ------------- */
+  .proto-bar {
+    background: var(--slate-900); color:#fff; padding:14px 20px;
+    display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center;
+  }
+  .proto-bar .mark {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:28px; height:28px; border-radius:8px; background:var(--teal-600);
+    font-weight:800; font-size:12px; letter-spacing:.5px;
+  }
+  .proto-bar h1 { font-size:15px; font-weight:700; }
+  .proto-bar .tag {
+    font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    background:rgba(255,255,255,.12); padding:3px 8px; border-radius:999px; color:var(--teal-200);
+  }
+  .proto-bar p { margin:0; font-size:12px; color:var(--slate-400); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 16px 64px; }
+
+  .switchbar { display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-bottom:18px; }
+  .seg { display:inline-flex; background:#fff; border:1px solid var(--slate-200); border-radius:12px; padding:3px; box-shadow:var(--shadow-sm); }
+  .seg button {
+    border:0; background:transparent; color:var(--slate-600); font-weight:700; font-size:12.5px;
+    padding:7px 13px; border-radius:9px;
+  }
+  .seg button[aria-pressed="true"] { background:var(--teal-700); color:#fff; }
+  .seg[hidden], .seg-label[hidden] { display:none; }
+  .seg-label { font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--slate-500); }
+
+  .stage { display:grid; gap:20px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .stage.two { grid-template-columns: 1fr 1fr; } }
+  .stage-col > .cap {
+    font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase;
+    color:var(--slate-500); margin-bottom:8px; display:flex; align-items:center; gap:8px;
+  }
+  .cap .dot { width:8px; height:8px; border-radius:99px; background:var(--slate-400); }
+  .cap.now .dot { background:var(--red-600); }
+  .cap.next .dot { background:var(--teal-600); }
+
+  /* ---------------- the wizard card (mirrors the real one) ---------------- */
+  .wizard { background:#fff; border:1px solid var(--slate-200); border-radius:24px; overflow:hidden; box-shadow:var(--shadow-xl); }
+  .wizard-head { background:var(--slate-900); color:#fff; padding:22px 24px; }
+  .wizard-head .eyebrow { display:block; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--teal-400); margin-bottom:5px; }
+  .wizard-head h2 { font-size:19px; font-weight:700; }
+  .wizard-head p { margin:5px 0 0; font-size:12px; color:var(--slate-300); }
+  .wizard-body { padding:20px; display:flex; flex-direction:column; gap:18px; }
+  @media (min-width:640px) { .wizard-body { padding:28px; } }
+
+  .field-label { display:block; font-weight:600; color:var(--slate-900); margin-bottom:6px; }
+  .field-label .hint { font-weight:400; font-size:12px; color:var(--slate-500); }
+
+  .tzstrip { background:rgba(240,253,250,.7); border-radius:12px; padding:13px 16px; color:var(--slate-700); }
+  .tzstrip strong { color:var(--slate-900); }
+  .ico { display:inline-block; width:15px; height:15px; vertical-align:-2px; margin-right:8px; color:var(--teal-600); }
+
+  select.native {
+    width:100%; padding:12px; border-radius:12px; border:1px solid var(--slate-300);
+    background:#fff; font-size:14px; color:var(--slate-900);
+  }
+
+  /* calendar stub */
+  .cal { border:1px solid var(--slate-200); border-radius:14px; padding:12px; }
+  .cal-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .cal-top span { font-weight:700; font-size:13px; }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal-grid .dow { text-align:center; font-size:10px; font-weight:800; color:var(--slate-500); padding-bottom:2px; }
+  .cal-grid button {
+    border:1px solid transparent; background:var(--slate-50); border-radius:9px; padding:7px 0;
+    font-size:12.5px; font-weight:600; color:var(--slate-700);
+  }
+  .cal-grid button:disabled { background:transparent; color:var(--slate-300); cursor:default; }
+  .cal-grid button[aria-pressed="true"] { background:var(--teal-700); border-color:var(--teal-700); color:#fff; }
+
+  .chips { display:flex; flex-wrap:wrap; gap:7px; }
+  .chips button {
+    border:1px solid var(--slate-300); background:#fff; border-radius:999px;
+    padding:7px 13px; font-size:12.5px; font-weight:600; color:var(--slate-700);
+  }
+  .chips button[aria-pressed="true"] { background:var(--teal-700); border-color:var(--teal-700); color:#fff; }
+
+  .primary {
+    width:100%; border:0; border-radius:12px; background:var(--teal-700); color:#fff;
+    font-weight:800; font-size:13.5px; padding:14px; box-shadow:var(--shadow-lg);
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .primary:disabled { background:var(--slate-300); color:var(--slate-500); box-shadow:none; cursor:not-allowed; }
+  .note-small { font-size:12px; color:var(--slate-500); margin:0; }
+  .err { font-size:12px; color:var(--red-700); background:var(--red-50); border:1px solid var(--red-200); border-radius:10px; padding:10px 12px; }
+
+  /* ---------------- the service slot: trigger + chosen summary ------------ */
+  .slot-trigger {
+    width:100%; text-align:left; border:2px dashed var(--slate-300); background:var(--slate-50);
+    border-radius:16px; padding:16px; display:flex; gap:14px; align-items:center;
+  }
+  .slot-trigger:hover { border-color:var(--teal-400); background:var(--teal-50); }
+  .slot-trigger .glyph {
+    width:44px; height:44px; flex:0 0 44px; border-radius:12px; background:var(--teal-100);
+    display:flex; align-items:center; justify-content:center; color:var(--teal-700);
+  }
+  .slot-trigger .t { font-weight:700; color:var(--slate-900); }
+  .slot-trigger .s { font-size:12px; color:var(--slate-500); }
+  .slot-trigger .chev { margin-left:auto; color:var(--teal-700); font-weight:800; font-size:16px; }
+
+  .slot-chosen {
+    border:2px solid var(--teal-500); background:#fff; border-radius:16px; padding:10px;
+    display:flex; gap:12px; align-items:stretch; box-shadow:0 0 0 3px var(--teal-50);
+  }
+  .slot-chosen .thumb { width:96px; flex:0 0 96px; border-radius:11px; overflow:hidden; background:var(--slate-100); }
+  .slot-chosen .thumb img, .slot-chosen .thumb .ph { width:100%; height:100%; object-fit:cover; display:block; }
+  .slot-chosen .mid { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:3px; }
+  .slot-chosen .eyebrow { font-size:9.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--teal-700); }
+  .slot-chosen h4 { font-size:15px; font-weight:700; line-height:1.25; }
+  .slot-chosen .meta { font-size:12px; color:var(--slate-600); }
+  .slot-chosen .acts { display:flex; flex-direction:column; justify-content:center; gap:6px; flex:0 0 auto; }
+  .btn-quiet {
+    border:1px solid var(--slate-300); background:#fff; border-radius:10px; padding:7px 11px;
+    font-size:12px; font-weight:700; color:var(--slate-700); white-space:nowrap;
+  }
+  .btn-quiet:hover { border-color:var(--teal-400); color:var(--teal-800); background:var(--teal-50); }
+  .btn-link { border:0; background:transparent; color:var(--teal-700); font-size:11.5px; font-weight:700; padding:2px; text-align:right; }
+  .btn-link:hover { text-decoration:underline; }
+
+  /* read-only line used on later steps */
+  .ro-line {
+    display:flex; gap:12px; align-items:center; background:var(--teal-50);
+    border:1px solid var(--teal-100); border-radius:12px; padding:11px 13px;
+  }
+  .ro-line .thumb { width:48px; height:36px; flex:0 0 48px; border-radius:8px; overflow:hidden; background:var(--slate-100); }
+  .ro-line .thumb img, .ro-line .thumb .ph { width:100%; height:100%; object-fit:cover; display:block; }
+  .ro-line .txt { font-size:12.5px; color:var(--teal-800); min-width:0; }
+  .ro-line .txt strong { color:var(--slate-900); }
+  .ro-line .btn-link { margin-left:auto; }
+
+  /* ---------------- dialog ----------------------------------------------- */
+  .backdrop {
+    position:fixed; inset:0; z-index:50; background:rgba(2,6,23,.5);
+    backdrop-filter: blur(4px); display:flex; align-items:flex-end; justify-content:center; padding:0;
+  }
+  @media (min-width:640px) { .backdrop { align-items:center; padding:16px; } }
+  .backdrop[hidden] { display:none; }
+  .panel {
+    position:relative; width:100%; max-width:672px; max-height:92vh; overflow-y:auto;
+    background:#fff; border-radius:24px 24px 0 0; box-shadow:var(--shadow-xl);
+  }
+  @media (min-width:640px) { .panel { border-radius:24px; } }
+  .panel-x {
+    position:absolute; right:16px; top:16px; z-index:20; width:36px; height:36px;
+    border:0; border-radius:999px; display:flex; align-items:center; justify-content:center;
+    background:var(--slate-100); color:var(--slate-600); font-size:17px; line-height:1;
+  }
+  .panel-x.on-dark { background:rgba(255,255,255,.16); color:#fff; }
+  .panel-x:hover { background:var(--slate-200); }
+
+  .browse-head { padding:24px 24px 0; }
+  @media (min-width:640px) { .browse-head { padding:28px 32px 0; } }
+  .browse-head .eyebrow { font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--teal-700); }
+  .browse-head h3 { font-size:20px; font-weight:700; margin-top:4px; }
+  .browse-head p { margin:6px 0 0; font-size:13px; color:var(--slate-600); }
+  .browse-grid { padding:18px 24px 26px; display:grid; gap:14px; grid-template-columns:1fr; }
+  @media (min-width:560px) { .browse-grid { grid-template-columns:1fr 1fr; padding:18px 32px 30px; } }
+
+  /* ---------------- catalog card (mirrors CatalogCard.tsx) --------------- */
+  .card {
+    display:flex; flex-direction:column; height:100%; background:#fff;
+    border:1px solid var(--slate-200); border-radius:16px; padding:10px; box-shadow:var(--shadow-sm);
+    transition: box-shadow .16s, border-color .16s, transform .16s;
+  }
+  .card:hover { border-color:var(--teal-400); box-shadow:var(--shadow-lg); transform:translateY(-2px); }
+  .card.chosen { border-color:var(--teal-500); box-shadow:0 0 0 3px var(--teal-50), var(--shadow-lg); }
+  .card .cover-btn { display:block; width:100%; border:0; background:transparent; padding:0; border-radius:12px; }
+  .card .cover { position:relative; overflow:hidden; border-radius:12px; }
+  .card .cover img, .card .cover .ph { display:block; width:100%; aspect-ratio:4/3; object-fit:cover; }
+  .card .cover .badge {
+    position:absolute; left:10px; top:10px; background:rgba(255,255,255,.95); color:var(--teal-800);
+    font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:999px; box-shadow:var(--shadow-sm);
+  }
+  .card .cover .chosen-chip {
+    position:absolute; right:10px; top:10px; background:var(--teal-700); color:#fff;
+    font-size:10.5px; font-weight:800; padding:4px 9px; border-radius:999px;
+    display:inline-flex; align-items:center; gap:5px;
+  }
+  .card-body { display:flex; flex-direction:column; flex:1 1 auto; padding:14px 8px 0; }
+  .card-body h4 { font-size:16px; font-weight:700; line-height:1.3; }
+  .card-body h4 button { border:0; background:transparent; padding:0; text-align:left; font:inherit; }
+  .card-body h4 button:hover { color:var(--teal-800); }
+  .card-body .sum { margin:4px 0 0; font-size:13px; line-height:1.55; color:var(--slate-600); }
+  .metas { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .metas span { background:var(--slate-100); color:var(--slate-600); font-size:10.5px; font-weight:500; padding:2px 6px; border-radius:6px; }
+  .ticks { list-style:none; margin:12px 0 0; padding:12px 0 0; border-top:1px solid var(--slate-100);
+           display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; }
+  .ticks li { display:flex; gap:6px; font-size:11.5px; line-height:1.35; color:var(--slate-600); }
+  .ticks li .tk { color:var(--teal-600); font-weight:800; flex:0 0 auto; }
+  .price { margin-top:auto; padding-top:14px; display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 6px; }
+  .price .amt { font-family:var(--display); font-size:18px; font-weight:700; }
+  .price .was { font-size:12px; color:var(--slate-500); text-decoration:line-through; }
+  .price .save { background:var(--teal-50); color:var(--teal-800); font-size:10.5px; font-weight:700; padding:2px 6px; border-radius:5px; }
+  .price .unit { font-size:11.5px; color:var(--slate-500); }
+  .card-acts { display:flex; flex-direction:column; gap:6px; padding:12px 8px 6px; }
+  .btn-choose {
+    border:0; border-radius:12px; background:var(--teal-700); color:#fff; font-weight:800; font-size:13.5px;
+    padding:11px 16px; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  }
+  .btn-choose:hover { background:var(--teal-800); }
+  .btn-choose[aria-pressed="true"] { background:var(--slate-900); }
+  .btn-details { border:0; background:transparent; color:var(--teal-700); font-size:12px; font-weight:700; padding:6px 10px; border-radius:9px; }
+  .btn-details:hover { background:var(--teal-50); }
+
+  /* ---------------- detail view (mirrors CatalogDialogHeader) ------------- */
+  .detail-cover img, .detail-cover .ph { display:block; width:100%; aspect-ratio:16/9; object-fit:cover; }
+  .detail-band { padding:20px 24px 0; }
+  @media (min-width:640px) { .detail-band { padding:20px 32px 0; } }
+  .detail-band .eyebrow { font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--teal-700); }
+  .detail-band .badge-amber { display:inline-block; background:var(--amber-50); color:var(--amber-800); border:1px solid var(--amber-200);
+                              font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; }
+  .detail-band h3 { font-size:22px; font-weight:700; margin-top:6px; }
+  .detail-band .sub { margin:6px 0 0; font-size:13.5px; color:var(--slate-600); line-height:1.6; }
+  .rule { height:1px; background:var(--slate-100); margin:20px 24px 0; }
+  @media (min-width:640px) { .rule { margin:20px 32px 0; } }
+  .detail-body { padding:22px 24px 26px; }
+  @media (min-width:640px) { .detail-body { padding:24px 32px 30px; } }
+  .tiles { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 20px; }
+  @media (min-width:560px) { .tiles { grid-template-columns:repeat(3,1fr); } }
+  .tiles div { background:var(--slate-50); border:1px solid var(--slate-200); border-radius:12px; padding:11px 12px; }
+  .tiles dt { font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--slate-500); }
+  .tiles dd { margin:3px 0 0; font-size:13.5px; font-weight:700; color:var(--slate-900); }
+  .detail-body h5 { font-family:var(--display); font-size:14.5px; font-weight:700; margin:0 0 7px; }
+  .detail-body .prose { font-size:13.5px; line-height:1.65; color:var(--slate-600); margin:0 0 20px; }
+  .detail-ticks { list-style:none; margin:0 0 22px; padding:0; display:grid; gap:8px; }
+  @media (min-width:560px) { .detail-ticks { grid-template-columns:1fr 1fr; } }
+  .detail-ticks li { display:flex; gap:8px; font-size:13px; color:var(--slate-700); }
+  .detail-ticks li .tk { color:var(--teal-600); font-weight:800; }
+  .detail-acts { display:flex; flex-direction:column-reverse; gap:10px; }
+  @media (min-width:560px) { .detail-acts { flex-direction:row; align-items:center; } }
+  .detail-acts .btn-choose { flex:1 1 auto; padding:13px 18px; }
+  .btn-back { border:1px solid var(--slate-300); background:#fff; border-radius:12px; padding:12px 16px;
+              font-size:13px; font-weight:700; color:var(--slate-700); white-space:nowrap; }
+  .btn-back:hover { border-color:var(--teal-400); color:var(--teal-800); background:var(--teal-50); }
+
+  /* ---------------- notes ------------------------------------------------ */
+  .notes { margin-top:30px; background:#fff; border:1px solid var(--slate-200); border-radius:18px; padding:20px 22px; box-shadow:var(--shadow-sm); }
+  .notes h3 { font-size:15px; font-weight:700; margin-bottom:4px; }
+  .notes > p { margin:0 0 14px; font-size:12.5px; color:var(--slate-500); }
+  .notes ol { margin:0; padding-left:20px; display:grid; gap:9px; }
+  .notes li { font-size:13px; color:var(--slate-700); line-height:1.6; }
+  .notes li b { color:var(--slate-900); }
+  .notes code { background:var(--slate-100); padding:1px 5px; border-radius:5px; font-size:12px; }
+
+  .pincode-row { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+  .pincode-row label { flex:1 1 160px; }
+  .pincode-row input { width:100%; padding:12px; border-radius:12px; border:1px solid var(--slate-300); font-size:14px; }
+  .btn-dark { border:0; border-radius:12px; background:var(--slate-800); color:#fff; font-weight:800; font-size:13px; padding:13px 20px; }
+  .ok-box { background:var(--teal-50); border-radius:12px; padding:12px 14px; font-size:13px; color:var(--teal-800); }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<div class="proto-bar">
+  <span class="mark">MR</span>
+  <h1>Public booking &mdash; service picker</h1>
+  <span class="tag">Prototype</span>
+  <p>Clickable mock. Not the app &mdash; no data, no payment. Covers are generated SVGs so the focal point is real.</p>
+</div>
+
+<div class="wrap">
+
+  <div class="switchbar">
+    <span class="seg-label">Wizard</span>
+    <div class="seg" role="group" aria-label="Which wizard">
+      <button type="button" id="tab-online" aria-pressed="true">Online &mdash; /book</button>
+      <button type="button" id="tab-home" aria-pressed="false">Home visit &mdash; /book-home-visit</button>
+    </div>
+
+    <span class="seg-label" id="variant-label">Bookable visits on offer</span>
+    <div class="seg" role="group" aria-label="How many bookable visits exist" id="variant-seg" hidden>
+      <button type="button" id="var-one" aria-pressed="true">One</button>
+      <button type="button" id="var-many" aria-pressed="false">Three</button>
+    </div>
+  </div>
+
+  <div class="stage two">
+    <div class="stage-col">
+      <div class="cap now"><span class="dot"></span><span id="cap-before">Today &mdash; native dropdown, Step 2</span></div>
+      <div id="before-host"></div>
+    </div>
+    <div class="stage-col">
+      <div class="cap next"><span class="dot"></span><span id="cap-after">Proposed &mdash; service first, Step 1</span></div>
+      <div id="after-host"></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>Why it is shaped like this</h3>
+    <p>Each of these is a decision, not a detail. They are the things worth arguing with before any of it is built.</p>
+    <ol>
+      <li><b>Service is chosen first, not third.</b> Today the patient picks a date, an hour and a language while the wizard header reads &ldquo;pricing shown once you pick a concern&rdquo;. The price and the session length only arrive a step later &mdash; and the session length is what decides whether their chosen slot clashes with anything. Choosing the service first means the header is honest from the first screen.</li>
+      <li><b>One dialog, two views, never two stacked dialogs.</b> <i>View details</i> swaps the dialog&rsquo;s contents and offers <i>&larr; Back to all services</i>. Two reasons: the app&rsquo;s public dialog is not portalled and applies a backdrop blur, so a second dialog opened inside it would be positioned against the first panel&rsquo;s box rather than the screen; and two stacked sheets leave a reader unsure which Escape closes what.</li>
+      <li><b>The card is the one the rest of the app already uses.</b> Same component as <code>/conditions</code>, <code>/home-visit</code> and the patient dashboard&rsquo;s own booking screen &mdash; it gains a &ldquo;choose&rdquo; mode rather than being copied. Two cards is how two screens grow two ideas of what a service looks like.</li>
+      <li><b>A photograph is positioned, not cropped.</b> The card frame is 4:3 and the detail frame is 16:9, so one baked crop cannot serve both. &ldquo;Post-Surgery Rehab&rdquo; here is positioned at 75%&nbsp;30% &mdash; open its details and the subject stays in frame in both shapes.</li>
+      <li><b>No photograph is a designed state.</b> &ldquo;Paediatric Physiotherapy&rdquo; has no cover: it draws the same tinted panel at the same height, so the card reads as a photo not yet chosen rather than a photo that failed to load.</li>
+      <li><b>Nothing multi-session appears here.</b> A course of treatment comes from a recommendation a therapist wrote after a session they ran, so the picker offers single sessions and single visits only. Showing programmes would be a price list a patient cannot buy from.</li>
+      <li><b>With one bookable visit there is no picker at all.</b> The home-visit flow shows it as already chosen, with its photograph and price and a details link. Today that dropdown is hidden entirely and the patient never sees what they bought. Switch the toggle above to <i>Three</i> for the other shape.</li>
+      <li><b>The visit is chosen above the pincode, not below it.</b> The &ldquo;yes, we visit you&rdquo; message has to say whether travel is charged on top, and that depends on which visit was chosen &mdash; so the choice has to come first. Pick each visit in turn and watch that sentence change.</li>
+      <li><b>Continue appears once the service is chosen</b>, exactly as this screen already waits for a date, an hour and a language before offering it. No dead button and no browser tooltip &mdash; the app has never let a browser default speak to a patient.</li>
+      <li><b>A deep link still lands chosen.</b> Arriving from <code>/conditions</code> or the dashboard on <code>/book?category=&hellip;</code> opens Step 1 with that service already in the slot &mdash; and still never guesses one when the link names none.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- one dialog, reused; view swapped -->
+<div class="backdrop" id="backdrop" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="dialog-title" id="panel" tabindex="-1">
+    <button type="button" class="panel-x" id="panel-x" aria-label="Close">&#10005;</button>
+    <div id="dialog-content"></div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ * Cover photographs, generated.
+ *
+ * Real files in the app; here an inline SVG so the prototype needs no
+ * network and so `object-position` is genuinely being exercised. The
+ * "subject" sits off-centre on purpose, which is the whole reason the
+ * focal point exists.
+ * ------------------------------------------------------------------ */
+function photo(topHue, bottomHue, subjectX) {
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">' +
+      '<defs>' +
+        '<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0" stop-color="hsl(' + topHue + ',52%,72%)"/>' +
+          '<stop offset="1" stop-color="hsl(' + bottomHue + ',44%,42%)"/>' +
+        '</linearGradient>' +
+        '<linearGradient id="fl" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0" stop-color="rgba(255,255,255,.22)"/>' +
+          '<stop offset="1" stop-color="rgba(255,255,255,.05)"/>' +
+        '</linearGradient>' +
+      '</defs>' +
+      '<rect width="800" height="600" fill="url(#bg)"/>' +
+      '<circle cx="640" cy="120" r="78" fill="rgba(255,255,255,.20)"/>' +
+      '<rect y="430" width="800" height="170" fill="url(#fl)"/>' +
+      /* a seated figure with a laptop, roughly */
+      '<g transform="translate(' + subjectX + ',0)" fill="rgba(15,23,42,.42)">' +
+        '<circle cx="0" cy="250" r="58"/>' +
+        '<path d="M-104 470c0-70 47-122 104-122s104 52 104 122z"/>' +
+        '<rect x="-128" y="452" width="256" height="20" rx="7" fill="rgba(15,23,42,.55)"/>' +
+        '<path d="M-96 452l26-92h140l26 92z" fill="rgba(248,250,252,.82)"/>' +
+      '</g>' +
+      '<rect width="800" height="600" fill="none"/>' +
+    '</svg>';
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+/* The placeholder, matching the app's own no-cover state: same height,
+   tinted panel, a deliberate glyph. Never an empty box. */
+function placeholderHtml(aspect) {
+  /* A span rather than a div: one of these renders inside the cover
+     button, and a block element inside a span inside a button is not
+     valid content. */
+  return '<span class="ph" aria-hidden="true" style="aspect-ratio:' + aspect +
+    ';display:flex;align-items:center;justify-content:center;' +
+    'background:linear-gradient(135deg,#f0fdfa,#f0fdfaaa 55%,#ecfdf5)">' +
+    '<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="1.6" ' +
+    'stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg></span>';
+}
+
+const rupees = (p) => '₹' + Math.round(p / 100).toLocaleString('en-IN');
+
+/* ------------------------------------------------------------------ *
+ * Sample catalogue. Field names mirror the real rows so the mapping is
+ * obvious: treatment_categories for online, home_visit_packages for
+ * home visits.
+ * ------------------------------------------------------------------ */
+const ONLINE = [
+  { id:'c1', title:'Back & Neck Pain', summary:'Desk-related stiffness, disc pain and sciatica, assessed over video.',
+    imageUrl: photo(186, 196, 300), focalX:50, focalY:50, pricePaise:120000, durationMinutes:45,
+    points:['Posture screening','Home exercise plan','Pain diary review','Follow-up cadence'],
+    about:'A 45-minute assessment of how you move, where the pain sits and what sets it off. You finish the call with a written plan you can start the same day.',
+    badge:null },
+  { id:'c2', title:'Knee & Joint Pain', summary:'Arthritis, ligament strain and joint stiffness, with a loading plan.',
+    imageUrl: photo(168, 178, 430), focalX:50, focalY:50, pricePaise:120000, durationMinutes:45,
+    points:['Range-of-motion tests','Strength baseline','Load progression','Footwear advice'],
+    about:'We test what the joint will take today and build up from there. Most people leave with three exercises, not thirty.',
+    badge:null },
+  { id:'c3', title:'Post-Surgery Rehab', summary:'Structured recovery after a knee, hip, shoulder or spinal procedure.',
+    imageUrl: photo(202, 214, 560), focalX:75, focalY:30, pricePaise:150000, durationMinutes:60,
+    points:['Surgeon protocol check','Scar and swelling care','Milestone tracking','Return-to-work plan'],
+    about:'An hour, because a post-operative assessment is not a short conversation. We read your surgeon’s protocol first and work inside it.',
+    badge:'Most booked' },
+  { id:'c4', title:'Sports Injury', summary:'Sprains, overuse and return-to-play decisions for active people.',
+    imageUrl: photo(148, 160, 250), focalX:50, focalY:50, pricePaise:120000, durationMinutes:45,
+    points:['Mechanism review','Graded return plan','Taping guidance','Re-injury screening'],
+    about:'Built around getting you back to the thing you actually do, with a date attached rather than “when it feels better”.',
+    badge:null },
+  { id:'c5', title:'Neurological Rehab', summary:'Stroke, Parkinson’s and nerve-injury recovery, paced to you.',
+    imageUrl: photo(258, 268, 470), focalX:50, focalY:50, pricePaise:160000, durationMinutes:60,
+    points:['Balance and gait','Caregiver guidance','Fatigue management','Progress markers'],
+    about:'A full hour with a neuro-trained clinician, and a plan written so that whoever helps you at home can follow it too.',
+    badge:null },
+  { id:'c6', title:'Paediatric Physiotherapy', summary:'Development, posture and movement for children, with a caregiver present.',
+    imageUrl: null, focalX:50, focalY:50, pricePaise:100000, durationMinutes:45,
+    points:['Milestone screening','Play-based exercises','School posture','Caregiver coaching'],
+    about:'Led gently and at the child’s pace, with whoever cares for them on the call. This one has no photograph yet — the card is designed for that.',
+    badge:null }
+];
+
+const HOME_ALL = [
+  { id:'h1', title:'Single Home Visit', summary:'One therapist, one hour, at your address.',
+    imageUrl: photo(174, 186, 360), focalX:50, focalY:50, pricePaise:180000, comparePaise:null,
+    visitCount:1, durationMinutes:60, travelIncluded:false, validityDays:30, therapistLocked:true,
+    points:['Assessment at home','Equipment check','Written plan','Caregiver briefing'],
+    about:'The usual first visit. A therapist comes to you, assesses you where you actually move, and leaves a plan behind.',
+    badge:null },
+  { id:'h2', title:'Home Assessment Visit', summary:'A longer first visit with travel already covered.',
+    imageUrl: photo(196, 208, 470), focalX:50, focalY:50, pricePaise:220000, comparePaise:250000,
+    visitCount:1, durationMinutes:75, travelIncluded:true, validityDays:45, therapistLocked:true,
+    points:['Room-by-room review','Fall-risk screening','Equipment list','Written plan'],
+    about:'Seventy-five minutes, and the advertised price already covers the journey — nothing is added at checkout for your area.',
+    badge:'Travel included' },
+  { id:'h3', title:'First Visit & Report', summary:'A home visit plus a written report for your doctor.',
+    imageUrl: photo(210, 222, 300), focalX:50, focalY:50, pricePaise:250000, comparePaise:null,
+    visitCount:1, durationMinutes:75, travelIncluded:false, validityDays:45, therapistLocked:true,
+    points:['Full assessment','Typed clinical report','Shared with your doctor','Written plan'],
+    about:'For when somebody else needs the findings in writing — a consultant, an insurer, a school.',
+    badge:null }
+];
+
+/* ------------------------------------------------------------------ *
+ * State
+ * ------------------------------------------------------------------ */
+const state = {
+  wizard: 'online',         // 'online' | 'home'
+  homeCount: 1,             // 1 or 3 bookable visits on offer
+  chosenOnline: null,       // id
+  chosenHome: 'h1',         // home visit defaults to the first, as today
+  dateKey: '2026-10-06',
+  hour: 17,
+  language: 'English',
+  areaChecked: false,
+  dialog: null              // null | { view:'browse'|'detail', id }
+};
+
+const homeOptions = () => state.homeCount === 1 ? HOME_ALL.slice(0, 1) : HOME_ALL;
+const options     = () => state.wizard === 'online' ? ONLINE : homeOptions();
+const chosenId    = () => state.wizard === 'online' ? state.chosenOnline : state.chosenHome;
+const chosen      = () => options().find((o) => o.id === chosenId()) || null;
+
+/* ------------------------------------------------------------------ *
+ * Fragments
+ * ------------------------------------------------------------------ */
+function coverHtml(o, aspect) {
+  if (!o.imageUrl) return placeholderHtml(aspect);
+  return '<img src="' + o.imageUrl + '" alt="" style="aspect-ratio:' + aspect +
+         ';object-position:' + o.focalX + '% ' + o.focalY + '%">';
+}
+
+function priceUnit(o) {
+  return state.wizard === 'online'
+    ? '/ ' + o.durationMinutes + ' min session'
+    : '/ visit';
+}
+
+function metaChips(o) {
+  if (state.wizard === 'online') {
+    return [o.durationMinutes + ' min', 'Video session', '1-on-1'];
+  }
+  return [
+    o.visitCount === 1 ? '1 visit' : o.visitCount + ' visits',
+    o.durationMinutes + ' min',
+    o.travelIncluded ? 'Travel included' : 'Travel added'
+  ];
+}
+
+function cardHtml(o) {
+  const isChosen = o.id === chosenId();
+  const save = (o.comparePaise && o.comparePaise > o.pricePaise) ? o.comparePaise - o.pricePaise : 0;
+  return '' +
+    '<article class="card' + (isChosen ? ' chosen' : '') + '">' +
+      '<button type="button" class="cover-btn" data-details="' + o.id + '" aria-haspopup="dialog" ' +
+              'aria-label="View full details for ' + o.title + '">' +
+        '<span class="cover" style="display:block">' +
+          coverHtml(o, '4/3') +
+          (o.badge ? '<span class="badge">' + o.badge + '</span>' : '') +
+          (isChosen ? '<span class="chosen-chip">&#10003; Chosen</span>' : '') +
+        '</span>' +
+      '</button>' +
+      '<div class="card-body">' +
+        '<h4><button type="button" data-details="' + o.id + '" aria-haspopup="dialog">' + o.title + '</button></h4>' +
+        '<p class="sum">' + o.summary + '</p>' +
+        '<div class="metas">' + metaChips(o).map((m) => '<span>' + m + '</span>').join('') + '</div>' +
+        '<ul class="ticks">' + o.points.slice(0, 4).map((p) =>
+          '<li><span class="tk">&#10003;</span>' + p + '</li>').join('') + '</ul>' +
+        '<div class="price">' +
+          '<span class="amt">' + rupees(o.pricePaise) + '</span>' +
+          (o.comparePaise && o.comparePaise > o.pricePaise ? '<span class="was">' + rupees(o.comparePaise) + '</span>' : '') +
+          (save > 0 ? '<span class="save">Save ' + rupees(save) + '</span>' : '') +
+          '<span class="unit">' + priceUnit(o) + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card-acts">' +
+        '<button type="button" class="btn-choose" data-choose="' + o.id + '" aria-pressed="' + isChosen + '">' +
+          (isChosen ? '&#10003; Chosen' : (state.wizard === 'online' ? 'Choose this session' : 'Choose this visit')) +
+        '</button>' +
+        '<button type="button" class="btn-details" data-details="' + o.id + '" aria-haspopup="dialog">' +
+          'View full details &rarr;</button>' +
+      '</div>' +
+    '</article>';
+}
+
+function browseHtml() {
+  const list = options();
+  const heading = state.wizard === 'online' ? 'What would you like help with?' : 'Which visit do you need?';
+  const sub = state.wizard === 'online'
+    ? list.length + ' consultations. Tap one to choose it, or read the full detail first.'
+    : list.length + ' visits available to book. A course of visits comes from your therapist after this one.';
+  return '' +
+    '<div class="browse-head">' +
+      '<span class="eyebrow">Step 1 &middot; your service</span>' +
+      '<h3 id="dialog-title">' + heading + '</h3>' +
+      '<p>' + sub + '</p>' +
+    '</div>' +
+    '<div class="browse-grid">' + list.map(cardHtml).join('') + '</div>';
+}
+
+function detailHtml(id) {
+  const o = options().find((x) => x.id === id);
+  if (!o) return browseHtml();
+  const isChosen = o.id === chosenId();
+  const tiles = state.wizard === 'online'
+    ? [['Session length', o.durationMinutes + ' minutes'],
+       ['Delivered', 'HD video call'],
+       ['Price', rupees(o.pricePaise)]]
+    : [['Visit length', o.durationMinutes + ' minutes'],
+       ['Travel', o.travelIncluded ? 'Included' : 'Added for your area'],
+       ['Book within', o.validityDays + ' days'],
+       ['Therapist', o.therapistLocked ? 'Same therapist throughout' : 'Whoever is free'],
+       ['Visits', o.visitCount === 1 ? '1 visit' : o.visitCount + ' visits'],
+       ['Price', rupees(o.pricePaise)]];
+  return '' +
+    '<div class="detail-cover">' + coverHtml(o, '16/9') + '</div>' +
+    '<div class="detail-band">' +
+      (o.badge ? '<span class="badge-amber">' + o.badge + '</span>'
+               : '<span class="eyebrow">' + (state.wizard === 'online' ? 'Video consultation' : 'Home visit') + '</span>') +
+      '<h3 id="dialog-title">' + o.title + '</h3>' +
+      '<p class="sub">' + o.summary + '</p>' +
+    '</div>' +
+    '<div class="rule"></div>' +
+    '<div class="detail-body">' +
+      '<dl class="tiles">' + tiles.map(([k, v]) =>
+        '<div><dt>' + k + '</dt><dd>' + v + '</dd></div>').join('') + '</dl>' +
+      '<h5>About this ' + (state.wizard === 'online' ? 'session' : 'visit') + '</h5>' +
+      '<p class="prose">' + o.about + '</p>' +
+      '<h5>What this covers</h5>' +
+      '<ul class="detail-ticks">' + o.points.map((p) =>
+        '<li><span class="tk">&#10003;</span>' + p + '</li>').join('') + '</ul>' +
+      '<div class="detail-acts">' +
+        '<button type="button" class="btn-back" data-back="1">&larr; Back to all services</button>' +
+        '<button type="button" class="btn-choose" data-choose="' + o.id + '" aria-pressed="' + isChosen + '">' +
+          (isChosen ? '&#10003; Chosen — close' : (state.wizard === 'online' ? 'Choose this session' : 'Choose this visit')) +
+        '</button>' +
+      '</div>' +
+    '</div>';
+}
+
+/* the service slot inside the wizard --------------------------------- */
+function slotHtml() {
+  const list = options();
+  const o = chosen();
+
+  if (list.length === 0) {
+    return '<p class="err">No services are available right now &mdash; please contact us directly to book.</p>';
+  }
+
+  /* One bookable visit: no picker. It is stated as already chosen, with
+     its photograph, its price and a way to read the detail. */
+  if (state.wizard === 'home' && list.length === 1) {
+    return '' +
+      '<div>' +
+        '<span class="field-label">Your visit</span>' +
+        '<div class="slot-chosen">' +
+          '<span class="thumb">' + coverHtml(o, '1/1') + '</span>' +
+          '<span class="mid">' +
+            '<span class="eyebrow">Home visit</span>' +
+            '<h4>' + o.title + '</h4>' +
+            '<span class="meta">' + rupees(o.pricePaise) + ' &middot; ' + o.durationMinutes + ' min &middot; ' +
+              (o.travelIncluded ? 'travel included' : 'travel added for your area') + '</span>' +
+          '</span>' +
+          '<span class="acts">' +
+            '<button type="button" class="btn-quiet" data-details="' + o.id + '" aria-haspopup="dialog">View details</button>' +
+          '</span>' +
+        '</div>' +
+        '<p class="note-small" style="margin-top:6px">This is the only visit on offer today, so it is already chosen for you.</p>' +
+      '</div>';
+  }
+
+  if (!o) {
+    return '' +
+      '<div>' +
+        '<span class="field-label">' +
+          (state.wizard === 'online' ? 'What would you like help with?' : 'Which visit do you need?') +
+        '</span>' +
+        '<button type="button" class="slot-trigger" data-browse="1" aria-haspopup="dialog">' +
+          '<span class="glyph">' +
+            '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+            'stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>' +
+          '</span>' +
+          '<span>' +
+            '<span class="t">Choose your ' + (state.wizard === 'online' ? 'consultation' : 'visit') + '</span><br>' +
+            '<span class="s">' + list.length + ' to choose from, with prices and what each covers</span>' +
+          '</span>' +
+          '<span class="chev" aria-hidden="true">&rsaquo;</span>' +
+        '</button>' +
+      '</div>';
+  }
+
+  return '' +
+    '<div>' +
+      '<span class="field-label">' + (state.wizard === 'online' ? 'Your session' : 'Your visit') + '</span>' +
+      '<div class="slot-chosen">' +
+        '<span class="thumb">' + coverHtml(o, '1/1') + '</span>' +
+        '<span class="mid">' +
+          '<span class="eyebrow">' + (state.wizard === 'online' ? 'Video consultation' : 'Home visit') + '</span>' +
+          '<h4>' + o.title + '</h4>' +
+          '<span class="meta">' + rupees(o.pricePaise) + ' &middot; ' + o.durationMinutes + ' min' +
+            (state.wizard === 'home' ? ' &middot; ' + (o.travelIncluded ? 'travel included' : 'travel added') : '') +
+          '</span>' +
+        '</span>' +
+        '<span class="acts">' +
+          '<button type="button" class="btn-quiet" data-browse="1" aria-haspopup="dialog">Change</button>' +
+          '<button type="button" class="btn-link" data-details="' + o.id + '" aria-haspopup="dialog">View details</button>' +
+        '</span>' +
+      '</div>' +
+    '</div>';
+}
+
+/* ------------------------------------------------------------------ *
+ * The two wizard renders
+ * ------------------------------------------------------------------ */
+function calendarHtml() {
+  const cells = [];
+  for (let i = 0; i < 3; i++) cells.push('<button type="button" disabled>&nbsp;</button>');
+  for (let d = 1; d <= 18; d++) {
+    const key = '2026-10-' + String(d).padStart(2, '0');
+    const past = d < 4;
+    cells.push('<button type="button" ' + (past ? 'disabled' : 'data-date="' + key + '"') +
+      ' aria-pressed="' + (state.dateKey === key) + '">' + d + '</button>');
+  }
+  return '' +
+    '<div class="cal">' +
+      '<div class="cal-top"><span>October 2026</span><span class="note-small">Times in Asia/Kolkata</span></div>' +
+      '<div class="cal-grid">' +
+        ['S','M','T','W','T','F','S'].map((d) => '<span class="dow">' + d + '</span>').join('') +
+        cells.join('') +
+      '</div>' +
+    '</div>';
+}
+
+function hoursHtml() {
+  const hours = [9, 10, 11, 15, 16, 17, 18, 19];
+  return '<div class="chips">' + hours.map((h) => {
+    const label = (h % 12 || 12) + ':00 ' + (h < 12 ? 'AM' : 'PM');
+    return '<button type="button" data-hour="' + h + '" aria-pressed="' + (state.hour === h) + '">' + label + '</button>';
+  }).join('') + '</div>';
+}
+
+function languagesHtml() {
+  return '<div class="chips">' + ['English', 'Hindi', 'Tamil'].map((l) =>
+    '<button type="button" data-lang="' + l + '" aria-pressed="' + (state.language === l) + '">' + l + '</button>'
+  ).join('') + '</div>';
+}
+
+function headerHtml(stepLabel, priceLine) {
+  const title = state.wizard === 'online'
+    ? 'Book Virtual Physical Therapy Session'
+    : 'Book a Home Visit';
+  return '' +
+    '<div class="wizard-head">' +
+      '<span class="eyebrow">' + stepLabel + '</span>' +
+      '<h2>' + title + '</h2>' +
+      '<p>' + priceLine + '</p>' +
+    '</div>';
+}
+
+/* --- BEFORE: how it renders today --------------------------------- */
+function renderBefore() {
+  const host = document.getElementById('before-host');
+
+  if (state.wizard === 'online') {
+    host.innerHTML = '' +
+      '<div class="wizard">' +
+        headerHtml('Step 1 of 3',
+          'HD Video Call &amp; Custom Rehab Plan - pricing shown once you pick a concern') +
+        '<div class="wizard-body">' +
+          '<div class="tzstrip"><span class="ico">&#127760;</span>Times shown in <strong>Asia/Kolkata</strong> timezone - detected automatically</div>' +
+          '<div><span class="field-label">Preferred Date <span class="hint">(at least 12 hours from now)</span></span>' + calendarHtml() + '</div>' +
+          '<div><span class="field-label">Preferred Time</span>' + hoursHtml() + '</div>' +
+          '<div><span class="field-label">Preferred Language</span>' + languagesHtml() + '</div>' +
+          '<p class="note-small">This is your preferred time - we&rsquo;ll confirm the exact slot with you before the session.</p>' +
+          '<button type="button" class="primary">Continue to Medical Details &rarr;</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="wizard" style="margin-top:18px">' +
+        headerHtml('Step 2 of 3', 'HD Video Call &amp; Custom Rehab Plan - pricing shown once you pick a concern') +
+        '<div class="wizard-body">' +
+          '<p class="note-small">Name, email, password, phone and referral code sit above this &mdash; left out of the mock.</p>' +
+          '<div>' +
+            '<span class="field-label">What would you like help with?</span>' +
+            '<select class="native">' +
+              '<option>- Select what you need help with -</option>' +
+              ONLINE.map((o) => '<option>' + o.title + ' - ' + rupees(o.pricePaise) + ' / ' + o.durationMinutes + ' min</option>').join('') +
+            '</select>' +
+            '<p class="note-small" style="margin-top:8px">One line each. No photograph, no description, nothing that says what the session involves &mdash; and the date and time are already chosen by now.</p>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    return;
+  }
+
+  const one = state.homeCount === 1;
+  host.innerHTML = '' +
+    '<div class="wizard">' +
+      headerHtml('Step 1 of 4', 'A therapist comes to you') +
+      '<div class="wizard-body">' +
+        '<div><h3 style="font-size:17px">Where should we come?</h3>' +
+        '<p class="note-small" style="margin-top:4px">Start with your pincode - we&rsquo;ll check we can reach you before anything else.</p></div>' +
+        '<div class="pincode-row">' +
+          '<label><span class="field-label">Pincode</span><input value="600020" readonly></label>' +
+          '<button type="button" class="btn-dark">Check</button>' +
+        '</div>' +
+        '<div class="ok-box">&#10003; Yes - we visit Adyar, Chennai. Travel to this area is &#8377;150 per visit.' +
+          '<br><span class="note-small" style="color:var(--amber-900)">&mdash; and which package that sentence is about has not been asked yet.</span></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="wizard" style="margin-top:18px">' +
+      headerHtml('Step 3 of 4', 'A therapist comes to you') +
+      '<div class="wizard-body">' +
+        '<div><h3 style="font-size:17px">About you</h3></div>' +
+        (one
+          ? '<p class="err">With one sellable package the dropdown is not rendered at all. The patient reaches the payment screen without ever having seen what they are buying, or its photograph, or what it covers.</p>'
+          : '<div><span class="field-label">Package</span><select class="native">' +
+              HOME_ALL.map((p) => '<option>' + p.title + ' - 1 visit</option>').join('') +
+            '</select><p class="note-small" style="margin-top:8px">Title and visit count only &mdash; no price, no travel rule, no photograph.</p></div>') +
+        '<p class="note-small">Name, email, phone and notes sit below this &mdash; left out of the mock.</p>' +
+      '</div>' +
+    '</div>';
+}
+
+/* --- AFTER: the proposal ------------------------------------------ */
+function renderAfter() {
+  const host = document.getElementById('after-host');
+  const o = chosen();
+
+  if (state.wizard === 'online') {
+    const priceLine = o
+      ? rupees(o.pricePaise) + ' INR &bull; ' + o.durationMinutes + '-Min HD Video Call &amp; Custom Rehab Plan'
+      : 'HD Video Call &amp; Custom Rehab Plan - choose a consultation to see the price';
+    const ready = Boolean(o);
+    host.innerHTML = '' +
+      '<div class="wizard">' +
+        headerHtml('Step 1 of 3', priceLine) +
+        '<div class="wizard-body">' +
+          slotHtml() +
+          '<div class="tzstrip"><span class="ico">&#127760;</span>Times shown in <strong>Asia/Kolkata</strong> timezone - detected automatically</div>' +
+          '<div><span class="field-label">Preferred Date <span class="hint">(at least 12 hours from now)</span></span>' + calendarHtml() + '</div>' +
+          '<div><span class="field-label">Preferred Time</span>' + hoursHtml() + '</div>' +
+          '<div><span class="field-label">Preferred Language</span>' + languagesHtml() + '</div>' +
+          '<p class="note-small">This is your preferred time - we&rsquo;ll confirm the exact slot with you before the session.</p>' +
+          (ready
+            ? '<button type="button" class="primary" data-continue="1">Continue to Medical Details &rarr;</button>'
+            : '<p class="note-small" style="color:var(--teal-800);font-weight:600">' +
+              'Choose a consultation above and Continue appears &mdash; the same way this screen already waits ' +
+              'for a date, a time and a language.</p>') +
+          (ready
+            ? '<p class="note-small" style="margin-top:4px">On Step 2 and Step 3 it then sits as one quiet line, like this:</p>' +
+              '<div class="ro-line"><span class="thumb">' + coverHtml(o, '4/3') + '</span>' +
+              '<span class="txt">Booking a <strong>' + o.title + '</strong> &mdash; ' + rupees(o.pricePaise) +
+              ', ' + o.durationMinutes + ' min</span>' +
+              '<button type="button" class="btn-link" data-browse="1">Change</button></div>'
+            : '') +
+        '</div>' +
+      '</div>';
+    return;
+  }
+
+  /* home visit */
+  const travelLine = o
+    ? (o.travelIncluded
+        ? 'Travel is included in this visit’s price.'
+        : 'Travel to this area is ' + rupees(15000) + ' per visit, added at checkout.')
+    : '';
+  host.innerHTML = '' +
+    '<div class="wizard">' +
+      headerHtml('Step 1 of 4', o ? rupees(o.pricePaise) + ' INR &bull; ' + o.durationMinutes + '-minute visit at your address'
+                                  : 'A therapist comes to you') +
+      '<div class="wizard-body">' +
+        slotHtml() +
+        '<div><h3 style="font-size:17px">Where should we come?</h3>' +
+        '<p class="note-small" style="margin-top:4px">We&rsquo;ll check we can reach you before anything else.</p></div>' +
+        '<div class="pincode-row">' +
+          '<label><span class="field-label">Pincode</span><input value="600020" readonly></label>' +
+          '<button type="button" class="btn-dark" data-check="1">' + (state.areaChecked ? 'Checked' : 'Check') + '</button>' +
+        '</div>' +
+        (state.areaChecked
+          ? '<div class="ok-box">&#10003; Yes - we visit Adyar, Chennai. ' + travelLine +
+            '<br><span class="note-small" style="color:var(--teal-800)">This sentence depends on the visit chosen above &mdash; which is why the choice comes first.</span></div>'
+          : '<p class="note-small">Tap Check, then change the visit above and watch the travel sentence change with it.</p>') +
+        '<button type="button" class="primary" data-continue="1"' + (o && state.areaChecked ? '' : ' disabled') + '>Continue &rarr;</button>' +
+      '</div>' +
+    '</div>';
+}
+
+/* ------------------------------------------------------------------ *
+ * Dialog
+ * ------------------------------------------------------------------ */
+let lastFocused = null;
+
+function renderDialog() {
+  const backdrop = document.getElementById('backdrop');
+  const content = document.getElementById('dialog-content');
+  const x = document.getElementById('panel-x');
+
+  if (!state.dialog) {
+    backdrop.hidden = true;
+    document.body.style.overflow = '';
+    if (lastFocused && lastFocused.isConnected) lastFocused.focus();
+    lastFocused = null;
+    return;
+  }
+
+  const onDetail = state.dialog.view === 'detail';
+  content.innerHTML = onDetail ? detailHtml(state.dialog.id) : browseHtml();
+  x.className = 'panel-x' + (onDetail && options().find((o) => o.id === state.dialog.id)?.imageUrl ? ' on-dark' : '');
+  x.setAttribute('aria-label', onDetail ? 'Close service details' : 'Close service list');
+  backdrop.hidden = false;
+  document.body.style.overflow = 'hidden';
+  x.focus();
+}
+
+function openBrowse() {
+  lastFocused = document.activeElement;
+  state.dialog = { view: 'browse', id: null };
+  render();
+}
+function openDetail(id) {
+  if (!state.dialog) lastFocused = document.activeElement;
+  state.dialog = { view: 'detail', id };
+  render();
+}
+function closeDialog() { state.dialog = null; render(); }
+
+/* ------------------------------------------------------------------ *
+ * Render + events
+ * ------------------------------------------------------------------ */
+function render() {
+  document.getElementById('cap-before').textContent = state.wizard === 'online'
+    ? 'Today — native dropdown, Step 2'
+    : 'Today — ' + (state.homeCount === 1 ? 'no picker at all' : 'native dropdown, Step 3');
+  document.getElementById('cap-after').textContent = 'Proposed — service first, Step 1';
+  document.getElementById('variant-seg').hidden = state.wizard !== 'home';
+  document.getElementById('variant-label').hidden = state.wizard !== 'home';
+  renderBefore();
+  renderAfter();
+  renderDialog();
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-browse],[data-details],[data-choose],[data-back],[data-date],[data-hour],[data-lang],[data-continue],[data-check]');
+
+  if (e.target.closest('#panel-x')) { closeDialog(); return; }
+  if (e.target.id === 'backdrop') { closeDialog(); return; }
+  if (!t) return;
+
+  if (t.dataset.browse)   { openBrowse(); return; }
+  if (t.dataset.details)  { openDetail(t.dataset.details); return; }
+  if (t.dataset.back)     { state.dialog = { view: 'browse', id: null }; render(); return; }
+  if (t.dataset.choose) {
+    if (state.wizard === 'online') state.chosenOnline = t.dataset.choose;
+    else state.chosenHome = t.dataset.choose;
+    closeDialog();
+    return;
+  }
+  if (t.dataset.date)  { state.dateKey = t.dataset.date; render(); return; }
+  if (t.dataset.hour)  { state.hour = Number(t.dataset.hour); render(); return; }
+  if (t.dataset.lang)  { state.language = t.dataset.lang; render(); return; }
+  if (t.dataset.check) { state.areaChecked = true; render(); return; }
+  if (t.dataset.continue) {
+    if (!chosen()) return;
+    alert('In the app this moves to the next step. The prototype stops here.');
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.dialog) { e.stopPropagation(); closeDialog(); }
+});
+
+document.getElementById('tab-online').addEventListener('click', () => {
+  state.wizard = 'online';
+  document.getElementById('tab-online').setAttribute('aria-pressed', 'true');
+  document.getElementById('tab-home').setAttribute('aria-pressed', 'false');
+  state.dialog = null;
+  render();
+});
+document.getElementById('tab-home').addEventListener('click', () => {
+  state.wizard = 'home';
+  document.getElementById('tab-online').setAttribute('aria-pressed', 'false');
+  document.getElementById('tab-home').setAttribute('aria-pressed', 'true');
+  state.dialog = null;
+  render();
+});
+document.getElementById('var-one').addEventListener('click', () => {
+  state.homeCount = 1; state.chosenHome = 'h1';
+  document.getElementById('var-one').setAttribute('aria-pressed', 'true');
+  document.getElementById('var-many').setAttribute('aria-pressed', 'false');
+  state.dialog = null; render();
+});
+document.getElementById('var-many').addEventListener('click', () => {
+  state.homeCount = 3; state.chosenHome = 'h1';
+  document.getElementById('var-one').setAttribute('aria-pressed', 'false');
+  document.getElementById('var-many').setAttribute('aria-pressed', 'true');
+  state.dialog = null; render();
+});
+
+render();
+</script>
+</body>
+</html>
