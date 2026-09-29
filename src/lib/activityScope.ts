@@ -129,6 +129,7 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "credits.revive": "money",
   "session.mark_paid_cash": "money",
   "therapist.set_revenue_share": "money",
+  "therapist.set_home_visit_revenue_share": "money",
   "hospital.set_revenue_share": "money",
 
   // catalog

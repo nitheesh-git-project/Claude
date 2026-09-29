@@ -12,6 +12,7 @@ import {
   NO_ACCOUNT_REFERENCES,
   countAccountReferences,
   describeAccountBlockers,
+  describeRefusedDelete,
   type AccountReferences,
 } from "@/lib/accountDeletion";
 
@@ -87,6 +88,13 @@ const GROUP_BY_TABLE: Record<string, keyof AccountReferences> = {
   risk_reviews: "backOffice",
 
   patient_referrals: "referrals",
+
+  // Not a public table, and the commonest blocker there is: `storage.objects`
+  // references `auth.users(id)`, which is the row the delete actually removes.
+  // Every account that ever uploaded an avatar has rows here, which is exactly
+  // why this refusal was met on real accounts and never by the e2e fixtures.
+  "storage.objects": "files",
+  patient_medical_documents: "files",
 };
 
 /** The two columns on `profiles` itself, which point at different things and
@@ -104,11 +112,17 @@ type BlockingReference = {
 };
 
 function groupFor(row: BlockingReference): keyof AccountReferences {
-  // regclass prints a schema qualifier only where one is needed, so accept
-  // both shapes rather than assuming the bare name.
-  const table = row.source_table.replace(/^public\./, "");
+  // `account_blocking_references` returns the table schema-qualified now, so a
+  // name from another schema cannot collide with a public one and be described
+  // by the wrong word. `public.` is still stripped, because the map is written
+  // in the bare names the rest of this codebase uses.
+  const qualified = row.source_table;
+  const table = qualified.replace(/^public\./, "");
   return (
-    GROUP_BY_COLUMN[`${table}.${row.source_column}`] ?? GROUP_BY_TABLE[table] ?? "other"
+    GROUP_BY_COLUMN[`${table}.${row.source_column}`] ??
+    GROUP_BY_TABLE[qualified] ??
+    GROUP_BY_TABLE[table] ??
+    "other"
   );
 }
 
@@ -231,16 +245,65 @@ export async function POST(request: NextRequest) {
   // cascade off profiles in turn. Deleting the profile row alone would leave
   // a login with no profile behind it, which every guard in this app reads
   // as "not approved" rather than "gone".
-  const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
-  if (deleteError) {
-    // With the blockers counted from pg_constraint above, reaching here means
-    // something outside those foreign keys refused -- so it is worth a server
-    // log, which is the only place the reason can be read. GoTrue answers 500
-    // with an empty body for a Postgres refusal inside the cascade, so the
-    // object is often `{}`: that is exactly why the message to the admin says
-    // the database did not say why rather than inventing a cause.
-    console.error("auth.admin.deleteUser refused", userId, deleteError);
+  // Done through `admin_delete_account()` rather than `auth.admin.deleteUser`,
+  // which answers HTTP 500 with an **empty body** when Postgres refuses inside
+  // its cascade -- so the route had nothing to report and said "the database
+  // did not say why". That sentence is honest and useless: an admin cannot act
+  // on it. The function issues the same `delete from auth.users` as its owner
+  // and catches the violation, so whatever refused is named.
+  const { data: outcome, error: rpcError } = await admin.rpc("admin_delete_account", {
+    p_user_id: userId,
+  });
+  if (rpcError) {
+    console.error("admin_delete_account failed", userId, rpcError);
+    // A database the schema has not reached yet. Named rather than reported as
+    // a refusal, the precedent `saveWeeklySchedule` sets: "the database said
+    // no" and "this deployment has not run schema.sql" send somebody to two
+    // completely different places.
+    if (rpcError.code === "PGRST202" || rpcError.code === "42883") {
+      return NextResponse.json(
+        {
+          error:
+            "This database has not been updated yet, so deleting is switched off. Re-apply supabase/schema.sql, then try again. Suspend the account in the meantime.",
+          blocked: true,
+        },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: ACCOUNT_DELETE_REFUSED, blocked: true }, { status: 409 });
+  }
+
+  const result = (outcome ?? {}) as {
+    status?: string;
+    table?: string;
+    constraint?: string;
+    detail?: string;
+    message?: string;
+    sqlstate?: string;
+  };
+
+  if (result.status === "not_found") {
+    // Somebody else removed it between the read above and here. Not a failure.
+    return NextResponse.json({ error: ACCOUNT_ALREADY_GONE }, { status: 404 });
+  }
+
+  if (result.status === "blocked") {
+    console.error("admin_delete_account blocked", userId, result);
+    return NextResponse.json(
+      { error: describeRefusedDelete(result.table), blocked: true },
+      { status: 409 }
+    );
+  }
+
+  if (result.status !== "deleted") {
+    // A guard that raises its own sentence rather than violating a constraint
+    // -- the Master Admin check is one -- lands here. Its message is written
+    // for a person, so it is worth passing on.
+    console.error("admin_delete_account error", userId, result);
+    return NextResponse.json(
+      { error: result.message?.trim() || ACCOUNT_DELETE_REFUSED, blocked: true },
+      { status: 409 }
+    );
   }
 
   // "Removed nothing" and "removed it" must be distinguishable, the rule the
@@ -252,6 +315,10 @@ export async function POST(request: NextRequest) {
     .eq("id", userId)
     .maybeSingle();
   if (stillThere) {
+    // The one path that used to be silent. "Removed nothing" and "removed it"
+    // must stay distinguishable, and this one has no diagnosis behind it at
+    // all -- which is worth a log line of its own.
+    console.error("admin_delete_account reported success but the profile is still there", userId);
     return NextResponse.json({ error: ACCOUNT_DELETE_REFUSED, blocked: true }, { status: 409 });
   }
 

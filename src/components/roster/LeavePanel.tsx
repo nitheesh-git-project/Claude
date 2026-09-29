@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { StatusPill } from "@/components/dashboard/SurfaceCard";
 import { describeLeave } from "@/lib/availabilityRanges";
+import DateField from "@/components/system/DateField";
 
 // Leave, as its own thing rather than a fortnight of hourly exceptions.
 //
@@ -129,24 +130,25 @@ export default function LeavePanel({
               <label htmlFor="leave-from" className="block text-[11px] font-bold text-slate-700">
                 From (optional)
               </label>
-              <input
+              <DateField
                 id="leave-from"
-                type="date"
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="mt-1 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+                onChange={setFromDate}
+                ariaLabel="Leave from"
+                className="mt-1 w-40"
               />
             </div>
             <div>
               <label htmlFor="leave-to" className="block text-[11px] font-bold text-slate-700">
                 To (optional)
               </label>
-              <input
+              <DateField
                 id="leave-to"
-                type="date"
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="mt-1 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+                onChange={setToDate}
+                ariaLabel="Leave to"
+                minDateKey={fromDate || null}
+                className="mt-1 w-40"
               />
             </div>
             <div className="min-w-[12rem] flex-1">

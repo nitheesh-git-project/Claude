@@ -55,6 +55,7 @@ import { adminScreenHref } from "@/lib/adminNav";
 import { MONEY_TERMS } from "@/lib/moneyTerms";
 import { istDateKey } from "@/lib/formatSlotRange";
 import type { CsvColumn } from "@/lib/csvExport";
+import DateField from "@/components/system/DateField";
 
 // Business Health: the seven figures a bank, an investor or an accountant
 // asks for, over this clinic's own money.
@@ -650,24 +651,24 @@ export default function AdminBusinessHealthTab({
         subtitle="Every figure and chart on this screen reads these dates. Narrowing by therapist, condition or patient narrows the revenue side only - see the note on the profit card."
       >
         <div className="flex flex-wrap items-end gap-4 text-xs">
-          <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             <span className="font-semibold text-slate-500">From</span>
-            <input
-              type="date"
+            <DateField
               value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+              onChange={setFromDate}
+              ariaLabel="From date"
+              className="w-40"
             />
-          </label>
-          <label className="flex flex-col gap-1">
+          </div>
+          <div className="flex flex-col gap-1">
             <span className="font-semibold text-slate-500">To</span>
-            <input
-              type="date"
+            <DateField
               value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+              onChange={setToDate}
+              ariaLabel="To date"
+              className="w-40"
             />
-          </label>
+          </div>
           <div className="flex flex-wrap items-center gap-1.5">
             {[
               { label: "30d", days: 30 },

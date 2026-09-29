@@ -12,6 +12,7 @@ export default function OnboardHospitalForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sharePercent, setSharePercent] = useState("");
   const [result, setResult] = useState<{
     email: string;
     password: string;
@@ -44,12 +45,28 @@ export default function OnboardHospitalForm({
     setResult(data);
   }
 
+  const fieldCls = "w-full p-2 rounded-lg border border-slate-300";
+  const labelCls =
+    "block text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1";
+
+  const parsedShare = Number(sharePercent);
+  const companyPercent =
+    sharePercent.trim() !== "" && !Number.isNaN(parsedShare) && parsedShare >= 0 && parsedShare <= 100
+      ? 100 - parsedShare
+      : null;
+
   if (result) {
     return (
       <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 text-xs space-y-1.5">
-        <p className="font-bold text-teal-900">
-          Hospital account created - save these now, they won&apos;t be shown
-          again:
+        <p className="font-bold text-teal-900">Hospital account created.</p>
+        <p className="text-teal-800">
+          {/* It used to say "save these now, they won't be shown again", which
+              was true and was the defect: the password lived only in this
+              component's state, so one refresh lost it for good. The route
+              writes it to hospital_admin_notes now, and the partner's own card
+              shows it until they set their own. */}
+          The password stays readable on this partner&apos;s card under Partners
+          until they set their own, so closing this does not lose it.
         </p>
         <p>
           <span className="text-slate-500">Email:</span>{" "}
@@ -100,55 +117,68 @@ export default function OnboardHospitalForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-xs"
+      className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 text-xs"
     >
       {error && <p className="text-red-600">{error}</p>}
-      <label className="block">
-        <span className="block font-semibold mb-1">Contact Full Name</span>
-        <input
-          name="fullName"
-          defaultValue={lead.name}
-          required
-          className="w-full p-2 rounded-lg border border-slate-300"
-        />
-      </label>
-      <label className="block">
-        <span className="block font-semibold mb-1">Login Email</span>
-        <input
-          type="email"
-          name="email"
-          defaultValue={lead.email ?? ""}
-          required
-          className="w-full p-2 rounded-lg border border-slate-300"
-        />
-      </label>
-      <label className="block">
-        <span className="block font-semibold mb-1">Organization Name</span>
-        <input
-          name="organizationName"
-          defaultValue={lead.org_details ?? ""}
-          required
-          className="w-full p-2 rounded-lg border border-slate-300"
-        />
-      </label>
-      <label className="block">
-        <span className="block font-semibold mb-1">
-          Hospital&apos;s Revenue Share (%)
-          <span className="font-normal text-slate-500">
-            {" "}
-            - the rest goes to the company
+      {/* Two-up from `sm`, with the same uppercase field labels every other
+          admin form uses. Four full-width boxes stacked inside a lead card read
+          as an overflow of the card rather than as a form, which is what was
+          reported alongside the lead's own run-on details line. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className={labelCls}>Contact full name</span>
+          <input
+            name="fullName"
+            defaultValue={lead.name}
+            required
+            className={fieldCls}
+          />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Login email</span>
+          <input
+            type="email"
+            name="email"
+            defaultValue={lead.email ?? ""}
+            required
+            className={fieldCls}
+          />
+        </label>
+        <label className="block">
+          <span className={labelCls}>Organisation name</span>
+          <input
+            name="organizationName"
+            defaultValue={lead.org_details ?? ""}
+            required
+            className={fieldCls}
+          />
+          <span className="mt-1 block text-[11px] text-slate-500">
+            Prefilled from the enquiry - check it, since that box is free text.
           </span>
-        </span>
-        <input
-          type="number"
-          name="revenueSharePercent"
-          min={0}
-          max={100}
-          step="0.01"
-          required
-          className="w-full p-2 rounded-lg border border-slate-300"
-        />
-      </label>
+        </label>
+        <label className="block">
+          <span className={labelCls}>Hospital&apos;s revenue share (%)</span>
+          <input
+            type="number"
+            name="revenueSharePercent"
+            min={0}
+            max={100}
+            step="0.01"
+            required
+            value={sharePercent}
+            onChange={(e) => setSharePercent(e.target.value)}
+            className={fieldCls}
+          />
+          <span className="mt-1 block text-[11px] text-slate-500">
+            {/* The other half of the split, stated rather than left to be
+                worked out -- the same affordance TherapistRevenueShareForm
+                gives, on the one field here that decides money. */}
+            {companyPercent === null
+              ? "The rest goes to the clinic."
+              : `The clinic keeps ${companyPercent}%.`}
+          </span>
+        </label>
+      </div>
       <div className="flex gap-2">
         <button
           type="button"

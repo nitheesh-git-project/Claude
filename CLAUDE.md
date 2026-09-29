@@ -212,6 +212,17 @@ condition form's Order field take one letter and refuse the rest.
 the two treatment-category routes refuse an order that is not a whole
 number of 0 or more. Order itself now says what it decides: where the
 condition sits in the list, lowest first.
+**And a date is picked from the clinic's own calendar, everywhere.** The third
+of these, and the largest: twenty-eight `<input type="date">` and
+`datetime-local` boxes - every report filter, the promo window, a document's
+date, the roster's exceptions and leave - handed the choice to a panel the
+browser draws, which looks and reads differently on every browser and every
+phone. `DateField` (`src/components/system/DateField.tsx`) opens the app's one
+month grid instead: the same `BookingCalendar` that books a session, taught an
+optional `bounds` so it can offer a past date, with `src/lib/dateFieldValue.ts`
+emitting byte-for-byte what the native inputs emitted so no query, parse or
+route body changed. `src/components/DebugNav.tsx` is the one exemption, and
+`nativeDateInput.test.ts` walks `src/` for the next one.
 
 **A tap is acknowledged, and a screen already on the page is not fetched
 again.** Tapping a Today count used to be an ordinary link to
@@ -264,7 +275,14 @@ then refused with "did not say why". `account_blocking_references()` reads
 arrives. Underneath that sat a second fault: the Master Admin guard ran as
 its caller, and the caller for a delete is GoTrue's own role, which cannot
 read `profiles` -- so **no admin account could be deleted at all**. It is
-`security definer` now. See the account-deletion rules in `AGENTS.md`.
+`security definer` now. And a third: the counter asked about `profiles` while
+the delete removes the `auth.users` row, so anything pointing at **that** --
+`storage.objects.owner`, which every account with an uploaded avatar carries --
+refused while the screen reported nothing in the way, which is the "did not say
+why" sentence back again. It counts both tables now, uploaded files get their
+own word, and `admin_delete_account()` names the table and constraint that
+refused instead of handing back GoTrue's empty 500. See the account-deletion
+rules in `AGENTS.md`.
 
 **Marking an out-of-area request served offers to open the area.** The
 waitlist is demand the clinic turned away, and tapping *served* used to move
@@ -301,8 +319,17 @@ therapists rather than a calendar date and an eighteen-column grid. The
 storage model behind it is unchanged -- `src/lib/availabilityRanges.ts`
 converts between periods and the hour rows the tables have always held. The
 roster is the clinic's planning record; it does not filter the patient's
-booking picker, and availability never touches an appointment. See the
-"Nobody edits an hour" rule in `AGENTS.md`.
+booking picker, and availability never touches an appointment. It **reads both
+ways round**: Therapists, or a Day view answering "who is free on Thursday, and
+which of their hours are taken" - one date against every therapist, which
+nothing in the app joined before (`src/lib/rosterDay.ts`, composing the same
+`computeDayAvailability` rather than re-deriving it, and read-only like the rest
+of the roster). The schedule **opens read-only with an Edit button**, so reading
+somebody's hours and changing them are no longer one act. And a therapist who
+has never been saved asks for no compare-and-swap: a missing
+`therapist_schedule_state` row is `null`, not version `0`, which is what made
+the *first* save for every therapist answer "this schedule was changed by
+someone else". See the "Nobody edits an hour" rule in `AGENTS.md`.
 
 A therapist carries a **specialisation**, and it is a value rather than a
 sentence: the eight the clinic recognises live in

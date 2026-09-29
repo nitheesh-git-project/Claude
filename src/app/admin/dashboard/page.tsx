@@ -1669,27 +1669,41 @@ export default async function AdminDashboardPage({
               id: lead.id,
               group: lead.status,
               node: (
-              <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <p className="font-bold text-slate-900">{lead.name}</p>
-                    <p className="text-slate-500">{lead.phone}</p>
-                    <p className="text-slate-500">{lead.email}</p>
-                  </div>
+              <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-3">
+                <div className="flex items-start justify-between flex-wrap gap-2">
+                  <p className="font-bold text-slate-900">{lead.name}</p>
                   <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
                     {lead.status}
                   </span>
                 </div>
-                <p className="text-slate-600">
-                  <span className="text-slate-500">Source:</span> {lead.source}
+                {/* Each answer on its own labelled row, and the enquiry itself
+                    with its line breaks intact.
+                    
+                    `org_details` is written by a **textarea** on the public
+                    form, so somebody typing an organisation, a role and an
+                    official email on three lines had all three joined onto one
+                    with "Source:" in front of them -- the whole enquiry read as
+                    a single run-on sentence on the screen the clinic decides
+                    whether to onboard them from. `whitespace-pre-line` is what
+                    keeps what they typed. */}
+                <dl className="grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1.5">
+                  <dt className="font-semibold text-slate-500">Phone</dt>
+                  <dd className="text-slate-800">{lead.phone || "-"}</dd>
+                  <dt className="font-semibold text-slate-500">Email</dt>
+                  <dd className="text-slate-800 break-all">{lead.email || "-"}</dd>
+                  <dt className="font-semibold text-slate-500">Source</dt>
+                  <dd className="text-slate-800">{lead.source}</dd>
+                  <dt className="font-semibold text-slate-500">Received</dt>
+                  <dd className="text-slate-800">
+                    {formatClinicDateTimeWithZone(lead.created_at)}
+                  </dd>
                   {lead.org_details && (
                     <>
-                      {" "}
-                      - <span className="text-slate-500">Details:</span>{" "}
-                      {lead.org_details}
+                      <dt className="font-semibold text-slate-500">Details</dt>
+                      <dd className="whitespace-pre-line text-slate-800">{lead.org_details}</dd>
                     </>
                   )}
-                </p>
+                </dl>
                 {lead.status !== "onboarded" && (
                   <div className="flex items-center gap-3 flex-wrap">
                     <OnboardHospitalForm
@@ -1763,18 +1777,28 @@ export default async function AdminDashboardPage({
                           </span>
                         )}
                       </div>
-                      <p className="text-slate-500">
-                        {h.full_name} • {h.email}
-                      </p>
-                      {/* A partner's card carried no creation stamp at all,
-                          although the query has always selected the column --
-                          so "when did we onboard them" was answerable only
-                          from the audit log. Patients and therapists read
-                          theirs off the People directory, which has no
-                          Partners view. */}
-                      <p className="text-slate-500">
-                        Onboarded {formatClinicDateTimeWithZone(h.created_at)}
-                      </p>
+                      {/* Labelled rows rather than a run-on line. "Dr V.
+                          Sharma • dr.sharma@hospital.com" reads as one field
+                          somebody typed a bullet into, and the onboarding
+                          stamp had nothing naming it at all -- the same
+                          complaint the lead card above it answers.
+                          
+                          The creation stamp itself was missing entirely until
+                          now, although the query has always selected the
+                          column: "when did we onboard them" was answerable
+                          only from the audit log, since patients and
+                          therapists read theirs off the People directory and
+                          that has no Partners view. */}
+                      <dl className="mt-1 grid grid-cols-[5rem_1fr] gap-x-3 gap-y-1">
+                        <dt className="font-semibold text-slate-500">Contact</dt>
+                        <dd className="text-slate-800">{h.full_name ?? "-"}</dd>
+                        <dt className="font-semibold text-slate-500">Email</dt>
+                        <dd className="text-slate-800 break-all">{h.email ?? "-"}</dd>
+                        <dt className="font-semibold text-slate-500">Onboarded</dt>
+                        <dd className="text-slate-800">
+                          {formatClinicDateTimeWithZone(h.created_at)}
+                        </dd>
+                      </dl>
                     </div>
                     <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
                       {h.referral_code}

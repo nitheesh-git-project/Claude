@@ -21,6 +21,7 @@ import {
   type MarketingChannel,
   type RunRateBasis,
 } from "@/lib/financeMetrics";
+import DateField from "@/components/system/DateField";
 
 // Your Numbers: the four things Business Health cannot work out on its own.
 //
@@ -181,6 +182,18 @@ function InvestmentsPanel({
     e.preventDefault();
     setError(null);
 
+    // The `required` attribute went with the native date box -- a button
+    // cannot carry one -- so each date is checked here instead, and answers
+    // in the clinic's own words rather than the browser's.
+    if (!investedOn) {
+      setError("Pick the date you bought it.");
+      return;
+    }
+    if (presentValue.trim() !== "" && !valuedOn) {
+      setError("Pick the date that value was true on.");
+      return;
+    }
+
     const amountPaise = rupeesToPaise(amount);
     if (amountPaise === null || amountPaise <= 0) {
       setError("Enter what it cost, as a number greater than zero.");
@@ -279,16 +292,17 @@ function InvestmentsPanel({
             className="rounded-lg border border-slate-300 px-2.5 py-1.5"
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs">
+        <div className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Date you bought it</span>
-          <input
-            type="date"
-            required
+          {/* `required` went with the native input -- a button cannot carry
+              one -- so submit() refuses a blank in the clinic's own words. */}
+          <DateField
             value={investedOn}
-            onChange={(e) => setInvestedOn(e.target.value)}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+            onChange={setInvestedOn}
+            ariaLabel="Date you bought it"
+            clearable={false}
           />
-        </label>
+        </div>
         <label className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">What it cost (₹)</span>
           <input
@@ -313,16 +327,15 @@ function InvestmentsPanel({
           />
         </label>
         {presentValue.trim() !== "" && (
-          <label className="flex flex-col gap-1 text-xs">
+          <div className="flex flex-col gap-1 text-xs">
             <span className="font-semibold text-slate-500">Valued on</span>
-            <input
-              type="date"
-              required
+            <DateField
               value={valuedOn}
-              onChange={(e) => setValuedOn(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+              onChange={setValuedOn}
+              ariaLabel="Valued on"
+              clearable={false}
             />
-          </label>
+          </div>
         )}
         <label className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Life (months, optional)</span>
@@ -513,6 +526,11 @@ function CampaignsPanel({
     e.preventDefault();
     setError(null);
 
+    if (!startsOn) {
+      setError("Pick the date the campaign started.");
+      return;
+    }
+
     const spendPaise = rupeesToPaise(spend);
     if (spendPaise === null) {
       setError("Enter what it cost, as a number.");
@@ -641,25 +659,28 @@ function CampaignsPanel({
             className="rounded-lg border border-slate-300 px-2.5 py-1.5"
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs">
+        <div className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Started</span>
-          <input
-            type="date"
-            required
+          {/* `required` went with the native input -- a button cannot carry
+              one -- so submit() refuses a blank in the clinic's own words. */}
+          <DateField
             value={startsOn}
-            onChange={(e) => setStartsOn(e.target.value)}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+            onChange={setStartsOn}
+            ariaLabel="Started"
+            clearable={false}
           />
-        </label>
-        <label className="flex flex-col gap-1 text-xs">
+        </div>
+        <div className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Ended (empty = still running)</span>
-          <input
-            type="date"
+          {/* Clearable, unlike the dates above it: empty is a real answer here
+              and means the campaign is still running. */}
+          <DateField
             value={endsOn}
-            onChange={(e) => setEndsOn(e.target.value)}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+            onChange={setEndsOn}
+            ariaLabel="Campaign end date"
+            placeholder="Still running"
           />
-        </label>
+        </div>
         <label className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Traced by promo code</span>
           <select
@@ -837,6 +858,10 @@ function BalancePanel({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!asOf) {
+      setError("Pick the date this snapshot is true as of.");
+      return;
+    }
     const amountPaise = rupeesToPaise(amount);
     if (amountPaise === null) {
       setError("Enter the amount as a number. Never a minus - the side says which way it points.");
@@ -913,16 +938,17 @@ function BalancePanel({
       </div>
 
       <form onSubmit={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="flex flex-col gap-1 text-xs">
+        <div className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">True as of</span>
-          <input
-            type="date"
-            required
+          {/* `required` went with the native input -- a button cannot carry
+              one -- so submit() refuses a blank in the clinic's own words. */}
+          <DateField
             value={asOf}
-            onChange={(e) => setAsOf(e.target.value)}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+            onChange={setAsOf}
+            ariaLabel="True as of"
+            clearable={false}
           />
-        </label>
+        </div>
         <label className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Which is it</span>
           <select

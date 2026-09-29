@@ -8,6 +8,7 @@ import RequestPayoutButton from "@/components/RequestPayoutButton";
 import TherapistEarningsChart, { type EarningsDay } from "@/components/TherapistEarningsChart";
 import type { TherapistEarningRow } from "@/lib/therapistEarnings";
 import { istDateKey } from "@/lib/formatSlotRange";
+import DateField from "@/components/system/DateField";
 
 function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
@@ -246,20 +247,18 @@ export default function TherapistEarningsTab({
               <option value="paid_out">Paid Out</option>
               <option value="pending">Pending</option>
             </select>
-            <input
-              type="date"
+            <DateField
               value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="p-2 rounded-lg border border-slate-300 text-xs"
-              aria-label="From date"
+              onChange={setFromDate}
+              ariaLabel="From date"
+              className="w-36"
             />
             <span className="text-slate-500 text-xs">to</span>
-            <input
-              type="date"
+            <DateField
               value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="p-2 rounded-lg border border-slate-300 text-xs"
-              aria-label="To date"
+              onChange={setToDate}
+              ariaLabel="To date"
+              className="w-36"
             />
             {hasActiveFilters && (
               <button

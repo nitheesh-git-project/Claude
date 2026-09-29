@@ -100,8 +100,12 @@ test.describe("account creation stamp", () => {
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     await open(page, `${BASE}/admin/dashboard?section=people&tab=partners`);
 
-    const onboarded = page.locator("p:visible").filter({ hasText: /^Onboarded / }).first();
-    await expect(onboarded).toBeVisible({ timeout: 60_000 });
+    // The identity block is a labelled `<dl>` now rather than a run-on line, so
+    // the stamp sits in the `<dd>` after the `Onboarded` label rather than in a
+    // paragraph beginning with the word.
+    const label = page.locator("dt:visible").filter({ hasText: /^Onboarded$/ }).first();
+    await expect(label).toBeVisible({ timeout: 60_000 });
+    const onboarded = label.locator("+ dd");
     await expect(onboarded).toHaveText(STAMP);
     await onboarded.scrollIntoViewIfNeeded();
     await page.screenshot({ path: "/tmp/account-created-04-partner.png" });

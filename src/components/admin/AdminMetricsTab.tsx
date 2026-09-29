@@ -49,6 +49,7 @@ import {
   TrendBarChart,
   TrendLineChart,
 } from "@/components/admin/TrendCharts";
+import DateField from "@/components/system/DateField";
 
 export type { MetricsAppointment };
 
@@ -571,24 +572,24 @@ export default function AdminMetricsTab({
             : "Applies to every chart and stat on this screen, including the revenue breakdown below."}
         </p>
         <div className="flex flex-wrap items-end gap-4 text-xs">
-          <label className="flex flex-col gap-1 block">
+          <div className="flex flex-col gap-1">
             <span className="font-semibold text-slate-500">From</span>
-            <input
-              type="date"
+            <DateField
               value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="border border-slate-300 rounded-lg px-2.5 py-1.5"
+              onChange={setFromDate}
+              ariaLabel="From date"
+              className="w-40"
             />
-          </label>
-          <label className="flex flex-col gap-1 block">
+          </div>
+          <div className="flex flex-col gap-1">
             <span className="font-semibold text-slate-500">To</span>
-            <input
-              type="date"
+            <DateField
               value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="border border-slate-300 rounded-lg px-2.5 py-1.5"
+              onChange={setToDate}
+              ariaLabel="To date"
+              className="w-40"
             />
-          </label>
+          </div>
           {/* Wraps rather than overflowing: seven quick-range buttons in a
               nowrap row pushed the whole page 70px wider than a 360px phone
               viewport, which scrolls the body sideways instead of scrolling

@@ -12321,3 +12321,234 @@ $$;
 revoke all on function public.account_blocking_references(uuid) from public;
 revoke all on function public.account_blocking_references(uuid) from anon;
 revoke all on function public.account_blocking_references(uuid) from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- A therapist's application carries their years of experience
+-- ---------------------------------------------------------------------------
+--
+-- `profiles.years_experience` has existed since the therapist profile shipped
+-- and was only ever written *after* approval, from the therapist's own gated
+-- profile edit. The public application form did not ask for it -- so the one
+-- screen where it is actually needed, the approvals queue, showed "Years of
+-- experience not set" on every application an admin was deciding on.
+--
+-- The form asks for it now and the value rides in the signup metadata beside
+-- `credentials` and `specialization`. Metadata is fully client-controlled, so
+-- it is clamped here the same way `v_role` is: a whole number of years between
+-- 0 and MAX_YEARS_EXPERIENCE (60, `src/lib/therapistExperience.ts`), and null
+-- for anything else. The commonest bad value is the *year* somebody qualified
+-- typed into a box asking how many years it has been, and 2024 stored as an
+-- experience figure reads as a fact rather than as a typo.
+--
+-- Written only for a therapist, like `specialization` above it: a patient
+-- signup carrying the key is ignored rather than given free storage on a
+-- column that means nothing for them.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_referred_by uuid;
+  v_role text;
+  v_years integer;
+begin
+  -- Unchanged: raw_user_meta_data is fully client-controlled, so it must
+  -- never be trusted to grant 'admin' or 'hospital'. 'therapist' is the only
+  -- self-serve role beyond the 'patient' default, and both start unapproved.
+  v_role := case
+    when new.raw_user_meta_data->>'role' = 'therapist' then 'therapist'
+    else 'patient'
+  end;
+
+  if new.raw_user_meta_data->>'referral_code' is not null then
+    select id into v_referred_by from public.profiles
+      where referral_code = new.raw_user_meta_data->>'referral_code'
+      and role = 'hospital';
+  end if;
+
+  -- A whole number in range, or nothing. `::integer` on "6.5" or "six" raises
+  -- and would take the whole signup down, so the shape is tested first --
+  -- a malformed figure must cost the figure, never the account.
+  if v_role = 'therapist'
+     and coalesce(new.raw_user_meta_data->>'years_experience', '') ~ '^[0-9]{1,3}$'
+  then
+    v_years := (new.raw_user_meta_data->>'years_experience')::integer;
+    if v_years > 60 then
+      v_years := null;
+    end if;
+  else
+    v_years := null;
+  end if;
+
+  insert into public.profiles (
+    id, role, full_name, email, phone, credentials, specialization,
+    years_experience, approved, referred_by_hospital_id
+  )
+  values (
+    new.id,
+    v_role,
+    coalesce(new.raw_user_meta_data->>'full_name', ''),
+    new.email,
+    new.raw_user_meta_data->>'phone',
+    new.raw_user_meta_data->>'credentials',
+    -- Only a therapist has one; a patient signup carrying this key is
+    -- ignored rather than written, so the column cannot be used as free
+    -- storage on an account it means nothing for. Capped to match
+    -- MAX_SPECIALTY_LENGTH, since every public profile prints it.
+    case
+      when v_role = 'therapist'
+        then left(nullif(btrim(coalesce(new.raw_user_meta_data->>'specialization', '')), ''), 80)
+      else null
+    end,
+    v_years,
+    false,
+    v_referred_by
+  );
+  return new;
+end;
+$$;
+
+-- CREATE OR REPLACE keeps the existing ACL, so the revoke above still holds --
+-- restated because this file is re-applied against fresh databases too, where
+-- the function is created anew by this statement and arrives carrying the
+-- default grants.
+revoke all on function public.handle_new_user() from public;
+revoke all on function public.handle_new_user() from anon;
+revoke all on function public.handle_new_user() from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- What blocks a delete includes what points at auth.users, not only profiles
+-- ---------------------------------------------------------------------------
+--
+-- `account_blocking_references` counted foreign keys into `public.profiles`,
+-- and the delete does not remove a profile row: it removes the **auth.users**
+-- row, which `profiles.id` cascades off. So anything referencing `auth.users`
+-- refused the delete while this function reported nothing in the way, and the
+-- admin met `ACCOUNT_DELETE_REFUSED` -- "the database refused and did not say
+-- why" -- which is the message that exists for exactly the gap this leaves.
+--
+-- The practical case is `storage.objects.owner`, which references
+-- `auth.users(id)`: every account that has ever uploaded an avatar has rows
+-- there. That is also why `e2e/admin-account-delete.spec.ts` kept passing --
+-- its fixtures are minted through the API and never upload anything, so they
+-- have no storage rows and delete cleanly, while a real account created
+-- through the app does not.
+--
+-- Two other things follow from widening it. The table name is returned
+-- **schema-qualified** (`storage.objects`, not `objects`), because a bare name
+-- from another schema could collide with a public one and be described by the
+-- wrong word. And the count is done with a quoted identifier per part, so a
+-- schema this file does not control cannot break the dynamic SQL.
+create or replace function public.account_blocking_references(p_user_id uuid)
+returns table (source_table text, source_column text, row_count bigint)
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  fk record;
+  n bigint;
+begin
+  for fk in
+    select
+      quote_ident(src_ns.nspname) || '.' || quote_ident(src_rel.relname) as tbl,
+      att.attname::text as col,
+      src_ns.nspname || '.' || src_rel.relname as label
+    from pg_constraint con
+    join pg_class src_rel on src_rel.oid = con.conrelid
+    join pg_namespace src_ns on src_ns.oid = src_rel.relnamespace
+    join pg_attribute att
+      on att.attrelid = con.conrelid
+     and att.attnum = con.conkey[1]
+    where con.contype = 'f'
+      -- Both ends of the delete: the row the app knows about, and the row the
+      -- delete actually removes.
+      and con.confrelid in ('public.profiles'::regclass, 'auth.users'::regclass)
+      -- 'a' = NO ACTION, 'r' = RESTRICT. Both refuse; 'c'/'n'/'d' do not.
+      and con.confdeltype in ('a', 'r')
+      and array_length(con.conkey, 1) = 1
+  loop
+    execute format('select count(*) from %s where %I = $1', fk.tbl, fk.col)
+      into n
+      using p_user_id;
+    if n > 0 then
+      source_table := fk.label;
+      source_column := fk.col;
+      row_count := n;
+      return next;
+    end if;
+  end loop;
+end;
+$$;
+
+revoke all on function public.account_blocking_references(uuid) from public;
+revoke all on function public.account_blocking_references(uuid) from anon;
+revoke all on function public.account_blocking_references(uuid) from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- A refused delete names what refused it
+-- ---------------------------------------------------------------------------
+--
+-- `auth.admin.deleteUser` answers HTTP 500 with an **empty body** when Postgres
+-- refuses inside the cascade, so the route had nothing to report and said so:
+-- "the database refused and did not say why". That sentence is honest and
+-- useless -- an admin cannot act on it, and the counter above can only cover
+-- the foreign keys it knows to look for.
+--
+-- This does the same delete as the function's owner and catches the refusal, so
+-- whatever blocks it is named: the table and the constraint. It is the same
+-- statement GoTrue issues (`delete from auth.users where id = ...`), and the
+-- auth schema's own rows -- identities, sessions, refresh tokens -- cascade off
+-- it exactly as they do there.
+--
+-- It returns a result rather than raising, because the caller needs to tell
+-- "refused, here is why" from "the request itself failed", and an exception
+-- crossing PostgREST loses that distinction.
+create or replace function public.admin_delete_account(p_user_id uuid)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_deleted integer;
+  v_table text;
+  v_constraint text;
+  v_detail text;
+begin
+  delete from auth.users where id = p_user_id;
+  get diagnostics v_deleted = row_count;
+  if v_deleted = 0 then
+    -- Distinguishable from a refusal: nothing was there to remove, which the
+    -- route reports as "already deleted" rather than as a failure.
+    return jsonb_build_object('status', 'not_found');
+  end if;
+  return jsonb_build_object('status', 'deleted');
+exception
+  when foreign_key_violation then
+    -- TABLE_NAME / CONSTRAINT_NAME / PG_EXCEPTION_DETAIL are only reachable
+    -- through GET STACKED DIAGNOSTICS -- unlike SQLSTATE and SQLERRM, they are
+    -- not bare variables in a handler.
+    get stacked diagnostics
+      v_table = TABLE_NAME,
+      v_constraint = CONSTRAINT_NAME,
+      v_detail = PG_EXCEPTION_DETAIL;
+    return jsonb_build_object(
+      'status', 'blocked',
+      'table', coalesce(nullif(v_table, ''), 'an unknown table'),
+      'constraint', coalesce(v_constraint, ''),
+      'detail', left(coalesce(v_detail, ''), 300)
+    );
+  when others then
+    -- Everything else, including the Master Admin guard's own raise, which is
+    -- a sentence worth passing on rather than a constraint name.
+    return jsonb_build_object(
+      'status', 'error',
+      'sqlstate', SQLSTATE,
+      'message', left(coalesce(SQLERRM, ''), 300)
+    );
+end;
+$$;
+
+revoke all on function public.admin_delete_account(uuid) from public;
+revoke all on function public.admin_delete_account(uuid) from anon;
+revoke all on function public.admin_delete_account(uuid) from authenticated;

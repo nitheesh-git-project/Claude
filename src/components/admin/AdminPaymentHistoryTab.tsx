@@ -27,6 +27,7 @@ import type { CsvColumn } from "@/lib/csvExport";
 import DataExportButtons from "@/components/admin/DataExportButtons";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
+import DateField from "@/components/system/DateField";
 
 type Patient = { id: string; full_name: string | null; code?: string | null };
 type Therapist = { id: string; full_name: string | null; code?: string | null };
@@ -565,20 +566,18 @@ export default function AdminPaymentHistoryTab({
             ))}
           </select>
 
-          <input
-            type="date"
+          <DateField
             value={receiptFromDate}
-            onChange={(e) => setReceiptFromDate(e.target.value)}
-            className="p-2 rounded-lg border border-slate-300 text-xs"
-            aria-label="From date"
+            onChange={setReceiptFromDate}
+            ariaLabel="From date"
+            className="w-36"
           />
           <span className="text-slate-500 text-xs">to</span>
-          <input
-            type="date"
+          <DateField
             value={receiptToDate}
-            onChange={(e) => setReceiptToDate(e.target.value)}
-            className="p-2 rounded-lg border border-slate-300 text-xs"
-            aria-label="To date"
+            onChange={setReceiptToDate}
+            ariaLabel="To date"
+            className="w-36"
           />
 
           <input

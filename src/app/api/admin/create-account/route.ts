@@ -9,6 +9,10 @@ import { isValidStoredPhone } from "@/lib/phoneNumber";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { ADMIN_SCOPES, type AdminScope } from "@/lib/adminScope";
 import { storableSpecialty } from "@/lib/therapistSpecialties";
+import {
+  parseYearsExperience,
+  YEARS_EXPERIENCE_ERROR,
+} from "@/lib/therapistExperience";
 
 // Creates a patient, therapist or admin account by hand.
 //
@@ -52,6 +56,10 @@ type Body = {
   phone?: string | null;
   credentials?: string | null;
   specialization?: string | null;
+  // `number | string` deliberately: an admin form posts what is in the box,
+  // and a blank number box arrives as "". Typing it as `number` would claim a
+  // guarantee the request does not carry.
+  yearsExperience?: number | string | null;
   adminScope?: string;
 };
 
@@ -121,6 +129,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "That phone number isn't valid." }, { status: 400 });
   }
 
+  // Optional here and required on the public application form, deliberately:
+  // an admin creating an account on somebody's behalf may not have the figure
+  // to hand, and a blank is honestly "not said" -- which every surface already
+  // renders. A value that was *given* and cannot be used is refused rather
+  // than quietly stored as a blank.
+  const yearsExperience =
+    role === "therapist" ? parseYearsExperience(body.yearsExperience) : null;
+  if (yearsExperience === undefined) {
+    return NextResponse.json({ error: YEARS_EXPERIENCE_ERROR }, { status: 400 });
+  }
+
   const adminScope: AdminScope =
     role === "admin" && ADMIN_SCOPES.includes(body.adminScope as AdminScope)
       ? (body.adminScope as AdminScope)
@@ -164,6 +183,7 @@ export async function POST(request: NextRequest) {
       // other admin-configured value follows -- the browser names it, the
       // server decides what that name is worth.
       specialization: role === "therapist" ? storableSpecialty(body.specialization) : null,
+      years_experience: yearsExperience,
       // An account an admin created by hand has already been vetted by the
       // act of creating it -- there is nothing for the approval queue to
       // add. This is the same judgement register-via-referral makes.

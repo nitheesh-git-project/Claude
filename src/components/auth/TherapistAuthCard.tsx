@@ -9,6 +9,7 @@ import ConfirmPasswordField from "./ConfirmPasswordField";
 import EmailField from "./EmailField";
 import PasswordField from "./PasswordField";
 import { THERAPIST_SPECIALTIES } from "@/lib/therapistSpecialties";
+import { MAX_YEARS_EXPERIENCE } from "@/lib/therapistExperience";
 
 export default function TherapistAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
@@ -73,6 +74,7 @@ export default function TherapistAuthCard() {
     const phone = formData.get("phone") as string;
     const credentials = formData.get("credentials") as string;
     const specialization = formData.get("specialization") as string;
+    const yearsExperience = formData.get("yearsExperience") as string;
 
     if (!isValidEmail(email)) {
       setLoading(false);
@@ -86,6 +88,23 @@ export default function TherapistAuthCard() {
       return;
     }
 
+    // Checked here as well as by the number box's own min/max, because the
+    // box is only what a browser enforces and this is the value an admin
+    // reads when deciding whether to approve the application.
+    const years = Number(yearsExperience);
+    if (
+      yearsExperience.trim() === "" ||
+      !Number.isInteger(years) ||
+      years < 0 ||
+      years > MAX_YEARS_EXPERIENCE
+    ) {
+      setLoading(false);
+      setError(
+        `Please enter your years of experience as a whole number between 0 and ${MAX_YEARS_EXPERIENCE}.`
+      );
+      return;
+    }
+
     if (password !== confirmPassword) {
       setLoading(false);
       setError("Passwords do not match. Please re-enter them.");
@@ -96,10 +115,17 @@ export default function TherapistAuthCard() {
       email,
       password,
       options: {
-        // specialization rides along with credentials: the trigger copies
-        // both onto the profile row, and both are display text on an
-        // account that waits on an admin's approval either way.
-        data: { role: "therapist", full_name: fullName, phone, credentials, specialization },
+        // specialization and years_experience ride along with credentials:
+        // the trigger copies all three onto the profile row, and all three
+        // are what an admin reads on the approvals queue.
+        data: {
+          role: "therapist",
+          full_name: fullName,
+          phone,
+          credentials,
+          specialization,
+          years_experience: years,
+        },
       },
     });
     if (error) {
@@ -350,6 +376,24 @@ export default function TherapistAuthCard() {
               <span className="block text-slate-500 mt-1">
                 Patients see this on your profile. Pick the one you mostly
                 take - you can change it later from your dashboard.
+              </span>
+            </label>
+            <label className="block">
+              <span className="block font-semibold mb-1">Years of Experience</span>
+              <input
+                type="number"
+                name="yearsExperience"
+                inputMode="numeric"
+                min={0}
+                max={MAX_YEARS_EXPERIENCE}
+                step={1}
+                required
+                placeholder="e.g. 6"
+                className="w-full p-3 rounded-xl border border-slate-300"
+              />
+              <span className="block text-slate-500 mt-1">
+                Whole years since you qualified. Patients see this beside your
+                specialism.
               </span>
             </label>
             <PasswordField

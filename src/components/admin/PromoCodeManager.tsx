@@ -12,6 +12,7 @@ import {
   type PromoCode,
   type PromoCodeKind,
 } from "@/lib/promoCodes";
+import DateField from "@/components/system/DateField";
 
 export type PromoCodeRow = PromoCode & {
   description: string | null;
@@ -177,24 +178,31 @@ function CampaignForm({
           <label className={labelCls()} htmlFor="promo-starts">
             Starts (optional)
           </label>
-          <input
+          {/* withTime, because a campaign window is a moment rather than a
+              day -- the note under the end field is about exactly that. The
+              value stays `YYYY-MM-DDTHH:mm`, byte-identical to what the
+              native datetime-local wrote, so every campaign already saved
+              reads back unchanged. */}
+          <DateField
             id="promo-starts"
-            type="datetime-local"
-            className={inputCls()}
             value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
+            onChange={setStartsAt}
+            ariaLabel="Campaign start"
+            withTime
+            placeholder="No start"
           />
         </div>
         <div>
           <label className={labelCls()} htmlFor="promo-ends">
             Ends (optional)
           </label>
-          <input
+          <DateField
             id="promo-ends"
-            type="datetime-local"
-            className={inputCls()}
             value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
+            onChange={setEndsAt}
+            ariaLabel="Campaign end"
+            withTime
+            placeholder="No end"
           />
           <p className="mt-1 text-[11px] text-slate-500">
             The code stops working at this moment, so set it to the start of the day after the

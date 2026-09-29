@@ -95,6 +95,11 @@ export type AdminActivityAction =
   // percentage, so changing it moves more money than most single refunds
   // do -- see isMoneyAction, which counts it as one.
   | "therapist.set_revenue_share"
+  // The separate rate a home visit is paid at. Its own action rather than
+  // a field on the one above, because the two columns answer different
+  // questions and a log entry that did not say which had moved would be
+  // unreadable on the one screen a payout dispute is settled from.
+  | "therapist.set_home_visit_revenue_share"
   // Roster. A weekly schedule decides who the clinic can offer and when, and
   // leave takes somebody off the board entirely -- both were unattributable
   // before the roster redesign, on a screen every admin with the sessions
@@ -256,6 +261,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "finance.balance_save": "Recorded what the clinic owns or owes",
   "finance.balance_delete": "Removed an entry from what the clinic owns or owes",
   "therapist.set_revenue_share": "Changed therapist revenue share",
+  "therapist.set_home_visit_revenue_share": "Changed therapist home-visit revenue share",
   "therapist.set_weekly_schedule": "Changed therapist working hours",
   "therapist.set_schedule_exception": "Set a schedule exception",
   "therapist.clear_schedule_exception": "Removed a schedule exception",
@@ -318,6 +324,7 @@ export function isMoneyAction(action: string): boolean {
     action === "session.mark_paid_cash" ||
     action === "hospital.set_revenue_share" ||
     action === "therapist.set_revenue_share" ||
+    action === "therapist.set_home_visit_revenue_share" ||
     // Handing a forfeited session back is money: the patient keeps value
     // they had otherwise lost, and the clinic's recognised revenue moves
     // with it.

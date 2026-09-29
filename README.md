@@ -188,6 +188,33 @@ The matching `debug_reset_all_data()` function still exists in
 testing; `EXECUTE` on it is revoked from `anon` and `authenticated`, so only
 the service-role key can reach it in the meantime.
 
+### Dates, and why none of them is the browser's
+
+Nothing in this app opens the operating system's own date panel. A
+`required` box, a number box and a date box were the three places a browser
+spoke to a person in its own words: the first two are answered by
+`FormValidationChrome` and `NumericInputGuard`, both mounted once in the root
+layout, and the third by `DateField` (`src/components/system/DateField.tsx`).
+
+Every date the app asks for - a report's from/to, a cost's date, a promo
+campaign's window, a document's date, a roster exception, a leave range, the
+Calendar tab's day, the five Business Health inputs - opens the same month grid
+that books a session, in a popover, with the clinic's own styling and wording.
+`src/lib/dateFieldValue.ts` emits exactly what the native input emitted
+(`YYYY-MM-DD`, or `YYYY-MM-DDTHH:mm` where a time is wanted), so nothing
+downstream changed. The grid itself is `BookingCalendar`, extended with an
+optional bound rather than forked, because a second month grid is how two
+screens come to disagree about which dates are pickable.
+
+The pre-launch debug bar keeps a native input, deliberately - it is deleted
+before launch and is the one place a developer wants to type an instant.
+`src/lib/nativeDateInput.test.ts` walks `src/` and fails on any other.
+
+How a date is *rendered* is a separate rule, in `src/lib/formatDateTime.ts`:
+every stamp is pinned to the clinic's zone, and an account's creation stamp
+carries the time and an `IST` suffix, since that figure is read down a phone
+line.
+
 ### Error and loading states
 
 Every route tree has an error boundary (`src/app/error.tsx` plus one per
@@ -702,6 +729,17 @@ in every picker that assigns one. **People → Therapists** carries a
 per option, plus *Something else* for free text and *Not set* for nobody
 having said. A therapist who has not said shows no chip at all.
 
+**Years of experience is asked beside it, at both of those doors.**
+`profiles.years_experience` has existed since the first therapist shipped and
+nothing ever wrote it, so the second figure a patient judges a clinician by was
+never collected. It is a whole number of years, 0 to 60, required on the public
+application and optional on the admin's create-account form.
+`src/lib/therapistExperience.ts` holds the judgement, and it answers three
+things rather than two: a number, "not given", and "given and unusable" - which
+is what somebody typing a *year* (`2024`) produces, and is not the same fact as
+leaving it blank. The signup trigger clamps it server-side, because nothing
+carried in signup metadata is trusted.
+
 ### Therapist roster and availability
 
 A therapist's availability is three separate things, and the screens say so.
@@ -729,6 +767,27 @@ rows the tables have always stored, in both directions. The storage model is
 unchanged, so every existing schedule reads back as exactly the same hours -
 including exceptions written one cell at a time by the old screen.
 
+**The schedule opens read-only, with an Edit button.** Every day row used to
+render live dropdowns and a Working/Off switch the moment the screen opened, so
+reading somebody's hours and changing them were the same act. The read view is
+the same week summary the roster list shows; Edit reveals the pickers, and
+saving closes it again. Exceptions and Time off already asked for an explicit
+**Add**, so they are unchanged.
+
+**And the roster reads both ways round.** A Therapists / Day toggle, not a
+second screen. **Day view** takes one date and shows every therapist against it:
+who is working, who is on leave, who is simply not rostered that day, and for
+each of the working ones an hour strip marking every hour free or booked - a
+booked hour naming the patient and the session code. It answers "who is free on
+Thursday afternoon", which the list view could not answer at all: an admin on the
+phone opened each therapist in turn and held the answer in their head. It is
+read-only, like the rest of the roster - a free hour there means "nobody has it
+and she works then", never "sell it".
+
+Dates on these screens - an exception's date, a leave range - are picked from the
+clinic's own calendar rather than the browser's, like every other date in the
+app - see "Dates, and why none of them is the browser's" above.
+
 **What the roster does and does not decide.** It is the clinic's planning
 record: who can be offered, and when. It is what an admin assigns against,
 alongside `checkTherapistConflict`. It does **not** filter the patient's
@@ -749,7 +808,11 @@ nothing, because nothing was removed.
 loaded. A save carrying a stale version whose hours differ from what is
 stored is refused with 409 and the editor offers to reload; a double-clicked
 Save - two identical requests carrying the same stale version - lands as one
-change rather than an error. Date exceptions replace a whole day inside
+change rather than an error. A therapist who has never been saved has no
+`therapist_schedule_state` row and therefore no version to compare against, so
+the editor asks for no compare-and-swap at all. That case used to send `0` while
+the database creates the row at `1`, which meant the **first** save for every
+therapist was refused as somebody else's edit. Date exceptions replace a whole day inside
 `set_therapist_date_exception`, so two admins answering the same date end
 with one coherent day rather than half of each.
 
@@ -764,7 +827,8 @@ save-spam in the browser.
 `requireAdminScope("sessions")`), `/api/admin/set-availability-exception`
 (one date: unavailable / custom hours / clear, `sessions`),
 `/api/admin/set-therapist-on-leave` (`people`) and
-`/api/therapist/set-on-leave` (own). Every admin one writes an
+`/api/therapist/set-on-leave` (own), and `/api/admin/roster-day` (day view,
+`sessions`, read-only). Every admin one writes an
 `admin_activity_log` row naming the therapist and what changed. Writing a
 date exception is still an admin action only: a therapist sees theirs and
 cannot create one, exactly as before.
@@ -1608,11 +1672,25 @@ on Money -> Owed by Patients until somebody sends it and confirms. Refunding a
 session they have **not** settled is not a refund at all and the route says so:
 that is the write-off above.
 
-**Payouts.** Each therapist has a `revenue_share_percent`. Earnings are
-computed per completed, paid session (`src/lib/therapistEarnings.ts`,
+**Payouts.** Each therapist has a `revenue_share_percent`, and optionally a
+separate `home_visit_revenue_share_percent` for visits, which falls back to the
+ordinary one when it is not set. Both are edited on the therapist's own profile
+under **People** (`/api/admin/update-therapist-revenue-share` and
+`/api/admin/update-therapist-home-visit-revenue-share`, both `money` scope, both
+audited). The home-visit one is a separate route for one reason: it can be
+**cleared** back to "use the ordinary share", which is what every therapist
+carries by default, and the ordinary route rightly refuses an empty box. Before
+it existed the column was read by payouts, by settlement and by every Money
+figure that splits a home visit, and written by nothing - so a different rate for
+visits could only be set by editing the table by hand.
+
+Earnings are computed per completed, paid session (`src/lib/therapistEarnings.ts`,
 `src/lib/therapistPayouts.ts`); therapists request payouts
 (`therapist_payout_requests`), and the admin reviews, settles, and batches
-them (`therapist_payout_batches`) with downloadable receipts.
+them (`therapist_payout_batches`) with downloadable receipts. The therapist's own
+profile page reads those same modules, so the figure there, the Payouts screen
+and what the Pay button transfers are one number - it used to compute its own,
+from the ordinary share alone and with no travel fee, and disagreed with both.
 
 **Hospital referrals.** Hospitals submit referrals from their dashboard or
 share a registration link / referral code. A referral carries the patient's
@@ -1749,6 +1827,18 @@ thirty-five tables reference `profiles(id)` with no delete behaviour, so
 removing an account that has done anything would mean removing the books and
 the audit trail with it.
 
+What is on file is **asked of the database**, not listed in the route:
+`account_blocking_references()` reads `pg_constraint` for every foreign key that
+would refuse, so a table added tomorrow is counted the day it arrives. It counts
+keys into **`auth.users`** as well as `profiles`, because that is the row the
+delete actually removes - an uploaded avatar is a `storage.objects` row owned by
+the auth user, and while that key went uncounted the screen offered a delete the
+database then refused with nothing to say about it. Uploaded files are named as
+such, so the answer points at a screen. And the delete itself
+(`admin_delete_account()`) reports the table and constraint that refused instead
+of the empty 500 the auth admin API returns, so a key nobody thought to count is
+still a sentence rather than an apology.
+
 **Settings → User Access** also shows, on each row, whether that admin is
 still signing in with the password the clinic issued them - readable there,
 with a Copy button, until they set their own, at which point the row says so
@@ -1756,6 +1846,21 @@ instead. A password somebody chose themselves is a bcrypt hash and can never
 be displayed; the lane for an account in that state is a reset, which issues
 a new one. The same pair of states is on a patient's and a therapist's
 profile under People, and on a partner hospital's card.
+
+**Re-issuing a back-office password is a button there too**
+(`/api/admin/reset-admin-password`, Master Admin only, never your own account -
+the lane for that is the emailed reset on **Settings → Sign-in & Security**). It
+asks first, because the current password stops working the instant it succeeds,
+and the new one appears on the row above rather than in a panel of its own: two
+places showing one password means the stale one is the one somebody reads out.
+The panel that appears when an account is **created** now has a close button,
+and its Copy button stops reading "Copied" for ever after one click.
+
+A newly **onboarded hospital's** password is kept the same way. It used to live
+only in the form's own React state - so the first refresh, or the realtime
+update the onboarding itself triggered, took it off the screen, which is exactly
+what its "they won't be shown again" line described. It is persisted now and
+shows on the partner's card until the hospital sets their own.
 
 **Settings → User Access** is where that model is read: the back-office
 directory (who can sign in, at what level, and whether they still can) and a

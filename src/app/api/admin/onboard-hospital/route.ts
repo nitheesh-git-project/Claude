@@ -87,6 +87,29 @@ export async function POST(request: NextRequest) {
     await admin.from("b2b_leads").update({ status: "onboarded" }).eq("id", leadId);
   }
 
+  // The credential outlives the screen that issued it.
+  //
+  // This route generated the password, returned it, and wrote it nowhere -- so
+  // it lived only in `OnboardHospitalForm`'s React state, and the banner's own
+  // "they won't be shown again" was literally true: one refresh, one navigation
+  // or one realtime remount and it was gone for good. A freshly onboarded
+  // partner then had no readable password anywhere, unlike a patient, a
+  // therapist or a back-office admin, and the only way to help them sign in was
+  // to reset a credential that had never been used.
+  //
+  // `hospital_admin_notes` exists for exactly this and was already read by the
+  // Partners card -- it was only ever written by the reset route. Best-effort
+  // and logged: an account that exists with an unstored password is recoverable
+  // by a reset, where failing the whole onboarding over a note row is not.
+  const { error: noteError } = await admin.from("hospital_admin_notes").upsert({
+    hospital_id: created.user.id,
+    temp_password: password,
+    temp_password_set_at: new Date().toISOString(),
+  });
+  if (noteError) {
+    console.error("onboard-hospital: temp password not persisted", noteError.message);
+  }
+
   // Same rule as the password-reset routes: the generated credential never
   // reaches the log, only the fact that this admin provisioned the partner.
   await recordAdminActivity(admin, adminUser.id, {

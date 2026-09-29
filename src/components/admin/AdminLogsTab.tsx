@@ -20,6 +20,7 @@ import {
   filterActivityRows,
   type ActivityFilters,
 } from "@/lib/activityLog";
+import DateField from "@/components/system/DateField";
 
 // The whole log, for the one reader entitled to all of it.
 //
@@ -214,24 +215,24 @@ export default function AdminLogsTab({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
               From
-              <input
-                type="date"
+              <DateField
                 value={filters.fromDate}
-                onChange={(e) => set("fromDate", e.target.value)}
-                className="rounded-lg border border-slate-300 bg-white p-2 text-xs"
+                onChange={(next) => set("fromDate", next)}
+                ariaLabel="From date"
+                className="w-36"
               />
-            </label>
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
               To
-              <input
-                type="date"
+              <DateField
                 value={filters.toDate}
-                onChange={(e) => set("toDate", e.target.value)}
-                className="rounded-lg border border-slate-300 bg-white p-2 text-xs"
+                onChange={(next) => set("toDate", next)}
+                ariaLabel="To date"
+                className="w-36"
               />
-            </label>
+            </div>
             <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
               <input
                 type="checkbox"
