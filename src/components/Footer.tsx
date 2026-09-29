@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isDashboardShellRoute } from "@/lib/dashboardShellRoutes";
 import { MARKETING_PAGES } from "@/lib/marketingNav";
+import BrandMark from "@/components/BrandMark";
 
 export default function Footer({
   siteName,
@@ -42,9 +43,7 @@ export default function Footer({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid sm:grid-cols-2 md:grid-cols-4 gap-8">
         <div>
           <div className="flex items-center space-x-3 mb-3">
-            <div className="w-9 h-9 rounded-xl bg-teal-700 text-white flex items-center justify-center font-bold shadow-md">
-              <i className="fa-solid fa-user-doctor"></i>
-            </div>
+            <BrandMark size={36} />
             <span className="font-display text-white font-bold">{siteName}</span>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">{siteDescription}</p>

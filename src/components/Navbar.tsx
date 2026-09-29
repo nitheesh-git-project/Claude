@@ -11,6 +11,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useAccountDestination } from "@/lib/useAccountDestination";
 import { isAuthCtaHiddenRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
 import { MARKETING_PAGES } from "@/lib/marketingNav";
+import BrandMark from "@/components/BrandMark";
 
 
 export default function Navbar({
@@ -97,9 +98,9 @@ export default function Navbar({
             <motion.div
               whileHover={{ rotate: -6, scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
-              className="w-10 h-10 rounded-xl bg-teal-700 text-white flex items-center justify-center font-bold text-xl shadow-md"
+              className="flex"
             >
-              <i className="fa-solid fa-user-doctor"></i>
+              <BrandMark size={40} />
             </motion.div>
             <div>
               <span className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight">
