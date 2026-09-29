@@ -100,7 +100,7 @@ export default function Navbar({
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
               className="flex"
             >
-              <BrandMark size={40} />
+              <BrandMark size={44} variant="flat" />
             </motion.div>
             <div>
               <span className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight">

@@ -1,20 +1,46 @@
 import Image from "next/image";
 import mark from "../../public/brand/moverestore-mark.png";
 
-// The clinic's MR mark on a white tile, shared by the public Navbar and
-// Footer so the two can never show different badges. The PNG is the mark
-// alone on a transparent background (the favicon files in src/app/ carry
-// their own tile); the white tile is drawn here so it reads the same on the
-// white header and the dark footer. Decorative: the site name always sits
+// The clinic's MR mark, shared by the public Navbar and Footer so the two
+// can never show different logos. The PNG is the mark alone on a transparent
+// background (the favicon files in src/app/ carry their own tile).
+//
+// `flat` is the mark on its own -- no tile, ring or shadow -- which is what
+// the white header wants. `tile` sets it on a white rounded square, which the
+// dark footer needs: the mark's navy strokes disappear against slate-900.
+//
+// `unoptimized` serves the 256px source as-is. The optimiser would resample it
+// down to the nearest srcset width, and at 40px that visibly softens the thin
+// spine dots; a 45KB file is cheap enough to ship once and let the browser
+// scale it on a high-density screen. Decorative: the site name always sits
 // beside it, so an alt text would announce the brand twice.
-export default function BrandMark({ size = 40 }: { size?: number }) {
+export default function BrandMark({
+  size = 40,
+  variant = "tile",
+}: {
+  size?: number;
+  variant?: "flat" | "tile";
+}) {
+  if (variant === "flat") {
+    return (
+      <Image
+        src={mark}
+        alt=""
+        width={size}
+        height={size}
+        unoptimized
+        priority
+        className="shrink-0"
+      />
+    );
+  }
   const inner = Math.round(size * 0.8);
   return (
     <span
-      className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white shadow-md ring-1 ring-slate-200"
+      className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white"
       style={{ width: size, height: size }}
     >
-      <Image src={mark} alt="" width={inner} height={inner} priority />
+      <Image src={mark} alt="" width={inner} height={inner} unoptimized priority />
     </span>
   );
 }
