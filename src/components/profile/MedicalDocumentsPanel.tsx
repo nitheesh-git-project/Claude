@@ -17,6 +17,7 @@ import {
   type MedicalDocumentRow,
   type MedicalDocumentType,
 } from "@/lib/medicalDocuments";
+import DateField from "@/components/system/DateField";
 
 // Icon per kind, so a chart of ten reports can be scanned by shape rather
 // than read line by line.
@@ -316,15 +317,20 @@ export default function MedicalDocumentsPanel({
                 ))}
               </div>
 
-              <label className="mt-3 block text-xs font-semibold text-slate-600">
+              <div className="mt-3 block text-xs font-semibold text-slate-600">
                 When was it taken? <span className="font-normal text-slate-500">(optional)</span>
-                <input
-                  type="date"
+                {/* A scan or a report is always something that already
+                    happened, so this one is capped at today -- the calendar
+                    simply does not offer a future day, where the native box
+                    happily did. */}
+                <DateField
                   value={takenOn}
-                  onChange={(event) => setTakenOn(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-800 focus:border-teal-400 focus:outline-none"
+                  onChange={setTakenOn}
+                  ariaLabel="When the document was taken"
+                  maxToday
+                  className="mt-1"
                 />
-              </label>
+              </div>
 
               <div className="mt-4 flex items-center gap-2">
                 <button

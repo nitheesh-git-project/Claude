@@ -420,7 +420,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Preconditions.** `ADM-SET-026` has created `qa.admin.ops@example.test` with scope **Operations** - **run it before this test even though it belongs to a later phase.** The account cannot exist before somebody creates it, and the reset does not create it: a fresh database has exactly one admin, the one made by hand in Supabase before Step 0. Attempting this test first is answered `Invalid login credentials`, which is the account being absent rather than anything about the reset.
 
-> **The password is not the standard one.** `create-account` **generates** it - nine random bytes, base64url - and shows it **once**, on the User Access screen, as *"temporary password `<value>`"*. It is deliberately never emailed, never written to the activity log, and never stored anywhere for an admin (the `temp_password` column exists for patients, therapists and hospitals only). **Copy it when it appears.** Lost, it cannot be recovered: set a new one in the Supabase dashboard under **Authentication → Users**, or delete the account there and create it again from User Access.
+> **The password is not the standard one.** `create-account` **generates** it - nine random bytes, base64url - and shows it on the User Access screen as *"temporary password `<value>`"*. It is deliberately never emailed and never written to the activity log. It **is** kept, on `admin_account_notes`, which only the service role reads, so it stays readable on that admin's own Back office row until they set their own - see `ADM-SET-026b`. If it is lost anyway, **Reset password** on that row issues a new one (Master Admin only, never your own row); the Supabase dashboard under **Authentication → Users** is no longer the only lane.
 
 **Steps**
 
@@ -623,7 +623,7 @@ Where a test needs a *second, different* password (a change-password test), use 
 | **Admin Finance** | `qa.admin.finance@example.test` | `finance` | Proves Sessions and Catalog are blocked. |
 | **Admin Clinical** | `qa.admin.clinical@example.test` | `clinical` | Proves Money, Catalog and Settings are blocked. |
 
-Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated one-time password shown once on that screen** - not `QaTest!2024pass`. Write all three down as you create them: nothing stores an admin's temporary password, so a lost one is reset from the Supabase dashboard under **Authentication → Users**.
+Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated password shown on that screen** - not `QaTest!2024pass`. It stays readable on that admin's own Back office row until they set their own, and if it is lost, **Reset password** on the row issues a new one.
 
 ### 8.3 Patients
 
@@ -633,7 +633,7 @@ Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `ac
 | --- | --- |
 | Full name | `QA Patient E` |
 | Email | `qa.patient.e@example.test` |
-| Password | Generated, shown **once** on User Access - write it down |
+| Password | Generated, shown on User Access and kept on that row until they set their own |
 | Phone | `+91 98765 43213` |
 | Date of birth | `1968-07-21` |
 | PIN code | `560038` |
@@ -1329,7 +1329,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Steps**
 1. Open `/`.
-2. Tap **Book a session** in the header (or the **Book now** card in the connector grid at the foot of the page).
+2. Tap **Book a video session** in the header (or the **Book now** card in the connector grid at the foot of the page).
 3. Observe the URL and the wizard header.
 
 **Expected Result.** The URL is `/book`. The dark header reads **Step 1 of 3** and **Book Virtual Physical Therapy Session**. Because no concern is chosen yet, the subtitle reads *"HD Video Call & Custom Rehab Plan - pricing shown once you pick a concern"*.
@@ -1882,13 +1882,15 @@ Five rules shape almost every screen:
 4. Tap **Email Address**. Enter `qa.therapist.a@example.test`.
 5. Tap the phone field. Enter `+91 90000 10001`.
 6. Tap **Qualifications & License / Council Reg No.** Enter `MPT (Ortho), KSCP Reg 44821`.
-7. Tap **Specialist In**. It is a **dropdown**, not a text box, and it lists exactly eight: Orthopaedic, Neurological, Paediatric, Sports, Geriatric, Cardiopulmonary, Women's health, General physiotherapy. Choose **Orthopaedic**.
+7. Tap **Specialist In**. It is a **dropdown**, not a text box, and it lists exactly eight: Orthopaedic, Neurological, Paediatric, Sports, Geriatric, Cardiopulmonary, Women's health, General physiotherapy - **General physiotherapy** is the one for somebody who does not specialise. Choose **Orthopaedic**.
+7b. Tap **Years of experience**. Try `abc`, then `-2`, then `2024`, then `61`. Finally enter `9`.
 8. Tap **Password**. Enter `QaTest!2024pass`.
 9. Tap **Confirm Password**. Enter `QaTest!2024pass`.
 10. Tap **Submit Application**.
 
-**Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`, and `specialization='Orthopaedic'` - the exact label, not a code. **No "check your email" step appears anywhere.** The application shows in Admin → Today → Approvals, **carrying the specialisation chip**, and raises that tab's badge. Submitting with **Specialist In** left on its placeholder is refused by the form's own validation, in the clinic's wording rather than the browser's.
-**Critical check:** the specialisation reaches the profile row through the signup trigger (`handle_new_user`). A database that has not had the schema re-applied writes the rest of the application and leaves that column null - the account is still created, and the therapist sets it from their own dashboard.
+**Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`, `specialization='Orthopaedic'` - the exact label, not a code - and `years_experience = 9`.
+**Step 7b:** letters never reach the box at all; `-2` and `61` are refused with the clinic's own wording naming the range (0 to 60); `2024` is refused as a number of years rather than stored, since somebody typing a *year* has answered a different question. Leaving it empty is refused - it is required on this form, and optional only on the admin's own create-account form, where the therapist can set it themselves afterwards. This column has existed since the first therapist shipped and nothing ever wrote it, so a therapist created before this landed carries null and shows nothing rather than `0`. **No "check your email" step appears anywhere.** The application shows in Admin → Today → Approvals, **carrying the specialisation chip**, and raises that tab's badge. Submitting with **Specialist In** left on its placeholder is refused by the form's own validation, in the clinic's wording rather than the browser's.
+**Critical check:** the specialisation and the years both reach the profile row through the signup trigger (`handle_new_user`), which clamps the years server-side - signup metadata comes from a browser and is never trusted. A database that has not had the schema re-applied writes the rest of the application and leaves those columns null - the account is still created, and the therapist sets it from their own dashboard.
 **Cleanup.** Leave for `ADM-APPR-002`.
 
 #### `THR-AUTH-002` - An unapproved therapist is held at the door · P0
@@ -1983,20 +1985,21 @@ The therapist Overview is where a clinician starts every shift: what is on today
 
 ### 12.2 Availability - the roster
 
-> **Feature guide.** The editor is the same component on the therapist's own screen and on the admin's Roster. It edits **periods** ("Monday 9 AM – 1 PM and 2 PM – 6 PM"), and converts them to the hour rows the tables have always stored. Every existing schedule - including a sparse exception written one cell at a time by the old grid - must read back as exactly the same hours. A weekly save is a **compare-and-swap under a real row lock**, versioned by `therapist_schedule_state`.
+> **Feature guide.** The editor is the same component on the therapist's own screen and on the admin's Roster. It edits **periods** ("Monday 9 AM – 1 PM and 2 PM – 6 PM"), and converts them to the hour rows the tables have always stored. Every existing schedule - including a sparse exception written one cell at a time by the old grid - must read back as exactly the same hours. A weekly save is a **compare-and-swap under a real row lock**, versioned by `therapist_schedule_state` - and a therapist who has never been saved has no such row, so the first save asks for no comparison at all rather than comparing against a version nobody holds. It **opens read-only**, as a week summary with an **Edit schedule** button: reading somebody's hours and changing them are two different acts, and a mis-tap on a dropdown used to be a change.
 
 #### `THR-AVAIL-001` - Set a weekly schedule with two periods a day · P0
 
 **Steps**
 1. Open `/therapist/dashboard/availability`.
-2. Read the header line - it states the schedule's timezone.
+2. Read the header line - it states the schedule's timezone. The week is shown as a **summary, with no editable controls on it**; tap **Edit schedule**.
 3. On **Monday**, tap the "working" toggle so the day is on.
 4. Tap the Monday start-time control. Set `09:00`. Tap the end-time control. Set `13:00`.
 5. Tap **Add hours** on Monday. On the new period, set `14:00` to `18:00`.
 6. Tap the copy control on Monday and copy Monday to Tuesday, Wednesday, Thursday and Friday.
 7. Tap **Save**.
 
-**Expected Result.** After saving, a "Saved" indication appears and the week summary reads Mon–Fri `9:00 AM – 1:00 PM, 2:00 PM – 6:00 PM`. Reloading the page shows exactly the same periods - **the stored hour rows round-trip to the same periods**. Saturday and Sunday remain off.
+**Expected Result.** After saving, a "Saved" indication appears, the editor **closes back to the read-only summary**, and that summary reads Mon–Fri `9:00 AM – 1:00 PM, 2:00 PM – 6:00 PM`. Reloading the page shows exactly the same periods - **the stored hour rows round-trip to the same periods** - and shows them read-only. Saturday and Sunday remain off.
+**This is also the first-save check for this therapist.** If it is refused with *"This schedule was changed by someone else"* on an account nobody else has touched, that is the version default returning: an absent `therapist_schedule_state` row is "no comparison asked for", not version `0`.
 **Cross-check:** Admin → Sessions → Roster, opening `QA Therapist A`, shows the identical schedule in the identical editor.
 
 #### `THR-AVAIL-002` - A day with no hours must be explicit · P1
@@ -2740,14 +2743,29 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Feature.** The Roster is the clinic's planning record. It opens on a **list of therapists** rather than a calendar date and an eighteen-column grid, and it uses the **same editor** the therapist's own screen uses.
 
 **Steps.** Open **Sessions → Roster**. Read the landing view. Open `QA Therapist A`.
-**Expected Result.** A list of therapists with a summary of what each works, plus their leave state. Opening one shows the **period editor**, not an hourly grid. The periods match exactly what the therapist saved in `THR-AVAIL-001`.
+**Expected Result.** A list of therapists with a summary of what each works, plus their leave state. Opening one **scrolls the page down to their schedule** and moves focus there - the card is below the list and usually below the fold, so a tap used to change a screen nobody could see. The schedule opens **read-only**, as a week summary with an **Edit schedule** button; the pickers appear only after Edit. The periods match exactly what the therapist saved in `THR-AVAIL-001`.
+
+#### `ADM-ROST-001a` - The first save for a therapist is not refused as somebody else's edit · P0
+
+**Feature.** A therapist who has never had a schedule saved has no `therapist_schedule_state` row, so there is no version to compare against and the editor asks for no compare-and-swap at all. This used to send version `0` while the database creates that row at `1`, so the **first** save for every therapist was refused.
+
+**Steps.** Pick a therapist who has **never** been saved (a freshly created one, or delete their `therapist_schedule_state` row first). Open **Sessions → Roster**, open them, tap **Edit schedule**, set any working period, Save.
+**Expected Result.** It saves, first time. The message *"This schedule was changed by someone else"* must **not** appear. Then repeat `ADM-ROST-002` on the same therapist: the second save carries a real version and the stale-save 409 still works, so the guard is intact rather than removed.
+
+#### `ADM-ROST-001b` - Day view: who is free on a given date · P1
+
+**Feature.** The same rows the other way round. The list view answers "what does this therapist normally work"; Day view answers "who is free on Thursday, and which of their hours are taken" - a question no screen could answer before.
+
+**Steps.** On **Sessions → Roster**, switch to **Day**. Pick a date on which Therapist A works and has at least one booked session. Tap Therapist A's row.
+**Expected Result.** A summary line - how many are working, how many free hours, how many booked - and a row per therapist. Somebody **on leave** and somebody **not rostered that day** say different things, not one word for both. Tapping a working therapist opens an hour strip: booked hours name the patient and the session code, free hours read **Free**, and hours outside their working periods are not offered as free. A session longer than an hour takes **every** hour it overlaps, not only the one it starts in. Nothing on this screen books, moves or frees anything - there is no control that would.
+The date is picked from the **clinic's own calendar popover**, never the browser's own date panel.
 
 #### `ADM-ROST-002` - An admin saves a therapist's weekly schedule · P1
 **Steps.** Change Therapist A's Friday to `09:00–12:00` and save.
 **Expected Result.** Saved through the same compare-and-swap function, with the same stale-save 409 and the same double-click no-op success. The therapist's own screen shows the change. **No appointment is moved.**
 
 #### `ADM-ROST-003` - Set a date exception · P0
-**Steps.** For Therapist A, set `2026-09-15` to `14:00–18:00` with the reason `Clinic audit in the morning`. Save. Then look at 22 September (the next Tuesday) and at the weekly template.
+**Steps.** For Therapist A, set `2026-09-15` to `14:00–18:00` with the reason `Clinic audit in the morning`. The date is chosen from the clinic's own calendar popover - **there is no browser date panel anywhere in this app**. Save. Then look at 22 September (the next Tuesday) and at the weekly template.
 **Expected Result.** Only 15 September changes. **Every other Tuesday still shows the weekly template's hours, and the weekly template itself is untouched.** Setting a date exception replaces that **whole day** in one function - it is not a partial merge.
 
 #### `ADM-ROST-004` - Set leave · P1
@@ -2935,6 +2953,7 @@ Withdrawal also covers a plan **still waiting for approval** - refusing would le
 #### `ADM-NEWB-001` - New Booking · P1
 **Steps.** Open **Sessions → New Booking**. Create a booking for `QA Patient A` with `QA Therapist A` at a chosen slot.
 **Expected Result.** The booking is created server-side with the same re-derivation as the patient route. **An admin has a lead-time override** (there is somebody on the phone arranging the exception) where the patient route has none. Missing fields are refused with `Missing appointmentId, therapistId, or slotDateTime` / `Choose a patient.` / `Choose a treatment category.` The booking is audited.
+**The screen fills the width the header does.** It was the only admin screen that capped its own width, so the card stopped well short of the heading above it and read as a different page; the fields sit in two columns from `sm` up, since a full-width card of half-empty single-column rows is the opposite mistake.
 **The date and time are the patient's own calendar**, not native date/time boxes: a month grid plus hour cells, opened on the earliest eligible slot. Ticking **Book inside the N-hour window anyway** re-opens the grid down to the current hour - the one thing this screen may do that `/book` may not - and the caption under it changes to say the lead-time rule does not apply. It still never offers a past slot.
 
 #### `ADM-CAL-001` - One calendar, everywhere a session time is chosen · P1
@@ -3019,8 +3038,13 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 **Critical check:** the patients and partners directories - same component - show **no** specialisation filter and no column at all.
 
 #### `ADM-PEOP-006` - Therapist detail and revenue share · P0
-**Steps.** Open `QA Therapist A`. Set **Revenue share %** to `60`, and the home-visit share to `65`. Save. Then try `-5` and `150`.
-**Expected Result.** Valid values save and immediately change the therapist's Earnings and the Money screens' split. Invalid values are refused with `Enter a percentage between 0 and 100.` The change is audited.
+
+**Feature.** Two shares: the ordinary one, and an optional separate one for home visits that falls back to the ordinary when it is unset. The home-visit column was read by payouts, by settlement and by every Money figure that splits a visit, and **written by nothing** - so until this shipped it could only be set by editing the table by hand, and this test could not be performed.
+
+**Steps.** Open `QA Therapist A`. Set **Revenue share %** to `60`, and the home-visit share to `65`. Save. Then try `-5` and `150` on each. Then **clear** the home-visit box and save. Then read the money figures on that page and compare them, for the same therapist and the same range, with **Money → Payouts** and with what the **Pay** button says it will transfer.
+**Expected Result.** Valid values save and immediately change the therapist's Earnings and the Money screens' split. Invalid values are refused with `Enter a percentage between 0 and 100.` Both changes are audited, each under its own action.
+**Clearing the home-visit share is allowed and means "use the ordinary share"** - which is what every therapist carries by default, so a box that could be set and never unset would be a one-way door. Clearing the **ordinary** share is still refused: there is no rate behind it to fall back to.
+**The three figures agree.** This page used to compute its own payout from the ordinary share alone, with no home-visit rate and no travel fee, so a therapist who did home visits read one number on their profile and a different one on Payouts - and the Pay button transferred the third. Any disagreement here is that defect.
 
 #### `ADM-PEOP-007` - Suspend and restore a therapist · P1
 **Steps.** Toggle Therapist A inactive, then active.
@@ -3032,6 +3056,35 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 
 #### `ADM-PEOP-008` - Partners · P1
 Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **Update revenue share**, **Set active/inactive**, **Reset password**, **Referral capacity note**, and **Decline referral** (reason mandatory) all work and are audited.
+
+#### `ADM-PEOP-008a` - The partner surfaces read as laid-out records · P2
+
+**Feature.** Three surfaces on **People → Partners** printed captured fields as run-on lines, and one of them lost data: `b2b_leads.org_details` is written by a **textarea** on the public `/hospitals` form, and the card rendered it inline, so every line break the enquirer typed was gone.
+
+**Steps**
+1. On the public `/hospitals` page, submit an enquiry whose **Details** box contains **three separate lines**.
+2. As an admin, open **People → Partners** and read that lead's card.
+3. Read a **Hospital Partners** card's identity block.
+4. Open **Onboard as Hospital** and read the form before filling it. Type a revenue share and watch the line under it.
+
+**Expected Result**
+* Steps 1–2: every captured field on its own **labelled row** - name, phone, email, source, details, received - and the **three lines are still three lines**. One line of `Source: … - Details: …` is this defect.
+* Step 3: labelled rows for contact, email and onboarded date rather than a run-on line. The three money cells stay gated on the viewer's money access exactly as before.
+* Step 4: a two-column labelled grid like the rest of the admin forms, and the revenue-share field states what the clinic keeps as you type - the same way a therapist's share does.
+
+#### `ADM-PEOP-008b` - An onboarded hospital's password stays where it can be read · P0
+
+**Feature.** Onboarding generated the password, returned it and stored it nowhere, so it lived only in the form's own state - the first refresh, or the realtime update the onboarding itself caused, took it off the screen. The form's own line said *"they won't be shown again"*, which was true and was the defect.
+
+**Steps**
+1. Onboard a new hospital. Read the result panel, but do **not** copy the password.
+2. Without touching anything, wait for the dashboard to refresh - or have a second admin change something so a realtime event fires.
+3. Reload the page entirely and open **People → Partners**.
+4. Sign in as that hospital and set their own password. Reopen the Partners card.
+
+**Expected Result**
+* Steps 2–3: the password is **still readable** on that hospital's card, in the same panel **Reset password** already used, marked as the one the clinic issued. The result panel says where to find it rather than that it will not be shown again.
+* Step 4: the card now says the hospital signs in with their own password and the credential is gone - the same pair of states every other role has (`ADM-SET-026b`).
 
 #### `ADM-REF-001` - Contacting a referred patient before the link goes out · P1
 
@@ -3504,9 +3557,11 @@ The screen warns you to turn it on only once System Health has been clean.
 
 **Steps**
 1. Create a throwaway patient with a typo'd email and, without doing anything else with it, delete it from their profile.
+1b. Create a throwaway **admin** (Back office - any access level) and, without doing anything else with it, delete it from its row.
 2. Delete a patient who has at least one session, one payment and a programme.
 3. Delete a therapist who has run sessions and written notes.
 4. Delete an admin who has performed any action at all.
+4b. Create a throwaway patient, upload an **avatar** for them and nothing else, then delete them.
 5. Try to delete **your own** row in Back office.
 6. Leave exactly one active Master Admin and try to delete it.
 7. Sign in as **Operations**, then **Finance**, then **Clinical**, and look for the button. Then POST `/api/admin/delete-account` directly as each.
@@ -3515,7 +3570,9 @@ The screen warns you to turn it on only once System Health has been clean.
 
 **Expected Result**
 * Step 1: a **dialog** first, naming the account and saying this only works with no history, with Suspend named as the alternative. Confirming deletes it; the page returns to the directory it came from.
-* Steps 2–4: **nothing is deleted**, and a dialog names what is on file - *"3 sessions, 2 money records, 1 programme and 12 back-office actions"* - and says to suspend instead. Each group is counted separately and pluralised on its own count. A refusal is never an 11px line beside the button: it is a paragraph and it belongs in a dialog.
+* Step 1b: it deletes, exactly as the patient did. This is a regression check with a real history: the Master Admin guard used to run as its caller, and the caller for a delete is Supabase Auth's own role, which cannot read `profiles` - so its count was refused, the refusal aborted the delete, and **no admin account could be deleted at all**, however empty. Patients and therapists were unaffected, which is what made it read as a data problem. If this step fails with *"the database refused ... and did not say why"*, that is the same fault returning.
+* Steps 2–4: **nothing is deleted**, and a dialog names what is on file - *"3 sessions, 2 money records, 1 programme and 12 back-office actions"* - and says to suspend instead. Each group is counted separately and pluralised on its own count. A refusal is never an 11px line beside the button: it is a paragraph and it belongs in a dialog. The counts come from the database's own list of the foreign keys that refuse a delete, rather than a list kept in the route - so a refusal always **names** something. *"The database refused ... and did not say why"* is the fallback for a cause outside those keys and should not appear in this test at all; if it does, record which account produced it.
+* Step 4b: **nothing is deleted**, and the dialog names **uploaded files** and points at removing them. This is the second regression check with a real history: the blocker count asked about `profiles` while the delete removes the Supabase Auth user, so an avatar - a storage row owned by that auth user - refused the delete with nothing in the dialog to say so, and the admin met *"the database refused ... and did not say why"*. Delete the avatar and the same account then deletes. If instead this step reports something vaguer than uploaded files, record exactly what the dialog said: whatever refuses is now named by the database, so an unhelpful word here means a table nobody has grouped rather than a count that was missed.
 * Step 5: refused - *"You can't delete your own account."* The button does not render on your own row either.
 * Step 6: refused - the last Master Admin who can still sign in cannot be deleted, the same guard suspension carries, and this one has no undo at all.
 * Step 7: **no button** for any of the three, and the direct POST is **403** for all three - deleting is Master Admin's alone even though every one of those desks can manage People.
@@ -3549,6 +3606,28 @@ The screen warns you to turn it on only once System Health has been clean.
 * Step 6: **nowhere, by design.** A password somebody chose is stored by Supabase as a bcrypt hash and cannot be read back by this app or anyone else. The lane for a locked-out account is **Reset Password**, which issues a new one and puts the row back into the first state.
 * Step 7: **no rows** - the table carries no RLS policies at all, so only the service role reads it. A plain column on `profiles` would be handed straight back to the account owner by `profiles_select_own`, which is why these four tables exist.
 * Step 8: **no password anywhere in the log**, which every admin can read.
+
+#### `ADM-SET-026c` - Re-issuing a back-office password, and dismissing the panel · P1
+
+**Feature.** Patients, therapists and hospitals could all have a password re-issued from the back office; an admin who had locked themselves out needed somebody with Supabase access. **Reset password** on a Back office row is the fourth of those doors. The created-account panel also has a close button now, and its Copy button no longer reads "Copied" for ever after one click.
+
+**Steps**
+1. Create a back-office account. On the panel that appears, press **Copy**, wait a few seconds, then read the button. Press the **×**.
+2. On another admin's row, press **Reset password** and read what comes up before anything happens.
+3. Confirm it. Read that admin's row.
+4. Sign in as that admin with the **old** password, then with the new one.
+5. Look for **Reset password** on **your own** row. Then POST `/api/admin/reset-admin-password` with your own id.
+6. Sign in as **Operations**, then **Finance**, then **Clinical**. Look for the button, then POST the route directly as each.
+7. Open **Logs → All Activity**.
+
+**Expected Result**
+* Step 1: Copy goes back to **Copy** after a moment rather than staying "Copied". The **×** dismisses the panel, and the password is **still on that admin's row** - dismissing a panel must not lose a credential (`ADM-SET-026b`).
+* Step 2: a **confirmation first**, saying the current password stops working immediately. Nothing has changed until it is confirmed - somebody who tapped it meaning to *read* the existing password has not locked anybody out.
+* Step 3: the new password is on that admin's **row**, in the same place the created one appeared - **not** in a second panel under the button. Two places showing one password means the stale one is the one somebody reads out.
+* Step 4: the old password is refused; the new one signs in.
+* Step 5: **no button on your own row**, and the direct POST is refused. The lane for your own password is the emailed reset on **Settings → Sign-in & Security**.
+* Step 6: **no button** for any of the three, and the POST is **403** for all three - this is Master Admin's alone, even though every one of those desks can manage People.
+* Step 7: an entry naming who reset whose password, with `role: admin`, and **no password in it**.
 
 #### `ADM-SET-025c` - Suspend and Create release the button, not the page · P1
 
@@ -4533,12 +4612,12 @@ The eight public pages are **one template, not eight layouts**. Every page assem
 
 The site's own index lives in **one array**, which the header nav, the footer's Explore column, the home page's connector grid and every "Where to go next" strip all read. So a page cannot exist in the header and be missing from the index, and a renamed page cannot leave a stale description behind.
 
-**Every Explore band ends on Book a session**, on all eight pages, in the same full-width photo-beside-text tile - booking was on the home page's grid alone, so the six inner pages ended their index on another page to read. And **the page tiles above it square up**: the count varies (the page you are on is always missing, and Home Visit drops out when the clinic switches it off), so a row that would end short stretches its leftover tiles across it rather than leaving dead cells on the right.
+**Every Explore band ends on Book a video session**, on all eight pages, in the same full-width photo-beside-text tile - booking was on the home page's grid alone, so the six inner pages ended their index on another page to read. And **the page tiles above it square up**: the count varies (the page you are on is always missing, and Home Visit drops out when the clinic switches it off), so a row that would end short stretches its leftover tiles across it rather than leaving dead cells on the right.
 
 #### `PUB-EXP-001` - The Explore band, on every public page · P1
 
 **Steps.** Open each of `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals` and read the Explore band at the foot.
-**Expected Result.** Every one ends with **Book a session** → `/book`, as the last tile, full width, photo beside the text. Above it: every other page, never the one you are on, and never Home Visit while the master switch is off.
+**Expected Result.** Every one ends with **Book a video session** → `/book`, as the last tile, full width, photo beside the text. Above it: every other page, never the one you are on, and never Home Visit while the master switch is off.
 **Alignment.** With the usual **seven** page tiles: two rows of three, then the seventh **stretched across the whole row** in the same wide layout - no empty cells to the right of it. Switch Home Visit off and reload: **six** tiles, two clean rows of three, nothing stretched. Narrow the window to the two-column breakpoint and repeat both: the last row must still be full.
 **Critical check:** this is arithmetic, not a hand-placed exception (`src/lib/exploreGridSpans.ts`, unit-tested). A tile that is full width on a tablet and half width on a desktop must **not** switch to the photo-beside-text layout - that would read as two designs rather than one stretched tile.
 
@@ -4916,6 +4995,28 @@ Covered by `PAT-BOOK-017`, `PAT-SUGG-004`, `THR-AVAIL-004`, `FIN-PAY-002`, `PAY-
 * Steps 6–7: the month and day titles are **correct at every device timezone** and must not shift by a day. These are wall-clock dates with no instant behind them, and are deliberately *not* pinned - pinning them is the opposite bug.
 * Step 8: **"Saved 3:42 pm" follows your own clock**, deliberately: it is your own draft, set in your browser, gone on reload - not a stamp on a record anyone else reads.
 * A session slot keeps being shown in the zone the patient **booked** it in, where the booking recorded one.
+
+#### `UX-DATE-001` - No screen opens the browser's own date panel · P0
+
+**Feature.** `<input type="date">` hands the choice to a panel the browser draws: unstyled, worded differently and placed differently on every browser and every phone, and the one piece of UI in this product nobody designed. Twenty-eight of them - every report filter, a cost's date, a promo campaign's window, a document's date, the roster's exceptions and leave - now open the **same month grid that books a session**, in the clinic's own popover. This is the third of the three browser defaults replaced, alongside the blank-field tooltip (`UX-A11Y-004`) and the number box.
+
+**Steps**
+1. Visit every screen that asks for a date and tap the control: **Sessions → Delivery** (from/to), **Sessions → All Sessions** (from/to), **Sessions → Schedule** (jump to a day), **Money → Costs** (date incurred, and the from/to), **Money → Your Numbers** (all five), **Money → Business Health** (from/to), **Money → Costs → promo campaign** (start and end), **Logs → All Activity** (from/to), **Today → Activity** (from/to), a patient's **Payment History** (from/to), the therapist's **Earnings** (from/to), a patient's **Reports** upload (document date), and **Sessions → Roster** (an exception's date, a leave range).
+2. On each, pick a date in the **past** - a report filter has no lead time and must not refuse one.
+3. On the promo campaign's start and end, set an **hour and minute** as well.
+4. Press **Escape** with the popover open, then **Tab** through it.
+5. Where the control offers it, **clear** the date back to empty.
+6. Repeat two of these at **390 × 844** on a real phone browser.
+7. Read back whatever the screen filters, exports or saves after each pick.
+
+**Expected Result**
+* Step 1: the clinic's own popover calendar, every time. **No operating-system date panel anywhere.** The one deliberate exception is the pre-launch debug bar, which is deleted before launch.
+* Step 2: past dates are selectable. The booking calendar's "too soon to book" rule is a **booking** rule and must not leak onto a report filter.
+* Step 3: the time is kept to the minute - the campaign window is an instant, not a day.
+* Step 4: Escape closes it and returns focus to the button; Tab stays inside while it is open.
+* Step 5: it clears, and the screen behaves as it did with the box empty.
+* Step 6: usable at phone width, and it does not open behind or outside the screen.
+* Step 7: **byte-identical to what the old native input produced.** The value is still `YYYY-MM-DD` (or `YYYY-MM-DDTHH:mm` with a time), so a filter, an export or a saved row that changed at all is this defect - the control changed, the value must not have.
 
 #### `UX-SAID-001` - Every change says what it was · P0
 

@@ -139,7 +139,12 @@ export default function AdminNewBookingTab({
   const labelCls = "block text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-1";
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 max-w-2xl">
+    // No `max-w-*`: this was the only admin screen that capped its own width,
+    // and the shell adds none either -- so the card stopped well short of the
+    // header and the search box above it while every other screen ran to the
+    // edge. The form itself goes two-up from `sm` instead, so a full-width
+    // card is not one long column of half-empty rows.
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-display font-bold text-lg text-slate-800">New Booking</h2>
       <p className="text-xs text-slate-500 mt-1 mb-5">
         For a patient who called instead of booking online. Assign a therapist now and it is
@@ -147,6 +152,7 @@ export default function AdminNewBookingTab({
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className={labelCls} htmlFor="booking-patient">
             Patient
@@ -185,6 +191,8 @@ export default function AdminNewBookingTab({
               </option>
             ))}
           </select>
+        </div>
+
         </div>
 
         {/* The patient's own calendar and hour cells rather than a pair of

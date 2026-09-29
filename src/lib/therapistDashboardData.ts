@@ -749,8 +749,14 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     availabilitySlots,
     upcomingOverrides,
     onLeaveProfile,
+    // **null**, not 0, when the therapist has no schedule-state row yet.
+    // `lock_therapist_schedule_state` creates that row at version 1, so
+    // defaulting a missing row to 0 made the compare-and-swap see 0 <> 1 and
+    // refuse the very first save as "changed by someone else" -- every
+    // therapist, every time. Null is what the database already reads as "no
+    // version to compare against".
     scheduleVersion:
-      typeof scheduleStateRow?.version === "number" ? scheduleStateRow.version : 0,
+      typeof scheduleStateRow?.version === "number" ? scheduleStateRow.version : null,
     leaveDates: {
       from: (leaveDetailRow?.on_leave_from as string | null) ?? null,
       to: (leaveDetailRow?.on_leave_to as string | null) ?? null,

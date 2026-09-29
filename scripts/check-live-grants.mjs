@@ -61,9 +61,17 @@ const MUST_BE_CLOSED = [
 
 const pass = [];
 const fail = [];
+// A third outcome, and it is the point of the rewrite below: an assertion
+// this database cannot decide either way. Reporting one as PASS is how a
+// green run stops meaning anything -- see the read-shape note in part 2.
+const unproven = [];
 const record = (ok, name, detail) => {
   (ok ? pass : fail).push(name);
   console.log(`  ${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  (${detail})` : ""}`);
+};
+const skip = (name, why) => {
+  unproven.push(name);
+  console.log(`  SKIP  ${name}  (${why})`);
 };
 
 // A 401/403/404 means the role cannot execute it. A 200 means it ran, which
@@ -108,24 +116,111 @@ try {
   const session = await signIn.json();
   if (!session.access_token) throw new Error("could not sign in as the fixture");
 
+  // What a read actually answered, rather than a count that collapses three
+  // outcomes into 0.
+  //
+  // This used to return `Array.isArray(body) ? body.length : 0`, so a read
+  // the policy refused, a read that failed, and a read that succeeded
+  // against an **empty table** were the same number -- the codebase's own
+  // rule (a read that came back empty is not a read that failed) broken
+  // inside the check that exists to be trusted. It cost a real false alarm:
+  // with `appointments` holding no rows, "an ACTIVE admin still reads
+  // appointments" failed on a database whose policies were perfect.
   const readAs = async (table) => {
     const res = await fetch(`${URL}/rest/v1/${table}?select=id&limit=1`, {
       headers: { apikey: ANON, Authorization: `Bearer ${session.access_token}` },
     });
-    const body = await res.json().catch(() => []);
-    return Array.isArray(body) ? body.length : 0;
+    const text = await res.text();
+    let body = null;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // Not JSON at all -- left as null, which reads as "not an array" below.
+    }
+    const rows = Array.isArray(body) ? body.length : null;
+    return {
+      status: res.status,
+      // PostgREST answers a permitted read with an array, and anything it
+      // refused outright with an object carrying a message.
+      permitted: res.ok && rows !== null,
+      rows,
+      detail: `HTTP ${res.status}${rows === null ? `, ${text.slice(0, 80)}` : `, ${rows} row(s)`}`,
+    };
   };
 
   const setProfile = (patch) =>
     admin.from("profiles").update(patch).eq("id", userId);
 
-  await setProfile({ role: "admin", admin_scope: "full", active: true, approved: true });
-  record((await readAs("admin_activity_log")) > 0, "an ACTIVE admin still reads admin_activity_log");
-  record((await readAs("appointments")) > 0, "an ACTIVE admin still reads appointments");
+  // How many rows the table really holds, asked with the service role, which
+  // bypasses RLS. This is what decides whether the pair of assertions below
+  // can mean anything at all.
+  const realRowCount = async (table) => {
+    const { count, error } = await admin
+      .from(table)
+      .select("id", { count: "exact", head: true });
+    return error ? null : count ?? 0;
+  };
 
+  // RLS filters rows; it does not raise. So a suspended admin's refused read
+  // and a permitted read of an empty table are **byte-identical** on the
+  // wire -- both `HTTP 200 []`. Verified against this project rather than
+  // assumed. Two consequences, and neither was being honoured:
+  //
+  //   * the positive assertion can only be proven on a table that has rows;
+  //   * the negative assertion is *vacuous* on an empty one -- it passed
+  //     trivially and proved nothing about the policy.
+  //
+  // So an empty table is reported as not proven rather than as a pass. That
+  // is the whole correction: the old script's verdict moved with how much
+  // data happened to be lying around, which is the one thing a security
+  // check must not do. It passed on `admin_activity_log` because that table
+  // had 47 rows and failed on `appointments` because it had none, and both
+  // were luck.
+  const readPair = async (table) => {
+    const total = await realRowCount(table);
+    if (total === null) {
+      skip(`an ACTIVE admin still reads ${table}`, "could not count the table with the service role");
+      skip(`a SUSPENDED admin reads no ${table}`, "could not count the table with the service role");
+      return;
+    }
+
+    await setProfile({ role: "admin", admin_scope: "full", active: true, approved: true });
+    const asActive = await readAs(table);
+    await setProfile({ active: false });
+    const asSuspended = await readAs(table);
+
+    if (total === 0) {
+      // Still worth saying the request was not refused outright -- that part
+      // does not need rows -- but neither claim about the policy is earned.
+      record(
+        asActive.permitted,
+        `an ACTIVE admin's read of ${table} is not refused outright`,
+        asActive.detail
+      );
+      skip(
+        `an ACTIVE admin still reads ${table}`,
+        "the table is empty, so a permitted read and a refused one look the same"
+      );
+      skip(
+        `a SUSPENDED admin reads no ${table}`,
+        "the table is empty, so this would pass however the policy behaved"
+      );
+      return;
+    }
+
+    record(
+      asActive.permitted && (asActive.rows ?? 0) > 0,
+      `an ACTIVE admin still reads ${table}`,
+      asActive.detail
+    );
+    record(asSuspended.rows === 0, `a SUSPENDED admin reads no ${table}`, asSuspended.detail);
+  };
+
+  await readPair("admin_activity_log");
+  await readPair("appointments");
+
+  // Left suspended for part 3, exactly as before.
   await setProfile({ active: false });
-  record((await readAs("admin_activity_log")) === 0, "a SUSPENDED admin reads no admin_activity_log");
-  record((await readAs("appointments")) === 0, "a SUSPENDED admin reads no appointments");
 
   console.log("\n3. revoke_user_sessions ends the session");
   const { error: rpcError } = await admin.rpc("revoke_user_sessions", { p_user_id: userId });
@@ -145,7 +240,15 @@ try {
   }
 }
 
-console.log(`\n${pass.length} passed, ${fail.length} failed`);
+console.log(
+  `\n${pass.length} passed, ${fail.length} failed` +
+    (unproven.length ? `, ${unproven.length} not proven` : "")
+);
+if (unproven.length) {
+  // Named rather than left in the count: a reader who sees only "0 failed"
+  // would take this for full coverage.
+  console.log("NOT PROVEN on this database: " + unproven.join(" | "));
+}
 if (fail.length) {
   console.error("FAILED: " + fail.join(" | "));
   process.exit(1);

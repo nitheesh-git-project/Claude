@@ -129,7 +129,7 @@ export default async function HowItWorksPage() {
         eyebrow="How it works"
         title="Booking to recovery, in four steps"
         subtitle="What actually happens, from picking a slot to keeping the plan."
-        primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
+        primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         photoId="hero-how-it-works"
         alt="A physiotherapist smiling at his desk, ready to start a patient's video session"
         overlay={{

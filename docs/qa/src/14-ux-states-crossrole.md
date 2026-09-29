@@ -63,6 +63,28 @@
 * Step 8: **"Saved 3:42 pm" follows your own clock**, deliberately: it is your own draft, set in your browser, gone on reload - not a stamp on a record anyone else reads.
 * A session slot keeps being shown in the zone the patient **booked** it in, where the booking recorded one.
 
+#### `UX-DATE-001` - No screen opens the browser's own date panel · P0
+
+**Feature.** `<input type="date">` hands the choice to a panel the browser draws: unstyled, worded differently and placed differently on every browser and every phone, and the one piece of UI in this product nobody designed. Twenty-eight of them - every report filter, a cost's date, a promo campaign's window, a document's date, the roster's exceptions and leave - now open the **same month grid that books a session**, in the clinic's own popover. This is the third of the three browser defaults replaced, alongside the blank-field tooltip (`UX-A11Y-004`) and the number box.
+
+**Steps**
+1. Visit every screen that asks for a date and tap the control: **Sessions → Delivery** (from/to), **Sessions → All Sessions** (from/to), **Sessions → Schedule** (jump to a day), **Money → Costs** (date incurred, and the from/to), **Money → Your Numbers** (all five), **Money → Business Health** (from/to), **Money → Costs → promo campaign** (start and end), **Logs → All Activity** (from/to), **Today → Activity** (from/to), a patient's **Payment History** (from/to), the therapist's **Earnings** (from/to), a patient's **Reports** upload (document date), and **Sessions → Roster** (an exception's date, a leave range).
+2. On each, pick a date in the **past** - a report filter has no lead time and must not refuse one.
+3. On the promo campaign's start and end, set an **hour and minute** as well.
+4. Press **Escape** with the popover open, then **Tab** through it.
+5. Where the control offers it, **clear** the date back to empty.
+6. Repeat two of these at **390 × 844** on a real phone browser.
+7. Read back whatever the screen filters, exports or saves after each pick.
+
+**Expected Result**
+* Step 1: the clinic's own popover calendar, every time. **No operating-system date panel anywhere.** The one deliberate exception is the pre-launch debug bar, which is deleted before launch.
+* Step 2: past dates are selectable. The booking calendar's "too soon to book" rule is a **booking** rule and must not leak onto a report filter.
+* Step 3: the time is kept to the minute - the campaign window is an instant, not a day.
+* Step 4: Escape closes it and returns focus to the button; Tab stays inside while it is open.
+* Step 5: it clears, and the screen behaves as it did with the box empty.
+* Step 6: usable at phone width, and it does not open behind or outside the screen.
+* Step 7: **byte-identical to what the old native input produced.** The value is still `YYYY-MM-DD` (or `YYYY-MM-DDTHH:mm` with a time), so a filter, an export or a saved row that changed at all is this defect - the control changed, the value must not have.
+
 #### `UX-SAID-001` - Every change says what it was · P0
 
 **Feature.** A mutating control ends with `router.refresh()`, which re-renders the screen into a state that looks identical to the one before it. Turning home visits on left the admin looking at the same page with no idea whether it had worked. Every control now raises a confirmation naming the thing and its new state.

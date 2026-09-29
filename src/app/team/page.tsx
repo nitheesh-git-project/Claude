@@ -87,7 +87,7 @@ export default async function TeamPage() {
         eyebrow="Our team"
         title="The specialist who will actually see you"
         subtitle="One-to-one, every session. No call centre, no rotating pool."
-        primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
+        primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         photoId="hero-team"
         alt="A physiotherapist smiling mid-consultation, her tablet and phone set up for the call"
         overlay={{
@@ -133,7 +133,7 @@ export default async function TeamPage() {
       <ClosingCta
         title="Book the specialist you picked."
         body="Or book the standard assessment and we will match you."
-        primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
+        primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         secondary={{ href: "/conditions", label: "See what we treat" }}
         photoId="cta-team"
         photoAlt="A physiotherapist smiling at her laptop as a session begins"

@@ -18,6 +18,7 @@ import StatStrip from "@/components/dashboard/StatStrip";
 import type { CsvColumn } from "@/lib/csvExport";
 import { formatSlotRange, istDateKey, istMinutesOfDay } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
+import DateField from "@/components/system/DateField";
 
 // The one list of sessions.
 //
@@ -580,24 +581,24 @@ export default function AdminAllSessionsTab({
             placeholder="Session ID"
             className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-32"
           />
-          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
             From
-            <input
-              type="date"
+            <DateField
               value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className={selectCls()}
+              onChange={setFromDate}
+              ariaLabel="From date"
+              className="w-36"
             />
-          </label>
-          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
             To
-            <input
-              type="date"
+            <DateField
               value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className={selectCls()}
+              onChange={setToDate}
+              ariaLabel="To date"
+              className="w-36"
             />
-          </label>
+          </div>
           <select
             aria-label="Filter by delivery mode"
             value={modeFilter}

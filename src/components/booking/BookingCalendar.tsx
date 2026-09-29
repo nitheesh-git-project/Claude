@@ -13,6 +13,7 @@ import {
   formatDateKeyLong,
   fromDateKey,
   isMonthEntirelyUnbookable,
+  type DateBounds,
 } from "@/lib/bookingSlots";
 
 // Month-grid date picker for Step 1. Replaces the old <input type="date">,
@@ -28,6 +29,7 @@ export default function BookingCalendar({
   compact = false,
   markedDateKeys,
   gridLabel = "Choose a date",
+  bounds,
 }: {
   selectedDateKey: string;
   onSelect: (dateKey: string) => void;
@@ -50,6 +52,14 @@ export default function BookingCalendar({
   // their own copy of this month grid for exactly that one difference.
   markedDateKeys?: string[];
   gridLabel?: string;
+  // Picking a plain date rather than a bookable slot -- a report filter, a
+  // leave range, the day a cost was incurred. When present the lead-time rule
+  // is not applied and the day is judged by these bounds alone, which is what
+  // lets the same grid reach into the past. See `DateBounds` in bookingSlots.
+  // A prop rather than a second calendar, the same reasoning `compact` is a
+  // mode: this is the only month grid in the app and forking it is how the
+  // two come to disagree about which days exist.
+  bounds?: DateBounds;
 }) {
   const reduceMotion = useReducedMotion();
   // Open on the selected date's month so the preselection is on screen
@@ -59,7 +69,7 @@ export default function BookingCalendar({
     return { year: base.getFullYear(), month: base.getMonth() };
   });
 
-  const calendar = buildCalendarMonth(view.year, view.month, nowMs, leadTimeMs);
+  const calendar = buildCalendarMonth(view.year, view.month, nowMs, leadTimeMs, bounds);
 
   function shiftMonth(delta: number) {
     setView((prev) => {
@@ -76,8 +86,23 @@ export default function BookingCalendar({
     previousMonth.getFullYear(),
     previousMonth.getMonth(),
     nowMs,
-    leadTimeMs
+    leadTimeMs,
+    bounds
   );
+
+  // Booking has no forward limit -- a patient may look as far ahead as they
+  // like. A bounded date picker does: walking past `maxDateKey` would show
+  // month after month with every cell disabled, which reads as broken.
+  const nextMonth = new Date(view.year, view.month + 1, 1);
+  const canGoForward =
+    !bounds ||
+    !isMonthEntirelyUnbookable(
+      nextMonth.getFullYear(),
+      nextMonth.getMonth(),
+      nowMs,
+      leadTimeMs,
+      bounds
+    );
 
   return (
     // Tight padding on phones: a 7-column month grid only has ~55px of
@@ -111,10 +136,11 @@ export default function BookingCalendar({
         <button
           type="button"
           onClick={() => shiftMonth(1)}
+          disabled={!canGoForward}
           aria-label="Next month"
           className={`${
             compact ? "w-7 h-7 text-xs" : "w-11 h-11"
-          } rounded-xl text-slate-600 hover:bg-slate-100 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600`}
+          } rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600`}
         >
           <i className="fa-solid fa-chevron-right" aria-hidden="true"></i>
         </button>

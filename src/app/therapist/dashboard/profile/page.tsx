@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AvatarUpload from "@/components/profile/AvatarUpload";
+import AccountCreatedNote from "@/components/profile/AccountCreatedNote";
 import InstantProfileFields from "@/components/profile/InstantProfileFields";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
@@ -36,7 +37,7 @@ export default async function TherapistProfilePage() {
     supabase
       .from("profiles")
       .select(
-        "full_name, email, avatar_url, phone, credentials, specialization, years_experience, bio, languages"
+        "full_name, email, avatar_url, phone, credentials, specialization, years_experience, bio, languages, created_at"
       )
       .eq("id", user.id)
       .single(),
@@ -101,6 +102,9 @@ export default async function TherapistProfilePage() {
           currentUrl={profile?.avatar_url ?? null}
           name={profile?.full_name ?? "T"}
         />
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <AccountCreatedNote createdAt={profile?.created_at} />
+        </div>
       </div>
 
       <div id="public-details" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">

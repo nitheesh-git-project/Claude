@@ -5,7 +5,7 @@ import { usePagedList } from "@/lib/usePagedList";
 import { useState } from "react";
 import Link from "next/link";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
-import { formatIST } from "@/lib/formatIST";
+import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import SpecialtyChip from "@/components/SpecialtyChip";
 import {
   SPECIALTY_FILTER_ALL,
@@ -231,7 +231,7 @@ export default function AdminPeopleDirectory({
                   {CARE_STATUS_LABELS[p.careStatus] ?? p.careStatus}
                 </span>
               )}
-              <p className="text-slate-500 text-[10px] mt-1">Joined {formatIST(p.created_at)}</p>
+              <p className="text-slate-500 text-[10px] mt-1">Joined {formatClinicDateTimeWithZone(p.created_at)}</p>
             </Link>
           ))}
         </div>
@@ -268,7 +268,7 @@ export default function AdminPeopleDirectory({
                     </td>
                   )}
                   <td className="py-2 pr-3">{badge(p) ?? <span className="text-slate-500">Active</span>}</td>
-                  <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{formatIST(p.created_at)}</td>
+                  <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{formatClinicDateTimeWithZone(p.created_at)}</td>
                 </tr>
               ))}
             </tbody>

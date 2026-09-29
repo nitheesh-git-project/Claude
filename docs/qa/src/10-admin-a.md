@@ -209,14 +209,29 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Feature.** The Roster is the clinic's planning record. It opens on a **list of therapists** rather than a calendar date and an eighteen-column grid, and it uses the **same editor** the therapist's own screen uses.
 
 **Steps.** Open **Sessions → Roster**. Read the landing view. Open `QA Therapist A`.
-**Expected Result.** A list of therapists with a summary of what each works, plus their leave state. Opening one shows the **period editor**, not an hourly grid. The periods match exactly what the therapist saved in `THR-AVAIL-001`.
+**Expected Result.** A list of therapists with a summary of what each works, plus their leave state. Opening one **scrolls the page down to their schedule** and moves focus there - the card is below the list and usually below the fold, so a tap used to change a screen nobody could see. The schedule opens **read-only**, as a week summary with an **Edit schedule** button; the pickers appear only after Edit. The periods match exactly what the therapist saved in `THR-AVAIL-001`.
+
+#### `ADM-ROST-001a` - The first save for a therapist is not refused as somebody else's edit · P0
+
+**Feature.** A therapist who has never had a schedule saved has no `therapist_schedule_state` row, so there is no version to compare against and the editor asks for no compare-and-swap at all. This used to send version `0` while the database creates that row at `1`, so the **first** save for every therapist was refused.
+
+**Steps.** Pick a therapist who has **never** been saved (a freshly created one, or delete their `therapist_schedule_state` row first). Open **Sessions → Roster**, open them, tap **Edit schedule**, set any working period, Save.
+**Expected Result.** It saves, first time. The message *"This schedule was changed by someone else"* must **not** appear. Then repeat `ADM-ROST-002` on the same therapist: the second save carries a real version and the stale-save 409 still works, so the guard is intact rather than removed.
+
+#### `ADM-ROST-001b` - Day view: who is free on a given date · P1
+
+**Feature.** The same rows the other way round. The list view answers "what does this therapist normally work"; Day view answers "who is free on Thursday, and which of their hours are taken" - a question no screen could answer before.
+
+**Steps.** On **Sessions → Roster**, switch to **Day**. Pick a date on which Therapist A works and has at least one booked session. Tap Therapist A's row.
+**Expected Result.** A summary line - how many are working, how many free hours, how many booked - and a row per therapist. Somebody **on leave** and somebody **not rostered that day** say different things, not one word for both. Tapping a working therapist opens an hour strip: booked hours name the patient and the session code, free hours read **Free**, and hours outside their working periods are not offered as free. A session longer than an hour takes **every** hour it overlaps, not only the one it starts in. Nothing on this screen books, moves or frees anything - there is no control that would.
+The date is picked from the **clinic's own calendar popover**, never the browser's own date panel.
 
 #### `ADM-ROST-002` - An admin saves a therapist's weekly schedule · P1
 **Steps.** Change Therapist A's Friday to `09:00–12:00` and save.
 **Expected Result.** Saved through the same compare-and-swap function, with the same stale-save 409 and the same double-click no-op success. The therapist's own screen shows the change. **No appointment is moved.**
 
 #### `ADM-ROST-003` - Set a date exception · P0
-**Steps.** For Therapist A, set `2026-09-15` to `14:00–18:00` with the reason `Clinic audit in the morning`. Save. Then look at 22 September (the next Tuesday) and at the weekly template.
+**Steps.** For Therapist A, set `2026-09-15` to `14:00–18:00` with the reason `Clinic audit in the morning`. The date is chosen from the clinic's own calendar popover - **there is no browser date panel anywhere in this app**. Save. Then look at 22 September (the next Tuesday) and at the weekly template.
 **Expected Result.** Only 15 September changes. **Every other Tuesday still shows the weekly template's hours, and the weekly template itself is untouched.** Setting a date exception replaces that **whole day** in one function - it is not a partial merge.
 
 #### `ADM-ROST-004` - Set leave · P1
@@ -404,6 +419,7 @@ Withdrawal also covers a plan **still waiting for approval** - refusing would le
 #### `ADM-NEWB-001` - New Booking · P1
 **Steps.** Open **Sessions → New Booking**. Create a booking for `QA Patient A` with `QA Therapist A` at a chosen slot.
 **Expected Result.** The booking is created server-side with the same re-derivation as the patient route. **An admin has a lead-time override** (there is somebody on the phone arranging the exception) where the patient route has none. Missing fields are refused with `Missing appointmentId, therapistId, or slotDateTime` / `Choose a patient.` / `Choose a treatment category.` The booking is audited.
+**The screen fills the width the header does.** It was the only admin screen that capped its own width, so the card stopped well short of the heading above it and read as a different page; the fields sit in two columns from `sm` up, since a full-width card of half-empty single-column rows is the opposite mistake.
 **The date and time are the patient's own calendar**, not native date/time boxes: a month grid plus hour cells, opened on the earliest eligible slot. Ticking **Book inside the N-hour window anyway** re-opens the grid down to the current hour - the one thing this screen may do that `/book` may not - and the caption under it changes to say the lead-time rule does not apply. It still never offers a past slot.
 
 #### `ADM-CAL-001` - One calendar, everywhere a session time is chosen · P1
@@ -488,8 +504,13 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 **Critical check:** the patients and partners directories - same component - show **no** specialisation filter and no column at all.
 
 #### `ADM-PEOP-006` - Therapist detail and revenue share · P0
-**Steps.** Open `QA Therapist A`. Set **Revenue share %** to `60`, and the home-visit share to `65`. Save. Then try `-5` and `150`.
-**Expected Result.** Valid values save and immediately change the therapist's Earnings and the Money screens' split. Invalid values are refused with `Enter a percentage between 0 and 100.` The change is audited.
+
+**Feature.** Two shares: the ordinary one, and an optional separate one for home visits that falls back to the ordinary when it is unset. The home-visit column was read by payouts, by settlement and by every Money figure that splits a visit, and **written by nothing** - so until this shipped it could only be set by editing the table by hand, and this test could not be performed.
+
+**Steps.** Open `QA Therapist A`. Set **Revenue share %** to `60`, and the home-visit share to `65`. Save. Then try `-5` and `150` on each. Then **clear** the home-visit box and save. Then read the money figures on that page and compare them, for the same therapist and the same range, with **Money → Payouts** and with what the **Pay** button says it will transfer.
+**Expected Result.** Valid values save and immediately change the therapist's Earnings and the Money screens' split. Invalid values are refused with `Enter a percentage between 0 and 100.` Both changes are audited, each under its own action.
+**Clearing the home-visit share is allowed and means "use the ordinary share"** - which is what every therapist carries by default, so a box that could be set and never unset would be a one-way door. Clearing the **ordinary** share is still refused: there is no rate behind it to fall back to.
+**The three figures agree.** This page used to compute its own payout from the ordinary share alone, with no home-visit rate and no travel fee, so a therapist who did home visits read one number on their profile and a different one on Payouts - and the Pay button transferred the third. Any disagreement here is that defect.
 
 #### `ADM-PEOP-007` - Suspend and restore a therapist · P1
 **Steps.** Toggle Therapist A inactive, then active.
@@ -501,6 +522,35 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 
 #### `ADM-PEOP-008` - Partners · P1
 Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **Update revenue share**, **Set active/inactive**, **Reset password**, **Referral capacity note**, and **Decline referral** (reason mandatory) all work and are audited.
+
+#### `ADM-PEOP-008a` - The partner surfaces read as laid-out records · P2
+
+**Feature.** Three surfaces on **People → Partners** printed captured fields as run-on lines, and one of them lost data: `b2b_leads.org_details` is written by a **textarea** on the public `/hospitals` form, and the card rendered it inline, so every line break the enquirer typed was gone.
+
+**Steps**
+1. On the public `/hospitals` page, submit an enquiry whose **Details** box contains **three separate lines**.
+2. As an admin, open **People → Partners** and read that lead's card.
+3. Read a **Hospital Partners** card's identity block.
+4. Open **Onboard as Hospital** and read the form before filling it. Type a revenue share and watch the line under it.
+
+**Expected Result**
+* Steps 1–2: every captured field on its own **labelled row** - name, phone, email, source, details, received - and the **three lines are still three lines**. One line of `Source: … - Details: …` is this defect.
+* Step 3: labelled rows for contact, email and onboarded date rather than a run-on line. The three money cells stay gated on the viewer's money access exactly as before.
+* Step 4: a two-column labelled grid like the rest of the admin forms, and the revenue-share field states what the clinic keeps as you type - the same way a therapist's share does.
+
+#### `ADM-PEOP-008b` - An onboarded hospital's password stays where it can be read · P0
+
+**Feature.** Onboarding generated the password, returned it and stored it nowhere, so it lived only in the form's own state - the first refresh, or the realtime update the onboarding itself caused, took it off the screen. The form's own line said *"they won't be shown again"*, which was true and was the defect.
+
+**Steps**
+1. Onboard a new hospital. Read the result panel, but do **not** copy the password.
+2. Without touching anything, wait for the dashboard to refresh - or have a second admin change something so a realtime event fires.
+3. Reload the page entirely and open **People → Partners**.
+4. Sign in as that hospital and set their own password. Reopen the Partners card.
+
+**Expected Result**
+* Steps 2–3: the password is **still readable** on that hospital's card, in the same panel **Reset password** already used, marked as the one the clinic issued. The result panel says where to find it rather than that it will not be shown again.
+* Step 4: the card now says the hospital signs in with their own password and the credential is gone - the same pair of states every other role has (`ADM-SET-026b`).
 
 #### `ADM-REF-001` - Contacting a referred patient before the link goes out · P1
 

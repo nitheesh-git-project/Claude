@@ -44,7 +44,17 @@ which is the same shape of failure: the statement succeeds, the ACL
 changes, and nothing is protected. `scripts/check-live-grants.mjs` is its
 runtime counterpart and is run by hand against a real project after
 applying a schema change, because the file and the database can disagree
-in both directions. The e2e suite (Playwright, `e2e/`) covers the
+in both directions. It reports **three** outcomes rather than two, and the
+third is what makes the other two worth reading: RLS filters rows rather
+than raising, so a suspended admin's refused read and a permitted read of
+an **empty table** are byte-identical on the wire (`HTTP 200 []`). On an
+empty table the positive assertion cannot be proven and the negative one is
+vacuous, so both are reported as *not proven* rather than as a pass, and the
+summary names them. The old script collapsed all of it into a row count: it
+passed on `admin_activity_log` because that table had rows and failed on
+`appointments` because it had none, so its verdict moved with how much data
+happened to be lying around -- a false alarm on a database whose policies
+were perfect, which is exactly how a red line stops being read. The e2e suite (Playwright, `e2e/`) covers the
 money-critical paths and the admin back office - booking + payment,
 concurrency/CAS guards, bulk limits, admin route authorization for every
 role, input validation, payout/refund maths, the dashboard's own
@@ -971,12 +981,48 @@ before.
   *consumed*: `/api/patient/respond-suggestion` and `register-via-referral`
   book a slot somebody already agreed to, so a legacy row carrying minutes
   is still honoured rather than stranded.
-  A **date that is not a session slot** keeps its native input, deliberately:
-  a report's date, a leave range, a promo campaign's window and every
-  from/to filter (Metrics, Costs, Activity Log, All Sessions, Payment
-  History, Earnings, the Calendar tab's day) have no hours and no lead time,
-  and a control whose disabled state means "too soon to book" would be
-  lying on all of them.
+  **A date that is not a session slot picks from the same grid, through
+  `DateField`.** Those twenty-eight -- a report's date, a leave range, a promo
+  campaign's window, a document's date, the roster's own exceptions, and every
+  from/to filter (Metrics, Costs, Activity Log, All Sessions, Payment History,
+  Business Health, Earnings, the Finance inputs, the Calendar tab's day) -- used
+  to keep `<input type="date">` on the reasoning that they have no hours and no
+  lead time, so a control whose disabled state means "too soon to book" would be
+  lying on all of them. That reasoning was right about the *rule* and wrong about
+  the *control*: the browser's own panel is unstyled, worded differently and
+  placed differently on every browser and every phone, and it is the one piece of
+  UI in this product nobody designed -- the same objection
+  `FormValidationChrome` answers for a blank `required` box one control over.
+  `src/components/system/DateField.tsx` is the replacement, and four things hold
+  it:
+  1. **It extends the one month grid rather than forking it.**
+     `buildCalendarMonth` / `isMonthEntirelyUnbookable` take an optional
+     `bounds` (`DateBounds` in `bookingSlots.ts`) so the same component can offer
+     a past date, which `isDateBookable` cannot express and never should --
+     `BookingCalendar` passes no bounds and books exactly as it did. A second
+     month grid is how two screens grow two ideas of which dates are pickable.
+  2. **`src/lib/dateFieldValue.ts` is the value layer**, dependency-free and
+     unit-tested, and it emits **exactly** what the native inputs emitted
+     (`YYYY-MM-DD`, or `YYYY-MM-DDTHH:mm` with `withTime`). Every one of those
+     twenty-eight call sites reads its value straight into a query, an ISO parse
+     or a route body, so a control that emitted anything else would be a
+     behaviour change dressed as a restyle.
+  3. **A clock is read on open, never during render.** `react-hooks/purity`
+     refuses `Date.now()` in a render, and a caller that has no "today" of its
+     own passes `maxToday` rather than reading one itself.
+  4. **It is portalled and uses `useDialogChrome`**, per the nested-overlay rule
+     -- every dialog in this app carries `backdrop-blur-sm`, so a `fixed` popover
+     opened inside one is measured against that modal's box.
+  `src/components/DebugNav.tsx` is the single exemption: the pre-launch bar is
+  deleted before launch, is read by no patient and no admin, and is the one place
+  somebody genuinely wants to type an instant.
+  `src/lib/nativeDateInput.test.ts` walks every `.ts`/`.tsx` in `src/` and fails
+  on a native date, time, month or week input -- the same shape and the same
+  reasoning as `formatDateTime.test.ts`'s walk for unzoned dates, because this is
+  a mistake that produces no error, no failed request and no wrong row. A
+  `<select>` is deliberately **not** in scope: eighty-odd of them are this app's
+  norm for a bounded choice and they are ordinary form controls rather than an
+  OS-drawn panel.
 - **Rate limiting is Postgres, not Redis, and it fails open.** 173 route
   handlers had nothing throttled. `src/lib/rateLimit.ts` holds the named
   limits and the pure judgements (which caller a request counts against, how
@@ -1078,7 +1124,7 @@ before.
   periods and the hour rows the tables store. The storage model is
   unchanged and must stay that way: every existing schedule, including a
   sparse exception written one cell at a time by the old grid, reads back as
-  exactly the same hours. Three rules hold this together:
+  exactly the same hours. Six rules hold this together:
   1. **The three concepts stay separate.** A weekly schedule is what
      somebody normally works; an exception is one date that differs; leave
      takes them off entirely. Leave never clears the schedule -- there is
@@ -1096,6 +1142,62 @@ before.
      -- two identical requests carrying the same stale version -- is a
      no-op success, because it is one logical change. Never go back to the
      unlocked delete-then-insert this replaced.
+     **A therapist with no `therapist_schedule_state` row asks for no
+     compare-and-swap, and that is `null` rather than `0`.** Both readers
+     defaulted the absent row to version `0` while
+     `lock_therapist_schedule_state` creates it at `1` and returns 1 -- so the
+     **first** save for every therapist read `0 <> 1`, and the screen answered
+     "This schedule was changed by someone else" on a schedule nobody had ever
+     touched. It was reported as an error on every add, and it was: the guard
+     fired on exactly the case it exists to permit. The SQL already treats a null
+     expected version as "no CAS asked for" (`if p_expected_version is not null
+     and ...`), so `initialVersion` is `number | null` through
+     `WeeklyScheduleEditor` -> `saveWeeklySchedule` -> both routes and no schema
+     change was needed. The guard is unchanged for the case it was written for:
+     two admins editing a therapist who already has a state row still get the 409
+     and the reload offer. Never default a missing version to a number -- `0` is
+     a version somebody could hold, and absence is not.
+  4. **The editor opens read-only, with an Edit button.** Every day row used to
+     render live `<select>`s and a Working/Off switch from the moment the screen
+     opened, so reading somebody's hours and changing them were the same act and
+     a mis-tap on a picker was a change. The read view is
+     `WeekScheduleSummary` -- the component the roster list and the admin's own
+     card already use, never a second read-only layout -- and the edit branch
+     keeps all of the existing machinery unchanged: the `saved`/`draft` pair, the
+     `dirty` test, the sticky unsaved-changes bar, the `beforeunload` guard, the
+     `inFlight` ref and the removed-hours conflict panel. Only the gate is new,
+     and saving closes it. Exceptions and Time off already require an explicit
+     **Add**, so they keep their shape.
+  5. **The roster reads both ways round, and the second is a view switch.**
+     Therapists / Day on `AdminRosterTab`, per the "a different arrangement of
+     the same rows is a toggle, not a sidebar entry" rule. Day view answers "who
+     is free on Thursday", which the screen next door could not answer at all --
+     an admin taking a call opened each therapist in turn and held the answer in
+     their head. `src/lib/rosterDay.ts` is the judgement, dependency-free and
+     unit-tested: it **composes** `computeDayAvailability` rather than
+     re-deriving the template-plus-override precedence, counts an hour busy when
+     a session *overlaps* it rather than starts on it (a 90-minute session at 2 PM
+     takes 3 PM with it, judged the way `checkTherapistConflict` does), names the
+     **earliest** of two clashing sessions so a double booking is visible, and
+     returns **every** hour of the day -- `off` and `free` are different words,
+     because a strip showing the survivors alone makes a therapist who works
+     mornings look identical to one who is fully booked. It is a
+     **route** (`/api/admin/roster-day`, `requireAdminScope("sessions")`) rather
+     than more server-render work: the dashboard already fires ~82 queries a
+     render and a date an admin picks is fetched on demand. A failed read is a
+     503 and says so, never a day with nobody working.
+  6. **Selecting a therapist moves the reader to the schedule.** The detail card
+     is a sibling below the list and usually below the fold, so a tap changed a
+     screen nobody could see. `scrollIntoView` keyed on the selection, skipped on
+     first mount (the screen opens with one preselected, and scrolling on arrival
+     moves a page nobody asked to move), `behavior: "auto"` under
+     `prefers-reduced-motion`, and focus moved to the region so the change is
+     announced rather than only animated.
+  **Day view is read-only by design, and so is the day itself.** Nothing on
+  either roster screen books, moves or frees an hour: the roster is the clinic's
+  planning record and it does not filter the patient's own picker. A free hour
+  there means "nobody has it and she works then", never "sell it" --
+  `e2e/therapist-roster.spec.ts` R-B02 is the guard and stays exactly as it is.
   Writing a date exception is an admin capability and stays one: a therapist
   reads theirs. Widening that is its own decision, not a side effect of a
   screen.
@@ -1131,6 +1233,18 @@ before.
      User Access's create-account form (optional -- they can set it
      themselves). `/api/admin/create-account` re-derives it through
      `storableSpecialty` rather than storing what the browser sent.
+     **Years of experience is asked at both doors too**, and it is a number
+     rather than a sentence for the same reason the specialty is a value:
+     `profiles.years_experience` existed and nothing wrote it, so the one figure
+     a patient uses to judge a clinician was never collected.
+     `src/lib/therapistExperience.ts` is the judgement --
+     `MAX_YEARS_EXPERIENCE` is 60, and `parseYearsExperience` returns three
+     outcomes rather than two: a number, `null` for "not given", and
+     `undefined` for "given and unusable", which is what somebody typing a
+     *year* (`2024`) produces and is not the same fact as not answering.
+     `handle_new_user` clamps it server-side behind a digit regex, per the rule
+     that signup metadata is never trusted -- the same reason `v_role` is
+     clamped there.
   5. **The therapist's own editor is a dropdown that includes their current
      value** when it is not one of the eight. Without that second half a
      legacy value has no matching `<option>`, the browser shows the first
@@ -2830,6 +2944,53 @@ before.
   name. The check earns its keep because this failure is invisible locally:
   a developer's machine is often in the same zone as the clinic, and it only
   shows on a UTC host.
+- **An account says when it was created, with the time on it, wherever that
+  account has a screen.** `profiles.created_at` was rendered three ways and
+  not at all in two places: the People directory carried the date *and* the
+  time, the patient and therapist detail headers carried the date alone, and
+  the Partners card and the Pending Approvals queue carried nothing -- both of
+  which had selected the column all along. A date with no time answers
+  "roughly when" and not "which of the two accounts this person made on
+  Tuesday", which is the question an admin holds while the person is on the
+  phone; and on the approvals queue it is how long somebody has waited, on the
+  one list whose rows get more urgent the longer they sit. It is
+  `formatClinicDateTimeWithZone` everywhere, on all six surfaces plus each
+  role's own Edit Profile screen, through `AccountCreatedNote` for the three
+  dashboards. That helper is the old `src/lib/formatIST.ts` folded into
+  `formatDateTime.ts` rather than a second formatter over the same locale and
+  the same zone; the `IST` suffix stayed with it, because this is the one
+  family of figures read down a phone line by an admin in India to somebody
+  who may not be, where every other figure is read on the screen it is printed
+  on. It renders **nothing** for an absent stamp: the column is `not null`, so
+  a missing value means the read failed or the select forgot it, and
+  "Account created -" is a label on an absence.
+  `e2e/account-created-stamp.spec.ts` is the guard, driven as screens because
+  no route and no row changed -- every one of these values was already in the
+  page's own data.
+- **Three specs guard this batch, and all three are screen-driven for the same
+  reason.** `e2e/date-field.spec.ts` proves the popover opens, takes a **past**
+  date (the report filters' whole requirement, which `isDateBookable` cannot
+  express), closes on Escape with focus restored, and renders a value the old
+  native input would have produced -- the source walk covers "is there a native
+  input", and nothing but a browser covers "does the replacement work".
+  `e2e/roster-read-write-day.spec.ts` covers the read-only gate, the day view,
+  the scroll-to-selection, and the first-save case at the route: a 200 on a
+  therapist with **no** `therapist_schedule_state` row, and still a 409 on a
+  genuinely stale version, because fixing the first must not remove the second.
+  `e2e/admin-partners-and-credentials.spec.ts` covers the three partner layouts
+  (including the enquiry's line breaks, measured off the rendered box rather
+  than the string), New Booking's width against `main` rather than a pixel
+  constant, and the admin reset being absent from your own row **and** refused
+  at the route.
+  One locator rule runs through all three, learned three times over: the admin
+  dashboard mounts **34 screens at once behind `hidden`**, so a bare
+  `page.locator("ul > li")`, `form` or `getByText(/working/)` matches something
+  on a screen nobody is looking at, and the failure reads as a broken feature.
+  Every list these specs read is located **by name** -- which is why
+  `AdminRosterTab`'s therapist list, `RosterDayView`'s day list and User
+  Access's back-office list now carry `aria-label`s they should have had anyway.
+  `getByRole` also skips hidden elements, so a role query that finds *nothing*
+  on this page usually means the wrong `?tab=` rather than a missing control.
 - **One pain scale on screen, whatever the column says.** Assessments are
   stored 0–100 and a patient rates their own pain 0–10; both used to be
   printed raw, so "How you rate it 6/10" sat beside "Last exam found 34%"
@@ -2973,8 +3134,9 @@ before.
   (`patient_admin_notes`, `therapist_admin_notes`, `hospital_admin_notes`,
   `admin_account_notes`), so an admin taking a "it won't let me in" call can
   read the credential back rather than resetting a working one. Four rules:
-  1. **Every route that generates a password persists it**, the three
-     `reset-*-password` routes and `/api/admin/create-account` alike.
+  1. **Every route that generates a password persists it**, the four
+     `reset-*-password` routes, `/api/admin/create-account` and
+     `/api/admin/onboard-hospital` alike.
      Create-account was the one that did not: it returned the password and
      held it in React state on the User Access screen, so the `profiles`
      insert it had just made fired a realtime refresh and took the password
@@ -2982,6 +3144,28 @@ before.
      hospital reset button had the identical bug one role earlier -- the
      shape is known, and a new credential-issuing control must not
      reintroduce it.
+     **`onboard-hospital` reintroduced it anyway**, which is what the shape
+     being known is worth: it generated the password, returned it, wrote
+     `hospital_admin_notes` never, and its own banner said "they won't be shown
+     again" -- true, and the defect. It upserts that row now, best-effort and
+     logged, never blocking the onboarding it describes and never in the audit
+     row. The Partners card needed **no** change: the dashboard already read
+     that table into `hospitalNoteMap` and already passed it to
+     `ResetHospitalPasswordButton` as `currentPassword`, which already renders
+     the "visible here until the hospital sets their own" panel on page load.
+     Persisting was the whole fix.
+     **And `reset-admin-password` is the fourth door, which did not exist.**
+     Patients, therapists and hospitals could all have a password re-issued from
+     the back office; an admin who had locked themselves out needed somebody with
+     Supabase access. It is `full` scope only (checked directly, not through
+     `requireAdminScope("people")` -- every desk that manages People could
+     otherwise re-issue a Master Admin's credential), refuses your own id (the
+     honest lane for that is the emailed reset on Settings -> Sign-in &
+     Security), and confirms before it fires, since the current password stops
+     working the instant it succeeds. It renders **no panel of its own**: the row
+     beside it already displays the credential from `admin_account_notes`, and
+     two places showing one password means the stale one is the one somebody
+     reads out.
   2. **It is cleared when they set their own** (`/api/clear-temp-password`,
      which acts on the caller's own id from their session and never a
      client-supplied one). That is what makes "still on the password we
@@ -3043,6 +3227,69 @@ before.
      distinguishable. The counted groups are for the human; the database is
      still the authority, and a foreign key the probes do not cover produces
      `ACCOUNT_DELETE_REFUSED` rather than a Postgres string.
+  3b. **What blocks a delete is asked of the database, never listed.** The
+     route kept a hand-written list of the columns to count, and it drifted:
+     35 foreign keys into `profiles(id)` carry no ON DELETE behaviour and the
+     list named 13 of them. For the other 22 the screen offered a delete, the
+     database refused, and the admin met `ACCOUNT_DELETE_REFUSED` -- a
+     sentence apologising for a list being out of date.
+     `account_blocking_references(uuid)` reads `pg_constraint` for every
+     single-column FK into `profiles` whose delete action is NO ACTION or
+     RESTRICT and counts the rows each holds, so a table added tomorrow is
+     counted the day it arrives. The route keeps a table -> group map for the
+     six words a person reads; that is **wording only**, and an unmapped
+     table still counts and still blocks -- it lands in `other` rather than
+     being folded into the nearest group, because "2 back-office actions"
+     about a clinical table sends an admin to the wrong screen. Cascading and
+     set-null references are deliberately not counted: they do not refuse.
+     A read that fails is a **503**, never "nothing is in the way" -- the
+     rule at the top of this file, applied to the one action with no undo.
+     **It counts `auth.users` as well as `public.profiles`, because that is the
+     row the delete actually removes.** Asking about `profiles` alone was the
+     same drift one table over: the delete goes through GoTrue, so a foreign key
+     into `auth.users` refuses it while the screen reports nothing in the way --
+     chiefly `storage.objects.owner`, which every account that has uploaded an
+     avatar carries. So the screen offered the delete, the database refused, and
+     the admin met "The database refused to delete that account and did not say
+     why", which is the sentence this function exists to prevent. `confrelid in
+     ('public.profiles'::regclass, 'auth.users'::regclass)` and the label is
+     **schema-qualified**, so `storage.objects` is distinguishable from a
+     `public` table of the same name. Uploaded files get their own `files` group
+     rather than landing in `other`: they are the expected hit and they are
+     clearable, and "2 other records" sends an admin to no screen at all.
+     This is also exactly why `e2e/admin-account-delete.spec.ts` kept passing --
+     its fixtures are minted through the API and never upload anything.
+     3b-i. **And the delete itself names what refused.**
+     `admin_delete_account(uuid)` (`security definer`, three revokes) removes
+     the `auth.users` row as the function's owner and, on
+     `foreign_key_violation`, returns the offending **table and constraint** out
+     of `GET STACKED DIAGNOSTICS` instead of GoTrue's empty 500. That is what
+     makes the fix independent of the diagnosis above being complete: whatever
+     refuses, the admin is told which table it was, and a foreign key nobody
+     thought to count is a sentence rather than an apology. The route's two
+     `ACCOUNT_DELETE_REFUSED` exits stay as the last resort, and the silent
+     post-delete re-read logs now. A missing function (`PGRST202` / `42883`) is
+     answered with "re-apply `schema.sql`", since that is the one cause.
+  3c. **And the guard that counts Master Admins runs as its owner.**
+     `profiles_keep_one_master_admin` had no `security definer`, so it ran as
+     whoever issued the statement. Every writer in this app uses the
+     service-role client, so it was correct everywhere except the one caller
+     that is not this app: `auth.admin.deleteUser` executes as GoTrue's
+     `supabase_auth_admin`, which has **no SELECT on public.profiles**.
+     Deleting the auth user cascades into profiles, the AFTER-DELETE trigger
+     fires as that role, its `select count(*) from profiles` is refused, and
+     the refusal aborts the cascade -- so GoTrue answered 500 with an empty
+     body and **no admin account could ever be deleted**, from any screen,
+     however empty. A patient or therapist was unaffected, because the guard
+     returns at `touched` when the statement removed no Master Admin and so
+     never reads the unreadable table -- which is exactly what made it look
+     like a data problem. It is `security definer` now; granting GoTrue
+     SELECT on the whole of profiles to satisfy one count would have been the
+     wider fix. It takes no revokes, per `check-function-grants.mjs`: a
+     trigger function cannot be called by name, so an EXECUTE grant on one is
+     not reachable. `e2e/admin-account-delete.spec.ts` is the guard, and its
+     negative control is worth keeping in mind -- re-introducing either blind
+     spot reproduces the reported sentence verbatim.
   4. **Suspending is not deleting.** `/api/admin/set-admin-active` mirrors
      `set-admin-scope`'s two guards (not yourself, not the last Master Admin
      who can still sign in) and flips `profiles.active`, which `getAdminUser`
@@ -3855,6 +4102,31 @@ before.
   floors at zero, the difference stays as `stillOwedToBusinessPaise`, and
   those collections deliberately stay open on the Cash Ledger for a person
   to chase.
+- **A figure a screen reads must have a screen that writes it, and a therapist's
+  home-visit share had none.** `profiles.home_visit_revenue_share_percent` is
+  read by `computeTherapistPayoutSummary`, by `settle-therapist-payout` and by
+  every Money figure that splits a home visit -- and was **written by nothing**
+  in `src/`: no route, no form, so the only way to give a therapist a different
+  rate for visits was to edit the column by hand in the table editor.
+  `/api/admin/update-therapist-home-visit-revenue-share` is that writer,
+  `requireAdminScope("money")` with its own audit action
+  (`therapist.set_home_visit_revenue_share`, domain `money` in `ACTION_DOMAIN`,
+  or `activityScope.test.ts` fails). It differs from the ordinary share route in
+  exactly one way, and that difference is the whole reason it is a second route:
+  it accepts **clearing** the value. Null means "no separate rate, use the
+  ordinary share", which is what every therapist carries today, so a route that
+  refused an empty box -- as the ordinary one rightly does -- could set the
+  column and never unset it. `TherapistRevenueShareForm` was generalised
+  (`endpoint`, `field`, `label`, `clearable`, `fallbackNote`) and rendered twice
+  rather than forked, since two copies is how the two grow different range
+  checks.
+  **The same change corrected the profile's own arithmetic**, which is the
+  sharper half: that page computed `owedPaise` and each row's payout from
+  `revenue_share_percent` alone, with no home-visit branch and no travel fee --
+  so a therapist's own profile disagreed with Money -> Payouts and with what the
+  Pay button actually transfers. It routes through
+  `computeTherapistPayoutSummary` now, which already held the rule. A figure on
+  a profile that disagrees with the Pay button is worse than a missing field.
 - **Admin-configurable behavior** (Meet on/off, join without approval, join
   window, idle timeout, the sign-out banner's duration, whether a
   recommendation is approved before the patient sees it) is read through

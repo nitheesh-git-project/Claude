@@ -201,6 +201,12 @@ export default async function Home() {
     <>
       <SectionNav items={sectionNavItems} />
 
+      {/* The two CTAs that reach /book name the mode, because that wizard
+          sells the video consultation alone -- a home visit is its own page
+          and its own wizard. Under a headline reading "over video, or in
+          person", a bare "Book a session" reads as the choice between them,
+          so the button a visitor is most likely to tap was the one place the
+          two modes were run together. */}
       <PageHero
         size="large"
         eyebrow="Licensed physiotherapy"
@@ -218,7 +224,7 @@ export default async function Home() {
           </>
         }
         subtitle="A licensed physiotherapist watches how you move, then builds your plan."
-        primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
+        primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         secondary={{ href: "/how-it-works", label: "See how it works", icon: "fa-circle-play" }}
         // Both of the first two are facts the product can stand behind: the
         // assessment length, and the lowest price in the live catalogue. The
@@ -412,10 +418,12 @@ export default async function Home() {
         <ExploreGrid connectors={connectors} />
       </Section>
 
+      {/* Names the mode for the same reason as the hero; "Explore all
+          options" beside it is the way to the other one. */}
       <ClosingCta
         title="Start with one assessment."
         body="One 60-minute session. Leave with a plan."
-        primary={{ href: "/book", label: "Book a session", icon: "fa-calendar-check" }}
+        primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         secondary={{ href: "/get-started", label: "Explore all options" }}
         photoId="cta-book"
         photoAlt="A patient on her sofa, laptop on her knees, smiling as she books her session on her phone"

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatClinicDate } from "@/lib/formatDateTime";
+import { formatClinicDate, formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
@@ -24,10 +24,21 @@ import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
+import {
+  computeTherapistPayoutSummary,
+  type PayoutAppointment,
+} from "@/lib/therapistPayouts";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+
+// A plain module-level helper rather than a bare Date.now() inside a Server
+// Component's render -- the same reasoning as the admin dashboard's and the
+// patient loader's own nowTimestamp(): render must stay pure.
+function nowTimestamp() {
+  return Date.now();
+}
 import SpecialtyChip from "@/components/SpecialtyChip";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
 
@@ -59,6 +70,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     { data: therapist },
     { data: therapistCodeRow },
     { data: displayContentRow },
+    { data: homeVisitShareRow },
   ] = await Promise.all([
     // Isolated query, same migration-dependent convention as everything
     // else on this page -- only feeds the Join button's window here, never
@@ -82,6 +94,16 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     // public_display_note is also new/migration-dependent (Feature 38) --
     // same isolation reasoning as therapistCodeRow above.
     admin.from("profiles").select("public_display_note").eq("id", id).maybeSingle(),
+
+    // home_visit_revenue_share_percent is newer still, and the dashboard reads
+    // it the same isolated way (page.tsx's own query). Folded into the select
+    // above it would take the whole profile down on a database that has not
+    // run the migration -- this way the second share card is simply absent.
+    admin
+      .from("profiles")
+      .select("home_visit_revenue_share_percent")
+      .eq("id", id)
+      .maybeSingle(),
   ]);
   const adminSettings = parseAdminSettings(settingsRow);
 
@@ -96,6 +118,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     { data: openPayoutRequests },
     { data: sessionCodeLinks },
     { data: meetLinkRows },
+    { data: homeVisitPayoutRows },
   ] = await Promise.all([
     admin
       .from("therapist_admin_notes")
@@ -130,6 +153,19 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     // meet_link is also new/migration-dependent -- same isolation reasoning
     // as sessionCodeLinks above.
     admin.from("appointments").select("id, meet_link").eq("therapist_id", id),
+    // The home-visit columns the payout maths needs: a visit pays the
+    // home-visit rate and reimburses travel in full, and cash the therapist is
+    // holding nets off what a settlement transfers. Read on their own and
+    // merged by id rather than added to the select above -- that select feeds
+    // the session list, the ratings and the reassignment log too, so an
+    // unknown column there would blank the whole page. Exactly the split
+    // admin/dashboard/page.tsx already makes for AdminPayoutsTab.
+    admin
+      .from("appointments")
+      .select(
+        "id, visit_mode, travel_fee_paise, cash_collected_at, cash_collected_amount_paise, cash_remitted_at"
+      )
+      .eq("therapist_id", id),
   ]);
 
   const appointments = mergeMeetLinks(
@@ -171,6 +207,20 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       .eq("approved", true)
       .order("full_name"),
   ]);
+  const homeVisitPayoutById = new Map(
+    (homeVisitPayoutRows ?? [])
+      .filter((v) => v.visit_mode === "home_visit")
+      .map((v) => [
+        v.id,
+        {
+          visit_mode: "home_visit" as const,
+          travel_fee_paise: v.travel_fee_paise,
+          cash_collected_at: v.cash_collected_at,
+          cash_collected_amount_paise: v.cash_collected_amount_paise,
+          cash_remitted_at: v.cash_remitted_at,
+        },
+      ])
+  );
   const categoryMap = new Map((categories ?? []).map((c) => [c.id, c]));
   const patientMap = new Map((patients ?? []).map((p) => [p.id, p]));
   // SessionDetailDrawer looks up both patient_id and therapist_id names
@@ -199,21 +249,32 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       return bt - at;
     });
   const sharePercent = therapist.revenue_share_percent;
-  // Only a completed session is actually owed to the therapist - matches
-  // settle-therapist-payout's own filter, so this displayed balance is
-  // exactly what the payout button will settle, not a larger number that
-  // includes still-upcoming (paid but undelivered) sessions.
-  const unsettledAppointments = paidAppointments.filter(
-    (a) => !a.therapist_payout_paid_at && a.status === "completed"
+  const homeVisitSharePercent =
+    (homeVisitShareRow?.home_visit_revenue_share_percent as number | null | undefined) ?? null;
+
+  // What this therapist is owed, from the one module that answers it.
+  //
+  // This page used to compute it inline off `revenue_share_percent` alone,
+  // with no home-visit branch and no travel term -- so for any therapist who
+  // does home visits the figure here, the figure on Money -> Payouts and the
+  // amount the Pay button actually transfers were three different numbers.
+  // `computeTherapistPayoutSummary` is what the Payouts screen and
+  // `settle-therapist-payout` already agree on: a visit pays the home-visit
+  // rate where one is set, travel is reimbursed in full on top, and cash the
+  // therapist is already holding nets off the transfer. A profile that
+  // disagrees with the button on it is worse than a profile missing a field.
+  const payoutAppointments = (appointments ?? []).map((a) => ({
+    ...a,
+    ...(homeVisitPayoutById.get(a.id) ?? { visit_mode: "online" as const }),
+  }));
+  const payoutSummary = computeTherapistPayoutSummary(
+    therapist.id,
+    sharePercent,
+    payoutAppointments as PayoutAppointment[],
+    nowTimestamp(),
+    homeVisitSharePercent
   );
-  const owedPaise =
-    sharePercent !== null
-      ? unsettledAppointments.reduce(
-          (sum, a) =>
-            sum + Math.round(((a.amount_paid_paise ?? SESSION_FEE_PAISE) * sharePercent) / 100),
-          0
-        )
-      : 0;
+  const owedPaise = payoutSummary.owedPaise;
 
   // Surfaced in the suspend confirmation so an admin isn't suspending
   // blind -- see TherapistActiveToggle.
@@ -274,7 +335,9 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                {therapist.credentials} • Joined {formatClinicDate(therapist.created_at)}
+                {/* Date and time, for the reason the patient page says. */}
+                {therapist.credentials} • Joined{" "}
+                {formatClinicDateTimeWithZone(therapist.created_at)}
               </p>
               <span className="mt-1.5 block">
                 <SpecialtyChip specialization={therapist.specialization} />
@@ -357,6 +420,31 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             therapistId={therapist.id}
             currentPercent={therapist.revenue_share_percent}
           />
+          {/* The home-visit rate is a second, separate number that the payout
+              maths has read since home visits shipped and that nothing in the
+              app could write -- it was settable only in SQL. Blank is a real
+              answer here and means "no separate rate", which is why the form
+              takes `clearable`. */}
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <h2 className="font-bold text-sm text-slate-800 mb-1">Home-visit Revenue Share</h2>
+            <p className="text-[11px] text-slate-500 mb-3">
+              A home visit can pay a different rate. Travel is reimbursed in full on top of
+              whichever share applies.
+            </p>
+            <TherapistRevenueShareForm
+              therapistId={therapist.id}
+              currentPercent={homeVisitSharePercent}
+              endpoint="/api/admin/update-therapist-home-visit-revenue-share"
+              field="homeVisitSharePercent"
+              label="Home-visit %"
+              clearable
+              fallbackNote={
+                sharePercent !== null
+                  ? `Not set - home visits use the ordinary ${sharePercent}%.`
+                  : "Not set - home visits use the ordinary session share."
+              }
+            />
+          </div>
           <div className="mt-4 pt-4 border-t border-slate-100">
             <h2 className="font-bold text-sm text-slate-800 mb-1">Admin Notes</h2>
             <p className="text-[11px] text-slate-500 mb-3">Private - never shown to the therapist.</p>
@@ -464,9 +552,19 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
               const category = a.category_id ? categoryMap.get(a.category_id) : null;
               const feePaise = a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE;
               const isSettled = !!a.therapist_payout_paid_at;
+              // Same rule as the total above: a home visit is paid at the
+              // home-visit rate where one is set, and its travel fee is
+              // reimbursed in full on top. A row printing the online rate
+              // beside a total that used the other one is what makes a
+              // correct figure look wrong.
+              const visit = homeVisitPayoutById.get(a.id);
+              const isHomeVisit = !!visit;
+              const rowShare = isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent;
+              const travelPaise = isHomeVisit ? Math.max(0, visit.travel_fee_paise ?? 0) : 0;
+              const computedPaise = Math.round((feePaise * rowShare) / 100) + travelPaise;
               const payoutPaise = isSettled
-                ? a.therapist_payout_amount_paise ?? Math.round((feePaise * sharePercent) / 100)
-                : Math.round((feePaise * sharePercent) / 100);
+                ? a.therapist_payout_amount_paise ?? computedPaise
+                : computedPaise;
               const patient = a.patient_id ? patientMap.get(a.patient_id) : null;
               return (
                 <li key={a.id} className="p-4 rounded-xl border border-slate-200 space-y-1">
@@ -500,8 +598,11 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                     </div>
                   </div>
                   <p className="text-slate-500">
-                    Session fee ₹{(feePaise / 100).toLocaleString("en-IN")} × {sharePercent}% •{" "}
-                    Paid {a.paid_at ? formatClinicDate(a.paid_at) : "date unknown"}
+                    Session fee ₹{(feePaise / 100).toLocaleString("en-IN")} × {rowShare}%
+                    {travelPaise > 0 && (
+                      <> + ₹{(travelPaise / 100).toLocaleString("en-IN")} travel</>
+                    )}{" "}
+                    • Paid {a.paid_at ? formatClinicDate(a.paid_at) : "date unknown"}
                   </p>
                   {isSettled && (
                     <p className="text-slate-500">

@@ -105,6 +105,38 @@ export function earliestBookableDateKey(
   return null;
 }
 
+// Picking a plain **date** rather than a bookable slot.
+//
+// The month grid below was written for one job -- offer the days a session
+// could start on -- so every cell it draws is judged by the lead-time rule,
+// and a day in the past is never offerable. That is correct for booking and
+// wrong for every other date in the app: a report's "from" filter, the day a
+// cost was incurred, a leave range, a medical document's own date. Those were
+// native `<input type="date">` boxes, which is the one piece of UI here
+// nobody designed.
+//
+// Passing `bounds` says "this grid is picking a date, not a slot": the lead
+// time is not applied at all, and a day is selectable exactly when it sits
+// inside the bounds. Date keys are `YYYY-MM-DD`, so a string comparison is
+// already the right ordering -- no parsing, and no timezone to get wrong.
+//
+// A separate argument rather than a second calendar, for the reason the
+// `compact` mode is a mode: two month grids is how the two grow different
+// ideas of which days exist.
+export type DateBounds = {
+  /** Earliest selectable day, inclusive. Omitted means no floor -- which is
+   *  what a report filter over past data needs. */
+  minDateKey?: string | null;
+  /** Latest selectable day, inclusive. */
+  maxDateKey?: string | null;
+};
+
+export function isDateWithinBounds(dateKey: string, bounds: DateBounds): boolean {
+  if (bounds.minDateKey && dateKey < bounds.minDateKey) return false;
+  if (bounds.maxDateKey && dateKey > bounds.maxDateKey) return false;
+  return true;
+}
+
 export type CalendarCell = {
   dateKey: string;
   dayOfMonth: number;
@@ -137,7 +169,8 @@ export function buildCalendarMonth(
   year: number,
   month: number,
   nowMs: number,
-  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS,
+  bounds?: DateBounds
 ): CalendarMonth {
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -149,7 +182,9 @@ export function buildCalendarMonth(
     cells.push({
       dateKey,
       dayOfMonth: day,
-      bookable: isDateBookable(dateKey, nowMs, leadTimeMs),
+      bookable: bounds
+        ? isDateWithinBounds(dateKey, bounds)
+        : isDateBookable(dateKey, nowMs, leadTimeMs),
       isToday: dateKey === todayKey,
     });
   }
@@ -182,6 +217,21 @@ export function formatDateKeyLong(dateKey: string): string {
   });
 }
 
+// The short form a date **field** prints on its own button: "12 Sept 2026".
+//
+// Lives here rather than in formatDateTime.ts for the reason `formatDateKeyLong`
+// above does, and it is the whole reason that file's sweep exempts this one: a
+// date key is a wall-clock date with no instant behind it, so pinning it to the
+// clinic's zone would format a local midnight elsewhere and print the previous
+// day for any viewer east of India.
+export function formatDateKeyMedium(dateKey: string): string {
+  return fromDateKey(dateKey).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 // True when `month` (of `year`) contains no bookable date at all, used to
 // stop the calendar's "previous month" arrow from walking back into fully
 // unbookable history.
@@ -189,9 +239,12 @@ export function isMonthEntirelyUnbookable(
   year: number,
   month: number,
   nowMs: number,
-  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS,
+  bounds?: DateBounds
 ): boolean {
-  return !buildCalendarMonth(year, month, nowMs, leadTimeMs).cells.some((c) => c?.bookable);
+  return !buildCalendarMonth(year, month, nowMs, leadTimeMs, bounds).cells.some(
+    (c) => c?.bookable
+  );
 }
 
 // Every slot in this app starts on the hour: AVAILABILITY_HOURS is whole

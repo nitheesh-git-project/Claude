@@ -26,6 +26,12 @@
  * it rather than one entry per foreign key. Fifty columns across thirty-five
  * tables is a true list and an unreadable one; "3 sessions and 12 back-office
  * actions" is what an admin can act on.
+ *
+ * The counting is the database's job, not this module's:
+ * `account_blocking_references()` reads `pg_constraint` for the foreign keys
+ * that actually refuse a delete. The route turns those table names into these
+ * groups. That split is deliberate -- correctness cannot drift, and the worst
+ * a missing word can do is land a count in `other`.
  */
 export type AccountReferences = {
   /** Appointments they booked, ran, cancelled, were asked for, or took cash for. */
@@ -40,6 +46,26 @@ export type AccountReferences = {
   backOffice: number;
   /** Referrals they sent, were assigned or became. */
   referrals: number;
+  /** Files they uploaded -- an avatar, a scan, a report.
+   *
+   *  Its own word rather than `other`, because it is both the commonest
+   *  blocker and the only one an admin can clear themselves. `storage.objects`
+   *  references `auth.users(id)`, which is the row the delete actually
+   *  removes; the counter used to look at foreign keys into `profiles` alone,
+   *  so every account that had ever uploaded an avatar refused the delete
+   *  while the screen reported nothing in the way. "2 other records" would
+   *  send somebody to the wrong screen looking for them. */
+  files: number;
+  /** Anything else the database refuses to let go of.
+   *
+   *  The counts come from `account_blocking_references()`, which asks
+   *  Postgres which foreign keys actually refuse rather than reading a list
+   *  somebody maintained -- so a table added tomorrow arrives counted and
+   *  with no word for it yet. It lands here rather than being folded into
+   *  the nearest group, because "2 back-office actions" about a clinical
+   *  table is the one thing worse than "2 other records": it is wrong, and
+   *  it sends an admin to the wrong screen to clear it. */
+  other: number;
 };
 
 export const NO_ACCOUNT_REFERENCES: AccountReferences = {
@@ -49,6 +75,8 @@ export const NO_ACCOUNT_REFERENCES: AccountReferences = {
   clinical: 0,
   backOffice: 0,
   referrals: 0,
+  files: 0,
+  other: 0,
 };
 
 export function countAccountReferences(refs: AccountReferences): number {
@@ -58,7 +86,9 @@ export function countAccountReferences(refs: AccountReferences): number {
     refs.programmes +
     refs.clinical +
     refs.backOffice +
-    refs.referrals
+    refs.referrals +
+    refs.files +
+    refs.other
   );
 }
 
@@ -90,6 +120,8 @@ export function describeAccountBlockers(
     parts.push(plural(refs.backOffice, "back-office action", "back-office actions"));
   }
   if (refs.referrals > 0) parts.push(plural(refs.referrals, "referral", "referrals"));
+  if (refs.files > 0) parts.push(plural(refs.files, "uploaded file", "uploaded files"));
+  if (refs.other > 0) parts.push(plural(refs.other, "other record", "other records"));
 
   if (parts.length === 0) return null;
 
@@ -118,5 +150,28 @@ export const CANNOT_DELETE_LAST_ADMIN =
 export const ACCOUNT_ALREADY_GONE =
   "That account has already been deleted. Refresh to see the current list.";
 
+/** The counter itself could not be asked. A check that could not be run is
+ *  not a check that came back negative -- the rule at the top of AGENTS.md --
+ *  so this is a retryable 503 rather than either a refusal or a green light.
+ *  Offering the delete on an unreadable count would put the one irreversible
+ *  action in the product behind a guess. */
+export const ACCOUNT_DELETE_UNCHECKED =
+  "Could not check what still points at that account, so nothing has been deleted. Try again in a moment - and if it keeps happening, suspend the account instead.";
+
 export const ACCOUNT_DELETE_REFUSED =
   "The database refused to delete that account and did not say why. Nothing has changed - something still points at it that this screen did not count. Suspend the account instead.";
+
+/** The same refusal, with the table that actually refused named.
+ *
+ *  `auth.admin.deleteUser` answers 500 with an empty body for a Postgres
+ *  refusal inside its cascade, so the sentence above was all the route could
+ *  say. `admin_delete_account()` does the delete as its owner and catches the
+ *  violation, so there is now a name to print -- which is the difference
+ *  between an admin who can go and clear something and one who can only try
+ *  again. The table name is a developer's word, so it is offered as the
+ *  detail rather than as the sentence. */
+export function describeRefusedDelete(table: string | null | undefined): string {
+  const named = (table ?? "").trim();
+  if (!named) return ACCOUNT_DELETE_REFUSED;
+  return `That account could not be deleted: something in "${named}" still points at it. Nothing has changed. Clear that first if you can, or suspend the account instead - they can no longer sign in, and everything they did stays attributable to them.`;
+}
