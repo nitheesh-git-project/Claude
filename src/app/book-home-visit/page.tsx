@@ -45,12 +45,40 @@ export default async function BookHomeVisitPage() {
     notFound();
   }
 
+  // Everything the service picker's card and detail view read. All of these
+  // except the focal pair are original columns on this table, so they come
+  // in the one query; `image_url` among them, which is why /home-visit has
+  // always been able to show a photograph and this page has not.
   const { data: packages } = await supabase
     .from("home_visit_packages")
-    .select("id, title, visit_count, price_paise, visit_duration_minutes, travel_fee_included")
+    // One string literal rather than a concatenation: supabase-js infers the
+    // row type from the literal, and joining two halves with `+` throws that
+    // away and hands every caller `GenericStringError`.
+    // prettier-ignore
+    .select("id, title, visit_count, price_paise, visit_duration_minutes, travel_fee_included, subtitle, description, terms, badge_label, highlight, benefits, compare_at_paise, validity_days, therapist_locked, image_url")
     .eq("active", true)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
+
+  // Where the subject of each cover sits. Its own call, because these two
+  // are migration-dependent where every column above is not: folded in, an
+  // unapplied migration would take the whole booking funnel down rather
+  // than costing the photographs their position.
+  const { data: packageFocals } = await supabase
+    .from("home_visit_packages")
+    .select("id, image_focal_x, image_focal_y")
+    .eq("active", true);
+
+  const focalByPackageId = new Map(
+    (packageFocals ?? []).map((row) => [
+      row.id,
+      { image_focal_x: row.image_focal_x, image_focal_y: row.image_focal_y },
+    ])
+  );
+  const wizardPackages = (packages ?? []).map((p) => ({
+    ...p,
+    ...(focalByPackageId.get(p.id) ?? {}),
+  })) as WizardPackage[];
 
   const leadTimeHours =
     settingsRow?.home_visit_lead_time_hours ?? DEFAULT_ADMIN_SETTINGS.homeVisitLeadTimeHours;
@@ -71,7 +99,7 @@ export default async function BookHomeVisitPage() {
         </Reveal>
         <Suspense fallback={null}>
           <HomeVisitBookingWizard
-            packages={(packages ?? []) as WizardPackage[]}
+            packages={wizardPackages}
             leadTimeHours={leadTimeHours}
             cashEnabled={cashEnabled}
           />
