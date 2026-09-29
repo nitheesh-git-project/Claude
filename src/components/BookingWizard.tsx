@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -140,6 +140,32 @@ export default function BookingWizard({
     discountLabel: string | null;
   } | null>(null);
   const [quoting, setQuoting] = useState(false);
+  // The quote request currently in flight, if any. It exists so a tap on the
+  // pay button can *wait* for the figure instead of being refused while it
+  // loads: this screen used to disable its own primary control for the length
+  // of a round trip, which reads as a dead button rather than as a wait --
+  // the patient taps, nothing happens, and they tap again. Nothing here is
+  // authoritative (create-order re-resolves every figure under a row lock),
+  // so the only thing the wait buys is that the branch taken -- pay, confirm
+  // free, confirm on terms -- is decided on the answer that is about to
+  // arrive rather than on the one it replaces.
+  const quoteInFlight = useRef<Promise<CheckoutQuoteResponse | null> | null>(null);
+
+  /** The quote to act on: whatever is in flight, else what is on screen.
+   *
+   *  A loop rather than a single await, because applying a promo code starts
+   *  a second quote while the first is still open -- awaiting only the first
+   *  would act on the figure that is about to be replaced, which is the exact
+   *  thing blocking the button was for. A failed quote leaves the previous
+   *  answer standing, same rule as `refreshQuote` itself. */
+  async function settledQuote(): Promise<CheckoutQuoteResponse | null> {
+    let latest = quote;
+    while (quoteInFlight.current) {
+      const result = await quoteInFlight.current;
+      if (result) latest = result;
+    }
+    return latest;
+  }
 
   // Lazy initializer, not a bare Date.now() in the render body -- same
   // one-time-"now" pattern already used elsewhere in this codebase (see
@@ -655,37 +681,83 @@ export default function BookingWizard({
   /** The one place the payment screen's figures come from. Returns what it
    *  fetched as well as storing it, because the moment after signup needs
    *  the answer before a re-render can deliver it. */
-  async function refreshQuote(
+  function refreshQuote(
     id: string | null,
     code: string | null
   ): Promise<CheckoutQuoteResponse | null> {
-    if (!categoryId && !id) return null;
+    if (!categoryId && !id) return Promise.resolve(null);
     setQuoting(true);
-    try {
-      const res = await fetch("/api/appointments/quote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(id ? { appointmentId: id } : { categoryId }),
-          promoCode: code,
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      // A failed quote leaves the previous figures alone rather than
-      // blanking the screen: the order route re-resolves and refuses
-      // anything it cannot honour, so a stale quote can only ever be
-      // corrected, never charged.
-      if (res.ok && data) {
-        setQuote(data as CheckoutQuoteResponse);
-        return data as CheckoutQuoteResponse;
+    const run = (async (): Promise<CheckoutQuoteResponse | null> => {
+      try {
+        const res = await fetch("/api/appointments/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...(id ? { appointmentId: id } : { categoryId }),
+            promoCode: code,
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        // A failed quote leaves the previous figures alone rather than
+        // blanking the screen: the order route re-resolves and refuses
+        // anything it cannot honour, so a stale quote can only ever be
+        // corrected, never charged.
+        if (res.ok && data) {
+          setQuote(data as CheckoutQuoteResponse);
+          return data as CheckoutQuoteResponse;
+        }
+        return null;
+      } catch {
+        // Same reasoning.
+        return null;
+      } finally {
+        setQuoting(false);
       }
-      return null;
-    } catch {
-      // Same reasoning.
-      return null;
-    } finally {
-      setQuoting(false);
+    })();
+    // Published so a tap can await it. The inner function swallows every
+    // failure, so this promise never rejects and a waiting tap can never be
+    // left hanging on one. Cleared only if it is still the current one -- a
+    // second quote started meanwhile owns the slot.
+    quoteInFlight.current = run;
+    void run.finally(() => {
+      if (quoteInFlight.current === run) quoteInFlight.current = null;
+    });
+    return run;
+  }
+
+  /**
+   * What the payment screen's primary button does.
+   *
+   * It exists so the button is never disabled while a quote loads. The tap
+   * is acknowledged immediately (the button reads "Please wait..."), the
+   * in-flight quote is awaited, and the branch is decided on the figure that
+   * lands rather than on the one it replaced. Refusing the tap instead left
+   * the one control this screen exists for dead for a round trip, which is
+   * indistinguishable from a broken button -- and a patient who taps a dead
+   * pay button taps it again.
+   *
+   * `free` wins over `pay_now` for the same reason it does in `handleSubmit`:
+   * a discount that reached zero leaves nothing for a gateway to charge.
+   */
+  async function submitFromPaymentStep(intent: "default" | "pay_now" = "default") {
+    setError(null);
+    setLoading(true);
+    const settled = await settledQuote();
+    // No booking yet: `handleSubmit` creates one and re-quotes against the
+    // real account before anything is charged, so it needs nothing from here.
+    if (!appointmentId) {
+      await handleSubmit(intent);
+      return;
     }
+    if (settled?.settlement === "free") {
+      await confirmFree(appointmentId);
+      return;
+    }
+    if (settled?.settlement === "pay_later" && intent !== "pay_now") {
+      await confirmPayLater(appointmentId);
+      return;
+    }
+    await startPayment(appointmentId);
   }
 
   async function startPayment(id: string) {
@@ -1220,6 +1292,15 @@ export default function BookingWizard({
                 </span>
               </div>
             )}
+            {/* The wait is stated instead of being enforced. The button stays
+                tappable throughout -- a tap simply waits for this answer --
+                so this line is here to explain why the figure above may move,
+                not to stop anybody acting on it. */}
+            {quoting && (
+              <p className="pt-2 text-[11px] text-slate-500" role="status">
+                Checking the latest price for you...
+              </p>
+            )}
           </div>
           {promoCodesEnabled && (
             <div className="pt-1">
@@ -1303,20 +1384,14 @@ export default function BookingWizard({
               Back
             </button>
             <button
-              onClick={
-                appointmentId
-                  ? quote?.settlement === "free"
-                    ? () => confirmFree(appointmentId)
-                    : quote?.settlement === "pay_later"
-                      ? () => confirmPayLater(appointmentId)
-                      : () => startPayment(appointmentId)
-                  : // Wrapped rather than passed bare: `handleSubmit` takes an
-                    // intent now, and React would hand it the click event.
-                    () => handleSubmit()
-              }
-              // Disabled while a quote is in flight, so a tap can never act
-              // on a figure that is about to change.
-              disabled={loading || quoting}
+              // Wrapped rather than passed bare: this takes an intent, and
+              // React would hand it the click event.
+              onClick={() => void submitFromPaymentStep()}
+              // Deliberately NOT disabled while a quote is in flight. A tap
+              // waits for that figure inside the handler instead -- see
+              // `submitFromPaymentStep`. Disabling here made the primary
+              // control of the payment screen dead for a round trip.
+              disabled={loading}
               className="w-2/3 bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition shadow-lg"
             >
               {loading
@@ -1346,10 +1421,8 @@ export default function BookingWizard({
               payment had left an id behind. */}
           {quote?.settlement === "pay_later" && quote.canPayNow && (
             <button
-              onClick={() =>
-                appointmentId ? startPayment(appointmentId) : handleSubmit("pay_now")
-              }
-              disabled={loading || quoting}
+              onClick={() => void submitFromPaymentStep("pay_now")}
+              disabled={loading}
               className="w-full text-center text-xs font-semibold text-teal-700 underline underline-offset-2 disabled:opacity-60"
             >
               Or pay {formatInr(quote.totalPaise)} now instead

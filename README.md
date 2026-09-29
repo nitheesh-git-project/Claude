@@ -116,6 +116,32 @@ API and Supabase directly (no browser), so it needs real credentials for a
 environment or `.env.local` - never point it at production, since it creates
 real auth users, appointments, and Razorpay test-mode orders.
 
+#### When to run which
+
+The suite runs one worker against one Supabase project and one app instance,
+so it is deliberately slow, and running all of it after every fix spends
+minutes re-proving cases the change could not have touched. Two gears:
+
+- **After a bug fix or a code change - a quick retest and a regression.**
+  `npm run verify` (lint + unit tests + build), plus the two or three specs
+  covering what moved: `npx playwright test e2e/<the-spec>.spec.ts`. The
+  retest is the case the change was made for; the regression is the rest of
+  that file and any spec over the same screen or the same money rule. A
+  change that cannot reach a test project stops at `npm run verify`.
+- **Once before a merge - the whole suite.** `npm run test:e2e` on the branch
+  as it will land. This is the run that catches a spec broken by a change in
+  a file it does not name, and the only one whose known environment-specific
+  failures are worth reading in full. Running it more often than this is how
+  a red run becomes routine, and a suite nobody reads catches nothing.
+
+**Updating the suite belongs in the change itself.** A fix that alters what a
+person sees, a rule, a route or a row writes or amends its spec in the same
+commit - the same rule the docs follow, and for the same reason: a suite
+updated later asserts a product that no longer exists for every commit in
+between. Adding a spec is not the same as running all of them; the new file
+is what the first gear runs, and the merge run is where it first runs beside
+everything else.
+
 ### Database
 
 `supabase/schema.sql` is the whole schema - tables, row-level security

@@ -24,10 +24,13 @@ Commands: `npm run dev`, `npm run build`, `npm start`,
 `npm run start:cluster` (several workers on one port -- see the clustering
 rule under "Supabase clients"), `npm run lint`,
 `npm run test`, `npm run check:realtime`, `npm run check:grants`,
-`npm run test:e2e`,
+`npm run test:e2e` (the whole browser suite -- once before a merge, not once
+per fix; see the two gears under the e2e section below),
 `npm run seed:qa` (recreate the QA fixture accounts after a data reset),
 `npm run clean:e2e` (delete the fixture rows earlier e2e runs left behind),
-and `npm run verify` (lint + test + build, the one to run before pushing).
+and `npm run verify` (lint + test + build, the one to run before pushing --
+and, for a change a browser can see, alongside the two or three specs
+covering what moved rather than the whole suite).
 `npm run test` is Vitest over `src/**/*.test.ts` - the dependency-free
 modules in `src/lib`, which is why the business maths lives there rather
 than inside components. It needs no database and no browser; anything that
@@ -125,11 +128,45 @@ moving one. It drives screens rather than routes deliberately: half of what
 this feature got wrong the first time was what a person reads -- a delivered
 session chipped "Unpaid", a feed telling a patient their booked session was
 not booked, a Pay-now link that led nowhere -- and every one of those is
-invisible to an API test and obvious in a screenshot.
+invisible to an API test and obvious in a screenshot. `booking-pay-button-live.spec.ts`
+is the same argument one screen over -- the payment step's own pay button
+staying tappable while its price loads, with the wait stated on the screen
+rather than enforced on the control.
 It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
+
+**The whole suite runs once before a merge, never once per fix.** It is
+`workers: 1` against one Supabase project and one app instance by design, so
+it is slow by design too -- running all of it after each bug fix spends
+minutes to re-prove a few hundred cases the change could not have touched,
+and the cost is paid on every commit rather than on the one that matters.
+Worse, it is the habit that makes a red run routine: a suite run so often
+that its six known no-egress failures are scrolled past is a suite nobody is
+reading, which is the same failure mode as a badge that is always on. Two
+gears:
+
+1. **Per change -- a quick retest and a regression.** `npm run verify`
+   (lint + unit tests + build, which is what `verify` is for) plus **the
+   specs that cover what moved**, by file:
+   `npx playwright test e2e/<the-spec>.spec.ts`. The retest is the case the
+   change was made for; the regression is the rest of that file and any spec
+   over the same screen or the same money rule. Two or three files, not
+   the whole suite. A change that cannot reach a test project stops at `verify`,
+   as above.
+2. **Once before the merge -- `npm run test:e2e` in full**, on the branch as
+   it will land. That is the run whose six known failures get read (see the
+   no-egress note above), and the only one that catches a spec broken by a
+   change in a file it does not name.
+
+**Updating the suite is part of the change, not part of the merge.** A fix
+that changes what a person sees, a rule, a route or a row updates or adds its
+spec **in the same commit** -- the same rule the docs follow, and for the same
+reason: a suite updated later is a suite that spends the intervening commits
+asserting a product that no longer exists. Adding a spec is not the same as
+running all of them; the new file is what gear 1 runs, and gear 2 is where it
+first runs beside everything else.
 
 **The suite runs in the clinic's zone, pinned in `playwright.config.ts`.**
 Specs build a bookable slot with `d.setHours(hour, 0, 0, 0)` -- a whole hour
@@ -178,10 +215,20 @@ Three environment notes for the browser specs:
   Step 2 offering *Full Name*, *Create Password* and "Already have an account?
   Sign in first" to a patient the spec had just signed in, so the four cases
   after it fail on a booking that was never made rather than on anything
-  pay-later. A whole-suite run here is therefore **258 passed, 6 failed**, and
-  those six are these three pairs -- all six fail identically on a stashed,
-  unmodified tree. Check that before reading a red pay-later run as a money
-  bug.
+  pay-later. A whole-suite run here was **258 passed, 6 failed** when that was
+  measured, and those six are these three pairs -- all six fail identically on
+  a stashed, unmodified tree. Check that before reading a red pay-later run as
+  a money bug. Take the **pairs** as the invariant and not the total: the
+  total moves with every spec added, so a run that does not match it is
+  telling you the suite has grown, not that something broke.
+  `booking-pay-button-live.spec.ts` is the same case a fourth time -- three
+  more cases, and the reason the count above is no longer the one to check
+  against. It reads as the very regression it guards: all three walk the same
+  Step 1 -> Step 3 path as BR-CANCEL, so with no browser egress the walk stops
+  at Step 2 and the failure is the pay button *not found* -- which looks
+  exactly like a button that was never rendered. A dead button and an absent
+  one are different faults; check the egress before reading a red run here as
+  the disable having come back.
 - `admin-login.spec.ts` is the exception, since the login form itself is
   what it tests: it needs a second app instance whose
   `NEXT_PUBLIC_SUPABASE_URL` points at `scripts/.qa/supabase-relay.mjs` (a
@@ -3602,6 +3649,48 @@ before.
   behind them -- a filter nobody can act on is noise. Don't cap a list at
   an arbitrary number with a "Show all" escape hatch: that was what All
   Sessions did, and "Show all" then painted every row anyway.
+- **A control is disabled by its own work, never by a background read.** The
+  booking wizard's Pay button carried `disabled={loading || quoting}`, where
+  `quoting` is a price read that fires on arriving at Step 3 and again on every
+  promo code applied -- so the primary control of the payment screen was dead
+  for a round trip each time, with nothing on the button saying why. A disabled
+  button that is *about* to work is indistinguishable from a broken one, and a
+  patient who taps a dead pay button taps it again; it is the navigation rule
+  one control over, where a tap that is not acknowledged reads as a fault.
+  The answer is to **queue the tap, not refuse it**: `submitFromPaymentStep`
+  sets `loading` the instant it is pressed and then awaits the in-flight read
+  before choosing its branch, so the wait is acknowledged rather than enforced
+  and the decision is still made on the figure that is about to land. Three
+  details are load-bearing. The in-flight promise is published on a ref
+  (`quoteInFlight`) rather than inferred from the `quoting` boolean, since a
+  boolean says a read is happening and gives a waiter nothing to await. The
+  waiter **loops** while one is in flight, because applying a promo code starts
+  a second read while the first is open and awaiting only the first acts on the
+  figure that is about to be replaced -- the exact thing the disable was for.
+  And the read's promise never rejects (its own body swallows every failure and
+  a failed read leaves the previous answer standing), or a waiting tap would
+  hang on it. The `quoting` flag stays, as a line saying the price is being
+  checked: the wait is **stated, never enforced**, the same split the amber
+  line on Booking Rules follows.
+  The legitimate disable is the opposite shape and is easy to tell apart: a
+  control disabled while **its own** request is in flight, with its own label
+  saying so -- `PromoCodeField`'s Apply reading "Checking…", the home-visit
+  wizard's Check reading "Checking..." -- which is duplicate-submit prevention
+  rather than a wait imposed on somebody else's action. A validity gate
+  (`disabled={saving || reason.length < MIN}`) is the same case: the control
+  cannot succeed yet, rather than being made to sit out a read it did not
+  start. Before adding a flag to a `disabled` prop, ask whether the flag
+  belongs to that button's own work; if it does not, await it in the handler
+  instead.
+  `e2e/booking-pay-button-live.spec.ts` is the guard, driven as a screen
+  because nothing here changes a route or a row -- the quote route is *delayed*
+  rather than raced, since the real window is a few hundred milliseconds and a
+  test trying to catch it would flake in whichever direction it lost. It pins
+  all three halves: the button enabled with the read in flight, the wait stated
+  on the screen instead, and a tap during the read acknowledged at once --
+  because accepting a tap and then showing nothing until the read lands is the
+  same fault wearing a different hat.
+
 - **The wait has to be visible, and it outlives the button.** Every mutating
   control had its own `loading` flag, and that flag was the problem: the
   shape was `setLoading(false); router.refresh();`, so the button went back
@@ -5011,6 +5100,16 @@ without checking. Anything in this list means the docs need a look:
 `src/`, `supabase/`, `scripts/`, `package.json`, `next.config.ts`, or
 `.env.example` without touching a doc. It is a reminder, not a gate - a
 change that genuinely needs no doc update can ignore it.
+
+**The suite is kept current the same way, and in the same commit.** Every
+trigger in the list above is also a trigger to look at `e2e/` and
+`docs/qa/src/` - a changed rule, a moved route or a reworded screen leaves a
+spec asserting a product that no longer exists, and a spec that goes stale
+silently is worse than a doc that does, because it keeps passing. Write or
+amend the spec beside the fix; do **not** run the whole browser suite to
+prove it (see the two gears under the e2e section above - the new file is
+what the per-change gear runs, and the pre-merge run is where it first runs
+beside everything else).
 
 **Security headers ship from `next.config.ts`.** `X-Frame-Options: DENY`,
 `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`,

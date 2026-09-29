@@ -251,6 +251,20 @@ switch in place as the sidebar does, and `LinkProgress` (one listener in the
 root layout) draws the teal bar for every other link in the app, whoever
 wrote it. See the navigation rule in `AGENTS.md`.
 
+**And a button is never dead while something else loads.** The booking
+wizard's pay button was disabled for the length of the price read that fires
+on arriving at Step 3 and again on every promo code applied, so the one
+control that screen exists for sat unusable for a round trip with nothing on
+it saying why - which is indistinguishable from a broken button, and a
+patient who taps a dead pay button taps it again. The tap is **queued rather
+than refused** now: it is acknowledged the instant it lands, waits for the
+figure inside the handler, and branches on the answer that arrives rather
+than the one it replaced. The read's own flag stays, as a line saying the
+price is being checked - the wait is stated, never enforced. A control may
+still be disabled by **its own** request (Apply reading "Checking...") or by
+a validity gate; it may not be disabled by a read it did not start. See the
+disabled-control rule in `AGENTS.md`.
+
 **A patient's or therapist's own page is the dashboard, not a page that
 looks like it.** Those details are an overlay over whatever screen you were
 on, and a reload, a new tab, a shared link or a refresh lands on the real
@@ -728,12 +742,30 @@ and each admin scope's own landing screen, and pay later end to end in a
 real browser -- the grant, a booking with no payment screen, completion
 putting the money in three places at once, a declaration that settles
 nothing until an admin confirms it, and a write-off that costs the clinic
-without moving a single money figure
+without moving a single money figure, and the payment step's own pay button
+staying tappable while its price loads
 (`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys - verify a change
 with a build and a lint.
 
-These three docs describe the app, so keep them current: whenever a change
+**Two gears, and the whole suite is the slower one.** A bug fix or a code
+change gets a **quick retest and a regression**: `npm run verify` plus the
+two or three specs covering what moved
+(`npx playwright test e2e/<the-spec>.spec.ts`) - the case the change was made
+for, and the rest of that file plus anything over the same screen or money
+rule. The **whole** suite is run **once before the merge**, on the branch as
+it will land. It is `workers: 1` against one project and one app instance by
+design, so running every spec file after every fix spends minutes
+re-proving cases the change could not have touched - and it is how a red run
+becomes routine, which is a suite nobody reads. **Updating the suite is part
+of the change**, though, not part of the merge: a fix that alters what a
+person sees, a rule, a route or a row writes or amends its spec in the same
+commit, the same rule these docs follow. See the two gears in `AGENTS.md`.
+
+These three docs describe the app, so keep them current - and the same
+triggers keep `e2e/` and `docs/qa/src/` current, in the same commit, since a
+spec left asserting a product that no longer exists goes stale silently and
+keeps passing: whenever a change
 adds or removes a route, role, environment variable, npm script, or alters a
 documented rule (booking lead time, refund window, payment verification, Meet
 sync, payout math) or a schema flow, update the docs in that same change
