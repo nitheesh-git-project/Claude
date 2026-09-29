@@ -11,6 +11,7 @@ import {
 } from "@/lib/bookingSlots";
 import { sessionsRemaining } from "@/lib/sessionSuggestions";
 import { guardCommunication } from "@/lib/communicationFlags";
+import { serverError } from "@/lib/apiError";
 
 const MAX_NOTE_LENGTH = 500;
 
@@ -206,7 +207,7 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    return serverError("therapist/suggest-session", insertError);
   }
 
   return NextResponse.json({ success: true, suggestionId: created.id });

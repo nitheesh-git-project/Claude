@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 function generatePassword() {
   return crypto.randomBytes(9).toString("base64url");
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
     .eq("id", created.user.id);
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return serverError("admin/onboard-hospital", updateError);
   }
 
   if (leadId) {

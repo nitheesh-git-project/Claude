@@ -9,6 +9,7 @@ import {
   CATEGORY_DELETE_REFUSED,
   describeCategoryBlockers,
 } from "@/lib/categoryDeletion";
+import { serverError } from "@/lib/apiError";
 
 // Delete a treatment category, or say exactly why it cannot go.
 //
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/delete-treatment-category", error);
   }
 
   if (!deleted || deleted.length === 0) {

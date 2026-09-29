@@ -9,6 +9,7 @@ import {
 } from "@/lib/conditionIntake";
 import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 // Admin edits a patient's Patient Care Intake directly. No review queue:
 // admin is the approver of everyone else's edits, so a self-review step
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
     { onConflict: "patient_id" }
   );
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/condition-requests/direct-edit", error);
   }
 
   // Direct edits skip the review queue, but not the audit trail -- insert

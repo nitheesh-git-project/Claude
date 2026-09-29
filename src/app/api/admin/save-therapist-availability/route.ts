@@ -10,6 +10,7 @@ import {
 } from "@/lib/availabilityRequest";
 import { saveWeeklySchedule } from "@/lib/saveWeeklySchedule";
 import { summarizeWorkingWeek, templateToWeekly } from "@/lib/availabilityRanges";
+import { serverError } from "@/lib/apiError";
 
 /**
  * The admin's door onto a therapist's weekly working hours -- the second
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (result.status === "error") {
-    return NextResponse.json({ error: result.message }, { status: 500 });
+    return serverError("admin/save-therapist-availability", result);
   }
   if (result.status === "conflict") {
     return NextResponse.json(

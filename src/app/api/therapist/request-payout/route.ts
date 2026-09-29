@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { serverError } from "@/lib/apiError";
 
 export async function POST() {
   const supabase = await createClient();
@@ -73,7 +74,7 @@ export async function POST() {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("therapist/request-payout", error);
   }
 
   return NextResponse.json({ success: true, requestId: inserted.id, requestedAmountPaise: owedPaise });

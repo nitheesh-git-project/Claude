@@ -5,6 +5,7 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { writeCatalogFocal } from "@/lib/catalogImageServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { validatePackagePayload, type PackagePayload } from "@/lib/validatePackagePayload";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/create-package", error);
   }
 
   // Catalog rows decide what is sold and at what price, so every

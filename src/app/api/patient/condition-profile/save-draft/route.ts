@@ -8,6 +8,7 @@ import {
   describeProfileStanding,
   getProfileStanding,
 } from "@/lib/supabase/requireActiveProfile";
+import { serverError } from "@/lib/apiError";
 
 // Silent autosave while a patient is filling the intake form - not a
 // submission, doesn't touch condition_change_requests, doesn't need admin
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
     { onConflict: "patient_id" }
   );
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("patient/condition-profile/save-draft", error);
   }
 
   return NextResponse.json({ success: true });

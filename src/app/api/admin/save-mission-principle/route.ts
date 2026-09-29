@@ -10,6 +10,7 @@ import {
   MISSION_ICONS,
   isMissionPrincipleKind,
 } from "@/lib/mission";
+import { serverError } from "@/lib/apiError";
 
 /**
  * Writes one promise or one limit -- a new row when no id is given, an edit
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       .select("id")
       .maybeSingle();
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError("admin/save-mission-principle", error);
     }
     // supabase-js reports no error for an UPDATE that matched nothing, so the
     // row coming back is what distinguishes "changed it" from "changed

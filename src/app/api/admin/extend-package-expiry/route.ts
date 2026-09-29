@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 const MAX_REASON_LENGTH = 500;
 
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
   const { data: claimed, error: updateError } = await query.select("id").maybeSingle();
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return serverError("admin/extend-package-expiry", updateError);
   }
   if (!claimed) {
     return NextResponse.json(

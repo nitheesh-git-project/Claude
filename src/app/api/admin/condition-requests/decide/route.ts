@@ -10,6 +10,7 @@ import {
 import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
 import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 // Approve or decline a Patient Care Intake submission - a patient editing
 // their own record, or a therapist editing it on their behalf with an
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
   if (reviewError) {
-    return NextResponse.json({ error: reviewError.message }, { status: 500 });
+    return serverError("admin/condition-requests/decide", reviewError);
   }
   if (!reviewedRow) {
     return NextResponse.json({ error: "This request has already been reviewed" }, { status: 409 });
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest) {
         { onConflict: "patient_id" }
       );
     if (profileError) {
-      return NextResponse.json({ error: profileError.message }, { status: 500 });
+      return serverError("admin/condition-requests/decide", profileError);
     }
   } else {
     // Declining leaves the profile's own status where it was before this

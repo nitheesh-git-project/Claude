@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 const VALID_ACTIONS = new Set(["approve", "decline", "revoke"]);
 
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/condition-access/decide", error);
   }
   if (!updatedRow) {
     return NextResponse.json(

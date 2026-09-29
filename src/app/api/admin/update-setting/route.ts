@@ -18,6 +18,7 @@ import {
   MAX_PAY_LATER_AGED_AFTER_DAYS,
 } from "@/lib/patientBalances";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
@@ -590,7 +591,7 @@ export async function POST(request: NextRequest) {
     .eq("id", true);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-setting", error);
   }
 
   await recordAdminActivity(admin, adminUser.id, {

@@ -12,6 +12,7 @@ import {
   describeProfileStanding,
   getProfileStanding,
 } from "@/lib/supabase/requireActiveProfile";
+import { serverError } from "@/lib/apiError";
 
 /**
  * A therapist replaces their own weekly working hours.
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (result.status === "error") {
-    return NextResponse.json({ error: result.message }, { status: 500 });
+    return serverError("therapist/save-availability", result);
   }
   if (result.status === "conflict") {
     return NextResponse.json(

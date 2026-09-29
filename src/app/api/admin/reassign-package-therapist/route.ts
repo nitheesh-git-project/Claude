@@ -8,6 +8,7 @@ import {
   claimTherapistSlot,
   describeClaimFailure,
 } from "@/lib/claimTherapistSlot";
+import { serverError } from "@/lib/apiError";
 
 // Moves an entire package purchase's remaining programme to a new
 // therapist in one action -- the answer to "the locked therapist went on
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
   if (purchaseUpdateError) {
-    return NextResponse.json({ error: purchaseUpdateError.message }, { status: 500 });
+    return serverError("admin/reassign-package-therapist", purchaseUpdateError);
   }
 
   if (claimedPurchase) {

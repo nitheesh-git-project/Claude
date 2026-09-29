@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 // Self-serve mirror of /api/admin/decline-referral, scoped to the caller's
 // own hospital_id instead of admin-only. Same atomic guard: only while
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("hospital/withdraw-referral", error);
   }
   if (!updated) {
     return NextResponse.json(

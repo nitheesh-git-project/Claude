@@ -6,6 +6,7 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { mirrorVoid } from "@/lib/sessionCreditMirror";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
+import { serverError } from "@/lib/apiError";
 
 const MAX_REASON_LENGTH = 500;
 
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
   if (claimError) {
-    return NextResponse.json({ error: claimError.message }, { status: 500 });
+    return serverError("admin/refund-package", claimError);
   }
   if (!claimed) {
     return NextResponse.json(

@@ -9,6 +9,7 @@ import { mirrorConsume } from "@/lib/sessionCreditMirror";
 import { allocatePayLaterPayments } from "@/lib/payLaterSettlementServer";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { readSettlementRates } from "@/lib/settlementRates";
+import { serverError } from "@/lib/apiError";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
 // the session, or an admin correcting the record - nobody else.
@@ -189,7 +190,7 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("appointments/complete-session", error);
   }
   if (!updated) {
     return NextResponse.json(

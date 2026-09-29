@@ -10,6 +10,7 @@ import {
   describeProfileStanding,
   getProfileStanding,
 } from "@/lib/supabase/requireActiveProfile";
+import { serverError } from "@/lib/apiError";
 
 // Same silent autosave as the patient's own version. The gate mirrors the
 // two therapist write paths rather than picking one: a first fill (no
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
     { onConflict: "patient_id" }
   );
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("therapist/condition-profile/save-draft", error);
   }
 
   return NextResponse.json({ success: true });

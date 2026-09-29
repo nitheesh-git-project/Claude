@@ -9,6 +9,7 @@ import {
   claimTherapistSlot,
   describeClaimFailure,
 } from "@/lib/claimTherapistSlot";
+import { serverError } from "@/lib/apiError";
 
 // The home-visit twin of /api/admin/reassign-package-therapist. Only touches
 // visits still ahead of the patient -- completed visits keep whoever
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
   if (purchaseUpdateError) {
-    return NextResponse.json({ error: purchaseUpdateError.message }, { status: 500 });
+    return serverError("admin/reassign-home-visit-therapist", purchaseUpdateError);
   }
 
   if (claimedPurchase) {

@@ -13,6 +13,7 @@ import {
   parseYearsExperience,
   YEARS_EXPERIENCE_ERROR,
 } from "@/lib/therapistExperience";
+import { serverError } from "@/lib/apiError";
 
 // Creates a patient, therapist or admin account by hand.
 //
@@ -194,7 +195,7 @@ export async function POST(request: NextRequest) {
     .eq("id", created.user.id);
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return serverError("admin/create-account", updateError);
   }
 
   // A therapist created here arrives approved, active and (by column

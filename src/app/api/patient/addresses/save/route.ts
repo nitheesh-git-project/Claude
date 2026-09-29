@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
+import { serverError } from "@/lib/apiError";
 
 const MAX_LINE_LENGTH = 300;
 const MAX_LABEL_LENGTH = 60;
@@ -101,6 +102,11 @@ export async function POST(request: NextRequest) {
 
   // At most one default per patient is a partial unique index, so the old
   // default has to be cleared before the new one lands or the write fails.
+  // The index is the real guarantee -- this clear-then-set pair has a
+  // window, and two tabs setting a default at once will lose it. That is
+  // handled below rather than prevented here: the index is correct, and
+  // what mattered was that its refusal reached the patient as the Postgres
+  // constraint name.
   if (body.isDefault) {
     await admin
       .from("patient_addresses")
@@ -118,7 +124,17 @@ export async function POST(request: NextRequest) {
       // somebody else's address.
       .eq("patient_id", user.id);
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      // 23505 is patient_addresses_one_default: two tabs made this address
+      // the default at the same moment and this one lost. Not a server
+      // fault, and the constraint name is not a sentence anybody can act
+      // on -- the honest answer is that it is already set.
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { error: "Another change set your default address a moment ago. Refresh to see it." },
+          { status: 409 }
+        );
+      }
+      return serverError("patient/addresses/save", error);
     }
     return NextResponse.json({ success: true, id: body.id });
   }
@@ -134,7 +150,13 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error.code === "23505") {
+      return NextResponse.json(
+        { error: "Another change set your default address a moment ago. Refresh to see it." },
+        { status: 409 }
+      );
+    }
+    return serverError("patient/addresses/save", error);
   }
 
   return NextResponse.json({ success: true, id: created.id });

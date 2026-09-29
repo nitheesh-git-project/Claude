@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { findMissingRequiredKeys, patientIntakeGate, questionKeysForSpecialty } from "@/lib/conditionIntake";
 import { loadConditionProfileCore, loadMergedIntakeQuestions } from "@/lib/conditionProfileServer";
+import { serverError } from "@/lib/apiError";
 
 // Patient edits their own Patient Care Intake. Every submission queues in
 // condition_change_requests and only becomes the live profile once an
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    return serverError("patient/condition-profile/submit", insertError);
   }
 
   const { error: upsertError } = await admin
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
       { onConflict: "patient_id" }
     );
   if (upsertError) {
-    return NextResponse.json({ error: upsertError.message }, { status: 500 });
+    return serverError("patient/condition-profile/submit", upsertError);
   }
 
   return NextResponse.json({ success: true });

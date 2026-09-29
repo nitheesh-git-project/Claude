@@ -10,6 +10,7 @@ import {
   validateHomeVisitPackagePayload,
   type HomeVisitPackagePayload,
 } from "@/lib/validateHomeVisitPackagePayload";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-home-visit-package", error);
   }
 
   // Its own call, per the migration-dependent-column rule: a database

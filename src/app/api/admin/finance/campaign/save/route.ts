@@ -13,6 +13,7 @@ import {
   parseOptionalText,
   parsePaise,
 } from "@/lib/financeInputs";
+import { serverError } from "@/lib/apiError";
 
 // What was spent on advertising, and what it can be traced to.
 //
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
       .eq("id", id.value)
       .select("id")
       .maybeSingle();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return serverError("admin/finance/campaign/save", error);
     if (!updated) {
       return NextResponse.json(
         { error: "That campaign is no longer there - somebody may have removed it." },

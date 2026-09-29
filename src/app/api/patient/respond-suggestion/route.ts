@@ -7,6 +7,7 @@ import { bookPackageSession } from "@/lib/bookPackageSession";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { isActionable } from "@/lib/sessionSuggestions";
+import { serverError } from "@/lib/apiError";
 
 // The patient answering a suggested session.
 //
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
       .eq("id", suggestion.id)
       .eq("status", "pending");
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError("patient/respond-suggestion", error);
     }
     return NextResponse.json({ success: true, status: "declined" });
   }

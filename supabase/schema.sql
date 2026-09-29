@@ -13027,3 +13027,59 @@ alter table appointments add constraint appointments_completion_shares_sane
     (hospital_share_percent_at_completion is null
       or (hospital_share_percent_at_completion >= 0 and hospital_share_percent_at_completion <= 100))
   );
+
+-- =============================================================================
+-- Audit fixes: the medical-document cap is enforced by the database.
+-- =============================================================================
+-- The upload route counted the patient's existing rows and refused at the
+-- cap. That is a select-then-insert with a real window: several uploads
+-- fired together all read the same count, all pass, and all insert -- which
+-- is exactly what a multi-file picker produces. The cap is the only thing
+-- bounding this bucket's growth (there is no sweep in this deployment), so
+-- "mostly enforced" is not enforced.
+--
+-- A trigger rather than a partial unique index, because "at most N rows per
+-- patient" is not something a unique index can express. It counts inside the
+-- inserting transaction, so two concurrent inserts serialise on the row lock
+-- the count takes and the second sees the first.
+--
+-- The number is duplicated here from MAX_DOCUMENTS_PER_PATIENT in
+-- src/lib/medicalDocuments.ts on purpose: the route keeps its own check so
+-- the patient gets a sentence they can act on rather than a constraint
+-- error, and this is the backstop for the race and for any future writer.
+-- If one moves, move both -- the route's message is what a person reads and
+-- this is what makes it true.
+create or replace function public.patient_medical_documents_enforce_cap()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_count integer;
+begin
+  -- Serialise on the patient's own row before counting. `for update` cannot
+  -- be combined with an aggregate, so the lock is taken separately -- and it
+  -- has to be a lock on something, because a bare count lets two concurrent
+  -- uploads read the same number and both pass. Same mechanism as
+  -- `claim_therapist_slot`, for the same reason: a cap means nothing unless
+  -- the count and the insert happen without anybody slipping between them.
+  perform 1 from profiles where id = new.patient_id for update;
+
+  select count(*) into v_count
+    from patient_medical_documents
+   where patient_id = new.patient_id;
+
+  if v_count >= 20 then
+    raise exception
+      'patient_medical_documents: at most 20 reports per patient'
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_patient_medical_documents_cap on patient_medical_documents;
+create trigger trg_patient_medical_documents_cap
+  before insert on patient_medical_documents
+  for each row execute function public.patient_medical_documents_enforce_cap();

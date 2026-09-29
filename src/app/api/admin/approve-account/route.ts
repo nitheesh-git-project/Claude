@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 // Approves a pending self-serve signup. Handles both roles that go through
 // the approval gate -- therapist applications and, since patients now wait
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/approve-account", error);
   }
   if (!updated) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });

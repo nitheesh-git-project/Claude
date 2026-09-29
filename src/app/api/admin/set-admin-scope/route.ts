@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { ADMIN_SCOPES, type AdminScope } from "@/lib/adminScope";
+import { serverError } from "@/lib/apiError";
 
 // Changes what another admin can reach, or removes their admin rights
 // entirely by demoting them.
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
     .eq("role", "admin");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/set-admin-scope", error);
   }
 
   await recordAdminActivity(admin, context.id, {

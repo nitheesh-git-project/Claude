@@ -6,6 +6,7 @@ import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile"
 import { hasApprovedConditionAccess } from "@/lib/conditionAccess";
 import { findMissingRequiredKeys, questionKeysForSpecialty } from "@/lib/conditionIntake";
 import { loadConditionProfileCore, loadMergedIntakeQuestions } from "@/lib/conditionProfileServer";
+import { serverError } from "@/lib/apiError";
 
 // Therapist EDITS an existing Patient Care Intake on a patient's behalf,
 // after the patient's admin has approved their access grant. Goes through
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    return serverError("therapist/condition-profile/submit", insertError);
   }
 
   const { error: upsertError } = await admin
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
       { onConflict: "patient_id" }
     );
   if (upsertError) {
-    return NextResponse.json({ error: upsertError.message }, { status: 500 });
+    return serverError("therapist/condition-profile/submit", upsertError);
   }
 
   return NextResponse.json({ success: true });

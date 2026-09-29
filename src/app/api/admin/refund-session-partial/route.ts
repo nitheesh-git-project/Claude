@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 // A discretionary refund on one session, for an amount an admin chooses.
 //
@@ -196,7 +197,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (claimError) {
-    return NextResponse.json({ error: claimError.message }, { status: 500 });
+    return serverError("admin/refund-session-partial", claimError);
   }
   if (!claimed) {
     return NextResponse.json(
