@@ -144,6 +144,26 @@ export const RATE_LIMITS = {
     windowSeconds: 3600,
     message: "We couldn't record that just now.",
   },
+
+  /**
+   * A partner hospital filing a patient referral.
+   *
+   * Its own scope on the one-scope-per-flow rule -- folding it into
+   * `publicWrite` would let a hospital's morning batch of referrals spend
+   * the allowance a stranger needs to ask about a partnership, and the two
+   * are refused for completely different reasons.
+   *
+   * Generous, because a hospital legitimately files several in a sitting
+   * after a ward round, and keyed on the hospital's own account rather than
+   * an address, so a shared hospital network cannot have one clinic lock
+   * out another.
+   */
+  referralSubmit: {
+    scope: "referral-submit",
+    limit: 40,
+    windowSeconds: 3600,
+    message: "We've taken a lot of referrals from this account just now.",
+  },
 } as const satisfies Record<string, RateLimit>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

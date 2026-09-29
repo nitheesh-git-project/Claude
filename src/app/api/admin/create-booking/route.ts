@@ -99,6 +99,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "That treatment category doesn't exist." }, { status: 404 });
   }
 
+  // `active` was selected here and never read, so an admin could book
+  // against a condition the clinic had switched off -- the row is gone from
+  // the public pages and the patient's own booking screen, so the only way
+  // to reach it is this form's own list, which is exactly where a stale
+  // browser tab keeps offering it. The session that results is priced and
+  // staffed from a row nobody intends to sell any more.
+  //
+  // Stated rather than silently dropped: an admin picking it from a list
+  // that still showed it needs to know why it was refused, and switching
+  // the condition back on is a real answer.
+  if (category.active === false) {
+    return NextResponse.json(
+      {
+        error: `"${category.title}" is switched off, so it can't be booked. Turn it back on under Catalog to use it.`,
+      },
+      { status: 409 }
+    );
+  }
+
   const durationMinutes = category.duration_minutes ?? BASE_DURATION_MINUTES;
 
   const { data: settingsRow } = await admin

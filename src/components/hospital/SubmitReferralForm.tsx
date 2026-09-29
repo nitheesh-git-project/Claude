@@ -2,15 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
-import { createClient } from "@/lib/supabase/client";
 import PhoneNumberField from "@/components/PhoneNumberField";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 
 export default function SubmitReferralForm({
-  hospitalId,
   homeVisitEnabled,
 }: {
-  hospitalId: string;
   // Master switch from site_settings -- a hospital shouldn't be offered a
   // delivery mode the platform hasn't turned on yet, same gate the public
   // booking wizards already honour.
@@ -30,7 +27,6 @@ export default function SubmitReferralForm({
   // remounts it, which is what actually empties the field.
   const [phoneFieldKey, setPhoneFieldKey] = useState(0);
   const router = useRouter();
-  const supabase = createClient();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -54,21 +50,47 @@ export default function SubmitReferralForm({
       return;
     }
 
-    const { error } = await supabase.from("patient_referrals").insert({
-      hospital_id: hospitalId,
-      patient_name: formData.get("patient_name") as string,
-      patient_phone: patientPhone,
-      address: (formData.get("address") as string) || null,
-      preferred_language: (formData.get("preferred_language") as string) || null,
-      medical_issue: formData.get("medical_issue") as string,
-      treatment_needed: (formData.get("treatment_needed") as string) || null,
-      visit_mode: visitMode,
-      pincode: visitMode === "home_visit" ? pincode.trim() : null,
-    });
+    // Through a route rather than straight into the table. The insert
+    // policy only ever checked that the row named this hospital, so a
+    // suspended or never-approved partner could keep filing referrals, and
+    // every rule above was enforced in this file alone -- see the route's
+    // own comment. The checks here stay, because catching a blank field in
+    // the browser is faster and kinder than a round trip; they are no
+    // longer the only place they happen.
+    let res: Response;
+    try {
+      res = await fetch("/api/hospital/submit-referral", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientName: formData.get("patient_name") as string,
+          patientPhone,
+          address: (formData.get("address") as string) || "",
+          preferredLanguage: (formData.get("preferred_language") as string) || "",
+          medicalIssue: formData.get("medical_issue") as string,
+          treatmentNeeded: (formData.get("treatment_needed") as string) || "",
+          visitMode,
+          pincode: visitMode === "home_visit" ? pincode.trim() : "",
+        }),
+      });
+    } catch {
+      // A request that died on a bad connection must leave the form exactly
+      // as it was, with everything the hospital typed still in it.
+      setLoading(false);
+      setError("Could not reach us just now. Please check your connection and try again.");
+      return;
+    }
 
     setLoading(false);
-    if (error) {
-      setError("Could not submit the referral. Please try again.");
+    if (!res.ok) {
+      // The route answers with a sentence naming what it refused -- a
+      // suspended account, a pincode, a withdrawn home-visit service. Read
+      // it rather than replacing all of them with one generic line.
+      const payload = await res.json().catch(() => null);
+      setError(
+        (payload as { error?: string } | null)?.error ??
+          "Could not submit the referral. Please try again."
+      );
       return;
     }
     setSuccess(true);

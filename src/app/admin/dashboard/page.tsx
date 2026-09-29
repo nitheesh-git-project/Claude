@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
+import { getAdminContextResult } from "@/lib/supabase/requireAdmin";
+import AdminAccessUnavailable from "@/components/admin/AdminAccessUnavailable";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import DeclineAccountButton from "@/components/admin/DeclineAccountButton";
 import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
@@ -202,15 +205,48 @@ export default async function AdminDashboardPage({
   searchParams: Promise<{ section?: string; tab?: string }>;
 }) {
   const { section: sectionParam, tab: tabParam } = await searchParams;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) {
-    return null;
+  // The page proves for itself that this caller is an active admin, rather
+  // than trusting the proxy to have done it.
+  //
+  // Two reasons it cannot be left to src/proxy.ts alone. The proxy guards a
+  // *matcher* -- a path list in one file -- so any admin surface added
+  // outside it is unguarded on the day it ships, and nothing fails loudly
+  // when that happens. And the failure here is not "an unauthorised person
+  // sees an empty screen": `viewerScope` below is derived by looking this
+  // user's id up in the admin-scope map, and `parseAdminScope` answers an
+  // absent value with "full" -- correct for an admin predating scopes, and
+  // catastrophic for a non-admin, who would render as Master Admin with
+  // every section open. The guard has to come first.
+  //
+  // All three outcomes are kept apart, per the rule that a check which
+  // could not be run is not a check that came back negative:
+  const adminGuard = await getAdminContextResult();
+
+  if (!adminGuard.ok) {
+    if (adminGuard.reason === "unauthenticated") {
+      // The real admin's way in. An unauthenticated visitor is the one
+      // caller for whom naming this door costs nothing -- they cannot be
+      // told apart from the admin who has simply been signed out.
+      redirect("/admin/login");
+    }
+    if (adminGuard.reason === "unavailable") {
+      // Signed in, and we could not establish what they are. Never a
+      // redirect: bouncing a Master Admin off the back office because a
+      // profile read blipped is the exact misreport this branch exists for.
+      return <AdminAccessUnavailable />;
+    }
+    // `forbidden`. /get-started, never /admin/login -- redirecting a
+    // signed-in non-admin to the admin login page confirms the back office
+    // exists and names its door, which is the rule this app already holds
+    // for the proxy's own admin branch.
+    redirect("/get-started");
   }
 
+  const user = adminGuard.user;
+  const authoritativeScope = adminGuard.context.scope;
+
+  const supabase = await createClient();
   const admin = createAdminClient();
 
   // Runs before the big read below so this same request already sees any
@@ -652,7 +688,14 @@ export default async function AdminDashboardPage({
   // person pages are the exception, and compute their own (see
   // PatientDetailContent).
   const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
-  const viewerScope = parseAdminScope(adminScopeById.get(user.id));
+  // The viewer's own scope comes from the guard above, not from this map.
+  // The map is a bulk read of every admin row and is what the team list and
+  // the activity feed render other people from; if it fails, or if it simply
+  // does not contain this id, the lookup falls through parseAdminScope to
+  // "full". That is the right default for a *row that exists* with no scope
+  // set, and the wrong one for "we did not find you" -- so the viewer is
+  // resolved once, by the guard, from their own profile.
+  const viewerScope = authoritativeScope;
   const allowedSections = sectionsForScope(viewerScope);
   // The subset they can act in. Queues and quick actions read this rather
   // than `allowedSections`: a queue is a piece of work, and finance reads

@@ -8,6 +8,7 @@ import {
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
 
 // Razorpay's server-to-server notification that a payment happened.
 //
@@ -229,7 +230,31 @@ export async function POST(request: NextRequest) {
         visitMode: appointment.visit_mode,
         travelBufferMinutes: settings.travelBufferMinutes,
       });
-      if (picked) therapistId = picked.therapistId;
+      if (picked) {
+        // Reserved atomically, exactly as the browser-callback path does.
+        // The confirmation write below compare-and-sets on `status` and
+        // never on `therapist_id`, and an admin assigning by hand leaves
+        // the status at `requested` -- so without this the webhook would
+        // overwrite a therapist an admin had just chosen. `expectUnassigned`
+        // refuses the reservation in that case and leaves their choice
+        // standing.
+        const claim = await claimTherapistSlot(admin, {
+          appointmentId: appointment.id,
+          therapistId: picked.therapistId,
+          expectUnassigned: true,
+          bufferMinutes: settings.travelBufferMinutes,
+        });
+        if (claim.ok) {
+          therapistId = picked.therapistId;
+        } else if (claim.reason === "reassigned") {
+          // An admin got there first. Confirm with their therapist rather
+          // than leaving the session unassigned.
+          therapistId = claim.currentTherapistId ?? null;
+        }
+        // Any other refusal leaves the session in the admin's queue, which
+        // is what happened before auto-assignment existed. A webhook is
+        // never failed for it.
+      }
     }
 
     if (
@@ -241,8 +266,10 @@ export async function POST(request: NextRequest) {
       const { data: confirmed } = await admin
         .from("appointments")
         .update({
+          // `therapist_id` is not written here any more -- the reservation
+          // above already wrote it under a lock, and an admin's own
+          // assignment must not be overwritten by this confirmation.
           status: "confirmed",
-          ...(appointment.therapist_id ? {} : { therapist_id: therapistId }),
         })
         .eq("id", appointment.id)
         .eq("status", "requested")

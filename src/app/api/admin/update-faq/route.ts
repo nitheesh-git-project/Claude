@@ -31,15 +31,19 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin
-    .from("faqs")
-    .update({
-      question,
-      answer,
-      display_order: Math.round(order),
-      active: active === undefined ? true : Boolean(active),
-    })
-    .eq("id", id);
+  // Absence means "leave it alone", never "switch it on" -- see the same
+  // correction on update-treatment-category. A default of `true` here meant
+  // an admin fixing a typo silently republished an entry they had retired.
+  const patch: Record<string, unknown> = {
+    question,
+    answer,
+    display_order: Math.round(order),
+  };
+  if (active !== undefined) {
+    patch.active = Boolean(active);
+  }
+
+  const { error } = await admin.from("faqs").update(patch).eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

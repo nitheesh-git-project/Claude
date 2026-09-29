@@ -12573,3 +12573,286 @@ update site_settings set site_name = 'MoveRestore Physiotherapy'
   where site_name in ('Dr. Pooja''s Physio', 'MoveRestore');
 update site_settings set footer_copyright_text = 'MoveRestore Physiotherapy. All rights reserved.'
   where footer_copyright_text in ('Dr. Pooja''s Physio. All rights reserved.', 'MoveRestore. All rights reserved.');
+
+-- =============================================================================
+-- Audit fixes: a partner hospital files a referral through a route.
+-- =============================================================================
+-- `patient_referrals_insert_own` checked `auth.uid() = hospital_id` and
+-- nothing else. That is an ownership test, not a lifecycle one, so a
+-- suspended partner -- or one whose account was never approved -- could keep
+-- inserting referrals straight from the browser, and the rows reached the
+-- admin's queue indistinguishable from a live partner's. Every other rule
+-- (the phone, the pincode, the home-visit master switch, the visit mode) was
+-- enforced in the form's own JavaScript, which a session cookie and a direct
+-- POST go straight past, and there was no server-side door to rate limit.
+--
+-- /api/hospital/submit-referral is that door: it re-derives the hospital from
+-- the session, checks role + active + approved, validates every field, and
+-- counts against its own limit. The insert grant goes with the policy, the
+-- same move `appointments_insert_own` and the b2b_leads public insert got --
+-- leaving either behind would keep the old path open beside the new one.
+--
+-- Select stays exactly as it was: a hospital still reads its own referrals.
+drop policy if exists "patient_referrals_insert_own" on patient_referrals;
+revoke insert on patient_referrals from authenticated;
+
+-- =============================================================================
+-- Audit fixes: declining a referral says why.
+-- =============================================================================
+-- `referral.decline` moved a status word and recorded nothing else, so the
+-- partner who sent the patient read "Declined" and learned nothing -- not
+-- whether it was the wrong specialty, outside the catchment, or a capacity
+-- problem that will pass. That is the one outcome in this flow that takes
+-- something away from somebody, and the rule this codebase already holds for
+-- the care-plan review is that exactly those outcomes carry a reason: an
+-- approval is one tap, a refusal is a sentence the other side can act on.
+--
+-- Ten characters is the same floor `admin_adjust`, the impersonation record
+-- and the care-plan rejection use, and it is a CHECK rather than only a route
+-- check so it holds for any caller -- including a hand-run UPDATE in the SQL
+-- editor, which is where a status gets flipped when somebody is in a hurry.
+-- It is conditional on the status so the constraint is vacuous for every
+-- referral that is not declined, including every row that predates it.
+alter table patient_referrals add column if not exists decline_reason text;
+alter table patient_referrals add column if not exists declined_at timestamptz;
+alter table patient_referrals add column if not exists declined_by uuid references profiles(id);
+
+alter table patient_referrals drop constraint if exists patient_referrals_decline_needs_reason;
+alter table patient_referrals add constraint patient_referrals_decline_needs_reason
+  check (
+    status <> 'declined'
+    -- Existing declined rows carry no reason and must stay valid: the
+    -- constraint asks only that a reason, once given, is a real one. A
+    -- backfilled sentence invented now would be a fabricated record of why
+    -- a real clinic turned a real patient away.
+    or decline_reason is null
+    or length(btrim(decline_reason)) >= 10
+  );
+
+-- =============================================================================
+-- Audit fixes: one atomic therapist-slot claim, for every booking path.
+-- =============================================================================
+-- Six assignment paths each reserved a therapist their own way, and every one
+-- of them was a read, then a write, then (in the best case) a re-read and a
+-- hand-rolled rollback:
+--
+--   /api/admin/assign-appointment      check -> write -> re-check -> revert
+--   /api/admin/assign-referral         the same, plus a created_at tiebreak
+--   /api/admin/update-appointment      check -> write
+--   autoAssignTherapist (both verify   check -> write
+--     and webhook payment paths)
+--   bookPackageSession                 check -> write
+--   bookHomeVisitSession               check -> write
+--
+-- None of that is atomic, and the failure it leaves is the expensive kind:
+-- two requests both pass the check before either write commits, and the
+-- clinic ends up with one therapist owing two patients the same hour. The
+-- post-write re-check narrows the window; it does not close it, and it
+-- introduces a worse bug of its own -- `assign-appointment`'s rollback wrote
+-- `therapist_id = <what we read>` with **no compare-and-set**, so a third
+-- admin's assignment landing in between was silently overwritten by a
+-- rollback belonging to a request that had already lost.
+--
+-- This is that reservation done once, in one place, under a real lock:
+--
+--   1. `select ... for update` on the therapist's own profiles row. Every
+--      claim for one therapist serialises behind it; claims for different
+--      therapists do not contend at all, which is why it is that row rather
+--      than a table-wide lock. It is the same mechanism
+--      `reserve_session_credit` and `claim_promo_code` already use, and for
+--      the same reason: a cap or a slot means nothing unless the check and
+--      the write happen without anybody slipping between them.
+--   2. The overlap test runs INSIDE that lock, against both
+--      `appointments` and the `invite_sent` referrals that hold a slot
+--      without having an appointment row yet -- the same two halves
+--      `findTherapistConflict` checks in TypeScript, with the same buffer
+--      semantics (padding the NEW window on both sides only, never each
+--      existing one, or a 45-minute travel buffer would read as 90).
+--   3. The write applies its own compare-and-set on the therapist the caller
+--      believed was on the session, so a concurrent *reassignment* is still
+--      refused rather than clobbered.
+--
+-- Because all three happen in one transaction, there is nothing to roll back
+-- and no window to roll back from. The callers lose their revert branches
+-- entirely, which is how the rollback bug stops existing rather than getting
+-- a guard bolted onto it.
+--
+-- It returns a jsonb verdict rather than raising, because the callers need to
+-- tell the outcomes apart to say something useful: "someone else took this
+-- slot" and "someone else reassigned this session" send an admin to two
+-- different places.
+-- `create or replace` cannot replace a function whose argument list has
+-- grown: the new signature is a second, overloaded function and the old one
+-- survives, which then makes every call ambiguous. The reschedule arguments
+-- were added after the first version of this shipped, so the earlier
+-- seven-argument signature is dropped explicitly. Re-runnable: dropping a
+-- function that is not there is a no-op under `if exists`.
+drop function if exists claim_therapist_slot(uuid, uuid, uuid, boolean, integer, boolean, uuid);
+
+create or replace function claim_therapist_slot(
+  p_appointment_id uuid,
+  p_therapist_id uuid,
+  -- The therapist the caller read on the row. NULL means "the caller
+  -- believes this session is unassigned", which is a different assertion
+  -- from "the caller does not care" -- hence the explicit flag below rather
+  -- than overloading NULL to mean both.
+  p_expected_therapist_id uuid default null,
+  p_expect_unassigned boolean default false,
+  p_buffer_minutes integer default 0,
+  p_confirm boolean default false,
+  -- Referral rows can hold a slot before an appointment exists for them, so
+  -- a caller converting one needs to exclude its own referral from the
+  -- overlap test.
+  p_exclude_referral_id uuid default null,
+  -- A reschedule moves the slot and reserves the therapist in one act, so
+  -- the new time has to be tested and written inside the same lock. Passing
+  -- these makes the overlap test judge the slot being moved TO rather than
+  -- the one the row currently holds -- without that, a reschedule had to
+  -- write first and re-check afterwards, which is the sequence this
+  -- function exists to remove. NULL leaves each field exactly as it is.
+  p_new_slot_time timestamptz default null,
+  p_new_duration_minutes integer default null,
+  p_new_category_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_appt record;
+  v_duration integer;
+  v_buffer_ms bigint;
+  v_slot timestamptz;
+  v_start timestamptz;
+  v_end timestamptz;
+  v_conflict_id uuid;
+  v_updated uuid;
+begin
+  if p_appointment_id is null or p_therapist_id is null then
+    return jsonb_build_object('ok', false, 'reason', 'bad_request');
+  end if;
+
+  -- (1) Serialise every claim against this one therapist. Taken before the
+  -- appointment is read, so two callers cannot both read a clean slate.
+  perform 1 from profiles where id = p_therapist_id for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'no_therapist');
+  end if;
+
+  select id, therapist_id, slot_time, duration_minutes, status, category_id
+    into v_appt
+    from appointments
+   where id = p_appointment_id
+   for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'no_appointment');
+  end if;
+
+  -- (3a) The compare-and-set, evaluated inside the lock rather than as a
+  -- predicate on the UPDATE, so the reason can be reported precisely.
+  if p_expect_unassigned then
+    if v_appt.therapist_id is not null then
+      return jsonb_build_object(
+        'ok', false, 'reason', 'reassigned',
+        'current_therapist_id', v_appt.therapist_id
+      );
+    end if;
+  elsif p_expected_therapist_id is not null then
+    if v_appt.therapist_id is distinct from p_expected_therapist_id then
+      return jsonb_build_object(
+        'ok', false, 'reason', 'reassigned',
+        'current_therapist_id', v_appt.therapist_id
+      );
+    end if;
+  end if;
+
+  -- The slot and length this claim is actually for: the ones being moved
+  -- to when this is a reschedule, otherwise the ones already on the row.
+  v_slot := coalesce(p_new_slot_time, v_appt.slot_time);
+  v_duration := coalesce(p_new_duration_minutes, v_appt.duration_minutes, 60);
+
+  -- (2) The overlap test. A session with no agreed slot cannot clash with
+  -- anything, so it skips straight to the write -- that is a real case
+  -- (an admin assigning a therapist before a time is settled) and not an
+  -- oversight.
+  if v_slot is not null then
+    v_buffer_ms := greatest(0, coalesce(p_buffer_minutes, 0)) * 60000;
+    v_start := v_slot - make_interval(secs => v_buffer_ms / 1000.0);
+    v_end := v_slot
+             + make_interval(mins => v_duration)
+             + make_interval(secs => v_buffer_ms / 1000.0);
+
+    select a.id into v_conflict_id
+      from appointments a
+     where a.therapist_id = p_therapist_id
+       and a.id <> p_appointment_id
+       and a.status <> 'cancelled'
+       and a.slot_time is not null
+       -- Half-open on both sides, matching `overlaps()` in
+       -- checkTherapistConflict.ts: two sessions that merely touch (one
+       -- ends exactly as the next begins) do not clash.
+       and a.slot_time < v_end
+       and (a.slot_time + make_interval(mins => coalesce(a.duration_minutes, 60))) > v_start
+     limit 1;
+
+    if v_conflict_id is not null then
+      return jsonb_build_object(
+        'ok', false, 'reason', 'conflict', 'conflict_appointment_id', v_conflict_id
+      );
+    end if;
+
+    -- A referral that has had an invite sent holds its slot even though no
+    -- appointments row exists for it yet. Without this half, two referrals
+    -- could each be assigned the same therapist and hour, and neither would
+    -- surface as a clash until whichever registered first converted.
+    -- Referrals carry no category, so the flat base duration, exactly as the
+    -- TypeScript half does.
+    select r.id into v_conflict_id
+      from patient_referrals r
+     where r.assigned_therapist_id = p_therapist_id
+       and r.status = 'invite_sent'
+       and r.assigned_slot_time is not null
+       and (p_exclude_referral_id is null or r.id <> p_exclude_referral_id)
+       and r.assigned_slot_time < v_end
+       and (r.assigned_slot_time + make_interval(mins => 60)) > v_start
+     limit 1;
+
+    if v_conflict_id is not null then
+      return jsonb_build_object(
+        'ok', false, 'reason', 'conflict', 'conflict_referral_id', v_conflict_id
+      );
+    end if;
+  end if;
+
+  -- (3b) The write. Still carries its own predicate: belt and braces costs
+  -- nothing here, and it means the statement is correct even if somebody
+  -- later calls this function outside a transaction that holds the lock.
+  update appointments
+     set therapist_id = p_therapist_id,
+         status = case when p_confirm then 'confirmed' else status end,
+         -- coalesce, so a caller that is only assigning leaves the slot,
+         -- the length and the category exactly as they were.
+         slot_time = coalesce(p_new_slot_time, slot_time),
+         duration_minutes = coalesce(p_new_duration_minutes, duration_minutes),
+         category_id = coalesce(p_new_category_id, category_id)
+   where id = p_appointment_id
+     and therapist_id is not distinct from v_appt.therapist_id
+  returning id into v_updated;
+
+  if v_updated is null then
+    return jsonb_build_object('ok', false, 'reason', 'reassigned');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'previous_therapist_id', v_appt.therapist_id,
+    'previous_status', v_appt.status,
+    'previous_slot_time', v_appt.slot_time
+  );
+end;
+$$;
+
+revoke all on function public.claim_therapist_slot(uuid, uuid, uuid, boolean, integer, boolean, uuid, timestamptz, integer, uuid) from public;
+revoke all on function public.claim_therapist_slot(uuid, uuid, uuid, boolean, integer, boolean, uuid, timestamptz, integer, uuid) from anon;
+revoke all on function public.claim_therapist_slot(uuid, uuid, uuid, boolean, integer, boolean, uuid, timestamptz, integer, uuid) from authenticated;

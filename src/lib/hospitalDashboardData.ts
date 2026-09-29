@@ -53,6 +53,7 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     { data: hospitalCodeRow },
     { data: referrals },
     { data: capacityNoteRows },
+    { data: declineReasonRows },
     { data: referredPatients },
   ] = await Promise.all([
     supabase
@@ -86,12 +87,26 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     // blanks this one note, not the whole referrals list.
     supabase.from("patient_referrals").select("id, capacity_note").eq("hospital_id", user.id),
 
+    // decline_reason is newer still, so it gets its own isolated read for
+    // the same reason -- folded into the select above, a database without
+    // the migration would lose the capacity note as well as this. The
+    // reason is the one thing that makes a declined referral actionable for
+    // the partner who sent it, so it must not be able to take the note
+    // down with it.
+    supabase
+      .from("patient_referrals")
+      .select("id, decline_reason")
+      .eq("hospital_id", user.id),
+
     admin.from("profiles").select("id, full_name, email").eq("referred_by_hospital_id", user.id),
   ]);
 
   const adminSettings = parseAdminSettings(settingsRow);
   const capacityNoteMap = new Map(
     (capacityNoteRows ?? []).map((r) => [r.id, r.capacity_note])
+  );
+  const declineReasonMap = new Map(
+    (declineReasonRows ?? []).map((r) => [r.id, r.decline_reason])
   );
   const referredPatientIds = (referredPatients ?? []).map((p) => p.id);
 
@@ -202,6 +217,7 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     adminSettings,
     referrals: referralRows,
     capacityNoteMap,
+    declineReasonMap,
     referredSessions,
     patientMap,
     paidSessions,

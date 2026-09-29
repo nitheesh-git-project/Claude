@@ -4,6 +4,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { patientIntakeGate, questionKeysForSpecialty } from "@/lib/conditionIntake";
 import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
+import {
+  describeProfileStanding,
+  getProfileStanding,
+} from "@/lib/supabase/requireActiveProfile";
 
 // Silent autosave while a patient is filling the intake form - not a
 // submission, doesn't touch condition_change_requests, doesn't need admin
@@ -22,6 +26,21 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Autosave is still a write to the patient's own medical record, so it
+  // takes the same lifecycle gate the submit route does. It had none at
+  // all: being signed in was the whole check, so a suspended patient's
+  // session cookie could keep rewriting their health profile indefinitely
+  // -- the exact reach requireActiveProfile exists to close, on the one
+  // route nobody thinks of as a mutation because the UI calls it silently.
+  //
+  // Checked before the body is read, so a refused caller never drives this
+  // route's parsing.
+  const standing = await getProfileStanding(user.id, "patient");
+  if (!standing.ok) {
+    const { status, error } = describeProfileStanding(standing.reason);
+    return NextResponse.json({ error }, { status });
   }
 
   const { data: body, error: parseError } = await parseJsonBody<{ data?: unknown }>(request);

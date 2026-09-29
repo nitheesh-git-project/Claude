@@ -71,19 +71,34 @@ export async function POST(request: NextRequest) {
     : [];
 
   const admin = createAdminClient();
+
+  // `active` is written only when the request actually carries it.
+  //
+  // It used to default to `true` whenever the field was absent, which meant
+  // any unrelated edit -- a new price, a corrected title, a photograph --
+  // silently switched a disabled condition back on and put it back on the
+  // public pages and in the booking picker. Nothing on screen said so: the
+  // admin had come to change a price, the save succeeded, and the condition
+  // they had retired was on sale again. Switching one on is a deliberate
+  // act with its own control, so absence has to mean "leave it alone",
+  // never "turn it on".
+  const patch: Record<string, unknown> = {
+    title,
+    description: description || null,
+    image_url: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
+    points: pointsList,
+    price_paise: Math.round(price * 100),
+    duration_minutes: Math.round(duration),
+    cta_label: ctaLabel || "Book Assessment",
+    display_order: Math.round(order),
+  };
+  if (active !== undefined) {
+    patch.active = Boolean(active);
+  }
+
   const { error } = await admin
     .from("treatment_categories")
-    .update({
-      title,
-      description: description || null,
-      image_url: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
-      points: pointsList,
-      price_paise: Math.round(price * 100),
-      duration_minutes: Math.round(duration),
-      cta_label: ctaLabel || "Book Assessment",
-      display_order: Math.round(order),
-      active: active === undefined ? true : Boolean(active),
-    })
+    .update(patch)
     .eq("id", id);
 
   if (error) {
