@@ -27,8 +27,8 @@ import { debugNow } from "@/lib/debugNow";
 import { describeCancellationWindow } from "@/lib/cancellationWindow";
 import SpecialtyChip from "@/components/SpecialtyChip";
 import ServicePicker from "@/components/booking/ServicePicker";
-import CatalogImage from "@/components/catalog/CatalogImage";
-import { categoryServiceOption } from "@/lib/serviceOptions";
+import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
+import { categoryServiceOption, defaultCategoryId } from "@/lib/serviceOptions";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
 
 // The four fields this wizard has always read, plus what the service picker
@@ -200,14 +200,20 @@ export default function BookingWizard({
     status: "idle",
   });
   const [categories] = useState<Category[]>(initialCategories);
-  // Only preselect when the patient arrived via a specific "Book X" link
-  // from the Conditions page -- that's a deliberate choice. Never default
-  // to the first category in the list just because one exists; since each
-  // one can carry a different price now, silently picking one for the
-  // patient risks booking (and charging) them for a concern they never
-  // actually chose.
-  const [categoryId, setCategoryId] = useState(
-    () => initialCategories.find((c) => c.id === searchParams.get("category"))?.id ?? ""
+  // A "Book X" link from the Conditions page is a choice somebody already
+  // made, so it wins. Otherwise this opens on the general consultation --
+  // the standing fallback `schema.sql` keeps seeded for exactly this, so a
+  // visitor who tapped a plain "Book" button meets a bookable session rather
+  // than an unanswered control.
+  //
+  // Still never the first category in the list: since each one carries its
+  // own price, picking whichever happens to sort first would book and charge
+  // somebody for a concern nobody chose. The general consultation is not
+  // that -- it is the row that exists to be the answer when no condition
+  // fits, and its price is the one a patient who chose nothing should see.
+  // `defaultCategoryId` holds the rule, with its own tests.
+  const [categoryId, setCategoryId] = useState(() =>
+    defaultCategoryId(initialCategories, searchParams.get("category"))
   );
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
@@ -258,6 +264,9 @@ export default function BookingWizard({
     () => categories.map((c) => categoryServiceOption(c)),
     [categories]
   );
+  // The same row the picker is showing, so Step 2's statement of it cannot
+  // describe the choice differently from the control that made it.
+  const selectedOption = serviceOptions.find((o) => o.id === categoryId) ?? null;
 
   useEffect(() => {
     // Reads the browser's detected timezone, which is only known once
@@ -1008,28 +1017,20 @@ export default function BookingWizard({
               being booked, and a way back to the screen that decides it.
               Repeating the picker would be a second place to change the same
               thing, and the wizard's own header already carries the price. */}
-          {selectedCategory && (
-            <div className="flex items-center gap-3 rounded-xl border border-teal-100 bg-teal-50 p-3">
-              <CatalogImage
-                src={selectedCategory.image_url}
-                focalX={selectedCategory.image_focal_x}
-                focalY={selectedCategory.image_focal_y}
-                icon="fa-laptop-medical"
-                className="aspect-[4/3] h-10 w-auto shrink-0 rounded-lg"
-              />
-              <p className="min-w-0 text-xs text-teal-800">
-                Booking a{" "}
-                <strong className="font-bold text-slate-900">{selectedCategory.title}</strong> -{" "}
-                {formatInr(selectedCategory.price_paise)}, {selectedCategory.duration_minutes} min
-              </p>
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="ml-auto shrink-0 rounded-lg px-2 py-1 text-[11.5px] font-bold text-teal-700 transition hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-              >
-                Change
-              </button>
-            </div>
+          {selectedOption && (
+            <ChosenServiceSummary
+              option={selectedOption}
+              compact
+              actions={
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="rounded-lg border border-teal-200 bg-white px-3 py-1.5 text-xs font-bold text-teal-800 transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                >
+                  Change
+                </button>
+              }
+            />
           )}
 
           {/* The request carried over from a specialist's profile. Stated as

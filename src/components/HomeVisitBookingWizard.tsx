@@ -34,8 +34,7 @@ import {
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { rateLimitNotice } from "@/lib/rateLimit";
 import ServicePicker from "@/components/booking/ServicePicker";
-import CatalogImage from "@/components/catalog/CatalogImage";
-import { rupees } from "@/components/catalog/CatalogVisuals";
+import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
 import { homeVisitServiceOption } from "@/lib/serviceOptions";
 
 // The six fields this wizard has always read, plus what the service picker
@@ -176,6 +175,10 @@ export default function HomeVisitBookingWizard({
     () => sellablePackages.map((p) => homeVisitServiceOption(p)),
     [sellablePackages]
   );
+  // The same row the picker is showing, so Step 3's statement of it cannot
+  // describe the visit differently from the control that chose it.
+  const selectedOption =
+    serviceOptions.find((o) => o.id === selectedPackage?.id) ?? null;
 
   // The picker lives on Step 1, above the pincode, because the serviceable
   // answer below it has to say whether travel is charged on top -- and that
@@ -771,29 +774,20 @@ export default function HomeVisitBookingWizard({
               make, which the old dropdown did not: with one sellable package
               it was absent entirely and the patient reached the payment
               screen never having seen what they were buying. */}
-          {selectedPackage && (
-            <div className="flex items-center gap-3 rounded-xl border border-teal-100 bg-teal-50 p-3">
-              <CatalogImage
-                src={selectedPackage.image_url}
-                focalX={selectedPackage.image_focal_x}
-                focalY={selectedPackage.image_focal_y}
-                icon="fa-house-medical"
-                className="aspect-[4/3] h-10 w-auto shrink-0 rounded-lg"
-              />
-              <p className="min-w-0 text-xs text-teal-800">
-                Booking a{" "}
-                <strong className="font-bold text-slate-900">{selectedPackage.title}</strong> -{" "}
-                {rupees(selectedPackage.price_paise)},{" "}
-                {selectedPackage.visit_duration_minutes} min
-              </p>
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="ml-auto shrink-0 rounded-lg px-2 py-1 text-[11.5px] font-bold text-teal-700 transition hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-              >
-                Change
-              </button>
-            </div>
+          {selectedOption && (
+            <ChosenServiceSummary
+              option={selectedOption}
+              compact
+              actions={
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="rounded-lg border border-teal-200 bg-white px-3 py-1.5 text-xs font-bold text-teal-800 transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                >
+                  Change
+                </button>
+              }
+            />
           )}
 
           <label className="block">

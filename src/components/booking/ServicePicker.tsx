@@ -4,13 +4,12 @@ import { useId, useState } from "react";
 import Modal, { useLastNonNull } from "@/components/Modal";
 import CatalogCard from "@/components/catalog/CatalogCard";
 import CatalogDialogHeader from "@/components/catalog/CatalogDialogHeader";
-import CatalogImage from "@/components/catalog/CatalogImage";
 import {
   CheckList,
   ProseSection,
   StatTiles,
-  rupees,
 } from "@/components/catalog/CatalogVisuals";
+import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
 import type { ServiceOption } from "@/lib/serviceOptions";
 
 /**
@@ -149,65 +148,38 @@ export default function ServicePicker({
     };
   }
 
-  /** The thumbnail beside a chosen option. Square, because it sits in a row
-   *  of text rather than at the top of a card - and still positioned by the
-   *  row's own focal point, which is the whole reason that column is two
-   *  percentages instead of a crop. */
-  function thumb(option: ServiceOption) {
-    return (
-      <span className="block w-24 shrink-0 overflow-hidden rounded-xl">
-        <CatalogImage
-          src={option.imageUrl}
-          focalX={option.focalX}
-          focalY={option.focalY}
-          icon={option.icon}
-          className="aspect-square h-auto"
-        />
-      </span>
-    );
-  }
-
   return (
     <div>
       <span className="mb-1.5 block font-semibold text-slate-900">{label}</span>
 
       {chosen ? (
-        <div className="flex items-stretch gap-3 rounded-2xl border-2 border-teal-500 bg-white p-2.5 ring-[3px] ring-teal-50">
-          {thumb(chosen)}
-          <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-teal-700">
-              {chosen.eyebrow}
-            </span>
-            <h3 className="font-display text-base font-bold leading-snug text-slate-900">
-              {chosen.title}
-            </h3>
-            <p className="text-xs text-slate-600">
-              {rupees(chosen.pricePaise)} &middot; {chosen.durationMinutes} min
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-col justify-center gap-1.5">
-            {/* With one option there is nothing to change to, so the control
-                that would open a one-card dialog is simply not offered. */}
-            {!only && (
+        <ChosenServiceSummary
+          option={chosen}
+          actions={
+            <>
+              {/* With one option there is nothing to change to, so the
+                  control that would open a one-card dialog is not offered. */}
+              {!only && (
+                <button
+                  type="button"
+                  onClick={openBrowse}
+                  aria-haspopup="dialog"
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-teal-400 hover:bg-teal-50 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                >
+                  Change
+                </button>
+              )}
               <button
                 type="button"
-                onClick={openBrowse}
+                onClick={() => openDetail(chosen.id)}
                 aria-haspopup="dialog"
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-teal-400 hover:bg-teal-50 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                className="rounded-lg px-2 py-1 text-[11.5px] font-bold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
               >
-                Change
+                View details
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => openDetail(chosen.id)}
-              aria-haspopup="dialog"
-              className="rounded-lg px-2 py-1 text-[11.5px] font-bold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-            >
-              View details
-            </button>
-          </div>
-        </div>
+            </>
+          }
+        />
       ) : (
         <button
           type="button"
