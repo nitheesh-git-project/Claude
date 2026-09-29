@@ -21,7 +21,7 @@
 // so a production server serves HTML generated before the fixtures below
 // existed. `catalog-detail.spec.ts` carries the same warning.
 import { test, expect, type Page } from "@playwright/test";
-import { adminClient, BASE, skipWithoutBrowserEgress } from "./helpers";
+import { adminClient, BASE } from "./helpers";
 
 const WITH_COVER = "QA Picker Covered Condition";
 const NO_COVER = "QA Picker Bare Condition";
@@ -85,13 +85,23 @@ test.describe("Public booking service picker", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    // Both wizards resolve their signed-in state with a browser-side
-    // `auth.getUser()` and render "Loading..." until it settles, so with no
-    // egress from the browser there is no Step 1 to drive at all. Same
-    // reason `booking-rules.spec.ts` BR-CANCEL-001/002 skip here.
-    await skipWithoutBrowserEgress(page);
+    // Deliberately no `skipWithoutBrowserEgress`, unlike the specs that walk
+    // further into these wizards. Nothing here needs the browser to reach
+    // Supabase: the conditions arrive in the server render, and the picker
+    // is client state over those props. The wizards do resolve their
+    // signed-in state with a browser-side `auth.getUser()`, but with no
+    // egress that call *rejects* rather than hanging, and both wizards then
+    // carry on as a guest booking -- which is exactly the state these cases
+    // drive. Skipping here would mean this spec never ran in the one
+    // environment where it can.
     await page.setViewportSize({ width: 1440, height: 1000 });
   });
+
+  /** The card carries two controls whose accessible name starts "View full
+   *  details" -- the cover, labelled "View full details for <title>", and the
+   *  footer button. Both open the same view; the footer one is named exactly
+   *  so a locator cannot match both. */
+  const DETAILS = "View full details →";
 
   /** Opens the picker from Step 1 and returns the dialog. */
   async function openPicker(page: Page) {
@@ -144,7 +154,7 @@ test.describe("Public booking service picker", () => {
   }) => {
     const dialog = await openPicker(page);
     const card = dialog.locator("article").filter({ hasText: WITH_COVER });
-    await card.getByRole("button", { name: /View full details/ }).click();
+    await card.getByRole("button", { name: DETAILS }).click();
 
     // The assertion this case exists for. A second dialog would be measured
     // against this panel's scrolling box rather than the viewport, because
@@ -162,7 +172,7 @@ test.describe("Public booking service picker", () => {
     await dialog
       .locator("article")
       .filter({ hasText: WITH_COVER })
-      .getByRole("button", { name: /View full details/ })
+      .getByRole("button", { name: DETAILS })
       .click();
 
     // Geometric rather than by class name, so a restyle that puts the
@@ -193,7 +203,7 @@ test.describe("Public booking service picker", () => {
     await dialog
       .locator("article")
       .filter({ hasText: WITH_COVER })
-      .getByRole("button", { name: /View full details/ })
+      .getByRole("button", { name: DETAILS })
       .click();
 
     // The same percentages in a different aspect ratio -- 4:3 on the card,
@@ -220,7 +230,11 @@ test.describe("Public booking service picker", () => {
     // And the wizard header stops saying "pricing shown once you pick a
     // concern" and starts quoting the figure, from Step 1 rather than from
     // Step 3. ₹1,337 is the seeded price.
-    await expect(page.getByText("₹1,337", { exact: false })).toBeVisible();
+    // Twice on purpose: the wizard header and the chosen summary card. The
+    // header's line is the one that used to say "pricing shown once you pick
+    // a concern", so name it rather than loosening the match.
+    await expect(page.getByText("₹1,337 INR", { exact: false })).toBeVisible();
+    await expect(page.getByText("₹1,337 · 45 min", { exact: false })).toBeVisible();
     await expect(
       page.getByText("pricing shown once you pick a concern", { exact: false })
     ).toHaveCount(0);
