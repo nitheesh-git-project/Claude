@@ -134,6 +134,15 @@ minutes re-proving cases the change could not have touched. Two gears:
   failures are worth reading in full. Running it more often than this is how
   a red run becomes routine, and a suite nobody reads catches nothing.
 
+The manual plan under `docs/qa/` follows the same split: edit
+`docs/qa/src/*.md`, and leave its PDF, DOCX and HTML alone. Those are built by
+`python3 scripts/build-test-plan.py` **on request** - before handing the
+document to a tester, or when somebody asks - and in a commit of their own.
+They are four large binaries, so rebuilding them for a two-line Markdown edit
+writes megabytes of unreviewable diff per change, and it drags the QA audit
+report's binaries along with it although its source did not change. The source
+is allowed to lead them.
+
 **Updating the suite belongs in the change itself.** A fix that alters what a
 person sees, a rule, a route or a row writes or amends its spec in the same
 commit - the same rule the docs follow, and for the same reason: a suite
@@ -2588,7 +2597,8 @@ scripts/                 One-off tooling (Google refresh-token helper,
                          and seed-qa-accounts.mjs, which recreates its
                          fixture accounts after a data reset)
 docs/qa/                 The manual E2E test plan: Markdown sources under
-                         src/, plus the generated PDF and DOCX
+                         src/ - the only thing to edit - plus a PDF, DOCX
+                         and HTML rebuilt on request rather than per change
 public/                  Static assets
 public/photos/           The public pages' photography (licence-free stock)
 ```
