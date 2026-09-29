@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -26,13 +26,25 @@ import {
 import { debugNow } from "@/lib/debugNow";
 import { describeCancellationWindow } from "@/lib/cancellationWindow";
 import SpecialtyChip from "@/components/SpecialtyChip";
+import ServicePicker from "@/components/booking/ServicePicker";
+import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
+import { categoryServiceOption, defaultCategoryId } from "@/lib/serviceOptions";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
 
+// The four fields this wizard has always read, plus what the service picker
+// shows. Everything after `duration_minutes` is optional because it arrives
+// from the page's own isolated, migration-tolerant queries: a database
+// without the cover columns must still be bookable, it just looks plainer.
 type Category = {
   id: string;
   title: string;
   price_paise: number;
   duration_minutes: number;
+  description?: string | null;
+  points?: unknown;
+  image_url?: string | null;
+  image_focal_x?: number | null;
+  image_focal_y?: number | null;
 };
 
 // After this many failed/dismissed payment attempts on the same booking,
@@ -94,7 +106,6 @@ export default function BookingWizard({
 }) {
   const refundWindowHours = cancellationRefundHours;
   const leadTimeMs = leadTimeMsFromHours(bookingLeadTimeHours);
-  const concernFieldId = useId();
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -189,14 +200,20 @@ export default function BookingWizard({
     status: "idle",
   });
   const [categories] = useState<Category[]>(initialCategories);
-  // Only preselect when the patient arrived via a specific "Book X" link
-  // from the Conditions page -- that's a deliberate choice. Never default
-  // to the first category in the list just because one exists; since each
-  // one can carry a different price now, silently picking one for the
-  // patient risks booking (and charging) them for a concern they never
-  // actually chose.
-  const [categoryId, setCategoryId] = useState(
-    () => initialCategories.find((c) => c.id === searchParams.get("category"))?.id ?? ""
+  // A "Book X" link from the Conditions page is a choice somebody already
+  // made, so it wins. Otherwise this opens on the general consultation --
+  // the standing fallback `schema.sql` keeps seeded for exactly this, so a
+  // visitor who tapped a plain "Book" button meets a bookable session rather
+  // than an unanswered control.
+  //
+  // Still never the first category in the list: since each one carries its
+  // own price, picking whichever happens to sort first would book and charge
+  // somebody for a concern nobody chose. The general consultation is not
+  // that -- it is the row that exists to be the answer when no condition
+  // fits, and its price is the one a patient who chose nothing should see.
+  // `defaultCategoryId` holds the rule, with its own tests.
+  const [categoryId, setCategoryId] = useState(() =>
+    defaultCategoryId(initialCategories, searchParams.get("category"))
   );
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
@@ -240,6 +257,16 @@ export default function BookingWizard({
 
   const supabase = createClient();
   const selectedCategory = categories.find((c) => c.id === categoryId);
+  // Mapped once rather than per render of the picker: the rows never change
+  // after mount (`categories` is set from props and never refetched), and
+  // the dialog re-renders on every tap inside it.
+  const serviceOptions = useMemo(
+    () => categories.map((c) => categoryServiceOption(c)),
+    [categories]
+  );
+  // The same row the picker is showing, so Step 2's statement of it cannot
+  // describe the choice differently from the control that made it.
+  const selectedOption = serviceOptions.find((o) => o.id === categoryId) ?? null;
 
   useEffect(() => {
     // Reads the browser's detected timezone, which is only known once
@@ -327,8 +354,21 @@ export default function BookingWizard({
     setAutoPicked((prev) => ({ ...prev, language: false }));
   }
 
+  function handleCategoryChange(nextCategoryId: string) {
+    setCategoryId(nextCategoryId);
+    setError(null);
+  }
+
   function goToStep2() {
     setError(null);
+    // Checked first because it is the first thing on the screen now. The
+    // Continue button is only offered once everything here is answered, so
+    // this is the belt to that braces -- the same shape the date and hour
+    // checks below have always had.
+    if (!categoryId) {
+      setError("Please choose what you'd like help with.");
+      return;
+    }
     if (!bookDate || bookHour === "") {
       setError("Please select a preferred date and time.");
       return;
@@ -828,6 +868,21 @@ export default function BookingWizard({
 
       {step === 1 && (
         <BookingStepOne
+          serviceSlot={
+            <ServicePicker
+              options={serviceOptions}
+              value={categoryId}
+              onChange={handleCategoryChange}
+              label="What would you like help with?"
+              browseHeading="What would you like help with?"
+              browseBlurb={(count) =>
+                `${count} consultation${count === 1 ? "" : "s"} to choose from, with prices and what each covers.`
+              }
+              chooseLabel="Choose this session"
+              aboutTitle="About this session"
+              emptyMessage="No condition categories are available right now - please contact us directly to book."
+            />
+          }
           timezone={timezone}
           nowMs={nowMs}
           leadTimeHours={bookingLeadTimeHours}
@@ -839,6 +894,7 @@ export default function BookingWizard({
           onLanguageChange={handleLanguageChange}
           languages={bookingLanguages}
           autoPicked={autoPicked}
+          serviceChosen={Boolean(categoryId)}
           onContinue={goToStep2}
         />
       )}
@@ -955,36 +1011,27 @@ export default function BookingWizard({
             </>
           )}
 
-          <div>
-            {/* Associated with `htmlFor`, not by sitting above the control:
-                a label that is merely adjacent is announced to nobody, and
-                this is the field the whole booking hangs on. */}
-            <label htmlFor={concernFieldId} className="block font-semibold mb-1.5 text-slate-900">
-              What would you like help with?
-            </label>
-            {categories.length === 0 ? (
-              <p className="text-xs text-red-600">
-                No condition categories are available right now - please
-                contact us directly to book.
-              </p>
-            ) : (
-              <select
-                id={concernFieldId}
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-300 bg-white"
-              >
-                <option value="" disabled>
-                  - Select what you need help with -
-                </option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.title} - {formatInr(c.price_paise)} / {c.duration_minutes} min
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+          {/* The service was chosen on Step 1, where the price and the
+              session length could be read before a slot was picked. Here it
+              is a statement rather than a control: one line saying what is
+              being booked, and a way back to the screen that decides it.
+              Repeating the picker would be a second place to change the same
+              thing, and the wizard's own header already carries the price. */}
+          {selectedOption && (
+            <ChosenServiceSummary
+              option={selectedOption}
+              compact
+              actions={
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="rounded-lg border border-teal-200 bg-white px-3 py-1.5 text-xs font-bold text-teal-800 transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                >
+                  Change
+                </button>
+              }
+            />
+          )}
 
           {/* The request carried over from a specialist's profile. Stated as
               a request rather than a booked fact, because the admin assigns

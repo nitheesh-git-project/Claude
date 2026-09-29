@@ -190,18 +190,22 @@ test("PL-UI-003 booking on terms, with no payment step", async ({ page }) => {
   await page.waitForLoadState("networkidle");
   await shot(page, "05-book-step1");
 
-  // Step 1 is the slot, and it opens with a bookable day and hour already
-  // chosen -- so this only has to move on.
+  // Step 1 is the service and the slot. The day and the hour open already
+  // chosen; the service is picked from the card grid, and Continue is not
+  // offered until it has been.
+  await page.getByRole("button", { name: /What would you like help with/ }).first().click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Choose this session" })
+    .first()
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
   await page.waitForTimeout(1200);
   await shot(page, "06-book-step2-details");
 
   // Step 2 is the patient's own details. Signed in, the account fields are
-  // already theirs; all that is left is the concern and the consent.
-  const concern = page.locator("select").filter({
-    has: page.locator("option", { hasText: /Select what you need help with/i }),
-  });
-  await concern.selectOption({ index: 1 });
+  // already theirs; all that is left is the consent.
   await page.getByRole("checkbox").first().check();
   await page.waitForTimeout(300);
   await shot(page, "07-book-step2-filled");

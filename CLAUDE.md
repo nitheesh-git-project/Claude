@@ -168,10 +168,28 @@ rule, and with nothing ticked it falls back to the first four, so the band is
 never empty.
 
 One component, `CatalogCard`, renders every offering the clinic sells - the
-public programme and home-visit cards **and** the patient dashboard's booking
-screen, which was a text-only list - and `CatalogDialogHeader` gives both
-detail dialogs the same header, photograph uncovered with the heading on its
-own band below.
+public programme and home-visit cards, the patient dashboard's booking
+screen, which was a text-only list, **and** the two public booking wizards -
+and `CatalogDialogHeader` gives both detail dialogs the same header,
+photograph uncovered with the heading on its own band below.
+
+**And the patient chooses what they are buying before they choose when.**
+Both public wizards asked for it from a native `<select>` of one line per
+option - `/book` in Step 2, *after* a date and an hour had been picked while
+the header still read "pricing shown once you pick a concern", and
+`/book-home-visit` in Step 3, where with one sellable package it did not
+render at all and the patient reached the payment screen never having seen
+what they bought. It is the first block of Step 1 on both now, through
+`ServicePicker` (`src/components/booking/ServicePicker.tsx`): a trigger card,
+then **one** dialog that swaps between a grid of `CatalogCard`s and a
+`CatalogDialogHeader` detail view with a way back - never a second dialog
+stacked on the first, which the public `Modal`'s own `backdrop-blur-sm` would
+position against that panel's box rather than the screen. The rows are mapped
+by `src/lib/serviceOptions.ts`, the picker offers only what
+`isDirectlyPurchasable` allows, and with exactly one option there is no
+dialog at all: it is stated as chosen, with its photograph and its price.
+Continue appears once a service is chosen, the same way Step 1 has always
+waited for a date, an hour and a language.
 
 - `README.md` - product overview, setup, environment variables, routes, and
   how each flow works.

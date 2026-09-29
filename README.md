@@ -581,6 +581,27 @@ suspended, unapproved and team-hidden therapists, a stale or hand-typed link
 resolves to nothing and the booking simply carries on with no request
 attached.
 
+**The patient chooses what they are buying before they choose when.** Both
+public wizards asked for it from a native `<select>` of one line per option,
+and asked late: `/book` on Step 2, after the date and the hour had been
+picked while the header still read *"pricing shown once you pick a
+concern"*, and `/book-home-visit` on Step 3, where the control was hidden
+altogether when only one visit was sellable - so that patient reached the
+payment screen never having seen what they had bought. On both it is now the
+first block of Step 1, rendered by `ServicePicker`
+(`src/components/booking/ServicePicker.tsx`): a trigger card opens one dialog
+holding a grid of the same `CatalogCard` the rest of the site uses -
+photograph, what it covers, price and session length - and *View details*
+swaps that dialog to a full detail view with a way back, rather than stacking
+a second dialog on the first. Only what `isDirectlyPurchasable` allows
+appears, so a multi-session programme still reaches a patient through a
+therapist's recommendation alone; with exactly one option there is no picker
+at all and the visit is simply stated as chosen. `Continue` is offered once a
+service is chosen, the same way Step 1 has always waited for a date, an hour
+and a language, and Steps 2 and 3 carry the choice as one read-only line with
+a **Change** link. Nothing server-side moved: `/api/appointments/create`
+still receives a category id and re-derives everything else.
+
 Only a patient account can book. One auth user carries exactly one role
 (`profiles.id` *is* the auth user's id, and `role` is a single column), so a
 therapist, hospital or admin session can never be the patient a booking is
