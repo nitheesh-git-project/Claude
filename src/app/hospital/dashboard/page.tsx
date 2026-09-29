@@ -4,7 +4,7 @@ import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import { loadHospitalDashboard } from "@/lib/hospitalDashboardData";
 
 export const metadata: Metadata = {
-  title: "Partner Dashboard | Dr. Pooja's Physio",
+  title: "Partner Dashboard | MoveRestore",
 };
 
 // The landing screen. Refer a Patient, Your Referrals and Revenue are

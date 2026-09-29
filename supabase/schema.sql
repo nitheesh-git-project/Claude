@@ -12552,3 +12552,21 @@ $$;
 revoke all on function public.admin_delete_account(uuid) from public;
 revoke all on function public.admin_delete_account(uuid) from anon;
 revoke all on function public.admin_delete_account(uuid) from authenticated;
+
+-- =============================================================================
+-- Brand rename: the clinic is MoveRestore.
+-- =============================================================================
+-- The site name and the footer line are admin settings, so changing the
+-- constants in src/lib/adminSettings.ts only moves the fallback -- a live
+-- database already holds the old wording in its singleton row. Those two
+-- columns are moved only where they still read the old default: a value an
+-- admin typed themselves is their decision, not a leftover. The column
+-- defaults move too, so a fresh database and the pre-launch reset (which puts
+-- site_settings back to its defaults) both land on the new name.
+alter table site_settings alter column site_name set default 'MoveRestore';
+alter table site_settings alter column footer_copyright_text set default 'MoveRestore. All rights reserved.';
+
+update site_settings set site_name = 'MoveRestore'
+  where site_name = 'Dr. Pooja''s Physio';
+update site_settings set footer_copyright_text = 'MoveRestore. All rights reserved.'
+  where footer_copyright_text = 'Dr. Pooja''s Physio. All rights reserved.';

@@ -19,7 +19,7 @@ import {
 } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
-  title: "Home Visit Physiotherapy | Dr. Pooja's Physio",
+  title: "Home Visit Physiotherapy | MoveRestore",
   description:
     "A licensed physiotherapist comes to your address - the same assessment and recovery plan, without the travel.",
 };

@@ -998,6 +998,6 @@ export function copyTextFor(check: HealthCheck): string {
     lines.push("", "Steps:");
     check.fix.forEach((step, i) => lines.push(`${i + 1}. ${step}`));
   }
-  lines.push("", "(From Dr. Pooja's Physio → Settings → System Health)");
+  lines.push("", "(From MoveRestore → Settings → System Health)");
   return lines.join("\n");
 }

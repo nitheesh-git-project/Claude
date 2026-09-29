@@ -15,7 +15,7 @@ import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "How It Works | Dr. Pooja's Physio",
+  title: "How It Works | MoveRestore",
   description:
     "Four steps: book a slot, send your reports, meet your physiotherapist for an hour, then follow the plan they build for you.",
 };

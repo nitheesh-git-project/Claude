@@ -19,7 +19,7 @@ function nowTimestamp() {
 }
 
 export const metadata: Metadata = {
-  title: "Health Profiles | Dr. Pooja's Physio",
+  title: "Health Profiles | MoveRestore",
 };
 
 const GRANT_LABEL: Record<string, string> = {

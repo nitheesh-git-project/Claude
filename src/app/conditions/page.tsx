@@ -10,7 +10,7 @@ import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
 import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 
 export const metadata: Metadata = {
-  title: "Conditions Treated | Dr. Pooja's Physio",
+  title: "Conditions Treated | MoveRestore",
   description:
     "Back, neck, knee, posture, sports and mobility problems - each with a defined assessment and a structured programme behind it.",
 };

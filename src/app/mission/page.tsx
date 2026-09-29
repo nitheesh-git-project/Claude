@@ -14,7 +14,7 @@ import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
 
 export const metadata: Metadata = {
-  title: "Our Mission | Dr. Pooja's Physio",
+  title: "Our Mission | MoveRestore",
   description:
     "Why this practice exists, the four things we promise every patient, and the three things we will not do.",
 };

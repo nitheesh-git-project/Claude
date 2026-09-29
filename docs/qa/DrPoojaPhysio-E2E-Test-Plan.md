@@ -1,9 +1,9 @@
-# Dr. Pooja's Physio - Complete Manual E2E Test Plan & Feature Guide
+# MoveRestore - Complete Manual E2E Test Plan & Feature Guide
 
 | | |
 | --- | --- |
 | **Document type** | QA / UAT manual - feature guide plus click-by-click regression suite |
-| **Application** | Dr. Pooja's Physio (Next.js 16 App Router, React 19, Supabase, Razorpay, Google Calendar/Meet) |
+| **Application** | MoveRestore (Next.js 16 App Router, React 19, Supabase, Razorpay, Google Calendar/Meet) |
 | **Audience** | A tester who has never used this application before |
 | **Version** | 1.0 |
 | **Status** | Pre-launch. The application has no real patients. The Debug Bar is deliberately visible in every environment. |
@@ -51,7 +51,7 @@ Some expected results reference database state. You do not need SQL for the ordi
 
 ## 2. Application overview
 
-Dr. Pooja's Physio is a production web application for a physiotherapy practice. It has five surfaces:
+MoveRestore is a production web application for a physiotherapy practice. It has five surfaces:
 
 1. **A public marketing site** - eight pages that explain the service and start a booking.
 2. **A patient portal** - book, pay, attend, manage a health profile, answer therapist recommendations.

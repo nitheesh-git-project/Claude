@@ -4,7 +4,7 @@ import SignOutButton from "@/components/auth/SignOutButton";
 import { SUPPORT_EMAIL } from "@/lib/siteContact";
 
 export const metadata: Metadata = {
-  title: "Account Suspended | Dr. Pooja's Physio",
+  title: "Account Suspended | MoveRestore",
 };
 
 export default function AccountSuspendedPage() {

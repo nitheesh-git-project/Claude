@@ -5,7 +5,7 @@ import { loadTherapistDashboard } from "@/lib/therapistDashboardData";
 import TherapistEarningsTab from "@/components/TherapistEarningsTab";
 
 export const metadata: Metadata = {
-  title: "Earnings | Dr. Pooja's Physio",
+  title: "Earnings | MoveRestore",
 };
 
 export default async function Page() {

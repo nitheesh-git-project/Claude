@@ -8,7 +8,7 @@ import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 
 export const metadata: Metadata = {
-  title: "Your Referrals | Dr. Pooja's Physio",
+  title: "Your Referrals | MoveRestore",
 };
 
 export default async function Page() {

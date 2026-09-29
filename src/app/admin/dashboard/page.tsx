@@ -181,7 +181,7 @@ import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 export const metadata: Metadata = {
-  title: "Admin Dashboard | Dr. Pooja's Physio",
+  title: "Admin Dashboard | MoveRestore",
 };
 
 // A plain module-level helper (not called inline in the component body) so

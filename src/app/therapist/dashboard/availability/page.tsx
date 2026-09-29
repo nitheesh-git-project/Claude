@@ -8,7 +8,7 @@ import LeavePanel from "@/components/roster/LeavePanel";
 import { templateToWeekly } from "@/lib/availabilityRanges";
 
 export const metadata: Metadata = {
-  title: "My availability | Dr. Pooja's Physio",
+  title: "My availability | MoveRestore",
 };
 
 export default async function Page() {

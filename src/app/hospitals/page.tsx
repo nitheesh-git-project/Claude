@@ -9,7 +9,7 @@ import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
 import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 
 export const metadata: Metadata = {
-  title: "For Hospitals | Dr. Pooja's Physio",
+  title: "For Hospitals | MoveRestore",
   description:
     "Refer a discharged patient into structured virtual rehabilitation and get their progress reported back to the operating team.",
 };
