@@ -359,6 +359,22 @@ test.describe("online single-session booking (/api/appointments/create)", () => 
 test.describe("the cancellation notice a patient is shown before paying", () => {
   const SHOTS = "e2e/screenshots/booking-rules";
 
+  /** Opens the Step 1 service picker and takes the first thing on offer.
+   *  Which one does not matter to any case here -- what matters is that a
+   *  service is chosen, since Step 1 does not offer Continue without one. */
+  async function chooseFirstService(page: import("@playwright/test").Page) {
+    await page
+      .getByRole("button", { name: /What would you like help with/ })
+      .first()
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Choose this session" })
+      .first()
+      .click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  }
+
   /** Sign in and walk an ordinary prepaid patient to Step 3. */
   async function reachStepThree(page: import("@playwright/test").Page) {
     const cookies = await browserCookiesFor(QA_EMAILS.patientA);
@@ -367,14 +383,14 @@ test.describe("the cancellation notice a patient is shown before paying", () => 
     await page.goto(`${BASE}/book`);
     await page.waitForLoadState("networkidle");
 
-    // Step 1 opens with a bookable day and hour already chosen.
+    // Step 1 opens with a bookable day and hour already chosen, and now
+    // asks for the service first -- it used to be a dropdown on Step 2,
+    // which meant a patient picked a slot before seeing what it cost.
+    // Continue is only offered once all four are answered.
+    await chooseFirstService(page);
     await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
     await page.waitForTimeout(1200);
 
-    const concern = page.locator("select").filter({
-      has: page.locator("option", { hasText: /Select what you need help with/i }),
-    });
-    await concern.selectOption({ index: 1 });
     await page.getByRole("checkbox").first().check();
     await page.waitForTimeout(300);
 
