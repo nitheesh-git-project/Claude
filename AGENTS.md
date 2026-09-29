@@ -961,6 +961,50 @@ before.
   `AdminNewBookingTab` passes 0 only while its existing
   "book inside the window anyway" box is ticked, so the grid opens up exactly
   when the route would accept it. Zero still cannot reach into the past.
+  **The service is chosen before the slot, from one picker.** Both public
+  wizards used a native `<select>` of one line per option -- `/book` in Step
+  2, so a patient picked a date and an hour while the header still read
+  *"pricing shown once you pick a concern"*, and the session length that
+  decides whether that slot clashes with anything was not on screen either;
+  `/book-home-visit` in Step 3, where `sellablePackages.length > 1` gated it,
+  so with one package it never rendered and the patient reached the payment
+  screen never having seen what they bought. `ServicePicker`
+  (`src/components/booking/ServicePicker.tsx`) is the replacement and it is
+  the first block of Step 1 on both. Five rules:
+  1. **One dialog, two views, never two dialogs.** *View details* swaps the
+     dialog's contents and offers `← Back to all services`. The public
+     `src/components/Modal.tsx` is not portalled and sets `backdrop-blur-sm`,
+     so a nested `fixed` overlay is measured against that panel's scrolling
+     box rather than the viewport -- the failure `OverlayPortal` exists to fix
+     elsewhere. It is also the better reading: two stacked sheets leave
+     somebody unsure which Escape closes what.
+  2. **The cards are `CatalogCard`**, in its select mode (`onSelect`,
+     `selected`, `selectLabel`, typed as a union with link mode so a card
+     with neither a destination nor a handler cannot compile). A second card
+     is how two screens grow two ideas of what the clinic sells. Choosing is
+     a **button**, never a link: the patient is inside a wizard holding a
+     date, an hour and a language in React state, and navigating throws all
+     of it away.
+  3. **`src/lib/serviceOptions.ts` maps the rows**, dependency-free and
+     unit-tested, because which chips, which price unit and which figures a
+     patient reads is a judgement rather than markup. It never defaults a
+     focal point to a number: `clampFocal` answers an absent one with dead
+     centre, and a `0` handed to it is the top-left corner.
+  4. **With exactly one option there is no picker.** It is stated as chosen,
+     with its photograph, its price and a way to read the detail -- a dialog
+     that opens to show a single card asks somebody to tap twice to confirm
+     the only thing on offer. `/book-home-visit` keeps its default-to-first
+     initializer, so that case behaves exactly as it did.
+  5. **Continue appears once a service is chosen**, which is `serviceChosen`
+     in `BookingStepOne`'s `ready`. Step 1 has always revealed it only when
+     the screen is complete; a disabled control would be a new pattern there.
+     Steps 2 and 3 keep the choice as one read-only line with a Change link,
+     never a second control over the same value.
+  Only what `isDirectlyPurchasable` allows is ever offered, so a programme
+  still reaches a patient through a recommendation alone.
+  `e2e/service-picker.spec.ts` is the guard, driven as screens because no
+  route, no request body and no row changed.
+
   **A slot starts on the hour, and the routes say so.** `isWholeHourSlot()` in
   `bookingSlots.ts` refuses anything else at all nine doors that write a slot
   time - `/api/appointments/create`, `book-package-sessions`,

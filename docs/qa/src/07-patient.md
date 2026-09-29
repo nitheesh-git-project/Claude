@@ -184,21 +184,23 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 6. Tap the day cell **11**.
 7. Read the hour chips again.
 8. Tap the hour chip **09:00**.
-9. Tap **Continue**.
+9. Look for **Continue**, then tap the service picker at the top of the screen - the dashed panel reading *"What would you like help with?"*. In the dialog, tap **View full details →** on `QA Back & Spine Care`, read it, then tap **← Back to all services**, then **Choose this session** on that same card.
+10. Tap **Continue**.
 
 **Expected Result**
 * Step 3: heading `September 2026`; **10** is today; every cell before 10 is greyed and not tappable.
 * Step 4: the earliest offered hour on 10 September is **22:00** (10:00 + 12h). Hours before 22:00 are absent or disabled. A "we picked this for you" hint marks the auto-chosen date, hour and language.
 * Step 5: the first admin-configured booking language is selected - `English` by default.
+* Step 9: **Continue is not on screen before a service is chosen.** The dialog shows one card per active condition, each with its cover photograph, description, chips and price. *View full details* replaces the dialog's contents rather than opening a second dialog over it - there is only ever **one** dialog on screen - and shows the photograph in 16:9 with nothing laid over it, the heading on its own band beneath. **← Back to all services** returns to the grid. Choosing closes the dialog, turns the panel into a summary card with **Change** and **View details**, and the dark header subtitle changes from *"pricing shown once you pick a concern"* to `₹1,999 INR • 60-Min HD Video Call & Custom Rehab Plan`. **Continue** now appears.
 * Step 7: after moving to 11 September, the **full** hour list is offered (every hour on 11 September clears a 12h lead time from 10:00 on the 10th), and the hour has been **re-preselected to that day's earliest**, not carried over from 22:00.
-* Step 9: the wizard advances to **Step 2 of 3**. **No appointment exists yet, no account is created, and nothing is charged.**
+* Step 10: the wizard advances to **Step 2 of 3**. **No appointment exists yet, no account is created, and nothing is charged.**
 
 **Cleanup.** Stay in the wizard for `PAT-BOOK-003`.
 
 #### `PAT-BOOK-003` - Guest books and pays successfully (the main journey) · P0
 
 **Purpose.** The single most important path in the application: a brand-new visitor becomes a paying patient with a booked session.
-**Preconditions.** `PAT-BOOK-002` left the wizard on Step 2 with 11 September 2026 09:00 and `English` selected. Razorpay test keys configured.
+**Preconditions.** `PAT-BOOK-002` left the wizard on Step 2 with `QA Back & Spine Care`, 11 September 2026 09:00 and `English` selected. Razorpay test keys configured.
 **Test Data.** Patient A from §8.3. Payment: UPI `success@razorpay`.
 
 **Steps**
@@ -208,7 +210,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 4. Tap the phone field. Enter `+91 98765 43210`.
 5. Tap **Confirm Password**. Enter `QaTest!2024pass`.
 6. Leave **Referral Code** blank.
-7. Tap the **What would you like help with?** dropdown. Select `QA Back & Spine Care - ₹1,999 / 60 min`.
+7. Read the teal line naming the service chosen on Step 1 - it must read *"Booking a **QA Back & Spine Care** - ₹1,999, 60 min"* beside its photograph, with a **Change** link. There is no dropdown on this step.
 8. Tap the **Anything else we should know?** box. Enter `Desk job, pain worse after sitting all day. Goal: sit through a full workday.`
 9. Tap the telehealth consent checkbox.
 10. Tap **Review Booking →**.
@@ -243,7 +245,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Preconditions.** Patient A signed in, with at least one completed session so a previous therapist exists.
 **Steps.** Open `/book`, complete Step 1, and read Step 2.
-**Expected Result.** Step 2 shows a teal strip *"Booking as **QA Patient A** (qa.patient.a@example.test)"* and **no** name/email/password/phone/referral fields. A **"Continue with the same therapist?"** dropdown appears, defaulting to `No preference - any available specialist` and listing `QA Therapist A`. The consent checkbox and concern dropdown are still required.
+**Expected Result.** Step 2 shows a teal strip *"Booking as **QA Patient A** (qa.patient.a@example.test)"* and **no** name/email/password/phone/referral fields. A **"Continue with the same therapist?"** dropdown appears, defaulting to `No preference - any available specialist` and listing `QA Therapist A`. The consent checkbox is still required; the service was chosen on Step 1 and is shown here as a read-only line with a **Change** link.
 
 #### `PAT-BOOK-007` - Booking a named specialist from `/team` · P1
 
@@ -407,15 +409,15 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 **Test Data.** Pincode `560038`; address from Patient A §8.3.
 
 **Steps**
-1. Open `/book-home-visit`. Confirm the header reads **Step 1 of 4**.
+1. Open `/book-home-visit`. Confirm the header reads **Step 1 of 4**, and that the **visit** is named at the top of the screen, *above* the pincode field. With one bookable visit in the catalogue it is already chosen - its photograph, `₹price · N min`, whether travel is added, a **View details** link and the line *"This is the only visit on offer today, so it is already chosen for you."* - and there is **no Change button**, because there is nothing to change to. With two or more, a picker opens a dialog of cards exactly as `/book` does.
 2. Tap the **Pincode** field. Enter `560038`.
 3. Tap **Check**.
-4. Read the confirmation line.
+4. Read the confirmation line. It must agree with the visit named above it: a visit whose price already covers travel reads *"Travel is included"*, and one that does not quotes the per-visit travel fee for this area. That is why the visit is chosen before the pincode is asked for.
 5. Fill the address form: Address line 1 `12, 3rd Cross, Indiranagar`; line 2 `Near Metro Station`; City `Bengaluru`; State `Karnataka`; PIN `560038`.
 6. Tap **Continue**.
 7. On **When suits you?** pick a date at least 24 hours out and an arrival time.
 8. Tap **Continue**.
-9. On **About you**, choose the package `QA Home Visit - Single - 1 visit` and complete the identity fields (or confirm the "booking as" strip if signed in).
+9. On **About you**, read the teal line naming the visit chosen on Step 1 - it must name `QA Home Visit - Single` with its price and length, and carry a **Change** link. There is no package dropdown on this step. Complete the identity fields (or confirm the "booking as" strip if signed in).
 10. Tap **Continue**.
 11. On **Review and pay**, read every line of the price breakdown.
 12. Choose **Pay online**, tap the pay button, and complete with `success@razorpay`.
