@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset='utf-8'><title>MoveRestore - Complete Manual E2E Test Plan &amp; Feature Guide</title><style>
+<!doctype html><html><head><meta charset='utf-8'><title>MoveRestore Physiotherapy - Complete Manual E2E Test Plan &amp; Feature Guide</title><style>
 @page { size: A4; margin: 18mm 15mm 20mm 15mm; }
 * { box-sizing: border-box; }
 body {
@@ -62,16 +62,16 @@ strong { color: #0f172a; }
 </style></head><body>
 <div class="cover">
   <div class="rule"></div>
-  <h1>MoveRestore - Complete Manual E2E Test Plan &amp; Feature Guide</h1>
+  <h1>MoveRestore Physiotherapy - Complete Manual E2E Test Plan &amp; Feature Guide</h1>
   <p class="sub">Feature guide and click-by-click regression suite</p>
-  <dl><dt>Application</dt><dd>MoveRestore - Next.js 16 · React 19 · Supabase · Razorpay</dd><dt>Document version</dt><dd>1.0</dd><dt>Audience</dt><dd>A tester who has never used this application before</dd><dt>Environment</dt><dd>Throwaway Supabase project · Razorpay test mode · npm run dev</dd><dt>Start here</dt><dd>Section 6 - STEP 0, Reset the test environment</dd></dl>
+  <dl><dt>Application</dt><dd>MoveRestore Physiotherapy - Next.js 16 · React 19 · Supabase · Razorpay</dd><dt>Document version</dt><dd>1.0</dd><dt>Audience</dt><dd>A tester who has never used this application before</dd><dt>Environment</dt><dd>Throwaway Supabase project · Razorpay test mode · npm run dev</dd><dt>Start here</dt><dd>Section 6 - STEP 0, Reset the test environment</dd></dl>
 </div>
 <div class="toc">
   <h2>Contents</h2>
   <ul><li>1. Document purpose</li><li>2. Application overview</li><li>3. Application route map</li><li>4. Roles, gates and scopes</li><li>5. Test environment requirements</li><li>6. STEP 0 - Reset the test environment</li><li>7. The Debug Bar and time simulation</li><li>8. Test Data Library</li><li>9. Payment test data and the payment model</li><li>10. Patient Booking Wizard: Complete E2E Flow</li><li>11. Patient test plan</li><li>12. Therapist test plan</li><li>13. Hospital / partner test plan</li><li>14. Admin test plan - Part A (Today, Sessions, People, Catalog)</li><li>15. Admin test plan - Part B (Settings, and configuration → dependent feature)</li><li>16. Finance test plan (Money) and payment integrity</li><li>17. Public marketing site test plan</li><li>18. Security and authorization test plan</li><li>19. UX, responsive and accessibility test plan</li><li>20. Error, loading and empty-state testing</li><li>21. Cross-role consistency tests</li><li>22. Full regression journeys</li><li>23. Test dependency map and recommended execution order</li><li>24. Coverage audit</li><li>25. Questions and clarifications before execution</li><li>26. Defect reporting template</li><li>27. Final release checklist</li></ul>
 </div>
-<h1>MoveRestore - Complete Manual E2E Test Plan &amp; Feature Guide</h1>
-<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Document type</strong></td><td>QA / UAT manual - feature guide plus click-by-click regression suite</td></tr><tr><td><strong>Application</strong></td><td>MoveRestore (Next.js 16 App Router, React 19, Supabase, Razorpay, Google Calendar/Meet)</td></tr><tr><td><strong>Audience</strong></td><td>A tester who has never used this application before</td></tr><tr><td><strong>Version</strong></td><td>1.0</td></tr><tr><td><strong>Status</strong></td><td>Pre-launch. The application has no real patients. The Debug Bar is deliberately visible in every environment.</td></tr></tbody></table>
+<h1>MoveRestore Physiotherapy - Complete Manual E2E Test Plan &amp; Feature Guide</h1>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td><strong>Document type</strong></td><td>QA / UAT manual - feature guide plus click-by-click regression suite</td></tr><tr><td><strong>Application</strong></td><td>MoveRestore Physiotherapy (Next.js 16 App Router, React 19, Supabase, Razorpay, Google Calendar/Meet)</td></tr><tr><td><strong>Audience</strong></td><td>A tester who has never used this application before</td></tr><tr><td><strong>Version</strong></td><td>1.0</td></tr><tr><td><strong>Status</strong></td><td>Pre-launch. The application has no real patients. The Debug Bar is deliberately visible in every environment.</td></tr></tbody></table>
 <hr>
 <h2>1. Document purpose</h2>
 <p>This document does two jobs at once.</p>
@@ -85,7 +85,7 @@ strong { color: #0f172a; }
 <p>Some expected results reference database state. You do not need SQL for the ordinary path - the same fact is visible on an admin screen, and the test names that screen. Where a case genuinely needs the table (ledger append-only checks, RLS checks), it says so and gives the query, and it is marked as requiring Supabase SQL editor access.</p>
 <hr>
 <h2>2. Application overview</h2>
-<p>MoveRestore is a production web application for a physiotherapy practice. It has five surfaces:</p>
+<p>MoveRestore Physiotherapy is a production web application for a physiotherapy practice. It has five surfaces:</p>
 <ol><li><strong>A public marketing site</strong> - eight pages that explain the service and start a booking.</li><li><strong>A patient portal</strong> - book, pay, attend, manage a health profile, answer therapist recommendations.</li><li><strong>A therapist portal</strong> - availability, sessions, clinical records, recommendations, earnings.</li><li><strong>A hospital/partner portal</strong> - refer patients, track referrals, see partner earnings.</li><li><strong>An admin back office</strong> - seven sections that run the clinic: Today, Sessions, People, Money, Catalog, Logs, Settings.</li></ol>
 <h3>The business model in one paragraph</h3>
 <p>A patient&#x27;s <strong>first purchase is always one session</strong> - a video consultation, or (if the clinic&#x27;s home-visit switch is on and their pincode is serviceable) a single home visit. Multi-session programmes cannot be bought from a price list at all: a therapist must run a session, then write a <strong>care plan</strong> recommending an admin-configured package, and an admin must approve it before the patient sees anything. The patient then accepts and pays from their own dashboard. That purchase creates <strong>session credits</strong>, which are spent one at a time as sessions are booked and delivered. Money is split between the therapist (a revenue share, earned only on delivered sessions), the referring hospital (a commission on net revenue), and the clinic.</p>

@@ -31,10 +31,10 @@ DOCS = {
     "plan": {
         "src": OUT / "src",
         "basename": "DrPoojaPhysio-E2E-Test-Plan",
-        "title": "MoveRestore - Complete Manual E2E Test Plan & Feature Guide",
+        "title": "MoveRestore Physiotherapy - Complete Manual E2E Test Plan & Feature Guide",
         "subtitle": "Feature guide and click-by-click regression suite",
         "meta": [
-            ("Application", "MoveRestore - Next.js 16 · React 19 · Supabase · Razorpay"),
+            ("Application", "MoveRestore Physiotherapy - Next.js 16 · React 19 · Supabase · Razorpay"),
             ("Document version", "1.0"),
             ("Audience", "A tester who has never used this application before"),
             ("Environment", "Throwaway Supabase project · Razorpay test mode · npm run dev"),
@@ -44,7 +44,7 @@ DOCS = {
     "audit": {
         "src": OUT / "audit-src",
         "basename": "DrPoojaPhysio-QA-Audit-Report",
-        "title": "MoveRestore - QA Audit Report",
+        "title": "MoveRestore Physiotherapy - QA Audit Report",
         "subtitle": "Static verification against the manual E2E test plan, plus a product review",
         "meta": [
             ("Subject", "Branch claude/complete-e2e-testing-plan-ll8qet"),
