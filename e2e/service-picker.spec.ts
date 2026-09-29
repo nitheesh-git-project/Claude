@@ -103,13 +103,20 @@ test.describe("Public booking service picker", () => {
    *  so a locator cannot match both. */
   const DETAILS = "View full details →";
 
-  /** Opens the picker from Step 1 and returns the dialog. */
+  /** Opens the picker from Step 1 and returns the dialog.
+   *
+   *  Two controls open it, and which one is on screen depends on whether the
+   *  screen is already answered: an unchosen picker is the dashed trigger,
+   *  and a chosen one offers Change. Step 1 normally opens answered, on the
+   *  general consultation, so Change is the usual path -- but a project
+   *  whose fallback row has been deleted opens unanswered, and this helper
+   *  should not be the reason such a run fails. */
   async function openPicker(page: Page) {
     await page.goto(`${BASE}/book`);
-    await page
-      .getByRole("button", { name: /What would you like help with/ })
-      .first()
-      .click();
+    const change = page.getByRole("button", { name: "Change" }).first();
+    const trigger = page.getByRole("button", { name: /What would you like help with/ }).first();
+    await expect(change.or(trigger).first()).toBeVisible();
+    await ((await change.count()) > 0 ? change : trigger).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     return dialog;
@@ -240,17 +247,31 @@ test.describe("Public booking service picker", () => {
     ).toHaveCount(0);
   });
 
-  test("SP-007: Continue is not offered until a service is chosen", async ({ page }) => {
+  test("SP-007: a plain Book tap opens on the general consultation, changeably", async ({
+    page,
+  }) => {
+    // Somebody who tapped "Book" named no condition, so Step 1 opens on the
+    // standing fallback schema.sql keeps seeded for exactly that -- a
+    // bookable session with a real price in the header, rather than an
+    // unanswered control. Not the first category by display order: see
+    // defaultCategoryId and its tests for why that would be a choice nobody
+    // made.
     await page.goto(`${BASE}/book`);
 
-    // Step 1 reveals Continue once the screen is complete -- it has always
-    // waited on a date, an hour and a language, and the service is now the
-    // first thing on it. So this asserts an absence, not a disabled button:
-    // a dead control is a pattern this screen does not have.
-    const advance = page.getByRole("button", { name: /Continue to Medical Details/ });
-    await expect(advance).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "General Consultation" })
+    ).toBeVisible();
+    // The header quotes it from the first screen, rather than saying pricing
+    // arrives once a concern is picked.
+    await expect(
+      page.getByText("pricing shown once you pick a concern", { exact: false })
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /Continue to Medical Details/ })
+    ).toBeVisible();
 
-    await page.getByRole("button", { name: /What would you like help with/ }).first().click();
+    // A default is only acceptable because it is one tap from being changed.
+    await page.getByRole("button", { name: "Change" }).first().click();
     await page
       .getByRole("dialog")
       .locator("article")
@@ -258,15 +279,52 @@ test.describe("Public booking service picker", () => {
       .getByRole("button", { name: "Choose this session" })
       .click();
 
-    await expect(advance).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: WITH_COVER })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "General Consultation" })
+    ).toHaveCount(0);
+  });
+
+  test("SP-011: the chosen service is stated on Step 2, inside the card", async ({ page }) => {
+    // The regression this case exists for shipped once: Step 2 hand-rolled
+    // its own version of Step 1's summary and sized the thumbnail with
+    // `h-10 w-auto`, CatalogImage's own `w-full` won, and the photograph
+    // stretched the full width of the row and pushed the text outside the
+    // wizard card entirely. Both now render one component.
+    await page.goto(`${BASE}/book`);
+    await page.getByRole("button", { name: /Continue to Medical Details/ }).click();
+
+    const summary = page.getByRole("heading", { name: "General Consultation" });
+    await expect(summary).toBeVisible();
+    await expect(page.getByRole("button", { name: "Change" })).toBeVisible();
+
+    // Geometric, because the failure was a layout one: the statement has to
+    // sit inside the wizard's own card, and the thumbnail has to stay a
+    // thumbnail rather than filling the row.
+    const card = await page.locator("div.bg-white.rounded-3xl").first().boundingBox();
+    const summaryBox = await summary.boundingBox();
+    const thumb = await page.locator("img").first().boundingBox();
+    expect(card).not.toBeNull();
+    expect(summaryBox).not.toBeNull();
+    expect(thumb).not.toBeNull();
+    expect(summaryBox!.x).toBeGreaterThanOrEqual(card!.x - 1);
+    expect(summaryBox!.x + summaryBox!.width).toBeLessThanOrEqual(card!.x + card!.width + 1);
+    expect(thumb!.width).toBeLessThan(card!.width / 3);
+
+    // And Change goes back to the picker rather than nowhere.
+    await page.getByRole("button", { name: "Change" }).click();
+    await expect(
+      page.getByRole("button", { name: /Continue to Medical Details/ })
+    ).toBeVisible();
   });
 
   test("SP-008: a deep link lands on Step 1 with that service already chosen", async ({
     page,
   }) => {
     // The link `/conditions` and the patient dashboard's booking hub both
-    // produce. It must still never guess one when the link names none --
-    // covered by SP-007, which loads `/book` bare and finds nothing chosen.
+    // produce. What the link asked for always wins over the default SP-007
+    // covers -- a condition somebody chose is not overridden by a fallback.
     await page.goto(`${BASE}/book?category=${coveredId}`);
 
     await expect(page.getByRole("heading", { name: WITH_COVER })).toBeVisible();
