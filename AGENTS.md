@@ -125,7 +125,10 @@ moving one. It drives screens rather than routes deliberately: half of what
 this feature got wrong the first time was what a person reads -- a delivered
 session chipped "Unpaid", a feed telling a patient their booked session was
 not booked, a Pay-now link that led nowhere -- and every one of those is
-invisible to an API test and obvious in a screenshot.
+invisible to an API test and obvious in a screenshot. `booking-pay-button-live.spec.ts`
+is the same argument one screen over -- the payment step's own pay button
+staying tappable while its price loads, with the wait stated on the screen
+rather than enforced on the control.
 It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
@@ -182,6 +185,13 @@ Three environment notes for the browser specs:
   those six are these three pairs -- all six fail identically on a stashed,
   unmodified tree. Check that before reading a red pay-later run as a money
   bug.
+  `booking-pay-button-live.spec.ts` is the same case a fourth time, and it
+  reads as the very regression it guards: all three of its cases walk the same
+  Step 1 -> Step 3 path as BR-CANCEL, so with no browser egress the walk stops
+  at Step 2 and the failure is the pay button *not found* -- which looks
+  exactly like a button that was never rendered. A dead button and an absent
+  one are different faults; check the egress before reading a red run here as
+  the disable having come back.
 - `admin-login.spec.ts` is the exception, since the login form itself is
   what it tests: it needs a second app instance whose
   `NEXT_PUBLIC_SUPABASE_URL` points at `scripts/.qa/supabase-relay.mjs` (a
@@ -3558,6 +3568,48 @@ before.
   behind them -- a filter nobody can act on is noise. Don't cap a list at
   an arbitrary number with a "Show all" escape hatch: that was what All
   Sessions did, and "Show all" then painted every row anyway.
+- **A control is disabled by its own work, never by a background read.** The
+  booking wizard's Pay button carried `disabled={loading || quoting}`, where
+  `quoting` is a price read that fires on arriving at Step 3 and again on every
+  promo code applied -- so the primary control of the payment screen was dead
+  for a round trip each time, with nothing on the button saying why. A disabled
+  button that is *about* to work is indistinguishable from a broken one, and a
+  patient who taps a dead pay button taps it again; it is the navigation rule
+  one control over, where a tap that is not acknowledged reads as a fault.
+  The answer is to **queue the tap, not refuse it**: `submitFromPaymentStep`
+  sets `loading` the instant it is pressed and then awaits the in-flight read
+  before choosing its branch, so the wait is acknowledged rather than enforced
+  and the decision is still made on the figure that is about to land. Three
+  details are load-bearing. The in-flight promise is published on a ref
+  (`quoteInFlight`) rather than inferred from the `quoting` boolean, since a
+  boolean says a read is happening and gives a waiter nothing to await. The
+  waiter **loops** while one is in flight, because applying a promo code starts
+  a second read while the first is open and awaiting only the first acts on the
+  figure that is about to be replaced -- the exact thing the disable was for.
+  And the read's promise never rejects (its own body swallows every failure and
+  a failed read leaves the previous answer standing), or a waiting tap would
+  hang on it. The `quoting` flag stays, as a line saying the price is being
+  checked: the wait is **stated, never enforced**, the same split the amber
+  line on Booking Rules follows.
+  The legitimate disable is the opposite shape and is easy to tell apart: a
+  control disabled while **its own** request is in flight, with its own label
+  saying so -- `PromoCodeField`'s Apply reading "Checking…", the home-visit
+  wizard's Check reading "Checking..." -- which is duplicate-submit prevention
+  rather than a wait imposed on somebody else's action. A validity gate
+  (`disabled={saving || reason.length < MIN}`) is the same case: the control
+  cannot succeed yet, rather than being made to sit out a read it did not
+  start. Before adding a flag to a `disabled` prop, ask whether the flag
+  belongs to that button's own work; if it does not, await it in the handler
+  instead.
+  `e2e/booking-pay-button-live.spec.ts` is the guard, driven as a screen
+  because nothing here changes a route or a row -- the quote route is *delayed*
+  rather than raced, since the real window is a few hundred milliseconds and a
+  test trying to catch it would flake in whichever direction it lost. It pins
+  all three halves: the button enabled with the read in flight, the wait stated
+  on the screen instead, and a tap during the read acknowledged at once --
+  because accepting a tap and then showing nothing until the read lands is the
+  same fault wearing a different hat.
+
 - **The wait has to be visible, and it outlives the button.** Every mutating
   control had its own `loading` flag, and that flag was the problem: the
   shape was `setLoading(false); router.refresh();`, so the button went back
