@@ -251,6 +251,19 @@ switch in place as the sidebar does, and `LinkProgress` (one listener in the
 root layout) draws the teal bar for every other link in the app, whoever
 wrote it. See the navigation rule in `AGENTS.md`.
 
+**And the Refresh button counts other people's changes, not your own taps.**
+The admin dashboard's two realtime channels count instead of rebuilding, and
+the badge climbed all day: `RealtimeRefresh` asked whether a refresh had
+started *after* an event arrived, which for this browser's own work can never
+be true -- the route commits, the response returns, the control refreshes, and
+only then does the event describing that commit land. The window was empty, so
+every admin action added one (two, across both channels) to a badge their own
+refresh had just cleared. A refresh is a **window** now, start to settle plus a
+short grace for the websocket hop, judged by `src/lib/refreshCoverage.ts`. What
+it trades is said out loud: somebody else's change landing inside that window
+is absorbed, which is the better side -- a badge that counts the reader's own
+taps is one they stop reading. See the realtime rule in `AGENTS.md`.
+
 **And a button is never dead while something else loads.** The booking
 wizard's pay button was disabled for the length of the price read that fires
 on arriving at Step 3 and again on every promo code applied, so the one
@@ -743,7 +756,8 @@ real browser -- the grant, a booking with no payment screen, completion
 putting the money in three places at once, a declaration that settles
 nothing until an admin confirms it, and a write-off that costs the clinic
 without moving a single money figure, and the payment step's own pay button
-staying tappable while its price loads
+staying tappable while its price loads, and the admin Refresh button's badge
+counting other people's changes rather than the admin's own taps
 (`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys - verify a change
 with a build and a lint.

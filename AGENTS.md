@@ -131,7 +131,10 @@ not booked, a Pay-now link that led nowhere -- and every one of those is
 invisible to an API test and obvious in a screenshot. `booking-pay-button-live.spec.ts`
 is the same argument one screen over -- the payment step's own pay button
 staying tappable while its price loads, with the wait stated on the screen
-rather than enforced on the control.
+rather than enforced on the control. `admin-refresh-badge.spec.ts` is a third:
+the Refresh button's waiting-changes badge staying at zero through an admin's
+own work while still counting somebody else's -- a number that climbed all day
+is visible to nobody but a person looking at it.
 It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
@@ -414,6 +417,7 @@ src/lib/adminHome.ts     what each admin scope's Today screen opens on
 src/lib/activityLog.ts   the log's search, its categories and its retention floor
 src/lib/formatDateTime.ts every date the app renders, pinned to clinic time
 src/lib/refundState.ts   how a refund reads, wherever a session is shown
+src/lib/refreshCoverage.ts whether a realtime change is news this browser has read
 src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
 src/lib/catalogFeatured.ts which few of the catalogue a public page leads with
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
@@ -3934,26 +3938,52 @@ before.
   count standing for rows it had just fetched. `useLiveUpdates` answers 0
   outside a provider rather than throwing, same posture as `useToast`, so
   `RefreshButton` renders unchanged where nothing counts.
-  **A browser does not rebuild for its own work.** Most events reaching an
-  open admin dashboard are that dashboard's own writes coming back: a
-  control's route changes its row *and* writes an `admin_activity_log`
-  entry, and the control has already called `router.refresh()`. Those two
-  events then cost two more full rebuilds, the second of them up to the
-  catalog channel's 30 seconds later - by which time the admin has forgotten
-  the tap and reads it as the page reloading on its own. `useRouter().refresh()`
-  stamps `src/lib/refreshSignal.ts` before it starts, and `RealtimeRefresh`
-  drops a change that arrived **before** that stamp, since the fetch already
-  read it. Three details are load-bearing. It compares timestamps rather than
-  tagging events, which is what makes it work across both channels and across
-  every control in the app - none of which knows which rows its route
-  touched. It tests the **newest** waiting event, not the oldest, so a burst
-  whose tail landed after the local refresh still fires. And a *skipped* fire
-  does not start a cooldown: counting one would hold the next genuine change
-  off for up to 30 seconds for a rebuild that never happened. The suppression
-  is one-way - an event arriving *during* an in-flight refresh is newer than
-  its start and still fires - so what it can cost is a change by somebody
-  else landing in the moment before this browser refreshed for its own
-  reason, which that refresh read anyway.
+  **A browser does not rebuild, or count, for its own work -- and a refresh is
+  a window rather than an instant.** Most events reaching an open admin
+  dashboard are that dashboard's own writes coming back: a control's route
+  changes its row *and* writes an `admin_activity_log` entry, and the control
+  has already called `router.refresh()`. Left alone those two events cost two
+  more full rebuilds, the second up to the catalog channel's 30 seconds later
+  -- by which time the admin has forgotten the tap and reads it as the page
+  reloading on its own; on the admin dashboard, where the channels count
+  instead, they cost two on the Refresh badge instead.
+  `useRouter().refresh()` stamps `src/lib/refreshSignal.ts` when it starts
+  **and again when the transition lands**, and `RealtimeRefresh` asks
+  `isCoveredByRefresh` (`src/lib/refreshCoverage.ts`) whether the event falls
+  inside that window.
+  **Comparing against the start alone was a bug, and it was the loud kind.**
+  That test -- "did a refresh start after this event arrived" -- can never be
+  true for the browser's own work: the route commits, the response returns,
+  the control refreshes, and only *then* does the event reach the browser. So
+  the window was empty, it suppressed nothing it was written for, and on the
+  admin dashboard every action an admin took added one (two, across the two
+  channels) to a badge their own refresh had just cleared. It was reported as
+  the count going up for no reason, which is exactly what it was doing.
+  Five details are load-bearing. It compares timestamps rather than tagging
+  events, which is what makes it work across both channels and across every
+  control in the app -- none of which knows which rows its route touched. It
+  tests the **newest** waiting event, not the oldest, so a burst whose tail
+  landed after the window still fires. A *skipped* fire does not start a
+  cooldown: counting one would hold the next genuine change off for up to 30
+  seconds for a rebuild that never happened. A refresh **still in flight
+  covers everything**, because this dashboard's own render was measured at
+  3.5s and its news lands inside that -- but only up to
+  `MAX_REFRESH_IN_FLIGHT_MS`, so a settle that never arrives (a transition
+  that died) cannot wedge the suppression on and leave the admin told that
+  nothing ever changes, which is the worse failure of the two. And once
+  settled the window closes after `REALTIME_HOP_GRACE_MS`, which is for the
+  websocket hop and nothing else.
+  **What it trades is stated rather than hidden:** a change by somebody else
+  landing inside that window is absorbed and this browser is not told. That is
+  a real loss and it is the better side -- the badge exists to say the screen
+  is behind, and one that also counts the reader's own taps is one they learn
+  to ignore, the same reasoning that keeps a red health banner off a screen
+  where it would always be showing. The next change re-raises it, and the next
+  refresh reads every row either way. `refreshCoverage.test.ts` pins the
+  arithmetic and `e2e/admin-refresh-badge.spec.ts` pins what a person reads --
+  driven as a screen because no route and no row changed, and carrying its own
+  RB-000 egress probe, since the badge is fed by a socket that never opens in
+  a sandbox and every other case would pass vacuously.
   **And a lazy sweep must not be able to refresh the render that started
   it.** Anything running in the dashboard's `after()` that *writes* a table
   on one of these channels closes a circle: render, write, realtime event,

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useTransition } from "react";
 import { useRouter as useNextRouter } from "next/navigation";
 import { usePendingWork } from "@/lib/pendingWork";
-import { markLocalRefresh } from "@/lib/refreshSignal";
+import { markLocalRefresh, markLocalRefreshSettled } from "@/lib/refreshSignal";
 
 /**
  * `next/navigation`'s router, with the waiting made visible.
@@ -35,6 +35,10 @@ export function useRouter() {
   const { begin } = usePendingWork();
   const [isPending, startTransition] = useTransition();
   const releaseRef = useRef<(() => void) | null>(null);
+  // Whether the transition currently running is a refresh of ours. A push is
+  // not: `RealtimeRefresh` asks whether this browser has re-read the page, and
+  // a navigation to a different screen has not answered that.
+  const refreshInFlightRef = useRef(false);
 
   useEffect(() => {
     if (isPending && !releaseRef.current) {
@@ -42,6 +46,14 @@ export function useRouter() {
     } else if (!isPending && releaseRef.current) {
       releaseRef.current();
       releaseRef.current = null;
+    }
+    // The transition is the only thing that honestly knows a refresh has
+    // landed -- a timer would either lie early or leave the window open. This
+    // is what closes it, and `RealtimeRefresh` treats the window between the
+    // two as covering the page's own news.
+    if (!isPending && refreshInFlightRef.current) {
+      refreshInFlightRef.current = false;
+      markLocalRefreshSettled();
     }
   }, [isPending, begin]);
 
@@ -59,11 +71,14 @@ export function useRouter() {
     return {
       ...router,
       refresh: () => {
-        // Recorded before the fetch starts, not after it lands: an event
-        // that arrived before this moment is one this refresh will read, so
-        // RealtimeRefresh can drop it rather than rebuilding the page a
-        // second time for the row this browser just changed.
+        // Recorded before the fetch starts, not after it lands: the write
+        // behind any event still on its way was committed before this moment,
+        // so that event is news this refresh will read. Its landing is marked
+        // separately -- the pair is a window, and comparing against the start
+        // alone is the bug that made the Refresh badge count every admin's own
+        // taps (see `src/lib/refreshCoverage.ts`).
         markLocalRefresh();
+        refreshInFlightRef.current = true;
         startTransition(() => router.refresh());
       },
       push: ((href: string, options?: Parameters<typeof router.push>[1]) =>
