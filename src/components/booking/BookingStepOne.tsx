@@ -21,6 +21,8 @@ const REVEAL = {
 };
 
 export default function BookingStepOne({
+  serviceSlot,
+  serviceChosen,
   timezone,
   nowMs,
   leadTimeHours,
@@ -34,6 +36,14 @@ export default function BookingStepOne({
   autoPicked,
   onContinue,
 }: {
+  /** The service picker, rendered first. Taken as a node rather than as
+   *  catalogue props so this component stays a screen of scheduling
+   *  controls and knows nothing about what the clinic sells. */
+  serviceSlot: React.ReactNode;
+  /** Whether that picker has an answer yet. Part of `ready` for the same
+   *  reason the date and the hour are: Continue is offered once the screen
+   *  is complete, and the service is now the first thing on it. */
+  serviceChosen: boolean;
   timezone: string;
   nowMs: number;
   /** How far ahead a session must be booked, from the clinic's own settings.
@@ -60,10 +70,17 @@ export default function BookingStepOne({
   const reduceMotion = useReducedMotion();
   const leadTimeMs = leadTimeMsFromHours(leadTimeHours);
   const hours = dateKey ? bookableHoursForDate(dateKey, nowMs, leadTimeMs) : [];
-  const ready = Boolean(dateKey) && hour !== "" && Boolean(language);
+  const ready = serviceChosen && Boolean(dateKey) && hour !== "" && Boolean(language);
 
   return (
     <>
+      {/* First, because everything under it is a decision about a thing the
+          patient has not been shown yet otherwise: this screen used to ask
+          for a date and an hour while the wizard header read "pricing shown
+          once you pick a concern", and the price and the session length only
+          arrived on Step 2. */}
+      {serviceSlot}
+
       <div className="w-full rounded-xl bg-teal-50/70 px-4 py-3.5 text-slate-700">
         <i className="fa-solid fa-globe text-teal-600 mr-2.5" aria-hidden="true"></i>
         Times shown in <strong className="font-bold text-slate-900">{timezone || "your"}</strong>{" "}
