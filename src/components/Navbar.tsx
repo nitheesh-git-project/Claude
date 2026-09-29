@@ -11,6 +11,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useAccountDestination } from "@/lib/useAccountDestination";
 import { isAuthCtaHiddenRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
 import { MARKETING_PAGES } from "@/lib/marketingNav";
+import BrandMark from "@/components/BrandMark";
 
 
 export default function Navbar({
@@ -92,26 +93,26 @@ export default function Navbar({
       } ${scrolled ? "shadow-md border-slate-200" : "shadow-none border-transparent"}`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16 items-center">
-          <Link href="/" className="flex items-center space-x-3 group">
+        <div className="flex justify-between gap-6 h-16 items-center">
+          <Link href="/" className="flex shrink-0 items-center space-x-3 group">
             <motion.div
               whileHover={{ rotate: -6, scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
-              className="w-10 h-10 rounded-xl bg-teal-700 text-white flex items-center justify-center font-bold text-xl shadow-md"
+              className="flex"
             >
-              <i className="fa-solid fa-user-doctor"></i>
+              <BrandMark size={44} variant="flat" />
             </motion.div>
             <div>
-              <span className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight">
+              <span className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight whitespace-nowrap">
                 {siteName}
               </span>
-              <span className="text-[10px] font-semibold text-teal-700 uppercase tracking-widest block">
+              <span className="text-[10px] font-semibold text-teal-700 uppercase tracking-widest block whitespace-nowrap">
                 {siteTagline}
               </span>
             </div>
           </Link>
 
-          <div className="hidden md:flex items-center space-x-6 text-sm font-medium text-slate-600">
+          <div className="hidden xl:flex items-center space-x-5 whitespace-nowrap text-sm font-medium text-slate-600">
             {links.map((link) => {
               const active = pathname === link.href;
               return (
@@ -134,7 +135,7 @@ export default function Navbar({
           </div>
 
           {authCtaHidden ? null : signedIn !== true ? (
-            <div className="hidden md:flex items-center space-x-3">
+            <div className="hidden xl:flex items-center space-x-3 whitespace-nowrap">
               <Link
                 href="/patient/login"
                 className="text-sm font-semibold text-slate-700 hover:text-teal-700 px-3 py-2 transition"
@@ -158,7 +159,7 @@ export default function Navbar({
             <motion.div
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
-              className="hidden md:flex items-center"
+              className="hidden xl:flex items-center"
             >
               <Link
                 href={destination.href}
@@ -174,7 +175,7 @@ export default function Navbar({
 
           <button
             onClick={() => setOpen(!open)}
-            className="md:hidden text-slate-700 text-xl p-2"
+            className="xl:hidden text-slate-700 text-xl p-2"
             aria-label="Toggle menu"
           >
             <i className={`fa-solid ${open ? "fa-xmark" : "fa-bars"}`}></i>
@@ -188,7 +189,7 @@ export default function Navbar({
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              className="md:hidden overflow-hidden"
+              className="xl:hidden overflow-hidden"
             >
               <div className="pb-4 flex flex-col space-y-1 text-sm font-medium text-slate-600">
                 {links.map((link) => (

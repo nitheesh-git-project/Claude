@@ -39,7 +39,7 @@ import {
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 export const metadata: Metadata = {
-  title: "Health Profile | Dr. Pooja's Physio",
+  title: "Health Profile | MoveRestore",
 };
 
 const STATUS_BANNER_STYLE: Record<ConditionProfileStatus, string> = {

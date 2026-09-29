@@ -111,7 +111,7 @@ export default function PayLaterWidget({
         amount: data.amountPaise,
         currency: "INR",
         order_id: data.orderId,
-        name: "Dr. Pooja's Physio",
+        name: "MoveRestore Physiotherapy",
         description: "Payment for sessions you've had",
         // Nothing is settled here. The capture confirms the payment and
         // closes the sessions it covers inside one database transaction, so

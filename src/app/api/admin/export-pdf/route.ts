@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
   const generatedAt = new Date();
   const pdf = await buildTablePdf({
-    siteName: settings?.site_name ?? "Dr. Pooja's Physio",
+    siteName: settings?.site_name ?? "MoveRestore Physiotherapy",
     title,
     subtitle,
     columns,

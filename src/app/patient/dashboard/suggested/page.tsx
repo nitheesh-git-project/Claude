@@ -9,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Suggested Sessions | Dr. Pooja's Physio",
+  title: "Suggested Sessions | MoveRestore",
 };
 
 // Everything waiting on the patient's answer, in one place.

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SUPPORT_EMAIL } from "@/lib/siteContact";
 
 export const metadata: Metadata = {
-  title: "Approval Pending | Dr. Pooja's Physio",
+  title: "Approval Pending | MoveRestore",
 };
 
 // Both self-serve roles land here now - a therapist waiting on their

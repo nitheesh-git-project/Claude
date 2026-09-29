@@ -1,4 +1,4 @@
-# Dr. Pooja's Physio
+# MoveRestore Physiotherapy
 
 Production web app for a physical therapy practice offering both virtual
 consultations and in-home visits: public marketing site, patient booking and

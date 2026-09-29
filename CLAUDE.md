@@ -1,4 +1,4 @@
-# Dr. Pooja's Physio
+# MoveRestore Physiotherapy
 
 Production Next.js 16 (App Router) + React 19 + TypeScript + Tailwind v4 app
 for a physical therapy practice: public marketing site, patient booking and

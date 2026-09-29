@@ -109,14 +109,14 @@ export const DEFAULT_BOOKING_LANGUAGES = ["English"];
 // Brand & Contact Details' defaults -- the literal strings the Navbar,
 // Footer, and checkout previously hardcoded, kept here as the fallback for
 // a database that hasn't run the migration adding these columns yet.
-export const DEFAULT_SITE_NAME = "Dr. Pooja's Physio";
+export const DEFAULT_SITE_NAME = "MoveRestore Physiotherapy";
 export const DEFAULT_SITE_TAGLINE = "Global Telehealth Platform";
 export const DEFAULT_SITE_DESCRIPTION =
   "Certified global telehealth physical therapy practice, restoring mobility from home.";
 export const DEFAULT_CONTACT_EMAIL = "hello@drpoojaphysio.com";
 export const DEFAULT_WHATSAPP_NUMBER = "+91 XXXXX XXXXX";
 export const DEFAULT_CONTACT_PHONE = "+91 XXXXX XXXXX";
-export const DEFAULT_FOOTER_COPYRIGHT_TEXT = "Dr. Pooja's Physio. All rights reserved.";
+export const DEFAULT_FOOTER_COPYRIGHT_TEXT = "MoveRestore Physiotherapy. All rights reserved.";
 
 // Home Visit's own defaults. The master switch is OFF: this feature needs
 // service areas and a package catalogue configured before it means

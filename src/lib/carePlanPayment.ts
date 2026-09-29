@@ -63,7 +63,7 @@ export async function payForCarePlan({
       amount: orderData.amount,
       currency: orderData.currency,
       order_id: orderData.orderId,
-      name: "Dr. Pooja's Physio",
+      name: "MoveRestore Physiotherapy",
       description,
       prefill: { name, email },
       theme: { color: "#0f766e" },
