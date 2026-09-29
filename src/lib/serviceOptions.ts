@@ -136,6 +136,45 @@ function durationOf(value: unknown): number {
   return n !== null && n > 0 ? n : DEFAULT_SERVICE_DURATION_MINUTES;
 }
 
+/**
+ * The standing fallback condition, by its fixed id.
+ *
+ * `schema.sql` seeds this row and keeps re-seeding it if it is ever deleted
+ * entirely, precisely so "a patient whose issue doesn't match any listed
+ * condition" always has somewhere to go and booking never dead-ends. It is
+ * identified by id rather than by title on purpose -- an admin may rename it,
+ * re-price it or move it in the list, and it is still the same row.
+ */
+export const GENERAL_CONSULTATION_CATEGORY_ID =
+  "00000000-0000-0000-0000-000000000001";
+
+/**
+ * Which condition `/book` opens with.
+ *
+ * Three answers, in order, and the third is the one worth stating:
+ *
+ * 1. **What the link asked for.** `/book?category=<id>` comes from
+ *    `/conditions`, from the patient's own booking screen and from a
+ *    therapist's profile, and it is a decision somebody already made.
+ * 2. **Otherwise the general consultation**, so somebody who tapped a plain
+ *    *Book* button is looking at a bookable session rather than an empty
+ *    control. That is what this row exists for.
+ * 3. **Otherwise nothing.** Never the first row by display order: which
+ *    condition happens to sort first is an admin's ordering decision about a
+ *    *list*, not a statement about what a stranger most likely needs, and a
+ *    booking pre-filled from it would be a choice nobody made. A database
+ *    whose fallback row has been deleted opens the picker unanswered, which
+ *    is honest.
+ */
+export function defaultCategoryId(
+  rows: { id: string }[],
+  requestedId?: string | null
+): string {
+  if (requestedId && rows.some((r) => r.id === requestedId)) return requestedId;
+  const general = rows.find((r) => r.id === GENERAL_CONSULTATION_CATEGORY_ID);
+  return general ? general.id : "";
+}
+
 /** A video consultation, from a treatment category. */
 export function categoryServiceOption(row: CategoryServiceRow): ServiceOption {
   const duration = durationOf(row.duration_minutes);

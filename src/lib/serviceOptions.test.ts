@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   categoryServiceOption,
   homeVisitServiceOption,
+  defaultCategoryId,
   DEFAULT_SERVICE_DURATION_MINUTES,
+  GENERAL_CONSULTATION_CATEGORY_ID,
 } from "./serviceOptions";
 import { focalPosition } from "./catalogImage";
 
@@ -121,6 +123,51 @@ describe("categoryServiceOption", () => {
     expect(o.compareAtPaise).toBeNull();
     expect(o.savingsPaise).toBeNull();
     expect(o.highlight).toBe(false);
+  });
+});
+
+describe("defaultCategoryId", () => {
+  const general = { id: GENERAL_CONSULTATION_CATEGORY_ID };
+  const back = { id: "cat-back" };
+  const knee = { id: "cat-knee" };
+
+  it("honours what the link asked for", () => {
+    expect(defaultCategoryId([back, general, knee], "cat-knee")).toBe("cat-knee");
+  });
+
+  it("opens on the general consultation when the link names none", () => {
+    expect(defaultCategoryId([back, general, knee])).toBe(GENERAL_CONSULTATION_CATEGORY_ID);
+    expect(defaultCategoryId([back, general, knee], null)).toBe(
+      GENERAL_CONSULTATION_CATEGORY_ID
+    );
+    expect(defaultCategoryId([back, general, knee], "")).toBe(
+      GENERAL_CONSULTATION_CATEGORY_ID
+    );
+  });
+
+  // The rule the old comment was right about and this keeps: which condition
+  // sorts first is an ordering decision about a list, and each one carries
+  // its own price, so pre-filling from it books somebody for a concern they
+  // never chose.
+  it("never falls back to the first row when the fallback row is gone", () => {
+    expect(defaultCategoryId([back, knee])).toBe("");
+    expect(defaultCategoryId([])).toBe("");
+  });
+
+  it("ignores a link naming a condition that is not on offer", () => {
+    // A stale bookmark, or a category an admin switched off. It must not
+    // preselect something that is not in the list, and it must still fall
+    // back to the general consultation rather than to nothing.
+    expect(defaultCategoryId([back, general], "cat-deleted")).toBe(
+      GENERAL_CONSULTATION_CATEGORY_ID
+    );
+    expect(defaultCategoryId([back, knee], "cat-deleted")).toBe("");
+  });
+
+  it("finds the fallback wherever it sits in the list", () => {
+    // It is seeded at display_order 999, so it is usually last -- but an
+    // admin can reorder it, and this is keyed on the id either way.
+    expect(defaultCategoryId([general, back, knee])).toBe(GENERAL_CONSULTATION_CATEGORY_ID);
   });
 });
 
