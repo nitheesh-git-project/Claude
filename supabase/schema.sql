@@ -12979,3 +12979,51 @@ $$;
 revoke all on function public.claim_therapist_referral_slot(uuid, uuid, timestamptz, uuid, integer, integer, text[]) from public;
 revoke all on function public.claim_therapist_referral_slot(uuid, uuid, timestamptz, uuid, integer, integer, text[]) from anon;
 revoke all on function public.claim_therapist_referral_slot(uuid, uuid, timestamptz, uuid, integer, integer, text[]) from authenticated;
+
+-- =============================================================================
+-- Audit fixes: the revenue split is frozen when the session is delivered.
+-- =============================================================================
+-- Every money figure that splits a session -- the therapist's cut, a partner
+-- hospital's commission, the clinic's own share -- was computed from the
+-- percentages on `profiles` **as they stand today**. So editing a therapist's
+-- revenue share, or renegotiating a hospital's commission, silently rewrote
+-- every historical figure those two people had already been paid and invoiced
+-- on. A partner reading their own Earnings screen after a renegotiation saw a
+-- different number against sessions delivered months earlier, and nothing on
+-- the screen said why.
+--
+-- This is the same freeze `package_snapshot` and pay later's
+-- `amount_due_paise` already have, applied to the rates: a rate is a term of
+-- the agreement that was in force on the day the work was done, so it is
+-- recorded on the day the work is done.
+--
+-- Stamped at **completion**, deliberately, and not at booking: completion is
+-- what makes a therapist's share payable and a partner's commission earned,
+-- and it is the one event this codebase already treats as the moment the
+-- money becomes real (see complete-session, and pay later's "nothing is owed
+-- until the work is done").
+--
+-- Nullable and never backfilled. A session completed before these existed has
+-- no recorded rate, and inventing one from today's percentage would be the
+-- exact fabrication this column exists to prevent -- so the readers fall back
+-- to the live percentage for those rows and the figure is no worse than it
+-- was. `formatDateTime`'s refusal to backfill `refunded_at` is the same call.
+alter table appointments add column if not exists therapist_share_percent_at_completion numeric(5,2);
+alter table appointments add column if not exists hospital_share_percent_at_completion numeric(5,2);
+-- Which partner earned it. `profiles.referred_by_hospital_id` can be changed
+-- or cleared afterwards, and a commission belongs to whoever the patient was
+-- referred by at the time the session happened.
+alter table appointments add column if not exists hospital_id_at_completion uuid references profiles(id);
+
+-- The rates are percentages, and a rate outside 0-100 is a data error rather
+-- than an unusual agreement. Conditional so every row predating the columns
+-- stays valid.
+alter table appointments drop constraint if exists appointments_completion_shares_sane;
+alter table appointments add constraint appointments_completion_shares_sane
+  check (
+    (therapist_share_percent_at_completion is null
+      or (therapist_share_percent_at_completion >= 0 and therapist_share_percent_at_completion <= 100))
+    and
+    (hospital_share_percent_at_completion is null
+      or (hospital_share_percent_at_completion >= 0 and hospital_share_percent_at_completion <= 100))
+  );

@@ -8,6 +8,7 @@ import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile"
 import { mirrorConsume } from "@/lib/sessionCreditMirror";
 import { allocatePayLaterPayments } from "@/lib/payLaterSettlementServer";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { readSettlementRates } from "@/lib/settlementRates";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
 // the session, or an admin correcting the record - nobody else.
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, status, therapist_id, patient_id, package_purchase_id, home_visit_purchase_id, payment_status, payment_terms, cash_collected_at, slot_time"
+      "id, status, therapist_id, patient_id, package_purchase_id, home_visit_purchase_id, payment_status, payment_terms, cash_collected_at, slot_time, visit_mode"
     )
     .eq("id", appointmentId)
     .single();
@@ -147,6 +148,16 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // The rates in force on the day this session was delivered, read BEFORE
+  // the claim so the claim stays one statement. Best-effort: a failure here
+  // must never stop a therapist closing a session, because completion is
+  // what creates the debt, the revenue and their own pay.
+  const rates = await readSettlementRates(admin, {
+    therapistId: appointment.therapist_id,
+    patientId: appointment.patient_id,
+    isHomeVisit: appointment.visit_mode === "home_visit",
+  });
+
   // Atomic claim, same pattern as cancelAppointmentAndRefund's - the plain
   // read-then-write this used to be let two concurrent requests (e.g. a
   // therapist clicking Done while an admin clicks No-Show, or a patient
@@ -160,7 +171,19 @@ export async function POST(request: NextRequest) {
     // completed_at is stamped here and nowhere else, so "when was this
     // closed" has an answer that does not depend on nothing else having
     // touched the row since.
-    .update({ status: "completed", no_show: !!noShow, completed_at: new Date().toISOString() })
+    .update({
+      status: "completed",
+      no_show: !!noShow,
+      completed_at: new Date().toISOString(),
+      // The revenue-split rates as they stand today, frozen onto the row in
+      // the same write that makes them payable. Read before the claim (see
+      // above) so a failed lookup costs nothing here; a null simply falls
+      // back to the live percentage, as every row predating these columns
+      // does.
+      therapist_share_percent_at_completion: rates.therapistSharePercent,
+      hospital_share_percent_at_completion: rates.hospitalSharePercent,
+      hospital_id_at_completion: rates.hospitalId,
+    })
     .eq("id", appointmentId)
     .eq("status", "confirmed")
     .select("id")

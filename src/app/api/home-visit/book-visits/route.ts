@@ -10,6 +10,8 @@ import {
 } from "@/lib/bookHomeVisitSession";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
+import { clinicWeekKey } from "@/lib/clinicWeek";
+import { readHomeVisitPackageTerms } from "@/lib/packageTerms";
 
 const MAX_NOTES_LENGTH = 1000;
 // Same absolute ceiling as book-package-sessions -- a malformed/hostile
@@ -23,16 +25,6 @@ type SlotResult = {
   appointmentId?: string;
   error?: string;
 };
-
-function isoWeekKey(ms: number): string {
-  const d = new Date(ms);
-  const day = (d.getUTCDay() + 6) % 7;
-  const thursday = new Date(d);
-  thursday.setUTCDate(d.getUTCDate() - day + 3);
-  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
-  return `${thursday.getUTCFullYear()}-W${weekNo}`;
-}
 
 // Bulk-schedules multiple home visits in one request -- the home-visit twin
 // of /api/appointments/book-package-sessions. Every slot goes through the
@@ -125,13 +117,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const [{ data: packageRow }, { data: settingsRow }, { data: existingAppointments }, { data: address }] =
+  // The terms this patient BOUGHT -- see the same correction in
+  // book-package-sessions. An admin editing a home-visit package changed
+  // the minimum gap and the weekly cap under every patient already
+  // part-way through one.
+  const [packageTerms, { data: settingsRow }, { data: existingAppointments }, { data: address }] =
     await Promise.all([
-      admin
-        .from("home_visit_packages")
-        .select("visit_duration_minutes, min_gap_hours, max_visits_per_week")
-        .eq("id", purchase.package_id)
-        .maybeSingle(),
+      readHomeVisitPackageTerms(admin, purchase.id, purchase.package_id),
       admin
         .from("site_settings")
         .select("home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes")
@@ -178,15 +170,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const minGapMs = (packageRow?.min_gap_hours ?? 0) * 3_600_000;
-  const maxPerWeek = packageRow?.max_visits_per_week ?? null;
+  const minGapMs = (packageTerms.minGapHours ?? 0) * 3_600_000;
+  const maxPerWeek = packageTerms.maxSessionsPerWeek ?? null;
 
   const acceptedTimes: number[] = (existingAppointments ?? [])
     .map((a) => (a.slot_time ? new Date(a.slot_time).getTime() : null))
     .filter((t): t is number => t !== null);
   const weekCounts = new Map<string, number>();
   for (const t of acceptedTimes) {
-    const key = isoWeekKey(t);
+    const key = clinicWeekKey(t);
     weekCounts.set(key, (weekCounts.get(key) ?? 0) + 1);
   }
 
@@ -202,11 +194,11 @@ export async function POST(request: NextRequest) {
       results.push({
         slotDateTime: slot.slotDateTime,
         success: false,
-        error: `Too close to another visit on this package (minimum ${packageRow?.min_gap_hours}h gap).`,
+        error: `Too close to another visit on this package (minimum ${packageTerms.minGapHours}h gap).`,
       });
       continue;
     }
-    const weekKey = isoWeekKey(slot.ms);
+    const weekKey = clinicWeekKey(slot.ms);
     if (maxPerWeek !== null && (weekCounts.get(weekKey) ?? 0) >= maxPerWeek) {
       results.push({
         slotDateTime: slot.slotDateTime,
@@ -237,7 +229,7 @@ export async function POST(request: NextRequest) {
       notes,
       actorId: user.id,
       address: addressInput,
-      visitDurationMinutes: packageRow?.visit_duration_minutes ?? null,
+      visitDurationMinutes: packageTerms.sessionDurationMinutes,
       travelBufferMinutes,
     });
 

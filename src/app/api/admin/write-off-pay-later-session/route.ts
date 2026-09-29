@@ -12,6 +12,7 @@ import {
   writeOffDescription,
   WRITE_OFF_REASON_MIN_CHARS,
 } from "@/lib/payLaterWriteOff";
+import { clinicDateKey } from "@/lib/clinicWeek";
 
 // Forgiving what a trusted patient owes for a session -- and taking that back.
 //
@@ -164,7 +165,12 @@ async function writeOff({
   // the cost, and back-dating it into a month somebody has already read moves
   // a profit figure under them -- the same reasoning that keeps `refunded_at`
   // un-backfilled.
-  const incurredOn = new Date().toISOString().slice(0, 10);
+  //
+  // "Today" is the clinic's today. `toISOString()` gives UTC's, so a
+  // write-off decided between midnight and 05:29 IST was dated to the
+  // previous day -- and one decided on the 1st of a month landed in the
+  // month before, moving exactly the profit figure this comment is about.
+  const incurredOn = clinicDateKey(Date.now());
   const base = {
     incurred_on: incurredOn,
     category: BAD_DEBT_EXPENSE_CATEGORY,

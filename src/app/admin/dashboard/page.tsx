@@ -763,6 +763,7 @@ export default async function AdminDashboardPage({
     payLaterFeatureEnabled,
     payLaterPatients,
     payLaterRows,
+    completionRateRows,
     payLaterSettlementRows,
     payLaterReconciliation,
     payLaterPoolRows,
@@ -1036,6 +1037,31 @@ export default async function AdminDashboardPage({
           }[]
         | null
     ),
+    // The revenue-split rates frozen onto each session when it was
+    // delivered. Its own isolated read for the usual reason -- these are the
+    // newest columns on `appointments`, and folding them into the shared
+    // select would blank every money figure on a database that has not run
+    // the migration. Absent, every session falls back to the live
+    // percentage, which is exactly how all of them behaved before.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("appointments")
+            .select(
+              "id, therapist_share_percent_at_completion, hospital_share_percent_at_completion, hospital_id_at_completion"
+            )
+            .eq("status", "completed")
+        ).data,
+      null as
+        | {
+            id: string;
+            therapist_share_percent_at_completion: number | null;
+            hospital_share_percent_at_completion: number | null;
+            hospital_id_at_completion: string | null;
+          }[]
+        | null
+    ),
     // Payments a patient says they have made, waiting to be checked. Its own
     // read, like everything else in this block: `pay_later_payments` is the
     // newest table in the app, and a database without it loses this one panel
@@ -1259,6 +1285,9 @@ export default async function AdminDashboardPage({
 
   const refundDetailById = new Map((refundDetailRows ?? []).map((r) => [r.id, r]));
   const payLaterById = new Map((payLaterRows ?? []).map((r) => [r.id, r]));
+  const completionRatesById = new Map(
+    (completionRateRows ?? []).map((r) => [r.id, r])
+  );
 
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
@@ -1277,6 +1306,10 @@ export default async function AdminDashboardPage({
     const refund = refundDetailById.get(a.id);
     // And the same again for the pay-later columns, which are newer still.
     const terms = payLaterById.get(a.id);
+    // And the frozen revenue-split rates, newer again. Merged rather than
+    // selected so a missing migration costs the freeze and nothing else --
+    // the money maths falls back to the live percentage per row.
+    const frozenRates = completionRatesById.get(a.id);
     const withTerms = terms
       ? {
           ...a,
@@ -1285,14 +1318,24 @@ export default async function AdminDashboardPage({
           pay_later_outcome: terms.pay_later_outcome,
         }
       : a;
-    const withRefund = refund
+    const withRates = frozenRates
       ? {
           ...withTerms,
+          therapist_share_percent_at_completion:
+            frozenRates.therapist_share_percent_at_completion,
+          hospital_share_percent_at_completion:
+            frozenRates.hospital_share_percent_at_completion,
+          hospital_id_at_completion: frozenRates.hospital_id_at_completion,
+        }
+      : withTerms;
+    const withRefund = refund
+      ? {
+          ...withRates,
           refunded_at: refund.refunded_at,
           refund_reason: refund.refund_reason,
           refund_id: refund.refund_id,
         }
-      : withTerms;
+      : withRates;
     return discount
       ? {
           ...withRefund,
