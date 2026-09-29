@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { createClient } from "@/lib/supabase/client";
-import { lastLocalRefreshAtMs } from "@/lib/refreshSignal";
+import { isEventCoveredByLocalRefresh } from "@/lib/refreshSignal";
 import { useLiveUpdates } from "@/lib/liveUpdates";
 
 // Keeps an already-open dashboard in sync with other users' actions (a
@@ -74,17 +74,22 @@ export default function RealtimeRefresh({
     const supabase = createClient();
     const channel = supabase.channel(`realtime-refresh:${tablesKey}`);
 
-    // Fires unless this browser has already re-fetched since the change
-    // landed. Most events on the admin dashboard are its own work coming
-    // back -- the row a control just changed, and the admin_activity_log
+    // Fires unless this browser's own refreshing has already read the write
+    // behind the change. Most events on the admin dashboard are its own work
+    // coming back -- the row a control just changed, and the admin_activity_log
     // entry describing it -- and the control called router.refresh() itself,
-    // so rebuilding again reads nothing new (see src/lib/refreshSignal.ts).
-    // The suppression is one-way: an event arriving *during* an in-flight
-    // refresh is newer than that refresh's start, so it still fires.
+    // so acting again says nothing new (see src/lib/refreshCoverage.ts).
+    //
+    // A refresh is a **window**, not an instant. Comparing against its start
+    // alone could never catch that case: the route commits, the response
+    // returns, the control refreshes, and only *then* does the event arrive,
+    // so it was always newer than the refresh meant to cover it -- which is
+    // why every admin action added one to the Refresh button's badge their own
+    // refresh had just cleared.
     const fire = () => {
       const newestEventAt = lastEventAtRef.current;
       lastEventAtRef.current = null;
-      if (newestEventAt !== null && lastLocalRefreshAtMs() > newestEventAt) return;
+      if (newestEventAt !== null && isEventCoveredByLocalRefresh(newestEventAt)) return;
       // Only a refresh that actually happens starts a cooldown. Counting a
       // skipped one would hold the next genuine change off for up to
       // cooldownMs -- 30 seconds on the catalog channel -- for a rebuild
