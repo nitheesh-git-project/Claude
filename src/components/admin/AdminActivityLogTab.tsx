@@ -11,6 +11,7 @@ import ActivityDetailDialog, {
   describeAction,
   formatWhen,
 } from "@/components/admin/ActivityDetailDialog";
+import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
 
 // Who did what, for one desk.
@@ -145,24 +146,24 @@ export default function AdminActivityLogTab({
             </option>
           ))}
         </select>
-        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
           From
-          <input
-            type="date"
+          <DateField
             value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white p-2 text-xs"
+            onChange={setFromDate}
+            ariaLabel="From date"
+            className="w-36"
           />
-        </label>
-        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
           To
-          <input
-            type="date"
+          <DateField
             value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white p-2 text-xs"
+            onChange={setToDate}
+            ariaLabel="To date"
+            className="w-36"
           />
-        </label>
+        </div>
         <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
           <input
             type="checkbox"

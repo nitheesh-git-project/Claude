@@ -25,6 +25,7 @@ import {
   expensesByCategory,
   sumExpensesPaise,
 } from "@/lib/operatingCosts";
+import DateField from "@/components/system/DateField";
 
 /** One line each on what this rule is for, in the admin's own words. */
 const DISCOUNT_SOURCE_NOTES: Record<DiscountSource, string> = {
@@ -131,6 +132,11 @@ export default function AdminCostsTab({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!incurredOn) {
+      setError("Pick the date this cost was incurred.");
+      return;
+    }
 
     const rupees = Number(amountRupees);
     if (!Number.isFinite(rupees) || rupees <= 0) {
@@ -344,16 +350,19 @@ export default function AdminCostsTab({
         subtitle="Salaries, rent, software, anything the clinic pays for. These come off the clinic's share on Summary to give the real profit."
       >
         <form onSubmit={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <label className="flex flex-col gap-1 text-xs">
+          <div className="flex flex-col gap-1 text-xs">
             <span className="font-semibold text-slate-500">Date incurred</span>
-            <input
-              type="date"
-              required
+            {/* The `required` attribute went with the native input -- a button
+                cannot carry one -- so the check moved into submit() below,
+                where it answers in the clinic's own words rather than the
+                browser's. */}
+            <DateField
               value={incurredOn}
-              onChange={(e) => setIncurredOn(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+              onChange={setIncurredOn}
+              ariaLabel="Date incurred"
+              clearable={false}
             />
-          </label>
+          </div>
           <label className="flex flex-col gap-1 text-xs">
             <span className="font-semibold text-slate-500">Category</span>
             <select

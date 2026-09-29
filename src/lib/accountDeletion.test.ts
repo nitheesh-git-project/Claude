@@ -7,6 +7,7 @@ import {
   NO_ACCOUNT_REFERENCES,
   countAccountReferences,
   describeAccountBlockers,
+  describeRefusedDelete,
   type AccountReferences,
 } from "@/lib/accountDeletion";
 
@@ -52,6 +53,30 @@ describe("describeAccountBlockers", () => {
     expect(result?.total).toBe(23);
   });
 
+  // A table with a blocking foreign key and no word for it yet still has to
+  // be counted and named as *something*. Folding it into the nearest group
+  // would send an admin to the wrong screen to clear it.
+  it("counts a reference it has no word for rather than dropping it", () => {
+    const result = describeAccountBlockers(refs({ other: 2 }), "Asha");
+    expect(result?.message).toContain("2 other records");
+    expect(result?.total).toBe(2);
+  });
+
+  it("pluralises the catch-all group on its own count", () => {
+    const result = describeAccountBlockers(refs({ other: 1 }), "Asha");
+    expect(result?.message).toContain("1 other record");
+    expect(result?.message).not.toContain("1 other records");
+  });
+
+  it("puts the catch-all last, after every group that has a name", () => {
+    const result = describeAccountBlockers(refs({ sessions: 1, other: 1 }), "Asha");
+    expect(result?.message).toContain("1 session and 1 other record");
+  });
+
+  it("counts the catch-all in the total", () => {
+    expect(countAccountReferences(refs({ sessions: 2, other: 3 }))).toBe(5);
+  });
+
   it("reads as a sentence, with 'and' before the last group", () => {
     const result = describeAccountBlockers(refs({ sessions: 1, money: 1 }), "Asha");
     expect(result?.message).toContain("1 session and 1 money record");
@@ -82,5 +107,42 @@ describe("the refusals that are not about history", () => {
     // neither may be reported as success.
     expect(ACCOUNT_ALREADY_GONE).not.toEqual(ACCOUNT_DELETE_REFUSED);
     expect(ACCOUNT_DELETE_REFUSED).toMatch(/Nothing has changed/i);
+  });
+});
+
+describe("what the database itself refused", () => {
+  it("names the table when there is one", () => {
+    const message = describeRefusedDelete("storage.objects");
+    expect(message).toContain("storage.objects");
+    // Never the old sentence: "did not say why" is what this replaced.
+    expect(message).not.toContain("did not say why");
+    // The alternative is still offered, because it is still what they want.
+    expect(message).toContain("suspend");
+  });
+
+  it("falls back to the old sentence when nothing was named", () => {
+    // A refusal with no table is still possible -- a guard that raises its own
+    // message rather than violating a constraint -- and inventing a name for
+    // it would be worse than saying so.
+    for (const empty of [null, undefined, "", "   "]) {
+      expect(describeRefusedDelete(empty)).toBe(ACCOUNT_DELETE_REFUSED);
+    }
+  });
+});
+
+describe("uploaded files are their own blocker", () => {
+  it("names them rather than folding them into other records", () => {
+    // The commonest blocker of all -- storage.objects references
+    // auth.users(id), so every account that uploaded an avatar has one -- and
+    // the only one an admin can clear themselves.
+    const blockers = describeAccountBlockers({ ...NO_ACCOUNT_REFERENCES, files: 2 }, "Asha");
+    expect(blockers?.message).toContain("2 uploaded files");
+    expect(blockers?.total).toBe(2);
+  });
+
+  it("counts toward the total like every other group", () => {
+    expect(
+      countAccountReferences({ ...NO_ACCOUNT_REFERENCES, files: 3, sessions: 1 })
+    ).toBe(4);
   });
 });

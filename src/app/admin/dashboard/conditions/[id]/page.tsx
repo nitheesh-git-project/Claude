@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import ConditionDetailContent from "@/components/admin/ConditionDetailContent";
-import AdminDetailFrame from "@/components/admin/AdminDetailFrame";
+import AdminDetailDashboard from "@/components/admin/AdminDetailDashboard";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
 
 export const metadata: Metadata = {
@@ -12,23 +12,23 @@ export const metadata: Metadata = {
 // client-side navigation, so a reload, a shared link, a new tab and the
 // router.refresh() an action inside the overlay fires all land here -- which
 // is why it has to look like the back office rather than like a different,
-// plainer site. See AdminDetailFrame.
+// plainer site. See AdminDetailDashboard.
 export default async function Page({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  // The proxy already guards this route tree; this is for the scope, which
-  // decides which sections the frame offers. A session that has lapsed
-  // between the two goes to the login rather than rendering a frame with no
-  // navigation in it.
+  // The proxy already guards this route tree. This is the session that
+  // lapsed between the proxy and here: the dashboard answers a missing user
+  // with an empty render, which would paint an overlay over nothing, so the
+  // login is the honest destination.
   const admin = await getAdminContext();
   if (!admin) redirect("/admin/login");
 
   return (
-    <AdminDetailFrame scope={admin.scope} title="Patient condition">
+    <AdminDetailDashboard section="people" tab="patients">
       <ConditionDetailContent id={id} />
-    </AdminDetailFrame>
+    </AdminDetailDashboard>
   );
 }

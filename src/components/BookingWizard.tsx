@@ -25,6 +25,8 @@ import {
 } from "@/lib/bookingSlots";
 import { debugNow } from "@/lib/debugNow";
 import { describeCancellationWindow } from "@/lib/cancellationWindow";
+import SpecialtyChip from "@/components/SpecialtyChip";
+import { specialtyLabel } from "@/lib/therapistSpecialties";
 
 type Category = {
   id: string;
@@ -199,7 +201,7 @@ export default function BookingWizard({
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
   const [previousTherapists, setPreviousTherapists] = useState<
-    { id: string; full_name: string }[]
+    { id: string; full_name: string; specialization?: string | null }[]
   >([]);
   const [preferredTherapistId, setPreferredTherapistId] = useState("");
 
@@ -222,6 +224,7 @@ export default function BookingWizard({
     id: string;
     full_name: string | null;
     credentials: string | null;
+    specialization: string | null;
   } | null>(null);
 
   // /book sells one session. It used to sell multi-session programmes too,
@@ -286,7 +289,7 @@ export default function BookingWizard({
     let cancelled = false;
     supabase
       .from("public_therapist_profiles")
-      .select("id, full_name, credentials")
+      .select("id, full_name, credentials, specialization")
       .eq("id", therapistIdParam)
       .maybeSingle()
       .then(({ data }) => {
@@ -1003,6 +1006,13 @@ export default function BookingWizard({
                       {requestedTherapist.credentials}
                     </p>
                   )}
+                  {/* The same chip /team showed them a tap ago. Carrying it
+                      through is what makes this card read as the person
+                      they chose rather than as a name the URL happened to
+                      carry. */}
+                  <span className="mt-1 block">
+                    <SpecialtyChip specialization={requestedTherapist.specialization} />
+                  </span>
                   <p className="mt-1.5 text-[11px] leading-relaxed text-teal-800">
                     We&apos;ll book you with them if they&apos;re free at your chosen time.
                     If not, another specialist takes the session and you&apos;ll see who
@@ -1039,7 +1049,9 @@ export default function BookingWizard({
                 <option value="">No preference - any available specialist</option>
                 {previousTherapists.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.full_name}
+                    {specialtyLabel(t.specialization)
+                      ? `${t.full_name} - ${specialtyLabel(t.specialization)}`
+                      : t.full_name}
                   </option>
                 ))}
               </select>

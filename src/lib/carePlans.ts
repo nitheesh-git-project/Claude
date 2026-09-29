@@ -85,6 +85,10 @@ export function buildOfferSnapshot(
     minGapHours: num(row.min_gap_hours),
     maxPerWeek: num(isHomeVisit ? row.max_visits_per_week : row.max_sessions_per_week),
     therapistLocked: row.therapist_locked !== false,
+    // Home-visit packages only. A session package's `terms` column is gone
+    // -- it was fine print for a public programme card this app no longer
+    // renders, and it reached no screen through this snapshot either. The
+    // field stays on the type because versions already written carry it.
     terms: typeof row.terms === "string" ? row.terms : null,
     travelFeeIncluded: isHomeVisit && row.travel_fee_included === true,
   };

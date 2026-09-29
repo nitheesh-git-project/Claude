@@ -51,9 +51,9 @@ export type HomeVisitPackagePayload = {
   maxPurchasesPerPatient?: number | string | null;
   categoryId?: string | null;
   displayOrder?: number | string;
-  visibleOnHome?: boolean;
   visibleOnHomeVisitPage?: boolean;
   visibleInDashboard?: boolean;
+  recommendable?: boolean;
   active?: boolean;
 };
 
@@ -78,9 +78,9 @@ export type HomeVisitPackageColumns = {
   max_purchases_per_patient: number | null;
   category_id: string | null;
   display_order: number;
-  visible_on_home: boolean;
   visible_on_home_visit_page: boolean;
   visible_in_dashboard: boolean;
+  recommendable: boolean;
   active: boolean;
 };
 
@@ -276,11 +276,11 @@ export function validateHomeVisitPackagePayload(
     columns.display_order = Math.round(order);
   }
 
-  if (body.visibleOnHome !== undefined) columns.visible_on_home = Boolean(body.visibleOnHome);
   if (body.visibleOnHomeVisitPage !== undefined)
     columns.visible_on_home_visit_page = Boolean(body.visibleOnHomeVisitPage);
   if (body.visibleInDashboard !== undefined)
     columns.visible_in_dashboard = Boolean(body.visibleInDashboard);
+  if (body.recommendable !== undefined) columns.recommendable = Boolean(body.recommendable);
   if (body.active !== undefined) columns.active = Boolean(body.active);
 
   return { columns };

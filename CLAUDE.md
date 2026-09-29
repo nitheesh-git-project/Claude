@@ -192,6 +192,106 @@ public and the bar names `/admin/login` and `/admin/dashboard`. The
 database-wipe flag (`ALLOW_DEBUG_DATA_RESET`) is a separate, server-only
 thing and stays unset.
 
+**Nothing the browser draws itself speaks to a person.** A blank `required`
+box used to be answered by the operating system's own grey tooltip, which is
+the one piece of UI here nobody designed - it arrives with the attribute,
+reads like a form from 2005 and looks different on every browser.
+`FormValidationChrome`, mounted once in the root layout, suppresses it and
+renders the clinic's own message anchored to the field with a red ring on
+it; the wording is `src/lib/formValidationMessage.ts`, which names the field
+from its own label and says what an acceptable value would look like. It is
+one listener at the root rather than an edit to every form, so a form nobody
+has touched - including the next one written - is covered. `window.confirm`
+is the same rule one control over and `useConfirm` is its replacement. See
+the browser-defaults rule in `AGENTS.md`.
+**A number box takes digits too.** The browser's own `type="number"` accepts
+`e`, `E` and `+`, then reports the box as empty - which is what made the
+condition form's Order field take one letter and refuse the rest.
+`NumericInputGuard` is the other root listener, reading each field's own
+`step` and `min` so a price keeps its decimal while a count does not, and
+the two treatment-category routes refuse an order that is not a whole
+number of 0 or more. Order itself now says what it decides: where the
+condition sits in the list, lowest first.
+**And a date is picked from the clinic's own calendar, everywhere.** The third
+of these, and the largest: twenty-eight `<input type="date">` and
+`datetime-local` boxes - every report filter, the promo window, a document's
+date, the roster's exceptions and leave - handed the choice to a panel the
+browser draws, which looks and reads differently on every browser and every
+phone. `DateField` (`src/components/system/DateField.tsx`) opens the app's one
+month grid instead: the same `BookingCalendar` that books a session, taught an
+optional `bounds` so it can offer a past date, with `src/lib/dateFieldValue.ts`
+emitting byte-for-byte what the native inputs emitted so no query, parse or
+route body changed. `src/components/DebugNav.tsx` is the one exemption, and
+`nativeDateInput.test.ts` walks `src/` for the next one.
+
+**A tap is acknowledged, and a screen already on the page is not fetched
+again.** Tapping a Today count used to be an ordinary link to
+`/admin/dashboard?section=...`, which rebuilt the whole dashboard from ~49
+queries to show a screen already in the DOM - seconds of silence, then a
+jump. `AdminScreenLink` hands those to the shell's own navigate, so they
+switch in place as the sidebar does, and `LinkProgress` (one listener in the
+root layout) draws the teal bar for every other link in the app, whoever
+wrote it. See the navigation rule in `AGENTS.md`.
+
+**A patient's or therapist's own page is the dashboard, not a page that
+looks like it.** Those details are an overlay over whatever screen you were
+on, and a reload, a new tab, a shared link or a refresh lands on the real
+route instead. That route used to wear a reduced frame -- same rail, no
+badges, no search -- which read as being thrown out of the back office onto
+a plainer site, and it was reported from the one flow that refreshes:
+reassigning a session from a therapist's profile. It renders the dashboard
+itself now (`AdminDetailDashboard`) with the same overlay on top, and
+closing is a URL change rather than a rebuild of a screen already on view.
+See the intercepted-overlay rule in `AGENTS.md`.
+
+**And the sessions on that page are listed by when they are, not by when they
+were booked.** Booking History and Assigned Sessions were ordered by
+`created_at`, which is the order session codes are handed out in -- so the
+list read as being sorted by session ID, and a session rescheduled to next
+month stayed wherever it was first booked. `src/lib/sessionOrdering.ts` is
+the one answer: the session's own `slot_time`, newest first, a session with no
+slot agreed yet last, ties broken on the booking time. It is applied in the
+one component that renders that list on both profiles, so the two screens
+cannot disagree. The money lists beside it still run by when the money moved.
+See the session-order rule in `AGENTS.md`.
+
+**And every account says when it was created, with the time on it.**
+`profiles.created_at` was the date alone on the patient and therapist detail
+headers, date and time on the People directory, and absent from the Partners
+card and the approvals queue although both queries had always selected it.
+One helper now, `formatClinicDateTimeWithZone` -- the old `formatIST.ts`
+folded into `formatDateTime.ts`, keeping the `IST` suffix because this is the
+one figure read down a phone line rather than off the screen it is printed on
+-- on all of those plus each role's own Edit Profile screen, through
+`AccountCreatedNote`. It shows nothing rather than a dash when the stamp is
+missing. See the account-stamp rule in `AGENTS.md`.
+
+**An account is deleted only when nothing points at it, and what points at
+it is asked of the database.** The route kept a hand-written list of the
+columns that refuse a delete; 35 foreign keys into `profiles` block one and
+the list named 13, so for the rest the screen offered a delete the database
+then refused with "did not say why". `account_blocking_references()` reads
+`pg_constraint` instead, so a table added tomorrow is counted the day it
+arrives. Underneath that sat a second fault: the Master Admin guard ran as
+its caller, and the caller for a delete is GoTrue's own role, which cannot
+read `profiles` -- so **no admin account could be deleted at all**. It is
+`security definer` now. And a third: the counter asked about `profiles` while
+the delete removes the `auth.users` row, so anything pointing at **that** --
+`storage.objects.owner`, which every account with an uploaded avatar carries --
+refused while the screen reported nothing in the way, which is the "did not say
+why" sentence back again. It counts both tables now, uploaded files get their
+own word, and `admin_delete_account()` names the table and constraint that
+refused instead of handing back GoTrue's empty 500. See the account-deletion
+rules in `AGENTS.md`.
+
+**Marking an out-of-area request served offers to open the area.** The
+waitlist is demand the clinic turned away, and tapping *served* used to move
+a word while the pincode stayed unserved - so the next patient from that
+street met the same refusal. It asks first now, prefilled from the request
+and from what the clinic already charges in that city, with two answers:
+open the area and mark it served, or mark it served alone. See the waitlist
+rule in `AGENTS.md`.
+
 The health profile is **per specialty**: a condition profile carries
 `specialty` (`ortho`, `neuro`, `pediatrics`), and that decides its seven
 questions, its summary card, its snapshot figures and its progress line.
@@ -219,8 +319,33 @@ therapists rather than a calendar date and an eighteen-column grid. The
 storage model behind it is unchanged -- `src/lib/availabilityRanges.ts`
 converts between periods and the hour rows the tables have always held. The
 roster is the clinic's planning record; it does not filter the patient's
-booking picker, and availability never touches an appointment. See the
-"Nobody edits an hour" rule in `AGENTS.md`.
+booking picker, and availability never touches an appointment. It **reads both
+ways round**: Therapists, or a Day view answering "who is free on Thursday, and
+which of their hours are taken" - one date against every therapist, which
+nothing in the app joined before (`src/lib/rosterDay.ts`, composing the same
+`computeDayAvailability` rather than re-deriving it, and read-only like the rest
+of the roster). The schedule **opens read-only with an Edit button**, so reading
+somebody's hours and changing them are no longer one act. And a therapist who
+has never been saved asks for no compare-and-swap: a missing
+`therapist_schedule_state` row is `null`, not version `0`, which is what made
+the *first* save for every therapist answer "this schedule was changed by
+someone else". See the "Nobody edits an hour" rule in `AGENTS.md`.
+
+A therapist carries a **specialisation**, and it is a value rather than a
+sentence: the eight the clinic recognises live in
+`src/lib/therapistSpecialties.ts`, the column stores the canonical label
+("Orthopaedic", never "ortho"), and free text written before that list
+existed still renders exactly as its author wrote it and files under
+"Something else". It is asked for on the public application form and on
+User Access's create-account form, editable by the therapist through the
+ordinary admin review, and shown wherever that therapist is -- /team and the
+booking wizard's requested-therapist card, the admin's therapist directory,
+detail page, roster and approvals queue, and every picker that assigns one.
+People -> Therapists carries a **filter by specialisation** built from the
+people on screen, so an option matching nobody is never offered. Nothing is
+shown for a therapist who has not said: a chip reading "Unknown" on every
+such profile is a label on an absence. See the specialisation rule in
+`AGENTS.md`.
 
 Nobody is admitted to a session by hand. Meet's default access admits only
 signed-in Google users who are on the invite and makes everyone else knock,

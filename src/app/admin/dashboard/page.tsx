@@ -21,6 +21,7 @@ import AdminLogRetentionTab from "@/components/admin/AdminLogRetentionTab";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
 import AdminCostsTab from "@/components/admin/AdminCostsTab";
 import { istDateKey } from "@/lib/formatSlotRange";
+import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { sumDiscountsGiven } from "@/lib/discounts";
 import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
 import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
@@ -94,6 +95,7 @@ import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
 import AdminPayoutRequestsTab, { type PayoutRequestRow } from "@/components/admin/AdminPayoutRequestsTab";
 import AdminPaymentHistoryTab from "@/components/admin/AdminPaymentHistoryTab";
 import AdminRosterTab from "@/components/admin/AdminRosterTab";
+import SpecialtyChip from "@/components/SpecialtyChip";
 import LeadStatusButtons from "@/components/admin/LeadStatusButtons";
 import DeclineReferralButton from "@/components/admin/DeclineReferralButton";
 import ReferralCapacityNoteForm from "@/components/admin/ReferralCapacityNoteForm";
@@ -308,7 +310,11 @@ export default async function AdminDashboardPage({
     // (the admin vetted them when issuing the invite).
     admin
       .from("profiles")
-      .select("id, role, full_name, email, phone, credentials, avatar_url, created_at")
+      // specialization comes along because an application now carries one:
+      // "who is this person for?" is half of the credentials check this
+      // queue exists to make, and it was answerable only by approving them
+      // first and opening their profile.
+      .select("id, role, full_name, email, phone, credentials, specialization, avatar_url, created_at")
       .in("role", ["therapist", "patient"])
       .eq("approved", false)
       .order("created_at", { ascending: false }),
@@ -329,7 +335,10 @@ export default async function AdminDashboardPage({
     // preserve.
     admin
       .from("profiles")
-      .select("id, full_name, active")
+      // specialization rides along so every picker built from this list can
+      // say what each therapist takes -- a dropdown of eight names is not
+      // enough to choose between them for a stroke patient.
+      .select("id, full_name, active, specialization")
       .eq("role", "therapist")
       .eq("approved", true)
       .order("full_name"),
@@ -488,7 +497,7 @@ export default async function AdminDashboardPage({
     admin
       .from("treatment_category_packages")
       .select(
-        "id, package_code, category_id, title, subtitle, description, image_url, promises, badge_label, highlight, terms, session_count, price_paise, compare_at_paise, display_order, therapist_rate_basis, validity_days, session_duration_minutes, therapist_locked, min_gap_hours, max_sessions_per_week, max_purchases_per_patient, visible_on_home, visible_on_conditions, visible_in_dashboard, active"
+        "id, package_code, category_id, title, subtitle, description, image_url, promises, session_count, price_paise, compare_at_paise, display_order, therapist_rate_basis, validity_days, session_duration_minutes, therapist_locked, min_gap_hours, max_sessions_per_week, max_purchases_per_patient, recommendable, active"
       )
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),
@@ -549,7 +558,7 @@ export default async function AdminDashboardPage({
     admin
       .from("home_visit_packages")
       .select(
-        "id, package_code, title, subtitle, description, image_url, benefits, badge_label, highlight, terms, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked, min_gap_hours, max_visits_per_week, max_purchases_per_patient, category_id, display_order, visible_on_home, visible_on_home_visit_page, visible_in_dashboard, active"
+        "id, package_code, title, subtitle, description, image_url, benefits, badge_label, highlight, terms, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked, min_gap_hours, max_visits_per_week, max_purchases_per_patient, category_id, display_order, visible_on_home_visit_page, visible_in_dashboard, recommendable, active"
       )
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),
@@ -1535,6 +1544,18 @@ export default async function AdminDashboardPage({
                       {isTherapist && p.credentials && (
                         <p className="text-slate-500 mt-1">{p.credentials}</p>
                       )}
+                      {isTherapist && (
+                        <span className="mt-1.5 block">
+                          <SpecialtyChip specialization={p.specialization} />
+                        </span>
+                      )}
+                      {/* How long they have waited. The query has always
+                          ordered on this column and never printed it, so the
+                          one queue whose rows get more urgent the longer they
+                          sit was the one with no date on it. */}
+                      <p className="text-slate-500 mt-1">
+                        Registered {formatClinicDateTimeWithZone(p.created_at)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1648,27 +1669,41 @@ export default async function AdminDashboardPage({
               id: lead.id,
               group: lead.status,
               node: (
-              <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <p className="font-bold text-slate-900">{lead.name}</p>
-                    <p className="text-slate-500">{lead.phone}</p>
-                    <p className="text-slate-500">{lead.email}</p>
-                  </div>
+              <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-3">
+                <div className="flex items-start justify-between flex-wrap gap-2">
+                  <p className="font-bold text-slate-900">{lead.name}</p>
                   <span className="capitalize font-semibold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
                     {lead.status}
                   </span>
                 </div>
-                <p className="text-slate-600">
-                  <span className="text-slate-500">Source:</span> {lead.source}
+                {/* Each answer on its own labelled row, and the enquiry itself
+                    with its line breaks intact.
+                    
+                    `org_details` is written by a **textarea** on the public
+                    form, so somebody typing an organisation, a role and an
+                    official email on three lines had all three joined onto one
+                    with "Source:" in front of them -- the whole enquiry read as
+                    a single run-on sentence on the screen the clinic decides
+                    whether to onboard them from. `whitespace-pre-line` is what
+                    keeps what they typed. */}
+                <dl className="grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1.5">
+                  <dt className="font-semibold text-slate-500">Phone</dt>
+                  <dd className="text-slate-800">{lead.phone || "-"}</dd>
+                  <dt className="font-semibold text-slate-500">Email</dt>
+                  <dd className="text-slate-800 break-all">{lead.email || "-"}</dd>
+                  <dt className="font-semibold text-slate-500">Source</dt>
+                  <dd className="text-slate-800">{lead.source}</dd>
+                  <dt className="font-semibold text-slate-500">Received</dt>
+                  <dd className="text-slate-800">
+                    {formatClinicDateTimeWithZone(lead.created_at)}
+                  </dd>
                   {lead.org_details && (
                     <>
-                      {" "}
-                      - <span className="text-slate-500">Details:</span>{" "}
-                      {lead.org_details}
+                      <dt className="font-semibold text-slate-500">Details</dt>
+                      <dd className="whitespace-pre-line text-slate-800">{lead.org_details}</dd>
                     </>
                   )}
-                </p>
+                </dl>
                 {lead.status !== "onboarded" && (
                   <div className="flex items-center gap-3 flex-wrap">
                     <OnboardHospitalForm
@@ -1742,9 +1777,28 @@ export default async function AdminDashboardPage({
                           </span>
                         )}
                       </div>
-                      <p className="text-slate-500">
-                        {h.full_name} • {h.email}
-                      </p>
+                      {/* Labelled rows rather than a run-on line. "Dr V.
+                          Sharma • dr.sharma@hospital.com" reads as one field
+                          somebody typed a bullet into, and the onboarding
+                          stamp had nothing naming it at all -- the same
+                          complaint the lead card above it answers.
+                          
+                          The creation stamp itself was missing entirely until
+                          now, although the query has always selected the
+                          column: "when did we onboard them" was answerable
+                          only from the audit log, since patients and
+                          therapists read theirs off the People directory and
+                          that has no Partners view. */}
+                      <dl className="mt-1 grid grid-cols-[5rem_1fr] gap-x-3 gap-y-1">
+                        <dt className="font-semibold text-slate-500">Contact</dt>
+                        <dd className="text-slate-800">{h.full_name ?? "-"}</dd>
+                        <dt className="font-semibold text-slate-500">Email</dt>
+                        <dd className="text-slate-800 break-all">{h.email ?? "-"}</dd>
+                        <dt className="font-semibold text-slate-500">Onboarded</dt>
+                        <dd className="text-slate-800">
+                          {formatClinicDateTimeWithZone(h.created_at)}
+                        </dd>
+                      </dl>
                     </div>
                     <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
                       {h.referral_code}
@@ -2162,6 +2216,9 @@ export default async function AdminDashboardPage({
             approved: t.approved,
             created_at: t.created_at,
             code: roleCodeMap.get(t.id)?.therapist_code ?? null,
+            // Passing it at all is what puts the specialisation filter and
+            // column on this directory rather than the patients one.
+            specialization: t.specialization ?? null,
           }))}
         />
       )}
@@ -2220,7 +2277,11 @@ export default async function AdminDashboardPage({
   const newBookingTab = (
     <AdminNewBookingTab
       patients={patients.map((p) => ({ id: p.id, full_name: p.full_name, email: p.email }))}
-      therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+      therapists={activeApprovedTherapists.map((t) => ({
+        id: t.id,
+        full_name: t.full_name,
+        specialization: t.specialization ?? null,
+      }))}
       categories={categoriesForReassign}
       leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
     />
@@ -2630,6 +2691,7 @@ export default async function AdminDashboardPage({
       therapists={allTherapists.map((t) => ({
         id: t.id,
         full_name: t.full_name,
+        specialization: t.specialization ?? null,
         timezone: t.timezone,
         on_leave: onLeaveMap.get(t.id) ?? false,
         on_leave_from: leaveDetailById.get(t.id)?.from ?? null,
@@ -2710,6 +2772,9 @@ export default async function AdminDashboardPage({
             id: c.id,
             title: c.title,
             price_paise: c.price_paise,
+            // Passed so the picker can say which conditions are switched
+            // off rather than offering them as though they were on sale.
+            active: c.active,
           }))}
         />
       </div>
@@ -2806,7 +2871,11 @@ export default async function AdminDashboardPage({
           purchases={packagePurchaseRows}
           packages={(packages ?? []).map((p) => ({ id: p.id, title: p.title }))}
           categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
-          therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+          therapists={activeApprovedTherapists.map((t) => ({
+            id: t.id,
+            full_name: t.full_name,
+            specialization: t.specialization ?? null,
+          }))}
         />
       </div>
 
@@ -2821,7 +2890,11 @@ export default async function AdminDashboardPage({
           canSeeMoney={canSeeMoney}
           purchases={homeVisitPurchaseRows}
           packages={(homeVisitPackages ?? []).map((p) => ({ id: p.id, title: p.title }))}
-          therapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+          therapists={activeApprovedTherapists.map((t) => ({
+            id: t.id,
+            full_name: t.full_name,
+            specialization: t.specialization ?? null,
+          }))}
         />
       </div>
     </div>

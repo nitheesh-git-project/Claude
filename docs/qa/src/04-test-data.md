@@ -21,7 +21,7 @@ Where a test needs a *second, different* password (a change-password test), use 
 | **Admin Finance** | `qa.admin.finance@example.test` | `finance` | Proves Sessions and Catalog are blocked. |
 | **Admin Clinical** | `qa.admin.clinical@example.test` | `clinical` | Proves Money, Catalog and Settings are blocked. |
 
-Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated one-time password shown once on that screen** - not `QaTest!2024pass`. Write all three down as you create them: nothing stores an admin's temporary password, so a lost one is reset from the Supabase dashboard under **Authentication → Users**.
+Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated password shown on that screen** - not `QaTest!2024pass`. It stays readable on that admin's own Back office row until they set their own, and if it is lost, **Reset password** on the row issues a new one.
 
 ### 8.3 Patients
 
@@ -31,7 +31,7 @@ Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `ac
 | --- | --- |
 | Full name | `QA Patient E` |
 | Email | `qa.patient.e@example.test` |
-| Password | Generated, shown **once** on User Access - write it down |
+| Password | Generated, shown on User Access and kept on that row until they set their own |
 | Phone | `+91 98765 43213` |
 | Date of birth | `1968-07-21` |
 | PIN code | `560038` |

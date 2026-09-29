@@ -47,7 +47,10 @@ export async function GET() {
 
   const { data: therapists } = await admin
     .from("profiles")
-    .select("id, full_name")
+    // specialization comes along so the wizard's "continue with the same
+    // therapist" list reads the same way /team does -- a name on its own
+    // makes a returning patient guess which of two people they saw.
+    .select("id, full_name, specialization")
     .in("id", therapistIds)
     .eq("role", "therapist")
     .eq("approved", true)

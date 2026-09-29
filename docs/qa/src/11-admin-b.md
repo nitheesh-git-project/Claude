@@ -322,25 +322,29 @@ The screen warns you to turn it on only once System Health has been clean.
 * A suspended admin **stays listed**, with a note saying how many are suspended.
 * Only a **Master Admin** sees the Suspend button at all, and `POST /api/admin/set-admin-active` answers **403** to any other scope.
 
-#### `ADM-PEOP-011` - The detail page behind the overlay is still the back office · P1
+#### `ADM-PEOP-011` - The detail page behind the overlay **is** the dashboard · P1
 
-**Feature.** A patient's, therapist's or condition's detail is normally an overlay over the dashboard. Interception only covers client-side navigation, so a reload, a shared link, a new tab and any `router.refresh()` from inside the overlay land on the real page - which used to be a bare panel with a small "Back to Dashboard" link and none of the dashboard around it.
+**Feature.** A patient's, therapist's or condition's detail is normally an overlay over the dashboard. Interception only covers client-side navigation, so a reload, a shared link, a new tab and any refresh that misses the router's own state land on the real route. That route has been wrong twice: first a bare panel with a "Back to Dashboard" link, then a frame that reproduced the rail but dropped the badges, the search and the tab state - which read as a different, plainer site rather than as a leaf page. It renders the dashboard itself now, with the same overlay on top.
 
 **Steps**
-1. **People → Patients → a patient → Profile.** Press **Mark Done** on a session and confirm.
-2. Look at what you are on afterwards: is there a sidebar?
+1. **People → Therapists → a therapist.** On an **upcoming** session press **Reschedule / Reassign**, change the therapist or the time, and **Save**.
+2. Look at what you are on afterwards.
 3. Copy the URL, open it in a **new tab**, and reload it.
-4. Use the sidebar from that page - tap **Sessions**, then come back and tap **Back to the dashboard**.
-5. Repeat 1–4 for a **therapist** and for a **patient condition**.
-6. Sign in as **Operations**, then **Finance**, then **Clinical**, and open a patient detail URL directly.
-7. Watch the screen while it loads on a slow connection.
+4. Press the overlay's **×**.
+5. Watch the address bar and the screen as you do.
+6. Repeat 1–4 for a **patient** and for a **patient condition**.
+7. Sign in as **Operations**, then **Finance**, then **Clinical**, and open a patient detail URL directly.
+8. Watch the screen while it loads on a slow connection.
 
 **Expected Result**
-* Steps 1–3: the dark **sidebar**, the **Master Admin** brand and the section list are all present. It reads as the back office, not as a different, plainer site.
-* Step 4: every entry lands on a **real dashboard screen**, and Back to the dashboard returns to Today.
-* Step 5: identical on all three.
-* Step 6: the sidebar shows **only the sections that scope can open** - it is built from the same list and the same scope grid the dashboard's own sidebar uses, so the two can never disagree. Logs is absent for all three.
-* Step 7: the skeleton **keeps the sidebar rail** rather than blanking the chrome and putting it back.
+* Steps 1–3: the full dashboard is behind the overlay - the dark sidebar with its **badges**, the **Master Admin** brand, the header's **Refresh** button and the **global search**. There is **no "Back to the dashboard" link anywhere**: that link belonged to the reduced frame this replaced.
+* Step 3: the screen behind the overlay is **People → Therapists** - the screen this detail belongs to - never Today.
+* Steps 4–5: the overlay closes **instantly**, with no skeleton and no page load, onto that same screen; the address bar becomes `/admin/dashboard?section=people&tab=therapists`. Closing a dashboard that is already on screen must not refetch it.
+* Step 6: identical on all three.
+* Step 7: the sidebar shows **only the sections that scope can open**, exactly as the dashboard's own does. Logs is absent for all three.
+* Step 8: the skeleton **keeps the sidebar rail** rather than blanking the chrome and putting it back.
+
+**Critical check.** A direct load pays for a whole dashboard render as well as the detail's own, which is the deliberate cost of there being one design rather than two. Tapping a name from inside the dashboard must **not** pay it twice - the dashboard behind the overlay is the one already rendered.
 
 #### `ADM-SET-025d` - Delete an account, and be refused when it has history · P0
 
@@ -348,9 +352,11 @@ The screen warns you to turn it on only once System Health has been clean.
 
 **Steps**
 1. Create a throwaway patient with a typo'd email and, without doing anything else with it, delete it from their profile.
+1b. Create a throwaway **admin** (Back office - any access level) and, without doing anything else with it, delete it from its row.
 2. Delete a patient who has at least one session, one payment and a programme.
 3. Delete a therapist who has run sessions and written notes.
 4. Delete an admin who has performed any action at all.
+4b. Create a throwaway patient, upload an **avatar** for them and nothing else, then delete them.
 5. Try to delete **your own** row in Back office.
 6. Leave exactly one active Master Admin and try to delete it.
 7. Sign in as **Operations**, then **Finance**, then **Clinical**, and look for the button. Then POST `/api/admin/delete-account` directly as each.
@@ -359,7 +365,9 @@ The screen warns you to turn it on only once System Health has been clean.
 
 **Expected Result**
 * Step 1: a **dialog** first, naming the account and saying this only works with no history, with Suspend named as the alternative. Confirming deletes it; the page returns to the directory it came from.
-* Steps 2–4: **nothing is deleted**, and a dialog names what is on file - *"3 sessions, 2 money records, 1 programme and 12 back-office actions"* - and says to suspend instead. Each group is counted separately and pluralised on its own count. A refusal is never an 11px line beside the button: it is a paragraph and it belongs in a dialog.
+* Step 1b: it deletes, exactly as the patient did. This is a regression check with a real history: the Master Admin guard used to run as its caller, and the caller for a delete is Supabase Auth's own role, which cannot read `profiles` - so its count was refused, the refusal aborted the delete, and **no admin account could be deleted at all**, however empty. Patients and therapists were unaffected, which is what made it read as a data problem. If this step fails with *"the database refused ... and did not say why"*, that is the same fault returning.
+* Steps 2–4: **nothing is deleted**, and a dialog names what is on file - *"3 sessions, 2 money records, 1 programme and 12 back-office actions"* - and says to suspend instead. Each group is counted separately and pluralised on its own count. A refusal is never an 11px line beside the button: it is a paragraph and it belongs in a dialog. The counts come from the database's own list of the foreign keys that refuse a delete, rather than a list kept in the route - so a refusal always **names** something. *"The database refused ... and did not say why"* is the fallback for a cause outside those keys and should not appear in this test at all; if it does, record which account produced it.
+* Step 4b: **nothing is deleted**, and the dialog names **uploaded files** and points at removing them. This is the second regression check with a real history: the blocker count asked about `profiles` while the delete removes the Supabase Auth user, so an avatar - a storage row owned by that auth user - refused the delete with nothing in the dialog to say so, and the admin met *"the database refused ... and did not say why"*. Delete the avatar and the same account then deletes. If instead this step reports something vaguer than uploaded files, record exactly what the dialog said: whatever refuses is now named by the database, so an unhelpful word here means a table nobody has grouped rather than a count that was missed.
 * Step 5: refused - *"You can't delete your own account."* The button does not render on your own row either.
 * Step 6: refused - the last Master Admin who can still sign in cannot be deleted, the same guard suspension carries, and this one has no undo at all.
 * Step 7: **no button** for any of the three, and the direct POST is **403** for all three - deleting is Master Admin's alone even though every one of those desks can manage People.
@@ -393,6 +401,28 @@ The screen warns you to turn it on only once System Health has been clean.
 * Step 6: **nowhere, by design.** A password somebody chose is stored by Supabase as a bcrypt hash and cannot be read back by this app or anyone else. The lane for a locked-out account is **Reset Password**, which issues a new one and puts the row back into the first state.
 * Step 7: **no rows** - the table carries no RLS policies at all, so only the service role reads it. A plain column on `profiles` would be handed straight back to the account owner by `profiles_select_own`, which is why these four tables exist.
 * Step 8: **no password anywhere in the log**, which every admin can read.
+
+#### `ADM-SET-026c` - Re-issuing a back-office password, and dismissing the panel · P1
+
+**Feature.** Patients, therapists and hospitals could all have a password re-issued from the back office; an admin who had locked themselves out needed somebody with Supabase access. **Reset password** on a Back office row is the fourth of those doors. The created-account panel also has a close button now, and its Copy button no longer reads "Copied" for ever after one click.
+
+**Steps**
+1. Create a back-office account. On the panel that appears, press **Copy**, wait a few seconds, then read the button. Press the **×**.
+2. On another admin's row, press **Reset password** and read what comes up before anything happens.
+3. Confirm it. Read that admin's row.
+4. Sign in as that admin with the **old** password, then with the new one.
+5. Look for **Reset password** on **your own** row. Then POST `/api/admin/reset-admin-password` with your own id.
+6. Sign in as **Operations**, then **Finance**, then **Clinical**. Look for the button, then POST the route directly as each.
+7. Open **Logs → All Activity**.
+
+**Expected Result**
+* Step 1: Copy goes back to **Copy** after a moment rather than staying "Copied". The **×** dismisses the panel, and the password is **still on that admin's row** - dismissing a panel must not lose a credential (`ADM-SET-026b`).
+* Step 2: a **confirmation first**, saying the current password stops working immediately. Nothing has changed until it is confirmed - somebody who tapped it meaning to *read* the existing password has not locked anybody out.
+* Step 3: the new password is on that admin's **row**, in the same place the created one appeared - **not** in a second panel under the button. Two places showing one password means the stale one is the one somebody reads out.
+* Step 4: the old password is refused; the new one signs in.
+* Step 5: **no button on your own row**, and the direct POST is refused. The lane for your own password is the emailed reset on **Settings → Sign-in & Security**.
+* Step 6: **no button** for any of the three, and the POST is **403** for all three - this is Master Admin's alone, even though every one of those desks can manage People.
+* Step 7: an entry naming who reset whose password, with `role: admin`, and **no password in it**.
 
 #### `ADM-SET-025c` - Suspend and Create release the button, not the page · P1
 

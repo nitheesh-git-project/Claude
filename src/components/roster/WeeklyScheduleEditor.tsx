@@ -21,6 +21,7 @@ import {
   type WeeklySchedule,
 } from "@/lib/availabilityRanges";
 import { DAY_LABELS, DAY_LABELS_SHORT, DAY_ORDER } from "@/lib/therapistAvailability";
+import WeekScheduleSummary from "@/components/roster/WeekScheduleSummary";
 
 // The weekly schedule editor, shared by the therapist's own screen and the
 // admin's roster. One component rather than two, for the same reason
@@ -45,7 +46,26 @@ const END_HOURS = Array.from(
 
 export type WeeklyScheduleEditorProps = {
   initialWeekly: WeeklySchedule;
-  initialVersion: number;
+  /**
+   * The version of the stored schedule this editor loaded, or **null** when
+   * there is no `therapist_schedule_state` row for this therapist yet.
+   *
+   * Null is not the same as zero and the difference was a real bug: the two
+   * readers used to default a missing row to `0`, while
+   * `lock_therapist_schedule_state` creates that row at version **1** and
+   * returns 1 -- so the compare-and-swap saw `0 <> 1`, and the *first* save
+   * for every therapist was refused as "changed by someone else". Nobody had
+   * changed anything; there was nothing there to change.
+   *
+   * Null means "I never read a version", which the database already
+   * understands: `save_therapist_weekly_schedule` skips the comparison
+   * entirely when `p_expected_version is null`. That is correct rather than
+   * lenient -- there is no stored schedule to be stale against. Every save
+   * after the first carries a real version and the guard applies as it always
+   * did, so two admins editing one therapist still get the 409 and the reload
+   * offer.
+   */
+  initialVersion: number | null;
   timezone: string | null;
   /** Where Save posts. The two routes take the same body apart from
    *  therapistId, which only the admin door sends. */
@@ -87,6 +107,21 @@ export default function WeeklyScheduleEditor({
   const [stale, setStale] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [conflict, setConflict] = useState<ConflictState | null>(null);
+  // The screen opens on what is stored, not on a live grid.
+  //
+  // Every day row here is a working control the moment the card renders -- two
+  // dropdowns, a Working/Off switch, Remove, Add hours, presets and Clear day.
+  // Somebody opening a therapist's roster to *read* it was one stray tap away
+  // from changing it, with nothing having asked them to, and the only thing
+  // that then said so was a line at the bottom of a long card. So reading and
+  // editing are two states now: Edit puts the controls on the page, Cancel puts
+  // the draft back, and Save is what publishes.
+  //
+  // Nothing else about this component moves -- the saved/draft pair, the dirty
+  // test, the unsaved-changes bar, the beforeunload guard, the in-flight ref
+  // and the removed-hours conflict panel are all exactly as they were. This is
+  // a gate in front of them, not a second implementation of them.
+  const [editing, setEditing] = useState(false);
   // A `disabled` attribute lands a render too late to stop a double click --
   // same guard the suggestion controls use.
   const inFlight = useRef(false);
@@ -212,6 +247,14 @@ export default function WeeklyScheduleEditor({
     setSavedAt(null);
   }
 
+  /** Leaving edit mode. Always puts the draft back -- "Cancel" that kept an
+   *  unsaved change would be the screen telling somebody their edit had been
+   *  dropped when it had not, or the reverse. */
+  function stopEditing() {
+    discard();
+    setEditing(false);
+  }
+
   async function submit(next: WeeklySchedule) {
     if (inFlight.current) return;
     inFlight.current = true;
@@ -253,6 +296,7 @@ export default function WeeklyScheduleEditor({
       setDraft(cloneWeekly(next));
       if (typeof data.version === "number") setVersion(data.version);
       setSavedAt(Date.now());
+      setEditing(false);
       router.refresh();
     } catch {
       setError("Couldn't reach the server. Your previous hours are still active.");
@@ -314,6 +358,31 @@ export default function WeeklyScheduleEditor({
         </div>
       )}
 
+      {!editing ? (
+        <>
+          <WeekScheduleSummary weekly={saved} />
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-[11px] text-slate-500" aria-live="polite">
+              {savedAt
+                ? "Schedule saved."
+                : `${totalWeeklyHours(saved)} bookable ${
+                    totalWeeklyHours(saved) === 1 ? "hour" : "hours"
+                  } a week.`}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSavedAt(null);
+                setEditing(true);
+              }}
+              className="rounded-lg bg-teal-700 px-4 py-2 text-xs font-bold text-white transition hover:bg-teal-800"
+            >
+              Edit schedule
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
       <ul className="space-y-2">
         {DAY_ORDER.map((day) => {
           const ranges = draft[day] ?? [];
@@ -519,16 +588,14 @@ export default function WeeklyScheduleEditor({
               : `${totalHours} bookable ${totalHours === 1 ? "hour" : "hours"} a week.`}
         </p>
         <div className="flex items-center gap-2">
-          {dirty && (
-            <button
-              type="button"
-              onClick={discard}
-              disabled={saving}
-              className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-            >
-              Discard changes
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={stopEditing}
+            disabled={saving}
+            className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          >
+            {dirty ? "Discard changes" : "Cancel"}
+          </button>
           <button
             type="button"
             onClick={handleSave}
@@ -539,6 +606,8 @@ export default function WeeklyScheduleEditor({
           </button>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

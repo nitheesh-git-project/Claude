@@ -8,12 +8,12 @@ The eight public pages are **one template, not eight layouts**. Every page assem
 
 The site's own index lives in **one array**, which the header nav, the footer's Explore column, the home page's connector grid and every "Where to go next" strip all read. So a page cannot exist in the header and be missing from the index, and a renamed page cannot leave a stale description behind.
 
-**Every Explore band ends on Book a session**, on all eight pages, in the same full-width photo-beside-text tile - booking was on the home page's grid alone, so the six inner pages ended their index on another page to read. And **the page tiles above it square up**: the count varies (the page you are on is always missing, and Home Visit drops out when the clinic switches it off), so a row that would end short stretches its leftover tiles across it rather than leaving dead cells on the right.
+**Every Explore band ends on Book a video session**, on all eight pages, in the same full-width photo-beside-text tile - booking was on the home page's grid alone, so the six inner pages ended their index on another page to read. And **the page tiles above it square up**: the count varies (the page you are on is always missing, and Home Visit drops out when the clinic switches it off), so a row that would end short stretches its leftover tiles across it rather than leaving dead cells on the right.
 
 #### `PUB-EXP-001` - The Explore band, on every public page · P1
 
 **Steps.** Open each of `/`, `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`, `/hospitals` and read the Explore band at the foot.
-**Expected Result.** Every one ends with **Book a session** → `/book`, as the last tile, full width, photo beside the text. Above it: every other page, never the one you are on, and never Home Visit while the master switch is off.
+**Expected Result.** Every one ends with **Book a video session** → `/book`, as the last tile, full width, photo beside the text. Above it: every other page, never the one you are on, and never Home Visit while the master switch is off.
 **Alignment.** With the usual **seven** page tiles: two rows of three, then the seventh **stretched across the whole row** in the same wide layout - no empty cells to the right of it. Switch Home Visit off and reload: **six** tiles, two clean rows of three, nothing stretched. Narrow the window to the two-column breakpoint and repeat both: the last row must still be full.
 **Critical check:** this is arithmetic, not a hand-placed exception (`src/lib/exploreGridSpans.ts`, unit-tested). A tile that is full width on a tablet and half width on a desktop must **not** switch to the photo-beside-text layout - that would read as two designs rather than one stretched tile.
 
@@ -68,7 +68,7 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 
 **Feature.** A course of treatment is a clinical recommendation, so the public site does not carry a price list of them. Removed outright rather than hidden behind a setting: a toggle somebody can flip back on is not the rule being gone.
 
-**Preconditions.** Packages P1–P3 exist, are `active`, and have `visible_on_home` and `visible_on_conditions` on. That matters - this is an absence tested against rows that genuinely could have rendered.
+**Preconditions.** Packages P1–P3 exist and are `active` and `recommendable`. That matters - this is an absence tested against rows that genuinely could have rendered. The three "show it here" flags these rows used to carry are gone from the table: they decided where a programme was advertised, and there is nowhere public left for them to decide about.
 
 **Steps.** Read `/` and `/conditions` end to end, including inside every programme detail dialog. Then read `/home-visit`.
 **Expected Result**

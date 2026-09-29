@@ -27,7 +27,7 @@ export default function NotFound() {
           href="/book"
           className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800"
         >
-          Book a session
+          Book a video session
         </Link>
       </div>
     </div>

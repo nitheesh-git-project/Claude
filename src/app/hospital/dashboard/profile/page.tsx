@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
 import AvatarUpload from "@/components/profile/AvatarUpload";
+import AccountCreatedNote from "@/components/profile/AccountCreatedNote";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
 import InstantProfileFields from "@/components/profile/InstantProfileFields";
 import DashboardShell from "@/components/dashboard/DashboardShell";
@@ -30,7 +31,9 @@ export default async function HospitalProfilePage() {
     await Promise.all([
       supabase
         .from("profiles")
-        .select("full_name, organization_name, email, phone, avatar_url, preferred_language")
+        .select(
+          "full_name, organization_name, email, phone, avatar_url, preferred_language, created_at"
+        )
         .eq("id", user.id)
         .single(),
 
@@ -79,6 +82,9 @@ export default async function HospitalProfilePage() {
             currentUrl={profile?.avatar_url ?? null}
             name={profile?.organization_name ?? profile?.full_name ?? "H"}
           />
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <AccountCreatedNote createdAt={profile?.created_at} />
+          </div>
         </div>
 
         <div

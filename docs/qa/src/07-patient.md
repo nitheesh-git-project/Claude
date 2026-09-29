@@ -165,7 +165,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Steps**
 1. Open `/`.
-2. Tap **Book a session** in the header (or the **Book now** card in the connector grid at the foot of the page).
+2. Tap **Book a video session** in the header (or the **Book now** card in the connector grid at the foot of the page).
 3. Observe the URL and the wizard header.
 
 **Expected Result.** The URL is `/book`. The dark header reads **Step 1 of 3** and **Book Virtual Physical Therapy Session**. Because no concern is chosen yet, the subtitle reads *"HD Video Call & Custom Rehab Plan - pricing shown once you pick a concern"*.

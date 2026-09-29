@@ -9,6 +9,7 @@ import type { HomeVisitRow } from "@/components/admin/HomeVisitVisitActions";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange, istDateKey } from "@/lib/formatSlotRange";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
 
 type Person = { id: string; full_name: string | null };
@@ -146,12 +147,12 @@ export default function AdminCalendarTab({
             Select a date to see every session booked that day.
           </p>
         </div>
-        <input
-          type="date"
+        <DateField
           value={selectedDate}
-          onChange={(e) => handleDatePickerChange(e.target.value)}
-          aria-label="Jump to date"
-          className="p-2 rounded-lg border border-slate-300 text-xs"
+          onChange={handleDatePickerChange}
+          ariaLabel="Jump to date"
+          clearable={false}
+          className="w-44"
         />
       </div>
 

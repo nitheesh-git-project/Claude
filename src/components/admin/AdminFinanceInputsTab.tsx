@@ -1,5 +1,7 @@
 "use client";
 
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
+
 import { useMemo, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -19,6 +21,7 @@ import {
   type MarketingChannel,
   type RunRateBasis,
 } from "@/lib/financeMetrics";
+import DateField from "@/components/system/DateField";
 
 // Your Numbers: the four things Business Health cannot work out on its own.
 //
@@ -94,12 +97,12 @@ export default function AdminFinanceInputsTab({
       <SurfaceCard title="What this screen is for" icon="fa-circle-info">
         <p className="text-xs leading-relaxed text-slate-600">
           Four things decide half the figures on{" "}
-          <a
+          <AdminScreenLink
             href={adminScreenHref("money", "health")}
             className="font-semibold text-teal-700 hover:underline"
           >
             Business Health
-          </a>{" "}
+          </AdminScreenLink>{" "}
           and none of them is anything this app can see: what you have put into the clinic, what you
           spend on advertising, what you own and owe outside this app, and how you want a few of
           those figures read. Enter them here and every figure on that screen fills in. Leave one
@@ -107,12 +110,12 @@ export default function AdminFinanceInputsTab({
         </p>
         <p className="mt-2 text-xs leading-relaxed text-slate-600">
           Interest and tax are the fifth, and they are not here: they are ordinary costs, recorded on{" "}
-          <a
+          <AdminScreenLink
             href={adminScreenHref("money", "costs")}
             className="font-semibold text-teal-700 hover:underline"
           >
             Costs
-          </a>{" "}
+          </AdminScreenLink>{" "}
           and filed under their own kind.
         </p>
       </SurfaceCard>
@@ -178,6 +181,18 @@ function InvestmentsPanel({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    // The `required` attribute went with the native date box -- a button
+    // cannot carry one -- so each date is checked here instead, and answers
+    // in the clinic's own words rather than the browser's.
+    if (!investedOn) {
+      setError("Pick the date you bought it.");
+      return;
+    }
+    if (presentValue.trim() !== "" && !valuedOn) {
+      setError("Pick the date that value was true on.");
+      return;
+    }
 
     const amountPaise = rupeesToPaise(amount);
     if (amountPaise === null || amountPaise <= 0) {
@@ -277,16 +292,17 @@ function InvestmentsPanel({
             className="rounded-lg border border-slate-300 px-2.5 py-1.5"
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs">
+        <div className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Date you bought it</span>
-          <input
-            type="date"
-            required
+          {/* `required` went with the native input -- a button cannot carry
+              one -- so submit() refuses a blank in the clinic's own words. */}
+          <DateField
             value={investedOn}
-            onChange={(e) => setInvestedOn(e.target.value)}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+            onChange={setInvestedOn}
+            ariaLabel="Date you bought it"
+            clearable={false}
           />
-        </label>
+        </div>
         <label className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">What it cost (₹)</span>
           <input
@@ -311,16 +327,15 @@ function InvestmentsPanel({
           />
         </label>
         {presentValue.trim() !== "" && (
-          <label className="flex flex-col gap-1 text-xs">
+          <div className="flex flex-col gap-1 text-xs">
             <span className="font-semibold text-slate-500">Valued on</span>
-            <input
-              type="date"
-              required
+            <DateField
               value={valuedOn}
-              onChange={(e) => setValuedOn(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+              onChange={setValuedOn}
+              ariaLabel="Valued on"
+              clearable={false}
             />
-          </label>
+          </div>
         )}
         <label className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Life (months, optional)</span>
@@ -511,6 +526,11 @@ function CampaignsPanel({
     e.preventDefault();
     setError(null);
 
+    if (!startsOn) {
+      setError("Pick the date the campaign started.");
+      return;
+    }
+
     const spendPaise = rupeesToPaise(spend);
     if (spendPaise === null) {
       setError("Enter what it cost, as a number.");
@@ -589,12 +609,12 @@ function CampaignsPanel({
           Give the campaign a promo code and advertise that code in the ad. Every booking that types
           it is then traceable to this campaign, and the return is real rather than a guess. Set up
           codes on{" "}
-          <a
+          <AdminScreenLink
             href={adminScreenHref("money", "costs")}
             className="font-semibold text-teal-700 hover:underline"
           >
             Costs
-          </a>
+          </AdminScreenLink>
           . For an ad that makes the phone ring instead, put what you believe it brought in in the
           last box - Business Health will show it as your own figure, never as a traced one.
         </p>
@@ -639,25 +659,28 @@ function CampaignsPanel({
             className="rounded-lg border border-slate-300 px-2.5 py-1.5"
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs">
+        <div className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Started</span>
-          <input
-            type="date"
-            required
+          {/* `required` went with the native input -- a button cannot carry
+              one -- so submit() refuses a blank in the clinic's own words. */}
+          <DateField
             value={startsOn}
-            onChange={(e) => setStartsOn(e.target.value)}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+            onChange={setStartsOn}
+            ariaLabel="Started"
+            clearable={false}
           />
-        </label>
-        <label className="flex flex-col gap-1 text-xs">
+        </div>
+        <div className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Ended (empty = still running)</span>
-          <input
-            type="date"
+          {/* Clearable, unlike the dates above it: empty is a real answer here
+              and means the campaign is still running. */}
+          <DateField
             value={endsOn}
-            onChange={(e) => setEndsOn(e.target.value)}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+            onChange={setEndsOn}
+            ariaLabel="Campaign end date"
+            placeholder="Still running"
           />
-        </label>
+        </div>
         <label className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Traced by promo code</span>
           <select
@@ -835,6 +858,10 @@ function BalancePanel({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!asOf) {
+      setError("Pick the date this snapshot is true as of.");
+      return;
+    }
     const amountPaise = rupeesToPaise(amount);
     if (amountPaise === null) {
       setError("Enter the amount as a number. Never a minus - the side says which way it points.");
@@ -911,16 +938,17 @@ function BalancePanel({
       </div>
 
       <form onSubmit={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="flex flex-col gap-1 text-xs">
+        <div className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">True as of</span>
-          <input
-            type="date"
-            required
+          {/* `required` went with the native input -- a button cannot carry
+              one -- so submit() refuses a blank in the clinic's own words. */}
+          <DateField
             value={asOf}
-            onChange={(e) => setAsOf(e.target.value)}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5"
+            onChange={setAsOf}
+            ariaLabel="True as of"
+            clearable={false}
           />
-        </label>
+        </div>
         <label className="flex flex-col gap-1 text-xs">
           <span className="font-semibold text-slate-500">Which is it</span>
           <select

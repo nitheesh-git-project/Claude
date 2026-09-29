@@ -309,6 +309,11 @@ test.describe("Therapist roster - the therapist's own screen", () => {
     await page.goto(`${BASE}/therapist/dashboard/availability`);
     await expect(page.getByRole("heading", { name: "Your schedule" })).toBeVisible();
     await expect(page.getByText(/Schedule timezone:/)).toBeVisible();
+    // It opens **read-only**, on both doors: reading somebody's hours and
+    // changing them are two different acts, and a mis-tap on a working switch
+    // used to be a change.
+    await expect(page.getByRole("switch", { name: "Monday working" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Edit schedule" }).click();
     await expect(page.getByRole("switch", { name: "Monday working" })).toBeVisible();
     // No eighteen-cell grid anywhere on the therapist's screen either.
     await expect(page.getByRole("button", { name: "6 AM – 7 AM" })).toHaveCount(0);

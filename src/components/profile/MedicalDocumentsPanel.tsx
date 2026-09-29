@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useConfirm } from "@/lib/useConfirm";
 import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import { compressImage } from "@/lib/compressImage";
@@ -16,6 +17,7 @@ import {
   type MedicalDocumentRow,
   type MedicalDocumentType,
 } from "@/lib/medicalDocuments";
+import DateField from "@/components/system/DateField";
 
 // Icon per kind, so a chart of ten reports can be scanned by shape rather
 // than read line by line.
@@ -62,6 +64,7 @@ export default function MedicalDocumentsPanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<{ blob: Blob; name: string; mimeType: string } | null>(null);
   const { show } = useToast();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [title, setTitle] = useState("");
   const [documentType, setDocumentType] = useState<MedicalDocumentType>("lab_report");
   const [takenOn, setTakenOn] = useState("");
@@ -162,9 +165,14 @@ export default function MedicalDocumentsPanel({
   }
 
   async function handleDelete(documentId: string, documentTitle: string) {
-    if (!window.confirm(`Delete "${documentTitle}"? Your therapist will no longer be able to see it.`)) {
-      return;
-    }
+    // The app's own dialog rather than window.confirm: the native prompt is
+    // unstyled, differently placed on every browser and blocks the render.
+    // Awaited before anything else starts, per the rule that a decision
+    // rendered from state must never be awaited inside a transition.
+    const goAhead = await confirm(
+      `Delete "${documentTitle}"? Your therapist will no longer be able to see it.`
+    );
+    if (!goAhead) return;
     setDeletingId(documentId);
     setError(null);
     try {
@@ -309,15 +317,20 @@ export default function MedicalDocumentsPanel({
                 ))}
               </div>
 
-              <label className="mt-3 block text-xs font-semibold text-slate-600">
+              <div className="mt-3 block text-xs font-semibold text-slate-600">
                 When was it taken? <span className="font-normal text-slate-500">(optional)</span>
-                <input
-                  type="date"
+                {/* A scan or a report is always something that already
+                    happened, so this one is capped at today -- the calendar
+                    simply does not offer a future day, where the native box
+                    happily did. */}
+                <DateField
                   value={takenOn}
-                  onChange={(event) => setTakenOn(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-800 focus:border-teal-400 focus:outline-none"
+                  onChange={setTakenOn}
+                  ariaLabel="When the document was taken"
+                  maxToday
+                  className="mt-1"
                 />
-              </label>
+              </div>
 
               <div className="mt-4 flex items-center gap-2">
                 <button
@@ -341,6 +354,7 @@ export default function MedicalDocumentsPanel({
           )}
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

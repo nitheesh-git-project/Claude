@@ -4,6 +4,7 @@ import {
   formatClinicDate,
   formatClinicDateShort,
   formatClinicDateTime,
+  formatClinicDateTimeWithZone,
   formatClinicTime,
 } from "@/lib/formatDateTime";
 
@@ -52,6 +53,20 @@ describe("clinic time", () => {
 
   it("is pinned to one zone, so two readers cannot disagree", () => {
     expect(CLINIC_DISPLAY_TIMEZONE).toBe("Asia/Kolkata");
+  });
+
+  // The account-creation and credential-issue stamps -- read by an admin in
+  // India to somebody who may not be, so this one surface names the zone.
+  it("names the zone on an account stamp, and nowhere else", () => {
+    expect(formatClinicDateTimeWithZone(SIX_PM_IST)).toBe(`${formatClinicDateTime(SIX_PM_IST)} IST`);
+    expect(formatClinicDateTime(SIX_PM_IST)).not.toContain("IST");
+  });
+
+  // "- IST" attaches a zone to an absence, which is a fact about nothing.
+  it("does not put a zone on a stamp it could not read", () => {
+    for (const bad of [null, undefined, "", "not a date"]) {
+      expect(formatClinicDateTimeWithZone(bad)).toBe("-");
+    }
   });
 });
 

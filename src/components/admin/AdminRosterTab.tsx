@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ListPager from "@/components/dashboard/ListPager";
 import FilterChips from "@/components/dashboard/FilterChips";
 import SurfaceCard, { EmptyState, StatusPill } from "@/components/dashboard/SurfaceCard";
+import SpecialtyChip from "@/components/SpecialtyChip";
 import WeekScheduleSummary from "@/components/roster/WeekScheduleSummary";
 import WeeklyScheduleEditor from "@/components/roster/WeeklyScheduleEditor";
 import ScheduleExceptionsPanel from "@/components/roster/ScheduleExceptionsPanel";
 import LeavePanel from "@/components/roster/LeavePanel";
+import RosterDayView from "@/components/admin/RosterDayView";
 import { usePagedList } from "@/lib/usePagedList";
 import {
   ROSTER_STATUS_LABELS,
@@ -42,6 +44,7 @@ import type { OverrideRow, TemplateRow } from "@/lib/therapistAvailability";
 type Therapist = {
   id: string;
   full_name: string | null;
+  specialization: string | null;
   timezone: string | null;
   on_leave: boolean;
   on_leave_from: string | null;
@@ -87,8 +90,40 @@ export default function AdminRosterTab({
   canManageLeave: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(therapists[0]?.id ?? null);
+  // Tapping a therapist only changes state, and their schedule is a card
+  // *below* the list rather than beside it -- so on a roster of any size the
+  // tap produced no visible change at all and read as a dead control. This
+  // takes the reader to what they just asked for.
+  const detailRef = useRef<HTMLDivElement | null>(null);
+  // The screen opens with the first therapist already selected, and scrolling
+  // on arrival would move a page nobody asked to move. Only a deliberate
+  // change earns the scroll.
+  const scrolledFor = useRef<string | null>(selectedId);
   const [query, setQuery] = useState("");
+  // The same rows arranged differently, which is what earns a view switch
+  // rather than a second sidebar entry -- the rule Sessions (List/Calendar)
+  // and the therapist's My Patients (Patients/Programmes) already follow.
+  // Therapists answers "what does she normally work"; Day answers "who is
+  // free on Thursday", which used to mean opening each therapist in turn.
+  const [view, setView] = useState<"therapists" | "day">("therapists");
   const [filter, setFilter] = useState<RosterFilter>("all");
+
+  useEffect(() => {
+    if (!selectedId || scrolledFor.current === selectedId) return;
+    scrolledFor.current = selectedId;
+    const node = detailRef.current;
+    if (!node) return;
+    // Somebody who asked for less movement still needs to arrive at the
+    // section -- the same split the splash and the progress bar make.
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    node.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    // Announced as well as animated: a screen reader gets nothing from a
+    // scroll. `tabIndex={-1}` on the region is what makes this focusable
+    // without putting it in the tab order.
+    node.focus({ preventScroll: true });
+  }, [selectedId]);
 
   const templateByTherapist = useMemo(() => groupBy(templateRows), [templateRows]);
   const overrideByTherapist = useMemo(() => groupBy(overrideRows), [overrideRows]);
@@ -182,6 +217,32 @@ export default function AdminRosterTab({
         icon="fa-calendar-week"
         subtitle="What each therapist normally works, what is different on a date, and who is away."
       >
+        <div
+          role="group"
+          aria-label="Roster view"
+          className="mb-4 inline-flex rounded-lg bg-slate-100 p-0.5 text-xs"
+        >
+          {(["therapists", "day"] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={view === key}
+              onClick={() => setView(key)}
+              className={`rounded-md px-3 py-1.5 font-semibold transition ${
+                view === key
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              {key === "therapists" ? "Therapists" : "Day"}
+            </button>
+          ))}
+        </div>
+
+        {view === "day" ? (
+          <RosterDayView todayKey={todayKey} />
+        ) : (
+        <>
         <div className="mb-4 flex flex-wrap gap-3 text-xs">
           <Tally label="Therapists" value={counts.all} />
           <Tally label="Available today" value={counts.available_today} />
@@ -226,7 +287,7 @@ export default function AdminRosterTab({
           />
         ) : (
           <>
-            <ul className="grid gap-2 lg:grid-cols-2">
+            <ul aria-label="Therapists" className="grid gap-2 lg:grid-cols-2">
               {pageRows.map((row) => {
                 const isSelected = row.therapist.id === selectedId;
                 return (
@@ -242,8 +303,15 @@ export default function AdminRosterTab({
                       }`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-display text-sm font-bold text-slate-900">
-                          {row.therapist.full_name ?? "Unknown therapist"}
+                        <span className="flex min-w-0 flex-wrap items-center gap-2">
+                          <span className="font-display text-sm font-bold text-slate-900">
+                            {row.therapist.full_name ?? "Unknown therapist"}
+                          </span>
+                          {/* Who this person takes, where the roster is
+                              read: deciding whose week to open is a
+                              question about the patient waiting, and the
+                              name alone does not answer it. */}
+                          <SpecialtyChip specialization={row.therapist.specialization} size="xs" />
                         </span>
                         <StatusPill tone={STATUS_TONE[row.status]}>
                           {ROSTER_STATUS_LABELS[row.status]}
@@ -289,10 +357,17 @@ export default function AdminRosterTab({
             <ListPager pager={pager} noun="therapist" />
           </>
         )}
+        </>
+        )}
       </SurfaceCard>
 
-      {selected && (
-        <>
+      {view === "therapists" && selected && (
+        <div
+          ref={detailRef}
+          tabIndex={-1}
+          aria-label={`${selected.therapist.full_name ?? "Therapist"} - roster`}
+          className="space-y-4 outline-none scroll-mt-24"
+        >
           <SurfaceCard
             title={`${selected.therapist.full_name ?? "Therapist"} · Weekly schedule`}
             icon="fa-clock"
@@ -302,7 +377,10 @@ export default function AdminRosterTab({
               <WeeklyScheduleEditor
                 key={selected.therapist.id}
                 initialWeekly={selected.weekly}
-                initialVersion={scheduleVersions[selected.therapist.id] ?? 0}
+                // `?? null`, not `?? 0`: a therapist with no
+                // therapist_schedule_state row has no version to be stale
+                // against, and 0 was read by the database as a stale 1.
+                initialVersion={scheduleVersions[selected.therapist.id] ?? null}
                 timezone={selected.therapist.timezone}
                 endpoint="/api/admin/save-therapist-availability"
                 therapistId={selected.therapist.id}
@@ -348,7 +426,7 @@ export default function AdminRosterTab({
               </p>
             )}
           </SurfaceCard>
-        </>
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AvatarUpload from "@/components/profile/AvatarUpload";
+import AccountCreatedNote from "@/components/profile/AccountCreatedNote";
 import InstantProfileFields from "@/components/profile/InstantProfileFields";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
@@ -9,6 +10,7 @@ import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import { THERAPIST_SPECIALTY_LABELS } from "@/lib/therapistSpecialties";
 
 export const metadata: Metadata = {
   title: "Edit Profile | Dr. Pooja's Physio",
@@ -35,7 +37,7 @@ export default async function TherapistProfilePage() {
     supabase
       .from("profiles")
       .select(
-        "full_name, email, avatar_url, phone, credentials, specialization, years_experience, bio, languages"
+        "full_name, email, avatar_url, phone, credentials, specialization, years_experience, bio, languages, created_at"
       )
       .eq("id", user.id)
       .single(),
@@ -60,6 +62,17 @@ export default async function TherapistProfilePage() {
       .maybeSingle()
   ]);
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
+
+  // The eight the clinic recognises, plus whatever this therapist already
+  // has if it is not one of them. Without that second half a legacy
+  // free-text value would have no matching <option>, the browser would show
+  // the first one instead, and the screen would quietly misreport what is
+  // stored -- on a field that goes to patients and through admin review.
+  const currentSpecialization = profile?.specialization ?? "";
+  const specializationOptions =
+    currentSpecialization && !THERAPIST_SPECIALTY_LABELS.includes(currentSpecialization)
+      ? [...THERAPIST_SPECIALTY_LABELS, currentSpecialization]
+      : THERAPIST_SPECIALTY_LABELS;
   const adminSettings = parseAdminSettings(settingsRow);
 
   // This page hides the shared Navbar entirely, so it needs the debug
@@ -89,6 +102,9 @@ export default async function TherapistProfilePage() {
           currentUrl={profile?.avatar_url ?? null}
           name={profile?.full_name ?? "T"}
         />
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <AccountCreatedNote createdAt={profile?.created_at} />
+        </div>
       </div>
 
       <div id="public-details" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
@@ -123,7 +139,12 @@ export default async function TherapistProfilePage() {
               label: "Qualifications & License / Council Reg No.",
               type: "text",
             },
-            { name: "specialization", label: "Specialist In", type: "text" },
+            {
+              name: "specialization",
+              label: "Specialist In",
+              type: "select",
+              options: specializationOptions,
+            },
             {
               name: "years_experience",
               label: "Years of Experience",
@@ -135,7 +156,7 @@ export default async function TherapistProfilePage() {
           currentValues={{
             full_name: profile?.full_name ?? "",
             credentials: profile?.credentials ?? "",
-            specialization: profile?.specialization ?? "",
+            specialization: currentSpecialization,
             years_experience:
               profile?.years_experience !== null && profile?.years_experience !== undefined
                 ? String(profile.years_experience)

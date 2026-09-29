@@ -17,9 +17,6 @@ type Package = {
   description: string | null;
   image_url: string | null;
   promises: string[];
-  badge_label: string | null;
-  highlight: boolean;
-  terms: string | null;
   session_count: number;
   price_paise: number;
   compare_at_paise: number | null;
@@ -31,10 +28,8 @@ type Package = {
   min_gap_hours: number | null;
   max_sessions_per_week: number | null;
   max_purchases_per_patient: number | null;
-  visible_on_home: boolean;
-  visible_on_conditions: boolean;
-  visible_in_dashboard: boolean;
   active: boolean;
+  recommendable: boolean;
 };
 
 function DeleteButton({ id }: { id: string }) {
@@ -114,14 +109,16 @@ export default function PackageCatalogManager({
                   <div>
                     <p className="font-bold text-slate-900">
                       {pkg.title}
-                      {pkg.badge_label && (
+                      {/* A programme reaches a patient only through a
+                          clinician's recommendation, so this is the state
+                          worth seeing from the list -- an active package no
+                          therapist can offer is one nobody will ever be
+                          sold. The badge and Featured chips that used to sit
+                          here described a public card this app no longer
+                          renders. */}
+                      {!pkg.recommendable && (
                         <span className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                          {pkg.badge_label}
-                        </span>
-                      )}
-                      {pkg.highlight && (
-                        <span className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
-                          Featured
+                          Not recommendable
                         </span>
                       )}
                     </p>

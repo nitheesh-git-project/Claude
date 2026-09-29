@@ -27,11 +27,15 @@ Five rules shape almost every screen:
 4. Tap **Email Address**. Enter `qa.therapist.a@example.test`.
 5. Tap the phone field. Enter `+91 90000 10001`.
 6. Tap **Qualifications & License / Council Reg No.** Enter `MPT (Ortho), KSCP Reg 44821`.
-7. Tap **Password**. Enter `QaTest!2024pass`.
-8. Tap **Confirm Password**. Enter `QaTest!2024pass`.
-9. Tap **Submit Application**.
+7. Tap **Specialist In**. It is a **dropdown**, not a text box, and it lists exactly eight: Orthopaedic, Neurological, Paediatric, Sports, Geriatric, Cardiopulmonary, Women's health, General physiotherapy - **General physiotherapy** is the one for somebody who does not specialise. Choose **Orthopaedic**.
+7b. Tap **Years of experience**. Try `abc`, then `-2`, then `2024`, then `61`. Finally enter `9`.
+8. Tap **Password**. Enter `QaTest!2024pass`.
+9. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+10. Tap **Submit Application**.
 
-**Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`. **No "check your email" step appears anywhere.** The application shows in Admin → Today → Approvals and raises that tab's badge.
+**Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`, `specialization='Orthopaedic'` - the exact label, not a code - and `years_experience = 9`.
+**Step 7b:** letters never reach the box at all; `-2` and `61` are refused with the clinic's own wording naming the range (0 to 60); `2024` is refused as a number of years rather than stored, since somebody typing a *year* has answered a different question. Leaving it empty is refused - it is required on this form, and optional only on the admin's own create-account form, where the therapist can set it themselves afterwards. This column has existed since the first therapist shipped and nothing ever wrote it, so a therapist created before this landed carries null and shows nothing rather than `0`. **No "check your email" step appears anywhere.** The application shows in Admin → Today → Approvals, **carrying the specialisation chip**, and raises that tab's badge. Submitting with **Specialist In** left on its placeholder is refused by the form's own validation, in the clinic's wording rather than the browser's.
+**Critical check:** the specialisation and the years both reach the profile row through the signup trigger (`handle_new_user`), which clamps the years server-side - signup metadata comes from a browser and is never trusted. A database that has not had the schema re-applied writes the rest of the application and leaves those columns null - the account is still created, and the therapist sets it from their own dashboard.
 **Cleanup.** Leave for `ADM-APPR-002`.
 
 #### `THR-AUTH-002` - An unapproved therapist is held at the door · P0
@@ -92,7 +96,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 **Feature.** `/therapist/dashboard/profile`. **Role.** Therapist.
 **Purpose.** Prove the line between a detail a therapist owns and a credential patients rely on: the first saves on the spot, the second becomes an admin review request and locks the field until it is decided.
 **Preconditions.** `THR-AUTH-003`. An admin is available to decide the request in `ADM-APPR-004`.
-**Test Data.** Bio `Works with desk-based patients on posture-driven back pain.` · Languages `English, Kannada, Hindi` · Years of Experience `15` (a deliberate wrong value - it is declined, never approved, so Therapist A stays at the §8.8 value of `9`) · Specialist In `Spine, hip and knee rehabilitation`.
+**Test Data.** Bio `Works with desk-based patients on posture-driven back pain.` · Languages `English, Kannada, Hindi` · Years of Experience `15` (a deliberate wrong value - it is declined, never approved, so Therapist A stays at the §8.8 value of `9`) · Specialist In `Neurological` (a **dropdown** now, not a text box).
 
 **Steps**
 1. In the sidebar tap **Edit Profile**.
@@ -101,7 +105,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 4. Tap **Save**.
 5. Reload the page and confirm both values survived.
 6. Under **Credentials & Specialization**, tap **Years of Experience**. Enter `15`.
-7. Tap **Specialist In**. Enter `Spine, hip and knee rehabilitation`.
+7. Tap **Specialist In** and choose `Neurological` from the dropdown.
 8. Tap **Request Changes**.
 9. Read the two fields you just changed.
 10. Tap **Withdraw** beside **Specialist In**.
@@ -113,7 +117,8 @@ The therapist Overview is where a clinician starts every shift: what is on today
 **Expected Result.**
 * **Public Details save instantly.** The button reads `Saving...` then `Save`; the values survive the reload at step 5. No admin sees anything.
 * **Credentials do not.** Step 8 shows `Your request has been submitted for admin review.` Each requested field is replaced by its **new** value on a slate panel with an amber `Pending Review` chip and a **Withdraw** link, and **cannot be edited again** until the request is decided. The live public profile still shows the **old** value - `/team` and the patient's therapist card must not change yet.
-* Step 10's **Withdraw** returns the field to an editable input immediately, with the old value.
+* Step 10's **Withdraw** returns the field to an editable control immediately, with the old value.
+* **Specialist In is a dropdown of the eight the clinic recognises.** A therapist whose stored value is free text written before this list existed is offered that value as a ninth option and it is **preselected** - the screen must never show a different specialisation from the one in the database because the stored one had no matching option.
 * After step 12's decline the field is editable again and carries `Last request declined: Send the council registration number first.` in red. Nothing on the public profile ever changed.
 * The note under the credential fields reads `Changes to these fields need admin approval before they take effect.`
 * **Profile photo** uploads on the spot (no review) and appears on `/team` once the therapist is visible there.
@@ -125,20 +130,21 @@ The therapist Overview is where a clinician starts every shift: what is on today
 
 ### 12.2 Availability - the roster
 
-> **Feature guide.** The editor is the same component on the therapist's own screen and on the admin's Roster. It edits **periods** ("Monday 9 AM – 1 PM and 2 PM – 6 PM"), and converts them to the hour rows the tables have always stored. Every existing schedule - including a sparse exception written one cell at a time by the old grid - must read back as exactly the same hours. A weekly save is a **compare-and-swap under a real row lock**, versioned by `therapist_schedule_state`.
+> **Feature guide.** The editor is the same component on the therapist's own screen and on the admin's Roster. It edits **periods** ("Monday 9 AM – 1 PM and 2 PM – 6 PM"), and converts them to the hour rows the tables have always stored. Every existing schedule - including a sparse exception written one cell at a time by the old grid - must read back as exactly the same hours. A weekly save is a **compare-and-swap under a real row lock**, versioned by `therapist_schedule_state` - and a therapist who has never been saved has no such row, so the first save asks for no comparison at all rather than comparing against a version nobody holds. It **opens read-only**, as a week summary with an **Edit schedule** button: reading somebody's hours and changing them are two different acts, and a mis-tap on a dropdown used to be a change.
 
 #### `THR-AVAIL-001` - Set a weekly schedule with two periods a day · P0
 
 **Steps**
 1. Open `/therapist/dashboard/availability`.
-2. Read the header line - it states the schedule's timezone.
+2. Read the header line - it states the schedule's timezone. The week is shown as a **summary, with no editable controls on it**; tap **Edit schedule**.
 3. On **Monday**, tap the "working" toggle so the day is on.
 4. Tap the Monday start-time control. Set `09:00`. Tap the end-time control. Set `13:00`.
 5. Tap **Add hours** on Monday. On the new period, set `14:00` to `18:00`.
 6. Tap the copy control on Monday and copy Monday to Tuesday, Wednesday, Thursday and Friday.
 7. Tap **Save**.
 
-**Expected Result.** After saving, a "Saved" indication appears and the week summary reads Mon–Fri `9:00 AM – 1:00 PM, 2:00 PM – 6:00 PM`. Reloading the page shows exactly the same periods - **the stored hour rows round-trip to the same periods**. Saturday and Sunday remain off.
+**Expected Result.** After saving, a "Saved" indication appears, the editor **closes back to the read-only summary**, and that summary reads Mon–Fri `9:00 AM – 1:00 PM, 2:00 PM – 6:00 PM`. Reloading the page shows exactly the same periods - **the stored hour rows round-trip to the same periods** - and shows them read-only. Saturday and Sunday remain off.
+**This is also the first-save check for this therapist.** If it is refused with *"This schedule was changed by someone else"* on an account nobody else has touched, that is the version default returning: an absent `therapist_schedule_state` row is "no comparison asked for", not version `0`.
 **Cross-check:** Admin → Sessions → Roster, opening `QA Therapist A`, shows the identical schedule in the identical editor.
 
 #### `THR-AVAIL-002` - A day with no hours must be explicit · P1

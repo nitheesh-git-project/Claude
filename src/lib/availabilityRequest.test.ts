@@ -143,6 +143,19 @@ describe("parseExpectedVersion", () => {
     expect(parseExpectedVersion("3")).toEqual({ error: "Invalid schedule version." });
     expect(parseExpectedVersion(1.5)).toEqual({ error: "Invalid schedule version." });
   });
+
+  it("treats an explicit null as no version to compare against", () => {
+    // This is the first-save case, and the reason the editors now send null
+    // rather than 0 for a therapist with no therapist_schedule_state row.
+    // `lock_therapist_schedule_state` creates that row at version 1, so a 0
+    // was compared against 1 and every therapist's *first* save was refused
+    // as "changed by someone else" -- with nothing there to have changed.
+    // Null skips the comparison, which is correct rather than lenient.
+    expect(parseExpectedVersion(null)).toEqual({ version: null });
+    // Zero is still a legitimate version somebody could hold, so it is not
+    // quietly folded into null -- the fix is at the reader, not here.
+    expect(parseExpectedVersion(0)).toEqual({ version: 0 });
+  });
 });
 
 describe("parseLeaveDates", () => {

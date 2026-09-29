@@ -4,9 +4,11 @@ import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import { Fragment, useRef, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
+import { THERAPIST_SPECIALTIES } from "@/lib/therapistSpecialties";
+import { MAX_YEARS_EXPERIENCE } from "@/lib/therapistExperience";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import Spinner from "@/components/system/Spinner";
-import { formatIST } from "@/lib/formatIST";
+import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { useToast } from "@/lib/toast";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import {
@@ -20,6 +22,7 @@ import {
   type AccessLevel,
   type AdminScope,
 } from "@/lib/adminScope";
+import ResetAdminPasswordButton from "@/components/admin/ResetAdminPasswordButton";
 
 /**
  * Who can get into this dashboard, what each of them reaches, and who is
@@ -350,8 +353,10 @@ function AccessMatrix() {
 // above, a patient or therapist on their profile page under People.
 function CreatedAccountPanel({
   created,
+  onClose,
 }: {
   created: { email: string; password: string; role: string };
+  onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const whereItLives =
@@ -360,7 +365,21 @@ function CreatedAccountPanel({
       : "It stays on their profile under People until they set their own.";
 
   return (
-    <div className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900">
+    <div className="relative rounded-lg border border-teal-200 bg-teal-50 p-3 pr-9 text-xs text-teal-900">
+      {/* Dismissible, because otherwise the only way this panel leaves the
+          screen is creating another account -- so a live credential sat above
+          the Create button indefinitely, pushing it down the page. Closing is
+          safe precisely because the password is not only here: it is on the
+          account's own row until they set their own, which the line below
+          says. */}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Dismiss"
+        className="absolute right-2 top-2 rounded-lg px-2 py-0.5 font-bold text-teal-700 transition hover:bg-teal-100"
+      >
+        <i className="fa-solid fa-xmark" aria-hidden="true"></i>
+      </button>
       <p className="font-bold">Account created.</p>
       <p className="mt-1 flex flex-wrap items-center gap-2">
         {created.email} · temporary password{" "}
@@ -370,6 +389,10 @@ function CreatedAccountPanel({
           onClick={() => {
             navigator.clipboard.writeText(created.password);
             setCopied(true);
+            // Back to "Copy" after a beat. It never reset, so one tap left the
+            // button reading "Copied" for the rest of the session -- which
+            // says nothing about whether the *next* tap worked.
+            window.setTimeout(() => setCopied(false), 2000);
           }}
           className="rounded-lg border border-teal-300 bg-white px-2 py-1 font-semibold text-teal-800 transition hover:bg-teal-100"
         >
@@ -424,7 +447,7 @@ function IssuedPassword({ row }: { row: AdminRow }) {
         {copied ? "Copied" : "Copy"}
       </button>
       {row.tempPasswordSetAt && (
-        <span className="text-slate-500">Issued {formatIST(row.tempPasswordSetAt)}</span>
+        <span className="text-slate-500">Issued {formatClinicDateTimeWithZone(row.tempPasswordSetAt)}</span>
       )}
     </p>
   );
@@ -437,6 +460,8 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [credentials, setCredentials] = useState("");
+  const [specialization, setSpecialization] = useState("");
+  const [yearsExperience, setYearsExperience] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<
     { email: string; password: string; role: string } | null
@@ -463,6 +488,8 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
         email,
         phone: phone.trim() || null,
         credentials: credentials.trim() || null,
+        specialization: specialization || null,
+        yearsExperience: yearsExperience || null,
         adminScope,
       });
       const send = () =>
@@ -497,10 +524,15 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
       // to, and the realtime refresh it triggers arrives while the admin is
       // still reading the password out.
       setCreated({ email, password: data.password, role });
+      // Every field the form collects, not only the ones somebody remembered
+      // -- a specialisation left behind from the last therapist is the next
+      // account created with a fact about somebody else on it.
       setFullName("");
       setEmail("");
       setPhone("");
       setCredentials("");
+      setSpecialization("");
+      setYearsExperience("");
     } catch {
       setError("Could not reach the server. Please try again.");
       return;
@@ -591,17 +623,62 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
             />
           </div>
           {role === "therapist" && (
-            <div>
-              <label className={labelCls} htmlFor="new-account-credentials">
-                Credentials
-              </label>
-              <input
-                id="new-account-credentials"
-                value={credentials}
-                onChange={(e) => setCredentials(e.target.value)}
-                className={fieldCls}
-              />
-            </div>
+            <>
+              <div>
+                <label className={labelCls} htmlFor="new-account-credentials">
+                  Credentials
+                </label>
+                <input
+                  id="new-account-credentials"
+                  value={credentials}
+                  onChange={(e) => setCredentials(e.target.value)}
+                  className={fieldCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="new-account-specialization">
+                  Specialist in
+                </label>
+                {/* Asked for here as well as on the public application form,
+                    so a therapist hired offline is not the one profile on
+                    /team with nothing where everybody else has a
+                    specialisation. Blank is allowed -- they can set it
+                    themselves -- which is why it is not required. */}
+                <select
+                  id="new-account-specialization"
+                  value={specialization}
+                  onChange={(e) => setSpecialization(e.target.value)}
+                  className={fieldCls}
+                >
+                  <option value="">Not set yet</option>
+                  {THERAPIST_SPECIALTIES.map((s) => (
+                    <option key={s.key} value={s.label}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="new-account-years">
+                  Years of experience
+                </label>
+                {/* Same reasoning as the specialisation above it: asked here
+                    too, so a therapist hired offline reads the same on /team
+                    and in the directory as one who applied. Blank is allowed
+                    and means "not said". */}
+                <input
+                  id="new-account-years"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={MAX_YEARS_EXPERIENCE}
+                  step={1}
+                  value={yearsExperience}
+                  onChange={(e) => setYearsExperience(e.target.value)}
+                  className={fieldCls}
+                />
+              </div>
+            </>
           )}
         </div>
       )}
@@ -616,7 +693,7 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
           {error}
         </p>
       )}
-      {created && <CreatedAccountPanel created={created} />}
+      {created && <CreatedAccountPanel created={created} onClose={() => setCreated(null)} />}
 
       <button
         type="submit"
@@ -720,7 +797,7 @@ export default function AdminUserAccessTab({
                 did - which is why access is taken away rather than the account deleted.
               </p>
             )}
-            <ul className="space-y-2">
+            <ul aria-label="Back office accounts" className="space-y-2">
               {pageAdmins.map((a) => (
                 <li
                   key={a.id}
@@ -747,6 +824,21 @@ export default function AdminUserAccessTab({
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-3">
                     <StatusToggle row={a} canManage={canManage} />
+                    {/* The lane `IssuedPassword` above names for an account
+                        signing in with its own password. It existed for
+                        patients, therapists and hospitals and not for the back
+                        office, so closing the door on a colleague who had
+                        locked themselves out needed database access. Full
+                        scope only, and never your own row -- the honest answer
+                        for that is the emailed reset on Sign-in & Security,
+                        which the route says too. */}
+                    {canManage && (
+                      <ResetAdminPasswordButton
+                        adminId={a.id}
+                        disabled={a.isSelf}
+                        disabledReason="Reset your own on Sign-in & Security"
+                      />
+                    )}
                     {/* Never on your own row, and the route refuses it again
                         along with the last Master Admin who can still sign
                         in. An admin who has done anything at all is refused

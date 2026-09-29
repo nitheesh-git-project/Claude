@@ -15,6 +15,7 @@ import {
   type TimeRange,
 } from "@/lib/availabilityRanges";
 import type { OverrideRow, TemplateRow } from "@/lib/therapistAvailability";
+import DateField from "@/components/system/DateField";
 
 // One date that differs from the weekly schedule. Called an exception
 // everywhere a person can see it -- "override" is the column's word, not
@@ -138,12 +139,21 @@ export default function ScheduleExceptionsPanel({
               >
                 Date
               </label>
-              <input
+              {/* The booking wizard's own month grid, in its compact mode.
+                  This screen is where the complaint landed: the rest of the
+                  booking funnel has looked like the clinic's own product since
+                  the wizard replaced its date box, and the roster was still
+                  opening the operating system's picker one screen over. Bounded
+                  to today onwards -- the route accepts a past date, but nobody
+                  is rostering one. */}
+              <DateField
                 id="exception-date"
-                type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="mt-1 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+                onChange={setDate}
+                ariaLabel="Exception date"
+                clearable={false}
+                minDateKey={todayKey}
+                className="mt-1"
               />
             </div>
             <fieldset>

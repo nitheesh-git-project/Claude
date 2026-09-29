@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
+import {
+  formatClinicDate,
+  formatClinicDateTime,
+  formatClinicDateTimeWithZone,
+} from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
@@ -108,6 +112,11 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, razorpay_payment_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at"
       )
       .eq("patient_id", id)
+      // Not what decides the list's order any more -- ProfileSessionList
+      // orders by the session's own slot_time (src/lib/sessionOrdering.ts).
+      // This is the deterministic input that comparator's created_at
+      // tie-break reads, and it keeps the money lists below, which sort
+      // themselves by paid_at, falling back to a settled order.
       .order("created_at", { ascending: false }),
     admin
       .from("patient_admin_notes")
@@ -334,7 +343,12 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                 </Link>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Joined {formatClinicDate(patient.created_at)}
+                {/* The date alone answered "roughly when" and not "which of
+                    the two accounts this person made on Tuesday" -- which is
+                    the question an admin on the phone is actually holding,
+                    and the reason the People directory has always carried
+                    the time. */}
+                Joined {formatClinicDateTimeWithZone(patient.created_at)}
                 {hospital?.organization_name && (
                   <> • Referred by {hospital.organization_name}</>
                 )}
