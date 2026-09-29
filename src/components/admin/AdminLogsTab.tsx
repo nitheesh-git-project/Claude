@@ -21,6 +21,7 @@ import {
   type ActivityFilters,
 } from "@/lib/activityLog";
 import DateField from "@/components/system/DateField";
+import { rowActivationProps } from "@/lib/rowActivation";
 
 // The whole log, for the one reader entitled to all of it.
 //
@@ -281,14 +282,14 @@ export default function AdminLogsTab({
                 {pageRows.map((r) => (
                   <tr
                     key={r.id}
-                    onClick={() => {
+                    {...rowActivationProps(() => {
                       // Opened from the table, so there is no timeline
                       // behind it to go back to.
                       setTimelineOrigin(null);
                       setOpenRowFromTimeline(null);
                       setOpenId(r.id);
-                    }}
-                    className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
+                    })}
+                    className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50 focus:outline-none focus-visible:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600"
                   >
                     <td className="whitespace-nowrap py-2 pr-3 text-slate-500">
                       {formatWhen(r.createdAt)}

@@ -153,7 +153,7 @@ export default function AdminOwingTab({
         >
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <Link
-              href={`/admin/patients/${b.patientId}`}
+              href={`/admin/dashboard/patients/${b.patientId}`}
               className="text-sm font-bold text-slate-900 hover:text-teal-700"
             >
               {nameOf(b.patientId)}
@@ -317,7 +317,7 @@ export default function AdminOwingTab({
             {unclosed.map((a) => (
               <li key={a.id} className="flex flex-wrap items-baseline justify-between gap-2 text-xs">
                 <Link
-                  href={`/admin/patients/${a.patient_id}`}
+                  href={`/admin/dashboard/patients/${a.patient_id}`}
                   className="font-semibold text-slate-800 hover:text-teal-700"
                 >
                   {nameOf(a.patient_id)}
@@ -360,7 +360,7 @@ export default function AdminOwingTab({
               >
                 <span>
                   <Link
-                    href={`/admin/patients/${a.patient_id}`}
+                    href={`/admin/dashboard/patients/${a.patient_id}`}
                     className="font-semibold text-slate-800 hover:text-teal-700"
                   >
                     {nameOf(a.patient_id)}

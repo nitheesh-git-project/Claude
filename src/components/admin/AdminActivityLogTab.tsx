@@ -12,6 +12,7 @@ import ActivityDetailDialog, {
   formatWhen,
 } from "@/components/admin/ActivityDetailDialog";
 import DateField from "@/components/system/DateField";
+import { rowActivationProps } from "@/lib/rowActivation";
 
 // Who did what, for one desk.
 //
@@ -200,8 +201,8 @@ export default function AdminActivityLogTab({
               {pageRows.map((r) => (
                 <tr
                   key={r.id}
-                  onClick={() => setOpenId(r.id)}
-                  className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50"
+                  {...rowActivationProps(() => setOpenId(r.id))}
+                  className="cursor-pointer border-b border-slate-100 transition hover:bg-slate-50 focus:outline-none focus-visible:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600"
                 >
                   <td className="whitespace-nowrap py-2 pr-3 text-slate-500">
                     {formatWhen(r.createdAt)}

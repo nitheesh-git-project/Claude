@@ -8,6 +8,7 @@ import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import PackagePurchaseDetailModal from "@/components/admin/PackagePurchaseDetailModal";
 import { daysUntilExpiry } from "@/lib/packageProgress";
+import { rowActivationProps } from "@/lib/rowActivation";
 
 export type PurchaseRow = {
   id: string;
@@ -170,8 +171,8 @@ export default function PackagePurchasesTable({
               pageRows.map((p) => (
                 <tr
                   key={p.id}
-                  onClick={() => setOpenPurchaseId(p.id)}
-                  className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                  {...rowActivationProps(() => setOpenPurchaseId(p.id))}
+                  className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer focus:outline-none focus-visible:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600"
                 >
                   <td className="py-2 pr-3 font-mono text-slate-500">{p.purchaseCode ?? "-"}</td>
                   <td className="py-2 pr-3">
