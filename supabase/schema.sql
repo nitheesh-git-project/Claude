@@ -13955,8 +13955,12 @@ revoke all on function public.verify_settlement_agreement() from public;
 revoke all on function public.verify_settlement_agreement() from anon;
 revoke all on function public.verify_settlement_agreement() from authenticated;
 
+-- Plain rather than `execute '...'`: check-realtime-coverage.mjs reads this
+-- file for the literal statement, and a quoted one is invisible to it -- so
+-- the table would be subscribed in the UI with nothing publishing it, which
+-- is the exact failure that check exists to catch and has no runtime symptom.
 do $$
 begin
-  execute 'alter publication supabase_realtime add table session_settlements';
+  alter publication supabase_realtime add table session_settlements;
 exception when duplicate_object then null;
 end $$;
