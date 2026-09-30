@@ -189,6 +189,7 @@ import {
 import { readReferralAttributionHealth } from "@/lib/referralAttribution";
 import { readRefundHealth } from "@/lib/refundHealthServer";
 import { countAwaitingFirstBooking } from "@/lib/unscheduledPurchases";
+import { readHomeVisitAreaCommitments } from "@/lib/homeVisitAreaCommitments";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | MoveRestore",
@@ -797,6 +798,7 @@ export default async function AdminDashboardPage({
     payLaterWriteOffReconciliation,
     referralAttributionHealth,
     refundHealth,
+    areaCommitments,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -1118,6 +1120,12 @@ export default async function AdminDashboardPage({
     // read, and null when it could not be asked -- a database without
     // `refund_attempts` reports "not applied yet" rather than agreement.
     readRefundHealth(admin),
+    // Visits already paid for that the clinic still has to drive to, per
+    // area. A purchase is honoured whatever happens to the catchment, so
+    // deactivating an area cancels nothing -- and an admin was doing it with
+    // no idea what was still owed. Null when it could not be asked, which
+    // the row reports rather than showing as zero.
+    readHomeVisitAreaCommitments(admin),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -3046,6 +3054,8 @@ export default async function AdminDashboardPage({
         areas={(homeVisitAreas ?? []).map((a) => ({
           ...a,
           in_use: usedAreaIds.has(a.id),
+          pending_visits:
+            areaCommitments === null ? null : areaCommitments.get(a.id)?.visits ?? 0,
         }))}
         waitlist={homeVisitWaitlist ?? []}
       />

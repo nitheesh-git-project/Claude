@@ -19,6 +19,18 @@ export type ServiceAreaRow = {
   // Whether any visit or saved address already points at this area. Delete
   // is only offered when nothing does -- see the row actions below.
   in_use: boolean;
+  /**
+   * Visits the clinic has been paid for here and still has to drive to.
+   *
+   * A purchase is honoured whatever happens to the catchment: the patient
+   * keeps the visits they bought, at the travel fee frozen on their
+   * purchase. So deactivating an area does not cancel anything, and an
+   * admin was doing it with no idea what was still owed.
+   *
+   * `null` means the count could not be read -- which is not zero, and the
+   * row says so rather than implying the clinic owes nothing here.
+   */
+  pending_visits?: number | null;
 };
 
 export type WaitlistRow = {
@@ -201,6 +213,24 @@ function AreaRow({ area }: { area: ServiceAreaRow }) {
     post("/api/admin/delete-home-visit-area", { id: area.id });
   }
 
+  // Turning an area off stops it being *sold*; it does not withdraw
+  // treatment somebody has already paid for. Saying so at the moment of the
+  // decision is the point -- an admin who thinks they are cancelling eleven
+  // visits and an admin who knows they are not will do different things
+  // next, and only one of those is informed.
+  async function handleToggleActive() {
+    const owed = area.pending_visits ?? 0;
+    if (area.active && owed > 0) {
+      const ok = await confirm(
+        `${owed} visit${owed === 1 ? "" : "s"} already paid for still have to be delivered here. ` +
+          "Turning this area off stops new bookings only - those visits stay owed and can still be " +
+          "scheduled, at the travel fee agreed when they were bought. Turn it off?"
+      );
+      if (!ok) return;
+    }
+    post("/api/admin/update-home-visit-area", { id: area.id, active: !area.active });
+  }
+
   if (editing) {
     return (
       <li className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
@@ -264,6 +294,18 @@ function AreaRow({ area }: { area: ServiceAreaRow }) {
           Travel ₹{(area.travel_fee_paise / 100).toLocaleString("en-IN")} per visit
           {area.notes && <span className="text-slate-500"> · {area.notes}</span>}
         </p>
+        {area.pending_visits === null ? (
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            We could not check what is still owed here just now.
+          </p>
+        ) : (
+          (area.pending_visits ?? 0) > 0 && (
+            <p className="text-[11px] text-amber-700 mt-0.5">
+              {area.pending_visits} visit{area.pending_visits === 1 ? "" : "s"} already paid for,
+              still to deliver here
+            </p>
+          )
+        )}
         {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
       </div>
       <div className="flex items-center gap-3">
@@ -278,9 +320,7 @@ function AreaRow({ area }: { area: ServiceAreaRow }) {
           Edit
         </button>
         <button
-          onClick={() =>
-            post("/api/admin/update-home-visit-area", { id: area.id, active: !area.active })
-          }
+          onClick={handleToggleActive}
           disabled={isPending}
           className="text-[11px] text-slate-600 font-semibold hover:underline disabled:opacity-60"
         >

@@ -677,6 +677,16 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 * A pincode that is **already** a service area is told so in the dialog with the clinic's own city and fee, and is offered **Mark served** alone - there is nothing to add.
 * The area is written **first**: if it cannot be created, the status stays where it was and the dialog says why.
 
+#### `ADM-CAT-012` - Closing an area does not take back what somebody bought · P0
+
+**Feature.** A service area gates what can be **sold**, and nothing else. A patient who bought six visits and has had two keeps the other four even after the clinic stops serving their pincode, at the travel fee **frozen on their purchase** rather than the live area row. The catchment is the clinic's decision and not the patient's, and withdrawing treatment somebody has already paid for is the one outcome a service area must not produce. Refunding instead is still available, per purchase, on the screen that already does refunds.
+
+**Preconditions.** A patient with an active six-visit home-visit purchase in Area 1, two visits delivered, four still to schedule.
+**Steps.** Open **Catalog → Service Areas** and read Area 1's row. Tap **Deactivate** and read the dialog. Confirm. Then, as that patient, schedule another visit from the purchase.
+**Expected Result.** The row states **"4 visits already paid for, still to deliver here"** before you touch anything. Deactivate asks first, naming that number and saying those visits stay owed and can still be scheduled at the fee agreed when they were bought. After confirming, the patient **can still book** their remaining visits, and each one carries the **original** travel fee - not the current area's, and not zero.
+**What deactivating does change:** `/book-home-visit` stops accepting that pincode for anyone new, and every purchase route refuses it server-side.
+**Negative:** the count must not read **0** when it could not be worked out. Make the read fail and the row says *"We could not check what is still owed here just now."* - on this screen a zero reads as permission to close the area, which is exactly the wrong conclusion.
+
 #### `ADM-CAT-014` - Purchases · P1
 **Steps.** Open **Catalog → Purchases**. Open a package purchase's detail modal; then a home-visit purchase's.
 **Expected Result.** Both list every purchase with balances. The detail modals are **viewer-scoped, not role-branched** - the route queries with the caller's own RLS-scoped client, so a row coming back **is** the authorization. Money controls inside the modal render only for an admin with `money` scope.

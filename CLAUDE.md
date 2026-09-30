@@ -371,6 +371,20 @@ and from what the clinic already charges in that city, with two answers:
 open the area and mark it served, or mark it served alone. See the waitlist
 rule in `AGENTS.md`.
 
+**And closing an area does not take back what somebody already bought.** A
+service area gates what can be *sold*; a patient who bought six visits and has
+had two keeps the other four at the travel fee frozen on their purchase, even
+after the clinic stops serving their pincode. The catchment is the clinic's
+choice and not the patient's, and withdrawing treatment somebody has paid for
+is the one outcome a service area must not produce -- so `book-visits`
+deliberately does not re-check serviceability. That was true by omission
+before it was true by decision, which is the shape where the next reader
+"fixes" it and strands paid visits. Turning an area off used to say nothing
+about what it did not cancel: the row now states how many paid visits are
+still to deliver there (`src/lib/homeVisitAreaCommitments.ts`) and Deactivate
+asks first, naming the number. A count it could not read says so rather than
+reading zero, on the one screen where zero would be read as permission.
+
 The health profile is **per specialty**: a condition profile carries
 `specialty` (`ortho`, `neuro`, `pediatrics`), and that decides its seven
 questions, its summary card, its snapshot figures and its progress line.

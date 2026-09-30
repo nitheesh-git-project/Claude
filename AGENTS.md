@@ -453,6 +453,7 @@ src/lib/refundAttempt.ts what a refund was asked to do, written before it is
 src/lib/refundHealthServer.ts whether every refund sent has a recorded answer
 src/lib/unscheduledPurchases.ts a purchase nobody has booked anything against
 src/lib/therapistReadiness.ts what a therapist still needs before live patients
+src/lib/homeVisitAreaCommitments.ts paid visits an area still has to deliver
 src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
 src/lib/catalogFeatured.ts which few of the catalogue a public page leads with
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
@@ -1840,7 +1841,25 @@ before.
   (pincode → travel fee) gates what can be sold at all:
   `/api/home-visit/check-area` is checked before an address is even
   collected, and re-checked server-side at every purchase route - never
-  trust a serviceability answer the browser already has. A locked
+  trust a serviceability answer the browser already has.
+  **It gates what can be *sold*, and nothing else. A purchase already made
+  is honoured.** A patient who bought six visits and has had two keeps the
+  other four even after the clinic stops serving their pincode, at the
+  travel fee frozen on their purchase -- so `/api/home-visit/book-visits`
+  deliberately does **not** re-check serviceability, and
+  `bookHomeVisitSession` reads `purchase.travel_fee_paise` rather than the
+  live area row. That was true by omission before it was true by decision,
+  which is the dangerous shape: the next reader would reasonably "fix" it by
+  adding the check and strand paid visits. The catchment is the clinic's
+  choice and not the patient's, and withdrawing treatment somebody has paid
+  for is the one outcome a service area must not produce; refunding instead
+  is an admin's call per purchase, on the screen that already does refunds.
+  The other half is that turning an area off used to say nothing about what
+  it did not cancel: `src/lib/homeVisitAreaCommitments.ts` counts the paid
+  visits still to deliver in each area, the row states it, and Deactivate
+  asks first and names the number. A count it could not read says so rather
+  than showing zero -- on the one screen where a zero reads as permission.
+  A locked
   therapist's conflict check is padded by
   `home_visit_travel_buffer_minutes` on both sides of the new slot
   (`findTherapistConflict`'s `bufferMinutes` option) since a therapist

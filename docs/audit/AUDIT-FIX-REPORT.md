@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **75 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **76 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **43 open**, each with an assessment. Roughly half are one architectural
+- **42 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -739,12 +739,38 @@ loud: a cash-on-visit purchase is `unpaid` for its whole life by design, so a
 check written on payment status would have dropped every one of them and
 reported a clean screen.
 
-### 60. Home-visit package continuation after service-area changes — **Open — your decision**
+### 60. Home-visit package continuation after service-area changes — **Fixed — decided**
 
-Genuinely undefined, and it is a policy question: a patient bought six visits
-and the clinic then stopped serving their pincode. Honour the remainder, refund
-it, or offer online? That is yours. The mechanism for whichever you pick is
-small; the decision is not mine.
+You handed this back, so here is the decision and the reasoning.
+
+**The remainder is honoured.** A patient who bought six visits and has had
+two keeps the other four, at the travel fee frozen on their purchase, even
+if the clinic later stops serving their pincode. The catchment changing is
+the clinic's choice and not the patient's, and withdrawing treatment somebody
+has already paid for is the one outcome a service area must not produce.
+Refunding instead is still available and is an admin's call per purchase, on
+the screen that already does refunds.
+
+**Which is what the code already did — by omission rather than by decision,
+and that was the actual problem.** `/api/home-visit/book-visits` does not
+re-check serviceability, and `bookHomeVisitSession` reads
+`purchase.travel_fee_paise` rather than the live area row, so the remaining
+visits were always honoured at the agreed price. Nothing said so, nothing
+tested it, and the next person to read those routes would reasonably have
+"fixed" it by adding the check — which would have stranded paid visits.
+
+**What was genuinely missing is the other side of it.** An admin could
+deactivate a service area with no idea the clinic still owed eleven visits
+there. Turning an area off stops it being *sold*; it does not cancel
+anything. So the area row now states how many paid visits are still to
+deliver there (`src/lib/homeVisitAreaCommitments.ts`), and turning it off
+asks first, naming that number and saying plainly that those visits stay
+owed and schedulable at the fee agreed when they were bought.
+
+A count that could not be read shows as **"We could not check what is still
+owed here just now"** rather than zero — the rule this codebase holds
+everywhere, and it matters most on the screen where a zero would be read as
+permission.
 
 ### 61, 62, 63. Weekly limits and dates use UTC instead of clinic time — **Fixed**
 
