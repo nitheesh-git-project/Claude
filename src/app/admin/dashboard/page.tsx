@@ -189,6 +189,7 @@ import {
 } from "@/lib/tempPassword";
 import { readReferralAttributionHealth } from "@/lib/referralAttribution";
 import { readRefundHealth } from "@/lib/refundHealthServer";
+import { readStorageReconciliation } from "@/lib/storageReconciliation";
 import { countAwaitingFirstBooking } from "@/lib/unscheduledPurchases";
 import { readHomeVisitAreaCommitments } from "@/lib/homeVisitAreaCommitments";
 
@@ -801,6 +802,7 @@ export default async function AdminDashboardPage({
     refundHealth,
     areaCommitments,
     payLaterCeilingPaise,
+    storageHealth,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -1131,6 +1133,10 @@ export default async function AdminDashboardPage({
     // The clinic's own ceiling on what one patient may owe. Null is no
     // ceiling, which is the default and how the feature shipped.
     readPayLaterCeilingPaise(admin),
+    // Patient files against the rows describing them. Its own read, null
+    // when it could not be asked -- the one reconciliation on that screen
+    // whose subject is a medical record rather than a number.
+    readStorageReconciliation(admin),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -4471,6 +4477,7 @@ export default async function AdminDashboardPage({
     payLater: payLaterHealth,
     referralAttribution: referralAttributionHealth,
     refunds: refundHealth,
+    storage: storageHealth,
   });
 
   const home = buildAdminHome(viewerScope, {

@@ -463,6 +463,7 @@ src/lib/unscheduledPurchases.ts a purchase nobody has booked anything against
 src/lib/therapistReadiness.ts what a therapist still needs before live patients
 src/lib/homeVisitAreaCommitments.ts paid visits an area still has to deliver
 src/lib/clinicalAccess.ts who can read a patient's record, and why
+src/lib/storageReconciliation.ts patient files against the records describing them
 src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
 src/lib/catalogFeatured.ts which few of the catalogue a public page leads with
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
@@ -3719,7 +3720,7 @@ before.
   advance). Offers carries a note saying where promo codes and goodwill
   live, because "where did the promo screen go" is the question a split
   otherwise creates.
-- **System Health is nine checks in one shape, and every unhealthy one says
+- **System Health is ten checks in one shape, and every unhealthy one says
   how to fix it.** The screen reports rather than sets, so it is not an
   `AdminFeatureControlTab` view -- `src/lib/systemHealth.ts` decides each
   check's status, its one-line headline, the numbered steps that fix it, and
@@ -3757,7 +3758,7 @@ before.
      says "Checked 4 minutes ago". The relative time is rendered after mount,
      never on the server -- "4 minutes ago" computed server-side is already
      wrong in the browser, and rendering it in both is a hydration mismatch.
-  A tenth check is an entry in that module plus, if it has rows, a card
+  An eleventh check is an entry in that module plus, if it has rows, a card
   body in the tab -- never a new panel with its own shape. The two fix
   buttons render only under `scopeCanManage(scope, "settings")`, matching the
   routes.
@@ -3777,6 +3778,26 @@ before.
   exists because a row is legitimately unresolved for the length of one
   gateway call, and counting every one would put a red light on a working
   clinic. See the refund-record rule below.
+  **The tenth is Patient files, and it is the one reconciliation whose
+  subject is a medical record.** `patient_medical_documents` holds metadata
+  only, so the row and the file in the private `medical-reports` bucket can
+  come apart in either direction and nothing looked. They are not the same
+  finding: a **record with no file** is red, because it is on the patient's
+  own health profile and the view route mints a signed URL for something that
+  is not there -- the *patient* meets it; a **file with no record** is amber,
+  since nothing is broken for anybody but a scan the patient believes they
+  deleted is still stored. It **lists and never deletes**
+  (`docs/DATA-POLICY.md` §5, and the steps say so out loud, because the
+  obvious reading of an orphan list is "tidy it up"): a sweep that removes a
+  file it could not find a row for is one bad query away from deleting a
+  patient's scan. A walk that hits its own cap reports *"only part of the file
+  store was checked"* rather than a clean bucket it did not earn, and one
+  unreadable folder makes the whole answer null rather than an undercount. It
+  found two orphans on its first run, and the cause is the ordinary one before
+  launch: **the debug reset truncates that table and cannot reach Storage**,
+  so every reset since uploads shipped has left its files behind. A `TRUNCATE`
+  cannot delete an object in a bucket, so that is a consequence to state
+  rather than a bug to fix -- which is what the check's own steps do.
   **The sixth is Public doors, and it watches the limiter rather than a
   backlog.** `enforceRateLimit` allows a request it cannot attribute, which
   is correct and is silent: there is no 429, no log line and no counter row

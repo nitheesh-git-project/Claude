@@ -689,6 +689,15 @@ Four consequences worth holding in mind while testing:
 **Expected Result.** All five raise. The table permits exactly one transition (`processing` → `succeeded` or `failed`), once, plus the columns that resolution fills in; a success with **no** gateway refund id is refused outright. Every foreign key is `restrict`, so the last two are refused naming this table, and **Settings → User Access** offers suspension instead - the same refusal shape as every other record that blocks a delete.
 **Why by trigger and not by RLS:** every refund writer in this app uses the service-role client, which bypasses RLS entirely - so for a table whose whole value is that it records what was attempted *before* it was attempted, "no route rewrites it" is not the same guarantee as "a rewrite raises".
 
+#### `SYS-FILES-001` - Patient files and the records describing them · P1
+
+**Feature.** `patient_medical_documents` holds metadata only - the scan itself is an object in the private `medical-reports` bucket - so the two can come apart in either direction and nothing looked.
+
+**Steps.** Delete a metadata row directly in SQL, leaving its file. Separately, delete a file from the bucket, leaving its row. Open **Settings → System Health → Patient files** after each.
+**Expected Result.** The **record with no file** is **red**: the patient has it listed on their own health profile and the view route mints a signed URL for something that is not there, so the patient meets the failure. The **file with no record** is **amber**: nothing is broken for anybody, but a scan the patient believes they deleted is still stored. The count is the two added together, and the evidence names each separately.
+**The steps must never tell anybody to delete a file.** They say plainly that nothing is removed automatically and nothing should be - a file deleted because a record could not be found is a patient's scan. They also name the ordinary pre-launch cause: **Reset data empties the records and cannot reach the stored files**, so every reset leaves its uploads behind.
+**Negative, two ways.** With a bucket too large to walk in one pass, the check reads **"only part of the file store was checked"** rather than Healthy - a partial clean result is not a clean result. With the file store unreadable it reads **"could not be checked"**, never Healthy: on this check a zero would be read as "nothing to worry about" rather than "we did not look", and what is being counted is a medical record.
+
 #### `PL-REF-009` - An unmigrated database says so, rather than Healthy · P1
 
 **Steps.** Against a database without `refund_attempts`, open **Settings → System Health**.

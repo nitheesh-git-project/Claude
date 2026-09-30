@@ -44,7 +44,8 @@ export type HealthCheckId =
   | "rate_limits"
   | "pay_later"
   | "referral_attribution"
-  | "refunds";
+  | "refunds"
+  | "patient_files";
 
 export type HealthCheck = {
   id: HealthCheckId;
@@ -160,6 +161,25 @@ export type SystemHealthInput = {
    * mistake this file corrects most often.
    */
   refunds?: RefundHealth | null;
+  /**
+   * Patient files against the rows describing them.
+   *
+   * Null when it could not be asked -- on this check a zero reads as
+   * "nothing to worry about" rather than "we did not look", and the thing
+   * being counted is a medical record.
+   */
+  storage?: StorageHealth | null;
+};
+
+export type StorageHealth = {
+  /** Files in the bucket that no metadata row describes. */
+  filesWithNoRow: number;
+  /** Rows whose file is not in the bucket -- listed to the patient, and the
+   *  view route mints a signed URL for something that is not there. */
+  rowsWithNoFile: number;
+  /** Whether the walk hit its own cap, so this is part of the bucket rather
+   *  than all of it. A partial clean result is not a clean result. */
+  truncated: boolean;
 };
 
 export type RefundHealth = {
@@ -830,6 +850,90 @@ function refundsCheck(health: RefundHealth | null): HealthCheck {
   };
 }
 
+/**
+ * Patient files: the row and the file agreeing.
+ *
+ * `patient_medical_documents` holds metadata only, so the two can come apart
+ * in either direction and nothing looked. It **lists and never deletes** --
+ * `docs/DATA-POLICY.md` §5 -- because a sweep that removes a file it could
+ * not find a row for is one bad query away from deleting a patient's scan.
+ *
+ * A row with no file is the worse half and the one that decides the colour:
+ * the document is on the patient's own health profile and the view route
+ * mints a signed URL for something that is not there, so the patient meets
+ * the failure. A file with no row is amber -- nothing is broken for anybody,
+ * but a scan report the patient believes they deleted is still in a bucket.
+ */
+function patientFilesCheck(health: StorageHealth | null): HealthCheck {
+  const base = {
+    id: "patient_files" as const,
+    label: "Patient files",
+    icon: "fa-folder-open",
+    what: "The scans and reports patients upload, checked against the records that describe them. The file lives in storage and the description lives in the database, so the two can come apart - a file nothing points at, or a record whose file is missing.",
+    example:
+      "A patient deletes a report, the record goes and the file does not - so a scan they believe they removed is still stored. Or the reverse: their health profile lists a report that will not open, because the file is gone and only the record is left.",
+  };
+
+  if (!health) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Could not be checked just now.",
+      fix: ["Reload this page. If it keeps saying this, the file store could not be read."],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  const evidence: string[] = [];
+  if (health.rowsWithNoFile > 0) {
+    evidence.push(
+      `${plural(health.rowsWithNoFile, "record", "records")} whose file is missing`
+    );
+  }
+  if (health.filesWithNoRow > 0) {
+    evidence.push(`${plural(health.filesWithNoRow, "file", "files")} nothing points at`);
+  }
+  // Said whenever it applies, including on an otherwise clean result: a
+  // partial clean result is not a clean result, and this is the sentence
+  // that stops it being read as one.
+  if (health.truncated) {
+    evidence.push("Only part of the file store was checked on this pass");
+  }
+
+  if (health.rowsWithNoFile === 0 && health.filesWithNoRow === 0) {
+    return {
+      ...base,
+      status: health.truncated ? "unknown" : "healthy",
+      headline: health.truncated
+        ? "Only part of the file store could be checked on this pass."
+        : "Every patient file has a record, and every record has its file.",
+      fix: health.truncated
+        ? ["Nothing is known to be wrong. Reload later to check the rest."]
+        : [],
+      count: 0,
+      evidence,
+    };
+  }
+
+  return {
+    ...base,
+    status: health.rowsWithNoFile > 0 ? "broken" : "attention",
+    headline:
+      health.rowsWithNoFile > 0
+        ? `${plural(health.rowsWithNoFile, "patient record", "patient records")} point at a file that is not there - the patient sees it listed and it will not open.`
+        : `${plural(health.filesWithNoRow, "patient file", "patient files")} are stored with nothing pointing at them.`,
+    fix: [
+      "Nothing here is deleted automatically, and nothing should be - a file removed because a record could not be found is a patient's scan.",
+      "For a record whose file is missing: ask the patient to upload it again, then delete the empty record.",
+      "For a file nothing points at: it is almost always a delete that half-finished. Leave it unless you are certain, and ask an engineer to confirm before removing anything.",
+      "Before launch there is one ordinary cause: Reset data empties the records and cannot reach the stored files, so every reset leaves its uploads behind. On a database with no real patients those are safe to clear.",
+    ],
+    count: health.rowsWithNoFile + health.filesWithNoRow,
+    evidence,
+  };
+}
+
 function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
   const base = {
     id: "pay_later" as const,
@@ -1087,6 +1191,7 @@ export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
     payLaterCheck(input.payLater ?? null),
     referralAttributionCheck(input.referralAttribution ?? null),
     refundsCheck(input.refunds ?? null),
+    patientFilesCheck(input.storage ?? null),
   ];
 }
 

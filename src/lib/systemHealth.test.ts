@@ -38,6 +38,7 @@ const ALL_WELL: SystemHealthInput = {
   },
   referralAttribution: { orphanedCount: 0, withCompletedSessions: 0 },
   refunds: { stuckCount: 0, unrecordedCount: 0, oldestStuckHours: null },
+  storage: { filesWithNoRow: 0, rowsWithNoFile: 0, truncated: false },
 };
 
 describe("buildSystemHealth", () => {
@@ -97,7 +98,7 @@ describe("buildSystemHealth", () => {
 
   it("reports every check healthy when nothing is wrong", () => {
     const checks = buildSystemHealth(ALL_WELL);
-    expect(checks).toHaveLength(9);
+    expect(checks).toHaveLength(10);
     expect(checks.every((c) => c.status === "healthy")).toBe(true);
     // A healthy check must not ask the reader to do anything.
     expect(checks.every((c) => c.fix.length === 0)).toBe(true);
@@ -404,12 +405,66 @@ describe("refunds", () => {
   });
 });
 
+describe("patient files", () => {
+  const files = (input: SystemHealthInput) =>
+    buildSystemHealth(input).find((c) => c.id === "patient_files")!;
+
+  // The worse half, and the one the patient meets: the document is on their
+  // own health profile and the view route mints a signed URL for something
+  // that is not there.
+  it("is red when a record points at a file that is gone", () => {
+    const check = files({
+      ...ALL_WELL,
+      storage: { filesWithNoRow: 0, rowsWithNoFile: 2, truncated: false },
+    });
+    expect(check.status).toBe("broken");
+    expect(check.count).toBe(2);
+  });
+
+  // Nothing is broken for anybody -- but a scan report a patient believes
+  // they deleted is still in a bucket, which is worth a look rather than a
+  // red light.
+  it("is amber when a file has nothing pointing at it", () => {
+    const check = files({
+      ...ALL_WELL,
+      storage: { filesWithNoRow: 3, rowsWithNoFile: 0, truncated: false },
+    });
+    expect(check.status).toBe("attention");
+    expect(check.count).toBe(3);
+  });
+
+  // A partial clean result is not a clean result, and this is the sentence
+  // that stops it being read as one.
+  it("does not report a clean bucket it only partly looked at", () => {
+    const check = files({
+      ...ALL_WELL,
+      storage: { filesWithNoRow: 0, rowsWithNoFile: 0, truncated: true },
+    });
+    expect(check.status).toBe("unknown");
+    expect(check.evidence.some((e) => e.includes("part of the file store"))).toBe(true);
+  });
+
+  it("says it could not be checked rather than healthy when the store is unreadable", () => {
+    expect(files({ ...ALL_WELL, storage: null }).status).toBe("unknown");
+  });
+
+  // Nothing here is deleted automatically, and the steps have to say so --
+  // a file removed because a record could not be found is a patient's scan.
+  it("never tells an owner to delete a file", () => {
+    const check = files({
+      ...ALL_WELL,
+      storage: { filesWithNoRow: 1, rowsWithNoFile: 1, truncated: false },
+    });
+    expect(check.fix.join(" ")).toContain("nothing should be");
+  });
+});
+
 describe("summarizeHealth", () => {
   it("says all clear when every check is healthy", () => {
     const summary = summarizeHealth(buildSystemHealth(ALL_WELL));
     expect(summary.needsPerson).toBe(0);
     expect(summary.worst).toBe("healthy");
-    expect(summary.headline).toBe("All 9 checks healthy");
+    expect(summary.headline).toBe("All 10 checks healthy");
     expect(summary.attention).toHaveLength(0);
   });
 

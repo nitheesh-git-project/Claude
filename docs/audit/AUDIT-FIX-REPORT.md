@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **80 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **81 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **38 open**, each with an assessment. Roughly half are one architectural
+- **37 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -1433,11 +1433,35 @@ counts `auth.users` as well as `profiles`, because the delete removes the
 Documented in `docs/DATA-POLICY.md` §4 with the table of what happens to each
 record class.
 
-### 120. Orphan records need reconciliation — **Partly fixed**
+### 120. Orphan records need reconciliation — **Fixed**
 
-Seven checks exist on System Health (I added the seventh). The two genuinely
-missing are the Storage pair, named in `docs/DATA-POLICY.md` §5 with the
-list-never-delete rule.
+The Storage pair was the last of it, and it is the tenth check on System
+Health: **Patient files**, `readStorageReconciliation`. Both directions, and
+they are not the same finding. A **record with no file** is red -- it is on
+the patient's own health profile and the view route mints a signed URL for
+something that is not there, so the *patient* meets the failure. A **file with
+no record** is amber: nothing is broken for anybody, but a scan report the
+patient believes they deleted is still in a bucket.
+
+**It lists and never deletes**, which is `docs/DATA-POLICY.md` §5's own rule
+and the reason this is a check rather than a sweep: a sweep that removes a
+file because it could not find a row is one bad query away from deleting a
+patient's scan. The steps say so out loud, because the obvious reading of an
+orphan list is "tidy it up".
+
+A walk that hits its own cap reports **"only part of the file store was
+checked"** rather than a clean bucket it did not earn -- the same rule
+`check-live-grants.mjs` follows with its third outcome, and one unreadable
+folder makes the whole answer null rather than an undercount.
+
+**It earned itself on its first run**, and the cause is worth recording: two
+orphaned files against zero metadata rows on this project, because **the debug
+reset truncates `patient_medical_documents` and cannot reach Storage**. That
+is not a bug in the reset -- a `TRUNCATE` cannot delete an object in a bucket
+-- but it means every reset since uploads shipped has left its files behind,
+which nothing said. The check's steps name it, so an owner meeting an amber
+row before launch is told the ordinary explanation rather than left to worry
+about a medical record.
 
 ### 121. Temporary-password workflow should be a secure invitation flow — **Open — recommended**
 

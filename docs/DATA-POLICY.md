@@ -219,12 +219,26 @@ Rows and files that point at nothing, or that nothing points at.
 - Referred patients whose account names no partner.
 - Pay-later money in against money accounted for.
 
+- **Patient files against the records describing them**, both directions
+  (`readStorageReconciliation`, Settings -> System Health -> Patient files).
+  A **record with no file** is red: it is on the patient's own health profile
+  and the view route mints a signed URL for something that is not there, so
+  the patient meets the failure. A **file with no record** is amber -- nothing
+  is broken for anybody, but a scan report the patient believes they deleted
+  is still in a bucket. It **lists and never deletes**, per the rule below,
+  and a walk that hits its own cap says so rather than reporting a clean
+  bucket it only partly looked at.
+
+  It found two orphaned files on its first run against this project, and the
+  cause is worth writing down because it is the ordinary one before launch:
+  **the debug reset truncates `patient_medical_documents` and cannot reach
+  Storage**, so every reset since uploads shipped has left its files behind.
+  That is not a bug in the reset -- a `TRUNCATE` has no way to delete an
+  object in a bucket -- it is a consequence the check now states instead of
+  leaving to be discovered.
+
 **What is not checked, and would need a sweep:**
 
-- **Storage objects with no metadata row.** An upload that succeeded followed
-  by a failed insert removes the file (the route does this), but a delete that
-  succeeds in Postgres and fails in Storage leaves the file. Nothing looks.
-- **Metadata rows with no Storage object**, the reverse.
 - **Fixture residue** from e2e runs, which `npm run clean:e2e` handles by hand
   rather than automatically, deliberately — `--reconcile` releases credits and
   cancels appointments rather than deleting, which is what the ledger's
