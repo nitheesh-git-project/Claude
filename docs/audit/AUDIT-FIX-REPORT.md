@@ -74,7 +74,7 @@ proof. Item 109 has the detail.
 ## How to verify all of it
 
 ```bash
-npm run verify              # lint (3 schema checks + eslint) + 1072 unit tests + build
+npm run verify              # lint (3 schema checks + eslint) + 1163 unit tests + build
 npm run check:concurrency   # against a real database
 npm run check:authorization # cross-tenant, IDOR, enumeration, at the policy layer
 node scripts/run-schema.mjs # applies cleanly, twice (re-runnability is the test)
