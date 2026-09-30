@@ -334,6 +334,23 @@ Either way the fixture `payments` rows go with their purchase -- that foreign
 key is ON DELETE SET NULL, so leaving them would trade one red check for
 another, a captured payment attached to nothing.
 
+**The two append-only evidence tables are lifted the same way, and both had
+to be taught.** `refund_attempts` and `session_settlements` carry every
+foreign key `on delete restrict` on purpose -- `set null` is an UPDATE their
+own append-only triggers refuse, and `cascade` would destroy the record that
+money moved -- so a fixture appointment or purchase that reached a refund or
+a completion cannot be deleted while a row points at it. Neither was in this
+script when it shipped, and a whole-suite run found both in turn: a spec's
+`afterAll` was refused by `refund_attempts_home_visit_purchase_id_fkey`, the
+leftovers then made the clinic look like it owed undelivered visits and took
+an unrelated home-visit case red, and `--apply` stopped on
+`session_settlements_appointment_id_fkey` immediately behind it. Both
+triggers are now suspended for those statements alone and restored before
+the transaction commits, exactly as the ledger block does. **A new
+append-only table with restrict keys belongs here in the same change that
+adds it** -- residue that cannot be cleared is a permanent red row on
+Settings -> System Health describing nothing wrong with the product.
+
 **Pay later's fixture money is the second thing only `--apply` can clear,
 and for the same kind of reason.** `e2e/pay-later.spec.ts` writes its
 `pay_later_payments` rows through the real routes rather than inserting them,

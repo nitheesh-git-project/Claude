@@ -263,6 +263,32 @@ begin
 
   delete from session_entitlements where id = any (v_entitlements);
 
+  -- Every foreign key on refund_attempts is 'on delete restrict', and that
+  -- is the refund record doing its job rather than an oversight: 'set null'
+  -- is an UPDATE its append-only trigger refuses, and 'cascade' would
+  -- destroy the record that money moved. The consequence for this script is
+  -- that a fixture purchase or appointment carrying an attempt cannot be
+  -- deleted at all -- a whole-suite run hit exactly that
+  -- ('refund_attempts_home_visit_purchase_id_fkey'), a spec's own afterAll
+  -- could not clear its rows, and the leftovers went on to fail a second,
+  -- unrelated spec by making the clinic look like it owed undelivered
+  -- visits. The guard is suspended for these statements and nothing else,
+  -- exactly as the ledger block above does, and restored before the
+  -- transaction commits.
+  alter table refund_attempts disable trigger refund_attempts_append_only_trg;
+  delete from refund_attempts
+    where appointment_id = any (v_appointments)
+       or home_visit_purchase_id = any (v_purchases);
+  alter table refund_attempts enable trigger refund_attempts_append_only_trg;
+
+  -- session_settlements is the same shape and needs the same lifting: one
+  -- immutable row per delivered session, append-only by trigger, with
+  -- appointment_id restricting the delete. A fixture session that reached
+  -- completion carries one.
+  alter table session_settlements disable trigger session_settlements_append_only_trg;
+  delete from session_settlements where appointment_id = any (v_appointments);
+  alter table session_settlements enable trigger session_settlements_append_only_trg;
+
   -- appointments.home_visit_purchase_id and .referral_id carry no ON DELETE
   -- behaviour, and home_visit_package_purchases.default_address_id points at
   -- an address, so the order below is the order the foreign keys allow.
@@ -291,6 +317,17 @@ begin
       from appointments where patient_id = v_pl_patient and payment_terms = 'pay_later';
 
     delete from business_expenses where source_appointment_id = any (v_pl_appointments);
+    -- Same restrict keys as above. A pay-later session that was refunded
+    -- carries an attempt, and without this the delete below is refused and
+    -- the fixture patient's owed figure survives into the next run.
+    alter table refund_attempts disable trigger refund_attempts_append_only_trg;
+    delete from refund_attempts where appointment_id = any (v_pl_appointments);
+    alter table refund_attempts enable trigger refund_attempts_append_only_trg;
+    -- A pay-later session is settled precisely by being completed, so every
+    -- one of these carries a settlement row.
+    alter table session_settlements disable trigger session_settlements_append_only_trg;
+    delete from session_settlements where appointment_id = any (v_pl_appointments);
+    alter table session_settlements enable trigger session_settlements_append_only_trg;
     delete from appointments where id = any (v_pl_appointments);
     delete from payments where target_pay_later_payment_id in (
       select id from pay_later_payments where patient_id = v_pl_patient

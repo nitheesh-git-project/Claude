@@ -87,13 +87,48 @@ test("HV-OFF-002: switching off asks first only when something is owed", async (
     .from("home_visit_package_purchases")
     .delete()
     .eq("notes", "e2e HV-OFF-002 fixture");
-  await page.goto(settingsUrl);
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  await toggle.click();
-  await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+
+  // "Nothing outstanding" is this case's premise, and it is about the whole
+  // database rather than about this fixture: the switch counts every active
+  // purchase with visits still to deliver, so one left behind by any earlier
+  // spec makes the dialog appear and this case fail describing a screen that
+  // is working exactly as designed. That is precisely what happened -- two
+  // `pay_e2erace` purchases whose own cleanup had been refused by
+  // `refund_attempts`' restrict keys. So the premise is asserted, and named,
+  // rather than assumed: the same posture pay-later.spec.ts takes when its
+  // money fixtures cannot be cleared.
+  const { data: outstanding } = await admin
+    .from("home_visit_package_purchases")
+    .select("id, visit_count, visits_used")
+    .eq("status", "active");
+  const stillOwed = (outstanding ?? [])
+    .filter((p) => (p.visit_count ?? 0) - (p.visits_used ?? 0) > 0)
+    .map((p) => p.id);
+  // Parked rather than demanded: the count reads every *active* purchase, so
+  // insisting on a pristine database would make this case a report on
+  // whatever ran before it. They go back exactly as they were in the finally
+  // below, whatever happens in between -- and `expired` is chosen because it
+  // is the one status that takes a purchase out of the count without
+  // pretending anybody cancelled or refunded anything.
+  if (stillOwed.length > 0) {
+    await admin
+      .from("home_visit_package_purchases")
+      .update({ status: "expired" })
+      .in("id", stillOwed);
+  }
+
+  // Declared out here because the finally below has to clean it up, and a
+  // `const` inside the try is not in scope there.
+  let fixturePurchaseId: string | null = null;
+
+  try {
+    await page.goto(settingsUrl);
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await toggle.click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
 
   // --- Three visits owed: the switch says so, and asks. ----------------
   const { data: pkg } = await admin
@@ -117,8 +152,8 @@ test("HV-OFF-002: switching off asks first only when something is owed", async (
     .select("id")
     .single();
   expect(insertError, insertError?.message).toBeNull();
+  fixturePurchaseId = purchase!.id;
 
-  try {
     await page.goto(settingsUrl);
     // The count is a purchase the map in ADM-CAT-012 could not show: this
     // fixture carries no address, so it belongs to no area.
@@ -154,7 +189,19 @@ test("HV-OFF-002: switching off asks first only when something is owed", async (
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
   } finally {
-    await admin.from("home_visit_package_purchases").delete().eq("id", purchase!.id);
+    if (fixturePurchaseId) {
+      await admin.from("home_visit_package_purchases").delete().eq("id", fixturePurchaseId);
+    }
     await admin.from("site_settings").update({ home_visit_enabled: true }).not("id", "is", null);
+    // The park is released here rather than after the first half, because the
+    // second half asserts an exact figure -- "3 paid visits across 1
+    // purchase" -- which is only true while its own fixture is the only
+    // thing outstanding.
+    if (stillOwed.length > 0) {
+      await admin
+        .from("home_visit_package_purchases")
+        .update({ status: "active" })
+        .in("id", stillOwed);
+    }
   }
 });
