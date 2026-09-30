@@ -3476,7 +3476,27 @@ export default async function AdminDashboardPage({
       // pretending to know a secret it does not have.
       tempPassword: readableTempPassword(adminNoteMap.get(p.id), nowTimestamp()).password,
       tempPasswordSetAt: adminNoteMap.get(p.id)?.temp_password_set_at ?? null,
-    }));
+    }))
+    // By name, because a directory of people with no stated order has one
+    // anyway -- whatever Postgres hands back, which can differ between two
+    // renders of the same screen. That is invisible while everyone fits on
+    // one page and becomes a real fault the moment they do not: this list
+    // pages at ten, so an unordered read decides *who is on page one*, and
+    // an owner looking for somebody finds them somewhere different each
+    // time. Unnamed rows sort last rather than being called "Unnamed admin"
+    // here -- that wording belongs to the surfaces that render it.
+    .sort((a, b) => {
+      const an = a.fullName?.trim() ?? "";
+      const bn = b.fullName?.trim() ?? "";
+      // An empty string sorts before every name, so the absence is tested
+      // first rather than leaned on -- nameless rows go to the end, and two
+      // of them fall back to the email, which every account has.
+      if (!an !== !bn) return an ? -1 : 1;
+      return (
+        an.localeCompare(bn, "en", { sensitivity: "base" }) ||
+        (a.email ?? "").localeCompare(b.email ?? "", "en", { sensitivity: "base" })
+      );
+    });
 
   // Who can reach this dashboard and what they get when they do, plus the
   // one access question that is about a therapist rather than an admin: how
