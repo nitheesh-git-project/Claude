@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **87 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **88 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **31 open**, each with an assessment. Roughly half are one architectural
+- **30 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -1387,7 +1387,7 @@ What is missing is one screen that gathers them rather than two places that
 each hold some. That is item 128, and it is presentation over data that now
 exists — the cheapest remaining item on the list.
 
-### 102. Admin dashboard loads large unpaginated datasets — **Partly fixed / Open**
+### 102. Admin dashboard loads large unpaginated datasets — **Fixed, and the premise was worse than the item**
 
 Partly already handled and measured, which is worth stating because the item
 implies otherwise: every list pages through `ListPager`/`usePagedList`, All
@@ -1395,23 +1395,40 @@ Sessions paints at most 200 rows, the activity log is capped at 200 and pages
 by **cursor**, and the ~82 queries per render were measured at 1.2s against a
 5.4s total that turned out to be sequential `await`s, since fixed.
 
-What remains: **18 reads on the biggest tables are unbounded** — `appointments`
-and `profiles` mostly — so at volume this page loads every appointment and
-every account ever created.
+I wrote, in the first pass, that the remaining reads were *unbounded* and that
+whoever fixed them must not simply add `.limit()`, because a silent cap would
+make the Money figures **wrong rather than slow** — revenue understated by
+however many rows fell off the end, in a direction nobody would notice.
 
-**There is a trap in fixing it, and whoever picks this up needs to know.** Do
-not simply add `.limit()` to these. Several of them feed the Money figures,
-which sum over every row in the range: a silent cap would make those figures
-**wrong rather than slow**, and wrong in a direction nobody would notice —
-revenue quietly understated by however many rows fell off the end. That is
-strictly worse than a slow page.
+**The warning was right and the premise was wrong. The cap is already there.**
+This project's PostgREST is configured `max_rows: 1000` — read off the live
+project, not inferred — so a `.select()` with no `.range()` does not read the
+table. It reads the first thousand rows and answers **200 with no error**, and
+nothing distinguishes that from a table that genuinely holds a thousand rows.
+So the exact failure I warned a careless fix would introduce is the one the
+dashboard already had: the first clinic past a thousand appointments starts
+reading an understated revenue figure, with every screen agreeing with every
+other screen because they all sum the same truncated array.
 
-The real fix is server-side aggregation: compute the money figures in SQL and
-return totals rather than rows, which also removes the need for the cap. That
-is a change to the most sensitive code in the app and wants its own pass with
-`adminMetrics.test.ts` extended to assert the SQL and the TypeScript agree on
-the same dataset. Not urgent at this clinic's volume; genuinely needed before
-growth, and not something to do halfway.
+`src/lib/supabase/readAllRows.ts` is the fix, and the appointments read — the
+one every Money figure sums over — goes through it. Three rules:
+
+1. **It pages to the end of the table**, so the answer is every row. Its page
+   size sits **under** `max_rows` deliberately: asking for exactly the cap
+   makes "a full page" and "the server truncated me" the same observation,
+   which is the ambiguity this exists to remove.
+2. **It is bounded, and a bound it hits is reported rather than hidden.** This
+   runs inside a page render, so it cannot page for ever. Past `maxRows` it
+   returns `truncated: true`, and `AdminDataLoadBanner` says so in amber —
+   *"This screen is showing part of the data… narrow the date range"*. Amber
+   rather than red because the figures are short rather than garbage, and the
+   action is different from a failed read's.
+3. **An error on any page fails the whole read.** Returning the pages that did
+   arrive would be a smaller number presented as a complete one, which is this
+   module's own failure mode one layer in.
+
+Six unit cases, including the two that matter: it walks past 1,000 rows, and a
+mid-walk error yields **no** rows rather than a prefix.
 
 ### 103. Reporting queries need indexes — **Fixed**
 

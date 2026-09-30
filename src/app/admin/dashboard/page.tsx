@@ -149,6 +149,7 @@ import {
 } from "@/lib/retryDueMeetSyncs";
 import { checkGoogleConnection } from "@/lib/googleConnectionHealth";
 import { describeCalendarSync, sessionNeedsCalendarSync } from "@/lib/meetSyncState";
+import { readAllRows } from "@/lib/supabase/readAllRows";
 import { runRiskSweep } from "@/lib/riskDetectors";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -330,7 +331,7 @@ export default async function AdminDashboardPage({
     { data: pendingAccounts },
     { data: pendingProfileChanges },
     { data: approvedTherapists },
-    { data: appointments, error: appointmentsError },
+    { data: appointments, error: appointmentsError, truncated: appointmentsTruncated },
     { data: packagePurchases },
     { data: paymentFailures },
     { data: payoutBatches },
@@ -411,12 +412,20 @@ export default async function AdminDashboardPage({
       .eq("approved", true)
       .order("full_name"),
 
-    admin
-      .from("appointments")
-      .select(
-        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, razorpay_payment_id, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note, no_show"
-      )
-      .order("created_at", { ascending: false }),
+    // Read in pages, because PostgREST caps a response at `max_rows` (1,000
+    // on this project) and answers 200 with no error when it truncates. This
+    // array is what every Money figure sums over, so a silent cap does not
+    // make the dashboard slow -- it makes revenue quietly understated by
+    // however many rows fell off the end, agreeing with itself on every
+    // screen. `readAllRows` walks to the end and *says* when it could not.
+    readAllRows(() =>
+      admin
+        .from("appointments")
+        .select(
+          "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, razorpay_payment_id, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note, no_show"
+        )
+        .order("created_at", { ascending: false })
+    ).then((r) => ({ data: r.rows, error: r.error, truncated: r.truncated })),
 
     // Feeds the Payment History tab's Patient section -- a package purchase
     // is its own real payment event (own razorpay_payment_id), separate from
@@ -4543,7 +4552,10 @@ export default async function AdminDashboardPage({
       // reach would land them somewhere else via findTab's fallback.
       banner={
         <>
-          <AdminDataLoadBanner missing={failedCoreReads} />
+          <AdminDataLoadBanner
+            missing={failedCoreReads}
+            truncated={appointmentsTruncated ? ["sessions"] : []}
+          />
           {allowedSections.includes("settings") ? (
             <AdminHealthBanner checks={systemHealthChecks} />
           ) : null}

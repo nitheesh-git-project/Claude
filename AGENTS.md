@@ -764,6 +764,25 @@ database's own throughput is the limit (flat at ~290ms a query, ~330 queries
 a second, from 8 concurrent to 96), so a higher number buys nothing and only
 widens the burst this exists to stop.
 
+**PostgREST caps every response at `max_rows`, and this project's is 1,000.**
+That is not a setting this app chose and no call site mentions it: a
+`.select()` with no `.range()` does not read the table, it reads the first
+thousand rows and answers **200 with no error**. Nothing distinguishes that
+from a table that genuinely holds a thousand rows -- so a figure summed over
+one of those arrays is not slow, it is **understated**, and every screen agrees
+with every other screen because they all sum the same prefix. The admin
+dashboard's appointments read is what every Money figure sums over, so it goes
+through `src/lib/supabase/readAllRows.ts`, which pages to the end. Three rules:
+its page size sits **under** `max_rows`, because asking for exactly the cap
+makes "a full page" and "the server truncated me" the same observation; it is
+bounded, since it runs inside a render, and a bound it *hits* is reported
+(`truncated`) rather than hidden, landing on `AdminDataLoadBanner` in amber
+with "narrow the date range" -- amber because the figures are short rather than
+garbage and the action differs from a failed read's; and an error on any page
+yields **no** rows, because half a table presented as a whole one is this
+module's own failure mode one layer in. A new read that something *sums* takes
+this helper; a read that fills a list an admin scrolls does not need it.
+
 **A read that failed is not a read that came back empty, and the admin
 dashboard now says which.** Every read on that page is isolated so one
 failure costs its own panel -- and the cost of that isolation is that a
