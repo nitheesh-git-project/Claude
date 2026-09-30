@@ -462,6 +462,7 @@ src/lib/refundHealthServer.ts whether every refund sent has a recorded answer
 src/lib/unscheduledPurchases.ts a purchase nobody has booked anything against
 src/lib/therapistReadiness.ts what a therapist still needs before live patients
 src/lib/homeVisitAreaCommitments.ts paid visits an area still has to deliver
+src/lib/clinicalAccess.ts who can read a patient's record, and why
 src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
 src/lib/catalogFeatured.ts which few of the catalogue a public page leads with
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
@@ -981,6 +982,52 @@ before.
   of them. `npm run lint` fails on a violation; `scripts/check-live-grants.mjs`
   checks the running database, since only that catches a revoke that was
   never applied.
+- **A therapist's clinical reads follow delivered care, and stop when the
+  account does.** Four policies decide whether a therapist may read a
+  patient's health profile, Pain Map exams, uploaded reports and session
+  notes, and all four asked only whether they had an appointment with that
+  patient. Two things came out of reading them together.
+  **The retention rule is good, and it was nobody's stated intention.**
+  Access is keyed on being named on one of that patient's appointments, and a
+  **completed session keeps whoever ran it** -- neither `update-appointment`
+  nor `reassign-package-therapist` will move one. So a clinician who actually
+  treated somebody keeps access after the patient moves to a colleague, which
+  is the decision: in a clinic this size the person who gave the care has to
+  be able to answer for it, and a cut-off creates the worse failure. The
+  mirror keeps it honest rather than merely permissive -- a therapist whose
+  only link was a *future* session that was reassigned away reads nothing,
+  because they never treated this patient.
+  **And a suspended therapist now stops reading, at the row.** Those policies
+  never asked whether the account is still allowed to be a therapist here.
+  That is the same shape as the patient case documented above, but the
+  asymmetry matters: a suspended patient's live token reads their own rows
+  for one token lifetime, where a suspended therapist was reading *other
+  people's medical records* on the same terms.
+  `is_active_therapist()` is the counterpart of `is_admin()` and is exempted
+  from the revoke rule for the same reason -- the policies invoke it as the
+  querying role. It checks `approved` as well as `active`, unlike
+  `is_admin()`: an admin is promoted by hand so gating on approval would lock
+  out the people it protects, and a therapist still in the signup queue has
+  no business reading a chart. A fifth clinical table calls it rather than
+  inlining the check.
+  `session_notes_select_clinician` also carried a hand-written copy of
+  `is_admin()` -- the drift the eighteen-policy sweep corrected everywhere
+  else, on the clinical table an admin is least likely to look at, and the
+  copy does not check `active`.
+  **What was actually reported, though, was that the policy is unclear** --
+  and it was: the rule lived in four policies and one helper and was stated
+  on no screen at all, so "who can see this patient's record" was
+  unanswerable. `src/lib/clinicalAccess.ts` plus **Who can see this record**
+  on the admin's patient page answers it, listing every clinician, why, and
+  when they last saw the patient. A suspended therapist is listed and
+  **marked**, never dropped: omitting them would make a suspension look like
+  a deletion on the one screen whose job is to say who has a relationship
+  with this record.
+  Both halves are asserted -- a tightening that refused everybody would pass
+  a file testing only the refusals. `scripts/authorization-checks.mjs`
+  section 7 runs all four cases against a live database, and
+  `scripts/clinical-access-sql-checks.sql` guards the policy shape with its
+  own negative control.
 - **Every admin policy calls `is_admin()`; none inlines it.** Eighteen
   policies carried a hand-written copy of the same `exists (select 1 from
   profiles where id = auth.uid() and role = 'admin')` instead of the call.

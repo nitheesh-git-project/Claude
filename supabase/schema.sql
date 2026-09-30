@@ -13545,3 +13545,147 @@ begin
            or (pay_later_max_owed_paise >= 1 and pay_later_max_owed_paise <= 100000000));
 exception when duplicate_object then null;
 end $$;
+
+-- ===========================================================================
+-- Clinical reads: a suspended therapist stops reading, at the database
+-- ===========================================================================
+-- Four policies decide whether a therapist may read a patient's clinical
+-- record -- the health profile, the Pain Map exams, the uploaded reports and
+-- the session notes -- and all four asked one question: has this therapist
+-- ever had an appointment with this patient. They never asked whether the
+-- therapist is still **allowed to be a therapist here**.
+--
+-- The difference matters more here than anywhere else that shape appears. A
+-- suspended *patient* whose live token still reads their own rows is bounded
+-- to their own data for at most one token lifetime. A suspended *therapist*
+-- was reading other people's medical records on the same terms -- which is
+-- what suspension is supposed to stop, and what `revoke_user_sessions` was
+-- added to end. Stopping renewal bounds it to one JWT lifetime; this closes
+-- it at the row.
+--
+-- `is_active_therapist()` is the counterpart of `is_admin()`, and it is one
+-- function for the same reason: eighteen admin policies once carried
+-- hand-written copies of that check, and the moment the function learned to
+-- refuse a suspended admin the eighteen did not. A new clinical read policy
+-- calls this rather than inlining it.
+--
+-- It checks `approved` as well as `active`, unlike `is_admin()`. An admin is
+-- promoted by hand so gating on approval would lock out the people it
+-- protects; a therapist goes through the signup queue, and one waiting on
+-- approval has no business reading a patient's chart.
+create or replace function is_active_therapist()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from profiles
+    where id = auth.uid()
+      and role = 'therapist'
+      and approved = true
+      and active = true
+  );
+$$;
+
+-- Deliberately NOT revoked from `authenticated`: like `is_admin()`, RLS
+-- policies invoke it as the querying role, so revoking it would break every
+-- policy below. It is the same exception, for the same reason, and it
+-- discloses nothing -- a caller can only learn about their own account.
+grant execute on function public.is_active_therapist() to authenticated;
+
+-- The retention rule itself is unchanged and is a decision rather than an
+-- omission: **access follows delivered care**. It is keyed on the
+-- appointment, and a completed session keeps whoever ran it -- neither
+-- `update-appointment` nor `reassign-package-therapist` will move one -- so
+-- a clinician who has actually treated somebody keeps access after the
+-- patient moves to a colleague. In a clinic this size the person who gave
+-- the care has to be able to answer for it, and a cut-off creates the worse
+-- failure. The mirror is what keeps it honest: a therapist whose only link
+-- was a *future* session that was reassigned away reads nothing, because
+-- they never treated this patient. What was missing was never the rule; it
+-- was that no screen said who it reaches. See `src/lib/clinicalAccess.ts`,
+-- and `scripts/authorization-checks.mjs` section 7, which asserts both
+-- halves against a live database.
+
+drop policy if exists "condition_profiles_select_assigned_therapist" on patient_condition_profiles;
+create policy "condition_profiles_select_assigned_therapist" on patient_condition_profiles
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_condition_profiles.patient_id
+          and a.therapist_id = auth.uid()
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_condition_profiles.patient_id
+          and pp.locked_therapist_id = auth.uid()
+      )
+    )
+  );
+
+drop policy if exists "pain_assessments_select_assigned_therapist" on pain_assessments;
+create policy "pain_assessments_select_assigned_therapist" on pain_assessments
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = pain_assessments.patient_id
+          and a.therapist_id = auth.uid()
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = pain_assessments.patient_id
+          and pp.locked_therapist_id = auth.uid()
+      )
+    )
+  );
+
+drop policy if exists "patient_medical_documents_select_assigned_therapist" on patient_medical_documents;
+create policy "patient_medical_documents_select_assigned_therapist" on patient_medical_documents
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_medical_documents.patient_id
+          and a.therapist_id = auth.uid()
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_medical_documents.patient_id
+          and pp.locked_therapist_id = auth.uid()
+      )
+    )
+  );
+
+-- Session notes, the fourth. It also carried a **hand-written copy of
+-- `is_admin()`** rather than the call -- the exact drift the eighteen-policy
+-- sweep corrected everywhere else, still sitting on the clinical table an
+-- admin is least likely to notice: the copy does not check `active`, so a
+-- suspended admin went on reading session notes after every other admin
+-- policy had started refusing them. Both halves are fixed here.
+drop policy if exists "session_notes_select_clinician" on session_notes;
+create policy "session_notes_select_clinician" on session_notes
+  for select using (
+    (
+      is_active_therapist()
+      and (
+        exists (
+          select 1 from appointments a
+          where a.patient_id = session_notes.patient_id
+            and a.therapist_id = auth.uid()
+        )
+        or exists (
+          select 1 from patient_package_purchases pp
+          where pp.patient_id = session_notes.patient_id
+            and pp.locked_therapist_id = auth.uid()
+        )
+      )
+    )
+    or is_admin()
+  );

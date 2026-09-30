@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **77 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **80 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **41 open**, each with an assessment. Roughly half are one architectural
+- **38 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -989,15 +989,74 @@ one, and never for a cancelled session. That is a deliberate product choice —
 a therapist writes notes right after the session, before remembering to press
 Done. Now documented in `docs/LIFECYCLE-STATES.md`.
 
-### 76, 77. Historical therapist clinical access policy is unclear — **Open — your decision**
+### 76, 77. Historical therapist clinical access policy is unclear — **Fixed — decided**
 
-Genuinely unresolved and genuinely a clinical-governance question: when a
-patient is reassigned, should the previous therapist keep read access to notes
-and documents they wrote?
+You handed it back, so I went and established what the product actually does
+before deciding anything — and that changed the shape of the answer.
 
-Both answers are defensible (continuity of care vs. minimum necessary access)
-and the choice has legal weight in a healthcare context. I will not decide it
-for you. Item 107 is its test, and it should be written once you have.
+**The rule turns out to be a good one, and it was nobody's stated intention.**
+Access is keyed on being named on one of that patient's appointments, and **a
+completed session keeps whoever ran it**: neither `update-appointment` nor
+`reassign-package-therapist` will move one. So the effective policy is
+**access follows delivered care** — a clinician who actually treated somebody
+keeps access after the patient moves to a colleague, and a therapist whose
+only link was a *future* session that got reassigned away keeps nothing,
+because they never treated them.
+
+**I am adopting that as the policy**, and the reasoning is the half worth
+disagreeing with if you do: in a clinic this size the person who gave the care
+has to be able to answer for it — to the patient, to the next clinician, or to
+anybody reviewing it later — and a cut-off creates the worse failure, a
+clinician who cannot open the record of their own patient. "Minimum necessary
+access" is the right instinct and it is served by the mirror: somebody who
+never delivered anything reads nothing.
+
+Three things shipped with it.
+
+**1. The finding was "unclear", and that was the real defect.** The rule lived
+in four RLS policies and one helper and was stated on **no screen anywhere**,
+so "who can see this patient's record" was a question the product could not
+answer — for the clinic, for a patient asking, or for an admin deciding
+whether somebody's access should end. `src/lib/clinicalAccess.ts` +
+**Who can see this record** on the admin's patient page answers it: every
+clinician with access, why (sessions, a programme lock), and when they last
+saw the patient. A suspended therapist is **listed and marked**, never
+dropped — silently omitting somebody would make a suspension look like a
+deletion on the one screen whose job is to say who has a relationship with
+this record.
+
+**2. A real hole, found while verifying the above.** All four clinical read
+policies asked whether the therapist had an appointment and never whether they
+are still *allowed to be a therapist here*. This is the same shape AGENTS.md
+already documents for patients — a live token outliving a suspension — but the
+asymmetry matters: a suspended patient reads their own rows for one token
+lifetime, and a suspended **therapist** was reading *other people's medical
+records* on those same terms, which is exactly what suspension is meant to
+stop. `is_active_therapist()` closes it at the row, the counterpart of
+`is_admin()` and exempted from the revoke rule for the same reason. It checks
+`approved` as well as `active`, unlike `is_admin()`: an admin is promoted by
+hand so gating on approval would lock out the people it protects, and a
+therapist still in the signup queue has no business reading a chart.
+
+**3. `session_notes_select_clinician` carried a hand-written copy of
+`is_admin()`** — the exact drift the eighteen-policy sweep corrected
+everywhere else, still sitting on the clinical table an admin is least likely
+to look at. The copy does not check `active`, so a suspended admin went on
+reading session notes after every other admin policy had started refusing
+them. It calls the function now.
+
+**Checked both halves, because a tightening that refused everybody would pass
+a test written only for the refusals** —
+`scripts/authorization-checks.mjs` section 7 asserts, against a live database:
+an assigned active therapist reads the chart; a suspended one reads nothing; a
+**delivered** session keeps their access after the patient is reassigned; and
+a therapist whose only link moved away reads nothing.
+`scripts/clinical-access-sql-checks.sql` asserts the shape that made the gap
+possible — every clinical read policy names the function, all four still
+exist, and session notes are still readable by an admin — with its own
+negative control. 10 unit cases on the module.
+
+This also gives item **107** its test, which was waiting on this decision.
 
 ### 78. Address default selection has a concurrency race — **Already held**
 
@@ -1249,10 +1308,14 @@ before and broke signup.
 **Somebody has to run it.** I cannot: it needs a second project and a decision
 about cost.
 
-### 107, 108. Clinical access after reassignment; timezone edge cases — **Partly fixed / Open**
+### 107. Clinical access after reassignment — **Fixed**; 108. Timezone edge cases — **Partly fixed**
 
-- **107** waits on item 76/77 — there is no point testing a policy nobody has
-  chosen.
+- **107** is done, now that 76/77 is decided. `scripts/authorization-checks.mjs`
+  section 7 asserts all four cases against a live database — the access that
+  must work, the suspension that must refuse, the delivered session that
+  survives a reassignment, and the future session that moved away and leaves
+  nothing — with `scripts/clinical-access-sql-checks.sql` guarding the policy
+  shape and its own negative control beside it.
 - **108** is partly done: `clinicWeek.test.ts` covers midnight, Sunday/Monday,
   the year boundary and IST-vs-UTC; `formatDateTime.test.ts` already walks
   every `toLocale*String` in `src/` for a missing zone; `playwright.config.ts`

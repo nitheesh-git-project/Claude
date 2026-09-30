@@ -394,6 +394,25 @@ fill is what unlocks the patient's own access to it. The Pain Map is an
 orthopaedic layer and stays one; the other two exam layers are explicitly
 deferred. See the "Patient Care Intake and Pain Map" rule in `AGENTS.md`.
 
+**And who can read a patient's record is a question the product can now
+answer.** Access follows **delivered care**: a therapist reads the health
+profile, exams, uploaded reports and session notes of a patient they have
+treated, and keeps it after that patient moves to a colleague -- a completed
+session keeps whoever ran it, so the person who gave the care can still answer
+for it. A therapist whose only link was a *future* session that was reassigned
+away reads nothing, because they never treated them. That rule lived in four
+RLS policies and one helper and was stated on no screen at all, which is what
+the audit actually reported: `src/lib/clinicalAccess.ts` plus **Who can see
+this record** on the admin's patient page names every clinician, why, and when
+they last saw the patient -- a suspended one listed and *marked*, never
+dropped, since omitting them would make a suspension read as a deletion. Those
+policies also never asked whether the account is still allowed to be a
+therapist here, so a suspended one went on reading other people's medical
+records for a token lifetime; `is_active_therapist()` closes it at the row, and
+`session_notes_select_clinician`'s hand-written copy of `is_admin()` -- which
+did not check `active` -- calls the function now. See the clinical-access rule
+in `AGENTS.md`.
+
 Patient files (avatars, and the test reports and scans patients upload to
 their health profile) live in Supabase Storage, never in a table column -
 `patient_medical_documents` holds metadata only, and its bucket is private.

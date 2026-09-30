@@ -44,6 +44,13 @@ const INTENTIONALLY_PUBLIC = new Map([
       "break all 23 of them. Takes no argument and reads one row keyed on " +
       "auth.uid(), so a caller cannot steer it.",
   ],
+  [
+    "is_active_therapist",
+    "The same exception as is_admin, for the same reason: the four clinical " +
+      "read policies call it as the querying role, so revoking PUBLIC would " +
+      "break all four. Takes no argument and reads one row keyed on " +
+      "auth.uid(), so a caller can only learn about their own account.",
+  ],
 ]);
 
 // A trigger function cannot be called by name -- Postgres refuses with

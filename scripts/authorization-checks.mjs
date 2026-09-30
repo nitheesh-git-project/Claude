@@ -257,6 +257,86 @@ try {
       `a suspended admin reads no admin_activity_log (got ${refused.rows?.length}) - is_admin() is what does this`
     );
   }
+
+  console.log(
+    "\n7. A suspended THERAPIST stops reading clinical records, at the policy layer"
+  );
+  {
+    // The half section 5 could only report. For a patient, the `*_select_own`
+    // policies key on auth.uid() alone, so a live token still reads their own
+    // rows -- bounded to their own data for one token lifetime, with the app
+    // as the gate. A suspended *therapist* was reading other people's medical
+    // records on those same terms, which is materially different and is
+    // exactly what suspension is meant to stop.
+    //
+    // `is_active_therapist()` closes it at the row. This asserts both halves:
+    // the access that must still work, and the refusal.
+    await sql(
+      `update appointments set therapist_id = '${therapist.id}' where id = '${apptA}';`
+    );
+    await sql(
+      `insert into patient_condition_profiles (patient_id, specialty, status)
+       values ('${patientA.id}', 'ortho', 'active')
+       on conflict do nothing;`
+    );
+
+    const allowed = await readAs(
+      tokTher,
+      `patient_condition_profiles?select=id&patient_id=eq.${patientA.id}`
+    );
+    assert(
+      (allowed.rows?.length ?? 0) >= 1,
+      `an assigned, active therapist reads the chart (got ${allowed.rows?.length})`
+    );
+
+    await sql(`update profiles set active = false where id = '${therapist.id}';`);
+    const refused = await readAs(
+      tokTher,
+      `patient_condition_profiles?select=id&patient_id=eq.${patientA.id}`
+    );
+    assert(
+      refused.rows?.length === 0,
+      `a suspended therapist reads no chart (got ${refused.rows?.length}) - is_active_therapist() is what does this`
+    );
+
+    // And the access the rule deliberately KEEPS, which is the half a
+    // tightening could silently remove: **access follows delivered care**. A
+    // completed session keeps whoever ran it -- neither `update-appointment`
+    // nor `reassign-package-therapist` will move one -- so a clinician can
+    // still open the record of a patient who has since moved to somebody
+    // else, and answer for the care they gave. Losing that would be a
+    // clinical regression wearing a security improvement's clothes.
+    await sql(`update profiles set active = true where id = '${therapist.id}';`);
+    const deliveredId = (
+      await sql(`insert into appointments
+        (patient_id, therapist_id, slot_time, duration_minutes, status, concern)
+        values ('${patientA.id}', '${therapist.id}', now() - interval '10 days', 60,
+                'completed', '${TAG}') returning id;`)
+    )[0].id;
+    // The future session moves away; the delivered one cannot and does not.
+    await sql(`update appointments set therapist_id = null where id = '${apptA}';`);
+    const retained = await readAs(
+      tokTher,
+      `patient_condition_profiles?select=id&patient_id=eq.${patientA.id}`
+    );
+    assert(
+      (retained.rows?.length ?? 0) >= 1,
+      `a delivered session keeps the clinician's access after reassignment (got ${retained.rows?.length})`
+    );
+
+    // The mirror, so the rule is "delivered care" rather than "ever named on
+    // a row": a therapist whose only link was a future session that moved
+    // away reads nothing. They never treated this patient.
+    await sql(`delete from appointments where id = '${deliveredId}';`);
+    const gone = await readAs(
+      tokTher,
+      `patient_condition_profiles?select=id&patient_id=eq.${patientA.id}`
+    );
+    assert(
+      gone.rows?.length === 0,
+      `a therapist who never delivered anything reads nothing (got ${gone.rows?.length})`
+    );
+  }
 } finally {
   await cleanup();
 }
