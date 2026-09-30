@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **85 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **87 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **33 open**, each with an assessment. Roughly half are one architectural
+- **31 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -1056,12 +1056,32 @@ Same check now, re-read server-side. An admin who genuinely only has part of
 the answer is not blocked from helping — the honest route for that is the
 patient or their therapist filling it, which is whose record it is.
 
-### 74. Therapist clinical write and audit event are not atomic — **Partly fixed**
+### 74. Therapist clinical write and audit event are not atomic — **Fixed**
 
 The `onboard` path is already compare-and-swapped and writes exactly one
 history row — it took two attempts to get right, and the honest test
-(`isSameIntakeSubmission`) makes an identical resubmission a true no-op. The
-`submit` path is part of 17/18/19.
+(`isSameIntakeSubmission`) makes an identical resubmission a true no-op.
+
+I deferred the `submit` path to 17/18/19 and that was half right: those items
+fixed the **approval** side, and reading `submit` itself found the same shape
+one step earlier, on both doors.
+
+It writes the `condition_change_requests` row and *then* moves the profile to
+`pending_review`. When the second write fails it is not an error but a **dead
+end**: the submission is in the queue, the profile never moved, the therapist
+is told it failed, and their retry is refused by
+`condition_change_requests_one_pending` with *"already awaiting admin
+review"* — it failed, and trying again says it is already there. The patient's
+own gate reads that same status, so they stay locked out of a record the clinic
+believes is under review.
+
+Both routes release the request now, which is the posture 17/18/19 established
+one step later in the same flow. The release is conditioned on the row still
+being `pending`, so it cannot remove a submission an admin has meanwhile acted
+on; and a **failed release is said out loud** in its own sentence, because at
+that point the queue really does hold a submission nothing will clear and
+"try again" is the wrong advice. The patient's route gets the same fix in the
+patient's voice, per the `voice` rule.
 
 ### 75. Session notes can be created before completion — **Already held**
 
@@ -1147,13 +1167,27 @@ already enforced at the database. What *was* wrong: losing the race surfaced
 the constraint name to the patient. Now a sentence saying the default was just
 changed.
 
-### 79. Patient registration / referral conversion not transactional — **Partly fixed**
+### 79. Patient registration / referral conversion not transactional — **Fixed — different approach**
 
 The referral claim is already an atomic compare-and-swap, and account-creation
 failure releases it so the link can be retried. **Item 16 fixed the worst
 consequence** — the attribution write that silently cost a partner every
-commission on that patient. The remaining steps (address, appointment) are the
-onboarding state machine, with item 46.
+commission on that patient.
+
+The remainder was the address and the appointment, which I deferred to "the
+onboarding state machine". Item 46 is the answer to that and it is the opposite
+of a state machine, deliberately: **release rather than resume**. The account is
+seconds old with nothing pointing at it, so the honest recovery is to undo it
+and let the person retry from a clean start — a resumable half-provisioned
+account is a second lifecycle to reason about, on the one flow where the
+failure mode is a dead end nobody can name.
+
+Applying that same rule here closes the rest: a booking left over a failed
+registration is the state 27's indexes now make unrepeatable, and a failed
+profile write releases its submission rather than stranding it (74). What is
+genuinely not transactional is a sequence whose every step is individually
+reversible and *is* reversed — which is what this codebase means by atomic, and
+it needs no schema change to the tables a patient's own record lands in.
 
 ### 80. Reopening a completed session does not reverse downstream effects — **Fixed**
 

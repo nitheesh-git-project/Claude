@@ -104,14 +104,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { error: insertError } = await admin.from("condition_change_requests").insert({
-    patient_id: user.id,
-    submitted_by: user.id,
-    submitted_by_role: "patient",
-    proposed_data: answers,
-    proposed_specialty: profile.specialty,
-    status: "pending",
-  });
+  const { data: inserted, error: insertError } = await admin
+    .from("condition_change_requests")
+    .insert({
+      patient_id: user.id,
+      submitted_by: user.id,
+      submitted_by_role: "patient",
+      proposed_data: answers,
+      proposed_specialty: profile.specialty,
+      status: "pending",
+    })
+    .select("id")
+    .single();
   if (insertError) {
     // The count check above is a fast, friendly-error path -- the real
     // guard is condition_change_requests_one_pending (schema.sql), which
@@ -134,6 +138,32 @@ export async function POST(request: NextRequest) {
       { onConflict: "patient_id" }
     );
   if (upsertError) {
+    // The same dead end as the therapist's route one file over: the
+    // submission is queued, the profile never moved, and the retry is
+    // refused as already pending -- so it failed, and trying again says it
+    // is already there. Release it rather than leaving the patient unable to
+    // resend their own answers.
+    if (inserted?.id) {
+      const { error: releaseError } = await admin
+        .from("condition_change_requests")
+        .delete()
+        .eq("id", inserted.id)
+        .eq("status", "pending");
+      if (releaseError) {
+        console.error(
+          "Failed to release condition change request after a failed profile update",
+          inserted.id,
+          releaseError
+        );
+        return NextResponse.json(
+          {
+            error:
+              "We could not save that and could not clear it either. Please contact the clinic before trying again.",
+          },
+          { status: 500 }
+        );
+      }
+    }
     return serverError("patient/condition-profile/submit", upsertError);
   }
 

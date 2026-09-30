@@ -96,14 +96,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { error: insertError } = await admin.from("condition_change_requests").insert({
-    patient_id: patientId,
-    submitted_by: user.id,
-    submitted_by_role: "therapist",
-    proposed_data: answers,
-    proposed_specialty: patientProfile.specialty,
-    status: "pending",
-  });
+  const { data: inserted, error: insertError } = await admin
+    .from("condition_change_requests")
+    .insert({
+      patient_id: patientId,
+      submitted_by: user.id,
+      submitted_by_role: "therapist",
+      proposed_data: answers,
+      proposed_specialty: patientProfile.specialty,
+      status: "pending",
+    })
+    .select("id")
+    .single();
   if (insertError) {
     // See the matching comment in patient/condition-profile/submit --
     // condition_change_requests_one_pending (schema.sql) is the real
@@ -125,6 +129,39 @@ export async function POST(request: NextRequest) {
       { onConflict: "patient_id" }
     );
   if (upsertError) {
+    // The submission is in the queue and the profile never moved to
+    // `pending_review`, which is a dead end rather than an error: the
+    // therapist is told it failed, resubmits, and
+    // `condition_change_requests_one_pending` answers "already awaiting admin
+    // review" -- it failed, and retrying says it is already there. The
+    // patient's own gate reads that status too, so they stay locked out of a
+    // record the clinic believes is under review.
+    //
+    // So the request is released, exactly as the approval routes revert their
+    // claim (items 17/18/19): the same posture, one step earlier in the same
+    // flow. A failed release is worth saying out loud, because then the queue
+    // really does hold a submission nothing will clear.
+    if (inserted?.id) {
+      const { error: releaseError } = await admin
+        .from("condition_change_requests")
+        .delete()
+        .eq("id", inserted.id)
+        .eq("status", "pending");
+      if (releaseError) {
+        console.error(
+          "Failed to release condition change request after a failed profile update",
+          inserted.id,
+          releaseError
+        );
+        return NextResponse.json(
+          {
+            error:
+              "We could not record that submission and could not clear it either. Please contact an admin before trying again.",
+          },
+          { status: 500 }
+        );
+      }
+    }
     return serverError("therapist/condition-profile/submit", upsertError);
   }
 
