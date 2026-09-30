@@ -35,6 +35,22 @@ export type TablePdfInput = {
   columns: string[];
   rows: string[][];
   generatedAt: Date;
+  /**
+   * Who asked for it.
+   *
+   * This route typesets rows the browser sent, deliberately -- that is what
+   * guarantees the CSV and the PDF are the same table rather than two
+   * queries that might disagree, and it means the route discloses nothing
+   * the caller did not already have.
+   *
+   * What it does not guarantee is that the rows are the clinic's. An admin
+   * could post anything and get back a document carrying the clinic's name,
+   * which for a *financial* export is worth closing the honest way: the
+   * document says who generated it. Attribution rather than verification,
+   * because verification would mean re-querying and losing the agreement
+   * between the two formats.
+   */
+  generatedBy?: string | null;
 };
 
 /** Column widths from the widest cell in each column, scaled to the page.
@@ -83,11 +99,18 @@ export async function buildTablePdf(input: TablePdfInput): Promise<Uint8Array> {
   doc.setCreator(input.siteName);
   doc.setProducer(input.siteName);
 
-  const stamp = `${input.siteName} · ${input.generatedAt.toLocaleString("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Kolkata",
-  })}`;
+  const stamp = [
+    input.siteName,
+    input.generatedAt.toLocaleString("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Kolkata",
+    }),
+    // Only when known, so nothing prints "Exported by null".
+    input.generatedBy ? `Exported by ${input.generatedBy}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   let y = 0;
