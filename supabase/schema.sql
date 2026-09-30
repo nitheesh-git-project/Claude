@@ -4757,11 +4757,16 @@ begin
 
     insert into payments (
       patient_id, purpose, razorpay_order_id, razorpay_payment_id, amount_paise,
+      captured_amount_paise,
       status, target_appointment_id, target_package_purchase_id,
       target_home_visit_purchase_id, captured_at, raw
     ) values (
       v_patient_id, v_purpose, p_order_id, p_payment_id,
       greatest(coalesce(p_amount_paise, v_amount, 0), 1),
+      -- Recorded explicitly as well as folded into amount_paise above, so a
+      -- later reconciliation can tell "this is what the gateway said" from
+      -- "this is what we asked for" even on a row created by the capture.
+      p_amount_paise,
       'captured', v_appointment_id, v_package_id, v_home_visit_id, now(), p_raw
     )
     returning * into v_payment;
@@ -4786,7 +4791,12 @@ begin
           status = 'captured',
           captured_at = now(),
           raw = coalesce(p_raw, raw),
-          amount_paise = greatest(coalesce(p_amount_paise, amount_paise), 1),
+          -- `amount_paise` is what the order was created for and is left
+          -- alone. It used to be overwritten with the gateway's figure,
+          -- which meant a capture for a different amount silently rewrote
+          -- the local record to agree with it and erased the only evidence
+          -- that the two had ever differed.
+          captured_amount_paise = coalesce(p_amount_paise, captured_amount_paise),
           updated_at = now()
       where id = v_payment.id
       returning * into v_payment;
@@ -11827,11 +11837,16 @@ begin
 
     insert into payments (
       patient_id, purpose, razorpay_order_id, razorpay_payment_id, amount_paise,
+      captured_amount_paise,
       status, target_appointment_id, target_package_purchase_id,
       target_home_visit_purchase_id, target_pay_later_payment_id, captured_at, raw
     ) values (
       v_patient_id, v_purpose, p_order_id, p_payment_id,
       greatest(coalesce(p_amount_paise, v_amount, 0), 1),
+      -- Recorded explicitly as well as folded into amount_paise above, so a
+      -- later reconciliation can tell "this is what the gateway said" from
+      -- "this is what we asked for" even on a row created by the capture.
+      p_amount_paise,
       'captured', v_appointment_id, v_package_id, v_home_visit_id, v_pay_later_id,
       now(), p_raw
     )
@@ -11858,7 +11873,12 @@ begin
           status = 'captured',
           captured_at = now(),
           raw = coalesce(p_raw, raw),
-          amount_paise = greatest(coalesce(p_amount_paise, amount_paise), 1),
+          -- `amount_paise` is what the order was created for and is left
+          -- alone. It used to be overwritten with the gateway's figure,
+          -- which meant a capture for a different amount silently rewrote
+          -- the local record to agree with it and erased the only evidence
+          -- that the two had ever differed.
+          captured_amount_paise = coalesce(p_amount_paise, captured_amount_paise),
           updated_at = now()
       where id = v_payment.id
       returning * into v_payment;
@@ -13083,3 +13103,28 @@ drop trigger if exists trg_patient_medical_documents_cap on patient_medical_docu
 create trigger trg_patient_medical_documents_cap
   before insert on patient_medical_documents
   for each row execute function public.patient_medical_documents_enforce_cap();
+
+-- =============================================================================
+-- Audit fixes: a capture is reconciled against the order, not merged into it.
+-- =============================================================================
+-- `record_payment_capture` wrote
+--   amount_paise = greatest(coalesce(p_amount_paise, amount_paise), 1)
+-- so the amount Razorpay reported **overwrote** the amount the clinic had
+-- created the order for. If the two ever differed -- a partial capture, a
+-- gateway-side adjustment, an order re-used against a different booking --
+-- the local record silently became whatever the gateway said, and the
+-- discrepancy erased the only evidence that there had been one. `payments`
+-- exists to be the record that money moved; a column that rewrites itself to
+-- agree with the counterparty cannot do that job.
+--
+-- The ordered figure stays put and the captured figure is recorded beside it.
+-- Nothing is refused on a mismatch -- the money has already moved, and
+-- refusing to record a capture that really happened would be worse than
+-- recording an odd one -- but it is now visible, which is the whole ask.
+alter table payments add column if not exists captured_amount_paise integer;
+
+-- Null until a capture lands, and null for every row captured before this
+-- column existed. Never backfilled from `amount_paise`: that would assert
+-- the two agreed, which is exactly the thing that was never checked.
+comment on column payments.captured_amount_paise is
+  'What the gateway reported capturing. Compared against amount_paise (what the order was created for); a difference is a reconciliation item, not an error.';

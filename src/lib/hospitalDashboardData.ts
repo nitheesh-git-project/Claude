@@ -8,6 +8,10 @@ import { buildHospitalFeed } from "@/lib/dashboardFeed";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { HOSPITAL_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import type { StatCell } from "@/components/dashboard/StatStrip";
+import {
+  isReferralAccepted,
+  isReferralWithClinic,
+} from "@/lib/referralStatus";
 
 // Everything the hospital (B2B) dashboard's screens read, loaded once per
 // request -- same split as the patient and therapist loaders, for the same
@@ -139,8 +143,23 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
   );
 
   const patientMap = new Map((referredPatients ?? []).map((p) => [p.id, p]));
-  const paidSessions = (referredSessions ?? []).filter(
-    (s) => s.payment_status === "paid"
+
+  // Delivered, not merely paid for.
+  //
+  // This counted `payment_status === "paid"`, which is wrong in both
+  // directions at once. A session paid for and not yet held was counted as
+  // delivered -- so a partner's figure jumped the moment a patient checked
+  // out and then never moved. And a session delivered on pay-later terms is
+  // never `paid` at all, so those were missing entirely: the partner's most
+  // trusted patients were invisible on their own screen.
+  //
+  // It also disagreed with the clinic's own books. `moneyLineFor` takes a
+  // partner's share on **completed** sessions, so the admin's Money screen
+  // and the partner's Earnings screen quoted two different numbers for the
+  // same referrals -- which is exactly what the comment below says this
+  // code exists to avoid.
+  const deliveredSessions = (referredSessions ?? []).filter(
+    (s) => s.status === "completed"
   );
   // Sums what was actually charged per session rather than recalculating
   // against the current session fee, so this stays correct even if pricing
@@ -152,7 +171,7 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
   // exactly this reason (see moneyByBucketFor), and without the same rule
   // here the two screens would quote a partner two different numbers for
   // the same referrals.
-  const totalRevenuePaise = paidSessions.reduce((sum, s) => {
+  const totalRevenuePaise = deliveredSessions.reduce((sum, s) => {
     const grossPaise = s.amount_paid_paise ?? SESSION_FEE_PAISE;
     const refundPaise =
       s.refund_status === "processed" ? Math.max(0, s.refund_amount_paise ?? 0) : 0;
@@ -165,8 +184,15 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
 
   // ---- Overview -----------------------------------------------------
   const referralRows = referrals ?? [];
-  const pendingReferrals = referralRows.filter((r) => r.status === "pending").length;
-  const acceptedReferrals = referralRows.filter((r) => r.status === "accepted").length;
+  // Through the shared vocabulary rather than string comparisons. These two
+  // filtered for "pending" and "accepted", neither of which
+  // patient_referrals.status can ever hold -- it is CHECKed to
+  // pending_review / therapist_assigned / invite_sent / converted /
+  // declined. So both counts read **0 for every partner, permanently**, on
+  // the one screen a partner opens to see what became of the patients they
+  // sent. It read as a clinic that actioned nothing.
+  const pendingReferrals = referralRows.filter((r) => isReferralWithClinic(r.status)).length;
+  const acceptedReferrals = referralRows.filter((r) => isReferralAccepted(r.status)).length;
   const hospitalFeed = buildHospitalFeed({
     referrals: referralRows.map((r) => ({
       id: r.id,
@@ -193,8 +219,8 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     },
     {
       label: "Sessions delivered",
-      value: String(paidSessions.length),
-      note: "Paid sessions by patients you referred",
+      value: String(deliveredSessions.length),
+      note: "Completed sessions for patients you referred",
       accent: "bg-blue-500",
       href: "/hospital/dashboard/revenue",
     },
@@ -220,7 +246,9 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     declineReasonMap,
     referredSessions,
     patientMap,
-    paidSessions,
+    // Renamed from `paidSessions`: these are the sessions actually
+    // delivered, which is what a partner's commission is earned on.
+    deliveredSessions,
     totalRevenue,
     hospitalCut,
     companyCut,

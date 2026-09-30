@@ -99,7 +99,31 @@ export async function POST(request: NextRequest) {
     note,
   });
   if (reviewError) {
-    console.error("Risk signal status moved but the note failed", signalId, reviewError);
+    // The status change is reverted rather than left standing.
+    //
+    // This used to be a console.error and nothing else, so a failed insert
+    // left the signal closed with no recorded reason anywhere -- which is
+    // precisely the state the ten-character minimum exists to prevent, and
+    // it read to the next admin as a colleague having dismissed something
+    // without saying why. `risk_reviews` is append-only, so the note cannot
+    // be added afterwards either.
+    //
+    // Same posture as the care-plan review, and the opposite of the audit
+    // log's: a decision nobody can trace to a reason is the one outcome
+    // this route must not produce, so the honest answer is to put the
+    // signal back and let the admin try again.
+    await admin
+      .from("risk_signals")
+      .update({ status: signal.status })
+      .eq("id", signalId)
+      // Only if it is still the status we set -- another admin may have
+      // reviewed it in the meantime, and their decision stands.
+      .eq("status", outcome);
+
+    return serverError("admin/review-risk-signal (note)", reviewError, {
+      message:
+        "Your review could not be recorded, so nothing has been changed. Please try again.",
+    });
   }
 
   // The review row above is the evidence; this is the same decision in the

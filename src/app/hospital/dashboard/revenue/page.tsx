@@ -34,9 +34,16 @@ export default async function Page() {
             <p className="text-lg font-bold text-slate-900">{d.sharePercent}%</p>
           </div>
           <div className="bg-slate-50 rounded-xl p-3 text-center">
-            <p className="text-[11px] text-slate-500">Paid Sessions</p>
+            {/*
+              "Sessions delivered", not "Paid Sessions". The figure counts
+              completed sessions, because that is what a commission is earned
+              on -- and the old word was wrong twice over: it included
+              sessions paid for and not yet held, and excluded every session
+              delivered on pay-later terms, which is never `paid`.
+            */}
+            <p className="text-[11px] text-slate-500">Sessions delivered</p>
             <p className="text-lg font-bold text-slate-900">
-              {d.paidSessions.length}
+              {d.deliveredSessions.length}
             </p>
           </div>
           <div className="bg-teal-50 rounded-xl p-3 text-center">
