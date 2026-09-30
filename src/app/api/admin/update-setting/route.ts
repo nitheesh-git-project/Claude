@@ -641,9 +641,25 @@ export async function POST(request: NextRequest) {
   // `.is()` for null and `.eq()` otherwise: PostgREST renders a null filter
   // as `is.null`, and `eq.null` matches nothing at all -- which would refuse
   // every first-time save of a setting that has never been set.
+  //
+  // A jsonb setting is compared as its **JSON text**, never as the value
+  // postgrest-js was handed. Two of these columns hold arrays --
+  // `booking_languages` and `enabled_intake_specialties` -- and postgrest-js
+  // renders a JS array into a Postgres *array* literal, `{ortho,neuro}`,
+  // which Postgres then tries to read as json: `22P02 invalid input syntax
+  // for type json, Token "ortho" is invalid`. The route answered **500** and
+  // the setting could not be saved at all. `booking_languages` is
+  // `not null default '["English"]'`, so its previous value is never null,
+  // the `.eq()` branch always ran, and the failure was total rather than
+  // occasional. Passing the serialised text keeps the compare-and-swap real
+  // -- verified both ways against a live database: the correct text matches
+  // the row, and a value the column does not hold still matches nothing, so
+  // the stale-write 409 below is unchanged.
+  const previousFilterValue =
+    typeof previousValue === "object" ? JSON.stringify(previousValue) : previousValue;
   const { data: updated, error } = await (previousValue === null
     ? claim.is(key, null)
-    : claim.eq(key, previousValue as never)
+    : claim.eq(key, previousFilterValue as never)
   )
     .select("id")
     .maybeSingle();
