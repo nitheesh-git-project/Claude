@@ -23,6 +23,34 @@
 //
 // NEVER point this at a database with real patients: it inserts and deletes
 // accounts and appointments directly.
+//
+// ---------------------------------------------------------------------------
+// WHAT THESE DO AND DO NOT PROVE -- read this before trusting a green run.
+// ---------------------------------------------------------------------------
+// They prove the functions behave correctly when called in parallel. They do
+// NOT prove the calls genuinely overlapped inside the database, and the
+// difference matters.
+//
+// Measured: the invite-cap block below passes against the version of
+// `claim_invite` WITHOUT its row lock, as well as with it. Twelve HTTP
+// requests fired from one Node process through PostgREST's pool do not
+// reliably interleave two statements that take under a millisecond each, so
+// a green run here is not evidence that a missing lock would have been
+// caught.
+//
+// So treat these as a regression guard on the *verdicts* -- exactly one
+// winner, the right refusal reason, no double-booked therapist -- and not as
+// a proof of serialisation. What argues for the locks is the code: a count
+// followed by an insert, or a check followed by a write, cannot be
+// serialising, whatever a timing-dependent test happens to show on a quiet
+// database.
+//
+// To actually force overlap you need the statements held open against each
+// other -- two psql sessions with explicit BEGINs, or a copy of the function
+// with a pg_sleep inside the window. Worth doing if one of these ever starts
+// failing intermittently; not worth shipping as a routine check, because a
+// test that depends on a sleep to find a bug reports a different thing every
+// time it runs.
 
 import { readFileSync } from "node:fs";
 for (const line of readFileSync("/home/user/Claude/.env.local","utf8").split("\n")) {
@@ -163,6 +191,66 @@ console.log("\n4. The rate limiter's cap holds under twelve parallel hits");
   );
   const allowed = results.filter(r => r.body?.allowed === true).length;
   assert(allowed === 5, `exactly 5 of 12 allowed (got ${allowed})`);
+}
+
+console.log("\n5. The invite reward cap holds under concurrent claims");
+{
+  // The cap was a count(*) followed by an insert with nothing between them,
+  // so two friends redeeming the same code at once both read the same total
+  // and both inserted. A row lock on the inviter closed it.
+  await sql(`
+    update site_settings set invite_rewards_enabled = true,
+      invite_max_rewards_per_patient = 1,
+      invite_welcome_paise = 10000, invite_reward_paise = 10000
+    where id;`);
+
+  const inviter = (await sql(
+    `insert into auth.users (id, email) values (gen_random_uuid(), '${TAG.toLowerCase()}.inv@example.test') returning id;`
+  ))[0].id;
+  await sql(`
+    insert into profiles (id, role, full_name, approved, active, email, invite_code)
+      values ('${inviter}', 'patient', '${TAG} inviter', true, true, '${TAG.toLowerCase()}.inv@example.test', 'CONCINV1')
+      on conflict (id) do update set role='patient', invite_code='CONCINV1';`);
+
+  // One already-qualified invite, so the inviter is exactly at the cap of 1.
+  const friendA = (await sql(
+    `insert into auth.users (id, email) values (gen_random_uuid(), '${TAG.toLowerCase()}.fa@example.test') returning id;`
+  ))[0].id;
+  await sql(`
+    insert into profiles (id, role, full_name, approved, active, email)
+      values ('${friendA}', 'patient', '${TAG} friend a', true, true, '${TAG.toLowerCase()}.fa@example.test')
+      on conflict (id) do update set role='patient';
+    insert into patient_invites (inviter_id, invitee_id, code_used, reward_paise, welcome_paise, qualified_at)
+      values ('${inviter}', '${friendA}', 'CONCINV1', 10000, 10000, now());`);
+
+  // Two brand-new friends claim at the same instant. Both must be refused.
+  const newFriends = [];
+  for (const tag of ["fb", "fc"]) {
+    const id = (await sql(
+      `insert into auth.users (id, email) values (gen_random_uuid(), '${TAG.toLowerCase()}.${tag}@example.test') returning id;`
+    ))[0].id;
+    await sql(`
+      insert into profiles (id, role, full_name, approved, active, email)
+        values ('${id}', 'patient', '${TAG} friend ${tag}', true, true, '${TAG.toLowerCase()}.${tag}@example.test')
+        on conflict (id) do update set role='patient';`);
+    newFriends.push(id);
+  }
+
+  const claims = await Promise.all(
+    newFriends.map((id) => rpc("claim_invite", { p_code: "CONCINV1", p_invitee_id: id }))
+  );
+  const accepted = claims.filter((c) => c.body?.ok === true).length;
+  const capped = claims.filter((c) => c.body?.reason === "inviter_capped").length;
+  assert(accepted === 0, `both claims refused at the cap (accepted: ${accepted}, capped: ${capped})`);
+
+  const total = await sql(
+    `select count(*)::int as n from patient_invites where inviter_id = '${inviter}';`
+  );
+  assert(total[0].n === 1, `the inviter still has exactly 1 invite (got ${total[0].n})`);
+
+  await sql(`
+    delete from patient_invites where code_used = 'CONCINV1';
+    update site_settings set invite_rewards_enabled = false where id;`);
 }
 
 // ---------- teardown ----------

@@ -13221,3 +13221,96 @@ create index if not exists patient_referrals_held_slot_idx
 create index if not exists patient_referrals_converted_patient_idx
   on patient_referrals (converted_patient_id)
   where converted_patient_id is not null;
+
+-- =============================================================================
+-- Audit fixes: the invite reward cap holds under concurrent claims.
+-- =============================================================================
+-- Re-declared in full rather than patched in place, per this file's
+-- append-only convention. The only change is the row lock on the inviter
+-- before their reward count is read -- see the comment inside. Everything
+-- else, including the "committed rather than paid" eligibility test that
+-- pay-later required, is exactly as it was.
+create or replace function public.claim_invite(
+  p_code text,
+  p_invitee_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_settings site_settings%rowtype;
+  v_inviter_id uuid;
+  v_paid_before integer;
+  v_rewards_earned integer;
+begin
+  select * into v_settings from site_settings where id limit 1;
+  if not found or not coalesce(v_settings.invite_rewards_enabled, false) then
+    return jsonb_build_object('ok', false, 'reason', 'disabled');
+  end if;
+
+  select id into v_inviter_id from profiles
+    where invite_code = upper(btrim(replace(replace(p_code, '-', ''), ' ', '')))
+      and role = 'patient';
+  if v_inviter_id is null then
+    return jsonb_build_object('ok', false, 'reason', 'unknown_code');
+  end if;
+  if v_inviter_id = p_invitee_id then
+    return jsonb_build_object('ok', false, 'reason', 'self');
+  end if;
+
+  -- Serialise every claim against this inviter before their reward count is
+  -- read. The cap was a `count(*)` followed by an insert with nothing
+  -- between them, so two friends redeeming the same code at once both read
+  -- the same total, both passed, and both inserted -- which is the exact
+  -- failure a cap exists to prevent, and it is the one this function is
+  -- otherwise careful about everywhere else (the self-invite, the
+  -- one-invite-per-patient unique index, the not-new test).
+  --
+  -- A row lock on the inviter, the same mechanism `claim_promo_code` and
+  -- `claim_therapist_slot` use. Locking the *inviter* rather than the table
+  -- means two different inviters' claims do not contend at all.
+  perform 1 from profiles where id = v_inviter_id for update;
+
+  select count(*) into v_paid_before from appointments
+    where patient_id = p_invitee_id
+      and (payment_status = 'paid'
+           or (payment_terms = 'pay_later'
+               and payment_status <> 'paid'
+               and status <> 'cancelled'));
+  if v_paid_before > 0 then
+    return jsonb_build_object('ok', false, 'reason', 'not_new');
+  end if;
+
+  select count(*) into v_rewards_earned from patient_invites
+    where inviter_id = v_inviter_id and qualified_at is not null;
+  if v_rewards_earned >= coalesce(v_settings.invite_max_rewards_per_patient, 0) then
+    return jsonb_build_object('ok', false, 'reason', 'inviter_capped');
+  end if;
+
+  begin
+    insert into patient_invites (
+      inviter_id, invitee_id, code_used, reward_paise, welcome_paise
+    ) values (
+      v_inviter_id,
+      p_invitee_id,
+      upper(btrim(replace(replace(p_code, '-', ''), ' ', ''))),
+      coalesce(v_settings.invite_reward_paise, 0),
+      coalesce(v_settings.invite_welcome_paise, 0)
+    );
+  exception when unique_violation then
+    return jsonb_build_object('ok', false, 'reason', 'already_claimed');
+  end;
+
+  return jsonb_build_object(
+    'ok', true,
+    'welcome_paise', coalesce(v_settings.invite_welcome_paise, 0),
+    'reward_paise', coalesce(v_settings.invite_reward_paise, 0)
+  );
+end;
+$$;
+
+revoke all on function public.claim_invite(text, uuid) from public;
+revoke all on function public.claim_invite(text, uuid) from anon;
+revoke all on function public.claim_invite(text, uuid) from authenticated;
