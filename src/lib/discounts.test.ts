@@ -360,7 +360,7 @@ describe("describeDiscount", () => {
  */
 describe("discount precedence on a tie", () => {
   const LIST = 120000;
-  const OFFER_OFF: FirstSessionOffer = { enabled: false, type: "flat", value: 0 };
+  const OFFER_OFF: FirstSessionOffer = { enabled: false, type: "fixed", value: 0 };
 
   function candidate(source: DiscountSource, discountPaise: number): DiscountOutcome {
     return {

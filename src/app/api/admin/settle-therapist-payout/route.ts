@@ -3,7 +3,10 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeNetPayout } from "@/lib/therapistCashLedger";
-import { recordAdminActivity } from "@/lib/adminActivityLog";
+import {
+  ACTIVITY_LOG_WARNING,
+  recordAdminActivity,
+} from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // "online" here means the admin already sent the money themselves (UPI,
@@ -260,7 +263,7 @@ export async function POST(request: NextRequest) {
   // moved or what it absorbed. Best-effort, like every other call to this:
   // the payout has already been claimed by this point, so a logging failure
   // must not be reported back as a failed settlement.
-  await recordAdminActivity(admin, adminUser.id, {
+  const logged = await recordAdminActivity(admin, adminUser.id, {
     action: "payout.settle",
     targetId: therapistId,
     targetLabel: therapist.full_name,
@@ -288,5 +291,12 @@ export async function POST(request: NextRequest) {
     settledAmountPaise: net.netPayablePaise,
     grossOwedPaise: grossSettledPaise,
     cashHeldPaise: net.cashHeldPaise,
+    // Money has left the clinic and cannot be recalled, so a failed audit
+    // write is not something to swallow: nothing anywhere would record who
+    // authorised the largest money move in the app. It still is not a failed
+    // settlement -- the transfer happened -- so it rides back with the
+    // success as a warning, the same shape SESSION_REVOKE_WARNING uses for
+    // "the door is locked but they are still inside".
+    ...(logged ? {} : { warning: ACTIVITY_LOG_WARNING }),
   });
 }

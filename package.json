@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "verify": "npm run lint && npm run test && npm run build",
     "check:grants": "node scripts/check-function-grants.mjs",
-    "start:cluster": "node scripts/start-cluster.mjs"
+    "start:cluster": "node scripts/start-cluster.mjs",
+    "check:concurrency": "node scripts/concurrency-checks.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.3.1",
