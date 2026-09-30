@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **100 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **101 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **18 open**, each with an assessment. The canonical settlement ledger is no
+- **17 open**, each with an assessment. The canonical settlement ledger is no
   longer among them: `session_settlements` exists, written alongside the
   derivation rather than replacing it, so it needed no backfill and changed no
   money figure. What remains is almost entirely **infrastructure this
@@ -1361,15 +1361,41 @@ Not writable without that dependency. **I'd rate this the highest-priority
 open item after the settlement ledger**, because it is the only one where the
 harm lands on a person rather than on a number.
 
-### 87, 88. Orphaned storage files and replacement lifecycle — **Open**
+### 87, 88. Orphaned storage files and replacement lifecycle — **Fixed**
 
-Real and named in `docs/DATA-POLICY.md` §5 with the shape of the fix — and the
-important half of that note: a reconciliation here must **list, never delete**.
-A sweep that removes a file because it could not find a row is one bad query
-away from deleting a patient's scan.
+This entry was stale: the reconciliation it describes as "the shape of the fix"
+was built as item 120, and the two items are the same work.
 
-The upload route already removes its file when the metadata insert fails, so
-the common direction is covered.
+`src/lib/storageReconciliation.ts` walks the private `medical-reports` bucket
+against `patient_medical_documents` and reports both directions on Settings →
+System Health → *Patient files*. They are deliberately **not** the same
+finding: a **record with no file** is red, because it is listed on the
+patient's own health profile and the view route mints a signed URL for
+something that is not there — the *patient* meets it; a **file with no record**
+is amber, since nothing is broken for anybody, but a scan the patient believes
+they deleted is still stored.
+
+It **lists and never deletes**, which is the half of `docs/DATA-POLICY.md` §5
+that matters and which the check's own steps say out loud, because the obvious
+reading of an orphan list is "tidy it up": a sweep that removes a file it could
+not find a row for is one bad query away from deleting a patient's scan. A walk
+that hits its own cap says it only checked part of the bucket rather than
+claiming a clean result it did not earn, and one unreadable folder makes the
+whole answer null rather than an undercount.
+
+It found two orphans on its first run, and the cause is the ordinary one before
+launch: the debug reset truncates that table and **cannot reach Storage**, so
+every reset since uploads shipped has left its files behind. A `TRUNCATE`
+cannot delete an object in a bucket, so that is a consequence to state rather
+than a bug to fix — which is what the check's steps do.
+
+**88 (replacement lifecycle)** is answered by design rather than by a sweep:
+`patient_medical_documents` has **no update policy**, so correcting a report
+means deleting it and uploading again, and the row and the object can never
+describe different things. The catalog-image route, which *does* replace in
+place, clears all three extensions before writing — otherwise one row owns two
+covers with nothing ever removing the loser, and there is no sweeper here to
+tidy it up later.
 
 ### 89. Signed URL expiry needs review — **Already held**
 
