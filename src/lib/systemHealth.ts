@@ -169,6 +169,11 @@ export type SystemHealthInput = {
    */
   settlementDisagreements?: number | null;
   /**
+   * How many settlement rows exist at all. Zero is the state the
+   * disagreement count cannot distinguish -- see `settlementsCheck`.
+   */
+  settlementsRecorded?: number | null;
+  /**
    * Patient files against the rows describing them.
    *
    * Null when it could not be asked -- on this check a zero reads as
@@ -800,7 +805,10 @@ function referralAttributionCheck(
  * agreement either, and painting that green claims a reconciliation that
  * never ran.
  */
-function settlementsCheck(disagreements: number | null): HealthCheck {
+function settlementsCheck(
+  disagreements: number | null,
+  recorded: number | null
+): HealthCheck {
   const base = {
     id: "settlements" as const,
     label: "Settlement record",
@@ -818,6 +826,34 @@ function settlementsCheck(disagreements: number | null): HealthCheck {
       fix: ["Apply `supabase/schema.sql` to this project, then reload this page."],
       count: 0,
       evidence: [],
+    };
+  }
+
+  // **Zero rows is not agreement, and this check said it was.** The
+  // reconciliation only looks at sessions completed since the *first*
+  // settlement row, so with none at all it compares nothing, finds nothing,
+  // and reports healthy -- which is exactly backwards. A table written by one
+  // best-effort call that nothing reads has no symptom anywhere when its
+  // writer is broken, and the moment a writer is most likely to be broken is
+  // the moment it ships, when the table is empty. So "green" here would have
+  // meant "we have never once checked".
+  //
+  // It resolves itself: the first completion after this either puts a row in
+  // (healthy) or does not (this, still). That is the honest reading on a
+  // brand-new clinic and on a broken writer alike, which is why it does not
+  // try to tell them apart.
+  if (recorded !== null && recorded === 0) {
+    return {
+      ...base,
+      status: "unknown",
+      headline:
+        "Nothing has been recorded yet, so there is nothing to check against.",
+      fix: [
+        "Complete a session. One settlement should be recorded for it.",
+        "Come back here: if this still says nothing has been recorded, the recording is not working and no figure below can be trusted against it.",
+      ],
+      count: 0,
+      evidence: ["No settlement has been recorded on this database"],
     };
   }
 
@@ -1262,7 +1298,7 @@ export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
     payLaterCheck(input.payLater ?? null),
     referralAttributionCheck(input.referralAttribution ?? null),
     refundsCheck(input.refunds ?? null),
-    settlementsCheck(input.settlementDisagreements ?? null),
+    settlementsCheck(input.settlementDisagreements ?? null, input.settlementsRecorded ?? null),
     patientFilesCheck(input.storage ?? null),
   ];
 }

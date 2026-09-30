@@ -39,6 +39,7 @@ const ALL_WELL: SystemHealthInput = {
   referralAttribution: { orphanedCount: 0, withCompletedSessions: 0 },
   refunds: { stuckCount: 0, unrecordedCount: 0, oldestStuckHours: null },
   settlementDisagreements: 0,
+  settlementsRecorded: 3,
   storage: { filesWithNoRow: 0, rowsWithNoFile: 0, truncated: false },
 };
 
@@ -457,6 +458,45 @@ describe("patient files", () => {
       storage: { filesWithNoRow: 1, rowsWithNoFile: 1, truncated: false },
     });
     expect(check.fix.join(" ")).toContain("nothing should be");
+  });
+});
+
+describe("the settlement record check", () => {
+  it("does not read an empty table as agreement", () => {
+    // The blind spot this closes: the reconciliation only compares sessions
+    // completed since the first settlement row, so with none at all it
+    // compares nothing and found nothing -- and a write-only table whose
+    // writer is broken has no other symptom anywhere.
+    const checks = buildSystemHealth({
+      ...ALL_WELL,
+      settlementDisagreements: 0,
+      settlementsRecorded: 0,
+    });
+    const settlement = checks.find((c) => c.id === "settlements")!;
+    expect(settlement.status).toBe("unknown");
+    expect(settlement.headline).toMatch(/nothing has been recorded/i);
+    // And it says what to do about it, like every other unhealthy check.
+    expect(settlement.fix.length).toBeGreaterThan(0);
+  });
+
+  it("is healthy only once something has actually been compared", () => {
+    const checks = buildSystemHealth({
+      ...ALL_WELL,
+      settlementDisagreements: 0,
+      settlementsRecorded: 5,
+    });
+    expect(checks.find((c) => c.id === "settlements")!.status).toBe("healthy");
+  });
+
+  it("reports a disagreement as needing a person", () => {
+    const checks = buildSystemHealth({
+      ...ALL_WELL,
+      settlementDisagreements: 2,
+      settlementsRecorded: 5,
+    });
+    const settlement = checks.find((c) => c.id === "settlements")!;
+    expect(settlement.status).toBe("broken");
+    expect(settlement.count).toBe(2);
   });
 });
 

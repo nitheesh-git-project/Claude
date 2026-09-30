@@ -820,6 +820,7 @@ export default async function AdminDashboardPage({
     payLaterCeilingPaise,
     storageHealth,
     settlementDisagreements,
+    settlementsRecorded,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -1166,6 +1167,19 @@ export default async function AdminDashboardPage({
     admin
       .rpc("verify_settlement_agreement")
       .then((r) => (r.error ? null : ((r.data ?? []) as unknown[]).length))
+      .then(
+        (n) => n,
+        () => null
+      ),
+    // How many settlements exist at all. Its own read, because zero is the
+    // one state the disagreement count above cannot distinguish: with no rows
+    // there is nothing to compare, so it finds nothing and would read as
+    // agreement -- on a write-only table whose broken writer has no other
+    // symptom anywhere.
+    admin
+      .from("session_settlements")
+      .select("id", { count: "exact", head: true })
+      .then((r) => (r.error ? null : r.count ?? 0))
       .then(
         (n) => n,
         () => null
@@ -4538,6 +4552,7 @@ export default async function AdminDashboardPage({
     referralAttribution: referralAttributionHealth,
     refunds: refundHealth,
     settlementDisagreements: settlementDisagreements,
+    settlementsRecorded: settlementsRecorded,
     storage: storageHealth,
   });
 
