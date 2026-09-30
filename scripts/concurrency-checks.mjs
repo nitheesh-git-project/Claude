@@ -36,10 +36,6 @@ async function rpc(fn, args) {
   const r = await fetch(`${URL_}/rest/v1/rpc/${fn}`, { method: "POST", headers: H, body: JSON.stringify(args) });
   return { status: r.status, body: await r.json().catch(() => null) };
 }
-async function rest(path, opts = {}) {
-  const r = await fetch(`${URL_}/rest/v1/${path}`, { headers: { ...H, Prefer: "return=representation" }, ...opts });
-  return { status: r.status, body: await r.json().catch(() => null) };
-}
 
 const ref = process.env.NEXT_PUBLIC_SUPABASE_URL.split("//")[1].split(".")[0];
 async function sql(q) {

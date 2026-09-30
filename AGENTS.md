@@ -957,8 +957,18 @@ before.
   an admin route does not have - and the GoTrue admin endpoints that would
   do it by id answer 404 on this project's version; both were tested before
   this shape was settled on. It stops renewal rather than killing a token
-  mid-flight, so remaining exposure is one JWT lifetime, during which the
-  policy layer and each route's own `active` check already refuse them. A
+  mid-flight, so remaining exposure is one JWT lifetime. **What refuses them
+  during that window differs by role, and this sentence used to overstate
+  it.** For an *admin* the policy layer genuinely does: `is_admin()` checks
+  `active`, so all eighteen admin policies refuse. For a patient, therapist
+  or hospital it does not -- their `*_select_own` policies key on
+  `auth.uid()` alone, so a suspended account's live token still reads its
+  **own** rows straight from PostgREST until it expires. The app is the gate
+  there (`src/proxy.ts` for navigation, `getProfileStanding` /
+  `requireActiveProfile` in every route), and the reach is bounded to their
+  own data for at most one token lifetime -- but it is the app and not the
+  database. `npm run check:authorization` asserts the admin half and reports
+  the other, rather than claiming a guarantee that is not there. A
   failed revoke never un-suspends the account - it returns a warning the
   route passes on, because "the door is locked but they are still inside"
   is worth saying out loud.
