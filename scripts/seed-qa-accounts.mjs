@@ -136,6 +136,30 @@ const ACCOUNTS = [
     },
   },
   {
+    // Named by e2e/pay-later.spec.ts, which books, completes, settles and
+    // writes off against a real database -- so it needs a patient of its own
+    // rather than sharing one with the journey tests, whose rows it would
+    // delete in its own `beforeAll`. It was named by that spec and created by
+    // nothing, so the whole file failed on its first line with a null
+    // dereference: a missing seed reading as a broken product.
+    //
+    // Pay-later terms are deliberately NOT granted here. The spec's first
+    // case is the grant itself, and a fixture that arrived already on terms
+    // would make it pass without running.
+    label: "Patient E (pay later)",
+    email: "qa.patient.e@example.test",
+    fullName: "QA Patient E",
+    profile: {
+      role: "patient",
+      approved: true,
+      active: true,
+      phone: "+919876543214",
+      date_of_birth: "1982-07-19",
+      gender: "Female",
+      preferred_language: "English",
+    },
+  },
+  {
     label: "Patient C (hospital-referred)",
     email: "qa.patient.c@example.test",
     fullName: "QA Referred Patient C",

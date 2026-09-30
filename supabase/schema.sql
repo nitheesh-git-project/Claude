@@ -13515,3 +13515,33 @@ $$;
 revoke all on function public.refund_attempt_health(integer) from public;
 revoke all on function public.refund_attempt_health(integer) from anon;
 revoke all on function public.refund_attempt_health(integer) from authenticated;
+
+-- ===========================================================================
+-- Pay later: an optional ceiling on what one patient may owe at once
+-- ===========================================================================
+-- The feature shipped with **no ceiling on purpose**, and that stays the
+-- default: the population is tiny and hand-picked, refusing a long-standing
+-- patient at the counter is a real product decision rather than a safety
+-- rail, and the two figures on Money -> Owed by Patients (the total, and the
+-- age of the oldest unsettled session) are the intended early warning.
+--
+-- This column exists because a clinic that wants a limit should not have to
+-- choose between having one and having the feature, and because the honest
+-- way to hold an opinion the clinic may not share is a setting rather than a
+-- constant. Null -- the default, and what every existing database reads --
+-- means no ceiling and behaviour identical to before it existed.
+--
+-- There is deliberately no zero, for the same reason `pay_later_aged_after_days`
+-- refuses one: a clinic that types 0 has almost certainly cleared the box, and
+-- reading it as "refuse every booking" would switch the feature off by accident
+-- through a field that says nothing about switching it off. Off is
+-- `pay_later_enabled`. The upper bound is 10,00,00,000 paise (₹10,00,000) so a
+-- mistyped figure is refused rather than silently meaning no limit at all.
+alter table site_settings add column if not exists pay_later_max_owed_paise integer;
+do $$
+begin
+  alter table site_settings add constraint site_settings_pay_later_max_owed_check
+    check (pay_later_max_owed_paise is null
+           or (pay_later_max_owed_paise >= 1 and pay_later_max_owed_paise <= 100000000));
+exception when duplicate_object then null;
+end $$;

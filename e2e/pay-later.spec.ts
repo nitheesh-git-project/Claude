@@ -71,8 +71,19 @@ async function setting(key: string, value: unknown) {
 }
 
 test.beforeAll(async () => {
-  const { data: p } = await db.from("profiles").select("id").eq("email", PATIENT_E).single();
-  patientId = p!.id;
+  const { data: p } = await db.from("profiles").select("id").eq("email", PATIENT_E).maybeSingle();
+  // Named rather than dereferenced: without the fixture this file used to
+  // fail on its first line with `Cannot read properties of null`, which reads
+  // as a broken pay-later feature and sends the reader into the money code.
+  // It is a missing seed, and the message says which command creates it.
+  if (!p?.id) {
+    throw new Error(
+      `${PATIENT_E} does not exist in this database -- run \`npm run seed:qa\` first. ` +
+        "This spec needs a patient of its own: it deletes that patient's appointments in " +
+        "beforeAll, so sharing one with the journey tests would destroy their fixtures."
+    );
+  }
+  patientId = p.id;
 
   // Start from nothing. This file books, completes, settles, writes off and
   // refunds against a real database, so a second run that read the first
@@ -191,15 +202,25 @@ test("PL-UI-003 booking on terms, with no payment step", async ({ page }) => {
   await shot(page, "05-book-step1");
 
   // Step 1 is the service and the slot. The day and the hour open already
-  // chosen; the service is picked from the card grid, and Continue is not
-  // offered until it has been.
-  await page.getByRole("button", { name: /What would you like help with/ }).first().click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Choose this session" })
-    .first()
-    .click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  // chosen; the service comes from `ServicePicker`, which has **two shapes**
+  // and this walk has to survive both -- with exactly one purchasable
+  // option there is no picker at all and the service is stated as chosen,
+  // by design, because a dialog that opens to show a single card asks
+  // somebody to tap twice to confirm the only thing on offer. A spec that
+  // only knew the grid failed here with a locator timeout on a working
+  // booking funnel, which reads as a broken pay-later feature.
+  const pickerTrigger = page.getByRole("button", {
+    name: /What would you like help with/,
+  });
+  if ((await pickerTrigger.count()) > 0) {
+    await pickerTrigger.first().click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Choose this session" })
+      .first()
+      .click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  }
   await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
   await page.waitForTimeout(1200);
   await shot(page, "06-book-step2-details");

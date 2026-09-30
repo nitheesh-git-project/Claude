@@ -40,6 +40,7 @@ const ALLOWED_COLUMNS = new Set([
   // first release, and read everywhere else in its own call failing closed.
   "pay_later_enabled",
   "pay_later_aged_after_days",
+  "pay_later_max_owed_paise",
   // Whether that ageing warning runs at all. A switch rather than a zero in
   // the number above, because zero there reads as "chase everything" to one
   // person and "never warn me" to another.
@@ -263,6 +264,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: `Enter a whole number of days between ${MIN_PAY_LATER_AGED_AFTER_DAYS} and ${MAX_PAY_LATER_AGED_AFTER_DAYS}.`,
+        },
+        { status: 400 }
+      );
+    }
+  }
+  // Null is a real value here and is the default: blank means no ceiling,
+  // exactly as before the column existed. Zero is refused rather than read as
+  // "refuse every booking" -- somebody who types 0 has almost certainly
+  // cleared the box, and a field that says nothing about switching the
+  // feature off must not be able to.
+  if (key === "pay_later_max_owed_paise") {
+    const ok =
+      value === null ||
+      (typeof value === "number" &&
+        Number.isInteger(value) &&
+        value >= 1 &&
+        value <= 100_000_000);
+    if (!ok) {
+      return NextResponse.json(
+        {
+          error:
+            "Enter a whole number of rupees between 1 and 10,00,000, or leave it blank for no limit.",
         },
         { status: 400 }
       );

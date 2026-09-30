@@ -599,8 +599,17 @@ carries the gap. `appointments.payment_terms` is the new axis because
 two apart is what stops an abandoned cart being counted as a debt. The money is
 read on **Money -> Owed by Patients** (`src/lib/patientBalances.ts`), which leads
 with the total and the age of the oldest unsettled session -- there is no ceiling
-on what a trusted patient may owe, so those two figures are the entire early
-warning. How long a balance may sit before it counts as worth chasing is the
+on what a trusted patient may owe **unless the clinic sets one**
+(`pay_later_max_owed_paise`, blank by default and blank is the undo), so those
+two figures are the entire early warning in the ordinary case. A ceiling is a
+setting rather than a constant because holding an opinion the clinic may not
+share belongs in a switch: set, a booking that would go past it is refused with
+its own named reason and the patient is offered the ordinary payment screen
+instead -- paying now is never taken away, and nothing already owed changes.
+There is deliberately no zero, since somebody who types 0 has almost certainly
+cleared the box, and a balance that could not be read counts as **at** the
+ceiling rather than zero -- waving a booking through on a failed query is the
+one direction a ceiling exists to stop. How long a balance may sit before it counts as worth chasing is the
 clinic's own (`pay_later_aged_after_days`, 60 days by default, set on that same
 screen beside the figure it colours, with a live count saying how many patients
 that number would flag before it is saved): it is the only automatic warning the
@@ -817,7 +826,9 @@ function in `schema.sql` is not revoked from all three of `public`, `anon`
 and `authenticated` -- `scripts/check-live-grants.mjs` asks the running
 database the same question and is run by hand after a schema change),
 `npm run seed:qa`, which recreates every account the manual test
-plan names after a data reset has deleted them, and `npm run clean:e2e`,
+plan names after a data reset has deleted them - plus `qa.patient.e`, which
+the plan does not name but `e2e/pay-later.spec.ts` does, and which nothing
+created until now, so that whole file failed on its first line - and `npm run clean:e2e`,
 which clears the fixture rows earlier e2e runs left in the database -- a
 direct-insert purchase or appointment never claims `visits_used` and never
 gets a calendar event, so each one left behind is a permanent red row on

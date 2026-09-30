@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **76 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **77 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **42 open**, each with an assessment. Roughly half are one architectural
+- **41 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -515,7 +515,7 @@ Making it transactional would mean refusing to close a session because a
 shadow ledger was unhappy — and completion is what creates the debt, the
 revenue and the therapist's pay. AGENTS.md is right about this one.
 
-### 32, 33, 34, 35, 36. Pay-later ledger, exposure limit, write-off accounting — **Open**
+### 32, 33, 35, 36. Pay-later ledger, write-off accounting — **Open**; 34. Exposure limit — **Fixed — decided**
 
 - **32, 33, 35, 36** are the canonical-ledger piece (§4 of
   `docs/MONEY-MODEL.md`). What exists is stronger than the items imply: the
@@ -524,15 +524,53 @@ revenue and the therapist's pay. AGENTS.md is right about this one.
   claimed first and a failed cost row reverts the claim, and System Health
   reports written-off sessions disagreeing with the bad debt recorded —
   including "could not be checked" rather than zero.
-- **34 (no hard exposure limit)** is **Open — your decision**, and
-  deliberately so. The current design has *no ceiling by choice*, with the
-  total and the age of the oldest unsettled session as the entire early
-  warning, plus a configurable "worth chasing" threshold and a risk rule. A
-  hard cap that refuses a booking is a real product decision — it means
-  turning away a long-standing patient at the counter — and it is yours, not
-  mine. I've left the mechanism ready: `decidePayLaterBooking` already returns
-  a *named reason*, so adding a ceiling is one more reason and one more
-  refusal, not a restructure.
+- **34 (no hard exposure limit)** is **Fixed — decided**, and the decision is
+  that both of us were right about different things.
+
+  The current design has *no ceiling by choice*, and that stays the **default**
+  — unset, meaning behaviour identical to before the column existed. The
+  reasoning holds: the population is tiny and hand-picked, and a cap that
+  refuses a booking means turning away a long-standing patient at the counter.
+
+  But "no ceiling, ever, because I decided so" is a constant, and the honest
+  way to hold an opinion the clinic may not share is a **setting**.
+  `site_settings.pay_later_max_owed_paise` is that setting, on Money → Owed by
+  Patients beside the figures it acts on — the same placement
+  `promo_codes_enabled` has, so somebody who has just set a limit watches what
+  it would catch rather than navigating away and taking it on trust. It shows
+  a live count of how many current patients would be asked to pay now, off the
+  same balances the list below renders.
+
+  Five rules:
+  1. **Blank is the default and the undo**, exactly as blank is for the
+     mission copy and the splash brand line.
+  2. **There is deliberately no zero.** Somebody who types 0 has almost
+     certainly cleared the box, and reading it as "refuse every booking" would
+     switch the feature off by accident through a field that says nothing
+     about switching it off. Off is `pay_later_enabled`. Same reasoning as
+     `pay_later_aged_after_days`, one field over.
+  3. **Reaching it never strands anybody.** The patient is offered the
+     ordinary payment screen and books exactly as anyone else does — *paying
+     now is never taken away*, which is the rule the whole feature was built
+     on. Nothing already owed changes.
+  4. **The refusal names the arrangement and what clears it**, because this
+     patient already knows they have it — unlike `feature_off` and
+     `not_on_terms`, which say the same thing on purpose so nobody learns an
+     arrangement exists that they are not in. It quotes no figure: what they
+     owe is on their own dashboard, and a number in a refusal is one that can
+     be wrong by the time it is read.
+  5. **A balance that could not be read reads as "at the ceiling"**, not as
+     zero. Waving a booking through because a query failed is the one
+     direction a ceiling exists to stop — and the cost of the safe direction
+     is only that the patient pays now, which they can.
+
+  Your instinct about the mechanism was right: it was one more named reason
+  and one more refusal. The two callers were reordered so the quote resolves
+  before the eligibility check — a ceiling has to be applied to what the
+  booking would actually add rather than to its list price, and in
+  `confirm-pay-later` the preview is deliberately non-claiming, because a
+  refusal after a claim would spend a promo code on a booking that never
+  happened.
 
 ### 37. Invite reward cap can race — **Fixed**
 

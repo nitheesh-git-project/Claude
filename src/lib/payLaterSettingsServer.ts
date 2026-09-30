@@ -6,8 +6,14 @@ import {
 } from "@/lib/patientBalances";
 import {
   decidePayLaterBooking,
+  resolveMaxOwedPaise,
   type PayLaterDecision,
 } from "@/lib/payLaterBooking";
+import {
+  computePatientBalance,
+  type PayLaterAppointment,
+  type PayLaterPaymentRow,
+} from "@/lib/patientBalances";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -99,6 +105,30 @@ export async function readPayLaterEnabled(admin: AdminClient): Promise<boolean> 
 }
 
 /**
+ * The clinic's own ceiling on what one patient may owe, or null for none.
+ *
+ * Its own isolated read, per the migration-dependent-column rule: the newest
+ * column on `site_settings`, and one an unmigrated database must not take
+ * every other setting down with. It resolves to **null** -- no ceiling, the
+ * original design -- when it cannot be read, because inventing a limit
+ * nobody set would refuse somebody at the counter over a failed query.
+ */
+export async function readPayLaterCeilingPaise(
+  admin: AdminClient
+): Promise<number | null> {
+  try {
+    const { data, error } = await admin
+      .from("site_settings")
+      .select("pay_later_max_owed_paise")
+      .maybeSingle();
+    if (error) return null;
+    return resolveMaxOwedPaise(data?.pay_later_max_owed_paise);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * May this patient book this session on terms?
  *
  * Both callers re-derive it here rather than trusting anything the browser
@@ -118,9 +148,11 @@ export async function readPayLaterBookingEligibility(
     patientId: string;
     visitMode?: string | null;
     hasProgramme?: boolean;
+    /** What this booking would add, so the ceiling can be applied to it. */
+    bookingAmountPaise?: number;
   }
 ): Promise<PayLaterDecision> {
-  const [featureEnabled, patientOnTerms] = await Promise.all([
+  const [featureEnabled, patientOnTerms, ceiling] = await Promise.all([
     readPayLaterEnabled(admin),
     (async () => {
       try {
@@ -136,7 +168,56 @@ export async function readPayLaterBookingEligibility(
         return false;
       }
     })(),
+    // The clinic's own ceiling, in its own isolated read -- newest column on
+    // that table, and one an unmigrated database must not take the rest of
+    // the settings down with. It resolves to **null** (no ceiling) when it
+    // cannot be read, which is the original design rather than a bound: the
+    // safe direction when the thing being decided is whether somebody is
+    // refused at the counter is not to invent a limit nobody set.
+    (async () => {
+      try {
+        const { data, error } = await admin
+          .from("site_settings")
+          .select("pay_later_max_owed_paise")
+          .maybeSingle();
+        if (error) return null;
+        return resolveMaxOwedPaise(data?.pay_later_max_owed_paise);
+      } catch {
+        return null;
+      }
+    })(),
   ]);
+
+  // Only asked when there is a ceiling to apply it to. Every booking is
+  // otherwise unchanged, which is what keeps "no ceiling" free.
+  let currentlyOwedPaise = 0;
+  if (ceiling !== null) {
+    try {
+      const { data } = await admin
+        .from("appointments")
+        .select(
+          "id, patient_id, payment_terms, payment_status, status, amount_due_paise, pay_later_outcome"
+        )
+        .eq("patient_id", args.patientId)
+        .eq("status", "completed");
+      const { data: pool } = await admin
+        .from("pay_later_payments")
+        .select("id, patient_id, status, unallocated_paise")
+        .eq("patient_id", args.patientId)
+        .eq("status", "confirmed");
+      currentlyOwedPaise = computePatientBalance(
+        args.patientId,
+        (data ?? []) as PayLaterAppointment[],
+        (pool ?? []) as PayLaterPaymentRow[]
+      ).owedPaise;
+    } catch {
+      // A balance that could not be read must not silently become zero and
+      // wave the booking through -- that is the one direction this ceiling
+      // exists to stop. It reads as "at the ceiling", so the patient is
+      // asked to pay now and can still book.
+      currentlyOwedPaise = ceiling;
+    }
+  }
 
   // The judgement itself is dependency-free and unit-tested; this function
   // is the fetch and nothing else.
@@ -145,5 +226,8 @@ export async function readPayLaterBookingEligibility(
     patientOnTerms,
     visitMode: args.visitMode,
     hasProgramme: args.hasProgramme,
+    currentlyOwedPaise,
+    bookingAmountPaise: args.bookingAmountPaise,
+    maxOwedPaise: ceiling,
   });
 }

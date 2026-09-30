@@ -49,6 +49,7 @@ import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
 import AdminOwingTab from "@/components/admin/AdminOwingTab";
 import {
   readPayLaterAgeSettings,
+  readPayLaterCeilingPaise,
   readPayLaterEnabled,
 } from "@/lib/payLaterSettingsServer";
 import {
@@ -799,6 +800,7 @@ export default async function AdminDashboardPage({
     referralAttributionHealth,
     refundHealth,
     areaCommitments,
+    payLaterCeilingPaise,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -1126,6 +1128,9 @@ export default async function AdminDashboardPage({
     // no idea what was still owed. Null when it could not be asked, which
     // the row reports rather than showing as zero.
     readHomeVisitAreaCommitments(admin),
+    // The clinic's own ceiling on what one patient may owe. Null is no
+    // ceiling, which is the default and how the feature shipped.
+    readPayLaterCeilingPaise(admin),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -4648,6 +4653,7 @@ export default async function AdminDashboardPage({
           }
           nowMs={nowTimestamp()}
           ageSetting={payLaterAgeSetting}
+          ceilingPaise={payLaterCeilingPaise}
           payments={payLaterPoolRows ?? []}
           settlements={payLaterSettlementRows ?? []}
           manualRefunds={payLaterManualRefunds ?? []}

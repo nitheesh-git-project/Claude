@@ -510,7 +510,17 @@ Four consequences worth holding in mind while testing:
 #### `PL-OWED-005` - Finance reads the rule instead of meeting a gap · P1
 
 **Steps.** Open the same screen as **Finance**.
-**Expected Result.** A plain sentence - *balances turn amber after N days, only a Master Admin can change this* - where the control sits. Finance manages **Money** but holds **settings** at `none`, so the save route would refuse them; a control a scope cannot call must not render, and an absence reads as a half-built screen.
+**Expected Result.** A plain sentence - *balances turn amber after N days, only a Master Admin can change this* - where the control sits. Finance manages **Money** but holds **settings** at `none`, so the save route would refuse them; a control a scope cannot call must not render, and an absence reads as a half-built screen. The **ceiling** below it gets the same treatment: one sentence saying what the limit is, or that there is none, and who owns it.
+
+#### `PL-OWED-006` - The ceiling on what one patient may owe · P0
+
+**Feature.** The feature shipped with **no ceiling on purpose**: the population is tiny and hand-picked, and refusing a long-standing patient at the counter is a real product decision rather than a safety rail. It is a **setting** rather than a constant so a clinic that wants a limit is not made to choose between having one and having the feature at all.
+
+**Steps.** Read the control with nothing set. Type a figure and watch the live count without saving. Save `₹5,000`. Have a patient who already owes `₹4,500` book a `₹1,200` online session. Then have one who owes `₹3,800` book the same session. Then clear the box and repeat the first.
+**Expected Result.** Blank by default, and the field says so - *leave blank for no limit*. Typing a figure shows **"N of M patients would be asked to pay now on their next session"**, computed live from the balances already on the page. With `₹5,000` saved: the patient at `₹4,500` is **not** offered pay later and meets the ordinary payment screen - **they can still book**, which is the whole point, and nothing they already owe changes. The patient at `₹3,800` books on terms exactly as before. Clearing the box restores the original behaviour completely.
+**The boundary is inclusive of the ceiling:** a booking that lands **exactly** on the figure is allowed. A limit that refused at its own number would mean the figure an admin typed is one the clinic never actually allows.
+**What the patient is told.** *"There's a bit outstanding on your account, so this session needs paying for now. Settling what's owed opens it back up."* - it names the arrangement, because they already know they have it, says what clears it, and **quotes no figure**: what they owe is on their own dashboard, and a number in a refusal is one that can be wrong by the time it is read.
+**Negative, three ways.** `0` is **refused**, not read as "refuse every booking" - somebody who types 0 has almost certainly cleared the box, and a field that says nothing about switching the feature off must not be able to. A figure over `₹10,00,000` is refused rather than silently meaning no limit. And with the balance read **made to fail**, the patient is asked to pay now rather than waved through: waving a booking through on a failed query is the one direction a ceiling exists to stop, and the cost of the safe direction is only that they pay now.
 
 ---
 

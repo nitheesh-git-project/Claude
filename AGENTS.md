@@ -283,8 +283,16 @@ is not in this repo's dependency set at all, so a rebuild is a deliberate act
 on a machine set up for it.
 
 `scripts/seed-qa-accounts.mjs` (`npm run seed:qa`) recreates every account
-the manual plan names -- four admins, three patients, three therapists, two
-hospitals -- with the fixture password, straight after a data reset. The reset
+the manual plan names -- four admins, four patients, three therapists, two
+hospitals -- with the fixture password, straight after a data reset. The
+fourth patient is `qa.patient.e`, which the manual plan does not name:
+`e2e/pay-later.spec.ts` deletes its patient's appointments in its own
+`beforeAll`, so it needs one of its own rather than destroying the journey
+tests' fixtures. It was **named by that spec and created by nothing**, so the
+whole file failed on its first line with a null dereference -- a missing seed
+reading as a broken money feature. It is seeded *without* pay-later terms on
+purpose: the spec's first case is the grant, and a fixture that arrived
+already on terms would make it pass without running. The reset
 deletes every non-admin account by design, so §8 of the plan is then a list of
 twelve logins that do not exist, and two of them (a scoped admin, a hospital)
 are normally minted from the back office with a generated password shown once.
@@ -1957,7 +1965,32 @@ before.
      it contributes nothing today, changing what the clinic owes real people on
      sessions unrelated to this feature. The frozen price slots in **before**
      each caller's fallback and leaves it untouched.
-  5. **There is no ceiling, by choice**, so the two figures on Money -> Owed by
+  5. **There is no ceiling by default, by choice** -- and it is a setting
+     rather than a constant, because holding an opinion the clinic may not
+     share belongs in a switch. `site_settings.pay_later_max_owed_paise` is
+     null unless somebody sets it, and null is behaviour identical to before
+     the column existed: the population on terms is tiny and hand-picked, and
+     a cap that refuses a booking means turning away a long-standing patient
+     at the counter. Set, it is one more named reason (`over_limit`) out of
+     `decidePayLaterBooking` and nothing else changes. Five rules hold it:
+     blank is the default **and the undo**; there is deliberately **no zero**,
+     since somebody who types 0 has almost certainly cleared the box and
+     reading it as "refuse every booking" would switch the feature off through
+     a field that says nothing about switching it off (off is
+     `pay_later_enabled`); reaching it **never strands anybody**, because the
+     ordinary payment screen is still there and *paying now is never taken
+     away*; the refusal names the arrangement and what clears it, since this
+     patient already knows they have it, and quotes **no figure**, because a
+     number in a refusal is one that can be wrong by the time it is read; and
+     a balance that **could not be read reads as at the ceiling**, never as
+     zero -- waving a booking through on a failed query is the one direction a
+     ceiling exists to stop, and the cost of the safe direction is only that
+     the patient pays now. Both callers resolve the quote **before** the
+     eligibility check, since a ceiling applies to what the booking would add
+     rather than to its list price, and `confirm-pay-later`'s preview is
+     deliberately non-claiming: a refusal after a claim would spend a promo
+     code on a booking that never happened.
+     With no ceiling set, the two figures on Money -> Owed by
      Patients are the whole of the early warning: the total, and
      `oldestOwedAgeDays` against `site_settings.pay_later_aged_after_days`.
      That threshold is configurable where one in this codebase normally is not,
