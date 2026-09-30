@@ -461,6 +461,24 @@ admin's queue exactly as before. It is one switch
 change what times a patient is offered: the roster still does not filter the
 booking picker.
 
+**And approved is not the same as ready.** `profiles.approved` means a person
+vetted the account, and the product read it as "ready to be assigned" -- so a
+therapist could be approved with no hours on the roster and no revenue share,
+both of which fail *silently*: nothing can offer them a session, and a session
+they do deliver leaves them owed nothing with no screen saying why.
+`src/lib/therapistReadiness.ts` is the five things this app itself needs, and
+it is a **derivation rather than a column**: a `production_ready` flag
+somebody ticks is a second source of truth that drifts from the facts it
+describes. It is **advisory for a person and binding for the machine** -- an
+admin assigning has the therapist in front of them and nothing here disables a
+control, while the automatic assigner, which picks somebody with nobody
+watching, refuses a therapist with no roster or no rate. It does not refuse
+over a missing specialisation: that costs a patient a sentence on a profile
+page rather than making an assignment wrong. A ready therapist gets no panel
+at all, the same rule an unrefunded session's missing refund chip follows.
+Leave is not on the list -- a therapist on leave is not *unfinished*. See the
+readiness rule in `AGENTS.md`.
+
 Session credits live in an append-only ledger (`session_credit_ledger`)
 over `session_entitlements`, not in a mutable counter. Every movement goes
 through a database function holding a real row lock, keyed for idempotency

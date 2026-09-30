@@ -452,6 +452,7 @@ src/lib/refundState.ts   how a refund reads, wherever a session is shown
 src/lib/refundAttempt.ts what a refund was asked to do, written before it is
 src/lib/refundHealthServer.ts whether every refund sent has a recorded answer
 src/lib/unscheduledPurchases.ts a purchase nobody has booked anything against
+src/lib/therapistReadiness.ts what a therapist still needs before live patients
 src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
 src/lib/catalogFeatured.ts which few of the catalogue a public page leads with
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
@@ -2338,6 +2339,43 @@ before.
   separation stays, and `e2e/therapist-roster.spec.ts` R-B02 still guards
   it. The roster's own job is who can be *offered* a session, which is
   exactly what is being read.
+  **And the machine holds itself to a higher bar than a person does.** It
+  applies `canAutoAssignTo` (`src/lib/therapistReadiness.ts`) on top of the
+  roster, refusing a therapist with no working hours or **no revenue share**
+  -- an assignment made with nobody watching whose failure is silent, since
+  the session is delivered and the therapist is then owed nothing for it
+  with no screen saying why. It deliberately does *not* refuse over a
+  missing specialisation, which costs a patient a sentence on a profile page
+  rather than making an assignment wrong; refusing there would leave paid
+  sessions in the admin's queue for a field nobody was told about.
+
+- **Approved is not ready, and the difference is derived rather than
+  flagged.** `profiles.approved` means "a person vetted this account" and
+  the product reads it as "ready to be assigned", which are different facts.
+  `src/lib/therapistReadiness.ts` holds the five things this app itself
+  needs -- approved, not suspended, hours on the roster, a revenue share, a
+  specialisation -- and it is a **derivation, never a column**: a
+  `production_ready` flag somebody ticks is a second source of truth about
+  facts the app already holds, written by every path that changes a roster
+  or a rate and unwritten by every path that clears one, and the first time
+  it drifts it is the thing nobody trusts. Three rules:
+  1. **Nothing on the list is invented policy.** Every item is something the
+     code already requires. A genuine clinic policy -- insurance, a signed
+     contract, a qualification check -- is deliberately absent and wants a
+     note on the account rather than a gate here.
+  2. **Advisory for a person, binding for the machine.** Nothing disables a
+     control: an admin assigning has the therapist in front of them, and a
+     gate on a field nobody was told about is worse than the state it
+     replaces. The automatic assigner is the opposite case, above.
+  3. **A ready therapist gets no panel at all.** A green "all set" card on
+     every profile is a row a reader learns to scroll past, and then misses
+     the one profile that is not -- the same reason an unrefunded session
+     carries no refund chip.
+  Leave is not on the list: it is a temporary state somebody set on purpose
+  rather than something missing from an account, and the roster reads it
+  already. A therapist on leave is not *unfinished*. A new reader of
+  "is this therapist ready" takes one of that module's two answers rather
+  than growing a third.
 
 - **A therapist suggests; the patient books.** A therapist can propose the
   next session on a programme locked to them

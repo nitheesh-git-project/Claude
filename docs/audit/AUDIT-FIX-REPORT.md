@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **72 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **75 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **46 open**, each with an assessment. Roughly half are one architectural
+- **43 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -761,18 +761,62 @@ write-off's cost date is the clinic's today rather than UTC's — one decided on
 the 1st of a month was landing in the month before, moving a profit figure
 somebody had already read.
 
-### 64, 69. Approval and production readiness treated too similarly — **Open**
+### 64, 69. Approval and production readiness treated too similarly — **Fixed — different approach**
 
 Both real and both the same item. `approved` means "an admin vetted this" and
-is used as "ready to be assigned live patients", which are different things —
-a therapist can be approved with no roster, no payout details and no
+is read as "ready to be assigned live patients", which are different facts —
+a therapist can be approved with no roster, no revenue share and no
 specialisation.
 
-**Why not fixed.** A `production_ready` flag is easy; deciding *what it
-requires* is a clinic policy decision, and a gate that blocks assignment on a
-field nobody knew was required is worse than the current state. The
-centralised check (item 127) is the right shape — I'd want your list of
-prerequisites first.
+You left the prerequisites to me, so here is the decision and the reasoning,
+because the reasoning is the part you can disagree with.
+
+**Not a `production_ready` flag.** A column somebody ticks is a second source
+of truth about facts the app already holds: it has to be written by every
+path that changes a roster or a rate, unwritten by every path that clears
+one, and the first time it drifts it is the thing nobody trusts.
+`src/lib/therapistReadiness.ts` **derives** it instead.
+
+**Nothing on the list is invented policy.** I refused to write a clinic
+policy for you, and I did not have to — every item is something *this
+application already needs in order to work*, which is a statement of fact
+rather than a rule I made up:
+
+| Item | Why it is on the list |
+| --- | --- |
+| Approved | Without it they cannot sign in at all. |
+| Not suspended | Refused everywhere, including at the database. |
+| Working hours on the roster | With none, nothing can offer them a session — the automatic assigner reads the roster and so does the Day view. |
+| Revenue share set | Their pay is computed from it. Unset, a completed session contributes nothing to what they are owed and no screen says why. |
+| Specialisation recorded | What a patient reads on /team and what an admin filters by. |
+
+Anything genuinely a *clinic* policy — insurance, a signed contract, a
+qualification check — is deliberately absent. Those are yours, and they want
+a note on the account rather than a gate in the code.
+
+**The split you actually needed: advisory for a person, binding for the
+machine.** This is the decision, and it is the one that makes the rest safe.
+An admin assigning a session has the therapist in front of them and may have
+every reason to go ahead, so nothing here disables a control — a gate on a
+field nobody was told about is worse than the state it replaces, which was
+your own concern and I agree with it. `autoAssignTherapist` is the opposite
+case: it picks a clinician with **nobody watching**, and the two failures
+that matter there are silent. It now refuses a therapist with no roster or no
+revenue share, and deliberately does **not** refuse over a missing
+specialisation — that costs a patient a sentence on a profile page, and
+refusing would leave paid sessions sitting in the admin's queue for a field
+nobody knew about.
+
+**Where it shows.** A panel above the header on the therapist's admin page,
+naming what is missing and why it matters — never "this field is required",
+which is a checklist people tick to make it go away. A ready therapist gets
+**no panel at all**: a green "all set" card on every profile is a row a
+reader learns to scroll past, and then misses the one profile that is not.
+Same rule as an unrefunded session carrying no refund chip.
+
+Leave is deliberately not on the list. It is a temporary state somebody set
+on purpose, not something missing from an account, and the roster already
+reads it — a therapist on leave is not *unfinished*.
 
 ### 65. Finance scope exposes broader People information than required — **Fixed**
 
@@ -1314,10 +1358,14 @@ paths), `getProfileStanding` (four routes), the slot claim (six paths) and the
 referral state groupings (three screens). More remain; this is a direction
 rather than a task.
 
-### 127. Therapist production-readiness check centralized — **Open**
+### 127. Therapist production-readiness check centralized — **Fixed**
 
-Waits on item 64/69 — I need your list of prerequisites before writing the
-check that enforces it.
+`src/lib/therapistReadiness.ts` is that one place, and it has exactly two
+readers by design: the panel an admin reads (`therapistReadiness`) and the
+automatic assigner (`canAutoAssignTo`). They return different answers on
+purpose — see item 64/69 — and a third reader that wanted its own rule would
+be the drift this module exists to prevent. 12 unit cases, including every
+item that must *not* block an assignment.
 
 ### 128. Admin reconciliation queues centralized — **Fixed — different approach**
 
@@ -1398,9 +1446,14 @@ audit log — a legal question before an engineering one.
    prerequisite.
 5. **The restore drill (106).** Cheap, and until it runs the backup is a
    belief.
-6. **Your four decisions:** the pay-later ceiling (34), home-visit continuation
-   after an area change (60), production-readiness prerequisites (64/69), and
-   historical clinical access (76/77).
+6. **The decisions you handed back to me.** You said to decide, so I am
+   deciding them rather than leaving them open — 64/69 and 127 are done
+   (above). The pay-later ceiling (34), home-visit continuation after an area
+   change (60) and historical clinical access (76/77) follow the same
+   principle: where a policy is genuinely the clinic's, I ship the safer
+   default **as a setting** rather than baking my judgement into the code, so
+   changing your mind is a switch and not a release. Each entry says which
+   default I chose and why.
 
 # Scope I did not touch
 

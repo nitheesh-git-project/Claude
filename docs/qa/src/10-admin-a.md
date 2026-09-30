@@ -512,6 +512,24 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 **Clearing the home-visit share is allowed and means "use the ordinary share"** - which is what every therapist carries by default, so a box that could be set and never unset would be a one-way door. Clearing the **ordinary** share is still refused: there is no rate behind it to fall back to.
 **The three figures agree.** This page used to compute its own payout from the ordinary share alone, with no home-visit rate and no travel fee, so a therapist who did home visits read one number on their profile and a different one on Payouts - and the Pay button transferred the third. Any disagreement here is that defect.
 
+#### `ADM-PEOP-009` - Approved is not ready, and the page says which · P0
+
+**Feature.** `profiles.approved` means a person vetted the account, and the product read it as "ready to be assigned live patients" - which are different facts. A therapist could be approved with **no hours on the roster** and **no revenue share**, and both of those fail *silently*: nothing can offer them a session, and a session they do deliver leaves them owed nothing with no screen saying why. It is derived from what the app already holds rather than being a tickbox, so it cannot drift from the thing it describes.
+
+**Steps.** Approve a new therapist and open their admin page before setting anything. Then add working hours and save. Then set a revenue share. Then set a specialisation. Read the panel after each step.
+**Expected Result.** A panel above the header reads **Not ready for patients yet**, naming each missing thing **and why it matters** - never "this field is required". Each item disappears as it is set, and once everything is set the panel is **gone entirely**, not green: an "all set" card on every profile is a row a reader learns to scroll past, and then misses the one profile that is not.
+**Nothing is blocked.** Every control on the page still works throughout - you can assign this therapist a session by hand at any point. The panel is a reminder, and a gate on a field nobody was told about would be worse than no panel at all.
+**Leave is not on the list.** Put the therapist on leave and the panel does not gain a row: leave is a temporary state somebody set on purpose, not something missing from the account, and a therapist on leave is not *unfinished*.
+
+#### `ADM-PEOP-010` - The automatic assigner holds a higher bar than a person · P0
+
+**Feature.** An admin assigning has the therapist in front of them; the automatic assigner picks one with **nobody watching**. So it refuses what a person may go ahead with.
+
+**Preconditions.** `Auto-assign therapist` **on**. Exactly one therapist rostered and free for the slot, with **no revenue share set**.
+**Steps.** Have a patient pay for a session in that hour. Then set that therapist's revenue share and repeat with a new booking.
+**Expected Result.** The first session stays `requested` and **unassigned** in the admin's queue - the pre-existing behaviour, which is always the safe fallback here. The second is auto-assigned and auto-confirmed with its Meet link. **Without this the session is delivered and the therapist is owed nothing for it**, and no screen anywhere says why.
+**Negative:** a missing **specialisation** must **not** hold an assignment up. Clear it and repeat: the session is still assigned. It costs a patient a sentence on a profile page rather than making an assignment wrong, and refusing would leave paid sessions in the queue for a field nobody was told about.
+
 #### `ADM-PEOP-007` - Suspend and restore a therapist · P1
 **Steps.** Toggle Therapist A inactive, then active.
 **Expected Result.** While inactive: their dashboard redirects to `/account-suspended`, their API routes 403, they disappear from `/team` and from `?therapist=` resolution, and they cannot be assigned. Restoring reverses all of it. **Their existing appointments are unchanged.**
