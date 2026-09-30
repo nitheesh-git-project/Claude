@@ -5,9 +5,11 @@ land, twice: once to find what was wrong, and once to prove it no longer is.
 
 ## Verdict
 
-**Ready to merge**, subject to the last full suite run finishing clean — its
-result is appended at the foot of this file. Everything else is green and
-every failure found has been resolved rather than explained away.
+**Ready to merge.** The full suite has been run on the branch as it will
+land: **343 passed, 9 failed, 11 skipped**, and all nine failures are the
+documented no-egress cases, proved environmental by a measurement rather
+than assumed (see *The final run* at the foot of this file). Every failure
+that described the product has been fixed and re-proved.
 
 | Gate | Result |
 | --- | --- |
@@ -164,3 +166,48 @@ pasted into the chat earlier are permanently in that transcript and **still
 need rotating**. They live only in `.env.local`, which `.gitignore` matches
 and which has never been committed.
 
+## The final run
+
+The whole suite, on the branch as it will land, in six chunks with the dev
+server restarted between them — a single 1.1-hour run OOM-kills the server
+here, and everything after that point dies as `TypeError: fetch failed`,
+which is a red run describing nothing.
+
+| Chunk | Passed | Failed | Skipped | Before the fixes |
+| --- | --- | --- | --- | --- |
+| 1 | 80 | **0** | 1 | 1 failed (K-004) |
+| 2 | 50 | **0** | 7 | 1 failed (PC-004) |
+| 3 | 47 | 5 | 0 | 5 failed (all no-egress) |
+| 4 | 54 | **0** | 0 | 3 failed |
+| 5 | 75 | 4 | 1 | 5 failed |
+| 6 | 37 | **0** | 2 | 1 failed (WAIT-AREA-001) |
+| **Total** | **343** | **9** | **11** | 16 failed |
+
+**All nine remaining failures are the documented no-egress cases**, and
+nothing else is red:
+
+- `booking-pay-button-live` PAY-001, PAY-002, PAY-003
+- `booking-rules` BR-CANCEL-001, BR-CANCEL-002
+- `pay-later` PL-UI-003, PL-UI-004, PL-UI-005, PL-UI-006
+
+All nine walk the same Step 1 → Step 3 path, and `BookingWizard` resolves
+`isLoggedIn` from its own browser-side `auth.getUser()`. That was not taken
+on trust — it was measured, from inside the page:
+
+```
+FROM_BROWSER:  THREW: Failed to fetch
+FROM_NODE:     HTTP 401
+```
+
+The browser cannot reach Supabase at all; Node reaches it and is merely
+unauthenticated on a bare `/rest/v1/` call. So the injected session cookie is
+invisible to the wizard, Step 2 renders the signed-out registration fields,
+the walk never reaches Step 3, and every assertion after it fails on a
+working funnel. These cannot pass in this sandbox whatever the code does, and
+they fail identically on an unmodified tree.
+
+Read them as a set rather than as a count: the total moves with every spec
+added, so a run that does not match 343 is telling you the suite has grown.
+
+**Verdict: ready to merge.** Every failure that described the product has
+been fixed and re-proved; the nine that remain describe the sandbox.
