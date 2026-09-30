@@ -195,9 +195,19 @@ therapist is holding — and that netting marks exactly those visits
 time. A therapist holding *more* than they are owed floors the transfer at
 zero and the difference stays open on the Cash Ledger for a person to chase.
 
-**The relationship is implied rather than modelled.** See
-`docs/MONEY-MODEL.md` §4: a payout batch references appointments, not
-settlement rows. That is audit item 9, and it is open.
+**The relationship is implied rather than modelled, and it is now total.** A
+payout batch references appointments rather than settlement rows (see
+`docs/MONEY-MODEL.md` §4), which is a shape worth revisiting if payouts ever
+need to be partially reversed. What made it a *fault* rather than a shape was
+that the link was not guaranteed: the batch id was stamped on each appointment
+by its own UPDATE, so a batch could exist with some of its sessions linked and
+some not.
+
+`settle_therapist_payout_batch()` does every claim in one statement, so every
+session carrying a batch id was claimed in the same transaction that created
+the relationship — or none of them was. The cash remittance is inside that same
+statement for the same reason. A failure part-way is now a clean "try again"
+rather than a partial payout to unpick by hand (audit items 8 and 9).
 
 ---
 

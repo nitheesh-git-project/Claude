@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **91 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **93 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **27 open**, each with an assessment. Roughly half are one architectural
+- **25 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -227,26 +227,59 @@ log. Item 15 had already removed the one place the ledger was actively
 *destroying* evidence (a capture overwriting the ordered amount). See
 `docs/MONEY-MODEL.md` §4.
 
-### 8. Therapist payout settlement can partially succeed — **Open**
+### 8. Therapist payout settlement can partially succeed — **Fixed**
 
-**Real, and I looked hard at it.** `settle-therapist-payout` claims a batch,
-marks each appointment settled, and marks cash remitted. A failure part-way
-leaves some sessions settled against a batch and some not.
+**Real, and it was the largest money-moving action in the app being the least
+atomic one.** `settle-therapist-payout` claimed each appointment with its own
+UPDATE inside a `Promise.all`. Every one of those is its own transaction, so a
+failure part-way left **some** sessions marked settled against the batch and
+some not — and the route then answered 500, so the admin who had just been told
+how much cash to hand over did not know whether any of it had been recorded,
+the therapist's Earnings showed a partial batch, and a retry settled the
+remainder under a *second* batch id.
 
-**Why not fixed.** An atomic payout state machine means a `payout_batches` →
-`appointment_settlements` model, which is item 9 and item 10. The
-prerequisite landed in this pass (the frozen rates) and the rest is a schema
-change with its own migration and reconciliation.
+I said the fix needed a `payout_batches` → `appointment_settlements` model with
+its own migration and reconciliation. It did not. The claims land in one
+statement now — `settle_therapist_payout_batch()` — so a failure rolls the
+whole thing back and the answer is an honest "try again" rather than a partial
+payout to unpick by hand.
 
-**Partial mitigation shipped:** the route's audit write is no longer
-best-effort in its *reporting* — if the trail could not record a settlement,
-the admin is told, because money has left and cannot be recalled (item 72).
+Two things about it are deliberate:
 
-### 9. Payout request and batch have no strong relationship — **Open**
+- **It is a writer, not a rule.** The per-session amounts are computed by
+  `sessionTherapistCutPaise()` in TypeScript and passed in as jsonb. A third
+  copy of that arithmetic written in SQL would be exactly the mistake item 126
+  had just corrected, with a longer fuse — and this is the one place where
+  getting it wrong hands a real person the wrong amount of money.
+- **The cash remittance rides in the same transaction.** It used to be a
+  separate best-effort UPDATE *after* the claims, which is the same failure one
+  step over: deducting the cash **is** the remittance, so a settlement that
+  recorded the deduction and then failed to close the collections let the very
+  next run net the same rupees off again. The one condition that has not moved
+  is that it only fires when the payout fully absorbs the cash — a therapist
+  holding more than they are owed keeps that difference on the Cash Ledger as a
+  real debt the other way.
 
-Modelled as `payout_requests` and a batch id on appointments. The explicit
-chain you describe is the same work as items 8 and 10. Named in
-`docs/LIFECYCLE-STATES.md` under Payout as open rather than left implied.
+The compare-and-swap that made the old loop safe against two admins settling at
+once is unchanged: only rows still `therapist_payout_paid_at is null` are
+claimed, and the ids actually claimed come back, so the response reflects what
+this request won rather than a phantom total.
+
+`scripts/payout-atomicity-sql-checks.sql` asserts all three halves — the
+settlement that must land on every row, the second call that must claim
+nothing, and a malformed payload leaving **nothing** settled, which is the
+case the whole item is about. Negative control run.
+
+### 9. Payout request and batch have no strong relationship — **Fixed**
+
+The chain you describe is `payout_requests` → batch → settled appointments, and
+what was missing was not the columns but the *guarantee*: the batch id was
+stamped on each appointment by a separate UPDATE, so a batch could exist with
+some of its sessions linked and some not. Item 8's single statement is what
+makes the link total — every session that carries this batch id was claimed in
+the same transaction that created the relationship, or none of them was.
+`docs/LIFECYCLE-STATES.md` states it under Payout as a guarantee rather than as
+an open question.
 
 ### 10. Financial calculations are duplicated — **Partly fixed**
 

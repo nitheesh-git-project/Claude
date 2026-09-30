@@ -4664,6 +4664,29 @@ before.
   error, no failed request and no wrong row, only a wrong number every screen
   agrees on. Comment lines are skipped, or the walk flags its own
   documentation.
+- **A payout settles all of its sessions or none of them.** It used to claim
+  each appointment with its own UPDATE inside a `Promise.all` -- every one its
+  own transaction -- so a failure part-way left some sessions settled against
+  the batch and some not, the route answered 500, and the admin who had just
+  been told how much cash to hand over could not tell whether any of it had
+  been recorded; a retry then settled the remainder under a *second* batch id.
+  `settle_therapist_payout_batch()` does the claims in one statement, so a
+  failure rolls the whole thing back and the answer is an honest "try again".
+  It is a **writer, not a rule**: the per-session amounts are computed by
+  `sessionTherapistCutPaise()` and passed in as jsonb, because a third copy of
+  that arithmetic written in SQL is the duplication rule broken in the one
+  place where being wrong hands a real person the wrong amount of money. The
+  **cash remittance rides in the same transaction** -- deducting the cash *is*
+  the remittance, so recording the deduction and then failing to close the
+  collections let the next run net the same rupees off again -- and still only
+  fires when the payout fully absorbs the cash, since a therapist holding more
+  than they are owed keeps that difference on the Cash Ledger as a real debt
+  the other way. The compare-and-swap is unchanged: only rows still
+  `therapist_payout_paid_at is null` are claimed and the claimed ids come back,
+  so the response is what this request won rather than a phantom total.
+  Checked by `scripts/payout-atomicity-sql-checks.sql` -- the settlement that
+  must land, the second call that must claim nothing, and a malformed payload
+  leaving nothing settled -- plus a negative control.
 - **Netting cash off a payout is a remittance.** `settle-therapist-payout`
   reduces the transfer by the cash a therapist is holding, so it marks
   exactly those visits `cash_remitted_at` in the same run. Without that the

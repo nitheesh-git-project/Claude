@@ -13728,3 +13728,100 @@ create unique index if not exists appointments_one_per_package_purchase_slot
   where package_purchase_id is not null
     and slot_time is not null
     and status <> 'cancelled';
+
+-- ===========================================================================
+-- A payout settles all of its sessions or none of them (audit item 8).
+--
+-- `settle-therapist-payout` claimed each appointment with its own UPDATE
+-- inside a `Promise.all`. Every one of those is its own transaction, so a
+-- failure part-way through left **some** sessions marked settled against the
+-- batch and some not, and the route then answered 500 -- so the admin who had
+-- just been told how much cash to hand over did not know whether any of it had
+-- been recorded, the therapist's Earnings showed a partial batch, and a retry
+-- would settle the remainder under a *second* batch id. This is the largest
+-- money-moving action in the app and it was the least atomic.
+--
+-- The function is deliberately a **writer, not a rule**: the per-session
+-- amounts are computed by `sessionTherapistCutPaise()` in TypeScript and
+-- passed in, because that arithmetic already had two divergent copies (item
+-- 126) and a third one written in SQL would be the same mistake with a longer
+-- fuse. Nothing here decides what anybody is owed; it decides that the writes
+-- land together.
+--
+-- It keeps the compare-and-swap that made the old loop safe against two admins
+-- settling at once: only rows still `therapist_payout_paid_at is null` are
+-- claimed, and the ids actually claimed come back, so the response still
+-- reflects what this request won rather than a phantom total.
+--
+-- The cash remittance rides in the same transaction for the reason it exists
+-- at all: deducting the cash *is* the remittance, and a settlement that
+-- recorded the deduction without closing the collections let the next run net
+-- the same rupees off again.
+create or replace function public.settle_therapist_payout_batch(
+  p_batch_id uuid,
+  p_paid_at timestamptz,
+  p_method text,
+  p_note text,
+  p_settlements jsonb,
+  p_cash_remitted_ids uuid[] default null
+) returns table (settled_id uuid)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row record;
+begin
+  if p_batch_id is null then
+    raise exception 'settle_therapist_payout_batch needs a batch';
+  end if;
+  if p_settlements is null or jsonb_typeof(p_settlements) <> 'array' then
+    raise exception 'settle_therapist_payout_batch needs an array of settlements';
+  end if;
+
+  create temporary table if not exists _settled_ids (id uuid) on commit drop;
+  delete from _settled_ids where id is not null;
+
+  for v_row in
+    select (e ->> 'appointment_id')::uuid as appointment_id,
+           (e ->> 'payout_paise')::integer as payout_paise
+    from jsonb_array_elements(p_settlements) e
+  loop
+    if v_row.appointment_id is null or v_row.payout_paise is null then
+      raise exception 'each settlement needs an appointment_id and a payout_paise';
+    end if;
+    -- The same compare-and-swap the loop had: a losing claim settles nothing.
+    -- Because every iteration is inside this one function, a failure on any of
+    -- them takes the whole statement with it.
+    insert into _settled_ids (id)
+    select a.id
+    from appointments a
+    where a.id = v_row.appointment_id
+      and a.therapist_payout_paid_at is null
+    for update;
+
+    update appointments
+       set therapist_payout_paid_at = p_paid_at,
+           therapist_payout_amount_paise = v_row.payout_paise,
+           therapist_payout_method = p_method,
+           therapist_payout_note = p_note,
+           therapist_payout_batch_id = p_batch_id
+     where id = v_row.appointment_id
+       and therapist_payout_paid_at is null;
+  end loop;
+
+  -- Same CAS as mark-cash-remitted: a concurrent remittance wins and this one
+  -- no-ops rather than overwriting somebody else's timestamp.
+  if p_cash_remitted_ids is not null and array_length(p_cash_remitted_ids, 1) > 0 then
+    update appointments
+       set cash_remitted_at = p_paid_at
+     where id = any (p_cash_remitted_ids)
+       and cash_remitted_at is null;
+  end if;
+
+  return query select id from _settled_ids where id is not null;
+end $$;
+
+revoke all on function public.settle_therapist_payout_batch(uuid, timestamptz, text, text, jsonb, uuid[]) from public;
+revoke all on function public.settle_therapist_payout_batch(uuid, timestamptz, text, text, jsonb, uuid[]) from anon;
+revoke all on function public.settle_therapist_payout_batch(uuid, timestamptz, text, text, jsonb, uuid[]) from authenticated;
