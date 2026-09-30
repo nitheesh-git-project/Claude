@@ -114,6 +114,50 @@ foreign key `restrict`, because `set null` is an UPDATE the trigger refuses
 and `cascade` would destroy the record of money moving. See the refund-record
 rule in `AGENTS.md`.
 
+**Every delivered session writes down what it was worth.**
+`session_settlements` is one immutable row per completed session, written in
+the same request that makes it payable, carrying the **amounts** rather than
+the rates -- gross, travel, the therapist's share, the partner's and the
+clinic's. Every money figure was a *derivation* before it, which is correct
+arithmetic and not a record: a settlement could not be queried, nothing said
+*when* a split was computed, and a payout batch referenced appointments. It is
+written **alongside** that derivation and nothing reads it yet -- the
+`session_credit_ledger` playbook, and the whole reason it needed no backfill
+and moved no figure. `verify_settlement_agreement()` reports disagreement on
+Settings -> System Health -> **Settlement record**, and that staying green on
+real data is the precondition for ever making these rows authoritative. The
+clinic takes the **remainder** rather than its own percentage, so the three
+shares sum to gross exactly and rounding can neither invent nor lose a paisa.
+Append-only by trigger, with `external_reference` -- what a bank called it --
+the one column that may be filled in later and only once. See the settlement
+rule in `AGENTS.md`.
+
+**And a payout settles all of its sessions or none of them.** It used to claim
+each appointment with its own UPDATE inside a `Promise.all`, so a failure
+part-way left some settled and some not, answered 500, and a retry settled the
+remainder under a second batch id -- the largest money-moving action in the app
+being the least atomic. `settle_therapist_payout_batch()` does the claims in
+one statement, with the cash remittance inside it, since deducting the cash
+*is* the remittance and recording one without the other let the next run net
+the same rupees off again. It is a **writer, not a rule**: the amounts come
+from `sessionTherapistCutPaise()`, the one implementation of a therapist's cut,
+which a source walk now keeps singular after two screens were found quoting a
+therapist a different figure from the one the Pay button transfers.
+
+**A retried payment cannot book the same session twice.**
+`record_payment_capture` is idempotent by construction; the booking below it
+was not, so a resent verify callback booked a second visit at the same slot and
+spent a second credit. Two partial unique indexes on (purchase, slot_time) fix
+it at the row, and a refusal from them is answered as **success** -- the visit
+the patient paid for exists. See the idempotency rule in `AGENTS.md`.
+
+**PostgREST caps a response at 1,000 rows, silently.** A `.select()` with no
+`.range()` does not read the table; it reads a prefix and answers 200. The
+admin dashboard's appointments read is what every Money figure sums over, so it
+goes through `src/lib/supabase/readAllRows.ts`, which pages to the end and
+*says* when it could not -- an understated revenue figure that every screen
+agrees on is worse than a slow one.
+
 **Suspension reaches the database, not only the app.** `profiles.active` is
 read by `src/proxy.ts` and `requireActiveProfile`, and both are this
 application -- a session cookie reaches PostgREST without passing either, and

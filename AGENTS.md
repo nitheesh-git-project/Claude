@@ -388,6 +388,18 @@ would otherwise skip that table silently. A negative control was run before
 the file was trusted: a failed assertion has to reach the caller as an error,
 or a green run means nothing.
 
+`scripts/booking-idempotency-sql-checks.sql`,
+`scripts/payout-atomicity-sql-checks.sql` and
+`scripts/session-settlement-sql-checks.sql` are three more of the same shape,
+each asserting both halves and each run with a negative control: a purchase
+that cannot hold two sessions at one instant *and* still books a different
+one; a payout that lands on every row, claims nothing twice, and leaves
+**nothing** settled when its payload is bad; and a settlement that lands once,
+is frozen, takes its external reference exactly once, and is not reported as
+disagreeing when it is correct. All three build their own fixtures rather than
+finding them, since this project has no appointments and a file that searched
+for one would skip every assertion and report green.
+
 `scripts/refund-attempt-sql-checks.sql` is the same shape for
 `refund_attempts` -- the record a refund writes before the money moves. Both
 halves of every guard: each resolution that must land, next to every rewrite
@@ -458,6 +470,8 @@ src/lib/activityLog.ts   the log's search, its categories and its retention floo
 src/lib/formatDateTime.ts every date the app renders, pinned to clinic time
 src/lib/refundState.ts   how a refund reads, wherever a session is shown
 src/lib/refundAttempt.ts what a refund was asked to do, written before it is
+src/lib/sessionSettlement.ts what one delivered session was worth, recorded
+src/lib/supabase/readAllRows.ts reading past PostgREST's silent 1,000-row cap
 src/lib/refundHealthServer.ts whether every refund sent has a recorded answer
 src/lib/unscheduledPurchases.ts a purchase nobody has booked anything against
 src/lib/therapistReadiness.ts what a therapist still needs before live patients
