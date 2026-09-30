@@ -71,6 +71,38 @@ export type TherapistPayoutSummary = {
 // homeVisitSharePercent is profiles.home_visit_revenue_share_percent,
 // nullable -- when unset, a home-visit session falls back to `sharePercent`
 // (the same "no separate rate configured" rule the column itself documents).
+/**
+ * What one delivered session pays its therapist.
+ *
+ * Exported because two screens outside this module were computing it inline,
+ * and both had the same two holes -- `amount_paid_paise * revenue_share_percent`
+ * with **no home-visit branch and no travel fee**, so a therapist who does
+ * visits was quoted a figure that disagreed with Money -> Payouts and with
+ * what the Pay button transfers. It is the therapist's *own* profile bug
+ * (fixed before this audit) surviving on a second screen, which is exactly
+ * what happens to arithmetic that lives in more than one place.
+ *
+ * A **settled** session reads back the figure that was actually transferred
+ * rather than recomputing it: the rates can be renegotiated after a payout,
+ * and recomputing would silently rewrite what somebody was already paid.
+ */
+export function sessionTherapistCutPaise(
+  a: PayoutAppointment,
+  sharePercent: number,
+  homeVisitSharePercent: number | null
+): number {
+  const isHomeVisit = a.visit_mode === "home_visit";
+  const effectiveShare = isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent;
+  const feePaise = sessionAmountPaise(a, 0);
+  // Travel is a pass-through reimbursement paid to the therapist in full and
+  // never revenue, so it is added on top of the share rather than inside it.
+  const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
+  const computed = Math.round((feePaise * effectiveShare) / 100) + travelPaise;
+  return a.therapist_payout_paid_at
+    ? a.therapist_payout_amount_paise ?? computed
+    : computed;
+}
+
 export function computeTherapistPayoutSummary(
   therapistId: string,
   sharePercent: number | null,
@@ -115,16 +147,9 @@ export function computeTherapistPayoutSummary(
   let paidOutPaise = 0;
   if (sharePercent !== null) {
     for (const a of completedPaid) {
-      const isHomeVisit = a.visit_mode === "home_visit";
-      const effectiveShare = isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent;
-      const feePaise = sessionAmountPaise(a, 0);
-      const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
-      const isSettled = !!a.therapist_payout_paid_at;
-      const thisCutPaise = isSettled
-        ? a.therapist_payout_amount_paise ?? Math.round((feePaise * effectiveShare) / 100) + travelPaise
-        : Math.round((feePaise * effectiveShare) / 100) + travelPaise;
+      const thisCutPaise = sessionTherapistCutPaise(a, sharePercent, homeVisitSharePercent);
       cutPaise += thisCutPaise;
-      if (isSettled) paidOutPaise += thisCutPaise;
+      if (a.therapist_payout_paid_at) paidOutPaise += thisCutPaise;
     }
   }
   const owedPaise = cutPaise - paidOutPaise;

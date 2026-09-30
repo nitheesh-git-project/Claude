@@ -33,6 +33,10 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import { readableTempPassword } from "@/lib/tempPassword";
+import {
+  sessionTherapistCutPaise,
+  type PayoutAppointment,
+} from "@/lib/therapistPayouts";
 
 // A module-level helper rather than an inline `Date.now()` in the component
 // body: `react-hooks/purity` refuses a clock read during render, and the rule
@@ -121,7 +125,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     admin
       .from("appointments")
       .select(
-        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, razorpay_payment_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at"
+        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, razorpay_payment_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at, therapist_payout_amount_paise, visit_mode, travel_fee_paise"
       )
       .eq("patient_id", id)
       // Not what decides the list's order any more -- ProfileSessionList
@@ -206,13 +210,16 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     therapistIds.length > 0
       ? admin
           .from("profiles")
-          .select("id, full_name, revenue_share_percent, approved, active")
+          .select(
+            "id, full_name, revenue_share_percent, home_visit_revenue_share_percent, approved, active"
+          )
           .in("id", therapistIds as string[])
       : Promise.resolve({
           data: [] as {
             id: string;
             full_name: string;
             revenue_share_percent: number | null;
+            home_visit_revenue_share_percent: number | null;
             approved: boolean | null;
             active: boolean | null;
           }[],
@@ -313,7 +320,18 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     .map((a) => {
       const therapist = therapistMap.get(a.therapist_id as string)!;
       const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
-      const payoutPaise = Math.round((paidPaise * (therapist.revenue_share_percent as number)) / 100);
+      // Through the one module that owns this, not a local multiplication.
+      // The inline version here was `paid * revenue_share_percent` with no
+      // home-visit branch and no travel fee -- the same two holes the
+      // therapist's own profile had and had fixed, surviving on this screen
+      // because the arithmetic lived in two places. A home visit's profit was
+      // overstated by exactly the travel fee the clinic passes straight
+      // through, on the chart an admin reads to judge a patient's value.
+      const payoutPaise = sessionTherapistCutPaise(
+        a as unknown as PayoutAppointment,
+        therapist.revenue_share_percent as number,
+        therapist.home_visit_revenue_share_percent ?? null
+      );
       return {
         id: a.id,
         label: a.paid_at

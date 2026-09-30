@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **88 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **90 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **30 open**, each with an assessment. Roughly half are one architectural
+- **28 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -1376,16 +1376,26 @@ recognised at completion before any money arrives, and why recognising at
 collection would make two months wrong for one session. The full receivable
 lifecycle. The immutability table.
 
-### 101. No centralized Money Health dashboard — **Partly fixed**
+### 101. No centralized Money Health dashboard — **Fixed — different approach**
 
 Money → alerts strip and System Health between them cover payout requests
 waiting, cash held, refunds owed back, unmatched payments, unclosed pay-later
-sessions, credit-balance disagreement, write-off/bad-debt disagreement and now
+sessions, credit-balance disagreement, write-off/bad-debt disagreement and
 partner attribution.
 
-What is missing is one screen that gathers them rather than two places that
-each hold some. That is item 128, and it is presentation over data that now
-exists — the cheapest remaining item on the list.
+I left "one screen that gathers them" open and pointed at item 128. Item 128
+**declined** it, and this entry should say the same rather than pointing at a
+decision it does not repeat: the strip is *work waiting on somebody* and System
+Health is *records disagreeing*. Those are different questions, so a third page
+listing what both already list would be a third answer to "is anything wrong" —
+and the first time the three disagree, the new one is the one nobody trusts.
+That rule is in `AGENTS.md`, and a new finding goes on whichever of the two it
+actually is.
+
+What the item is really asking for — *can an owner tell at a glance whether the
+books are in trouble* — is answered, and by both surfaces being reachable from
+the screen an owner already opens: a red System Health check puts one line on
+Today, and the alert strip sits at the top of all five Money screens.
 
 ### 102. Admin dashboard loads large unpaginated datasets — **Fixed, and the premise was worse than the item**
 
@@ -1707,12 +1717,44 @@ actually causing a bug: `referralStatus.ts` now holds the states and the
 groupings a screen should ask, because comparing status strings in a component
 is what made two counts permanently zero (item 47).
 
-### 126. Business rules duplicated across routes — **Partly fixed**
+### 126. Business rules duplicated across routes — **Fixed**
 
-Four real duplications removed in this pass: the package terms resolver (four
-paths), `getProfileStanding` (four routes), the slot claim (six paths) and the
-referral state groupings (three screens). More remain; this is a direction
-rather than a task.
+Four real duplications were removed in the first pass: the package terms
+resolver (four paths), `getProfileStanding` (four routes), the slot claim (six
+paths) and the referral state groupings (three screens). I closed it as *"a
+direction rather than a task"*, which is the shape of finding nobody ever acts
+on.
+
+Turning it into a **walk** is what made it a task — and the walk found two live
+money bugs that four readings of these files had missed. Both are the
+therapist profile's own corrected arithmetic surviving elsewhere, which is what
+happens to a rule that lives in more than one place:
+
+- **`/api/therapist/request-payout`** reduced over
+  `amount_paid_paise * revenue_share_percent`. No home-visit rate, no travel
+  fee — so a therapist who does visits *requested* a figure that disagreed with
+  Money → Payouts and with what the Pay button transfers. Worse, its
+  `payment_status = 'paid'` filter silently dropped every delivered
+  **pay-later** session, so the one population the clinic deliberately carries
+  the gap for was the one whose request came up short. It goes through
+  `computeTherapistPayoutSummary` now, which also nets cash they are already
+  holding — requesting the gross asks for money partly in their own pocket.
+- **`PatientDetailContent`'s profit chart** did the same multiplication, so a
+  home visit's profit was overstated by exactly the travel fee the clinic
+  passes straight through, on the chart an admin reads to judge a patient's
+  value.
+
+`sessionTherapistCutPaise()` is the one implementation, extracted from the loop
+inside `computeTherapistPayoutSummary` so the summary and both screens cannot
+disagree. A **settled** session reads back the figure actually transferred
+rather than recomputing it, since rates can be renegotiated after a payout.
+
+`duplicatedMoneyRules.test.ts` is the guard: it walks every `.ts`/`.tsx` in
+`src/` and fails on arithmetic with a share percentage outside the four modules
+that own it, each listed with its reason. Comment lines are skipped — without
+that it flags its own documentation, which is how a check earns a reputation
+for crying wolf. Negative control run: against the unmodified tree it names the
+offenders.
 
 ### 127. Therapist production-readiness check centralized — **Fixed**
 

@@ -4641,6 +4641,29 @@ before.
   "nothing owed" off a quiet week while a real debt sat outside the window.
   Flows (revenue, refunds, what was settled) are range-scoped; balances are
   not, and the label has to say which it is.
+- **A therapist's cut has one implementation, and a walk keeps it that way.**
+  `sessionTherapistCutPaise()` (`src/lib/therapistPayouts.ts`) is what one
+  delivered session pays its therapist: the home-visit rate where there is
+  one, the ordinary share otherwise, plus travel **on top** rather than inside
+  the share, and for a **settled** session the figure actually transferred
+  rather than a recomputation -- rates can be renegotiated after a payout, and
+  recomputing would silently rewrite what somebody was already paid.
+  Two screens had their own copy of that multiplication and both had the same
+  two holes, because it is the therapist profile's own corrected bug surviving
+  where the arithmetic had been duplicated: `/api/therapist/request-payout` let
+  a therapist who does home visits **request** a figure disagreeing with Money
+  -> Payouts and with what the Pay button transfers (and its
+  `payment_status = 'paid'` filter dropped every delivered pay-later session,
+  so the one population the clinic carries the gap for came up short), and
+  `PatientDetailContent`'s profit chart overstated a home visit's profit by
+  exactly the travel fee the clinic passes straight through.
+  `duplicatedMoneyRules.test.ts` walks every `.ts`/`.tsx` in `src/` and fails
+  on arithmetic with a share percentage outside the four modules that own it,
+  each listed with its reason -- the same shape and reasoning as
+  `formatDateTime.test.ts`'s walk, because this is a mistake that produces no
+  error, no failed request and no wrong row, only a wrong number every screen
+  agrees on. Comment lines are skipped, or the walk flags its own
+  documentation.
 - **Netting cash off a payout is a remittance.** `settle-therapist-payout`
   reduces the transfer by the cash a therapist is holding, so it marks
   exactly those visits `cash_remitted_at` in the same run. Without that the
