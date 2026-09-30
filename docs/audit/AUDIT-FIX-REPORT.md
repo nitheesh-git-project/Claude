@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **81 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **82 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **37 open**, each with an assessment. Roughly half are one architectural
+- **36 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -1393,16 +1393,64 @@ the one cross-role name lookup RLS cannot provide.
 No change needed. Worth a periodic re-check, which is what
 `check:authorization` now partly automates.
 
-### 116. RPC security audit — **Partly fixed**
+### 116. RPC security audit — **Fixed**
 
-52 `security definer` functions. Verified mechanically: all revoked from
+52 `security definer` functions. Verified mechanically first: all revoked from
 `public`, `anon` and `authenticated` (`check:grants`, in lint), all with an
-explicit safe `search_path` (`check:search-path`, new, in lint), and the live
+explicit safe `search_path` (`check:search-path`, in lint), and the live
 database agrees (`check-live-grants.mjs`, 19 passed 0 failed).
 
-**Not** individually reviewed for authorization and input validation inside each
-body. That is a genuine multi-day review and I would not claim it from a
-mechanical pass.
+That left the half a mechanical pass cannot claim — authorization and input
+validation *inside* each body. The way through it was to ask the question that
+decides how load-bearing those bodies are, which neither existing check asks:
+**which definer functions can a browser actually call?**
+
+`scripts/check-definer-exposure.mjs` is that question, asked of the live
+database and kept as a standing check rather than a snapshot — a function
+re-created at the end of `schema.sql` arrives carrying `anon` and
+`authenticated` grants again, which is the exact mechanism the grant rule
+exists for one layer up. The answer: of 34 callable definer functions in
+`public`, **three** are browser-reachable, and none of the three takes an
+argument — `is_admin()` and `is_active_therapist()`, which the RLS policies
+invoke as the querying role and which read one row keyed on `auth.uid()`, and
+`rls_auto_enable()`, which is Supabase's own platform event trigger rather than
+ours (it reads `pg_event_trigger_ddl_commands()`, which returns nothing outside
+an event-trigger context, so calling it directly does nothing at all). Each
+carries its reason in the script's `ALLOWED` map, and the bar for a fourth is
+the one `is_admin()` set: no arguments, so a caller cannot steer it, and an
+answer about nobody but themselves. Negative control run before trusting it —
+granting `execute on check_rate_limit to anon` failed the check by name and
+warned that its arguments were now attacker-controlled; revoking the grant made
+it pass again.
+
+So every argument-taking definer function in this app is called by its own
+routes with the service-role key. That does not excuse a missing check inside a
+body — it classifies one: a bug in a route, not a door for a stranger.
+
+**Reading the money-critical bodies behind it turned up no missing guard, and
+three mechanical flags that are all false positives worth recording so a later
+audit does not re-raise them:**
+
+- `grant_session_credits` and `adjust_session_credits` raise on a bad argument
+  but take no row lock. They do not need one: both are thin wrappers over
+  `session_credit_entry`, which takes `select … for update` on the entitlement,
+  checks idempotency *inside* that lock, and leaves the CHECK on the cached
+  counts as the final arbiter of an impossible balance. The lock is one level
+  down, not absent.
+- `claim_promo_code` and `claim_invite_half` take the lock but never `raise`.
+  Also correct: a checkout refusal is a **named reason** in the returned jsonb
+  (`unknown`, `inactive`, `not_started`, `expired`, `first_session_only`, the
+  cap), which is what lets the route turn it into a sentence the patient reads.
+  Raising there would turn every ordinary "this code has expired" into a 500.
+- `purge_expired_temp_passwords` does neither, and needs neither: it clamps its
+  own argument — `greatest(1, coalesce(p_older_than_days, 14))` — so a 0 or a
+  negative day count cannot purge a credential issued a second ago, and the
+  purge is idempotent.
+
+`record_payment_capture`, `session_credit_entry` and
+`allocate_pay_later_payment` — the three that move money — each both raise and
+hold a real row lock, which is the shape the rest of this report already
+asserts with `scripts/pay-later-sql-checks.sql` and the concurrency checks.
 
 ### 117. SECURITY DEFINER search_path hardening — **Fixed**
 

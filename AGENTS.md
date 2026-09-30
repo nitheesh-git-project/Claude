@@ -983,6 +983,37 @@ before.
   of them. `npm run lint` fails on a violation; `scripts/check-live-grants.mjs`
   checks the running database, since only that catches a revoke that was
   never applied.
+  **And `scripts/check-definer-exposure.mjs` asks the question those two do
+  not: which definer functions can a browser actually *call*.** It is run by
+  hand against a live project, like `check-live-grants.mjs` beside it, and it
+  is the durable half of the RPC review rather than a snapshot of it. The
+  answer decides how load-bearing the input validation inside each body is:
+  while no argument-taking definer function is reachable by `anon` or
+  `authenticated`, every one of them is called by this app's own routes with
+  the service-role key, so a missing check inside a body is a bug in a route
+  rather than a door for a stranger -- and the moment one *is* reachable, its
+  arguments are attacker-controlled and every assumption the body makes about
+  them is a hole. Three are deliberately reachable and each carries its reason
+  in the script's `ALLOWED` map: `is_admin()` and `is_active_therapist()`,
+  which the policies invoke as the querying role, and `rls_auto_enable()`,
+  which is Supabase's own event trigger rather than ours. The bar for adding a
+  fourth is the one `is_admin()` set -- **no arguments**, so a caller cannot
+  steer it, and an answer about nobody but themselves. Its negative control
+  was run before it was trusted: granting `execute on check_rate_limit to
+  anon` failed it by name, and revoking the grant made it pass again.
+  **Reading the bodies behind it turned up no missing guard, and three
+  mechanical flags that are all false positives worth not re-raising.**
+  `grant_session_credits` and `adjust_session_credits` take no row lock of
+  their own because they are thin wrappers over `session_credit_entry`, which
+  holds the lock, checks idempotency inside it and leaves the CHECK on the
+  cached counts as the final arbiter -- the lock is one level down, not
+  absent. `claim_promo_code` and `claim_invite_half` never `raise` because a
+  checkout refusal is a **named reason** in the returned jsonb, which is what
+  lets the route turn it into a sentence a patient reads; raising there would
+  turn every ordinary "this code has expired" into a 500. And
+  `purge_expired_temp_passwords` needs neither: it clamps its own argument
+  with `greatest(1, coalesce(p_older_than_days, 14))`, so a 0 or a negative
+  day count cannot purge a credential issued a second ago.
 - **A therapist's clinical reads follow delivered care, and stop when the
   account does.** Four policies decide whether a therapist may read a
   patient's health profile, Pain Map exams, uploaded reports and session

@@ -843,7 +843,11 @@ runs `npm run check:realtime`, the Supabase Realtime publication coverage
 check, and `npm run check:grants`, which fails when a `security definer`
 function in `schema.sql` is not revoked from all three of `public`, `anon`
 and `authenticated` -- `scripts/check-live-grants.mjs` asks the running
-database the same question and is run by hand after a schema change),
+database the same question and is run by hand after a schema change, and
+`scripts/check-definer-exposure.mjs` beside it asks the one neither answers:
+which definer functions a browser can actually **call**, which is what decides
+whether a missing check inside a body is a bug in a route or a door for a
+stranger. Three are reachable on purpose and each carries its reason),
 `npm run seed:qa`, which recreates every account the manual test
 plan names after a data reset has deleted them - plus `qa.patient.e`, which
 the plan does not name but `e2e/pay-later.spec.ts` does, and which nothing
