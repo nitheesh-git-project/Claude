@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **93 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **98 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,10 +31,12 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **25 open**, each with an assessment. Roughly half are one architectural
-  piece — a canonical settlement ledger — and I've explained why building
-  half of that overnight would have been worse than not starting it. The
-  first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
+- **20 open**, each with an assessment. The canonical settlement ledger is no
+  longer among them: `session_settlements` exists, written alongside the
+  derivation rather than replacing it, so it needed no backfill and changed no
+  money figure. What remains is almost entirely **infrastructure this
+  deployment does not have** — a worker, a queue, a malware scanner, an APM —
+  plus two that are yours rather than mine to take.
 
 ## What I changed about your proposals, and why
 
@@ -281,7 +283,7 @@ the same transaction that created the relationship, or none of them was.
 `docs/LIFECYCLE-STATES.md` states it under Payout as a guarantee rather than as
 an open question.
 
-### 10. Financial calculations are duplicated — **Partly fixed**
+### 10. Financial calculations are duplicated — **Fixed**
 
 **Not duplicated as badly as the item suggests**, and I checked: `moneyLineFor`
 / `moneyByBucketFor` in `src/lib/adminMetrics.ts` is the single divider, read
@@ -289,15 +291,19 @@ by the strip, the tiles, the breakdown chart and the drill-down, with two
 invariants asserted in tests.
 
 **What was genuinely duplicated and is now fixed:** the hospital dashboard
-computed its own commission over *paid* sessions while the admin screen took
-it on *completed* ones, so the two quoted a partner different numbers for the
-same referrals (items 13, 14). And a therapist's own profile computed
-`owedPaise` from the ordinary share with no home-visit branch and no travel
-fee — that was already corrected before this audit.
+computed its own commission over *paid* sessions while the admin screen took it
+on *completed* ones, so the two quoted a partner different numbers for the same
+referrals (items 13, 14). A therapist's own profile computed `owedPaise` from
+the ordinary share with no home-visit branch and no travel fee. And item 126's
+walk found that same arithmetic surviving in **two more places** — the payout
+*request* route and the patient profile's profit chart — both now going through
+`sessionTherapistCutPaise()`, with a source walk failing any new copy.
 
-**What remains** is the canonical settlement record. §4 of
-`docs/MONEY-MODEL.md` states what it would take and why half of it is worse
-than none.
+**And the canonical record now exists** (items 32–36): `session_settlements`
+stores what each delivered session was worth and how it was split, so a
+settlement is a row rather than only a derivation. It is written alongside the
+existing figures and reconciled against them, which is what made it safe to
+land here rather than as its own migration — see §4 of `docs/MONEY-MODEL.md`.
 
 ### 11. Hospital commission uses mutable therapist revenue-share data — **Fixed**
 
@@ -630,15 +636,36 @@ Making it transactional would mean refusing to close a session because a
 shadow ledger was unhappy — and completion is what creates the debt, the
 revenue and the therapist's pay. AGENTS.md is right about this one.
 
-### 32, 33, 35, 36. Pay-later ledger, write-off accounting — **Open**; 34. Exposure limit — **Fixed — decided**
+### 32, 33, 35, 36. Pay-later ledger, write-off accounting — **Fixed**; 34. Exposure limit — **Fixed — decided**
 
-- **32, 33, 35, 36** are the canonical-ledger piece (§4 of
-  `docs/MONEY-MODEL.md`). What exists is stronger than the items imply: the
-  write-off already writes exactly one `business_expenses` row tied by
+- **32, 33, 35, 36** were the canonical-ledger piece, and it exists now:
+  `session_settlements`, one immutable row per delivered session written in the
+  same request that makes it payable, carrying the **amounts** rather than the
+  rates. See §4 of `docs/MONEY-MODEL.md`, which is a description rather than a
+  plan now.
+
+  What already existed is stronger than those items imply and is unchanged: the
+  write-off writes exactly one `business_expenses` row tied by
   `source_appointment_id` with a partial unique index, the appointment is
   claimed first and a failed cost row reverts the claim, and System Health
   reports written-off sessions disagreeing with the bad debt recorded —
   including "could not be checked" rather than zero.
+
+  **Why this could land in one change when I said it could not.** I wrote that
+  it was "a schema-level change to the one part of the system where a
+  half-finished migration is worst", and that the backfill "has to be exactly
+  right for historical rows that no longer have the data to reconstruct it".
+  Both true — and both only true of a version that *replaces* the derivation.
+  Written **alongside** it, there is no backfill at all: historical sessions
+  have no row and need none, nothing reads these rows to decide what anybody is
+  paid, and `verify_settlement_agreement()` reports any disagreement on
+  System Health. That is exactly the playbook `session_credit_ledger` already
+  follows in this codebase, and I should have reached for it the first time.
+
+  What is left is genuinely small: making the rows authoritative behind a
+  switch, once the reconciliation has stayed green on real data — which is the
+  one thing that could not be established before the rows existed.
+
 - **34 (no hard exposure limit)** is **Fixed — decided**, and the decision is
   that both of us were right about different things.
 
@@ -1844,19 +1871,33 @@ is. The last unreconciled money movement went on System Health as the
 Refunds check (items 6, 7, 94, 95). Both places are now complete rather than
 duplicated.
 
-### 129, 130, 131. Immutable event ids, source/source_id, external reconciliation states — **Partly fixed / Open**
+### 129, 130, 131. Immutable event ids, source/source_id, external reconciliation states — **Fixed**
 
 Partly already true and worth crediting: `payments` is unique on both Razorpay
 ids, `payment_webhook_events` dedupes on `razorpay_event_id` and is inserted
 **before** any work, the credit ledger's idempotency keys are derived from the
 thing that happened, and `payments` carries `target_appointment_id`,
 `target_package_purchase_id`, `target_home_visit_purchase_id` and
-`target_pay_later_payment_id` — which is `source`/`source_id` in a different
-shape.
+`target_pay_later_purchase_id` — which is `source`/`source_id` in a different
+shape. Item 15 added the missing external-reconciliation fact: what the gateway
+said it captured, kept apart from what we asked for.
 
-The uniform model is the canonical-ledger piece. Item 15 added the one missing
-external-reconciliation fact: what the gateway said it captured, kept apart
-from what we asked for.
+The uniform model is `session_settlements`, and all three columns are there
+deliberately rather than as a by-product:
+
+- **`settlement_event_id`** is an immutable id for the *event*, distinct from
+  the row's own primary key, so an external system can reference a settlement
+  without depending on our storage — which is the whole of what item 129 asks
+  for and the reason a primary key alone does not answer it.
+- **`source` / `source_id`** in the uniform shape item 130 describes. There is
+  one source today (`session_completion`) and it is CHECKed: naming it is what
+  stops the second one being bolted on as a nullable column, which is how the
+  shape this item is about gets lost.
+- **`external_reference`** is what a bank or gateway called it, and it is the
+  one column the append-only trigger lets you fill in later — **once**. A
+  reference that can be rewritten is a notes field rather than a
+  reconciliation, and it is the only fact here that genuinely arrives from
+  outside after the fact.
 
 ### 132, 133. Observability and financial alerts — **Open — infrastructure**
 

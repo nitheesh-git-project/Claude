@@ -171,38 +171,55 @@ record is how a discrepancy becomes permanent.
 
 ---
 
-## 4. What is still not canonical
+## 4. The canonical settlement record
 
-Stated plainly rather than implied, because the audit asked for a single
-canonical settlement record and this is how far that has got.
-
-**What exists today.** Money is derived from `appointments` plus the frozen
-rates on each row, through one module (`src/lib/adminMetrics.ts`) that every
-screen reads. Two invariants are asserted in tests and hold:
-`net = gross − refunds`, and
-`clinic share = splittable net − therapist share − partner share`. A session
+**What money is derived from.** `appointments` plus the frozen rates on each
+row, through one module (`src/lib/adminMetrics.ts`) that every screen reads.
+Two invariants are asserted in tests and hold: `net = gross - refunds`, and
+`clinic share = splittable net - therapist share - partner share`. A session
 whose split is unknowable is excluded and *counted*, never guessed at.
 
-**What does not exist.** There is no `appointment_settlements` row per
-delivered session. The consequences are real and worth naming:
+**`session_settlements` is the record a derivation could not be.** One
+immutable row per delivered session, written in the same request that makes it
+payable, carrying the **amounts** rather than the rates -- gross, travel, the
+therapist's share, the partner's and the clinic's -- plus the percentages that
+produced them, for explanation rather than arithmetic. It answers the three
+things a derivation cannot: a settlement can be queried directly, it records
+*when* the split was computed, and a payout can reference it.
 
-- A settlement cannot be queried directly; every figure is a derivation.
-- There is no per-session record of *when* a split was computed, only of the
-  rates it would use.
-- Payout batches reference appointments rather than settlement rows, so the
-  relationship in item 9 of the audit is implied rather than modelled.
+Three columns answer audit items 129-131 in the shape those items ask for:
+`settlement_event_id` (an immutable id for the event, distinct from the row's
+primary key, so an external system can reference it without depending on our
+storage), `source` / `source_id` (what caused it -- one source today, and
+naming it is what stops the second being bolted on as a nullable column), and
+`external_reference` (what a bank or gateway called it, kept apart from what we
+asked for, and settable exactly **once**, because a reference that can be
+rewritten is a notes field rather than a reconciliation).
 
-**Why it was not built in this pass.** It is a schema-level change to the
-one part of the system where a half-finished migration is worst: every money
-figure, both exports, the payout run and the partner's own screen would read
-from a new table whose backfill has to be exactly right for historical rows
-that no longer have the data to reconstruct it. The frozen rates added here
-are the prerequisite — they are what a settlement row would have needed to
-record — so this is a deliberate first step, not a substitute.
+**It is written alongside the derivation and does not yet replace it.** That is
+the same playbook `session_credit_ledger` follows, and it is the whole reason
+this could land in one change rather than as a migration with its own
+reconciliation plan:
 
-**What it would take.** A settlement row written in the same transaction as
-completion, carrying the frozen amounts rather than the rates; the money
-modules reading those rows and falling back to derivation for historical
-sessions; and the payout batch referencing settlements. That is a piece of
-work with its own migration, its own reconciliation report and its own test
-plan, and it should be scoped as such.
+- **Nothing reads these rows** to decide what anybody is paid. Every money
+  figure, both exports, the payout run and the partner's own screen are
+  unchanged.
+- **Historical sessions have no row and need no backfill.** That was the single
+  thing that made this risky -- rows predating the frozen rates cannot be
+  reconstructed -- and not backfilling removes it entirely.
+- **`verify_settlement_agreement()` reports disagreement**, on Settings ->
+  System Health -> *Settlement record*. It reports and never repairs, like
+  every other reconciliation here, and it reads "could not be checked" rather
+  than green where there is nothing to compare -- a clinic that has completed
+  no session since this shipped has no agreement either, and painting that
+  healthy claims a reconciliation that never ran.
+
+**What is left, and it is now a small change rather than a large one.** Making
+these rows authoritative: the money modules reading them where they exist and
+falling back to derivation for historical sessions, behind a switch like
+`entitlement_ledger_authoritative`. The precondition is that the reconciliation
+stays green on real data, which is the one thing that could not be established
+before the rows existed. Payout batches still reference appointments rather
+than settlements -- worth revisiting only if a payout ever needs partial
+reversal; what made *that* a fault rather than a shape was that the link was
+not guaranteed, which item 8's single-statement settlement fixed.

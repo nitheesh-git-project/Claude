@@ -10,6 +10,7 @@ import { allocatePayLaterPayments } from "@/lib/payLaterSettlementServer";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { readSettlementRates } from "@/lib/settlementRates";
 import { serverError } from "@/lib/apiError";
+import { recordSessionSettlement } from "@/lib/sessionSettlement";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
 // the session, or an admin correcting the record - nobody else.
@@ -198,6 +199,24 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
+
+  // The canonical settlement record, written in the same request that makes
+  // this session payable -- what it was worth, split, on the day it was
+  // delivered. It is written **alongside** the derivation every money figure
+  // still reads, exactly as the credit ledger was: nothing reads these rows to
+  // decide what anybody is paid, and `verify_settlement_agreement()` reports
+  // any disagreement. It never throws; completion is what creates the debt,
+  // the revenue and the therapist's pay, and a shadow record must not be the
+  // thing that stops a clinic closing a session.
+  //
+  // After the CAS claim, so a request that lost the race records nothing.
+  await recordSessionSettlement(admin, {
+    appointmentId,
+    therapistId: appointment.therapist_id ?? null,
+    hospitalId: rates.hospitalId,
+    therapistSharePercent: rates.therapistSharePercent,
+    hospitalSharePercent: rates.hospitalSharePercent,
+  });
 
   // Spend the credit this session was booked against. A no-show consumes it
   // too: forfeiting is the same rule a late cancellation already follows,

@@ -45,6 +45,7 @@ export type HealthCheckId =
   | "pay_later"
   | "referral_attribution"
   | "refunds"
+  | "settlements"
   | "patient_files";
 
 export type HealthCheck = {
@@ -161,6 +162,12 @@ export type SystemHealthInput = {
    * mistake this file corrects most often.
    */
   refunds?: RefundHealth | null;
+  /**
+   * Rows where the settlement record and the derivation disagree. `null` is
+   * "could not be checked" -- a database without the table -- and is not the
+   * same fact as zero.
+   */
+  settlementDisagreements?: number | null;
   /**
    * Patient files against the rows describing them.
    *
@@ -778,6 +785,70 @@ function referralAttributionCheck(
  * money, and guessing on a money record is how a discrepancy becomes
  * permanent.
  */
+/**
+ * The settlement record against the derivation every money figure still
+ * reads.
+ *
+ * `session_settlements` is written alongside that derivation and nothing
+ * reads it to decide what anybody is paid -- which is exactly why this check
+ * exists. It is the thing that has to be green before anything *does*: a
+ * shadow record nobody reconciles is a second set of books, and the first
+ * time the two disagree the new one is the one nobody trusts.
+ *
+ * `off` rather than `healthy` when there is nothing to compare: a clinic that
+ * has not completed a session since this shipped has no disagreement and no
+ * agreement either, and painting that green claims a reconciliation that
+ * never ran.
+ */
+function settlementsCheck(disagreements: number | null): HealthCheck {
+  const base = {
+    id: "settlements" as const,
+    label: "Settlement record",
+    icon: "fa-scale-balanced",
+    what: "Every delivered session now writes down what it was worth and how it was split, beside the figures the Money screens work out for themselves. This watches whether the two ever disagree.",
+    example:
+      "A session is completed and recorded as \u20b91,200 split three ways. If the Money screens later work that same session out differently - a rate read at the wrong moment, a rounding difference - this says so, before anybody is paid on the wrong one.",
+  };
+
+  if (disagreements === null) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Cannot be checked - this database has not had the latest changes applied yet.",
+      fix: ["Apply `supabase/schema.sql` to this project, then reload this page."],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  if (disagreements === 0) {
+    return {
+      ...base,
+      status: "healthy",
+      headline: "Every recorded settlement agrees with the figures on the Money screens.",
+      fix: [],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  return {
+    ...base,
+    status: "broken",
+    headline: `${plural(disagreements, "session", "sessions")} where the recorded settlement and the Money screens do not agree.`,
+    fix: [
+      "Nothing here is paid from the recorded settlement yet, so no money has moved on the wrong figure.",
+      "Open Money -> Summary and compare the sessions named below against what they were recorded as worth.",
+      "Send this to your developer before anything is settled on these sessions.",
+    ],
+    count: disagreements,
+    evidence: [
+      `${plural(disagreements, "session", "sessions")} disagree`,
+      "Reported, never repaired - two money records that disagree need a person to decide which is right",
+    ],
+  };
+}
+
 function refundsCheck(health: RefundHealth | null): HealthCheck {
   const base = {
     id: "refunds" as const,
@@ -1191,6 +1262,7 @@ export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
     payLaterCheck(input.payLater ?? null),
     referralAttributionCheck(input.referralAttribution ?? null),
     refundsCheck(input.refunds ?? null),
+    settlementsCheck(input.settlementDisagreements ?? null),
     patientFilesCheck(input.storage ?? null),
   ];
 }

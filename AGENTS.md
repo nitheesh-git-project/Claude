@@ -4664,6 +4664,35 @@ before.
   error, no failed request and no wrong row, only a wrong number every screen
   agrees on. Comment lines are skipped, or the walk flags its own
   documentation.
+- **Every delivered session writes down what it was worth, beside the figure
+  the Money screens work out for themselves.** `session_settlements` is one
+  immutable row per completed session, written in the same request that makes
+  it payable, carrying the **amounts** rather than the rates -- gross, travel,
+  the therapist's share, the partner's and the clinic's -- with the
+  percentages along for explanation only. It is the canonical record a
+  derivation could not be: a settlement can be queried, it records *when* the
+  split was computed, and a payout can reference it.
+  **It is written alongside the derivation and nothing reads it yet**, which is
+  the `session_credit_ledger` playbook and the whole reason it could land
+  without a migration: historical sessions have no row and need no backfill,
+  every money figure is unchanged, and `verify_settlement_agreement()` reports
+  disagreement on Settings -> System Health -> Settlement record. Making it
+  authoritative is a later change behind a switch, and the precondition is that
+  reconciliation staying green on real data.
+  Four rules. It **never fails the completion** -- closing a session is what
+  creates the debt, the revenue and the therapist's pay, and a shadow record
+  must not stop it (the opposite of `refund_attempts`, which is written before
+  money moves and so must be able to refuse). It stores **amounts, not rates**.
+  The therapist's share comes from `sessionTherapistCutPaise()` rather than a
+  local multiplication -- the duplication rule in the one place a third copy
+  would be written into a permanent record. And the clinic takes the
+  **remainder** rather than its own percentage, so the three shares sum to
+  gross exactly and rounding can neither invent nor lose a paisa, which is what
+  the reconciliation asserts. Append-only by trigger, with `external_reference`
+  the one column that may be filled in later and only **once**: a reference
+  that can be rewritten is a notes field rather than a reconciliation. Checked
+  by `scripts/session-settlement-sql-checks.sql`, both halves plus a negative
+  control.
 - **A payout settles all of its sessions or none of them.** It used to claim
   each appointment with its own UPDATE inside a `Promise.all` -- every one its
   own transaction -- so a failure part-way left some sessions settled against

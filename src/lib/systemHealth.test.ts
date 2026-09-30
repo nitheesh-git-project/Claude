@@ -38,6 +38,7 @@ const ALL_WELL: SystemHealthInput = {
   },
   referralAttribution: { orphanedCount: 0, withCompletedSessions: 0 },
   refunds: { stuckCount: 0, unrecordedCount: 0, oldestStuckHours: null },
+  settlementDisagreements: 0,
   storage: { filesWithNoRow: 0, rowsWithNoFile: 0, truncated: false },
 };
 
@@ -98,7 +99,7 @@ describe("buildSystemHealth", () => {
 
   it("reports every check healthy when nothing is wrong", () => {
     const checks = buildSystemHealth(ALL_WELL);
-    expect(checks).toHaveLength(10);
+    expect(checks).toHaveLength(11);
     expect(checks.every((c) => c.status === "healthy")).toBe(true);
     // A healthy check must not ask the reader to do anything.
     expect(checks.every((c) => c.fix.length === 0)).toBe(true);
@@ -464,7 +465,7 @@ describe("summarizeHealth", () => {
     const summary = summarizeHealth(buildSystemHealth(ALL_WELL));
     expect(summary.needsPerson).toBe(0);
     expect(summary.worst).toBe("healthy");
-    expect(summary.headline).toBe("All 10 checks healthy");
+    expect(summary.headline).toBe("All 11 checks healthy");
     expect(summary.attention).toHaveLength(0);
   });
 

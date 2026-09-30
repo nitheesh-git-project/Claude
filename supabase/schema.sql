@@ -10186,6 +10186,7 @@ begin
     -- declaration re-applies identically, and another copy of a 60-table
     -- list is the bloat this file already carries too much of.
     refund_attempts,
+    session_settlements,
     pay_later_payments,
     session_credit_ledger,
     session_entitlements,
@@ -13825,3 +13826,183 @@ end $$;
 revoke all on function public.settle_therapist_payout_batch(uuid, timestamptz, text, text, jsonb, uuid[]) from public;
 revoke all on function public.settle_therapist_payout_batch(uuid, timestamptz, text, text, jsonb, uuid[]) from anon;
 revoke all on function public.settle_therapist_payout_batch(uuid, timestamptz, text, text, jsonb, uuid[]) from authenticated;
+
+-- ===========================================================================
+-- The canonical settlement record (audit items 10, 32, 33, 35, 36, 129-131).
+--
+-- Every money figure in this app is a **derivation**: `adminMetrics.ts` reads
+-- `appointments` plus the rates frozen on each row and divides it up. Two
+-- invariants hold and are asserted in tests, so the arithmetic is right -- but
+-- a settlement cannot be *queried*, there is no per-session record of when a
+-- split was computed, and a payout batch references appointments rather than
+-- settlements.
+--
+-- `session_settlements` is that record: one immutable row per delivered
+-- session, written in the same request that makes it payable, carrying the
+-- **amounts** rather than the rates.
+--
+-- **It is written alongside the derivation and does not yet replace it**,
+-- which is the same playbook `session_credit_ledger` follows and it is the
+-- whole reason this is safe to land in one change. Nothing reads these rows
+-- to decide what anybody is paid. Historical sessions have no row and need no
+-- backfill -- the one thing §4 of docs/MONEY-MODEL.md said made this risky,
+-- since rows that predate the frozen rates cannot be reconstructed. A
+-- reconciliation (`verify_settlement_agreement`) reports where a row and the
+-- derivation disagree, and until that is green on real data nothing should
+-- read from here.
+--
+-- Three columns answer audit items 129-131 directly:
+--   * `settlement_event_id` -- an immutable id for the event itself, distinct
+--     from the row's own primary key, so an external system can reference the
+--     settlement without depending on our storage.
+--   * `source` / `source_id` -- what caused it, in the uniform shape those
+--     items ask for. Today there is one source; naming it is what stops the
+--     second one being bolted on as a nullable column.
+--   * `external_reference` -- what a gateway or a bank called it, kept apart
+--     from what we asked for, the same split item 15 made on `payments`.
+create table if not exists session_settlements (
+  id uuid primary key default gen_random_uuid(),
+  settlement_event_id uuid not null unique default gen_random_uuid(),
+  source text not null check (source in ('session_completion')),
+  source_id uuid not null,
+  appointment_id uuid not null unique references appointments(id) on delete restrict,
+  therapist_id uuid references profiles(id) on delete restrict,
+  hospital_id uuid references profiles(id) on delete restrict,
+  -- The amounts, frozen. Not the rates: a rate is what a figure would be
+  -- computed from, and this table exists so nothing has to compute it again.
+  gross_paise integer not null,
+  travel_paise integer not null default 0,
+  therapist_share_paise integer not null default 0,
+  partner_share_paise integer not null default 0,
+  clinic_share_paise integer not null default 0,
+  -- Carried for explanation rather than for arithmetic: an admin asking "why
+  -- is this figure what it is" needs the percentages that produced it.
+  therapist_share_percent numeric,
+  hospital_share_percent numeric,
+  external_reference text,
+  recognised_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists session_settlements_therapist_idx
+  on session_settlements (therapist_id);
+create index if not exists session_settlements_hospital_idx
+  on session_settlements (hospital_id);
+create index if not exists session_settlements_recognised_idx
+  on session_settlements (recognised_at);
+
+alter table session_settlements enable row level security;
+
+drop policy if exists session_settlements_select_admin on session_settlements;
+create policy session_settlements_select_admin on session_settlements
+  for select using (is_admin());
+
+-- Append-only by trigger, not by RLS: every writer here holds the
+-- service-role client, which bypasses RLS entirely, so for a table whose whole
+-- value is that it records what a session was worth on the day it was
+-- delivered, "no route rewrites it" is not the guarantee. Only
+-- `external_reference` may be filled in afterwards -- that is the one fact
+-- that genuinely arrives later, from outside.
+create or replace function public.session_settlements_append_only()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'session_settlements is append-only: a settlement cannot be deleted';
+  end if;
+  if tg_op = 'UPDATE' then
+    if new.id is distinct from old.id
+      or new.settlement_event_id is distinct from old.settlement_event_id
+      or new.source is distinct from old.source
+      or new.source_id is distinct from old.source_id
+      or new.appointment_id is distinct from old.appointment_id
+      or new.therapist_id is distinct from old.therapist_id
+      or new.hospital_id is distinct from old.hospital_id
+      or new.gross_paise is distinct from old.gross_paise
+      or new.travel_paise is distinct from old.travel_paise
+      or new.therapist_share_paise is distinct from old.therapist_share_paise
+      or new.partner_share_paise is distinct from old.partner_share_paise
+      or new.clinic_share_paise is distinct from old.clinic_share_paise
+      or new.therapist_share_percent is distinct from old.therapist_share_percent
+      or new.hospital_share_percent is distinct from old.hospital_share_percent
+      or new.recognised_at is distinct from old.recognised_at
+      or new.created_at is distinct from old.created_at
+    then
+      raise exception 'session_settlements is append-only: only external_reference may be set';
+    end if;
+    -- And once, one way: an external reference that can be rewritten is not a
+    -- reconciliation, it is a notes field.
+    if old.external_reference is not null
+       and new.external_reference is distinct from old.external_reference then
+      raise exception 'session_settlements.external_reference is already set';
+    end if;
+    return new;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists session_settlements_append_only_trg on session_settlements;
+create trigger session_settlements_append_only_trg
+  before update or delete on session_settlements
+  for each row execute function public.session_settlements_append_only();
+
+-- Where a settlement row and the derivation disagree. Reports, never repairs
+-- -- the rule every other reconciliation on System Health follows, and the
+-- reason this table can be written now and read later.
+create or replace function public.verify_settlement_agreement()
+returns table (
+  appointment_id uuid,
+  problem text,
+  settlement_paise integer,
+  derived_paise integer
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select s.appointment_id,
+         'gross_disagrees_with_appointment' as problem,
+         s.gross_paise,
+         coalesce(a.amount_paid_paise, a.amount_due_paise, 0) as derived_paise
+    from session_settlements s
+    join appointments a on a.id = s.appointment_id
+   where s.gross_paise is distinct from coalesce(a.amount_paid_paise, a.amount_due_paise, 0)
+  union all
+  select s.appointment_id,
+         'shares_do_not_sum_to_gross',
+         s.gross_paise,
+         s.therapist_share_paise + s.partner_share_paise + s.clinic_share_paise
+    from session_settlements s
+   where s.therapist_share_paise + s.partner_share_paise + s.clinic_share_paise
+         is distinct from s.gross_paise
+  union all
+  -- A delivered session with no settlement row at all. Only ones completed
+  -- *after* this table existed: everything older is derived by design and
+  -- listing it would report the whole history as broken.
+  select a.id,
+         'completed_session_has_no_settlement',
+         coalesce(a.amount_paid_paise, a.amount_due_paise, 0),
+         null::integer
+    from appointments a
+    left join session_settlements s on s.appointment_id = a.id
+   where a.status = 'completed'
+     and s.id is null
+     and a.completed_at is not null
+     and a.completed_at >= (
+       select coalesce(min(recognised_at), now()) from session_settlements
+     );
+$$;
+
+revoke all on function public.verify_settlement_agreement() from public;
+revoke all on function public.verify_settlement_agreement() from anon;
+revoke all on function public.verify_settlement_agreement() from authenticated;
+
+do $$
+begin
+  execute 'alter publication supabase_realtime add table session_settlements';
+exception when duplicate_object then null;
+end $$;

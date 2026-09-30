@@ -819,6 +819,7 @@ export default async function AdminDashboardPage({
     homeVisitCommitmentTotal,
     payLaterCeilingPaise,
     storageHealth,
+    settlementDisagreements,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -1158,6 +1159,17 @@ export default async function AdminDashboardPage({
     // when it could not be asked -- the one reconciliation on that screen
     // whose subject is a medical record rather than a number.
     readStorageReconciliation(admin),
+    // The settlement record against the derivation every money figure still
+    // reads. Its own call, null on a database without the table -- "could not
+    // be checked" is not the same fact as "nothing disagrees", and on a money
+    // reconciliation that difference is the whole point.
+    admin
+      .rpc("verify_settlement_agreement")
+      .then((r) => (r.error ? null : ((r.data ?? []) as unknown[]).length))
+      .then(
+        (n) => n,
+        () => null
+      ),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -4525,6 +4537,7 @@ export default async function AdminDashboardPage({
     payLater: payLaterHealth,
     referralAttribution: referralAttributionHealth,
     refunds: refundHealth,
+    settlementDisagreements: settlementDisagreements,
     storage: storageHealth,
   });
 
