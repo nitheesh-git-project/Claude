@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **98 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **100 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **20 open**, each with an assessment. The canonical settlement ledger is no
+- **18 open**, each with an assessment. The canonical settlement ledger is no
   longer among them: `session_settlements` exists, written alongside the
   derivation rather than replacing it, so it needed no backfill and changed no
   money figure. What remains is almost entirely **infrastructure this
@@ -736,12 +736,26 @@ All four facts are written — `list_price_paise`, `discount_paise`,
 `discount_source`, `discount_reason` — and the actor is on the
 `payment.goodwill_discount` audit row.
 
-### 40. Offline-paid credits not linked to canonical financial records — **Open**
+### 40. Offline-paid credits not linked to canonical financial records — **Fixed**
 
-Canonical-ledger piece. Note that `mark-paid-by-cash` deliberately writes no
-`payments` row, because that table is keyed on Razorpay's own ids and
-inventing them would put a fiction in the one place the books reconcile from.
-Any fix has to answer that first.
+The blocker I named was real and it was about the wrong table.
+`mark-paid-by-cash` deliberately writes no `payments` row, because that table
+is keyed on Razorpay's own order and payment ids and inventing them would put a
+fiction in the one place the books reconcile from. Any fix had to answer that
+first, and "link it to `payments`" cannot.
+
+`session_settlements` answers it, because it is keyed on **the thing that
+happened** rather than on a gateway id: `source = 'session_completion'` and
+`source_id` = the appointment. A session paid in cash at the door, a session on
+pay-later terms and a session paid through Razorpay all get the same record,
+carrying the same split, at the same moment — the one moment they have in
+common, which is delivery. The gateway id stays on `payments` where it means
+something, and `external_reference` on the settlement is where a bank's own
+reference goes for the ones that never touched a gateway.
+
+That is also why `source` is CHECKed to a single value rather than left as free
+text: the day a second thing settles money, it gets its own name here instead
+of being folded into the one that already exists.
 
 ### 41. Credit ledger and legacy `sessions_used` can diverge — **Ready for you — one switch, and the precondition is met**
 
@@ -888,17 +902,27 @@ Same resolver. One function serves both catalogs, because a snapshot is
 differently — two resolvers is how two screens grow two ideas of what a frozen
 term means.
 
-### 56. Purchased package terms are not completely immutable — **Partly fixed**
+### 56. Purchased package terms are not completely immutable — **Fixed**
 
 Now frozen: duration, minimum gap, weekly cap (52–55), plus session count,
 price, expiry, therapist lock and the package snapshot itself, which were
 already frozen by trigger.
 
-**Not frozen:** the payout basis and the commission basis *per purchase* — they
-are frozen per **session**, at completion (items 11/12), which I judged the
-better place. A rate is a term of the agreement in force on the day the work
-was done, and a programme spans months during which a renegotiation should
-apply to sessions delivered after it.
+I left the **payout basis and the commission basis** open, on the reasoning
+that they are frozen per *session* at completion (items 11/12) rather than per
+purchase — and that this is the better place, because a rate is a term of the
+agreement in force on the day the work was done, and a programme spans months
+during which a renegotiation should apply to sessions delivered after it. That
+reasoning stands and is unchanged.
+
+What was missing was that the *rates* were frozen and the **amounts** were
+not: every figure was still recomputed from those rates on every render, so
+"frozen" meant "recomputable to the same answer" rather than "recorded".
+`session_settlements` records the amounts themselves, at completion, immutably
+— so a purchased session's payout and commission basis are now facts on a row
+rather than a derivation that happens to be stable. That is the half of this
+item I had accepted as unfixable, and it was only unfixable while the record
+did not exist.
 
 ### 57. Catalogue writes are not fully atomic — **Fixed — different approach**
 
