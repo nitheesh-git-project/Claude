@@ -289,6 +289,20 @@ rules under a patient part-way through one. See `docs/MONEY-MODEL.md` and
 - `supabase/schema.sql` - the entire database schema, RLS policies, views,
   and triggers. Single source of truth, re-runnable, append-only.
 
+**A data reset resets data, not configuration.** `debug_reset_all_data()` used
+to put ~60 `site_settings` columns back to their defaults, so clearing a few
+test patients also handed back a site calling itself something else with
+somebody else's contact details on it. None of that is data: the clinic's name,
+tagline, description, contact email and phone, footer, mission and vision, the
+splash wording and every window, lead time and switch are things a person
+chose, and testing generates none of them. `site_settings` and `risk_rules` are
+no longer touched, and `faqs`, `testimonials` and `mission_principles` are kept
+for the same reason `treatment_categories` already was -- the website's own
+content, written on Settings -> Public Site, which has to be retyped by hand.
+Patient, therapist, hospital and every row hanging off them still goes.
+`scripts/debug-reset-sql-checks.sql` asserts both halves and must never be run
+against a database anything else is using. See the reset rule in `AGENTS.md`.
+
 **The debug bar stays switched on, in every environment, until launch.**
 This app has no real patients yet. `isDebugNavVisible()`
 (`src/lib/debugNavVisible.ts`) is the single source of that rule: on unless

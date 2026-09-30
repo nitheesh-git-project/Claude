@@ -4889,14 +4889,30 @@ before.
   read, and a caller that swaps one control for another needs to tell "not
   signed in" from "not known yet". Collapsing them showed Sign In and Get
   Started to somebody who was already signed in.
-  **The booking wizard's exit follows the account.** It read *Back to Home*
-  always, which is right for a visitor who arrived from the marketing site
-  and wrong for the commonest case -- a patient who came from their own
-  dashboard to book, and was being sent to the public home page. Signed out
-  it still says Back to Home (or Back to Home Visit, per wizard); signed in
-  it says **Back to Dashboard** and goes there, or names the waiting screen
-  when that is where the account actually lands. It stays outside the wizard
-  so it covers every one of its states without being repeated four times.
+  **The booking wizard's exit follows the account, except into a waiting
+  screen.** It read *Back to Home* always, which is right for a visitor who
+  arrived from the marketing site and wrong for the commonest case -- a patient
+  who came from their own dashboard to book, and was being sent to the public
+  home page. Signed out it still says Back to Home (or Back to Home Visit, per
+  wizard); signed in and approved it says **Back to Dashboard** and goes there.
+  It stays outside the wizard so it covers every one of its states without
+  being repeated four times.
+  **It must never offer `/pending-approval`, and it did.** A patient who signs
+  up *inside* the wizard is unapproved **by construction** --
+  `/api/razorpay/create-order` flips `approved` the moment they genuinely
+  attempt checkout, precisely so they land in their dashboard rather than on a
+  waiting screen. So between Step 2 creating the account and Step 3 taking the
+  payment, the one control on the payment screen read **"Approval pending"**,
+  telling somebody their account was awaiting approval at the exact moment they
+  were about to pay -- which reads as "you cannot do this" and offered, as its
+  only way out, a dead end that abandons the booking. A patient mid-booking is
+  not waiting on approval; they are mid-purchase, and they get the ordinary way
+  back. The public `Navbar` still names that destination and is still right to:
+  out on the marketing site an unapproved account really would be bounced
+  there. **Suspended is still named** on both, because that is not a state
+  somebody leaves by paying -- checkout refuses them -- so saying nothing would
+  leave them tapping a button that cannot work.
+  `e2e/booking-exit-link.spec.ts` holds both halves.
 - **A signed-in person always has a way back in.** The public `Navbar` hides
   Sign In and Get Started once somebody is signed in, so whatever replaces
   them is the only route back into the app from the marketing site. It used
@@ -5580,8 +5596,43 @@ real one -- `where rule_key is not null` on a NOT NULL key, or `where id` on
 the boolean-keyed `site_settings` singleton, rather than a `where true` that
 reads as a token added to silence a check.
 
+**A data reset resets data, not configuration -- so `site_settings` and
+`risk_rules` are not touched at all.** The function used to put every one of
+~60 settings columns back to its default, on the reading that a reset restores
+a clean baseline. That reading is wrong in the one direction that costs an
+owner something: **none of that is data.** Every column there is something a
+person chose -- the clinic's name, its tagline and description, the email and
+phone patients contact it on, the footer, the mission and vision, the splash
+wording, and every window, lead time and switch an admin set deliberately.
+Testing generates none of it, and a reset that cleared it handed back a site
+calling itself something else with somebody else's contact details on it,
+every time somebody cleared a few test patients.
+
+The asymmetry decides it: keeping them costs a tester who wanted a clean config
+baseline a few fields, each with its own control on its own screen; clearing
+them costs an owner their clinic's identity, and the mission and vision have no
+"what was it before" anywhere. `risk_rules` goes the same way -- the thresholds
+are an admin's tuning on Today -> Risk, while the signals they produced are
+rows and are still truncated.
+
+**`faqs`, `testimonials` and `mission_principles` are kept for the same
+reason**, one table at a time with its own reason, as
+`treatment_categories` already was. They are the website's own content, written
+on Settings -> Public Site. `mission_principles` used to be cleared on the
+argument that the pages then fall back to the shipped wording in
+`src/lib/mission.ts` -- true, and exactly the argument an owner rejects the
+first time a reset replaces their promises with ours.
+
 **Adding a table means adding it to that `TRUNCATE` list**, or a reset
-silently leaves its rows behind. Before real patients exist, remove
+silently leaves its rows behind -- and `create or replace` means the **last**
+declaration in the file wins, so edit that one. There are ten; editing an
+earlier one changes nothing and reads as though it did.
+`scripts/debug-reset-sql-checks.sql` asserts both halves -- the test data that
+must go and the clinic's own writing that must survive -- and **must never be
+run against a database anything else is using**: a ROLLBACK undoes the rows and
+not the locks, and TRUNCATE takes an AccessExclusiveLock on every table. It
+took an e2e case down with a deadlock the first time it was run, which is a red
+line describing nothing but carelessness. Before real patients exist, remove
 `ALLOW_DEBUG_DATA_RESET` and drop the function.
 
 ## Keeping the docs current

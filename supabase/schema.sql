@@ -10228,8 +10228,6 @@ begin
     home_visit_waitlist,
     home_visit_areas,
     home_visit_packages,
-    testimonials,
-    faqs,
     intake_question_templates,
     pain_map_question_templates,
     care_plan_versions,
@@ -10243,13 +10241,17 @@ begin
     -- rather than left to CASCADE reach it: a campaign pointing at a code
     -- that no longer exists could not say what it was attributed by.
     patient_invites,
-    promo_codes,
-    -- The promises and the limits. Truncated rather than left alone, and the
-    -- pages then fall back to the arrays in src/lib/mission.ts -- so a reset
-    -- restores the shipped wording instead of leaving one clinic's edits on a
-    -- database that has had everything else cleared out from under them.
-    mission_principles
+    promo_codes
   cascade;
+  -- NOT truncated, and all three for one reason: `faqs`, `testimonials` and
+  -- `mission_principles` are the website's own content, written by a person on
+  -- Settings -> Public Site. `mission_principles` used to be cleared here on
+  -- the argument that the pages then fall back to the shipped wording in
+  -- `src/lib/mission.ts` -- which is true, and is exactly the argument an owner
+  -- rejects the first time a reset replaces their promises with ours. Nothing
+  -- in these three is produced by testing and every row has to be retyped by
+  -- hand, so they follow `treatment_categories`: kept, one table at a time,
+  -- each with its own reason.
 
   with removed as (
     delete from auth.users
@@ -10258,78 +10260,30 @@ begin
   )
   select count(*) into deleted_accounts from removed;
 
-  update risk_rules set
-    enabled = default,
-    config = default,
-    updated_at = now()
-  where rule_key is not null;
-
-  update site_settings set
-    site_name = default,
-    site_tagline = default,
-    site_description = default,
-    contact_email = default,
-    whatsapp_number = default,
-    contact_phone = default,
-    footer_copyright_text = default,
-    home_visit_page_heading = null,
-    home_visit_page_subheading = null,
-    mission_statement = null,
-    vision_statement = null,
-    ratings_visible_publicly = default,
-    session_timeout_minutes = default,
-    google_meet_enabled = default,
-    join_window_minutes = default,
-    join_window_after_minutes = default,
-    session_completed_after_minutes = default,
-    booking_languages = default,
-    package_default_validity_days = default,
-    package_therapist_lock_enabled = default,
-    package_bulk_schedule_max = default,
-    package_expiry_reminder_days = default,
-    home_visit_enabled = default,
-    home_visit_cash_enabled = default,
-    home_visit_lead_time_hours = default,
-    home_visit_cancellation_refund_hours = default,
-    home_visit_default_validity_days = default,
-    home_visit_bulk_schedule_max = default,
-    home_visit_travel_buffer_minutes = default,
-    online_booking_lead_time_hours = default,
-    online_cancellation_refund_hours = default,
-    payment_gateway_fee_percent = default,
-    farewell_banner_seconds = default,
-    journey_step_seconds = default,
-    splash_enabled = default,
-    splash_brand_line = default,
-    splash_phrase = default,
-    splash_hold_seconds = default,
-    splash_revisit_minutes = default,
-    enabled_intake_specialties = default,
-    entitlement_ledger_authoritative = default,
-    care_plan_default_expiry_days = default,
-    care_plan_max_frequency_per_week = default,
-    contact_scan_mode = default,
-    contact_masking_enabled = default,
-    risk_signals_enabled = default,
-    therapist_suggestions_enabled = default,
-    auto_assign_therapist_enabled = default,
-    care_plan_requires_approval = default,
-    first_session_offer_enabled = default,
-    first_session_offer_type = default,
-    first_session_offer_value = default,
-    promo_codes_enabled = default,
-    invite_rewards_enabled = default,
-    invite_reward_paise = default,
-    invite_welcome_paise = default,
-    invite_max_rewards_per_patient = default,
-    finance_cogs_therapist_share = default,
-    finance_cogs_partner_share = default,
-    finance_cogs_payment_fees = default,
-    finance_include_app_balances = default,
-    finance_break_even_price_paise = null,
-    finance_break_even_variable_cost_paise = null,
-    finance_run_rate_basis = default
-  where id;
+  -- **`site_settings` and `risk_rules` are deliberately not touched.**
+  --
+  -- This used to put every one of ~60 settings columns back to its default, on
+  -- the reading that a reset restores a clean baseline. That reading is wrong
+  -- in the one direction that costs an owner something: **this is a data
+  -- reset, and none of that is data.** Every column in `site_settings` is
+  -- configuration a person chose -- the clinic's name, its tagline and
+  -- description, the email and phone patients contact it on, the footer, the
+  -- mission and vision, the splash wording, and every window, lead time and
+  -- switch an admin set deliberately. Testing generates none of it, and a
+  -- reset that cleared it handed back a site calling itself something else
+  -- with somebody else's contact details on it.
+  --
+  -- The asymmetry decides it. Keeping them costs a tester who wanted a clean
+  -- config baseline a few fields, each with its own control on its own screen.
+  -- Clearing them costs an owner their clinic's identity -- and the mission
+  -- and vision have no "what was it before" anywhere. `risk_rules` goes the
+  -- same way for the same reason: the thresholds are an admin's tuning on
+  -- Today -> Risk, while the signals they produced are rows and are truncated
+  -- above.
+  --
+  -- Anything added here later still needs a real WHERE clause -- see the
+  -- pg-safeupdate note in AGENTS.md, which is why the two statements that used
+  -- to live here carried `where rule_key is not null` and `where id`.
 
   return jsonb_build_object(
     'ok', true,
