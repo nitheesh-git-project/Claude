@@ -88,6 +88,32 @@ than the visitor's leaves every public cap either off or shared between
 everybody, with no 429 and no log line to notice it by. See the transport
 rule in `AGENTS.md`.
 
+**A refund records what it is about to do, before the money moves.** Every
+gateway refund here claims its local row first and calls Razorpay second, so
+a refusal leaves no trace claiming money went back -- and every one of these
+routes reverts its claim when Razorpay says no. The opposite failure had
+nothing watching it: Razorpay accepts the refund and the write recording it
+fails, which leaves the money gone, `refund_id` null, and the session
+indistinguishable from one that was claimed and never sent. All four refund
+writers had that window and in all four the only thing that noticed was a
+`console.error`, which is not a place a clinic owner looks. `refund_attempts`
+(`src/lib/refundAttempt.ts`) is the record, written **first**: a row lands as
+`processing`, the gateway is called, and the row resolves to `succeeded` with
+the gateway's own refund id or `failed` with what it said. A refund that
+cannot be recorded is **not attempted** -- the three admin routes put their
+claim back and answer 503 -- with `cancelAppointmentAndRefund` the one
+exception, since its cancellation is already committed and its slot
+legitimately freed, so it records a failed refund instead, which is already a
+pinned item on the patient's own feed. Resolving never throws: by then the
+money has moved, and a row left at `processing` is exactly what Settings ->
+System Health -> **Refunds**, the ninth check, exists to name. It asks two
+different questions -- a refund sent whose answer was never recorded, and a
+refund the gateway accepted whose session or purchase carries no id -- and
+reports, never repairs. The table is append-only by trigger with every
+foreign key `restrict`, because `set null` is an UPDATE the trigger refuses
+and `cascade` would destroy the record of money moving. See the refund-record
+rule in `AGENTS.md`.
+
 **Suspension reaches the database, not only the app.** `profiles.active` is
 read by `src/proxy.ts` and `requireActiveProfile`, and both are this
 application -- a session cookie reaches PostgREST without passing either, and
@@ -764,7 +790,9 @@ real browser -- the grant, a booking with no payment screen, completion
 putting the money in three places at once, a declaration that settles
 nothing until an admin confirms it, and a write-off that costs the clinic
 without moving a single money figure, and the payment step's own pay button
-staying tappable while its price loads
+staying tappable while its price loads, and the refund record that a refund
+writes before the money moves - which cannot be resolved twice, rewritten or
+deleted
 (`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys - verify a change
 with a build and a lint.

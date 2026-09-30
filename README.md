@@ -729,8 +729,8 @@ problem or someone working outside the normal flow, and both want a person.
 ### System Health
 
 **Settings → System Health** is the app reporting on itself: nothing there is
-a setting. It answers five questions, and every one of them answers in the
-same shape, so the screen can be read without learning five layouts:
+a setting. It answers nine questions, and every one of them answers in the
+same shape, so the screen can be read without learning nine layouts:
 
 | Check | Asks |
 | --- | --- |
@@ -739,6 +739,10 @@ same shape, so the screen can be read without learning five layouts:
 | **Session Links** | Does every confirmed session have its calendar event and video link? |
 | **Waiting Room** | Do patients and therapists walk into their sessions, or knock? |
 | **Books & Sessions Agree** | Do the programme balances, the payments and the delivered sessions all add up? |
+| **Public doors** | Can this server tell one visitor from another, so its public limits mean anything? |
+| **Pay Later** | What do trusted patients owe, how long has it been owed, and did any delivered session never get closed? |
+| **Partner attribution** | Does every referred patient's account name the partner who sent them? |
+| **Refunds** | Did every refund we sent to Razorpay come back with an answer we wrote down? |
 
 A verdict strip at the top says how many checks need a person, with a chip
 per failing check that jumps straight to it - so "is anything wrong?" is

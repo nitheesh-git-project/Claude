@@ -639,6 +639,38 @@ Four consequences worth holding in mind while testing:
 
 ---
 
+#### `PL-REF-005` - A refund is written down before it is sent · P0
+
+**Feature.** Every gateway refund in this app claims its local row **first** and calls Razorpay **second**, deliberately: a refusal from Razorpay must leave no trace claiming money went back, which is why each of these routes puts its claim back when the gateway says no. The opposite failure had nothing watching it at all - Razorpay accepts the refund and the write recording what came back fails, leaving the money gone, no refund id, and a session that looks exactly like one that was claimed and never sent. `refund_attempts` records the intent before the call and the outcome after it, so neither outcome is invisible.
+
+**Steps.** Refund a gateway-paid session. In the database, read the newest `refund_attempts` row. Then open **Settings → System Health → Refunds**.
+**Expected Result.** The row names the session, the Razorpay payment, the amount, the reason and the admin who asked, and is `succeeded` with Razorpay's own refund id on it. System Health → **Refunds** is **Healthy** and reads *"Every refund sent to Razorpay has a recorded outcome."*
+
+#### `PL-REF-006` - A refund that cannot be recorded is not sent · P0
+
+**Steps.** Make the `refund_attempts` insert fail (rename the table, or revoke the service role's insert on it), then try a partial refund from the session drawer.
+**Expected Result.** **No Razorpay call is made.** The admin is refused with *"We could not record this refund, so nothing was sent. Nothing has changed - please retry."*, and the session's own refund columns are exactly as they were - the route puts its claim back before refusing. This is the same posture the reveal log and the care-plan review take: an unrecordable action is not performed.
+**The one exception is a cancellation**, whose slot is already freed and cannot be un-cancelled: there the refund is **not attempted** and the session is recorded `refund_status = 'failed'`, which is already a counted row on Money's alert strip and a **pinned** item on the patient's own feed.
+
+#### `PL-REF-007` - A refund whose answer was never recorded is named · P0
+
+**Steps.** In the database, insert a `refund_attempts` row dated two hours ago and leave it `processing`. Open **Settings → System Health**.
+**Expected Result.** **Refunds** is **red**: *"1 refund was sent to Razorpay and we never recorded what came back - check whether the money actually left."* The steps tell the owner to look in Razorpay's own Refunds list around that time, and say what to do in either case - **record it** where it went through, **issue it again** where it did not, with nothing to undo first. The sidebar badge and the verdict strip both count it as **one check**, not one row.
+**Negative:** a refund created moments ago must **not** be counted - one is legitimately unresolved for the length of a gateway call, and a check that is always red is a check nobody reads. Nothing here repairs anything: no screen can know whether Razorpay took the money, and guessing on a money record is how a discrepancy becomes permanent.
+
+#### `PL-REF-008` - The refund record cannot be rewritten or removed · P0
+
+**Steps.** Against the database, as the service role: resolve one `refund_attempts` row twice; change a resolved row's amount; delete any row; delete the appointment a row points at; delete the admin who asked for it.
+**Expected Result.** All five raise. The table permits exactly one transition (`processing` → `succeeded` or `failed`), once, plus the columns that resolution fills in; a success with **no** gateway refund id is refused outright. Every foreign key is `restrict`, so the last two are refused naming this table, and **Settings → User Access** offers suspension instead - the same refusal shape as every other record that blocks a delete.
+**Why by trigger and not by RLS:** every refund writer in this app uses the service-role client, which bypasses RLS entirely - so for a table whose whole value is that it records what was attempted *before* it was attempted, "no route rewrites it" is not the same guarantee as "a rewrite raises".
+
+#### `PL-REF-009` - An unmigrated database says so, rather than Healthy · P1
+
+**Steps.** Against a database without `refund_attempts`, open **Settings → System Health**.
+**Expected Result.** **Refunds** reads **"Not set up"** - *"Cannot be checked - this database has not had the latest changes applied yet."* - and names applying `supabase/schema.sql` as the fix. It is **not** counted as a failure and **never** reads Healthy: a check that could not be run is not a check that came back clean.
+
+---
+
 #### `PL-RISK-001` - Trusted patients get their own heading, and a flag is never an accusation · P1
 
 **Steps.** Open **Today → Risk** with an aged balance.

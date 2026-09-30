@@ -149,6 +149,11 @@ invisible to an API test and obvious in a screenshot. `booking-pay-button-live.s
 is the same argument one screen over -- the payment step's own pay button
 staying tappable while its price loads, with the wait stated on the screen
 rather than enforced on the control.
+`refund-attempts.spec.ts` is the deliberate opposite: it drives the
+**database** rather than the routes or a screen, because every refund writer
+uses the service-role client and the only guarantee worth testing is that a
+rewrite raises from the same client the routes hold. A route test would prove
+the routes behave, which is what the routes were doing wrong.
 It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
@@ -375,6 +380,19 @@ would otherwise skip that table silently. A negative control was run before
 the file was trusted: a failed assertion has to reach the caller as an error,
 or a green run means nothing.
 
+`scripts/refund-attempt-sql-checks.sql` is the same shape for
+`refund_attempts` -- the record a refund writes before the money moves. Both
+halves of every guard: each resolution that must land, next to every rewrite
+that must raise, plus `refund_attempt_health()` reporting each of its two
+disagreements and *not* reporting a refund genuinely in flight. It **builds
+its own appointment** rather than finding one, and that is not a stylistic
+echo of the file above: this project has no appointments at all, so the first
+draft skipped every assertion and reported a green run. It runs inside one
+transaction and ends in ROLLBACK. Its own negative control arrived
+unprompted -- the draft backdated `created_at` with an UPDATE and was refused
+by the very trigger it was testing, which is the freeze doing its job: the
+moment a refund was sent cannot be moved to make a stuck one look fresh.
+
 `scripts/roster-sql-checks.sql` is the roster's storage-layer check: the
 malformed and out-of-range payloads the API routes cannot produce, asserted
 against a scratch Postgres with `schema.sql` applied
@@ -431,6 +449,8 @@ src/lib/adminHome.ts     what each admin scope's Today screen opens on
 src/lib/activityLog.ts   the log's search, its categories and its retention floor
 src/lib/formatDateTime.ts every date the app renders, pinned to clinic time
 src/lib/refundState.ts   how a refund reads, wherever a session is shown
+src/lib/refundAttempt.ts what a refund was asked to do, written before it is
+src/lib/refundHealthServer.ts whether every refund sent has a recorded answer
 src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
 src/lib/catalogFeatured.ts which few of the catalogue a public page leads with
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
@@ -1564,6 +1584,62 @@ before.
   hover reads it rather than printing `CANCELLATION_FULL_REFUND_HOURS`: a
   home visit has its own window, so the constant was quoting the wrong number
   of hours on every cancelled visit.
+- **A refund records what it is about to do, before the gateway is called.**
+  Every gateway refund here claims its local row *first* and calls Razorpay
+  second, deliberately: a refusal must leave no trace claiming money went
+  back, and every one of these routes reverts its claim when Razorpay says
+  no. What that ordering cannot cover is the opposite failure -- Razorpay
+  accepts the refund and the write recording what came back fails. The money
+  is gone, `refund_id` is null, and on every screen that is indistinguishable
+  from a refund which was claimed and never sent. All four refund writers had
+  that window -- `refund-session-partial`, `refund-package`,
+  `refund-home-visit-package` and `cancelAppointmentAndRefund` -- and in all
+  four the only thing that noticed was a `console.error`, which is not a
+  place a clinic owner looks.
+  `refund_attempts` closes it, through `src/lib/refundAttempt.ts`: a row
+  lands as `processing` carrying the subject, the payment, the amount, the
+  reason and who asked; the gateway is called; the row is resolved to
+  `succeeded` with the gateway's own refund id, or `failed` with what it
+  said. Every outcome is then either a resolved row or a row stuck at
+  `processing`, and the second is exactly the state a person has to look at.
+  Six rules:
+  1. **A refund that cannot be recorded is not attempted.** The three admin
+     routes put their claim back and answer 503 rather than calling Razorpay
+     -- the same posture `/api/therapist/reveal-contact` takes on its reveal
+     log and the care-plan review takes on its decision row. Proceeding
+     anyway defeats the thing being built.
+  2. **`cancelAppointmentAndRefund` is the one exception, and it cannot
+     refuse.** The cancellation is already committed and the slot is
+     legitimately freed either way, so the refund is *not attempted* and the
+     session is recorded `refund_status = 'failed'` -- already a counted item
+     on Money's alert strip and a pinned item on the patient's own feed, the
+     one refund state nothing in the clinic's screens moves without a person.
+  3. **Resolving never throws.** By then the money has moved, and turning a
+     completed refund into a 500 that reads as "nothing happened" is the
+     worse error. It leaves the row at `processing`, which is what the health
+     check is for.
+  4. **Append-only by trigger, not by RLS.** Every route here writes with the
+     service-role client, which bypasses RLS entirely, so for a table whose
+     whole value is that it records what was attempted *before* the attempt
+     was made, "no route rewrites it" is not the guarantee. It permits
+     exactly one transition (`processing` -> `succeeded` | `failed`), once,
+     plus the two columns resolution fills in, and nothing is ever deletable:
+     a row that can be removed makes the stuck-at-processing state
+     meaningless.
+  5. **Every foreign key is `on delete restrict`**, including `requested_by`.
+     Not symmetry -- `set null` is an UPDATE on this table, which the trigger
+     above refuses, so the row's own subject could never be deleted and the
+     refusal would name a trigger rather than the record standing in the way.
+     `cascade` would silently destroy the record of money moving.
+     `account_blocking_references()` counts restrict keys, so a delete is
+     refused with this table named and suspension offered beside it.
+  6. **A new refund writer opens an attempt.** There is no second way to
+     record one, the same rule `record_payment_capture` holds for the other
+     direction of money.
+  Checked by `scripts/refund-attempt-sql-checks.sql` (both halves of every
+  guard, plus a negative control) and `e2e/refund-attempts.spec.ts`, which
+  drives the database rather than the routes because the routes are what was
+  wrong.
 - **Cancellation/refund**: full refund only outside the 24-hour window in
   `src/lib/pricing.ts`; inside it, none. That constant is the **fallback**,
   never the answer -- the live window is
@@ -3505,7 +3581,7 @@ before.
   advance). Offers carries a note saying where promo codes and goodwill
   live, because "where did the promo screen go" is the question a split
   otherwise creates.
-- **System Health is seven checks in one shape, and every unhealthy one says
+- **System Health is nine checks in one shape, and every unhealthy one says
   how to fix it.** The screen reports rather than sets, so it is not an
   `AdminFeatureControlTab` view -- `src/lib/systemHealth.ts` decides each
   check's status, its one-line headline, the numbered steps that fix it, and
@@ -3543,10 +3619,26 @@ before.
      says "Checked 4 minutes ago". The relative time is rendered after mount,
      never on the server -- "4 minutes ago" computed server-side is already
      wrong in the browser, and rendering it in both is a hydration mismatch.
-  An eighth check is an entry in that module plus, if it has rows, a card
+  A tenth check is an entry in that module plus, if it has rows, a card
   body in the tab -- never a new panel with its own shape. The two fix
   buttons render only under `scopeCanManage(scope, "settings")`, matching the
   routes.
+  **The ninth is Refunds, and it watches the one direction of money that had
+  nothing watching it.** Every gateway refund claims its local row first and
+  calls Razorpay second, deliberately, so a refusal leaves no trace claiming
+  money went back -- but the opposite failure, Razorpay accepting the refund
+  and the write recording it failing, left the money gone, `refund_id` null,
+  and the session indistinguishable from one that was claimed and never sent.
+  All four refund writers had that window and in all four the only thing that
+  noticed was a `console.error`. `refund_attempt_health()` asks the two
+  questions `refund_attempts` makes askable, and they are different: a refund
+  sent to the gateway whose answer was never recorded, and a refund the
+  gateway accepted whose own session or purchase carries no id. Both red;
+  both reported and never repaired, since no screen here can know whether
+  Razorpay took the money. Its window (`REFUND_STUCK_AFTER_MINUTES`, 10)
+  exists because a row is legitimately unresolved for the length of one
+  gateway call, and counting every one would put a red light on a working
+  clinic. See the refund-record rule below.
   **The sixth is Public doors, and it watches the limiter rather than a
   backlog.** `enforceRateLimit` allows a request it cannot attribute, which
   is correct and is silent: there is no 429, no log line and no counter row

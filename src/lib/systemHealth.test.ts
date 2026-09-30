@@ -37,6 +37,7 @@ const ALL_WELL: SystemHealthInput = {
     unclosedSessions: 0,
   },
   referralAttribution: { orphanedCount: 0, withCompletedSessions: 0 },
+  refunds: { stuckCount: 0, unrecordedCount: 0, oldestStuckHours: null },
 };
 
 describe("buildSystemHealth", () => {
@@ -96,7 +97,7 @@ describe("buildSystemHealth", () => {
 
   it("reports every check healthy when nothing is wrong", () => {
     const checks = buildSystemHealth(ALL_WELL);
-    expect(checks).toHaveLength(8);
+    expect(checks).toHaveLength(9);
     expect(checks.every((c) => c.status === "healthy")).toBe(true);
     // A healthy check must not ask the reader to do anything.
     expect(checks.every((c) => c.fix.length === 0)).toBe(true);
@@ -344,12 +345,71 @@ describe("buildSystemHealth", () => {
     });
   });
 
+describe("refunds", () => {
+  const refunds = (input: SystemHealthInput) =>
+    buildSystemHealth(input).find((c) => c.id === "refunds")!;
+
+  // A database that has not had `refund_attempts` applied cannot answer the
+  // question, and the rule this file holds everywhere is that a read which
+  // could not be run is not a read that came back clean.
+  it("says it cannot be checked rather than healthy when the table is absent", () => {
+    const check = refunds({ ...ALL_WELL, refunds: null });
+    expect(check.status).toBe("unknown");
+    expect(check.fix.length).toBeGreaterThan(0);
+  });
+
+  // Money sent to Razorpay whose answer was never recorded is the worst
+  // outcome this table exists to surface: nothing automatic will resolve it
+  // and the patient may or may not have their money.
+  it("is red when a refund was sent and never resolved", () => {
+    const check = refunds({
+      ...ALL_WELL,
+      refunds: { stuckCount: 2, unrecordedCount: 0, oldestStuckHours: 5 },
+    });
+    expect(check.status).toBe("broken");
+    expect(check.count).toBe(2);
+    expect(check.evidence.some((e) => e.includes("5 hours"))).toBe(true);
+  });
+
+  // A refund the gateway accepted whose session carries no id is money that
+  // went back and is not on the screen it belongs on -- every figure reading
+  // that row is wrong until somebody records it.
+  it("is red when a succeeded refund is not recorded on its subject", () => {
+    const check = refunds({
+      ...ALL_WELL,
+      refunds: { stuckCount: 0, unrecordedCount: 1, oldestStuckHours: null },
+    });
+    expect(check.status).toBe("broken");
+    expect(check.count).toBe(1);
+  });
+
+  // The count is the rows it counted, the same rule every other count on
+  // this dashboard follows.
+  it("counts both disagreements together", () => {
+    const check = refunds({
+      ...ALL_WELL,
+      refunds: { stuckCount: 3, unrecordedCount: 2, oldestStuckHours: 1 },
+    });
+    expect(check.count).toBe(5);
+  });
+
+  // A refund is legitimately in flight for the length of one gateway call,
+  // and the reader must not be told the age of something that has none.
+  it("says nothing about an age it was not given", () => {
+    const check = refunds({
+      ...ALL_WELL,
+      refunds: { stuckCount: 1, unrecordedCount: 0, oldestStuckHours: null },
+    });
+    expect(check.evidence.some((e) => e.includes("Oldest"))).toBe(false);
+  });
+});
+
 describe("summarizeHealth", () => {
   it("says all clear when every check is healthy", () => {
     const summary = summarizeHealth(buildSystemHealth(ALL_WELL));
     expect(summary.needsPerson).toBe(0);
     expect(summary.worst).toBe("healthy");
-    expect(summary.headline).toBe("All 8 checks healthy");
+    expect(summary.headline).toBe("All 9 checks healthy");
     expect(summary.attention).toHaveLength(0);
   });
 

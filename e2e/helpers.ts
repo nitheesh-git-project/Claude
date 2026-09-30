@@ -230,6 +230,18 @@ export const E2E_MARKERS = {
   referralNamePrefix: "E2E Race Referral",
   /** Razorpay payment ids the refund race spec mints for uncapturable orders. */
   fakePaymentIdPrefix: "pay_e2erace",
+  /**
+   * The one cancelled session `refund-attempts.spec.ts` hangs its attempts
+   * off, in `appointments.notes`.
+   *
+   * It is deliberately **not** in the clean-up script's reach: nothing can
+   * remove a `refund_attempts` row, so nothing can remove the appointment it
+   * points at either. The spec reuses one fixture across runs and leaves it
+   * resolved rather than red, which is the whole of the tidy-up available
+   * here. This entry exists so the next person finds the marker rather than
+   * a mystery session.
+   */
+  refundAttemptNote: "e2e-refund-attempt",
 } as const;
 
 /**

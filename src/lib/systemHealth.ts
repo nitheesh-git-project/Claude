@@ -43,7 +43,8 @@ export type HealthCheckId =
   | "accounting"
   | "rate_limits"
   | "pay_later"
-  | "referral_attribution";
+  | "referral_attribution"
+  | "refunds";
 
 export type HealthCheck = {
   id: HealthCheckId;
@@ -151,6 +152,28 @@ export type SystemHealthInput = {
    * that came back empty.
    */
   referralAttribution?: ReferralAttributionHealth | null;
+  /**
+   * Whether every refund sent to the gateway has a recorded outcome.
+   *
+   * Null when it could not be asked -- a database without `refund_attempts`
+   * has nothing to compare against, and reading that as agreement is the
+   * mistake this file corrects most often.
+   */
+  refunds?: RefundHealth | null;
+};
+
+export type RefundHealth = {
+  /** Refunds sent to Razorpay whose answer was never recorded. */
+  stuckCount: number;
+  /** How long ago the oldest of those was sent, in whole hours. A number
+   *  rather than a date, so this module stays dependency-free and the
+   *  sentence it produces is the one a person actually wants -- how long the
+   *  money has been unaccounted for. */
+  oldestStuckHours?: number | null;
+  /** Refunds the gateway accepted whose own session or purchase carries no
+   *  refund id -- money that went back and is not on the screen it belongs
+   *  on. */
+  unrecordedCount: number;
 };
 
 export type ReferralAttributionHealth = {
@@ -713,6 +736,100 @@ function referralAttributionCheck(
   };
 }
 
+/**
+ * Refunds: did what we asked the gateway for actually happen.
+ *
+ * Every gateway refund claims its local row first and calls Razorpay second,
+ * so a refusal leaves no trace claiming money went back. The opposite failure
+ * had nothing watching it at all: Razorpay accepts the refund and the write
+ * recording it fails, which leaves the money gone, `refund_id` null, and the
+ * session looking exactly like one that was claimed and never sent. In all
+ * four refund writers the only thing that noticed was a `console.error`.
+ *
+ * `refund_attempts` records the intent before the call, so both disagreements
+ * are now askable, and they are different questions. A refund still in flight
+ * long after it was sent is money whose fate is unknown -- red, because
+ * nothing automatic will resolve it and the patient is waiting. A succeeded
+ * refund whose subject row has no id is money that went back and is not on
+ * the screen it belongs on -- also red, since every figure reading that row
+ * is now wrong.
+ *
+ * Reported, never repaired: this screen cannot know whether Razorpay took the
+ * money, and guessing on a money record is how a discrepancy becomes
+ * permanent.
+ */
+function refundsCheck(health: RefundHealth | null): HealthCheck {
+  const base = {
+    id: "refunds" as const,
+    label: "Refunds",
+    icon: "fa-rotate-left",
+    what: "Refunds this clinic asked Razorpay for, and whether each one's answer was written down. A refund can go through at the gateway in the moment the app fails to record it, and that leaves money returned with nothing on any screen saying so.",
+    example:
+      "You refund a session, Razorpay sends the money back, and the connection drops before the app writes it down. The patient has their money, the session still reads as refundable, and every revenue figure counts the full amount - so this names it instead of leaving it to be found in a bank statement.",
+  };
+
+  if (!health) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Cannot be checked - this database has not had the latest changes applied yet.",
+      fix: [
+        "Apply `supabase/schema.sql` to this project, then reload this page.",
+      ],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  if (health.stuckCount === 0 && health.unrecordedCount === 0) {
+    return {
+      ...base,
+      status: "healthy",
+      headline: "Every refund sent to Razorpay has a recorded outcome.",
+      fix: [],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  const evidence: string[] = [];
+  if (health.stuckCount > 0) {
+    evidence.push(
+      `${plural(health.stuckCount, "refund", "refunds")} sent with no recorded answer`
+    );
+    const hours = health.oldestStuckHours;
+    if (hours !== null && hours !== undefined) {
+      evidence.push(
+        hours < 1
+          ? "Oldest sent less than an hour ago"
+          : `Oldest sent about ${plural(hours, "hour", "hours")} ago`
+      );
+    }
+  }
+  if (health.unrecordedCount > 0) {
+    evidence.push(
+      `${plural(health.unrecordedCount, "refund", "refunds")} went through but are not recorded on the session or purchase`
+    );
+  }
+
+  return {
+    ...base,
+    status: "broken",
+    headline:
+      health.stuckCount > 0
+        ? `${plural(health.stuckCount, "refund", "refunds")} were sent to Razorpay and we never recorded what came back - check whether the money actually left.`
+        : `${plural(health.unrecordedCount, "refund", "refunds")} went through at Razorpay and are not recorded against the session or purchase they belong to.`,
+    fix: [
+      "Open the Refunds section of your Razorpay dashboard and find the refunds from around the time shown here.",
+      "For each one, check whether Razorpay actually processed it.",
+      "Where it did, record it against the session or purchase from the admin screens so the money figures agree.",
+      "Where it did not, the refund can simply be issued again - nothing here has to be undone first.",
+    ],
+    count: health.stuckCount + health.unrecordedCount,
+    evidence,
+  };
+}
+
 function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
   const base = {
     id: "pay_later" as const,
@@ -969,6 +1086,7 @@ export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
     rateLimitCheck(input.rateLimitIdentity),
     payLaterCheck(input.payLater ?? null),
     referralAttributionCheck(input.referralAttribution ?? null),
+    refundsCheck(input.refunds ?? null),
   ];
 }
 

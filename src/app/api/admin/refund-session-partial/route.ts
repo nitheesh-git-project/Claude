@@ -5,6 +5,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { serverError } from "@/lib/apiError";
+import {
+  openRefundAttempt,
+  succeedRefundAttempt,
+  failRefundAttempt,
+} from "@/lib/refundAttempt";
 
 // A discretionary refund on one session, for an amount an admin chooses.
 //
@@ -228,6 +233,38 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // The attempt is recorded before the gateway is called, so a refund that
+  // went through and could not be written back is a row somebody can find
+  // rather than a console line. A refund that cannot be recorded is not
+  // attempted: the claim is put back and the caller is refused.
+  const attemptId = await openRefundAttempt(admin, {
+    purpose: "appointment",
+    subjectId: appointmentId,
+    razorpayPaymentId: appointment.razorpay_payment_id,
+    amountPaise,
+    reason,
+    requestedBy: context.id,
+  });
+  if (!attemptId) {
+    await admin
+      .from("appointments")
+      .update({
+        refund_status: appointment.refund_status,
+        refund_amount_paise: appointment.refund_amount_paise,
+        refund_is_manual: alreadyRefunded > 0,
+        refund_reason: null,
+      })
+      .eq("id", appointmentId)
+      .eq("refund_amount_paise", totalRefunded);
+    return NextResponse.json(
+      {
+        error:
+          "We could not record this refund, so nothing was sent. Nothing has changed - please retry.",
+      },
+      { status: 503 }
+    );
+  }
+
   let refundId: string | null = null;
   try {
     const razorpay = new Razorpay({
@@ -238,8 +275,10 @@ export async function POST(request: NextRequest) {
       amount: amountPaise,
     });
     refundId = refund.id;
+    await succeedRefundAttempt(admin, attemptId, refund.id);
   } catch (err) {
     console.error("Partial refund failed for appointment", appointmentId, err);
+    await failRefundAttempt(admin, attemptId, err);
     // Put the claim back exactly as it was, so the session is refundable
     // again on retry -- same posture as refund-package, and for the same
     // reason: a refund's whole point is "did the money actually go back",

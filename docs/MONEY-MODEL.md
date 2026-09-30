@@ -148,11 +148,26 @@ A figure describing something that already happened does not move.
 | `hospital_id_at_completion` | Completion | A referral added later must not retrospectively earn a cut. |
 | `list_price_paise` + the three discount facts | Payment | So the books can tell "sold cheap" from "discounted". |
 | `payments.amount_paise` | Order creation | What we asked for, kept apart from what the gateway said it took. |
+| A `refund_attempts` row | Before the gateway is called | What we asked the gateway to do, kept apart from what it did. |
 
 **An adjustment is a new record, never an edit.** The credit ledger is
 append-only; `admin_adjust` is the one entry type with a free-form delta and
 the only one requiring a reason. An admin can change any balance and cannot
 change any history.
+
+**Money going out has the same shape as money coming in.** A capture is
+recorded in `payments` and a refund in `refund_attempts`, and both are
+written with the same ordering: the intent first, the outcome second. That
+ordering is what makes "we asked for this and never learned what happened"
+a state somebody can find rather than an absence nobody can distinguish from
+a refund that was never sent. The table is append-only by trigger, permitting
+exactly one transition (`processing` → `succeeded` | `failed`), once, plus
+the two columns resolution fills in, and nothing is ever deletable — a row
+that can be removed makes the stuck-at-processing state meaningless.
+`refund_attempt_health()` compares it against the session or purchase it was
+for, on Settings → System Health → Refunds. It reports and never repairs: no
+screen here can know whether Razorpay took the money, and guessing on a money
+record is how a discrepancy becomes permanent.
 
 ---
 

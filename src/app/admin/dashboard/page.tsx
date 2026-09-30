@@ -187,6 +187,7 @@ import {
   TEMP_PASSWORD_VISIBLE_DAYS,
 } from "@/lib/tempPassword";
 import { readReferralAttributionHealth } from "@/lib/referralAttribution";
+import { readRefundHealth } from "@/lib/refundHealthServer";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | MoveRestore",
@@ -794,6 +795,7 @@ export default async function AdminDashboardPage({
     payLaterWrittenOff,
     payLaterWriteOffReconciliation,
     referralAttributionHealth,
+    refundHealth,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -1111,6 +1113,10 @@ export default async function AdminDashboardPage({
     // them. Its own read for the usual reason, and it answers null when it
     // could not be asked so the check reports that rather than agreement.
     readReferralAttributionHealth(admin),
+    // Whether every refund sent to Razorpay has a recorded outcome. Its own
+    // read, and null when it could not be asked -- a database without
+    // `refund_attempts` reports "not applied yet" rather than agreement.
+    readRefundHealth(admin),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -4435,6 +4441,7 @@ export default async function AdminDashboardPage({
     rateLimitIdentity,
     payLater: payLaterHealth,
     referralAttribution: referralAttributionHealth,
+    refunds: refundHealth,
   });
 
   const home = buildAdminHome(viewerScope, {

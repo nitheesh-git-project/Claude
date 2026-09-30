@@ -10181,6 +10181,11 @@ begin
   end if;
 
   truncate table
+    -- Added in place rather than by re-declaring this function an eleventh
+    -- time: `create or replace` is idempotent, so editing the newest
+    -- declaration re-applies identically, and another copy of a 60-table
+    -- list is the bloat this file already carries too much of.
+    refund_attempts,
     pay_later_payments,
     session_credit_ledger,
     session_entitlements,
@@ -13314,3 +13319,199 @@ $$;
 revoke all on function public.claim_invite(text, uuid) from public;
 revoke all on function public.claim_invite(text, uuid) from anon;
 revoke all on function public.claim_invite(text, uuid) from authenticated;
+
+-- ===========================================================================
+-- Refund attempts: the record exists before the money moves
+-- ===========================================================================
+-- Every gateway refund in this app is a two-step sequence -- claim the local
+-- row, then call Razorpay -- and the ordering was chosen deliberately: a
+-- refusal from Razorpay must leave no trace claiming money went back. What
+-- that ordering cannot cover is the other direction. Razorpay accepts the
+-- refund, and the write that records what came back fails: the money is gone
+-- and `refund_id` is null, which is indistinguishable on every screen from a
+-- refund that was claimed and never sent. Four routes have that window --
+-- `refund-session-partial`, `refund-package`, `refund-home-visit-package`
+-- and `cancelAppointmentAndRefund` -- and in all four the only thing that
+-- noticed was a `console.error`, which is not a place a clinic owner looks.
+--
+-- So the intent is recorded before the call rather than the outcome after
+-- it. A row lands here as `processing`, the gateway is called, and the row is
+-- resolved to `succeeded` (with the refund id) or `failed`. Every outcome is
+-- then either a resolved row or a row stuck at `processing`, and the second
+-- is exactly the state a person has to look at -- surfaced on
+-- Settings -> System Health -> Refunds, reported and never repaired, the
+-- same posture `verify_entitlement_balances()` takes.
+--
+-- It is a record of attempts and not a second refund ledger: what a session
+-- or a purchase was refunded stays on its own row, which is what every money
+-- figure already reads. This table answers "did what we asked for actually
+-- happen", which nothing could answer before.
+create table if not exists refund_attempts (
+  id uuid primary key default gen_random_uuid(),
+  -- Which kind of thing is being refunded. The three ids below are nullable
+  -- and exactly one is set; a check keeps them in step with the purpose, so
+  -- a row can never describe two subjects or none.
+  purpose text not null check (purpose in ('appointment', 'package_purchase', 'home_visit_purchase')),
+  -- `restrict`, deliberately, and neither of the two obvious alternatives.
+  -- `set null` performs an UPDATE on this table, which the append-only
+  -- trigger below refuses and the one-subject check would fail anyway -- so
+  -- an appointment carrying a refund attempt could never be deleted at all,
+  -- and the refusal would name a trigger rather than the reason. `cascade`
+  -- would silently destroy the record of money moving, which is the one
+  -- thing this table exists not to allow. `restrict` is counted by
+  -- `account_blocking_references()` like every other blocking key, so a
+  -- delete is refused with this table named and suspension offered instead.
+  -- The debug reset truncates it by name.
+  appointment_id uuid references appointments(id) on delete restrict,
+  package_purchase_id uuid references patient_package_purchases(id) on delete restrict,
+  home_visit_purchase_id uuid references home_visit_package_purchases(id) on delete restrict,
+  razorpay_payment_id text not null,
+  amount_paise integer not null check (amount_paise > 0),
+  status text not null default 'processing'
+    check (status in ('processing', 'succeeded', 'failed')),
+  razorpay_refund_id text,
+  reason text,
+  -- Who asked for it. Null for a patient-initiated cancellation, where the
+  -- appointment's own `cancelled_by` is the answer. `restrict` for the same
+  -- reason as the three above and not merely for symmetry: `set null` is an
+  -- UPDATE on this table, which the append-only trigger refuses outright --
+  -- so deleting the admin would fail naming a trigger rather than naming the
+  -- record standing in the way.
+  requested_by uuid references profiles(id) on delete restrict,
+  failure_detail text,
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  constraint refund_attempts_one_subject check (
+    (purpose = 'appointment' and appointment_id is not null
+       and package_purchase_id is null and home_visit_purchase_id is null)
+    or (purpose = 'package_purchase' and package_purchase_id is not null
+       and appointment_id is null and home_visit_purchase_id is null)
+    or (purpose = 'home_visit_purchase' and home_visit_purchase_id is not null
+       and appointment_id is null and package_purchase_id is null)
+  ),
+  -- A resolved row says when, and a succeeded one names the gateway refund.
+  constraint refund_attempts_resolution_complete check (
+    (status = 'processing' and resolved_at is null and razorpay_refund_id is null)
+    or (status = 'succeeded' and resolved_at is not null and razorpay_refund_id is not null)
+    or (status = 'failed' and resolved_at is not null)
+  )
+);
+
+-- The queries the health check runs: rows still in flight, oldest first, and
+-- a lookup by subject for the drill-down.
+create index if not exists refund_attempts_processing_idx
+  on refund_attempts (created_at)
+  where status = 'processing';
+create index if not exists refund_attempts_appointment_idx
+  on refund_attempts (appointment_id) where appointment_id is not null;
+create index if not exists refund_attempts_package_idx
+  on refund_attempts (package_purchase_id) where package_purchase_id is not null;
+create index if not exists refund_attempts_home_visit_idx
+  on refund_attempts (home_visit_purchase_id) where home_visit_purchase_id is not null;
+
+alter table refund_attempts enable row level security;
+
+drop policy if exists refund_attempts_select_admin on refund_attempts;
+create policy refund_attempts_select_admin on refund_attempts
+  for select using (is_admin());
+
+-- Append-only by trigger, not only by RLS: every route here writes with the
+-- service-role client, which bypasses RLS entirely, so for a table whose
+-- whole value is that it records what was attempted before the attempt was
+-- made, "no route rewrites it" is not the same guarantee as "a rewrite
+-- raises". Same reasoning as `payments` and `admin_activity_log`.
+--
+-- It permits exactly one transition -- `processing` to `succeeded` or
+-- `failed`, once -- plus the two columns that resolution fills in. Nothing
+-- is ever deletable: a row that cannot be removed is the only reason the
+-- stuck-at-processing state means anything.
+create or replace function refund_attempts_append_only()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'refund_attempts is append-only: a refund attempt cannot be deleted';
+  end if;
+
+  if old.status <> 'processing' then
+    raise exception 'refund attempt % is already resolved as %', old.id, old.status;
+  end if;
+  if new.status = 'processing' then
+    raise exception 'a refund attempt may only be updated to resolve it';
+  end if;
+
+  if new.purpose <> old.purpose
+     or new.appointment_id is distinct from old.appointment_id
+     or new.package_purchase_id is distinct from old.package_purchase_id
+     or new.home_visit_purchase_id is distinct from old.home_visit_purchase_id
+     or new.razorpay_payment_id <> old.razorpay_payment_id
+     or new.amount_paise <> old.amount_paise
+     or new.reason is distinct from old.reason
+     or new.requested_by is distinct from old.requested_by
+     or new.created_at <> old.created_at then
+    raise exception 'only the resolution of a refund attempt may be written';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists refund_attempts_append_only_trg on refund_attempts;
+create trigger refund_attempts_append_only_trg
+  before update or delete on refund_attempts
+  for each row execute function refund_attempts_append_only();
+
+-- What System Health reads. Two disagreements, and they are different
+-- questions: a refund sent to the gateway whose answer we never recorded,
+-- and a refund the gateway accepted that its own subject row does not carry
+-- an id for. The first is money whose fate is unknown; the second is money
+-- that went back and is not on the screen it should be on.
+--
+-- `p_stuck_after_minutes` exists because a row is legitimately `processing`
+-- for the length of one gateway call, so counting every one of them would
+-- put an amber light on a working clinic.
+create or replace function refund_attempt_health(p_stuck_after_minutes integer default 10)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_cutoff timestamptz := now() - make_interval(mins => greatest(1, coalesce(p_stuck_after_minutes, 10)));
+  v_stuck integer;
+  v_unrecorded integer;
+  v_oldest timestamptz;
+begin
+  select count(*), min(created_at) into v_stuck, v_oldest
+    from refund_attempts
+    where status = 'processing' and created_at < v_cutoff;
+
+  select count(*) into v_unrecorded
+    from refund_attempts ra
+    where ra.status = 'succeeded'
+      and (
+        (ra.purpose = 'appointment' and exists (
+           select 1 from appointments a
+             where a.id = ra.appointment_id and a.refund_id is null))
+        or (ra.purpose = 'package_purchase' and exists (
+           select 1 from patient_package_purchases p
+             where p.id = ra.package_purchase_id and p.refund_id is null))
+        or (ra.purpose = 'home_visit_purchase' and exists (
+           select 1 from home_visit_package_purchases h
+             where h.id = ra.home_visit_purchase_id and h.refund_id is null))
+      );
+
+  return jsonb_build_object(
+    'stuck_count', coalesce(v_stuck, 0),
+    'oldest_stuck_at', v_oldest,
+    'unrecorded_count', coalesce(v_unrecorded, 0)
+  );
+end;
+$$;
+
+revoke all on function public.refund_attempt_health(integer) from public;
+revoke all on function public.refund_attempt_health(integer) from anon;
+revoke all on function public.refund_attempt_health(integer) from authenticated;

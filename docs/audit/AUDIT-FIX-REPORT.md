@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **64 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **68 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,9 +31,10 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **54 open**, each with an assessment. Roughly half are one architectural
+- **50 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
-  half of that overnight would have been worse than not starting it.
+  half of that overnight would have been worse than not starting it. The
+  first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
 
 ## What I changed about your proposals, and why
 
@@ -149,28 +150,82 @@ for.
 `src/lib/bookPackageSession.ts`, `src/lib/bookHomeVisitSession.ts`,
 `src/app/api/admin/create-booking/route.ts`, both bulk reassign routes
 
-### 6. Refund can succeed at Razorpay while the local update fails — **Open**
+### 6. Refund can succeed at Razorpay while the local update fails — **Fixed**
 
-**Real.** `refund-session-partial` calls Razorpay and then writes; a failure
-between them leaves money returned and no record of it. The route reverts its
-claim on a gateway refusal, which is the opposite ordering and does not cover
-this case.
+**Real, and in all four refund writers rather than the one you named.** Every
+gateway refund in this app claims its local row *first* and calls Razorpay
+second — deliberately, so a refusal leaves no trace claiming money went back.
+What that ordering cannot cover is the opposite failure: Razorpay accepts the
+refund and the write recording what came back fails. The money is gone,
+`refund_id` is null, and on every screen that is indistinguishable from a
+refund which was claimed and never sent. `refund-session-partial`,
+`refund-package`, `refund-home-visit-package` and `cancelAppointmentAndRefund`
+all had that window, and in all four the only thing that noticed was a
+`console.error`, which is not a place a clinic owner looks.
 
-**Why not fixed.** Durable refund states (`requested → processing → succeeded
-→ reconciled`) are the right answer and they are part of the same piece of
-work as items 7, 94 and 95 — a refund transaction table. Doing it for one
-route and not the others would leave two models of the same thing.
+**What I built.** `refund_attempts` — the record written *before* the money
+moves, not after. A row lands as `processing` carrying the subject, the
+payment, the amount, the reason and who asked; the gateway is called; the row
+is resolved to `succeeded` with the gateway's own refund id, or `failed` with
+what it said. Every outcome is then either a resolved row or a row stuck at
+`processing`, and the second is exactly the state a person has to look at.
 
-**Meanwhile**, the exposure is narrower than it looks: `refund_status`,
-`refunded_at`, `refunded_by` and `refund_reason` are all written, a failed
-gateway refund becomes `refund_status = 'failed'`, and that is a counted
-`needsYou` item on Money's alert strip and the patient's own feed. The gap is
-the window *between* the two calls, not the outcome.
+Four decisions in it are worth stating, because each is the opposite of the
+obvious one:
 
-### 7. Payment ledger and refund records can become inconsistent — **Open**
+1. **A refund that cannot be recorded is not attempted.** The three admin
+   routes put their claim back and answer 503 rather than calling Razorpay —
+   the same posture `/api/therapist/reveal-contact` takes on its reveal log
+   and the care-plan review takes on its decision row. Proceeding anyway
+   would defeat the thing being built.
+2. **`cancelAppointmentAndRefund` is the exception, and it cannot refuse.**
+   The cancellation is already committed and the slot is legitimately freed
+   either way. So the refund is not attempted and the session is recorded
+   `refund_status = 'failed'` — which is already a counted item on Money's
+   alert strip and a *pinned* item on the patient's own feed, the one refund
+   state nothing in the clinic's screens moves without a person. Which is
+   precisely what that outcome needs.
+3. **Resolving never throws.** By then the money has moved; turning a
+   completed refund into a 500 that reads as "nothing happened" is the worse
+   error. It leaves the row at `processing`, which is what the health check
+   is for.
+4. **It is append-only by trigger, not by RLS.** Every route here writes with
+   the service-role client, which bypasses RLS entirely — so for a table
+   whose whole value is that it records what was attempted before the attempt
+   was made, "no route rewrites it" is not the same guarantee as "a rewrite
+   raises". It permits exactly one transition, once, plus the two columns
+   resolution fills in, and nothing is ever deletable: a row that can be
+   removed makes the stuck-at-processing state meaningless.
 
-See item 6 and `docs/MONEY-MODEL.md` §4. What I did do here is item 15, which
-removes the one place the ledger was actively *destroying* evidence.
+**Where it surfaces.** Settings → System Health → **Refunds**, the ninth
+check, reading `refund_attempt_health()`. Two disagreements, and they are
+different questions: a refund sent to the gateway whose answer was never
+recorded (money whose fate is unknown), and a refund the gateway accepted
+whose own session or purchase carries no id (money that went back and is not
+on the screen it belongs on). Both red. Reported, never repaired — this
+screen cannot know whether Razorpay took the money, and guessing on a money
+record is how a discrepancy becomes permanent. A database without the table
+reads **"Cannot be checked"** rather than healthy.
+
+`p_stuck_after_minutes` (10) exists because a row is legitimately
+`processing` for the length of one gateway call, and counting every one of
+them would put a red light on a working clinic.
+
+**Checked.** `scripts/refund-attempt-sql-checks.sql` asserts both halves of
+every guard — each resolution that must land, next to every rewrite that must
+raise — plus the health function reporting each disagreement and *not*
+reporting a refund genuinely in flight. `systemHealth.test.ts` gains five
+cases; `refundAttempt.test.ts` covers what the gateway's failure is recorded
+as.
+
+### 7. Payment ledger and refund records can become inconsistent — **Fixed**
+
+This is item 6's other half and closes with it: `refund_attempts` is the
+independent record the two can be compared against, and
+`refund_attempt_health()` is that comparison, on a screen rather than in a
+log. Item 15 had already removed the one place the ledger was actively
+*destroying* evidence (a capture overwriting the ordered amount). See
+`docs/MONEY-MODEL.md` §4.
 
 ### 8. Therapist payout settlement can partially succeed — **Open**
 
@@ -943,13 +998,30 @@ caller-supplied territory. **Two existing tests asserted the leftmost entry** �
 they encoded the hole rather than guarding it — and are corrected with a note
 saying so. Eight new tests.
 
-### 94, 95, 97. Reconciliation tooling, refund transaction model, immutable adjustments — **Open**
+### 94, 95. Reconciliation tooling, refund transaction model — **Fixed**
 
-The canonical-ledger piece. What exists: six reconciliation checks on System
-Health (now seven with partner attribution), and immutability already holds
-where it matters most — the credit ledger, `payments`, `payment_webhook_events`,
-`session_note_revisions`, `care_plan_versions` and `pay_later_payments` are all
-append-only by trigger.
+95 is the refund transaction model, and it is `refund_attempts` — see item 6
+for the whole of it. 94 is the reconciliation that model makes possible:
+**Refunds** is the ninth check on Settings → System Health, and it asks the
+two questions nothing could ask before. Was every refund we sent to the
+gateway answered, and is every refund the gateway accepted recorded against
+the thing it was for.
+
+That brings System Health to nine checks, every one of them the same shape: a
+status word as well as a colour, steps an owner can follow alone, the
+teaching text behind the (i), and — the rule this file keeps returning to —
+**"could not be checked" is not "healthy"**. A database missing the table
+says so.
+
+### 97. Immutable adjustments — **Already held, now wider**
+
+Immutability holds where it matters: the credit ledger, `payments`,
+`payment_webhook_events`, `session_note_revisions`, `care_plan_versions`,
+`pay_later_payments` and now `refund_attempts` are all append-only by
+trigger — by trigger and not by RLS, since every route here writes with the
+service-role client. Adjustments themselves are already the one entry type
+requiring a reason (ten characters, enforced by a CHECK so it holds for any
+caller), and an admin can change any balance while changing no history.
 
 ### 96, 98, 99, 100. Vocabulary, cash vs accrual, revenue recognition, receivables — **Fixed (documented)**
 
