@@ -226,6 +226,21 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 **Steps.** Read *Refunds to hand back* on the Money alerts strip and on the Today inbox, then open **Money → Payouts → Cash Ledger** and count the rows.
 **Expected Result.** Every one of them reads **1**. It must not read 2: the dashboard's home-visit query and its main appointments query are the **same table** (`appointments`, one of them filtered to `visit_mode = 'home_visit'`), so a count that adds the two counts every cash visit twice and puts a figure on the strip the ledger underneath it disagrees with. Repeat with one failed refund on a home visit for *Refunds that failed*.
 
+#### `FIN-SCHED-001` - A purchase nobody has booked anything against is found · P0
+
+**Feature.** The one state in the product where the clinic has taken a decision from a patient and delivered nothing at all. Everything that pointed at it pointed at the **patient** - the balance on their Programmes screen, an unbooked-sessions item pinned to their own dashboard - which is exactly the person who has already stopped. Nobody at the clinic could see it to ring them.
+
+**Preconditions.** One paid programme bought **two days ago** with no session ever booked; one **cash** home-visit purchase agreed at the door two days ago with no visit booked; one paid programme bought two days ago with one session already booked; one paid programme bought **an hour ago** with nothing booked; one abandoned checkout (unpaid, no cash mode); one refunded purchase with nothing booked.
+**Steps.** Read the Money alerts strip, then tap **Paid programmes with nothing booked**.
+**Expected Result.** The row reads **2** - the paid programme and the cash home visit, and nothing else. Tapping it opens **Catalog → Purchases** with **Nothing booked yet** ticked on both tables and every other filter cleared, listing exactly those two. The row is **not urgent**: nothing has gone wrong and nobody is out of pocket, and marking it so would flatten the difference between this and cash a therapist is holding.
+**Negative, four ways, and each is a row that must *not* appear.** The purchase with one session booked is out - the finding is the run that never started, not "has sessions left", which is true of nearly every active purchase and would count almost all of them. The hour-old one is out, because a purchase on its way to the scheduler is the normal case and a row that is on every time anybody buys anything is a row nobody reads. The abandoned checkout is out - it is not a purchase, and ringing them means ringing somebody who never bought anything. The refunded one is out - it is a decision somebody already made.
+**The cash half is the sharp one:** a cash-on-visit purchase sits at `unpaid` for its **whole life** by design, so a check written on payment status alone drops every one of them and reports a clean screen.
+
+#### `FIN-SCHED-002` - "Nothing booked yet" is not "has sessions left" · P1
+
+**Steps.** On **Catalog → Purchases**, tick **Has unscheduled sessions**, read the count, then untick it and tick **Nothing booked yet**.
+**Expected Result.** Two different lists, and the second is a subset of the first. The first is nearly every active purchase; the second is only those with no session ever completed and none currently scheduled. Two controls that looked alike and meant the same thing would be worse than one.
+
 #### `FIN-REF-012` - The All Sessions export carries no money to a desk that cannot see it · P1
 **Steps.** As **Operations**, then as **Clinical**, open **Sessions → All Sessions** and export both CSV and PDF. Repeat as **Master Admin** and as **Finance**.
 **Expected Result.** The limited desks' files contain **no** `Amount (INR)`, `Refund` or `Refunded on` column at all - not a blank one. Those three never render in this table on screen, so a desk that cannot read them there must not be able to download them; every other column is present and the row count is identical. Master Admin and Finance get all three.

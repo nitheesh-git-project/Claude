@@ -1,6 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  isAwaitingFirstBooking,
+  type SchedulablePurchase,
+} from "@/lib/unscheduledPurchases";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import type { CsvColumn } from "@/lib/csvExport";
 import DataExportButtons from "@/components/admin/DataExportButtons";
@@ -37,6 +42,26 @@ const STATUS_OPTIONS = ["active", "completed", "expired", "refunded", "cancelled
 const EXPIRING_WINDOW_DAYS = 30;
 
 // The home-visit twin of PackagePurchasesTable.
+
+/** The two tables' own row shape, as the shared judgement reads it. */
+function toSchedulable(p: {
+  status: string;
+  paymentStatus: string;
+  paymentMode: string;
+  completedCount: number;
+  scheduledCount: number;
+  createdAt: string;
+}): SchedulablePurchase {
+  return {
+    status: p.status,
+    paymentStatus: p.paymentStatus,
+    paymentMode: p.paymentMode,
+    completedCount: p.completedCount,
+    scheduledCount: p.scheduledCount,
+    createdAt: p.createdAt,
+  };
+}
+
 export default function HomeVisitPurchasesTable({
   purchases,
   packages,
@@ -50,14 +75,41 @@ export default function HomeVisitPurchasesTable({
   // button when the viewer's scope cannot open Money. See that component.
   canSeeMoney: boolean;
 }) {
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [packageId, setPackageId] = useState("");
   const [status, setStatus] = useState("");
   const [therapistId, setTherapistId] = useState("");
   const [expiringSoonOnly, setExpiringSoonOnly] = useState(false);
   const [unscheduledOnly, setUnscheduledOnly] = useState(false);
+  // Distinct from the checkbox above it, and the difference is the point:
+  // "has sessions left to book" is true of nearly every active purchase by
+  // definition, while "nothing booked yet" is the run that never started --
+  // the one state where the clinic has taken a decision and delivered
+  // nothing. See src/lib/unscheduledPurchases.ts.
+  const [nothingBookedOnly, setNothingBookedOnly] = useState(false);
   const [openPurchaseId, setOpenPurchaseId] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
+
+  // The `?view=` preset, applied **during render** rather than in an effect:
+  // every admin screen is mounted at once behind `hidden`, so there is no
+  // mount to hang it on when an admin already on the dashboard taps a count,
+  // and an effect would paint the unfiltered table first. It clears the
+  // screen's other filters, because a remembered package or status would
+  // hide rows the count included -- the same "the list agrees with the
+  // number" rule the count itself follows.
+  const viewParam = searchParams.get("view");
+  const [appliedView, setAppliedView] = useState<string | null>(null);
+  if (viewParam !== appliedView) {
+    setAppliedView(viewParam);
+      setPackageId("");
+      setStatus("");
+      setTherapistId("");
+      setExpiringSoonOnly(false);
+      setUnscheduledOnly(false);
+      setSearch("");
+      setNothingBookedOnly(viewParam === "unscheduled");
+  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -66,6 +118,7 @@ export default function HomeVisitPurchasesTable({
       if (status && p.status !== status) return false;
       if (therapistId && p.therapistId !== therapistId) return false;
       if (unscheduledOnly && p.pendingCount <= 0) return false;
+      if (nothingBookedOnly && !isAwaitingFirstBooking(toSchedulable(p), now)) return false;
       if (expiringSoonOnly) {
         const days = daysUntilHomeVisitExpiry(p.expiresAt, now);
         if (days === null || days > EXPIRING_WINDOW_DAYS || p.status !== "active") return false;
@@ -76,7 +129,7 @@ export default function HomeVisitPurchasesTable({
       }
       return true;
     });
-  }, [purchases, packageId, status, therapistId, expiringSoonOnly, unscheduledOnly, search, now]);
+  }, [purchases, packageId, status, therapistId, expiringSoonOnly, unscheduledOnly, nothingBookedOnly, search, now]);
 
   const { rows: pageRows, pager } = usePagedList(filtered, { storageKey: "admin-home-visit-purchases" });
 
@@ -130,6 +183,15 @@ export default function HomeVisitPurchasesTable({
         <label className="flex items-center gap-1.5 text-xs text-slate-600 pb-2">
           <input type="checkbox" checked={unscheduledOnly} onChange={(e) => setUnscheduledOnly(e.target.checked)} className="accent-teal-600" />
           Has unscheduled visits
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 pb-2">
+          <input
+            type="checkbox"
+            checked={nothingBookedOnly}
+            onChange={(e) => setNothingBookedOnly(e.target.checked)}
+            className="accent-teal-600"
+          />
+          Nothing booked yet
         </label>
         <DataExportButtons
           filename="home-visit-package-purchases"

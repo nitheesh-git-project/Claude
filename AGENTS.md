@@ -451,6 +451,7 @@ src/lib/formatDateTime.ts every date the app renders, pinned to clinic time
 src/lib/refundState.ts   how a refund reads, wherever a session is shown
 src/lib/refundAttempt.ts what a refund was asked to do, written before it is
 src/lib/refundHealthServer.ts whether every refund sent has a recorded answer
+src/lib/unscheduledPurchases.ts a purchase nobody has booked anything against
 src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
 src/lib/catalogFeatured.ts which few of the catalogue a public page leads with
 src/lib/marketingNav.ts  the eight public pages + their one-line purposes
@@ -4242,6 +4243,34 @@ before.
   admin home's actions: a zero row is dropped, an item whose section this
   scope cannot open is dropped rather than linked into `findTab`'s fallback,
   and every item links to the rows it counted.
+  **The strip is work waiting on somebody; System Health is records
+  disagreeing.** Two different questions, so they stay two places rather than
+  being gathered into a third screen -- a new page listing what both already
+  list is a third answer to "is anything wrong", and the first time the three
+  disagree the new one is the one nobody trusts. A new finding goes on
+  whichever of the two it actually is.
+  **A purchase with nothing booked against it is on the strip**, because it
+  is a phone call rather than a disagreement. `src/lib/unscheduledPurchases.ts`
+  is that judgement, dependency-free and unit-tested since it decides who gets
+  rung: still `active`, money **committed** (paid, or a home visit agreed at
+  the door -- a cash purchase is `unpaid` for its whole life by design, so
+  judging on payment status alone drops every one of them silently), nothing
+  booked **ever** rather than "has sessions left" (almost every active
+  purchase has sessions left, so that row would count nearly all of them),
+  and past a 24-hour grace window so a purchase on its way to the scheduler
+  is not a fault seconds after it is made. An unreadable `created_at` is not
+  treated as old: inventing an age would put somebody on a call list because
+  of a timestamp nobody could read. It is **not urgent** -- nothing has gone
+  wrong and nobody is out of pocket, which is the opposite of every other row
+  there. It links into **Catalog -> Purchases** with `view=unscheduled`,
+  since the section is chosen by where the work is done and not by which
+  strip the row sits on; the *Nothing booked yet* filter it applies is
+  deliberately distinct from the *Has unscheduled sessions* checkbox beside
+  it. The patient was never stranded -- the balance is on their Programmes
+  screen and unbooked sessions are pinned on their dashboard -- and that is
+  the failure: every mechanism pointed at the patient, so a purchase made by
+  somebody who paid and was then distracted waited on exactly the person who
+  had already stopped.
   **A figure appears once per screen.** Summary printed Net revenue twice,
   Clinic share three times and Operating profit twice, because its strip
   repeated the chain below it. The strip is the answers now (net revenue,

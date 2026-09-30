@@ -654,6 +654,25 @@ is stated, never divided into -- and working capital counts sessions patients
 have paid for and not had as the liability it is. See the Business Health
 rule in `AGENTS.md`.
 
+**And a purchase nobody ever booked anything against is a phone call.** The
+one state where the clinic had taken a decision from a patient and delivered
+nothing at all had no row anywhere: the balance was on their Programmes
+screen and unbooked sessions were pinned to their own dashboard, so every
+mechanism pointed at the patient -- who is exactly the person who had already
+stopped. `src/lib/unscheduledPurchases.ts` is the judgement, dependency-free
+because it decides who gets rung: still active, money **committed** (paid, or
+a home visit agreed at the door, since a cash purchase is `unpaid` for its
+whole life by design), nothing booked **ever** rather than "has sessions
+left", and past a 24-hour grace window so a purchase on its way to the
+scheduler is not a fault seconds after it is made. It sits on Money's alert
+strip as *Paid programmes with nothing booked*, deliberately **not** urgent
+-- nothing has gone wrong and nobody is out of pocket -- and links into
+Catalog -> Purchases with a *Nothing booked yet* filter, which is a different
+question from the *Has unscheduled sessions* checkbox beside it. That strip
+is work waiting on somebody and System Health is records disagreeing; a new
+finding goes on whichever it actually is, and never on a third screen that
+would be a third answer to "is anything wrong".
+
 Four acquisition discounts exist and no more (`src/lib/discounts.ts`,
 `promoCodes.ts`, `inviteRewards.ts`), recorded as five sources because an
 invite has two halves: a standing **first-session offer**, whose eligibility

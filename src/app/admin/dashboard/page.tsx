@@ -188,6 +188,7 @@ import {
 } from "@/lib/tempPassword";
 import { readReferralAttributionHealth } from "@/lib/referralAttribution";
 import { readRefundHealth } from "@/lib/refundHealthServer";
+import { countAwaitingFirstBooking } from "@/lib/unscheduledPurchases";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | MoveRestore",
@@ -2981,6 +2982,18 @@ export default async function AdminDashboardPage({
     };
   });
 
+  // Purchases somebody paid for, or agreed at the door, and never booked a
+  // single appointment against. The one state where the clinic has taken a
+  // decision from a patient and delivered nothing at all -- and until this,
+  // every mechanism pointing at it pointed at the *patient*: the balance on
+  // their Programmes screen, an unbooked-sessions item pinned to their own
+  // dashboard. Which is the failure, since the patient is exactly who has
+  // already stopped. Both kinds are counted together, because the work is
+  // one phone call either way.
+  const purchasesUnscheduled =
+    countAwaitingFirstBooking(packagePurchaseRows, nowTimestamp()) +
+    countAwaitingFirstBooking(homeVisitPurchaseRows, nowTimestamp());
+
   const catalogPurchasesTab = (
     <div className="space-y-8">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -4381,6 +4394,7 @@ export default async function AdminDashboardPage({
             nowTimestamp()
           ).length,
           settlementsWaiting: payLaterSettlementRows?.length ?? 0,
+        purchasesUnscheduled,
           oldestSettlementWaitDays: settlementWaitDays(
             // Arrives oldest first from the server, so the first row is the
             // one that has waited longest.

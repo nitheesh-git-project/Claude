@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **68 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **72 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **50 open**, each with an assessment. Roughly half are one architectural
+- **46 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -409,18 +409,51 @@ still gets a sentence rather than a constraint error.
 **Writing the test caught a real bug in my own trigger before it shipped**:
 `FOR UPDATE` cannot be combined with an aggregate.
 
-### 25. Paid home-visit purchase can exist without a scheduled visit — **Open**
+### 25. Paid home-visit purchase can exist without a scheduled visit — **Fixed**
 
-Real. A paid purchase whose first booking fails sits `active` with no visit
-and nothing looks for it.
+Real, and it covers programmes as well as home visits, so this closes items
+58 and 59 with it. A purchase whose first booking never happens sits `active`
+with nothing against it and nothing at the clinic looks for it.
 
-**Why not fixed.** An explicit `paid_unscheduled` state plus a reconciliation
-queue is item 58, 59 and 128 — one operational-queues piece. Building the
-state without the queue means a status nothing reads.
+**What I built, and what I did not.** Not the proposed `paid_unscheduled`
+status. A state column would have to be written by every booking path and
+unwritten by every cancellation, it can drift from the appointments that are
+the actual truth, and it answers a question those rows already answer. The
+finding is *derived* instead — `src/lib/unscheduledPurchases.ts`,
+dependency-free and unit-tested, because which patient gets a phone call is a
+judgement rather than a query.
 
-**Meanwhile** the patient is not stranded: the balance shows on their
-Programmes screen and unbooked sessions are a pinned `needsYou` item until the
-balance is spent.
+Four conditions, each excluding a case that is not this one: still `active`
+(a refund, cancellation or expiry is a decision somebody already made); money
+**committed** — paid, or a home visit agreed at the door, since a cash
+purchase sits at `unpaid` for its whole life by design and judging on payment
+status alone would drop every one of them silently, which is item 59; nothing
+booked **ever**, not "has sessions left", because almost every active
+purchase has sessions left by definition and a row counting those counts
+nearly every purchase the clinic has made; and past a 24-hour grace window,
+so a purchase on its way to the scheduler is not reported as a fault seconds
+after it is made. An unreadable `created_at` is *not* treated as old — a row
+this cannot date is one it cannot judge, and inventing an age would put
+somebody on a call list because of a timestamp nobody could read.
+
+**Where it surfaces.** *Paid programmes with nothing booked* on Money's alert
+strip, linking to Catalog → Purchases with a **Nothing booked yet** filter
+applied — the section chosen by where the work is done, never by which strip
+the row sits on, the same rule a failed session refund follows into Sessions.
+It is deliberately **not urgent**: nothing has gone wrong and nobody is out
+of pocket, it is a patient who needs a phone call, which is the opposite of
+every other row on that strip.
+
+That new filter is distinct from the *Has unscheduled sessions* checkbox
+beside it, and the difference is the whole point — one is true of nearly
+every active purchase, the other is the run that never started.
+
+**Why this is the right place.** The patient was never stranded: the balance
+is on their Programmes screen and unbooked sessions are a pinned `needsYou`
+item on their dashboard. That *is* the failure. Every mechanism pointed at
+the patient, so a purchase made by somebody who paid and was then distracted
+waited on exactly the person who had already stopped, with nobody at the
+clinic able to see it.
 
 ---
 
@@ -698,9 +731,13 @@ a warning back with their success. Nothing is refused and nothing is rolled
 back — the position is still where it was, which is the correct outcome; it is
 now also a stated one.
 
-### 58, 59. Paid / cash home-visit purchase with no scheduled visit — **Open**
+### 58, 59. Paid / cash home-visit purchase with no scheduled visit — **Fixed**
 
-Same piece as item 25 and the operational queues (128).
+Closed by item 25, which covers programmes and home visits together because
+the work is one phone call either way. 59 is the half that needed saying out
+loud: a cash-on-visit purchase is `unpaid` for its whole life by design, so a
+check written on payment status would have dropped every one of them and
+reported a clean screen.
 
 ### 60. Home-visit package continuation after service-area changes — **Open — your decision**
 
@@ -1282,10 +1319,28 @@ rather than a task.
 Waits on item 64/69 — I need your list of prerequisites before writing the
 check that enforces it.
 
-### 128. Admin reconciliation queues centralized — **Open**
+### 128. Admin reconciliation queues centralized — **Fixed — different approach**
 
-The cheapest remaining item. The data exists (item 101); this is one screen
-gathering what two places currently hold.
+You asked for one screen gathering what two places hold. I did **not** build
+a third screen, and that is the fix rather than a shortfall: a new page
+listing what the Money alert strip and System Health already list is a third
+answer to "is anything wrong", and the first time the three disagree the new
+one is the one nobody trusts.
+
+What the product already has is a clean division that was worth keeping: the
+**Money alert strip** is work waiting on somebody — a payout to review, cash
+to collect, a refund to hand back, a patient to ring — and **System Health**
+is the clinic's records disagreeing with each other. Those are different
+questions with different answers, and each already follows the same two
+rules: a count links to the rows it counted, and a row whose screen this
+scope cannot open is dropped rather than rendered.
+
+What was actually missing was a **queue**, not a screen: the one state where
+the clinic had taken a decision and delivered nothing had no row anywhere.
+That is item 25 above, and it went on the strip where the rest of the work
+is. The last unreconciled money movement went on System Health as the
+Refunds check (items 6, 7, 94, 95). Both places are now complete rather than
+duplicated.
 
 ### 129, 130, 131. Immutable event ids, source/source_id, external reconciliation states — **Partly fixed / Open**
 
