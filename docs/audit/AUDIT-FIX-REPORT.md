@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **62 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **64 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **56 open**, each with an assessment. Roughly half are one architectural
+- **54 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it.
 
@@ -531,11 +531,30 @@ home-visit switch, and counts against its own limit. The policy and the insert
 grant are dropped — the same move `appointments_insert_own` and the
 `b2b_leads` public insert already got.
 
-### 46. Hospital onboarding is not fully atomic — **Open**
+### 46. Hospital onboarding is not fully atomic — **Fixed — different approach**
 
-Real: GoTrue user, profile, notes row and referral code are separate writes.
-Partial provisioning leaves an unusable partner account. Needs an onboarding
-state machine; related to item 79.
+Real, and the consequence is sharper than "partial provisioning": GoTrue
+creates the user, `handle_new_user` gives it a **patient** profile (the trigger
+ignores a `hospital` role from metadata by design), and the profile update is
+what promotes it. So a failure there left an unusable patient account sitting
+on the partner's email address — and the next attempt failed with "already
+registered", with nothing on screen saying why or what to do about it. A dead
+end rather than an error.
+
+**Fixed by releasing rather than by a state machine.** The account is seconds
+old with nothing pointing at it — the "no history at all" case
+`delete-account` is deliberately narrow for — so the honest recovery is to
+delete it and let the admin retry. If the delete *also* fails the response says
+so specifically, because then somebody does have to remove it by hand before
+that email can be used.
+
+**The same gap was in `create-account`** and is fixed identically. A state
+machine would be the answer if the sequence were long or resumable; it is three
+writes and the first is cheap to undo.
+
+Note the notes row deliberately stays best-effort after this point: an account
+that exists with an unreadable password is recoverable by a reset, where
+failing the whole onboarding over a note row is not.
 
 ### 47. Hospital referral statuses inconsistent across screens — **Fixed**
 
@@ -960,9 +979,23 @@ Sessions paints at most 200 rows, the activity log is capped at 200 and pages
 by **cursor**, and the ~82 queries per render were measured at 1.2s against a
 5.4s total that turned out to be sequential `await`s, since fixed.
 
-What remains: several reads are still unbounded (`.limit(500)` or none), and
-server-side aggregation would be the real fix. Not urgent at this clinic's
-volume; genuinely needed before growth.
+What remains: **18 reads on the biggest tables are unbounded** — `appointments`
+and `profiles` mostly — so at volume this page loads every appointment and
+every account ever created.
+
+**There is a trap in fixing it, and whoever picks this up needs to know.** Do
+not simply add `.limit()` to these. Several of them feed the Money figures,
+which sum over every row in the range: a silent cap would make those figures
+**wrong rather than slow**, and wrong in a direction nobody would notice —
+revenue quietly understated by however many rows fell off the end. That is
+strictly worse than a slow page.
+
+The real fix is server-side aggregation: compute the money figures in SQL and
+return totals rather than rows, which also removes the need for the cap. That
+is a change to the most sensitive code in the app and wants its own pass with
+`adminMetrics.test.ts` extended to assert the SQL and the TypeScript agree on
+the same dataset. Not urgent at this clinic's volume; genuinely needed before
+growth, and not something to do halfway.
 
 ### 103. Reporting queries need indexes — **Fixed**
 

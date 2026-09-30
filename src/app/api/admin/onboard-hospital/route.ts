@@ -81,7 +81,39 @@ export async function POST(request: NextRequest) {
     .eq("id", created.user.id);
 
   if (updateError) {
-    return serverError("admin/onboard-hospital", updateError);
+    // Release the account so the onboarding can be retried.
+    //
+    // Without this the failure is a dead end rather than an error: GoTrue has
+    // created the user, `handle_new_user` has given it a **patient** profile
+    // (the trigger deliberately ignores a `hospital` role from metadata), and
+    // this update is what promotes it. So a failure here leaves an unusable
+    // patient account sitting on the partner's email address -- and the next
+    // attempt fails with "already registered", with nothing on screen saying
+    // why or what to do about it.
+    //
+    // Safe to delete: the account is seconds old and nothing can point at it
+    // yet. This is exactly the "no history at all" case `delete-account` is
+    // narrow for, which is why it needs none of that route's blocker counting.
+    const { error: cleanupError } = await admin.auth.admin.deleteUser(created.user.id);
+    if (cleanupError) {
+      // Now it genuinely is stuck, and saying so is better than a generic
+      // 500: somebody has to remove that account by hand before the email can
+      // be used again.
+      console.error(
+        "Could not release a half-provisioned partner account",
+        created.user.id,
+        cleanupError
+      );
+      return serverError("admin/onboard-hospital (stranded)", updateError, {
+        message:
+          "The partner account was created but could not be set up, and could not be removed either. That email cannot be onboarded again until the account is deleted - please pass this reference on.",
+      });
+    }
+
+    return serverError("admin/onboard-hospital", updateError, {
+      message:
+        "The partner could not be set up, so nothing has been created. Please try again.",
+    });
   }
 
   if (leadId) {
