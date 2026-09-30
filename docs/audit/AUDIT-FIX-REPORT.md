@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **90 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **91 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **28 open**, each with an assessment. Roughly half are one architectural
+- **27 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -683,16 +683,24 @@ Canonical-ledger piece. Note that `mark-paid-by-cash` deliberately writes no
 inventing them would put a fiction in the one place the books reconcile from.
 Any fix has to answer that first.
 
-### 41. Credit ledger and legacy `sessions_used` can diverge — **Open — your decision**
+### 41. Credit ledger and legacy `sessions_used` can diverge — **Ready for you — one switch, and the precondition is met**
 
 The mechanism to converge them already exists and is **off**:
 `entitlement_ledger_authoritative` on Settings → Advanced. Both are written
 either way, and `verify_entitlement_balances()` reports disagreement.
 
 Flipping it is a data-migration cutover, which is why it is a switch and not a
-deploy — and it is not mine to flip on a database I cannot reconcile against
-your real history. The honest sequence: confirm **Books & Sessions Agree** is
-green, flip it, watch, and delete the counter writes as a separate change.
+deploy — and it is still not mine to flip on your production data. What *was*
+mine is the precondition, and I have done it: **`verify_entitlement_balances()`
+returns zero rows** on the live project as of this branch. The cache, the
+ledger and the legacy counter agree on every entitlement, which is the one
+thing that has to be true before the flip is safe.
+
+So the remaining sequence is three steps and the first is already green:
+confirm **Settings → System Health → Books & Sessions Agree** still reads
+healthy, flip the switch, watch it. Deleting the counter writes is a separate
+change with its own risk and should not ride along. The switch is reversible in
+a second precisely so this does not need a deploy to undo.
 
 ### 42. Discount precedence is not formally defined — **Fixed — different approach**
 
@@ -1483,11 +1491,26 @@ about cost.
   survives a reassignment, and the future session that moved away and leaves
   nothing — with `scripts/clinical-access-sql-checks.sql` guarding the policy
   shape and its own negative control beside it.
-- **108** is partly done: `clinicWeek.test.ts` covers midnight, Sunday/Monday,
-  the year boundary and IST-vs-UTC; `formatDateTime.test.ts` already walks
-  every `toLocale*String` in `src/` for a missing zone; `playwright.config.ts`
-  pins `TZ`. DST is genuinely untested and India has none, so the gap is real
-  only if the clinic ever operates outside IST.
+- **108** is done. `clinicWeek.test.ts` covers midnight, Sunday/Monday, the
+  year boundary and IST-vs-UTC; `formatDateTime.test.ts` walks every
+  `toLocale*String` in `src/` for a missing zone; `playwright.config.ts` pins
+  `TZ`. DST was the one genuinely untested case, and I left it on the grounds
+  that **India has none** — which is true, and was an assumption nothing was
+  holding.
+
+  Writing DST cases for a zone that has none asserts nothing, so
+  `clinicTimezoneDst.test.ts` guards the **premise** instead: it samples the
+  clinic zone's offset month by month and fails the moment that constant
+  points at a zone that shifts. This codebase is full of arithmetic that is
+  only safe because every day in `Asia/Kolkata` is 24 hours long — the
+  whole-hour slot rule judged in the booking's own zone, the Monday-start week,
+  the same-day home-visit test, the lead time in hours, every window in days.
+  Point `CLINIC_TIMEZONE` somewhere with DST and two of those break twice a
+  year, silently, on the days a patient is most likely to arrive an hour early,
+  and nothing would fail. Now something does, and it names what has to be fixed
+  first. Its negative control lives in the file rather than having been run
+  once by hand, since without it the guard passes just as well on a broken
+  offset reader.
 
 ### 109. Concurrency scenarios lack coverage — **Fixed, with a caveat I want you to read**
 
