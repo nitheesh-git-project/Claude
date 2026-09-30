@@ -144,17 +144,56 @@ export async function POST(request: NextRequest) {
         { onConflict: "patient_id" }
       );
     if (profileError) {
-      return serverError("admin/condition-requests/decide", profileError);
+      // Put the request back to pending.
+      //
+      // The review was claimed first (which is right -- it is what stops two
+      // admins both running the side effects), but that left a failure here
+      // in the worst possible state: the request reads *approved*, the
+      // patient's record was never updated, and the compare-and-swap above
+      // means nobody can ever approve it again. The submission would sit
+      // looking dealt with, for ever, with the patient's answers not applied.
+      //
+      // Same posture as the care-plan review and the risk-signal review: when
+      // the thing that makes a decision real cannot be written, the decision
+      // is un-made rather than left standing.
+      await admin
+        .from("condition_change_requests")
+        .update({ status: "pending", reviewed_by: null, reviewed_at: null, admin_notes: null })
+        .eq("id", requestId)
+        // Only while it is still the approval this request wrote.
+        .eq("status", "approved");
+
+      return serverError("admin/condition-requests/decide", profileError, {
+        message:
+          "The patient's record could not be updated, so nothing has been changed. Please try again.",
+      });
     }
   } else {
     // Declining leaves the profile's own status where it was before this
     // submission (active if there was already approved data, not_started
     // otherwise) rather than stuck on pending_review forever.
     const fallbackStatus = profile.specialtyChosen ? "active" : "not_started";
-    await admin
+    const { error: statusError } = await admin
       .from("patient_condition_profiles")
       .update({ status: fallbackStatus })
       .eq("patient_id", changeRequest.patient_id);
+    if (statusError) {
+      // The same reasoning as the approve branch. Left standing, the request
+      // reads declined while the profile stays on `pending_review` -- so the
+      // patient is locked out of their own record by a submission that has
+      // already been turned down, and the compare-and-swap means it cannot
+      // be declined again to clear it.
+      await admin
+        .from("condition_change_requests")
+        .update({ status: "pending", reviewed_by: null, reviewed_at: null, admin_notes: null })
+        .eq("id", requestId)
+        .eq("status", "declined");
+
+      return serverError("admin/condition-requests/decide", statusError, {
+        message:
+          "That could not be recorded, so nothing has been changed. Please try again.",
+      });
+    }
   }
 
   // Who changed this, and to what. Best-effort and after the write,
