@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **57 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **62 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **61 open**, each with an assessment. Roughly half are one architectural
+- **56 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it.
 
@@ -286,22 +286,36 @@ is the wrong trade.
 
 `src/lib/referralAttribution.ts`, `src/lib/systemHealth.ts`, +5 tests
 
-### 17, 18, 19. Health-profile and condition-access approval are not atomic — **Open**
+### 17, 18, 19. Health-profile and condition-access approval are not atomic — **Fixed**
 
-All three verified real: status, profile state and the audit/history row are
-separate writes, so a failure between them leaves a request approved with no
-record, or a record with no state change.
+All three verified real, and worse than "not atomic" suggests. Each claimed
+the decision first — which is right, it is what stops two admins both running
+the side effects — and then did the thing that makes the decision *real* as a
+separate write. Because the claim is a compare-and-swap, a failure left a
+state nobody could clear:
 
-**Why not fixed.** Each needs a `security definer` function taking the whole
-transaction, and these are the routes where the *clinical* record is written —
-the one area where I was least willing to restructure write ordering overnight
-without a clinician-facing test plan. The pattern to follow is
-`save_therapist_weekly_schedule`; the work is three functions and their
-checks.
+- **Approving a submission (17, 19):** the request read *approved*, the
+  patient's answers were never applied, and the CAS meant it could never be
+  approved again. The submission sat looking dealt with, for ever.
+- **Declining one:** the request read declined while the profile stayed on
+  `pending_review`, so the patient was locked out of their own record by a
+  submission that had already been turned down.
+- **Condition access (18)** — the sharpest of the three. The auto-revoke of
+  other therapists' grants had its error **unchecked**, and that write is what
+  makes the approval *exclusive*. A failure left two therapists both holding
+  approved write access to the same patient's health profile — precisely the
+  invariant that code's own comment says it protects — and the admin was told
+  it had worked.
 
-**Partly mitigated:** item 74's sibling problem (the onboarding path) is
-already compare-and-swapped and writes exactly one history row, and
-`isSameIntakeSubmission` makes an identical resubmission a true no-op.
+All three revert their claim and report honestly now, the same posture the
+care-plan review and the risk-signal review already take. An approval that did
+not achieve exclusivity is worse than no approval, because nothing on any
+screen would say which of the two therapists is meant to be editing.
+
+**Chosen over a `security definer` function per route**, which was the obvious
+alternative: the revert pattern is already established in this codebase, it is
+what the next reader would expect to find here, and it needs no schema change
+to the tables a clinician's work lands in.
 
 ### 20. Suspended patients can modify health-profile drafts — **Fixed**
 
@@ -591,12 +605,24 @@ better place. A rate is a term of the agreement in force on the day the work
 was done, and a programme spans months during which a renegotiation should
 apply to sessions delivered after it.
 
-### 57. Catalogue writes are not fully atomic — **Open**
+### 57. Catalogue writes are not fully atomic — **Fixed — different approach**
 
 `writeSpecialty`, `writeCatalogFocal` and `writeCatalogFeatured` are separate
-calls after the main upsert. Low blast radius — a failure leaves a category
-with a stale focal point, not a money or clinical error — which is why it sits
-below the others.
+calls after the main upsert, and that is **deliberate**: they write the newest
+columns on those tables, so folding them in would make a database one apply
+behind refuse the *entire* edit — price, title, everything — rather than losing
+one optional position. Making them transactional, as proposed, reintroduces
+exactly the failure that shape exists to avoid.
+
+The real gap is that the failure was **silent**: an admin drags a cover's focal
+point, is told the catalogue saved, and the picture does not move. That is the
+"never tell somebody they did something they did not do" rule, on the one part
+of this save a person can see.
+
+`writeCatalogFocal` returns whether it wrote, and all six catalogue routes pass
+a warning back with their success. Nothing is refused and nothing is rolled
+back — the position is still where it was, which is the correct outcome; it is
+now also a stated one.
 
 ### 58, 59. Paid / cash home-visit purchase with no scheduled visit — **Open**
 
@@ -715,10 +741,19 @@ to revert. The genuinely transactional cases are already handled and are a
 different rule — `care_plan_reviews` and `contact_reveal_log` revert the
 action, because there it is reversible.
 
-### 73. Admin direct health-profile editing lacks required-field validation — **Open**
+### 73. Admin direct health-profile editing lacks required-field validation — **Fixed**
 
-Verified. `condition-requests/direct-edit` does not apply the required-field
-check the patient's own submit path does. Part of the 17/18/19 cluster.
+Verified: the patient's submit path re-checks required fields against the live
+question bank; the admin's direct edit did not — and it writes
+`status: "active"`. That status is what unlocks the patient's view of their own
+record and what every summary figure, snapshot strip and progress line reads
+as "this is filled in", so a half-finished admin edit made the record assert a
+completeness it did not have, on the patient's own screen with their name on
+it.
+
+Same check now, re-read server-side. An admin who genuinely only has part of
+the answer is not blocked from helping — the honest route for that is the
+patient or their therapist filling it, which is whose record it is.
 
 ### 74. Therapist clinical write and audit event are not atomic — **Partly fixed**
 

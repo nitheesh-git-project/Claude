@@ -48,7 +48,11 @@ export async function POST(request: NextRequest) {
   // action is read from.
   // Its own call, per the migration-dependent-column rule: a database
   // without these columns loses the cover position, never the whole save.
-  await writeCatalogFocal(admin, "treatment_category_packages", id, body.imageFocalX, body.imageFocalY);
+  // Its own isolated write, so a database one migration behind loses the
+  // position rather than refusing the whole edit -- and reported rather than
+  // swallowed, because an admin who drags a focal point and is told the save
+  // worked will not look again.
+  const focalSaved = await writeCatalogFocal(admin, "treatment_category_packages", id, body.imageFocalX, body.imageFocalY);
 
   await recordAdminActivity(admin, adminUser.id, {
     action: "catalog.update",
@@ -56,5 +60,13 @@ export async function POST(request: NextRequest) {
     targetLabel: "Session package",
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    ...(focalSaved
+      ? {}
+      : {
+          warning:
+            "Saved, but the cover's position could not be written - it is still centred.",
+        }),
+  });
 }
