@@ -13194,3 +13194,30 @@ $$;
 revoke all on function public.purge_expired_temp_passwords(integer) from public;
 revoke all on function public.purge_expired_temp_passwords(integer) from anon;
 revoke all on function public.purge_expired_temp_passwords(integer) from authenticated;
+
+-- =============================================================================
+-- Audit fixes: indexes for the queries the audit pass introduced.
+-- =============================================================================
+-- Added for specific readers rather than speculatively -- the appointments
+-- side of this was already covered, and pleasingly so: the conflict test
+-- inside `claim_therapist_slot` filters on exactly
+-- `(therapist_id, slot_time) where status <> 'cancelled'`, which is what
+-- `appointments_one_therapist_per_slot` already is. The two gaps below are
+-- both on `patient_referrals`, which had indexes on `hospital_id` and
+-- `status` and nothing on either column these queries filter by.
+
+-- `claim_therapist_slot` and `claim_therapist_referral_slot` both check
+-- whether a referral is already holding this therapist's hour. Partial,
+-- because only `invite_sent` referrals hold a slot at all -- every other
+-- status is dead weight in the index.
+create index if not exists patient_referrals_held_slot_idx
+  on patient_referrals (assigned_therapist_id, assigned_slot_time)
+  where status = 'invite_sent'
+    and assigned_therapist_id is not null
+    and assigned_slot_time is not null;
+
+-- `readReferralAttributionHealth` compares a converted referral against the
+-- patient it became, to find partners who would silently earn nothing.
+create index if not exists patient_referrals_converted_patient_idx
+  on patient_referrals (converted_patient_id)
+  where converted_patient_id is not null;

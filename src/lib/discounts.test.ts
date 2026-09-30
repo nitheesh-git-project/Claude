@@ -10,6 +10,7 @@ import {
   applyConfiguredAmountOff,
   isGatewayPayable,
   DISCOUNT_SOURCES,
+  DISCOUNT_PRECEDENCE,
   type FirstSessionOffer,
   type DiscountSource,
   type DiscountOutcome,
@@ -346,5 +347,101 @@ describe("describeDiscount", () => {
     for (const source of DISCOUNT_SOURCES) {
       expect(describeDiscount(source, 20000)).toContain("₹200 off");
     }
+  });
+});
+
+/**
+ * Precedence on an exact tie.
+ *
+ * "The largest discount applies, and a tie goes to the most deliberate
+ * decision" -- and the second half used to be carried by the order a caller
+ * passed its candidates in, so a caller that listed them differently changed
+ * which rule a patient's money came off, silently.
+ */
+describe("discount precedence on a tie", () => {
+  const LIST = 120000;
+  const OFFER_OFF: FirstSessionOffer = { enabled: false, type: "flat", value: 0 };
+
+  function candidate(source: DiscountSource, discountPaise: number): DiscountOutcome {
+    return {
+      listPricePaise: LIST,
+      discountPaise,
+      payablePaise: LIST - discountPaise,
+      source,
+    };
+  }
+
+  it("prefers goodwill over a promo code of the same size", () => {
+    const out = resolveDiscount({
+      listPricePaise: LIST,
+      offer: OFFER_OFF,
+      offerEligible: false,
+      goodwillPaise: 20000,
+      candidates: [candidate("promo_code", 20000)],
+    });
+    expect(out.source).toBe("goodwill");
+  });
+
+  it("prefers a promo code over an invite half of the same size", () => {
+    const out = resolveDiscount({
+      listPricePaise: LIST,
+      offer: OFFER_OFF,
+      offerEligible: false,
+      goodwillPaise: null,
+      candidates: [candidate("invite_welcome", 15000), candidate("promo_code", 15000)],
+    });
+    expect(out.source).toBe("promo_code");
+  });
+
+  it("prefers an earned reward over a welcome of the same size", () => {
+    const out = resolveDiscount({
+      listPricePaise: LIST,
+      offer: OFFER_OFF,
+      offerEligible: false,
+      goodwillPaise: null,
+      candidates: [candidate("invite_welcome", 10000), candidate("invite_reward", 10000)],
+    });
+    expect(out.source).toBe("invite_reward");
+  });
+
+  it("does not depend on the order the caller listed them in", () => {
+    // The whole point. Both orders must give the same answer.
+    const args = {
+      listPricePaise: LIST,
+      offer: OFFER_OFF,
+      offerEligible: false,
+      goodwillPaise: null,
+    };
+    const a = resolveDiscount({
+      ...args,
+      candidates: [candidate("invite_welcome", 15000), candidate("promo_code", 15000)],
+    });
+    const b = resolveDiscount({
+      ...args,
+      candidates: [candidate("promo_code", 15000), candidate("invite_welcome", 15000)],
+    });
+    expect(a.source).toBe(b.source);
+    expect(a.source).toBe("promo_code");
+  });
+
+  it("still lets a larger discount beat a more deliberate smaller one", () => {
+    // Precedence breaks ties; it does not outrank the amount. The clinic
+    // agreed to every one of these prices, so charging a higher one because
+    // an admin tried to help would be perverse.
+    const out = resolveDiscount({
+      listPricePaise: LIST,
+      offer: OFFER_OFF,
+      offerEligible: false,
+      goodwillPaise: 5000,
+      candidates: [candidate("promo_code", 30000)],
+    });
+    expect(out.source).toBe("promo_code");
+    expect(out.discountPaise).toBe(30000);
+  });
+
+  it("gives every source a precedence, so none can tie ambiguously", () => {
+    const ranks = DISCOUNT_SOURCES.map((s) => DISCOUNT_PRECEDENCE[s]);
+    expect(ranks.every((r) => typeof r === "number")).toBe(true);
+    expect(new Set(ranks).size).toBe(DISCOUNT_SOURCES.length);
   });
 });
