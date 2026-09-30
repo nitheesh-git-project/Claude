@@ -461,7 +461,7 @@ src/lib/refundAttempt.ts what a refund was asked to do, written before it is
 src/lib/refundHealthServer.ts whether every refund sent has a recorded answer
 src/lib/unscheduledPurchases.ts a purchase nobody has booked anything against
 src/lib/therapistReadiness.ts what a therapist still needs before live patients
-src/lib/homeVisitAreaCommitments.ts paid visits an area still has to deliver
+src/lib/homeVisitAreaCommitments.ts paid visits still to deliver, per area and in all
 src/lib/clinicalAccess.ts who can read a patient's record, and why
 src/lib/storageReconciliation.ts patient files against the records describing them
 src/lib/catalogImage.ts  catalog covers: caps, paths, and where a subject sits
@@ -1946,6 +1946,24 @@ before.
   visits still to deliver in each area, the row states it, and Deactivate
   asks first and names the number. A count it could not read says so rather
   than showing zero -- on the one screen where a zero reads as permission.
+  **The master switch is the same shape one level wider, and
+  `/api/home-visit/verify` is why it must be.** That route deliberately does
+  **not** re-read `home_visit_enabled`: by the time it runs Razorpay has the
+  money, so refusing there takes a patient's payment and gives them nothing,
+  and the only honest refusal is a refund -- a decision a person takes per
+  purchase, not a check a route makes for them. (`create-order` and the
+  referral route both *do* check it, which is the whole difference: nothing
+  has moved yet.) So the switch gates what can be sold and nothing else, and
+  `readHomeVisitCommitmentTotal` is the sentence saying what it does not
+  cancel -- a separate read rather than a sum of the per-area map, because it
+  has to count a purchase whose address carries **no** area, which the map
+  must skip and which is exactly the purchase most likely to be forgotten.
+  Settings -> Programmes & Home Visits states it beside the switch and asks
+  before it goes off; the confirmation is on the **off** direction only, since
+  turning a service on takes nothing from anybody and a prompt there is the
+  dialog nobody reads. `describeHomeVisitCommitment` answers three ways rather
+  than two, and the confirm is awaited before the transition, per the deadlock
+  rule.
   A locked
   therapist's conflict check is padded by
   `home_visit_travel_buffer_minutes` on both sides of the new slot

@@ -383,7 +383,14 @@ before it was true by decision, which is the shape where the next reader
 about what it did not cancel: the row now states how many paid visits are
 still to deliver there (`src/lib/homeVisitAreaCommitments.ts`) and Deactivate
 asks first, naming the number. A count it could not read says so rather than
-reading zero, on the one screen where zero would be read as permission.
+reading zero, on the one screen where zero would be read as permission. The
+**master switch** works the same way one level wider, and
+`/api/home-visit/verify` is why: it deliberately does not re-read
+`home_visit_enabled`, because by then Razorpay has the money and refusing
+would take a patient's payment and give them nothing -- the honest refusal is
+a refund, which is a person's decision per purchase. So Settings -> Programmes
+& Home Visits names the paid visits still to deliver beside the switch and
+asks before it goes off, counting purchases whose address carries no area too.
 
 The health profile is **per specialty**: a condition profile carries
 `specialty` (`ortho`, `neuro`, `pediatrics`), and that decides its seven

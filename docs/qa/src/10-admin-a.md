@@ -687,6 +687,15 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 **What deactivating does change:** `/book-home-visit` stops accepting that pincode for anyone new, and every purchase route refuses it server-side.
 **Negative:** the count must not read **0** when it could not be worked out. Make the read fail and the row says *"We could not check what is still owed here just now."* - on this screen a zero reads as permission to close the area, which is exactly the wrong conclusion.
 
+#### `ADM-CAT-013` - Switching Home Visit off does not take it back either · P0
+
+**Feature.** The master switch is the same rule as `ADM-CAT-012` one level wider: it gates what can be **sold** and cancels nothing already bought. `/api/home-visit/verify` deliberately does **not** re-read the switch - by the time it runs the gateway has the money, so refusing there would take a patient's payment and give them nothing; the honest refusal is a refund, which is a person's decision per purchase. `create-order` and the referral route both *do* check it, which is the difference: nothing has moved yet.
+
+**Preconditions.** Home Visit on, and at least one active home-visit purchase with visits still to schedule.
+**Steps.** Open **Settings → Programmes & Home Visits** and read the line under **Home Visit enabled**. Tap the switch off and read the dialog. Cancel; the switch stays **on**. Tap it off again and confirm.
+**Expected Result.** While it is on, the switch states how many paid visits across how many purchases are still to deliver, and that switching it off does not cancel any of them. Switching off asks first and repeats the number. Switching it back **on** asks nothing - turning a service on takes nothing from anybody. After confirming, `/home-visit` and `/book-home-visit` both return Not Found and the nav link is gone, while an existing purchase still books its remaining visits and staff still see every booked visit.
+**Negative:** make the count's read fail - the line must say *"We could not check how many paid visits are still to deliver."* and never a **0**, which on this switch reads as nothing to lose. The count includes a purchase whose address carries **no** area, which the per-area rows in `ADM-CAT-012` cannot show.
+
 #### `ADM-CAT-014` - Purchases · P1
 **Steps.** Open **Catalog → Purchases**. Open a package purchase's detail modal; then a home-visit purchase's.
 **Expected Result.** Both list every purchase with balances. The detail modals are **viewer-scoped, not role-branched** - the route queries with the caller's own RLS-scoped client, so a row coming back **is** the authorization. Money controls inside the modal render only for an admin with `money` scope.

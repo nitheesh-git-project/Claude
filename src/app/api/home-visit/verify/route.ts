@@ -14,6 +14,24 @@ import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
 
 const MAX_NOTES_LENGTH = 1000;
 
+/**
+ * **This route deliberately does not re-read `home_visit_enabled`.**
+ *
+ * `create-order` checks it, and an admin can switch the service off in the
+ * seconds between that and the patient coming back from Razorpay. Refusing
+ * here would mean the gateway has the money and the patient has nothing --
+ * so the only honest refusal is a refund, which is a decision a person takes
+ * per purchase on the screen that already does refunds, not a check a route
+ * makes on their behalf.
+ *
+ * It is the same rule `book-visits` follows for serviceability, stated for
+ * the same reason: the behaviour was already right and right *by omission*,
+ * which is the shape where the next reader adds the check and strands a
+ * booking somebody has paid for. The switch gates what can be **sold**.
+ * What it does not cancel is now said out loud on the switch itself --
+ * `readHomeVisitCommitmentTotal` counts the paid visits still to deliver and
+ * Settings -> Programmes & Home Visits asks before it goes off.
+ */
 export async function POST(request: NextRequest) {
   // Who is asking, before anything the caller sent is looked at. An
   // anonymous request is refused here rather than after body validation,

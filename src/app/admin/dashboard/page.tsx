@@ -191,7 +191,10 @@ import { readReferralAttributionHealth } from "@/lib/referralAttribution";
 import { readRefundHealth } from "@/lib/refundHealthServer";
 import { readStorageReconciliation } from "@/lib/storageReconciliation";
 import { countAwaitingFirstBooking } from "@/lib/unscheduledPurchases";
-import { readHomeVisitAreaCommitments } from "@/lib/homeVisitAreaCommitments";
+import {
+  readHomeVisitAreaCommitments,
+  readHomeVisitCommitmentTotal,
+} from "@/lib/homeVisitAreaCommitments";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | MoveRestore",
@@ -801,6 +804,7 @@ export default async function AdminDashboardPage({
     referralAttributionHealth,
     refundHealth,
     areaCommitments,
+    homeVisitCommitmentTotal,
     payLaterCeilingPaise,
     storageHealth,
   ] = await Promise.all([
@@ -1130,6 +1134,11 @@ export default async function AdminDashboardPage({
     // no idea what was still owed. Null when it could not be asked, which
     // the row reports rather than showing as zero.
     readHomeVisitAreaCommitments(admin),
+    // The same question asked of the whole service, for the master switch --
+    // which is the wider version of deactivating one area and had the same
+    // blind spot. It counts purchases whose address carries no area too, so
+    // it is its own read rather than a sum of the map above.
+    readHomeVisitCommitmentTotal(admin),
     // The clinic's own ceiling on what one patient may owe. Null is no
     // ceiling, which is the default and how the feature shipped.
     readPayLaterCeilingPaise(admin),
@@ -3327,6 +3336,7 @@ export default async function AdminDashboardPage({
           settings={adminSettings}
           areaCount={(homeVisitAreas ?? []).length}
           packageCount={(homeVisitPackages ?? []).length}
+          commitment={homeVisitCommitmentTotal}
         />
       </SettingsSection>
     </div>

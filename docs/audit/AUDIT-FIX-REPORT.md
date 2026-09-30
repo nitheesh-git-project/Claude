@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **82 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **83 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **36 open**, each with an assessment. Roughly half are one architectural
+- **35 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -475,14 +475,50 @@ nothing to revert. Three routes lost their revert branches entirely.
 and the second caller finds it captured). What is not idempotent is the rest
 of the route's sequence around it. Related to items 6 and 8; not closed.
 
-### 28. Home-visit service can be disabled between checkout and verification — **Open**
+### 28. Home-visit service can be disabled between checkout and verification — **Fixed — different approach**
 
-Verified: `verify` does not re-read `home_visit_enabled`. The narrow reading
-is that the patient has already paid, so refusing at verification would take
-their money and give nothing — the honest fix is to refund, which is a
-decision rather than a check. **Flagged for you** rather than guessed at. The
-*new* referral route I added does re-check the switch (item 45), which was the
-same gap one flow over.
+Verified: `verify` does not re-read `home_visit_enabled`. I flagged this for
+you rather than guessing; you asked me to decide, so here is the decision and
+what shipped.
+
+**The route is right not to re-check, and the proposed fix would have been a
+regression.** By the time `verify` runs, Razorpay has the money. Refusing
+there takes a patient's payment and gives them nothing, on a service the
+clinic withdrew after they had paid for it — and the only honest refusal is a
+refund, which is a decision a person takes per purchase on the screen that
+already does refunds, not a check a route makes on their behalf.
+
+That is also the rule this codebase already settled one flow over:
+`book-visits` deliberately does not re-check serviceability, because *a
+purchase already made is honoured* (item 60). The master switch is the same
+shape as a service area — it gates what can be **sold**.
+
+So the fix is the one item 60 got: the behaviour was already right and right
+**by omission**, which is the shape where the next reader adds the check and
+strands paid visits. Three things now hold it:
+
+- The route says so, with the reasoning, so the omission is a decision.
+- `readHomeVisitCommitmentTotal()` counts the paid visits still to deliver
+  across the whole service. It is its own read rather than a sum of the
+  per-area map, because it must count a purchase whose address carries **no**
+  area — the per-area row has to skip those, and for the whole-service
+  question they are exactly the purchases most likely to be forgotten.
+- Settings → Programmes & Home Visits states the number beside the master
+  switch while it is on, and **asks before it goes off**, naming it: *"11 paid
+  visits across 3 purchases are still to deliver, and switching Home Visit off
+  does not cancel them — it only stops new sales."* Confirmation is on the
+  **off** direction only; turning a service on takes nothing from anybody, and
+  a prompt there is the dialog nobody reads.
+
+A count that could not be read **says so** rather than showing zero
+(`describeHomeVisitCommitment` answers three ways, not two) — on this switch a
+zero reads as permission. `homeVisitCommitment.test.ts` holds that split, the
+singular/plural wording and the "does not cancel" promise. The confirm is
+awaited **before** the transition, per the deadlock rule that
+`PayLaterWriteOffForm` learned the hard way.
+
+The *new* referral route I added does re-check the switch (item 45): that one
+is before any money has moved, which is the whole difference.
 
 ### 29. Referral therapist assignment can become stale — **Fixed**
 
