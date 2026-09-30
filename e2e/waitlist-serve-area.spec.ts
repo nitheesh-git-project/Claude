@@ -10,6 +10,11 @@ import { BASE, browserCookiesFor, QA_EMAILS, adminClient } from "./helpers";
 
 const PIN = "560099";
 const NAME = "ZZ QA Waitlist";
+const CITY = "Bengaluru";
+// Three existing areas in the same city, all at Rs 150, so the dialog's
+// prefill has a clear commonest value to find. Deliberately not PIN itself:
+// the request's own pincode must stay unserved, which is the whole premise.
+const NEARBY_PINS = ["560091", "560092", "560093"];
 
 test("WAIT-AREA-001: declining marks served and opens nothing; agreeing opens the area", async ({
   page,
@@ -22,6 +27,26 @@ test("WAIT-AREA-001: declining marks served and opens nothing; agreeing opens th
   const admin = adminClient();
   await admin.from("home_visit_areas").delete().eq("pincode", PIN);
   await admin.from("home_visit_waitlist").delete().eq("pincode", PIN);
+  await admin.from("home_visit_areas").delete().in("pincode", NEARBY_PINS);
+
+  // The fee this dialog prefills is the commonest one this clinic already
+  // charges in that city, so the case has to *create* that city's areas
+  // rather than inherit them -- the rule AGENTS.md states for rosters,
+  // service areas and home-visit packages alike: "a fixture that arrived
+  // already correct would make that test pass without running". It was
+  // inheriting them, and on a database where nothing had left Bengaluru
+  // areas behind it asserted 150 against a correctly empty city, whose
+  // honest prefill is 0 with the screen saying so. Three areas at one fee,
+  // so "commonest" is answered by a real majority rather than by a tie.
+  await admin.from("home_visit_areas").insert(
+    NEARBY_PINS.map((pincode, i) => ({
+      city: CITY,
+      area_name: `ZZ QA Area ${i + 1}`,
+      pincode,
+      travel_fee_paise: 15000,
+      active: true,
+    }))
+  );
   const { data: seeded } = await admin
     .from("home_visit_waitlist")
     .insert({ name: NAME, phone: "9876500099", pincode: PIN, city: "Bengaluru", status: "new" })
@@ -103,6 +128,7 @@ test("WAIT-AREA-001: declining marks served and opens nothing; agreeing opens th
     expect(servedStatus?.status).toBe("served");
   } finally {
     await admin.from("home_visit_areas").delete().eq("pincode", PIN);
+    await admin.from("home_visit_areas").delete().in("pincode", NEARBY_PINS);
     await admin.from("home_visit_waitlist").delete().eq("pincode", PIN);
   }
 });
