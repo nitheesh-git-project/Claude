@@ -36,6 +36,7 @@ const ALL_WELL: SystemHealthInput = {
     patientsOwingAged: 0,
     unclosedSessions: 0,
   },
+  referralAttribution: { orphanedCount: 0, withCompletedSessions: 0 },
 };
 
 describe("buildSystemHealth", () => {
@@ -95,7 +96,7 @@ describe("buildSystemHealth", () => {
 
   it("reports every check healthy when nothing is wrong", () => {
     const checks = buildSystemHealth(ALL_WELL);
-    expect(checks).toHaveLength(7);
+    expect(checks).toHaveLength(8);
     expect(checks.every((c) => c.status === "healthy")).toBe(true);
     // A healthy check must not ask the reader to do anything.
     expect(checks.every((c) => c.fix.length === 0)).toBe(true);
@@ -348,7 +349,7 @@ describe("summarizeHealth", () => {
     const summary = summarizeHealth(buildSystemHealth(ALL_WELL));
     expect(summary.needsPerson).toBe(0);
     expect(summary.worst).toBe("healthy");
-    expect(summary.headline).toBe("All 7 checks healthy");
+    expect(summary.headline).toBe("All 8 checks healthy");
     expect(summary.attention).toHaveLength(0);
   });
 
@@ -544,5 +545,56 @@ describe("pay later: settlement", () => {
   it("stays off when nobody is on terms and the switch is off", () => {
     const c = check(payLater({ featureEnabled: false, patientsOnTerms: 0, settlementsWaiting: 0 }));
     expect(c.status).toBe("off");
+  });
+});
+
+
+/**
+ * Partner attribution.
+ *
+ * A referral that converts writes `profiles.referred_by_hospital_id` on the
+ * new patient, and that is what every commission figure reads. The write was
+ * best-effort behind a console.error, so a failure meant the partner earned
+ * nothing on that patient -- ever -- and nothing in the product noticed.
+ */
+describe("the partner attribution check", () => {
+  const withAttribution = (
+    over: Partial<NonNullable<SystemHealthInput["referralAttribution"]>> | null
+  ): SystemHealthInput => ({
+    ...ALL_WELL,
+    referralAttribution: over === null ? null : { orphanedCount: 0, withCompletedSessions: 0, ...over },
+  });
+
+  const check = (input: SystemHealthInput) =>
+    buildSystemHealth(input).find((c) => c.id === "referral_attribution")!;
+
+  it("is healthy when every referred patient names their partner", () => {
+    expect(check(withAttribution({})).status).toBe("healthy");
+  });
+
+  it("is amber when a link is missing but nothing has been delivered", () => {
+    // No money has been mis-split yet, and putting the partner back is one
+    // edit -- so this asks for somebody without claiming the books are wrong.
+    const c = check(withAttribution({ orphanedCount: 2, withCompletedSessions: 0 }));
+    expect(c.status).toBe("attention");
+    expect(c.count).toBe(2);
+  });
+
+  it("is red once a session has been delivered without the partner", () => {
+    // At that point a commission has genuinely been worked out without them.
+    expect(
+      check(withAttribution({ orphanedCount: 2, withCompletedSessions: 1 })).status
+    ).toBe("broken");
+  });
+
+  it("reads as 'could not be checked', never as agreement, when the read failed", () => {
+    // The rule this codebase holds everywhere: a read that failed is not a
+    // read that came back empty.
+    expect(check(withAttribution(null)).status).toBe("unknown");
+  });
+
+  it("gives an owner steps they can follow alone whenever it is not healthy", () => {
+    expect(check(withAttribution({ orphanedCount: 1 })).fix.length).toBeGreaterThan(0);
+    expect(check(withAttribution(null)).fix.length).toBeGreaterThan(0);
   });
 });

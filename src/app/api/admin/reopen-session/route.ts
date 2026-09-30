@@ -66,6 +66,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // What reopening reverses, stated once so nobody has to infer it.
+  //
+  // Three of the four downstream effects reverse **automatically**, because
+  // this codebase keys them on state rather than on an event:
+  //
+  //   Revenue      `moneyLineFor` counts a therapist's cut only on a
+  //                `completed` session, so the status change un-counts it.
+  //   Pay-later    `amount_due_paise` is stamped at booking and *counted*
+  //                only while `status = 'completed'` -- the split that makes
+  //                "a reopened session owes nothing" true with no special
+  //                case anywhere.
+  //   Credits      `sessions_used` counts a session *claimed*, not
+  //                completed, and reopening does not unbook it. The balance
+  //                is already right, and the ledger's reserved and consumed
+  //                states both reduce `available` identically, so the two
+  //                cannot disagree either.
+  //
+  // Two reverse only because this route does it by hand: the ratings (a
+  // completion is what invites them) and the frozen split rates below.
+  //
+  // One deliberately does NOT reverse: a settled payout. Money has left the
+  // clinic, so it is refused above rather than silently unwound -- the honest
+  // lane for that is an adjustment against the next payout.
   const { data: reopened, error } = await admin
     .from("appointments")
     .update({
@@ -78,6 +101,15 @@ export async function POST(request: NextRequest) {
       // premature Done that an admin reopened keeps the evidence of the
       // mistake and none of the correction.
       completed_at: null,
+      // The revenue-split rates frozen at completion go with it. They record
+      // "the rates in force on the day this was delivered", and it was not
+      // delivered -- leaving them would have the money maths reading a
+      // snapshot for a completion that has been undone, and the next real
+      // completion would then find them already set and not overwrite the
+      // ones that were actually in force.
+      therapist_share_percent_at_completion: null,
+      hospital_share_percent_at_completion: null,
+      hospital_id_at_completion: null,
       patient_rating: null,
       patient_feedback: null,
       patient_feedback_at: null,

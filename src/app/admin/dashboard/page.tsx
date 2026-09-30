@@ -186,6 +186,7 @@ import {
   readableTempPassword,
   TEMP_PASSWORD_VISIBLE_DAYS,
 } from "@/lib/tempPassword";
+import { readReferralAttributionHealth } from "@/lib/referralAttribution";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | MoveRestore",
@@ -792,6 +793,7 @@ export default async function AdminDashboardPage({
     payLaterManualRefunds,
     payLaterWrittenOff,
     payLaterWriteOffReconciliation,
+    referralAttributionHealth,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -1105,6 +1107,10 @@ export default async function AdminDashboardPage({
     // Written-off sessions against the bad debt recorded for them. Null when
     // it cannot be asked, which the check reports as "could not be checked".
     readWriteOffReconciliation(admin),
+    // Referred patients whose account does not name the partner who sent
+    // them. Its own read for the usual reason, and it answers null when it
+    // could not be asked so the check reports that rather than agreement.
+    readReferralAttributionHealth(admin),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -4428,6 +4434,7 @@ export default async function AdminDashboardPage({
     openAccessEnabled: adminSettings.meetOpenAccessEnabled,
     rateLimitIdentity,
     payLater: payLaterHealth,
+    referralAttribution: referralAttributionHealth,
   });
 
   const home = buildAdminHome(viewerScope, {

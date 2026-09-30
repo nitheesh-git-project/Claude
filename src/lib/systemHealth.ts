@@ -42,7 +42,8 @@ export type HealthCheckId =
   | "waiting_room"
   | "accounting"
   | "rate_limits"
-  | "pay_later";
+  | "pay_later"
+  | "referral_attribution";
 
 export type HealthCheck = {
   id: HealthCheckId;
@@ -142,6 +143,21 @@ export type SystemHealthInput = {
   };
   /** Null when the columns have not been applied -- see PayLaterHealth. */
   payLater?: PayLaterHealth | null;
+  /**
+   * Patients a partner referred whose profile does not say so.
+   *
+   * Null when it could not be asked, which the check reports as "could not
+   * be checked" rather than as agreement -- a read that failed is not a read
+   * that came back empty.
+   */
+  referralAttribution?: ReferralAttributionHealth | null;
+};
+
+export type ReferralAttributionHealth = {
+  /** Referrals that converted into a patient whose profile has no partner. */
+  orphanedCount: number;
+  /** ...of which this many have already had a session completed. */
+  withCompletedSessions: number;
 };
 
 const STATUS_RANK: Record<HealthStatus, number> = {
@@ -618,6 +634,85 @@ function rateLimitCheck(
  * nobody on terms, has not got a problem, and painting that red is how red
  * stops meaning anything.
  */
+/**
+ * Partner attribution that went missing.
+ *
+ * A referral that converts writes `profiles.referred_by_hospital_id` on the
+ * new patient, and that column is what every commission figure reads. The
+ * write was best-effort with a console.error behind it, so a failure meant
+ * the partner silently earned nothing on that patient -- not on the first
+ * session, not on any of them -- and nothing in the product noticed. The
+ * comment on that line said as much and left it there.
+ *
+ * `patient_referrals.converted_patient_id` is the durable record that makes
+ * this detectable: the referral knows who it became. This is the check that
+ * asks, so the gap surfaces on a screen somebody reads instead of in a log
+ * nobody does.
+ *
+ * Amber rather than red when nothing has been delivered yet: no money has
+ * been mis-split, and putting a partner back is one edit. Red once a session
+ * has completed, because at that point a commission has genuinely been
+ * computed without them and the books are wrong.
+ */
+function referralAttributionCheck(
+  health: ReferralAttributionHealth | null
+): HealthCheck {
+  const base = {
+    id: "referral_attribution" as const,
+    label: "Partner attribution",
+    icon: "fa-handshake",
+    what: "Patients a partner hospital referred, who registered, and whose account does not record which partner sent them. That link is what every commission figure is worked out from.",
+    example:
+      "A hospital refers a patient, the patient registers and has six sessions. The link between them was never written, so the partner's Earnings screen shows nothing for any of it and the clinic's own books hand them no commission - with no error anywhere, because the registration itself worked.",
+  };
+
+  if (!health) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Could not be checked just now.",
+      fix: [
+        "Reload this page. If it keeps saying this, the referrals table could not be read.",
+      ],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  if (health.orphanedCount === 0) {
+    return {
+      ...base,
+      status: "healthy",
+      headline: "Every referred patient's account names the partner who sent them.",
+      fix: [],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  const delivered = health.withCompletedSessions;
+  return {
+    ...base,
+    status: delivered > 0 ? "broken" : "attention",
+    headline:
+      delivered > 0
+        ? `${plural(health.orphanedCount, "referred patient", "referred patients")} have no partner recorded, and ${plural(delivered, "has", "have")} already had a session delivered - so a commission has been worked out without them.`
+        : `${plural(health.orphanedCount, "referred patient", "referred patients")} have no partner recorded. No sessions have been delivered yet, so no money has been mis-split.`,
+    fix: [
+      "Open People -> Partners -> Patient Referrals and find the referral marked Registered.",
+      "Open the patient it converted to, and set the partner that referred them on their profile.",
+      "Their commission then applies to sessions from that point. Sessions already delivered keep the split that was recorded on the day.",
+    ],
+    count: health.orphanedCount,
+    evidence: [
+      `${plural(health.orphanedCount, "patient", "patients")} with no partner recorded`,
+      delivered > 0
+        ? `${plural(delivered, "patient", "patients")} already have a delivered session`
+        : "None have had a session delivered yet",
+    ],
+  };
+}
+
 function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
   const base = {
     id: "pay_later" as const,
@@ -873,6 +968,7 @@ export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
     accountingCheck(input.accounting),
     rateLimitCheck(input.rateLimitIdentity),
     payLaterCheck(input.payLater ?? null),
+    referralAttributionCheck(input.referralAttribution ?? null),
   ];
 }
 

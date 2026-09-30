@@ -75,14 +75,42 @@ export async function POST(request: NextRequest) {
   // admin - they assigned the therapist and issued this invite link - so
   // making them wait again would strand a patient who is about to pay for a
   // session that's already scheduled.
-  const { error: attributionError } = await admin
-    .from("profiles")
-    .update({ referred_by_hospital_id: referral.hospital_id, approved: true })
-    .eq("id", created.user.id);
+  // Attribution is the whole commercial point of a referral, so it gets a
+  // retry and a reconciliation rather than a log line.
+  //
+  // This was one best-effort write behind a console.error, and its own
+  // comment said a failure "would silently break revenue attribution" --
+  // which understates it: `referred_by_hospital_id` is what every commission
+  // figure reads, so a partner would earn nothing on this patient's first
+  // session and nothing on any of them, for ever, with no error anywhere
+  // because the registration itself worked.
+  //
+  // It is still not fatal to the patient, deliberately: they have an account
+  // and a session booked, and failing their registration over the clinic's
+  // own bookkeeping would be the wrong trade. What changes is that the gap
+  // is no longer invisible. `patient_referrals.converted_patient_id` is
+  // written below and is the durable record that makes it detectable, and
+  // Settings -> System Health -> Partner attribution is the check that
+  // compares the two.
+  let attributionError: { message: string } | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { error } = await admin
+      .from("profiles")
+      .update({ referred_by_hospital_id: referral.hospital_id, approved: true })
+      .eq("id", created.user.id);
+    if (!error) {
+      attributionError = null;
+      break;
+    }
+    attributionError = error;
+  }
   if (attributionError) {
-    // Not fatal to the patient's flow, but would silently break revenue
-    // attribution for this hospital if it happened - worth knowing about.
-    console.error("Failed to set referred_by_hospital_id for", created.user.id, attributionError);
+    console.error(
+      "Failed to set referred_by_hospital_id for",
+      created.user.id,
+      "- Settings -> System Health -> Partner attribution will report this",
+      attributionError
+    );
   }
 
   // A home-visit referral has no home_visit_package_purchases row behind
