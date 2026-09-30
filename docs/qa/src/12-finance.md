@@ -689,6 +689,24 @@ Four consequences worth holding in mind while testing:
 **Expected Result.** All five raise. The table permits exactly one transition (`processing` → `succeeded` or `failed`), once, plus the columns that resolution fills in; a success with **no** gateway refund id is refused outright. Every foreign key is `restrict`, so the last two are refused naming this table, and **Settings → User Access** offers suspension instead - the same refusal shape as every other record that blocks a delete.
 **Why by trigger and not by RLS:** every refund writer in this app uses the service-role client, which bypasses RLS entirely - so for a table whose whole value is that it records what was attempted *before* it was attempted, "no route rewrites it" is not the same guarantee as "a rewrite raises".
 
+#### `SYS-SETTLE-001` - The settlement record agrees with the Money screens · P0
+
+**Feature.** Every delivered session now writes one immutable row saying what it was worth and how it was split -- gross, travel, the therapist's share, the partner's and the clinic's -- beside the figures the Money screens still work out for themselves. It is written **alongside** that derivation: nothing reads these rows to decide what anybody is paid, and no historical session has one. **Settings → System Health → Settlement record** is what has to stay green before they are ever made authoritative.
+
+**Steps.** Complete a session. Open **Settings → System Health → Settlement record**. Then, in SQL, try to change that settlement's `gross_paise`, try to delete it, and try to set its `external_reference` twice.
+
+**Expected Result.** The check reads `Healthy` -- *"Every recorded settlement agrees with the figures on the Money screens."* Every money figure on Money → Summary is **unchanged** by the completion having written this row; that is the whole safety case, since nothing reads it yet. The UPDATE, the DELETE and the second `external_reference` all **raise**; the first `external_reference` lands, because what a bank called a transfer genuinely arrives later. The three shares sum to gross **exactly** -- the clinic takes the remainder rather than its own percentage, so rounding can neither invent nor lose a paisa.
+
+**Negative:** a database without the table reads **"Cannot be checked"**, never `Healthy` -- on a money reconciliation, "we could not ask" and "nothing disagrees" are opposite facts.
+
+#### `SYS-PAYOUT-ATOMIC-001` - A payout settles all of its sessions or none · P0
+
+**Feature.** Settling used to claim each appointment with its own write, so a failure part-way left some sessions settled against the batch and some not, answered an error, and a retry settled the remainder under a **second** batch id. It is one statement now, with the cash remittance inside it.
+
+**Steps.** Settle a payout for a therapist holding cash across several completed sessions. Then settle again immediately.
+
+**Expected Result.** Every session in the batch carries the batch id and a payout timestamp, or none does. The transfer is **net of the cash held**, and exactly those visits are marked remitted in the same run -- so the next payout does not net the same rupees off again. The second settlement claims **nothing** and answers *"This payout was already settled - please refresh."* A therapist holding **more** cash than they are owed floors the transfer at zero and keeps the difference open on the Cash Ledger.
+
 #### `SYS-FILES-001` - Patient files and the records describing them · P1
 
 **Feature.** `patient_medical_documents` holds metadata only - the scan itself is an object in the private `medical-reports` bucket - so the two can come apart in either direction and nothing looked.
