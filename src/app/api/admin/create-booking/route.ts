@@ -243,6 +243,19 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // What this booking actually ended up as. The row is inserted `requested`
+  // and `claimTherapistSlot(..., confirm: true)` moves it to `confirmed`, so
+  // reaching here with a therapist means confirmed and without one means
+  // requested -- a claim that failed has already returned 409 above.
+  //
+  // This was **missing**, and it broke the screen's happy path: the audit
+  // call and the response below both read a bare `status`, which no longer
+  // existed once the atomic claim replaced the old read-then-insert, so every
+  // successful admin booking threw `ReferenceError: status is not defined`
+  // and answered 500 -- *after* the appointment had been created. The admin
+  // was told it failed, and booked again.
+  const status = therapistId ? "confirmed" : "requested";
+
   // Sync never blocks a booking -- a Calendar/Meet failure is recorded on the
   // appointment and retried from Settings → System health. Same rule as
   // every other booking path (see AGENTS.md).
