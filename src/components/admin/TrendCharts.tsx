@@ -49,6 +49,18 @@ export type ChartBucket = { label: string; startMs: number; endMs: number };
  * Measures its container's real rendered width after mount, so a chart fills
  * exactly the space it is given at any screen size.
  *
+ * Each caller's wrapper carries `overflow-x-hidden`, and that is the other
+ * half of this design rather than a tidy-up. The width below is what the
+ * server-rendered HTML shows *before* the observer has run, and it is a fixed
+ * 640 -- so on a phone the chart was 640px wide inside a 360px page with
+ * nothing clipping it, and the whole document scrolled sideways until
+ * hydration measured the container. Money -> Summary overflowed by 321px,
+ * which is exactly 640 plus the card and page padding less the viewport.
+ * Clipping cannot cost anything after hydration, because the observer reads
+ * `contentRect.width`, which an overflow rule does not change; and shrinking
+ * the default instead would make every desktop first paint draw a small chart
+ * and then jump.
+ *
  * Deliberately not an SVG viewBox stretch: that scales text and stroke widths
  * non-uniformly whenever the container's aspect ratio differs from the
  * viewBox's, which visibly squashes labels. The default width is what the
@@ -113,7 +125,7 @@ export function TrendBarChart({
   const zeroY = ((max - 0) / span) * (chartHeight - 24) + 12;
 
   return (
-    <div ref={ref} className="w-full">
+    <div ref={ref} className="w-full overflow-x-hidden">
       <svg width={width} height={chartHeight + labelSpace} role="img" aria-label={ariaLabel}>
         <line x1={0} y1={zeroY} x2={width} y2={zeroY} stroke="#e2e8f0" strokeWidth={1} />
         {buckets.map((b, i) => {
@@ -219,7 +231,7 @@ export function TrendLineChart({
           </span>
         ))}
       </div>
-      <div ref={ref} className="w-full">
+      <div ref={ref} className="w-full overflow-x-hidden">
         <svg width={width} height={chartHeight + labelSpace} role="img" aria-label={ariaLabel}>
           <line x1={0} y1={zeroY} x2={width} y2={zeroY} stroke="#e2e8f0" strokeWidth={1} />
           {[0.25, 0.5, 0.75].map((f) => (
@@ -334,7 +346,7 @@ export function GroupedBarChart({
           </span>
         ))}
       </div>
-      <div ref={ref} className="w-full">
+      <div ref={ref} className="w-full overflow-x-hidden">
         <svg width={width} height={chartHeight + labelSpace} role="img" aria-label={ariaLabel}>
           <line
             x1={0}
