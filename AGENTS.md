@@ -20,6 +20,23 @@ Calendar/Meet (`googleapis`) · `motion` for animation · Font Awesome ·
 `libphonenumber-js` · `pdf-lib` (every PDF this app generates: the
 patient's health profile and the admin's table exports).
 
+**Three new checks and three new documents came out of the audit-fix pass.**
+`npm run check:search-path` runs in lint beside `check:grants` and fails a
+`security definer` function with no explicit safe `search_path` -- a definer
+function resolving names through the *caller's* path can be made to execute
+the caller's objects as its owner, and the failure is silent.
+`npm run check:concurrency` and `npm run check:authorization` need a real
+database: the first fires parallel RPCs at `claim_therapist_slot`, the rate
+limiter and the invite cap; the second asserts cross-tenant isolation, IDOR
+and enumeration resistance **below the routes**, because a session cookie
+reaches PostgREST without passing any route guard. Read the caveat at the top
+of `concurrency-checks.mjs` before trusting a green run -- it guards the
+verdicts, not serialisation. `docs/MONEY-MODEL.md`,
+`docs/LIFECYCLE-STATES.md` and `docs/DATA-POLICY.md` hold the money
+vocabulary, every state machine, and the migration/backup/retention/deletion
+policy; `docs/audit/AUDIT-FIX-REPORT.md` is what was found and what was done
+about each of it.
+
 Commands: `npm run dev`, `npm run build`, `npm start`,
 `npm run start:cluster` (several workers on one port -- see the clustering
 rule under "Supabase clients"), `npm run lint`,

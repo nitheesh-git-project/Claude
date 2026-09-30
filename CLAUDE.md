@@ -191,6 +191,27 @@ dialog at all: it is stated as chosen, with its photograph and its price.
 Continue appears once a service is chosen, the same way Step 1 has always
 waited for a date, an hour and a language.
 
+**One atomic claim reserves a therapist, and every booking path uses it.**
+Six paths each did it as a read, a write and at best a re-read with a
+hand-rolled revert -- which cannot stop two requests both passing the check
+before either write lands, and whose revert rewrote `therapist_id` with no
+compare-and-set, so a third admin's assignment could be stamped over by a
+request that had already lost. `claim_therapist_slot()` does the overlap test,
+the compare-and-set and the write in one transaction under a row lock on the
+therapist; `claim_therapist_referral_slot()` is the sibling for a referral
+holding a slot before any appointment exists. The revert branches are gone
+because there is no window to revert from, and the deterministic referral
+tie-break went with them -- it only ever existed because two writes were never
+serialised. **And the revenue split is frozen when the work is delivered**:
+`therapist_share_percent_at_completion`, `hospital_share_percent_at_completion`
+and `hospital_id_at_completion`, so renegotiating a rate no longer rewrites
+every figure somebody has already been invoiced on. Purchased terms -- the
+session length, the minimum gap, the weekly cap -- read
+`session_entitlements.package_snapshot` through `readPackageTerms` rather than
+the live catalogue row, so an admin editing a programme no longer changes the
+rules under a patient part-way through one. See `docs/MONEY-MODEL.md` and
+`docs/audit/AUDIT-FIX-REPORT.md`.
+
 - `README.md` - product overview, setup, environment variables, routes, and
   how each flow works.
 - `AGENTS.md` - the working rules for editing this codebase (imported below;
