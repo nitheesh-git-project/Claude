@@ -659,7 +659,10 @@ revenue and the therapist's pay. AGENTS.md is right about this one.
   Written **alongside** it, there is no backfill at all: historical sessions
   have no row and need none, nothing reads these rows to decide what anybody is
   paid, and `verify_settlement_agreement()` reports any disagreement on
-  System Health. That is exactly the playbook `session_credit_ledger` already
+  System Health -- where **zero rows is not agreement**, a hole that check had
+  on its first pass and which mattered more here than anywhere: a write-only
+  table whose writer swallows its own errors has no other symptom, and the
+  check was blind exactly when the table was empty. That is exactly the playbook `session_credit_ledger` already
   follows in this codebase, and I should have reached for it the first time.
 
   What is left is genuinely small: making the rows authoritative behind a

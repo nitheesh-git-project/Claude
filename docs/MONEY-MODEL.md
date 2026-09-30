@@ -208,7 +208,15 @@ reconciliation plan:
   thing that made this risky -- rows predating the frozen rates cannot be
   reconstructed -- and not backfilling removes it entirely.
 - **`verify_settlement_agreement()` reports disagreement**, on Settings ->
-  System Health -> *Settlement record*. It reports and never repairs, like
+  System Health -> *Settlement record* -- and **zero rows is not agreement**,
+  which that check got wrong on its first pass. It only compares sessions
+  completed since the *first* settlement row, so with none at all it compared
+  nothing, found nothing, and read as healthy. On a write-only table whose
+  writer is best-effort and swallows its own errors by design, that is the
+  only symptom there would ever be, and it was blind at exactly the moment a
+  new writer is most likely to be broken: when the table is empty. It reads
+  "Nothing has been recorded yet" now, which is honest on a new clinic and on
+  a broken writer alike, and the first completion separates them. It reports and never repairs, like
   every other reconciliation here, and it reads "could not be checked" rather
   than green where there is nothing to compare -- a clinic that has completed
   no session since this shipped has no agreement either, and painting that
