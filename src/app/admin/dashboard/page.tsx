@@ -145,9 +145,10 @@ import {
   retryDueMeetAccess,
   MAX_MEET_SYNC_AUTO_ATTEMPTS,
   MAX_MEET_ACCESS_AUTO_ATTEMPTS,
+  MEET_SYNC_CLAIM_STALE_MS,
 } from "@/lib/retryDueMeetSyncs";
 import { checkGoogleConnection } from "@/lib/googleConnectionHealth";
-import { sessionNeedsCalendarSync } from "@/lib/meetSyncState";
+import { describeCalendarSync, sessionNeedsCalendarSync } from "@/lib/meetSyncState";
 import { runRiskSweep } from "@/lib/riskDetectors";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -474,7 +475,9 @@ export default async function AdminDashboardPage({
     // that hasn't had this migration applied yet would otherwise fail that
     // query too and blank the whole Sync Health panel, instead of just
     // losing the "gave up" flag. Same convention as the settled columns above.
-    admin.from("appointments").select("id, google_calendar_sync_attempts"),
+    admin
+      .from("appointments")
+      .select("id, google_calendar_sync_attempts, google_calendar_sync_claimed_at"),
 
     // The Meet waiting-room columns, newest of all and isolated for the same
     // reason: a database this migration has not reached loses the Waiting
@@ -1468,6 +1471,13 @@ export default async function AdminDashboardPage({
   // offered could only ever mint a duplicate calendar event. See
   // src/lib/meetSyncState.ts.
   const syncModeById = new Map((syncModeRows ?? []).map((r) => [r.id, r]));
+  // The claim column rides in the same isolated select as the attempt
+  // counter: both arrived with the sweep, so they are one migration and
+  // splitting them would buy tolerance for a state that cannot exist.
+  const syncClaimById = new Map(
+    (syncAttemptRows ?? []).map((r) => [r.id, r.google_calendar_sync_claimed_at ?? null])
+  );
+  const syncNowMs = nowTimestamp();
   const googleMeetSyncIssues = appointmentsWithSessionCode
     .filter((a) => a.status === "confirmed")
     .map((a) => ({
@@ -1499,6 +1509,25 @@ export default async function AdminDashboardPage({
       autoRetryExhausted:
         (a.google_calendar_sync_attempts ?? 0) >= MAX_MEET_SYNC_AUTO_ATTEMPTS,
       autoRetryAttempts: a.google_calendar_sync_attempts ?? 0,
+      // The same facts as one named state, so the card reads a word rather
+      // than recombining four columns at the point of render -- and so the
+      // claim column, which reached no screen at all, can say "trying now"
+      // instead of looking identical to "the sweep has not got here yet".
+      syncState: describeCalendarSync(
+        {
+          visit_mode: syncModeById.get(a.id)?.visit_mode,
+          meet_link: a.meet_link,
+          google_event_id: syncModeById.get(a.id)?.google_event_id,
+          google_calendar_sync_error: a.google_calendar_sync_error,
+          google_calendar_sync_attempts: a.google_calendar_sync_attempts,
+          google_calendar_sync_claimed_at: syncClaimById.get(a.id) ?? null,
+        },
+        {
+          maxAttempts: MAX_MEET_SYNC_AUTO_ATTEMPTS,
+          claimStaleMs: MEET_SYNC_CLAIM_STALE_MS,
+          nowMs: syncNowMs,
+        }
+      ),
     }));
 
   // Waiting Room panel (Settings -> System Health): confirmed sessions whose

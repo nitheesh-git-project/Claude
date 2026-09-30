@@ -13689,3 +13689,42 @@ create policy "session_notes_select_clinician" on session_notes
     )
     or is_admin()
   );
+
+-- ===========================================================================
+-- One purchase cannot hold two sessions at the same instant (audit item 27).
+--
+-- `/api/home-visit/verify` records the capture, ensures the entitlement and
+-- then books visit 1. `record_payment_capture` is idempotent by construction,
+-- but the booking below it was not: a retried verify -- a double-tapped Pay,
+-- a browser that resent the callback, Razorpay's own at-least-once delivery
+-- racing the webhook -- booked a **second** appointment at the same slot and
+-- spent a second credit against the same purchase. The patient ends up with
+-- two visits they did not ask for and a balance one short, and nothing in the
+-- app says why.
+--
+-- It is a partial unique index rather than a check in the route, for the
+-- reason `session_suggestions` already has one: a double tap defeats
+-- SELECT-then-INSERT, and both routes here write with the service-role client
+-- so RLS is not the guarantee either. The natural key is the purchase and the
+-- instant, because two visits from one purchase at two different times is
+-- ordinary and two at the *same* time is a person booked against themselves.
+--
+-- Cancelled rows are excluded: cancelling a visit and rebooking the same slot
+-- is a thing patients legitimately do, and an index that refused it would
+-- turn an idempotency guard into a scheduling rule nobody asked for.
+create unique index if not exists appointments_one_per_home_visit_purchase_slot
+  on appointments (home_visit_purchase_id, slot_time)
+  where home_visit_purchase_id is not null
+    and slot_time is not null
+    and status <> 'cancelled';
+
+-- The same shape for a session programme. `bookPackageSession` is reached by
+-- the bulk scheduler and by a patient accepting a therapist's suggestion, and
+-- both can be submitted twice -- the suggestion control guards with a
+-- synchronous ref, which is the right thing in the browser and not a
+-- guarantee at the row.
+create unique index if not exists appointments_one_per_package_purchase_slot
+  on appointments (package_purchase_id, slot_time)
+  where package_purchase_id is not null
+    and slot_time is not null
+    and status <> 'cancelled';

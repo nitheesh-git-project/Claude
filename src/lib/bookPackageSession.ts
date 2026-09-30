@@ -26,7 +26,18 @@ export type PurchaseForBooking = {
 
 export type BookPackageSessionResult =
   | { success: true; appointmentId: string; assignedTherapistId: string | null }
-  | { success: false; status: number; error: string };
+  | {
+      success: false;
+      status: number;
+      error: string;
+      /**
+       * Refused by `appointments_one_per_package_purchase_slot`, so the
+       * session the caller asked for already exists -- a double-submitted
+       * bulk schedule or a patient accepting one suggestion twice. Not a
+       * failure to report as one; the claimed credit is given back above.
+       */
+      duplicate?: boolean;
+    };
 
 /**
  * The one implementation of "claim a session on a paid package, then book
@@ -218,6 +229,14 @@ export async function bookPackageSession(
           revertError
         );
       }
+    }
+    if ((insertError as { code?: string } | null)?.code === "23505") {
+      return {
+        success: false,
+        duplicate: true,
+        status: 409,
+        error: "This session is already booked for that time.",
+      };
     }
     return {
       success: false,

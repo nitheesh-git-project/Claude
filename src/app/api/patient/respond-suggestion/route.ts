@@ -166,6 +166,14 @@ export async function POST(request: NextRequest) {
     sessionDurationMinutesOverride: packageTerms.sessionDurationMinutes,
   });
 
+  // Two taps on Accept: the second is refused by the one-per-purchase-per-slot
+  // index, which means the session the patient accepted exists. Reverting the
+  // suggestion to `pending` here would ask them to accept a time they already
+  // have, so the accepted state stands and the answer is success.
+  if (!result.success && result.duplicate) {
+    return NextResponse.json({ success: true, alreadyBooked: true });
+  }
+
   if (!result.success) {
     // The booking failed after the claim, so put the suggestion back where
     // it was. Without this the patient is left with a suggestion marked

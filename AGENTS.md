@@ -1730,6 +1730,33 @@ before.
   guard, plus a negative control) and `e2e/refund-attempts.spec.ts`, which
   drives the database rather than the routes because the routes are what was
   wrong.
+- **One purchase cannot hold two sessions at the same instant.**
+  `record_payment_capture` is idempotent by construction; the booking *below*
+  it was not, so a retried `/api/home-visit/verify` -- a double-tapped Pay, a
+  resent browser callback, Razorpay's own at-least-once delivery racing the
+  webhook -- booked a second visit at the same slot and spent a second credit
+  against the same purchase. `appointments_one_per_home_visit_purchase_slot`
+  and `appointments_one_per_package_purchase_slot` are partial unique indexes,
+  never a check in the route, for the reason `session_suggestions` already has
+  one: a double tap defeats SELECT-then-INSERT, and every writer here holds the
+  service-role client so RLS is not the guarantee. They key on the purchase and
+  the **instant** (two visits from one purchase at two different times is
+  ordinary; two at the same time is a person booked against themselves) and
+  they exclude cancelled rows, since cancelling and rebooking the same slot is
+  something patients do and refusing it would turn an idempotency guard into a
+  scheduling rule nobody asked for.
+  **A refusal from one of them is not a failure to report.** Both helpers
+  return a named `duplicate` outcome on `23505` and the claimed credit is given
+  back by the revert already there, so `verify` answers **success** and
+  `respond-suggestion` leaves the suggestion accepted rather than reverting it
+  and asking somebody to accept a time they already have. Telling a patient
+  whose money has moved that their session was not booked is the one thing
+  these routes must never say wrongly; the bulk scheduler reports per slot, so
+  there the plain sentence is honest. `home_visit_purchase_events`' `purchased`
+  row is guarded the same way -- two of them read as two purchases on the
+  timeline an admin opens to find out what happened. Checked by
+  `scripts/booking-idempotency-sql-checks.sql`, both halves plus a negative
+  control.
 - **Cancellation/refund**: full refund only outside the 24-hour window in
   `src/lib/pricing.ts`; inside it, none. That constant is the **fallback**,
   never the answer -- the live window is

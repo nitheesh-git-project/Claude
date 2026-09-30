@@ -39,9 +39,27 @@ export type HomeVisitAddressInput = VisitAddress & {
   area_id?: string | null;
 };
 
+/**
+ * The message for the one refusal that means "this is already booked". Named
+ * rather than inlined because two callers have to recognise it and a string
+ * compared in two files is a string that drifts in one of them.
+ */
+export const DUPLICATE_SLOT_ERROR =
+  "This visit is already booked for that time.";
+
 export type BookHomeVisitSessionResult =
   | { success: true; appointmentId: string; assignedTherapistId: string | null }
-  | { success: false; status: number; error: string };
+  | {
+      success: false;
+      status: number;
+      error: string;
+      /**
+       * The refusal came from the one-per-purchase-per-slot index, so the
+       * visit the caller asked for exists. Not an error to report to a
+       * patient whose money has already moved.
+       */
+      duplicate?: boolean;
+    };
 
 /**
  * The one implementation of "claim a visit on a home-visit purchase, then
@@ -255,6 +273,17 @@ export async function bookHomeVisitSession(
           revertError
         );
       }
+    }
+    // A unique violation here is the one "failure" that is not one: the
+    // partial index `appointments_one_per_home_visit_purchase_slot` refuses a
+    // second visit on the same purchase at the same instant, which is exactly
+    // what a retried verify or a double-tapped Pay produces. The visit the
+    // patient wanted exists; the credit has just been given back above, so
+    // the balance is right either way. Saying "could not book" here would
+    // report a working booking as a failure -- the one thing this route must
+    // not do after money has moved.
+    if ((insertError as { code?: string } | null)?.code === "23505") {
+      return { success: false, duplicate: true, status: 409, error: DUPLICATE_SLOT_ERROR };
     }
     return {
       success: false,

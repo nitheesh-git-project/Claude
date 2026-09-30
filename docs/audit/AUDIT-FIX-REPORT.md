@@ -20,7 +20,7 @@ the reason, because you asked me to decide rather than follow.
 
 ## Headline
 
-- **83 fixed**, including six I'd call genuinely dangerous: a non-admin
+- **85 fixed**, including six I'd call genuinely dangerous: a non-admin
   rendering the back office as Master Admin (1), six booking paths that could
   double-book a therapist (2–5, 26, 29), payment confirmation overwriting an
   admin's assignment (3), a rate limiter keyed on a value the caller supplied
@@ -31,7 +31,7 @@ the reason, because you asked me to decide rather than follow.
   asked for. Three new documents.
 - **7 already held.** I've said which, and added a regression guard where
   nothing was keeping them true.
-- **35 open**, each with an assessment. Roughly half are one architectural
+- **33 open**, each with an assessment. Roughly half are one architectural
   piece — a canonical settlement ledger — and I've explained why building
   half of that overnight would have been worse than not starting it. The
   first piece of it now exists: `refund_attempts` (items 6, 7, 94, 95).
@@ -469,11 +469,57 @@ that had already lost its own race.
 Fixed by removal: with the atomic claim there is no window, so there is
 nothing to revert. Three routes lost their revert branches entirely.
 
-### 27. Home-visit payment verification is not completely idempotent — **Partly fixed / Open**
+### 27. Home-visit payment verification is not completely idempotent — **Fixed**
 
 `recordPaymentCapture` *is* idempotent by construction (keyed on the order,
-and the second caller finds it captured). What is not idempotent is the rest
-of the route's sequence around it. Related to items 6 and 8; not closed.
+and the second caller finds it captured). Two things below it were not, and
+one of them cost a patient a session.
+
+**The booking.** A retried verify — a double-tapped Pay, a resent browser
+callback, Razorpay's own at-least-once delivery racing the webhook — called
+`bookHomeVisitSession` again and got a **second appointment at the same slot**,
+spending a second credit against the same purchase. The patient ends up with
+two visits they did not ask for and a balance one short, and no screen says
+why.
+
+It is closed with a **partial unique index**, not a check in the route, for the
+reason `session_suggestions` already has one: a double tap defeats
+SELECT-then-INSERT, and both routes here write with the service-role client so
+RLS is not the guarantee either.
+`appointments_one_per_home_visit_purchase_slot` keys on the purchase and the
+instant — two visits from one purchase at two different times is ordinary, and
+two at the *same* time is a person booked against themselves. Cancelled rows
+are excluded, because cancelling and rebooking the same slot is something
+patients do and an index that refused it would turn an idempotency guard into a
+scheduling rule nobody asked for.
+
+`appointments_one_per_package_purchase_slot` is the same shape for a session
+programme, which had the identical exposure through the bulk scheduler and
+through a patient accepting one suggestion twice.
+
+**And a refusal from that index is not a failure to report.** Both helpers
+return a named `duplicate` outcome on `23505`; the credit is given back by the
+revert that was already there, so the balance is right either way. `verify`
+answers **success** (the visit the patient paid for exists), and
+`respond-suggestion` leaves the suggestion accepted rather than reverting it to
+`pending` and asking somebody to accept a time they already have. Telling a
+patient whose money has moved that their visit was not booked is the one thing
+these routes must never say wrongly. The bulk scheduler already reports per
+slot, so there the plain sentence is the honest answer.
+
+**The event log.** The `purchased` row in `home_visit_purchase_events` was
+written on every retry, so two of them read as two purchases on the timeline an
+admin opens to work out what happened. Guarded on the thing that happened
+rather than on who got there first — the rule the credit ledger's own
+idempotency keys follow.
+
+Verified with `scripts/booking-idempotency-sql-checks.sql`, which asserts both
+halves of each guard (the booking that must still land, the duplicate that must
+raise, a *different* slot still landing, and a cancelled row freeing its time)
+and builds its own fixture rather than finding one, since this project has no
+appointments and a file that searched for one would skip every assertion and
+report green. Its negative control was run: inverting the refusal assertion
+reaches the caller as an error.
 
 ### 28. Home-visit service can be disabled between checkout and verification — **Fixed — different approach**
 
@@ -1121,7 +1167,7 @@ What I had to fix is the frozen split rates I added — left set, the money math
 would read a snapshot for a completion that had been undone. A settled payout
 deliberately does not reverse and is still refused: money has left.
 
-### 81. Confirmed appointment can exist without a usable Calendar/Meet event — **Partly fixed / Open**
+### 81. Confirmed appointment can exist without a usable Calendar/Meet event — **Fixed — different approach**
 
 The states you describe mostly exist under different names:
 `google_calendar_sync_error`, `google_calendar_sync_attempts`, a claim column,
@@ -1129,8 +1175,32 @@ The states you describe mostly exist under different names:
 single answer to "is this synced" (a home visit has no Meet link *by design*,
 and judging by `meet_link` listed every home visit as broken).
 
-What is missing is one explicit column rather than three implied states. Real
-but cosmetic next to the rest; not done.
+You asked for **one explicit column**. I did not add one, and the reason is the
+same one that kept `therapistReadiness` a derivation: a stored
+`calendar_sync_state` is a second source of truth about facts the row already
+carries. Every path that creates an event, every retry, every claim and every
+release would have to write it, and the first time one forgot, the word on the
+screen and the state of the session would disagree with nothing to reconcile
+them — on the subsystem whose *whole* history in this codebase is readers
+disagreeing about what counts as synced.
+
+So it is `describeCalendarSync()` in `meetSyncState.ts`: the same four facts
+read as one named state, unit-tested, with the reasoning in the module. Six
+states, and the two that matter were previously indistinguishable on screen —
+**`in_flight`** (claimed, an attempt running right now) and **`needs_person`**
+(the sweep has spent its attempts). The claim column reached no screen at all
+before this, so an admin watching a row being retried and an admin watching a
+row nothing will ever move again read the same sentence.
+
+Three details are load-bearing. A claim older than
+`MEET_SYNC_CLAIM_STALE_MS` is *not* `in_flight` — it is a render that died
+holding the row, which is the sweep's own rule, applied to the word on the
+screen so the two cannot disagree. **`unknown` is a real answer**, because
+these columns come from isolated migration-tolerant queries and saying "needs a
+person" about a row whose error column never loaded is the exact false positive
+this module was written to stop. And `calendarSyncNeedsPerson` is true of
+exactly one state, asserted in the test, so the amber on the card cannot drift
+from the list it colours.
 
 ### 82. Calendar/Meet retries can create duplicate events — **Already held**
 
