@@ -182,6 +182,10 @@ import { summariseFindings, type LeakFinding } from "@/lib/contactLeakScan";
 import type { RiskSeverity, RiskStatus, RiskSubjectKind } from "@/lib/riskSignals";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import {
+  readableTempPassword,
+  TEMP_PASSWORD_VISIBLE_DAYS,
+} from "@/lib/tempPassword";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | MoveRestore",
@@ -281,6 +285,24 @@ export default async function AdminDashboardPage({
     // exists for patterns that have been building for days. Its own
     // interval guard means most renders skip it entirely.
     await runRiskSweep(admin);
+    // Not keeping a credential the clinic issued and nobody collected.
+    //
+    // The screens already stop *showing* one past its window (see
+    // src/lib/tempPassword.ts); this is the other half, so the plaintext is
+    // not left on disk indefinitely. In after() with the other sweeps
+    // because there is no worker in this deployment, and it is cheap, bounded
+    // and idempotent -- four qualified UPDATEs that match nothing on almost
+    // every render.
+    //
+    // A failure is swallowed deliberately: this is housekeeping, and it must
+    // never be the thing that takes the dashboard down.
+    try {
+      await admin.rpc("purge_expired_temp_passwords", {
+        p_older_than_days: TEMP_PASSWORD_VISIBLE_DAYS,
+      });
+    } catch (err) {
+      console.error("Could not purge expired temporary passwords", err);
+    }
   });
 
   // All of these are independent reads -- none needs another query's data,
@@ -1961,7 +1983,9 @@ export default async function AdminDashboardPage({
                     )}
                     <ResetHospitalPasswordButton
                       hospitalId={h.id}
-                      currentPassword={hospitalNoteMap.get(h.id)?.temp_password}
+                      currentPassword={
+                        readableTempPassword(hospitalNoteMap.get(h.id), nowTimestamp()).password
+                      }
                       currentPasswordSetAt={
                         hospitalNoteMap.get(h.id)?.temp_password_set_at
                       }
@@ -3330,7 +3354,7 @@ export default async function AdminDashboardPage({
       // person chose is a bcrypt hash and can never be read back, so the
       // directory says which of the two states an account is in rather than
       // pretending to know a secret it does not have.
-      tempPassword: adminNoteMap.get(p.id)?.temp_password ?? null,
+      tempPassword: readableTempPassword(adminNoteMap.get(p.id), nowTimestamp()).password,
       tempPasswordSetAt: adminNoteMap.get(p.id)?.temp_password_set_at ?? null,
     }));
 

@@ -16,6 +16,26 @@ export type RateLimit = {
   /** Window length in seconds. */
   readonly windowSeconds: number;
   /**
+   * What happens when the limiter's OWN query fails.
+   *
+   * `"open"` allows the request, which is right wherever refusing costs the
+   * clinic something real: a limiter whose database call hiccupped and then
+   * refused a checkout has turned a blip into a lost booking, which is worse
+   * than the burst it would have stopped.
+   *
+   * `"closed"` refuses it, which is right where the limit is the ONLY thing
+   * standing between a caller and an unbounded lookup. For those, failing
+   * open does not degrade gracefully -- it removes the protection entirely
+   * for as long as the outage lasts, and nobody finds out, because a limiter
+   * that allows everything looks exactly like a limiter with nothing to do.
+   *
+   * Stated per limit rather than as one global posture, so the direction is
+   * a reviewable decision on each one instead of a property of the file.
+   * Defaults to `"open"` when omitted, which is what every limit did before
+   * this existed.
+   */
+  readonly onCheckFailure?: "open" | "closed";
+  /**
    * What the refused caller is told.
    *
    * Two rules, both enforced by `rateLimit.test.ts`. It carries **no
@@ -71,6 +91,11 @@ export const RATE_LIMITS = {
    */
   areaLookup: {
     scope: "area-lookup",
+    // Fails CLOSED, for the same reason: it answers "do you visit this
+    // pincode", which is an enumerable space, and the honest answer when the
+    // limiter cannot be asked is "we could not check" -- which the callers
+    // already resolve as a third state rather than as "no".
+    onCheckFailure: "closed",
     limit: 40,
     windowSeconds: 300,
     message: "We couldn't check that pincode just now.",
@@ -84,6 +109,11 @@ export const RATE_LIMITS = {
    */
   referralCodeLookup: {
     scope: "referral-code-lookup",
+    // Fails CLOSED. This answers "does this hospital referral code exist",
+    // so the cap is the whole of the defence against walking the code space
+    // -- and a partner checking their own code a handful of times a day
+    // loses nothing by being asked to retry during an outage.
+    onCheckFailure: "closed",
     limit: 40,
     windowSeconds: 300,
     message: "We couldn't check that code just now.",
@@ -178,28 +208,58 @@ export type RateLimitName = keyof typeof RATE_LIMITS;
  * addresses buys themselves one fresh bucket per address rather than an
  * unlimited one.
  *
- * `x-real-ip` is preferred over `x-forwarded-for`. Both are set by the
- * platform in front of this app, but the forwarded header is a *list* that
- * a client can pad from the left, and reading the leftmost entry of a
- * padded list is how an IP limiter ends up counting a value the caller
- * chose. Taking the single-valued header first means the list is only
- * consulted where there is no better answer.
+ * `x-real-ip` is preferred over `x-forwarded-for`, because it is
+ * single-valued and set by the platform rather than assembled from what the
+ * caller sent.
+ *
+ * **The forwarded list is read from the RIGHT, not the left.** This used to
+ * take the leftmost entry, and its own comment said why that was unsafe --
+ * the header is a list a client can pad from the left -- and then did it
+ * anyway as the fallback. A proxy *appends* the address it saw, so the
+ * leftmost entry is whatever the original caller claimed and the rightmost
+ * is the only one a trusted hop actually observed. On a host that does not
+ * set `x-real-ip` -- which is precisely the case System Health's "Public
+ * doors" check exists to detect -- every request was therefore keyed on a
+ * value the caller chose, so each one got a fresh allowance and every public
+ * cap was off while appearing to work.
+ *
+ * How many entries from the right to trust is the one thing only the
+ * operator knows, because it depends on how many proxies sit in front of
+ * this app. `RATE_LIMIT_TRUSTED_PROXY_HOPS` is that number and defaults to
+ * 0, meaning "the last hop is the one I trust". Getting it wrong in the safe
+ * direction puts several visitors in one bucket, which the Public doors
+ * check reports; getting it wrong in the unsafe direction is what this
+ * change removes, and no setting can reintroduce it -- the value is clamped
+ * so it can never walk past the start of the list into caller-supplied
+ * territory.
  *
  * Returns null when neither header is present, which is the local-dev case
  * and is handled by the caller rather than invented here -- a made-up
  * constant would put every visitor in one bucket and lock the app out of
  * itself the moment it ran somewhere without those headers.
  */
-export function clientIdentifier(headers: {
-  get(name: string): string | null;
-}): string | null {
+export function clientIdentifier(
+  headers: { get(name: string): string | null },
+  options: { trustedProxyHops?: number } = {}
+): string | null {
   const real = headers.get("x-real-ip")?.trim();
   if (real) return real;
 
   const forwarded = headers.get("x-forwarded-for");
   if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
+    const entries = forwarded
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (entries.length > 0) {
+      // Counted from the right. Clamped to the list, so a misconfigured hop
+      // count degrades to the leftmost entry at worst *and only when the
+      // whole list is that short* -- it can never index outside it.
+      const hops = Math.max(0, Math.floor(options.trustedProxyHops ?? 0));
+      const index = Math.max(0, entries.length - 1 - hops);
+      return entries[index] ?? null;
+    }
   }
 
   return null;

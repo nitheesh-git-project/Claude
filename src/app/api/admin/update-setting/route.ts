@@ -585,19 +585,74 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin
+
+  // Read the value being replaced, then write only while it is still that
+  // value. Two things come out of one extra read:
+  //
+  // 1. **The log records what it was.** This wrote `{ value: nextValue }`
+  //    and nothing else, so the one question the settings log gets asked --
+  //    "what was the refund window before somebody changed it?" -- had no
+  //    answer. That is the same defect `patient.update_contact` was already
+  //    corrected for, and the rule is stated in AGENTS.md: record the
+  //    values, not that something changed.
+  // 2. **A concurrent change is refused rather than silently lost.** Two
+  //    admins on the same setting used to be last-write-wins with nothing on
+  //    either screen saying so -- and these are rules that decide what
+  //    patients are charged and when they may cancel, so quietly discarding
+  //    one admin's decision is not a small thing.
+  const { data: before, error: readError } = await admin
     .from("site_settings")
-    .update({ [key]: nextValue })
-    .eq("id", true);
+    .select(key)
+    .eq("id", true)
+    .maybeSingle();
+
+  if (readError) {
+    // A read that failed is not a value that was absent -- writing anyway
+    // would record a `from` we never saw.
+    return serverError("admin/update-setting (read)", readError);
+  }
+
+  const previousValue = (before as Record<string, unknown> | null)?.[key] ?? null;
+
+  const claim = admin.from("site_settings").update({ [key]: nextValue }).eq("id", true);
+  // `.is()` for null and `.eq()` otherwise: PostgREST renders a null filter
+  // as `is.null`, and `eq.null` matches nothing at all -- which would refuse
+  // every first-time save of a setting that has never been set.
+  const { data: updated, error } = await (previousValue === null
+    ? claim.is(key, null)
+    : claim.eq(key, previousValue as never)
+  )
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return serverError("admin/update-setting", error);
   }
 
+  if (!updated) {
+    // Either somebody else changed this setting in the meantime, or it
+    // already holds the value being written. The second is harmless, so it
+    // is reported as success rather than as a conflict the admin cannot
+    // act on -- a no-op save must not read as a failure.
+    if (previousValue === nextValue) {
+      return NextResponse.json({ success: true, unchanged: true });
+    }
+    return NextResponse.json(
+      {
+        error:
+          "Someone else changed this setting a moment ago. Refresh to see what it says now before saving again.",
+      },
+      { status: 409 }
+    );
+  }
+
   await recordAdminActivity(admin, adminUser.id, {
     action: "setting.update",
     targetLabel: key,
-    details: { value: nextValue },
+    // `from` and `to`, which is one of the five pairs readableDetails()
+    // already recognises -- so the detail dialog reads this as a change
+    // rather than as a bare new value.
+    details: { from: previousValue, to: nextValue },
   });
 
   // /book is ISR-cached (revalidate = 300), so without this an edited

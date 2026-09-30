@@ -30,6 +30,16 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import { readableTempPassword } from "@/lib/tempPassword";
+
+// A module-level helper rather than an inline `Date.now()` in the component
+// body: `react-hooks/purity` refuses a clock read during render, and the rule
+// is right -- a render must not depend on when it happened. Same shape as the
+// admin dashboard's own nowTimestamp().
+function nowTimestamp() {
+  return Date.now();
+}
+
 
 // Shared body for both the standalone /admin/dashboard/patients/[id] page
 // (hard navigation, shareable link) and the @modal intercepted route that
@@ -430,9 +440,15 @@ export default async function PatientDetailContent({ id }: { id: string }) {
             )}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+            {/*
+              A credential the clinic issued stops being shown once it has
+              aged out -- see src/lib/tempPassword.ts. It had no end date, so
+              one nobody collected sat readable indefinitely while having no
+              support value left.
+            */}
             <ResetPatientPasswordButton
               patientId={patient.id}
-              currentPassword={note?.temp_password}
+              currentPassword={readableTempPassword(note, nowTimestamp()).password}
               currentPasswordSetAt={note?.temp_password_set_at}
             />
             {/* Master Admin only, and the route checks it again -- deleting

@@ -5,6 +5,7 @@ import {
   clientIdentifier,
   rateLimitBucket,
   retryAfterSeconds,
+  type RateLimit,
   type RateLimitName,
 } from "@/lib/rateLimit";
 
@@ -141,6 +142,22 @@ export function __resetRateLimitIdentifierStats(): void {
   s.sawDifferent = false;
 }
 
+/**
+ * `RATE_LIMIT_TRUSTED_PROXY_HOPS`, read per call rather than at module load.
+ *
+ * Per call because this module is bundled per entry in the App Router (the
+ * same reason the identifier stats hang off globalThis), so a value captured
+ * at load time in one copy would not be the value another copy saw.
+ * Unparseable or negative resolves to 0, which is the safe direction: it
+ * trusts the nearest hop only.
+ */
+function trustedProxyHops(): number {
+  const raw = process.env.RATE_LIMIT_TRUSTED_PROXY_HOPS;
+  if (!raw) return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
 export async function enforceRateLimit(
   request: NextRequest,
   name: RateLimitName,
@@ -148,7 +165,12 @@ export async function enforceRateLimit(
 ): Promise<NextResponse | null> {
   const rule = RATE_LIMITS[name];
 
-  const identifier = options.identifier?.trim() || clientIdentifier(request.headers);
+  // How many proxies sit in front of this app is the operator's to say --
+  // see clientIdentifier for why the forwarded list is read from the right
+  // and why guessing it wrong is safe in only one direction.
+  const identifier =
+    options.identifier?.trim() ||
+    clientIdentifier(request.headers, { trustedProxyHops: trustedProxyHops() });
   const seen = stats();
   if (!identifier) {
     seen.anonymous++;
@@ -166,6 +188,31 @@ export async function enforceRateLimit(
     });
 
     if (error) {
+      // The direction is the limit's own decision, not this file's -- see
+      // `onCheckFailure` on RateLimit. Open wherever refusing costs the
+      // clinic a real booking; closed where the cap is the only thing
+      // bounding an enumerable lookup, because failing open there does not
+      // degrade the protection, it removes it, and nothing says so.
+      // Read through the shared type rather than the narrowed literal: the
+      // RATE_LIMITS object is `as const`, so only the members that set this
+      // field carry it in the union.
+      if ((rule as RateLimit).onCheckFailure === "closed") {
+        console.error(
+          "Rate limit check failed, refusing request (this limit fails closed)",
+          rule.scope,
+          error.message
+        );
+        const retryAfter = retryAfterSeconds(undefined, rule.windowSeconds);
+        return NextResponse.json(
+          {
+            // Deliberately not `rule.message`, which describes having done
+            // something too often. Nobody has -- we could not check.
+            error: "We couldn't check that just now. Please try again in a moment.",
+            retryAfterSeconds: retryAfter,
+          },
+          { status: 503, headers: { "Retry-After": String(retryAfter) } }
+        );
+      }
       console.error("Rate limit check failed, allowing request", rule.scope, error.message);
       return null;
     }

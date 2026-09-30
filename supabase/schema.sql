@@ -13128,3 +13128,69 @@ alter table payments add column if not exists captured_amount_paise integer;
 -- the two agreed, which is exactly the thing that was never checked.
 comment on column payments.captured_amount_paise is
   'What the gateway reported capturing. Compared against amount_paise (what the order was created for); a difference is a reconciliation item, not an error.';
+
+-- =============================================================================
+-- Audit fixes: an issued credential does not sit on disk for ever.
+-- =============================================================================
+-- The four `*_admin_notes` tables hold the plaintext of a password this app
+-- generated, so an admin taking an "it won't let me in" call can read it back
+-- rather than resetting a working one. They carry no RLS policies, only the
+-- service role reads them, and the value is cleared when the account sets its
+-- own password.
+--
+-- What was missing is an end date. A credential nobody collected sat there
+-- indefinitely, and after a couple of weeks it has no support value left --
+-- the person has either signed in or rung again -- while staying a real
+-- liability: one service-role key leak exposes every password the clinic has
+-- ever issued, including for accounts handed over months ago.
+--
+-- The app stops *showing* one past the window (see src/lib/tempPassword.ts,
+-- which expires on read, the same pattern every other time-based rule here
+-- follows because there is no worker to sweep). This is the other half: not
+-- keeping it. Called from the admin dashboard's existing lazy sweep, so it
+-- needs no cron.
+--
+-- Deliberately clears the value and keeps the row: `temp_password_set_at`
+-- records that a credential WAS issued and when, which is audit information
+-- the clinic should keep, and the other columns on these tables are ordinary
+-- admin notes that have nothing to do with passwords.
+create or replace function purge_expired_temp_passwords(p_older_than_days integer default 14)
+returns integer
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_cutoff timestamptz := now() - make_interval(days => greatest(1, coalesce(p_older_than_days, 14)));
+  v_total integer := 0;
+  v_n integer;
+begin
+  -- Every UPDATE carries a real WHERE clause, per the pg-safeupdate note
+  -- elsewhere in this file: Supabase preloads that library for the role
+  -- PostgREST connects as, and it refuses an unqualified UPDATE outright.
+  update patient_admin_notes set temp_password = null
+   where temp_password is not null
+     and (temp_password_set_at is null or temp_password_set_at < v_cutoff);
+  get diagnostics v_n = row_count; v_total := v_total + v_n;
+
+  update therapist_admin_notes set temp_password = null
+   where temp_password is not null
+     and (temp_password_set_at is null or temp_password_set_at < v_cutoff);
+  get diagnostics v_n = row_count; v_total := v_total + v_n;
+
+  update hospital_admin_notes set temp_password = null
+   where temp_password is not null
+     and (temp_password_set_at is null or temp_password_set_at < v_cutoff);
+  get diagnostics v_n = row_count; v_total := v_total + v_n;
+
+  update admin_account_notes set temp_password = null
+   where temp_password is not null
+     and (temp_password_set_at is null or temp_password_set_at < v_cutoff);
+  get diagnostics v_n = row_count; v_total := v_total + v_n;
+
+  return v_total;
+end;
+$$;
+
+revoke all on function public.purge_expired_temp_passwords(integer) from public;
+revoke all on function public.purge_expired_temp_passwords(integer) from anon;
+revoke all on function public.purge_expired_temp_passwords(integer) from authenticated;

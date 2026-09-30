@@ -41,6 +41,7 @@ function nowTimestamp() {
 }
 import SpecialtyChip from "@/components/SpecialtyChip";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
+import { readableTempPassword } from "@/lib/tempPassword";
 
 // Shared body for both the standalone /admin/dashboard/therapists/[id] page
 // (hard navigation, shareable link) and the @modal intercepted route that
@@ -395,9 +396,15 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             {therapist.bio && <p className="text-slate-600">{therapist.bio}</p>}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+            {/*
+              A credential the clinic issued stops being shown once it has
+              aged out -- see src/lib/tempPassword.ts. It had no end date, so
+              one nobody collected sat readable indefinitely while having no
+              support value left.
+            */}
             <ResetTherapistPasswordButton
               therapistId={therapist.id}
-              currentPassword={note?.temp_password}
+              currentPassword={readableTempPassword(note, nowTimestamp()).password}
               currentPasswordSetAt={note?.temp_password_set_at}
             />
             {/* See the patient screen's note: Master Admin only, checked
