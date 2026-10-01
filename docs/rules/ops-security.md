@@ -44,6 +44,20 @@ inline `profile.active === false` even when the route already loads the row
 (`reveal-contact` does, correctly, and is why the other eight were missed):
 a grep for the helper name is how the next audit finds the gap.
 
+A third layer now holds for the reads and writes a token can make
+directly against PostgREST and Storage. **A suspended account's live token
+reads and edits nothing of its own**: the patient's own-row select
+policies (appointments, health profile, Pain Map, report metadata) require
+the caller's `active` flag, read once per statement as an initplan, and
+`profiles_update_own` plus the avatar bucket policies do the same for the
+direct-save profile fields - so a suspended therapist or partner can no
+longer rewrite the bio and photo patients read. Approval is deliberately
+*not* required there: an applicant must be able to finish their profile.
+`scripts/authorization-checks.mjs` section 5 asserts the read half.
+The helpers in `requireActiveProfile.ts` answer `null` when the read
+itself failed; routes answer that with `profileCheckUnavailable()` (503,
+retry), never with "suspended".
+
 Admin routes go through `src/lib/supabase/requireAdmin.ts`. Never trust a
 role, an id, or an amount sent from the client - re-derive it server-side.
 

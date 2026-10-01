@@ -14816,3 +14816,88 @@ end;
 $$;
 
 revoke all on function public.publish_care_plan_version(uuid, uuid, boolean) from public, anon, authenticated;
+
+-- A suspended account cannot edit its own profile or avatar.
+--
+-- The direct-save fields (bio, languages, avatar_url and the rest of the
+-- column grant above) and the avatars bucket checked ownership and nothing
+-- else, so a suspended therapist or partner -- locked out of their dashboard
+-- by the proxy -- could still change what patients read about them with the
+-- token they already held. Suspension is `active = false`; approval is not
+-- required here, because an applicant awaiting approval still has to be able
+-- to complete their own profile.
+drop policy if exists "profiles_update_own" on profiles;
+create policy "profiles_update_own" on profiles
+  for update
+  using ((select auth.uid()) = id and active = true)
+  with check ((select auth.uid()) = id and active = true);
+
+drop policy if exists "avatar_insert_own" on storage.objects;
+create policy "avatar_insert_own" on storage.objects
+  for insert with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and exists (
+      select 1 from public.profiles p
+      where p.id = (select auth.uid()) and p.active = true
+    )
+  );
+
+drop policy if exists "avatar_update_own" on storage.objects;
+create policy "avatar_update_own" on storage.objects
+  for update using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and exists (
+      select 1 from public.profiles p
+      where p.id = (select auth.uid()) and p.active = true
+    )
+  );
+
+drop policy if exists "avatar_delete_own" on storage.objects;
+create policy "avatar_delete_own" on storage.objects
+  for delete using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and exists (
+      select 1 from public.profiles p
+      where p.id = (select auth.uid()) and p.active = true
+    )
+  );
+
+-- Suspension reaches the token already issued, for a patient's own record.
+--
+-- A patient's own-row policies keyed on auth.uid() alone, so a suspended
+-- patient's still-valid token kept reading their appointments, health
+-- profile, Pain Map exams and report metadata straight from PostgREST until
+-- it expired -- and, through the report rows, kept minting signed links.
+-- (scripts/authorization-checks.mjs section 5 now asserts this rather than
+-- noting it.) The account's own `active` flag is read once per statement:
+-- the subquery is an initplan, not a per-row lookup.
+drop policy if exists "appointments_select_own" on appointments;
+create policy "appointments_select_own" on appointments
+  for select using (
+    ((select auth.uid()) = patient_id or (select auth.uid()) = therapist_id)
+    and coalesce((select p.active from public.profiles p where p.id = (select auth.uid())), false)
+  );
+
+drop policy if exists "patient_medical_documents_select_own" on patient_medical_documents;
+create policy "patient_medical_documents_select_own" on patient_medical_documents
+  for select using (
+    (select auth.uid()) = patient_id
+    and coalesce((select p.active from public.profiles p where p.id = (select auth.uid())), false)
+  );
+
+drop policy if exists "condition_profiles_select_own" on patient_condition_profiles;
+create policy "condition_profiles_select_own" on patient_condition_profiles
+  for select using (
+    (select auth.uid()) = patient_id
+    and coalesce((select p.active from public.profiles p where p.id = (select auth.uid())), false)
+  );
+
+drop policy if exists "pain_assessments_select_own" on pain_assessments;
+create policy "pain_assessments_select_own" on pain_assessments
+  for select using (
+    (select auth.uid()) = patient_id
+    and coalesce((select p.active from public.profiles p where p.id = (select auth.uid())), false)
+  );
