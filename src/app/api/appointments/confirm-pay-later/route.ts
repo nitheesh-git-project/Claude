@@ -155,6 +155,27 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // The ceiling again, against the figure actually being written. The check
+  // above ran on an unclaimed preview, and claiming can raise the price (a
+  // code at its cap, an invite half another checkout holds) -- and the
+  // balance can move between the two reads. Whatever was claimed stays
+  // attached to this appointment, which is where the pay-now path picks it
+  // up if the patient chooses to pay instead.
+  if (quote.totalPaise > preview.totalPaise) {
+    const recheck = await readPayLaterBookingEligibility(admin, {
+      patientId: user.id,
+      visitMode: appointment.visit_mode,
+      hasProgramme: !!appointment.package_purchase_id,
+      bookingAmountPaise: quote.totalPaise,
+    });
+    if (!recheck.allowed) {
+      return NextResponse.json(
+        { error: payLaterRefusalMessage(recheck.reason) },
+        { status: 409 }
+      );
+    }
+  }
+
   const outcome = await confirmPayLaterAppointment(admin, {
     appointment,
     amountDuePaise: quote.totalPaise,

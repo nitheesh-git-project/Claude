@@ -38,25 +38,37 @@ export async function readPatientOwed(
   patientId: string
 ): Promise<{ owedPaise: number; owedCount: number; unallocatedPaise: number } | null> {
   try {
+    // Paged: a patient with a long history passed PostgREST's 1,000-row cap
+    // and every session past it silently stopped counting as owed.
     const [sessions, payments] = await Promise.all([
-      admin
-        .from("appointments")
-        .select(
-          "id, patient_id, status, slot_time, payment_status, payment_terms, amount_due_paise, pay_later_outcome"
-        )
-        .eq("patient_id", patientId)
-        .eq("status", "completed"),
-      admin
-        .from("pay_later_payments")
-        .select("id, patient_id, status, unallocated_paise")
-        .eq("patient_id", patientId)
-        .eq("status", "confirmed"),
+      readAllRows<Record<string, unknown>>(() =>
+        admin
+          .from("appointments")
+          .select(
+            "id, patient_id, status, slot_time, payment_status, payment_terms, amount_due_paise, pay_later_outcome"
+          )
+          .eq("patient_id", patientId)
+          .eq("status", "completed")
+          .order("id", { ascending: true })
+      ),
+      readAllRows<Record<string, unknown>>(() =>
+        admin
+          .from("pay_later_payments")
+          .select("id, patient_id, status, unallocated_paise")
+          .eq("patient_id", patientId)
+          .eq("status", "confirmed")
+          .order("id", { ascending: true })
+      ),
     ]);
-    if (sessions.error) return null;
+    if (sessions.error || sessions.truncated) return null;
+    // A missing pay_later_payments table (42P01) is a database with no
+    // payments to count. Any other failure is not a pool of zero.
+    const paymentsCode = (payments.error as { code?: string } | null)?.code;
+    if ((payments.error && paymentsCode !== "42P01") || payments.truncated) return null;
     const balance = computePatientBalance(
       patientId,
-      (sessions.data ?? []) as PayLaterAppointment[],
-      (payments.data ?? []) as PayLaterPaymentRow[]
+      sessions.rows as unknown as PayLaterAppointment[],
+      payments.rows as unknown as PayLaterPaymentRow[]
     );
     return {
       owedPaise: balance.owedPaise,
