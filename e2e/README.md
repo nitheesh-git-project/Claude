@@ -11,8 +11,8 @@ worked example of choosing a layer per property.
 
 ## Before you file a bug against a red run
 
-**Nine cases cannot pass without browser egress to Supabase**, and all nine
-fail identically on an unmodified tree. The specs sign in by injecting a
+**Eleven cases cannot pass without browser egress to Supabase**, and all of
+them fail identically on an unmodified tree. The specs sign in by injecting a
 Node-minted session cookie, which covers authentication but not data: a page
 that resolves something with the browser-side client still needs the network
 from Chromium.
@@ -23,6 +23,7 @@ from Chromium.
 | `booking-rules` BR-CANCEL-001/002 | `Free cancellation` not found | `BookingWizard` reads `isLoggedIn` from its own `auth.getUser()`, so the injected cookie is invisible to it, Step 2 renders signed-out and the walk never reaches Step 3 |
 | `pay-later` PL-UI-003 to PL-UI-006 | four money assertions on a booking that was never made | same Step 2 wall; `07-book-step2-filled.png` shows it offering *Create Password* to a patient the spec had just signed in |
 | `booking-pay-button-live` (all 3) | the pay button **not found** | same Step 1 → Step 3 path, so it reads as the very regression it guards - a dead button and an absent one are different faults |
+| `admin-refresh-badge` RB-002, RB-003 | the badge never reaches 1, ~55s | the badge is driven by `postgres_changes` arriving over the browser's **realtime websocket**, so it needs egress just as much as a fetch does. RB-001 asserts the count is *zero* and so passes for the wrong reason, exactly like TR-003 below |
 
 `node scripts/.qa/egress-check.mjs` settles it in one call: "Failed to fetch"
 from inside the page where the same request succeeds from Node is the network
@@ -30,7 +31,12 @@ policy. Note `therapist-request` TR-003 asserts that chip is *absent*, so in
 the same environment it passes for the wrong reason.
 
 The last full run on `staging` was **343 passed, 9 failed, 11 skipped** -
-those nine, and nothing else. Take the **set** as the invariant, never the
+those nine, and nothing else. A later run in a sandbox without browser
+egress read **343 passed, 8 failed, 19 skipped, 6 did not run**: the same
+set, with TR-002 skipped rather than failed and the `pay-later` file
+stopping at PL-UI-001 on leftover fixture rows (`npm run clean:e2e --
+--apply`, which needs a valid `SUPABASE_ACCESS_TOKEN`). The passing total
+is the stable number; what moves is how a blocked case is reported. Take the **set** as the invariant, never the
 total, which moves with every spec added.
 
 ## Running them
