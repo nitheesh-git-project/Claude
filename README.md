@@ -110,35 +110,127 @@ that arrived already correct would let that test pass without running.
 
 ### Unit tests
 
-`npm run test` runs Vitest over `src/**/*.test.ts`. It covers the
-dependency-free modules in `src/lib` - the pricing and payout arithmetic,
-the care-plan state machine and snapshot parsing, the contact scanner and
-its clinical false-positive corpus, contact masking and the reveal window,
-the risk-rule thresholds, and the consultation-first rule. No database and no
-browser, so it runs anywhere in about a second; anything needing either
+`npm run test` runs Vitest over `src/**/*.test.ts` - **1,173 tests across 81
+files**. It covers the dependency-free modules in `src/lib`: the pricing and
+payout arithmetic, the money and finance figures, the care-plan state machine
+and snapshot parsing, the contact scanner and its clinical false-positive
+corpus, contact masking and the reveal window, the risk-rule thresholds, the
+consultation-first rule, and the admin scope grid. No database and no
+browser, so it runs anywhere in about ten seconds; anything needing either
 belongs in `e2e/`.
 
-`npm run check:realtime` (also run first by `npm run lint`) checks that every
-table the dashboards subscribe to for live updates is present in the
-`supabase_realtime` publication in `supabase/schema.sql`. A missing entry has
-no visible symptom - the subscription succeeds and the events never arrive -
-so this is the only place it gets caught.
+Four of those files are **source walks** rather than ordinary tests, and they
+exist because each catches a mistake that produces no error, no failed
+request and no wrong row - so a reviewer would not catch it either:
+
+| Walk | Fails on |
+| --- | --- |
+| `formatDateTime.test.ts` | a `.toLocale*String(` anywhere in `src/` with no explicit timezone |
+| `nativeDateInput.test.ts` | a native `date`, `time`, `month` or `week` input outside the one exempt file |
+| `jsxEntitySpacing.test.ts` | a wrapped JSX sentence carrying an HTML entity, which silently loses its leading space |
+| `duplicatedMoneyRules.test.ts` | arithmetic with a revenue-share percentage outside the four modules that own it |
+
+**`npm run lint` runs three schema checks before eslint**, and each one
+catches a failure whose statement succeeds and whose protection does not:
+
+| Check | Fails when |
+| --- | --- |
+| `check:realtime` | a table a dashboard subscribes to was never added to the `supabase_realtime` publication. The subscription succeeds and the events simply never arrive, so this is the only place it is caught. Currently 46 subscribed tables, all published. |
+| `check:grants` | a `security definer` function is not revoked from **all three** of `public`, `anon` and `authenticated`. Naming only the last two leaves PUBLIC's implicit grant, which is how two ledger functions came to be callable by anyone holding the publishable anon key. Currently 33 functions, 2 reachable on purpose. |
+| `check:search-path` | a `security definer` function has no explicit safe `search_path`, which lets it resolve names through the *caller's* path and execute the caller's objects as its owner. Currently 58 functions, all safe. |
+
+Three more checks need a real database and are run by hand, never in lint:
+
+- `node scripts/check-live-grants.mjs` asks the **running** database the
+  grants question, since the file and the database can disagree in both
+  directions. It reports three outcomes rather than two: RLS filters rows
+  rather than raising, so a refused read and a permitted read of an *empty*
+  table are byte-identical on the wire, and both are reported as *not
+  proven* rather than as a pass.
+- `node scripts/check-definer-exposure.mjs` asks the question neither of the
+  others does: which definer functions a browser can actually **call**.
+  Three are reachable on purpose and each carries its reason.
+- `npm run check:concurrency` and `npm run check:authorization` fire parallel
+  RPCs at the slot claim, the rate limiter and the invite cap, and assert
+  cross-tenant isolation **below** the routes - because a session cookie
+  reaches PostgREST without passing any route guard. Both insert and delete
+  accounts directly, so point them at a disposable project only.
 
 ### End-to-end regression suite
 
-`npm run test:e2e` runs a scoped Playwright suite under `e2e/` against a
-running `npm run dev` (started automatically if one isn't already up). It
-is not a full UI test suite - it covers the paths where a silent regression
-would cost real money or trust: the CAS-guarded concurrency races (refund
-double-fire, therapist reassignment, referral double-assignment), home-visit
-area gating, bulk-scheduling limits, and the therapist roster
-(`therapist-roster.spec.ts` - weekly hours, exceptions, leave, admin and
-therapist authorization, stale and double-clicked saves, and the check that
-none of it moved a booking or the patient's time picker). Every spec talks to the app's HTTP
-API and Supabase directly (no browser), so it needs real credentials for a
+`npm run test:e2e` runs the Playwright suite under `e2e/` - **54 spec
+files**, around 390 cases, listed one by one in **`e2e/README.md`** - against a running `npm run dev` (started
+automatically if one isn't already up). It needs real credentials for a
 **test/staging** Supabase project and Razorpay **test-mode** keys in the
-environment or `.env.local` - never point it at production, since it creates
-real auth users, appointments, and Razorpay test-mode orders.
+environment or `.env.local`: never point it at production, since it creates
+real auth users, appointments and Razorpay test-mode orders.
+
+It is not a full UI test suite. It covers two kinds of thing, and the split
+is deliberate:
+
+- **Where a silent regression would cost money or trust**, driven at the
+  route or the database: the CAS-guarded concurrency races
+  (`concurrency.spec.ts` - refund double-fire, therapist reassignment,
+  referral double-assignment), payout and refund arithmetic
+  (`admin-money.spec.ts`), admin route authorization for every scope
+  (`admin-authz.spec.ts`, `admin-scoped-dashboard.spec.ts`), the discount
+  and promo rules (`discounts.spec.ts`, `acquisition-codes.spec.ts`), and
+  the append-only refund record (`refund-attempts.spec.ts`, which drives the
+  **database** rather than the routes, because the routes are what was
+  wrong).
+- **Where a regression is only visible to somebody looking at the screen**,
+  driven as a real browser: the public pages' section rail
+  (`section-nav.spec.ts`), the catalog dialogs and covers
+  (`catalog-detail`, `catalog-cover-image`), the booking wizard's pay button
+  staying tappable while its price loads
+  (`booking-pay-button-live.spec.ts`), the Refresh badge counting other
+  people's changes rather than the admin's own taps
+  (`admin-refresh-badge.spec.ts`), the clinic's own date picker
+  (`date-field.spec.ts`), form validation chrome, numeric input, the
+  intercepted detail overlay, each admin scope's own landing screen, and pay
+  later end to end (`pay-later.spec.ts`). Half of what pay later got wrong
+  the first time was what a person reads - a delivered session chipped
+  "Unpaid", a Pay-now link that led nowhere - and every one of those is
+  invisible to an API test and obvious in a screenshot.
+
+Four environment notes, because three of them produce failures that read as
+product bugs:
+
+- **The suite runs in the clinic's timezone**, pinned at the top of
+  `playwright.config.ts` (`process.env.TZ = "Asia/Kolkata"`). Specs build a
+  bookable slot with `setHours(hour, 0, 0, 0)` - a whole hour in the
+  *runtime's* zone - while the app judges the whole-hour rule in the
+  booking's own zone. On a UTC host the same slot arrives as 15:30 IST and
+  the route correctly answers "Sessions start on the hour", taking twenty
+  cases red at once, every one of them describing a working product. It is
+  pinned rather than left to whoever runs it because an environment variable
+  somebody has to remember is one they will forget.
+- **Set `PLAYWRIGHT_CHROMIUM_PATH`** when the machine already ships a
+  Chromium, rather than downloading another.
+- **The browser specs sign in by injecting a Node-minted session cookie**
+  rather than typing into the login form, so a sandbox whose browser has no
+  outbound network can still exercise the whole dashboard.
+  `admin-login.spec.ts` is the exception, since the login form itself is
+  what it tests: it needs a second app instance pointed at
+  `scripts/.qa/supabase-relay.mjs` (a localhost passthrough to the real
+  Supabase, nothing mocked) and skips itself when that instance is not
+  running.
+- **A spec that needs the *browser* to reach Supabase cannot pass without
+  browser egress.** The cookie injection covers authentication, not data: a
+  page resolving something with the browser-side client still needs the
+  network from Chromium. Nine cases are in that position - `therapist-
+  request.spec.ts` TR-002, `booking-rules.spec.ts` BR-CANCEL-001/002,
+  `pay-later.spec.ts` PL-UI-003 to 006, and all three of
+  `booking-pay-button-live.spec.ts` - and all nine fail identically on an
+  unmodified tree. Run `node scripts/.qa/egress-check.mjs` **before** filing
+  a defect against any browser spec: "Failed to fetch" from inside the page
+  where the same call succeeds from Node is the network policy, not the
+  product. Take the **set** as the invariant rather than a total, which moves
+  with every spec added.
+
+The last full run on `staging` was **343 passed, 9 failed, 11 skipped**, and
+the nine are exactly that no-egress set - proved environmental by
+measurement rather than assumed. See `docs/audit/MERGE-READINESS.md`.
 
 #### When to run which
 
@@ -192,13 +284,24 @@ Apply it either:
   re-applying after every change to the file without the manual copy/paste.
 
 `.github/workflows/schema-apply.yml` runs that same script on every push to
-`main` that touches `supabase/schema.sql`, but only if the repository has
-both the `SUPABASE_ACCESS_TOKEN` and `NEXT_PUBLIC_SUPABASE_URL` **repo
-secrets** set - without them the job fails with "Missing
-SUPABASE_ACCESS_TOKEN" and the live database quietly stays behind the file.
-Check the workflow's run history after merging a schema change: a merged
-change that never got applied leaves the database's policies out of sync
-with code that assumes them, and the app can look fixed in review while
+**`main`** that touches `supabase/schema.sql`. It runs in the `Production`
+GitHub environment and reads `SUPABASE_ACCESS_TOKEN` and
+`NEXT_PUBLIC_SUPABASE_URL` from **there**, not from repository secrets -
+without them the job fails with "Missing SUPABASE_ACCESS_TOKEN" and the live
+database quietly stays behind the file.
+
+**`main` only, and deliberately so now that `staging` is the default
+branch.** Those secrets point at the live project, so widening the trigger
+would apply a staging merge's schema to the production database.
+
+**So staging's database is applied by hand**, and that step belongs *before*
+the app is exercised there: the code assumes policies and functions that are
+otherwise simply absent, which fails in ways that read as code bugs rather
+than as a migration nobody ran. `STAGING.md` holds the whole model.
+
+Check the workflow's run history after merging a schema change to `main`: a
+merged change that never got applied leaves the database's policies out of
+sync with code that assumes them, and the app can look fixed in review while
 still failing in production.
 
 ### Environment variables
@@ -217,10 +320,11 @@ Copy `.env.example` to `.env.local` and fill in:
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer, and the account whose Meet permission opens each meeting |
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it |
-| `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which empties every table except the conditions catalogue (`treatment_categories` and their packages) and keeps admin logins. Never set it on a deployment holding real data |
+| `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which deletes every non-admin account and empties the tables testing fills, while keeping everything a person typed: `site_settings` and `risk_rules` are not touched at all, and the conditions catalogue (`treatment_categories` and their packages), `faqs`, `testimonials` and `mission_principles` all survive. Never set it on a deployment holding real data |
 | `SUPABASE_MAX_IN_FLIGHT` | Optional. How many HTTP requests this server may have in flight to Supabase at once, per instance. Default 96, measured: at 40 concurrent admin dashboard renders 48 gave a p50 of 130s, 96 gave 15.3s and 192 gave 16.4s. Without a cap, ~3,300 concurrent requests exhausted the connect timeout and the dashboard rendered the lost rows as zeroes. |
 | `SUPABASE_REQUEST_TIMEOUT_MS` | Optional. Deadline on each Supabase request, covering the wait for a slot. Default 20000. undici's own default is five minutes, and a socket stuck that long holds a slot the requests behind it need. |
 | `WEB_CONCURRENCY` | Optional. How many Node processes `npm run start:cluster` runs on one port. Default: cores, capped at 4. One `next start` renders on one thread, which is the ceiling once the database is not: four workers took the public site from 395 to 580 requests a second and an admin dashboard render under that load from 15.9s to 11.3s. Capped rather than per-core because the lazy sweeps keep their intervals per process. |
+| `RATE_LIMIT_TRUSTED_PROXY_HOPS` | Optional. How many proxies sit in front of this app, which is the one thing only the operator knows. The public rate limiter prefers `x-real-ip`; falling back to `x-forwarded-for` it reads the list from the **right**, because a proxy appends the address it saw and the leftmost entry is whatever the caller claimed. Default 0 - "trust the last hop only". Set it to 1 on a host behind one extra proxy, and so on. Getting it wrong upward puts several visitors in one bucket, which System Health's **Public doors** check reports; the value is clamped so no setting can walk back into caller-supplied territory. |
 | `SUPABASE_ACCESS_TOKEN` | Optional. A Supabase Personal Access Token (Account → Access Tokens on supabase.com, **not** the service role key or DB password), only needed to run `node scripts/run-schema.mjs` |
 
 Use Razorpay Test Mode keys (`rzp_test_…`) until the payment flow has been
@@ -385,29 +489,47 @@ signed-in role (`/get-started` when signed out). Every "go to my dashboard"
 link points here so no client bundle has to know the four paths; see
 "Roles" above.
 
+**Account state:** `/pending-approval`, `/account-suspended`,
+`/reset-password`. The first two are where `src/proxy.ts` sends an account
+that cannot yet (or can no longer) use a dashboard, and the public navbar
+links each by name rather than offering a button that opens a waiting
+screen.
+
 **Patient:** `/patient/register`, `/patient/login`, `/patient/dashboard`,
-`/patient/dashboard/profile`, `/patient/dashboard/health-profile`.
+and its sections - `/sessions`, `/book`, `/packages`, `/suggested`,
+`/payments`, `/health-profile`, `/profile`.
 
-**Therapist:** `/therapist/login`, `/therapist/dashboard`,
-`/therapist/dashboard/availability`, `/therapist/dashboard/profile`,
-`/therapist/dashboard/health-profile`,
-`/therapist/dashboard/health-profile/[patientId]`.
+**Therapist:** `/therapist/login`, `/therapist/dashboard`, and its sections -
+`/sessions`, `/availability`, `/earnings`, `/health-profile`,
+`/health-profile/[patientId]`, `/profile`.
 
-**Hospital:** `/hospital/login`, `/hospital/dashboard`,
-`/hospital/dashboard/profile`.
+**Hospital:** `/hospital/login`, `/hospital/dashboard`, and its sections -
+`/refer`, `/referrals`, `/revenue`, `/profile`.
+
+Every dashboard section is a **real route** with its own `page.tsx` and its
+own `loading.tsx`, not an anchor on one long scroll - see "Error and loading
+states" above.
 
 **Admin:** `/admin/login`, `/admin/dashboard`, organised into seven sections
 (defined once in `src/lib/adminNav.ts`):
 
 | Section | Screens | Answers |
 | --- | --- | --- |
-| **Today** | Today · Approvals | What is waiting on me right now |
-| **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom |
+| **Today** | Today · Approvals · Risk · Activity | What is waiting on me right now. **Activity** is the one feed scoped by desk: a limited scope reads entries whose action belongs to a section it can work *and* whose actor sits at that desk; a Master Admin reads the whole log under **Logs**. |
+| **Sessions** | Schedule · All Sessions · Roster · Delivery · Recommendations · New Booking | What is being delivered, and by whom. **Recommendations** is the review queue - a therapist's care plan waits here before the patient sees it, and it is also where an admin writes one on a clinician's behalf. |
 | **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
 | **Money** | Summary · Business Health · Transactions · Payouts · Owed by Patients · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
 | **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
 | **Settings** | *Your website:* Brand & Contact · Public Site — *How the clinic runs:* Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions — *Who gets in:* User Access · Sign-in & Security — *Technical:* System Health · Advanced | How the product behaves. Every screen here states what it is and gives one example, under its heading, and the sidebar groups the ten under four captions - ten flat labels is a list nobody reads top to bottom. |
+
+Three admin records have a route of their own as well as a place on that
+grid - `/admin/dashboard/patients/[id]`, `/therapists/[id]` and
+`/conditions/[id]`. Tapped from inside the dashboard they are intercepted
+(`@modal/(.)…`) and drawn as an overlay over the screen you were on; a
+reload, a new tab or a shared link lands on the real route, which renders
+the dashboard itself with the same overlay on top, so the two ways in are
+identical.
 
 **How the Money screens divide a rupee.** Every figure on Money → Summary
 comes out of one function, `moneyByBucketFor` in `src/lib/adminMetrics.ts`,
@@ -729,8 +851,8 @@ problem or someone working outside the normal flow, and both want a person.
 ### System Health
 
 **Settings → System Health** is the app reporting on itself: nothing there is
-a setting. It answers ten questions, and every one of them answers in the
-same shape, so the screen can be read without learning ten layouts:
+a setting. It answers **eleven** questions, and every one of them answers in
+the same shape, so the screen can be read without learning eleven layouts:
 
 | Check | Asks |
 | --- | --- |
@@ -742,6 +864,7 @@ same shape, so the screen can be read without learning ten layouts:
 | **Public doors** | Can this server tell one visitor from another, so its public limits mean anything? |
 | **Pay Later** | What do trusted patients owe, how long has it been owed, and did any delivered session never get closed? |
 | **Partner attribution** | Does every referred patient's account name the partner who sent them? |
+| **Settlement record** | Does what each delivered session was recorded as worth still agree with what the Money screens work out? |
 | **Refunds** | Did every refund we sent to Razorpay come back with an answer we wrote down? |
 | **Patient files** | Does every uploaded scan have a record, and every record its file? |
 
@@ -2613,9 +2736,9 @@ src/app/                 App Router pages, layouts, and API route handlers
 src/components/          UI components (admin/, auth/, booking/, catalog/,
                          dashboard/, home/, hospital/, marketing/, profile/,
                          motion/, system/, visuals/)
-src/components/marketing/ The seven public pages' shared design system
+src/components/marketing/ The eight public pages' shared design system
 src/lib/                 Domain logic, formatting, and Supabase clients
-src/lib/marketingNav.ts  The seven public pages, defined once
+src/lib/marketingNav.ts  The eight public pages + booking, defined once
 src/lib/marketingPhotos.ts Every photograph the public pages use
 src/lib/supabase/        client / server / admin / public clients, proxy
                          session refresh, and the auth guards
@@ -2625,6 +2748,15 @@ scripts/                 One-off tooling (Google refresh-token helper,
                          build-test-plan.py, which builds the manual QA plan,
                          and seed-qa-accounts.mjs, which recreates its
                          fixture accounts after a data reset)
+e2e/                     The Playwright suite. e2e/README.md is its
+                         inventory - all 54 spec files, what each covers,
+                         how to run them, and the nine cases that cannot
+                         pass without browser egress to Supabase
+docs/                    MONEY-MODEL.md (the money vocabulary),
+                         LIFECYCLE-STATES.md (every state machine),
+                         DATA-POLICY.md (migrations, backup, retention,
+                         deletion), and audit/ (what the audit found and
+                         what was done about each item)
 docs/qa/                 The manual E2E test plan: Markdown sources under
                          src/ - the only thing to edit - plus a PDF, DOCX
                          and HTML rebuilt on request rather than per change

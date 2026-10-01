@@ -51,7 +51,7 @@ covering what moved rather than the whole suite).
 `npm run test` is Vitest over `src/**/*.test.ts` - the dependency-free
 modules in `src/lib`, which is why the business maths lives there rather
 than inside components. It needs no database and no browser; anything that
-does belongs in `e2e/`. `npm run lint` runs two schema checks first.
+does belongs in `e2e/`. `npm run lint` runs three schema checks first.
 `check:realtime` (`scripts/check-realtime-coverage.mjs`) fails the lint
 when a table the UI subscribes to was never added to the `supabase_realtime`
 publication in `schema.sql`. That mismatch has no runtime symptom - the
@@ -74,7 +74,12 @@ summary names them. The old script collapsed all of it into a row count: it
 passed on `admin_activity_log` because that table had rows and failed on
 `appointments` because it had none, so its verdict moved with how much data
 happened to be lying around -- a false alarm on a database whose policies
-were perfect, which is exactly how a red line stops being read. The e2e suite (Playwright, `e2e/`) covers the
+were perfect, which is exactly how a red line stops being read. **`e2e/README.md` is the inventory** -- all 54 spec files, what each covers,
+how to run them, and the nine cases that cannot pass without browser egress.
+Read it to find a spec; read this section for the rules behind it. A new spec
+adds its row there in the same commit.
+
+The e2e suite (Playwright, `e2e/`) covers the
 money-critical paths and the admin back office - booking + payment,
 concurrency/CAS guards, bulk limits, admin route authorization for every
 role, input validation, payout/refund maths, the dashboard's own
@@ -240,12 +245,16 @@ Three environment notes for the browser specs:
   Step 2 offering *Full Name*, *Create Password* and "Already have an account?
   Sign in first" to a patient the spec had just signed in, so the four cases
   after it fail on a booking that was never made rather than on anything
-  pay-later. A whole-suite run here was **258 passed, 6 failed** when that was
-  measured, and those six are these three pairs -- all six fail identically on
-  a stashed, unmodified tree. Check that before reading a red pay-later run as
-  a money bug. Take the **pairs** as the invariant and not the total: the
-  total moves with every spec added, so a run that does not match it is
-  telling you the suite has grown, not that something broke.
+  pay-later. The last whole-suite run on `staging` was **343 passed, 9 failed,
+  11 skipped**, and the nine are these cases -- `therapist-request` TR-002,
+  `booking-rules` BR-CANCEL-001/002, `pay-later` PL-UI-003 to 006 and all
+  three of `booking-pay-button-live` -- every one of which fails identically
+  on a stashed, unmodified tree. Check that before reading a red pay-later
+  run as a money bug. Take the **set** as the invariant and not the total:
+  the total moves with every spec added (it was 258/6 across 40 spec files
+  before this list reached 54), so a run that does not match it is telling
+  you the suite has grown, not that something broke. `node
+  scripts/.qa/egress-check.mjs` settles it in one call.
   `booking-pay-button-live.spec.ts` is the same case a fourth time -- three
   more cases, and the reason the count above is no longer the one to check
   against. It reads as the very regression it guards: all three walk the same
@@ -612,7 +621,7 @@ retryable), `unavailable` (the profile read errored - anything but
 `PGRST116`, which is a real "no such row"; 503, retryable), `forbidden`
 (403, and deliberately still opaque so a limited admin cannot map what
 exists beyond their access). `getAdminUser` and `getAdminContext` keep their
-`null` shape, so the 99 routes built on them are unchanged; a route that can
+`null` shape, so every route built on them is unchanged; a route that can
 act on the difference takes the result version instead. A client may retry a
 401 or a 503 **once** - both are answered before anything is written, so
 there is nothing to duplicate - and must not retry anything else.
@@ -627,8 +636,10 @@ change a row they are not allowed to see, so the third box a permissions
 matrix usually draws is one this product has no honest meaning for.
 **`requireAdminScope(section)` asks for `manage`**, which is what makes
 `view` real rather than a label: every route guarded by it is a POST that
-changes something, so a section granted at `view` is read-only at all 99 of
-them without one being edited, and the level cannot be widened by a screen
+changes something, so a section granted at `view` is read-only at all **119** of
+them without one being edited (`grep -rl requireAdminScope src/app/api
+--include=route.ts | wc -l` -- 119 of the 122 admin routes, the three
+exceptions being reads: `export-pdf` and the two purchase-detail routes), and the level cannot be widened by a screen
 forgetting to hide a button. `scopeCanOpen` (view or manage) decides what
 renders; `scopeCanManage` decides what a control may do. One grant is
 `view` today - **finance reads Sessions** - because the question finance
@@ -1375,9 +1386,26 @@ before.
      user id cannot, so the checkout limit sits *below* `auth.getUser()` and
      passes `user.id`, falling back to the IP for the anonymous quote and
      promo preview that `checkoutQuote` deliberately answers. `x-real-ip` is
-     preferred over `x-forwarded-for` because the forwarded header is a list
-     a client can pad from the left, and reading the leftmost entry of a
-     padded list means counting a value the caller chose.
+     preferred over `x-forwarded-for`, and where it falls back to the
+     forwarded header it reads the list from the **right**. A proxy
+     *appends* the address it saw, so the leftmost entry is whatever the
+     original caller claimed and the rightmost is the only one a trusted hop
+     actually observed. This used to take the leftmost -- its own comment
+     said why that was unsafe and then did it anyway as the fallback -- so
+     on a host that does not set `x-real-ip`, which is precisely the case
+     the Public doors check exists to detect, every request was keyed on a
+     value the caller chose, each one got a fresh allowance, and every
+     public cap was off while appearing to work. How many entries from the
+     right to trust is the one thing only the operator knows, so
+     `RATE_LIMIT_TRUSTED_PROXY_HOPS` is that number, defaulting to 0 ("the
+     last hop is the one I trust") and read **per call** rather than at
+     module load -- this module is bundled per entry in the App Router, the
+     same reason the identifier stats hang off `globalThis`, so a value
+     captured at load in one copy is not the value another copy saw. Wrong
+     upward puts several visitors in one bucket, which Public doors reports;
+     wrong downward is what this removed, and no setting can reintroduce it,
+     since the value is clamped so it cannot walk past the start of the list
+     into caller-supplied territory.
   6. **A 429 is not a "no".** This is the rule at the top of this file --
      *a check that could not be run is not a check that came back negative* --
      and adding the limiter reintroduced it one layer up, in the two callers
@@ -2091,9 +2119,10 @@ before.
   a repeat after a dismissal is raised fresh, which is correct: it is new
   information. `risk_reviews` is append-only by trigger with a ten-character
   minimum note, since "dismissed" with no reason reads the same as "not
-  read". Thresholds live in `risk_rules` and are edited on the tab itself,
-  and the two rules that need a clinic baseline (`plan_conversion_low`,
-  `post_consultation_dropout`) ship **disabled** - a threshold invented
+  read". Thresholds live in `risk_rules` and are edited on the tab itself.
+  Ten rules are seeded, and the three that need a clinic baseline
+  (`plan_conversion_low`, `post_consultation_dropout`,
+  `pay_later_balance_high`) ship **disabled** - a threshold invented
   before anyone knows the normal rate fires on everyone or on nobody, and
   the first of those is how a queue stops being read.
   **The findings are scoped by desk; the evidence trails are not.**
@@ -2289,7 +2318,7 @@ before.
      a shared select -- verified against a live database missing the columns:
      PostgREST answers `42703`, supabase-js resolves rather than rejects, the
      `Promise.all` survives, the card reads "off" and the switch fails closed.
-     **System Health carries a seventh check**, `pay_later`. `off` when the
+     **System Health carries its own check for this**, `pay_later`. `off` when the
      switch is off and nobody is on terms, and **owing money is never a
      fault** -- a patient on terms owing a large sum is the arrangement
      working. Its one amber state that matters is `unclosedSessions`: a
@@ -3686,7 +3715,7 @@ before.
      the grid already decides its answer; a capability needing its own rule
      wants the rule in the grid.
   2. **The cells are not checkboxes.** A tick that does not change a route is
-     a lie, and making them real means a per-capability check at 99 routes -
+     a lie, and making them real means a per-capability check at 119 routes -
      the fine-grained matrix whose failure mode is one route quietly falling
      through a gap in it, which is what coarse scopes exist to avoid.
      Changing what a desk reaches is a code change, reviewed.
@@ -3861,8 +3890,16 @@ before.
   advance). Offers carries a note saying where promo codes and goodwill
   live, because "where did the promo screen go" is the question a split
   otherwise creates.
-- **System Health is ten checks in one shape, and every unhealthy one says
-  how to fix it.** The screen reports rather than sets, so it is not an
+- **System Health is eleven checks in one shape, and every unhealthy one
+  says how to fix it.** They are, in the order the screen draws them:
+  **Payment Confirmations**, **Google Connection**, **Session Links**,
+  **Waiting Room**, **Books & Sessions Agree**, **Public doors**, **Partner
+  attribution**, **Settlement record**, **Refunds**, **Patient files**,
+  **Pay Later** - the `HealthCheckId` union in `src/lib/systemHealth.ts` is
+  the list. Do **not** number them by ordinal in prose: four passages here
+  and in `CLAUDE.md` said "the sixth check", "the seventh", "the ninth",
+  "the tenth", and every one of them was wrong within two additions, because
+  a check added in the middle renumbers the rest silently. Name the check. The screen reports rather than sets, so it is not an
   `AdminFeatureControlTab` view -- `src/lib/systemHealth.ts` decides each
   check's status, its one-line headline, the numbered steps that fix it, and
   the *what this watches* / *for example* pair behind its (i) button, and
@@ -3899,11 +3936,11 @@ before.
      says "Checked 4 minutes ago". The relative time is rendered after mount,
      never on the server -- "4 minutes ago" computed server-side is already
      wrong in the browser, and rendering it in both is a hydration mismatch.
-  An eleventh check is an entry in that module plus, if it has rows, a card
+  A twelfth check is an entry in that module plus, if it has rows, a card
   body in the tab -- never a new panel with its own shape. The two fix
   buttons render only under `scopeCanManage(scope, "settings")`, matching the
   routes.
-  **The ninth is Refunds, and it watches the one direction of money that had
+  **Refunds watches the one direction of money that had
   nothing watching it.** Every gateway refund claims its local row first and
   calls Razorpay second, deliberately, so a refusal leaves no trace claiming
   money went back -- but the opposite failure, Razorpay accepting the refund
@@ -3919,7 +3956,7 @@ before.
   exists because a row is legitimately unresolved for the length of one
   gateway call, and counting every one would put a red light on a working
   clinic. See the refund-record rule below.
-  **The tenth is Patient files, and it is the one reconciliation whose
+  **Patient files is the one reconciliation whose
   subject is a medical record.** `patient_medical_documents` holds metadata
   only, so the row and the file in the private `medical-reports` bucket can
   come apart in either direction and nothing looked. They are not the same

@@ -3,6 +3,19 @@
 Written after the whole browser suite was run against the branch as it will
 land, twice: once to find what was wrong, and once to prove it no longer is.
 
+> **Status: landed.** This branch merged to `staging` as PR **#79**
+> (`9f06ee48`), followed by PR **#80** (`570d8147`), which wrote down the
+> two-branch model and retargeted the CI that keyed on the old default
+> branch. `staging` is now the default branch and 56 commits ahead of
+> `main`; **releasing to `main` is the owner's own step** and has not been
+> taken here. The schema was applied to staging's database by hand, which
+> is the step CI does not cover for that branch — see `STAGING.md`.
+>
+> The verdict below is kept as the record of what was proved before the
+> merge, not as a live gate. The unit-test figure moved to **1,173 across
+> 81 files** when `staging`'s own `refreshCoverage.test.ts` came in with
+> the merge; nothing else in the table changed.
+
 ## Verdict
 
 **Ready to merge.** The full suite has been run on the branch as it will
@@ -14,7 +27,7 @@ that described the product has been fixed and re-proved.
 | Gate | Result |
 | --- | --- |
 | `npm run verify` | **exit 0** — lint, 3 schema checks, build |
-| Unit tests | **1163 passed**, 80 files |
+| Unit tests | **1163 passed**, 80 files (1,173 / 81 after the merge) |
 | `check:realtime` | 46 subscribed tables, all published |
 | `check:grants` | 33 definer functions revoked; 2 intentionally reachable |
 | `check:search-path` | 58 definer functions, all with a safe `search_path` |

@@ -91,7 +91,7 @@ retries a GET once on a transport error but never a write. `AdminDataLoadBanner`
 is the other half: a read that failed now says so on the screen instead of
 rendering as a read that came back empty, and the two routes that reported an
 unreadable `home_visit_enabled` as "home visits aren't available" answer 503
-"we couldn't check" instead. Settings -> System Health carries a sixth check,
+"we couldn't check" instead. Settings -> System Health carries a check of its own,
 **Public doors**, for the limiter's own silent failure: a request nobody can
 be told apart from is allowed, so a host that forwards its own address rather
 than the visitor's leaves every public cap either off or shared between
@@ -116,7 +116,7 @@ exception, since its cancellation is already committed and its slot
 legitimately freed, so it records a failed refund instead, which is already a
 pinned item on the patient's own feed. Resolving never throws: by then the
 money has moved, and a row left at `processing` is exactly what Settings ->
-System Health -> **Refunds**, the ninth check, exists to name. It asks two
+System Health -> **Refunds** exists to name. It asks two
 different questions -- a refund sent whose answer was never recorded, and a
 refund the gateway accepted whose session or purchase carries no id -- and
 reports, never repairs. The table is append-only by trigger with every
@@ -761,8 +761,8 @@ either side of a settlement. The pool is fungible across payments, so two part
 payments close a session between them rather than stranding money for ever. One
 receipt per payment, listing the sessions it closed, because four receipts for
 one transfer reads as four payments. Confirming is one tap and rejecting needs
-a ten-character reason the patient reads. System Health carries a seventh
-check, **Pay Later**: owing money is never a fault, a payment waiting to be
+a ten-character reason the patient reads. System Health carries a check of its own,
+**Pay Later**: owing money is never a fault, a payment waiting to be
 checked is amber, and the only red is the money in disagreeing with the money
 accounted for -- reported, never repaired. Risk carries three rules of its own
 under **Trusted patients -- follow up**. **And money that never arrives is a
@@ -899,8 +899,8 @@ Suspicious patterns surface on Today → Risk as `risk_signals`, written by a
 bounded lazy sweep after the admin render. A flag is never an accusation and
 never carries a penalty - nothing is suspended, held or hidden because a rule
 fired; a signal links to the rows behind it and an admin acts, if at all,
-through the ordinary screens. Thresholds are `risk_rules` and the two that
-need a clinic baseline ship disabled. Reviews are append-only and need a real
+through the ordinary screens. Thresholds are `risk_rules` -- ten seeded rules, of which the
+three that need a clinic baseline ship disabled. Reviews are append-only and need a real
 note.
 
 A Master Admin can open a patient's, therapist's or partner hospital's
@@ -926,11 +926,14 @@ Quick commands: `npm run dev`, `npm run build`, `npm run start:cluster`
 thread, and under 200 concurrent visitors that thread, not Supabase, is what
 makes the admin dashboard slow), `npm run test` (Vitest over
 the dependency-free `src/lib` modules), `npm run verify` (lint + test +
-build), `npm run lint` (which also
-runs `npm run check:realtime`, the Supabase Realtime publication coverage
-check, and `npm run check:grants`, which fails when a `security definer`
-function in `schema.sql` is not revoked from all three of `public`, `anon`
-and `authenticated` -- `scripts/check-live-grants.mjs` asks the running
+build), `npm run lint` (which first
+runs **three** schema checks: `npm run check:realtime`, the Supabase Realtime
+publication coverage check; `npm run check:search-path`, which fails a
+`security definer` function with no explicit safe `search_path`, since one
+resolving names through the *caller's* path can be made to execute the
+caller's objects as its owner; and `npm run check:grants`, which fails when a
+`security definer` function in `schema.sql` is not revoked from all three of
+`public`, `anon` and `authenticated` -- `scripts/check-live-grants.mjs` asks the running
 database the same question and is run by hand after a schema change, and
 `scripts/check-definer-exposure.mjs` beside it asks the one neither answers:
 which definer functions a browser can actually **call**, which is what decides
@@ -967,9 +970,10 @@ staying tappable while its price loads, and the admin Refresh button's badge
 counting other people's changes rather than the admin's own taps, and the
 refund record that a refund writes before the money moves - which cannot be
 resolved twice, rewritten or deleted
-(`npm run test:e2e`, see `e2e/`)
-but needs a test Supabase project and Razorpay test keys - verify a change
-with a build and a lint.
+(`npm run test:e2e`; **`e2e/README.md` is the
+inventory** -- all 54 spec files, what each covers, and the nine cases that
+cannot pass without browser egress to Supabase) but needs a test Supabase
+project and Razorpay test keys - verify a change with a build and a lint.
 
 **Two gears, and the whole suite is the slower one.** A bug fix or a code
 change gets a **quick retest and a regression**: `npm run verify` plus the
