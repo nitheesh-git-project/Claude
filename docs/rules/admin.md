@@ -555,6 +555,17 @@ The seven sections, scopes and levels, User Access, the Settings information arc
      readable by every admin and a note about one patient must not be
      reproduced across the back office. A generated password still never
      goes in `details` at all.
+- **A profile change is checked by value, and approving it is claimed
+  before it is applied.** A request is written by the person it describes,
+  through their own token, so `changes` holds whatever they sent; the route
+  used to check field names only. `validateProfileChanges`
+  (`src/lib/profileChangeValidation.ts`) bounds every gated field - names
+  and organisation non-empty and capped, a phone that parses, experience a
+  whole number 0-60, a specialty the clinic offers, a real past date of
+  birth, a listed gender - and the profile form runs the same check before
+  sending. Approval then claims the request (`pending` -> `approved`) first
+  and applies it second, releasing the claim if the apply fails; the old
+  order left a change live while its request still sat in the queue.
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.

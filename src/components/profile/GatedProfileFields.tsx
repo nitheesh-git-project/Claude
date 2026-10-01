@@ -4,6 +4,7 @@ import { useEffect, useOptimistic, useRef, useState, useTransition } from "react
 import { useRouter } from "@/lib/useRouter";
 import { createClient } from "@/lib/supabase/client";
 import PhoneNumberField from "@/components/PhoneNumberField";
+import { validateProfileChanges } from "@/lib/profileChangeValidation";
 
 type FieldConfig = {
   name: string;
@@ -115,6 +116,17 @@ export default function GatedProfileFields({
     if (rows.length === 0) {
       setError("You haven't changed anything yet.");
       return;
+    }
+
+    // The same value rules the approval applies, checked before sending --
+    // a change the clinic cannot approve is better caught here than left in
+    // the queue for an admin to refuse.
+    for (const row of rows) {
+      const verdict = validateProfileChanges(row.changes);
+      if (!verdict.ok) {
+        setError(verdict.error.replace(/^The new /, "Your new "));
+        return;
+      }
     }
 
     startTransition(async () => {
