@@ -456,7 +456,13 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   printable profile both exclude the table on purpose. Notes stay editable
   for 24 hours (`SESSION_NOTE_EDIT_WINDOW_HOURS`), enforced in the submit
   route, and every edit inside that window copies what it replaced into
-  `session_note_revisions`. Writing one needs no
+  `session_note_revisions` - **and if that copy fails, the note is not
+  changed** (its result used to be ignored). An edit carries the version
+  the editor opened (`baseUpdatedAt`) and the update compare-and-sets on
+  it, so two windows saving the same note cannot silently erase each
+  other; the second is told to reopen. A note is written only for a
+  `completed` session, or a `confirmed` one whose time has come - a
+  `requested` session past its slot was never held. Writing one needs no
   `condition_access_grant`, unlike the intake and Pain Map: a note records
   work this therapist personally did rather than editing the patient's own
   history. Completion is never blocked on a note - the nudge is a

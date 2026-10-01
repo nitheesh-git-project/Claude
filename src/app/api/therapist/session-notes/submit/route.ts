@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import {
   SESSION_NOTE_FIELD_KEYS,
   isNoteEditable,
@@ -45,6 +45,8 @@ export async function POST(request: NextRequest) {
     appointmentId?: string;
     data?: unknown;
     freeText?: unknown;
+    /** The note version the editor opened (updated_at ?? created_at). */
+    baseUpdatedAt?: unknown;
   }>(request);
   if (parseError) return parseError;
 
@@ -80,6 +82,7 @@ export async function POST(request: NextRequest) {
   }
 
   const active = await isProfileActiveAndApproved(user.id);
+  if (active === null) return profileCheckUnavailable();
   if (!active) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -99,7 +102,17 @@ export async function POST(request: NextRequest) {
   if (appointment.status === "cancelled") {
     return NextResponse.json({ error: "That session was cancelled." }, { status: 400 });
   }
+  // A note records a session that happened: a completed one, or a
+  // confirmed one whose time has come. A `requested` session was never
+  // confirmed or delivered -- it used to accept a note once its slot had
+  // passed, which put a clinical record on a session nobody held.
   const slotMs = appointment.slot_time ? new Date(appointment.slot_time).getTime() : 0;
+  if (appointment.status !== "completed" && appointment.status !== "confirmed") {
+    return NextResponse.json(
+      { error: "Notes are written for sessions that were confirmed and took place." },
+      { status: 400 }
+    );
+  }
   if (appointment.status !== "completed" && slotMs > Date.now()) {
     return NextResponse.json(
       { error: "You can write the note once the session has taken place." },
@@ -107,11 +120,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await admin
     .from("session_notes")
-    .select("id, created_at, data, free_text")
+    .select("id, created_at, updated_at, data, free_text")
     .eq("appointment_id", appointmentId)
     .maybeSingle();
+  if (existingError) return serverError("therapist/session-notes/submit", existingError);
 
   if (existing) {
     if (!isNoteEditable(existing, Date.now())) {
@@ -120,19 +134,55 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
+    // The version the editor was looking at. Two windows editing the same
+    // note used to overwrite each other silently; a save based on an older
+    // version is refused so the second editor reloads instead of erasing
+    // the first's changes.
+    const currentVersion = existing.updated_at ?? existing.created_at;
+    if (
+      typeof body.baseUpdatedAt === "string" &&
+      Date.parse(body.baseUpdatedAt) !== Date.parse(currentVersion)
+    ) {
+      return NextResponse.json(
+        { error: "This note was changed in another window. Close this one and reopen the note to see the latest version." },
+        { status: 409 }
+      );
+    }
+
     // Keep what we are about to replace. A clinical record whose history
-    // can be silently rewritten is not a record.
-    await admin.from("session_note_revisions").insert({
+    // can be silently rewritten is not a record -- so if the revision
+    // cannot be written, the note is not changed. Its result used to be
+    // ignored, and the live note was overwritten with the history lost.
+    const { error: revisionError } = await admin.from("session_note_revisions").insert({
       note_id: existing.id,
       data: existing.data,
       free_text: existing.free_text,
     });
-    const { error } = await admin
+    if (revisionError) {
+      return serverError("therapist/session-notes/submit", revisionError, {
+        message: "Could not save your changes. The note is unchanged -- please try again.",
+      });
+    }
+    // Compare-and-set on the version read above, so a save racing another
+    // save lands once rather than both writing over each other.
+    const versionGuard = admin
       .from("session_notes")
       .update({ data, free_text: freeText, updated_at: new Date().toISOString() })
       .eq("id", existing.id);
+    const { data: saved, error } = await (existing.updated_at
+      ? versionGuard.eq("updated_at", existing.updated_at)
+      : versionGuard.is("updated_at", null)
+    )
+      .select("id")
+      .maybeSingle();
     if (error) {
       return serverError("therapist/session-notes/submit", error);
+    }
+    if (!saved) {
+      return NextResponse.json(
+        { error: "This note was changed in another window. Close this one and reopen the note to see the latest version." },
+        { status: 409 }
+      );
     }
     return NextResponse.json({ success: true, updated: true });
   }
