@@ -400,6 +400,22 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   read. There is deliberately **no update policy**: correcting a report
   means deleting it and uploading again, so the row and the object can
   never describe different things.
+- **An uploaded report is typed by its bytes, not its label, and only a
+  patient uploads one.** The upload route ignores `File.type` (whatever
+  the browser or a crafted request claims) and reads the type with
+  `sniffDocumentMimeType`; the sniffed type is what Storage stores. A PDF
+  carrying scripts, launch actions or embedded files is refused
+  (`pdfHasActiveContent`) - a clinician opens these on a work machine.
+  That is a structural check, **not a virus scan**: names inside a
+  compressed object stream are invisible to it, and a real scanner needs
+  an external service this deployment does not have. The route also
+  requires the patient role (any other active account could otherwise
+  file "reports" under its own id), and the view route checks suspension
+  for every role, because RLS does not know about it. **Delete removes
+  the file before the row** and never answers success while the file
+  remains; the ownership check compares `patient_id` to the caller,
+  because the select policies also let a treating therapist and an admin
+  read the row.
 - **Session notes are clinician-only, and they are the prep loop.** After a
   delivered session the therapist writes what was treated, how the patient
   responded, the home exercise and the plan for next time
