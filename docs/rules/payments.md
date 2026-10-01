@@ -203,6 +203,19 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   hover reads it rather than printing `CANCELLATION_FULL_REFUND_HOURS`: a
   home visit has its own window, so the constant was quoting the wrong number
   of hours on every cancelled visit.
+- **A programme refund claims the purchase before it counts what was
+  delivered, and closes every live session it leaves behind.** Both package
+  refund routes used to count completed sessions first - dropping the
+  count's error, so a failed read refunded delivered treatment in full - and
+  then claim; a session completed in the window was refunded too. Now the
+  purchase is claimed `refunded` first, `countDeliveredSessions` runs
+  second (a failed count releases the claim and refunds nothing), and
+  `/api/appointments/complete-session` refuses any session on a refunded
+  programme, so the count cannot move. After the gateway succeeds,
+  `closeRefundedPurchaseSessions` (`src/lib/packageRefundServer.ts`)
+  cancels each live session, checks each write, then removes its Meet
+  event; anything it could not close comes back as a `warning` the purchase
+  modal shows, instead of a success over sessions that are still joinable.
 - **A refund records what it is about to do, before the gateway is called.**
   Every gateway refund here claims its local row *first* and calls Razorpay
   second, deliberately: a refusal must leave no trace claiming money went

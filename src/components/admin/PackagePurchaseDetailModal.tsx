@@ -126,6 +126,9 @@ export default function PackagePurchaseDetailModal({
       }
       await refetch();
       router.refresh();
+      // Done, with something still needing a person (e.g. a refund that went
+      // through but could not cancel every session). Said, not swallowed.
+      if (json.warning) setActionError(json.warning);
       return json;
     } finally {
       setActionPending(false);

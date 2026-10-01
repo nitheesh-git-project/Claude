@@ -109,6 +109,31 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // A session on a programme that has been refunded is not deliverable. The
+  // refund claims the purchase before it counts what was delivered, and this
+  // is the other half of that: without it, a session completed while the
+  // refund was in flight was both refunded and paid out. Applies to an admin
+  // too -- completing it would book revenue against money already returned.
+  if (appointment.package_purchase_id || appointment.home_visit_purchase_id) {
+    const { data: programme, error: programmeError } = await admin
+      .from(appointment.package_purchase_id ? "patient_package_purchases" : "home_visit_package_purchases")
+      .select("status")
+      .eq("id", (appointment.package_purchase_id ?? appointment.home_visit_purchase_id) as string)
+      .maybeSingle();
+    if (programmeError) {
+      return NextResponse.json(
+        { error: "We couldn't check this session's programme just now. Please try again." },
+        { status: 503 }
+      );
+    }
+    if (programme?.status === "refunded") {
+      return NextResponse.json(
+        { error: "This programme has been refunded, so its sessions can't be marked delivered." },
+        { status: 409 }
+      );
+    }
+  }
+
   if (!adminUser) {
     const coveredByProgramme =
       !!appointment.package_purchase_id || !!appointment.home_visit_purchase_id;
