@@ -5,6 +5,7 @@ import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
 import { serverError } from "@/lib/apiError";
+import { lookupServiceArea } from "@/lib/serviceAreaServer";
 
 const MAX_NAME_LENGTH = 120;
 const MAX_NOTE_LENGTH = 500;
@@ -61,6 +62,29 @@ export async function POST(request: NextRequest) {
   // public INSERT but no SELECT, and supabase-js issues an insert with a
   // returning clause by default, which RLS would reject.
   const admin = createAdminClient();
+
+  // The waitlist is where the clinic reads demand for areas it does NOT
+  // serve. A pincode it already serves is not demand, it is a booking that
+  // went the wrong way -- so it is answered with the way to book instead of
+  // being filed as expansion data. A read that fails is "try again", never
+  // a silent insert.
+  const lookup = await lookupServiceArea(admin, pincode);
+  if (!lookup.ok) {
+    return NextResponse.json(
+      { error: "We couldn't check that pincode just now. Please try again." },
+      { status: 503 }
+    );
+  }
+  if (lookup.area) {
+    return NextResponse.json(
+      {
+        error: "Good news - we already visit this pincode. You can book a home visit directly.",
+        serviceable: true,
+      },
+      { status: 409 }
+    );
+  }
+
   const { error } = await admin.from("home_visit_waitlist").insert({
     name: name || null,
     phone,

@@ -5,6 +5,9 @@ export type HomeVisitPaymentResult = {
   visitBooked: boolean;
   appointmentId?: string;
   visitBookingError?: string;
+  /** The patient asked to remember the address and that save failed. The
+   *  visit carries its own copy, so nothing about the booking is lost. */
+  addressNotSaved?: boolean;
 };
 
 // What the wizard collects and hands over. Deliberately camelCase and

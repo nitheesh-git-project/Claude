@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActive, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { serverError } from "@/lib/apiError";
+import { lookupServiceArea } from "@/lib/serviceAreaServer";
 
 const MAX_LINE_LENGTH = 300;
 const MAX_LABEL_LENGTH = 60;
@@ -80,13 +81,15 @@ export async function POST(request: NextRequest) {
   // Link the address to its service area when one covers this pincode. An
   // unserviceable pincode is still saved -- a patient may be adding an
   // address for an area we don't reach yet, and refusing to store it would
-  // just make them retype it when we do.
-  const { data: area } = await admin
-    .from("home_visit_areas")
-    .select("id")
-    .eq("pincode", pincode)
-    .eq("active", true)
-    .maybeSingle();
+  // just make them retype it when we do. A read that *failed* is different:
+  // saving with no area would quietly misdescribe a served address.
+  const lookup = await lookupServiceArea(admin, pincode);
+  if (!lookup.ok) {
+    return NextResponse.json(
+      { error: "We couldn't save that address just now. Please try again." },
+      { status: 503 }
+    );
+  }
 
   const columns = {
     label: body.label?.trim() || null,
@@ -96,70 +99,113 @@ export async function POST(request: NextRequest) {
     city: body.city?.trim() || null,
     state: body.state?.trim() || null,
     pincode,
-    area_id: area?.id ?? null,
+    area_id: lookup.area?.id ?? null,
     contact_phone: body.contactPhone?.trim() || null,
     access_notes: body.accessNotes?.trim() || null,
     updated_at: new Date().toISOString(),
   };
 
-  // At most one default per patient is a partial unique index, so the old
-  // default has to be cleared before the new one lands or the write fails.
-  // The index is the real guarantee -- this clear-then-set pair has a
-  // window, and two tabs setting a default at once will lose it. That is
-  // handled below rather than prevented here: the index is correct, and
-  // what mattered was that its refusal reached the patient as the Postgres
-  // constraint name.
-  if (body.isDefault) {
-    await admin
-      .from("patient_addresses")
-      .update({ is_default: false })
-      .eq("patient_id", user.id)
-      .eq("is_default", true);
-  }
-
+  // The address itself is saved FIRST, with its default flag untouched.
+  // This used to clear the old default before saving, so a save that then
+  // failed left the patient with no default address at all -- and an update
+  // to an id that did not exist answered success having changed nothing.
+  let addressId: string;
   if (body.id) {
-    const { error } = await admin
+    const { data: updated, error } = await admin
       .from("patient_addresses")
-      .update({ ...columns, ...(body.isDefault ? { is_default: true } : {}) })
+      .update(columns)
       .eq("id", body.id)
       // Scoped to the caller: an id alone must never be enough to edit
       // somebody else's address.
-      .eq("patient_id", user.id);
-    if (error) {
-      // 23505 is patient_addresses_one_default: two tabs made this address
-      // the default at the same moment and this one lost. Not a server
-      // fault, and the constraint name is not a sentence anybody can act
-      // on -- the honest answer is that it is already set.
-      if (error.code === "23505") {
-        return NextResponse.json(
-          { error: "Another change set your default address a moment ago. Refresh to see it." },
-          { status: 409 }
-        );
-      }
-      return serverError("patient/addresses/save", error);
-    }
-    return NextResponse.json({ success: true, id: body.id });
-  }
-
-  const { data: created, error } = await admin
-    .from("patient_addresses")
-    .insert({
-      patient_id: user.id,
-      ...columns,
-      is_default: !!body.isDefault,
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    if (error.code === "23505") {
+      .eq("patient_id", user.id)
+      .select("id")
+      .maybeSingle();
+    if (error) return serverError("patient/addresses/save", error);
+    if (!updated) {
       return NextResponse.json(
-        { error: "Another change set your default address a moment ago. Refresh to see it." },
-        { status: 409 }
+        { error: "That address no longer exists. Refresh to see your saved addresses." },
+        { status: 404 }
       );
     }
-    return serverError("patient/addresses/save", error);
+    addressId = updated.id;
+  } else {
+    const { data: created, error } = await admin
+      .from("patient_addresses")
+      .insert({ patient_id: user.id, ...columns, is_default: false })
+      .select("id")
+      .single();
+    if (error || !created) return serverError("patient/addresses/save", error);
+    addressId = created.id;
   }
 
-  return NextResponse.json({ success: true, id: created.id });
+  if (body.isDefault) {
+    const moved = await makeDefaultAddress(admin, user.id, addressId);
+    if (!moved.ok) {
+      return NextResponse.json(
+        {
+          error: moved.conflict
+            ? "Another change set your default address a moment ago. Refresh to see it."
+            : "Your address was saved, but we couldn't make it your default. Please try again.",
+          id: addressId,
+        },
+        { status: moved.conflict ? 409 : 503 }
+      );
+    }
+  }
+
+  return NextResponse.json({ success: true, id: addressId });
+}
+
+/**
+ * Moves the default to `addressId`, and puts the old one back if that fails.
+ *
+ * At most one default per patient is a partial unique index, so the old
+ * default has to be cleared before the new one can be set. Done after the
+ * address is safely saved, and undone on failure, so the one state this can
+ * no longer leave behind is "no default at all".
+ */
+async function makeDefaultAddress(
+  admin: ReturnType<typeof createAdminClient>,
+  patientId: string,
+  addressId: string
+): Promise<{ ok: true } | { ok: false; conflict: boolean }> {
+  const { data: previous, error: readError } = await admin
+    .from("patient_addresses")
+    .select("id")
+    .eq("patient_id", patientId)
+    .eq("is_default", true)
+    .maybeSingle();
+  if (readError) return { ok: false, conflict: false };
+  if (previous?.id === addressId) return { ok: true };
+
+  if (previous) {
+    const { error: clearError } = await admin
+      .from("patient_addresses")
+      .update({ is_default: false })
+      .eq("id", previous.id)
+      .eq("patient_id", patientId);
+    if (clearError) return { ok: false, conflict: false };
+  }
+
+  const { error: setError } = await admin
+    .from("patient_addresses")
+    .update({ is_default: true })
+    .eq("id", addressId)
+    .eq("patient_id", patientId);
+  if (!setError) return { ok: true };
+
+  // Put the old default back so the patient is never left without one.
+  if (previous) {
+    const { error: restoreError } = await admin
+      .from("patient_addresses")
+      .update({ is_default: true })
+      .eq("id", previous.id)
+      .eq("patient_id", patientId);
+    if (restoreError) {
+      console.error("addresses/save: could not restore previous default", previous.id, restoreError.message);
+    }
+  }
+  // 23505 is patient_addresses_one_default: another tab set a default in
+  // the window. Not a server fault -- the honest answer is that it is set.
+  return { ok: false, conflict: setError.code === "23505" };
 }

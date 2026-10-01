@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { lookupServiceArea } from "@/lib/serviceAreaServer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const [{ data: pkg }, { data: settingsRow }, { data: area }] = await Promise.all([
+  const [{ data: pkg }, { data: settingsRow }, areaLookup] = await Promise.all([
     admin
       .from("home_visit_packages")
       .select("id, title, visit_count, price_paise, travel_fee_included, validity_days, visit_duration_minutes, therapist_locked, active")
@@ -121,13 +122,16 @@ export async function POST(request: NextRequest) {
         "home_visit_enabled, home_visit_cash_enabled, home_visit_default_validity_days, home_visit_travel_buffer_minutes"
       )
       .maybeSingle(),
-    admin
-      .from("home_visit_areas")
-      .select("id, travel_fee_paise, active")
-      .eq("pincode", pincode)
-      .eq("active", true)
-      .maybeSingle(),
+    lookupServiceArea(admin, pincode),
   ]);
+  // A failed area read is "try again", never "we don't visit you".
+  if (!areaLookup.ok) {
+    return NextResponse.json(
+      { error: "We couldn't check that pincode just now. Please try again." },
+      { status: 503 }
+    );
+  }
+  const area = areaLookup.area;
 
   if (settingsRow?.home_visit_enabled !== true) {
     return NextResponse.json(
@@ -165,8 +169,9 @@ export async function POST(request: NextRequest) {
   }
 
   let addressId: string | null = null;
+  let addressNotSaved = false;
   if (address.saveToAddressBook !== false) {
-    const { data: saved } = await admin
+    const { data: saved, error: saveError } = await admin
       .from("patient_addresses")
       .insert({
         patient_id: user.id,
@@ -187,6 +192,13 @@ export async function POST(request: NextRequest) {
       .select("id")
       .maybeSingle();
     addressId = saved?.id ?? null;
+    // Not a reason to refuse the booking -- the visit carries its own copy
+    // of the address -- but the patient asked for it to be remembered, so
+    // they are told it was not rather than finding it missing next time.
+    if (saveError || !saved) {
+      console.error("home-visit/book-cash: could not save address", user.id, saveError?.message);
+      addressNotSaved = true;
+    }
   }
 
   const validityDays =
@@ -291,6 +303,7 @@ export async function POST(request: NextRequest) {
       visitBooked: false,
       homeVisitPurchaseId: purchase.id,
       visitBookingError: result.error,
+      ...(addressNotSaved ? { addressNotSaved: true } : {}),
     });
   }
 
@@ -299,5 +312,6 @@ export async function POST(request: NextRequest) {
     visitBooked: true,
     homeVisitPurchaseId: purchase.id,
     appointmentId: result.appointmentId,
+    ...(addressNotSaved ? { addressNotSaved: true } : {}),
   });
 }

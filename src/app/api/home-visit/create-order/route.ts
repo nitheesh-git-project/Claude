@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { lookupServiceArea } from "@/lib/serviceAreaServer";
 import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -114,20 +115,23 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const [{ data: pkg }, { data: settingsRow }, { data: area }] = await Promise.all([
+  const [{ data: pkg }, { data: settingsRow }, areaLookup] = await Promise.all([
     admin
       .from("home_visit_packages")
       .select("id, title, visit_count, price_paise, travel_fee_included, validity_days, active")
       .eq("id", packageId)
       .single(),
     admin.from("site_settings").select("home_visit_enabled").maybeSingle(),
-    admin
-      .from("home_visit_areas")
-      .select("id, travel_fee_paise, active")
-      .eq("pincode", pincode)
-      .eq("active", true)
-      .maybeSingle(),
+    lookupServiceArea(admin, pincode),
   ]);
+  // A failed area read is "try again", never "we don't visit you".
+  if (!areaLookup.ok) {
+    return NextResponse.json(
+      { error: "We couldn't check that pincode just now. Please try again." },
+      { status: 503 }
+    );
+  }
+  const area = areaLookup.area;
 
   if (settingsRow?.home_visit_enabled !== true) {
     return NextResponse.json(

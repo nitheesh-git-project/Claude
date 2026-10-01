@@ -111,8 +111,9 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   route, no request body and no row changed.
 
   **A slot starts on the hour, and the routes say so.** `isWholeHourSlot()` in
-  `bookingSlots.ts` refuses anything else at all nine doors that write a slot
+  `bookingSlots.ts` refuses anything else at all ten doors that write a slot
   time - `/api/appointments/create`, `book-package-sessions`,
+  `book-with-package` (the single-session door, which was the gap),
   `/api/admin/create-booking`, `update-appointment`, `assign-referral`,
   `/api/therapist/suggest-session`, `/api/home-visit/book-visits`,
   `book-cash` and `verify` - with one shared message

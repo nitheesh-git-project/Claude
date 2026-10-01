@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
-import { leadTimeMsFromHours } from "@/lib/bookingSlots";
+import { isWholeHourSlot, leadTimeMsFromHours, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { bookPackageSession } from "@/lib/bookPackageSession";
@@ -51,6 +51,12 @@ export async function POST(request: NextRequest) {
   }
   if (slotTimestamp <= Date.now()) {
     return NextResponse.json({ error: "The slot must be in the future" }, { status: 400 });
+  }
+  // Sessions start on the hour, everywhere -- the same rule the direct and
+  // bulk booking routes already enforced; this one was the gap a crafted
+  // request could book an off-schedule session through.
+  if (!isWholeHourSlot(new Date(slotTimestamp).toISOString(), timezone)) {
+    return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
   }
 
   const standing = await isProfileActiveAndApproved(user.id);

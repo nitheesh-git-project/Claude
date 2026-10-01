@@ -315,6 +315,11 @@ export default function HomeVisitBookingWizard({
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
       setWaitlistJoined(true);
+    } else if (data.serviceable) {
+      // The clinic started serving this pincode since it was checked. Not a
+      // waitlist entry -- re-run the check so the wizard moves straight on
+      // to booking.
+      await handleCheckArea();
     } else {
       setWaitlistError(
         rateLimitNotice(
@@ -456,6 +461,7 @@ export default function HomeVisitBookingWizard({
           visitBooked: !!data.visitBooked,
           appointmentId: data.appointmentId,
           visitBookingError: data.visitBookingError,
+          addressNotSaved: !!data.addressNotSaved,
         });
         setDone(true);
       } catch {
@@ -562,6 +568,12 @@ export default function HomeVisitBookingWizard({
                 ? "We've saved your request. Schedule your visit from your dashboard if it doesn't show up shortly."
                 : "Your package is paid for. Schedule your visit from your dashboard.")}
         </p>
+        {paymentResult?.addressNotSaved && (
+          <p className="mt-3 text-xs text-slate-500">
+            We couldn&apos;t add this address to your saved addresses. Your visit has it, so
+            nothing is lost - you can save it from your profile any time.
+          </p>
+        )}
         <Link
           href="/patient/dashboard"
           className="mt-6 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-teal-700"
