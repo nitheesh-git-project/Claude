@@ -8,6 +8,7 @@ import {
 } from "@/lib/patientBalances";
 import type { ReceiptSettlement } from "@/lib/receipts";
 import { type SettlementRow } from "@/lib/payLaterSettlement";
+import { readAllRows } from "@/lib/supabase/readAllRows";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -163,22 +164,45 @@ export async function readSettlementReconciliation(
   admin: AdminClient
 ): Promise<{ confirmedPaise: number; settledPaise: number; unallocatedPaise: number } | null> {
   try {
+    // Both sides are paged.
+    //
+    // These were two bare `.select()` calls, and both sum money. PostgREST
+    // caps a response at 1,000 rows and reports nothing (readAllRows.ts has
+    // the detail), so the first clinic to pass a thousand confirmed
+    // pay-later payments -- or a thousand sessions settled against them --
+    // started comparing two truncated totals. The check this feeds asserts
+    // `confirmed = settled + unallocated`, so one side hitting the cap
+    // before the other turns a balanced ledger into a reported discrepancy,
+    // and both hitting it reports healthy on figures that are simply wrong.
     const [payments, settled] = await Promise.all([
-      admin.from("pay_later_payments").select("amount_paise, unallocated_paise").eq("status", "confirmed"),
-      admin
-        .from("appointments")
-        .select("amount_paid_paise")
-        .not("pay_later_payment_id", "is", null),
+      readAllRows<{ amount_paise: number | null; unallocated_paise: number | null }>(() =>
+        admin
+          .from("pay_later_payments")
+          .select("amount_paise, unallocated_paise")
+          .eq("status", "confirmed")
+      ),
+      readAllRows<{ amount_paid_paise: number | null }>(() =>
+        admin
+          .from("appointments")
+          .select("amount_paid_paise")
+          .not("pay_later_payment_id", "is", null)
+      ),
     ]);
     if (payments.error || settled.error) return null;
+    // A walk that stopped at its bound has a partial total, and this
+    // function's whole contract is that "nothing is wrong" and "we could
+    // not check" stay apart. A truncated read is the second, so it answers
+    // null and System Health reads *Not set up* rather than publishing a
+    // reconciliation gap the clinic does not have.
+    if (payments.truncated || settled.truncated) return null;
     let confirmedPaise = 0;
     let unallocatedPaise = 0;
-    for (const p of payments.data ?? []) {
+    for (const p of payments.rows) {
       confirmedPaise += Math.max(0, p.amount_paise ?? 0);
       unallocatedPaise += Math.max(0, p.unallocated_paise ?? 0);
     }
     let settledPaise = 0;
-    for (const a of settled.data ?? []) settledPaise += Math.max(0, a.amount_paid_paise ?? 0);
+    for (const a of settled.rows) settledPaise += Math.max(0, a.amount_paid_paise ?? 0);
     return { confirmedPaise, settledPaise, unallocatedPaise };
   } catch {
     return null;

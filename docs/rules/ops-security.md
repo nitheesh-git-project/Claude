@@ -811,3 +811,51 @@ line describing nothing but carelessness. Before real patients exist, remove
 - Secrets (`SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET`, Google
   credentials) are server-only. Never add a `NEXT_PUBLIC_` prefix to them and
   never commit real values.
+
+---
+
+## The proxy's profile cookie
+
+`src/proxy.ts` guards four dashboard route trees, and it runs on **every**
+request under them — every client-side navigation, not just every page load.
+It used to make two network calls to Supabase in sequence: `auth.getUser()`,
+then a `profiles` select for `role`, `approved` and `active`.
+
+`getUser()` stays. It refreshes the access token, and the cookies it writes
+through the `setAll` callback are load-bearing — the comment above
+`redirectTo` in `src/lib/supabase/proxy.ts` describes the sign-in loop that
+happens when a redirect loses them.
+
+The second call is now a signed cookie, `src/lib/proxyProfileCache.ts`:
+
+- The three fields are written with the user id they belong to and an
+  expiry, HMAC-signed (Web Crypto, because the proxy runs on the Edge
+  runtime where `node:crypto` is unavailable) with
+  `PROXY_PROFILE_CACHE_SECRET`.
+- **The signature is the whole guarantee.** Without it the cookie is a
+  sentence the browser gets to write, and the sentence is "this user is an
+  admin". Never give that variable a `NEXT_PUBLIC_` prefix.
+- **The user id in the payload is the second guarantee.** Without it, a
+  cookie minted for one account would verify for another after a sign-out
+  and sign-in on the same browser. Verification is constant-time, so a wrong
+  signature leaks nothing through timing.
+- **Only a successful read is cached.** A failed `profiles` read is "we could
+  not check", and caching that would turn one transient error into a minute
+  of them — the same rule as everywhere else here.
+- **No secret configured means no caching**, and the proxy falls through to
+  the read it always did. A missing environment variable makes the app
+  slower, never wrong and never open.
+
+**The trade-off, which is real and was chosen deliberately:** for up to 60
+seconds a session that is *already open* keeps the role and flags it had when
+the cookie was written. Suspending an account, demoting an admin or revoking
+an approval therefore takes up to a minute to lock out a tab already sitting
+on a dashboard. New sign-ins are unaffected. Sixty seconds is the longest
+window that is still shorter than a person noticing and acting; it is
+deliberately not minutes.
+
+The cookie is `httpOnly`, so the client-side sign-out buttons cannot clear
+it — and do not need to. A signed-out browser has no user for the id to
+match, and a different user signing in fails the id check and re-reads.
+`stop-impersonation` clears it explicitly anyway, at the one moment the
+server already knows it is stale.
