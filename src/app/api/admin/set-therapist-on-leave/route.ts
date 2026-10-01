@@ -79,5 +79,11 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ success: true, onLeave });
+  return NextResponse.json({
+    success: true,
+    onLeave,
+    ...(updated.datesNotSaved
+      ? { warning: "Leave is recorded, but the dates and reason couldn't be saved on this database yet." }
+      : {}),
+  });
 }

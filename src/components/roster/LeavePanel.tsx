@@ -41,6 +41,7 @@ export default function LeavePanel({
   const [reasonText, setReasonText] = useState(reason ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const inFlight = useRef(false);
 
   const who = voice === "self" ? "You" : therapistName || "This therapist";
@@ -51,6 +52,7 @@ export default function LeavePanel({
     inFlight.current = true;
     setBusy(true);
     setError(null);
+    setWarning(null);
     try {
       const res = await fetch(endpoint, {
         method: "POST",
@@ -68,7 +70,11 @@ export default function LeavePanel({
         setError(data.error ?? "Couldn't update time off. Nothing was changed.");
         return;
       }
-      setOpen(false);
+      const data = (await res.json().catch(() => ({}))) as { warning?: string };
+      // Leave recorded, but its dates and reason were not -- said rather
+      // than closing as though everything typed had been kept.
+      if (data.warning) setWarning(data.warning);
+      else setOpen(false);
       router.refresh();
     } catch {
       setError("Couldn't reach the server. Nothing was changed.");
@@ -120,6 +126,11 @@ export default function LeavePanel({
       {error && (
         <p role="alert" className="mt-2 text-[11px] font-semibold text-red-700">
           {error}
+        </p>
+      )}
+      {warning && (
+        <p role="status" className="mt-2 text-[11px] font-semibold text-amber-700">
+          {warning}
         </p>
       )}
 

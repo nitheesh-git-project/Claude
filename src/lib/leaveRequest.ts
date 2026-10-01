@@ -65,7 +65,9 @@ export async function updateTherapistLeave(
      *  columns exactly as they are rather than blanking them. */
     dates: ParsedLeave | null;
   }
-): Promise<{ id: string; full_name: string | null } | null | { error: string }> {
+): Promise<
+  { id: string; full_name: string | null; datesNotSaved?: boolean } | null | { error: string }
+> {
   if (!input.dates) {
     const flagOnly = await admin
       .from("profiles")
@@ -93,6 +95,12 @@ export async function updateTherapistLeave(
 
   if (!withDates.error) return withDates.data ?? null;
 
+  // Only a database without the date columns (42703, unknown column) falls
+  // back to the flag alone -- and says so, so the caller can tell the admin
+  // their dates and reason were not kept. Any other failure used to take
+  // the same fallback and answer success, quietly discarding what was typed.
+  if (withDates.error.code !== "42703") return { error: withDates.error.message };
+
   const flagOnly = await admin
     .from("profiles")
     .update({ on_leave: input.onLeave })
@@ -101,5 +109,5 @@ export async function updateTherapistLeave(
     .select("id, full_name")
     .maybeSingle();
   if (flagOnly.error) return { error: flagOnly.error.message };
-  return flagOnly.data ?? null;
+  return flagOnly.data ? { ...flagOnly.data, datesNotSaved: true } : null;
 }
