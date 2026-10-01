@@ -3,6 +3,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import type { HospitalDashboardData } from "@/lib/hospitalDashboardData";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
 
 /** The chrome every hospital (B2B) dashboard screen shares. */
 export default function HospitalDashboardShell({
@@ -39,6 +40,16 @@ export default function HospitalDashboardShell({
         headerTitle={title}
         headerSubtitle={subtitle}
       >
+        {/* A failed read is said out loud rather than rendered as "no
+            referrals" or "₹0 earned" -- see AdminDataLoadBanner. */}
+        {(data.loadIssues.missing.length > 0 || data.loadIssues.truncated.length > 0) && (
+          <div className="mb-6">
+            <AdminDataLoadBanner
+              missing={data.loadIssues.missing}
+              truncated={data.loadIssues.truncated}
+            />
+          </div>
+        )}
         {children}
       </DashboardShell>
     </JoinWindowProvider>

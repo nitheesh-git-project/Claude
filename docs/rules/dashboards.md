@@ -27,6 +27,19 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   which entries exist stays in the always-loaded core, or the nav would
   change shape as you move between screens. Anything rendered by more than one route
   (the session cards) is a real component, not a closure.
+- **A partner sees what was delivered and what it earned them - never the
+  session.** The hospital loader reads referred patients' **completed**
+  sessions only, and never `meet_link`: a consultation is private to the
+  patient and their therapist, and the Earnings screen once rendered a live
+  Join button into it. Each session's commission comes from
+  `hospitalSessionLine` (`src/lib/hospitalEarnings.ts`), which calls
+  `partnerCutFor` - the same function the admin Money screens use - so the
+  two screens agree by construction, at the rate frozen at completion
+  (`hospital_share_percent_at_completion`) and on pay-later sessions from
+  delivery. A session whose completion snapshot names no partner or a
+  different one earns this partner nothing. Every read is paged
+  (`readAllRows` / `readAllRowsByIds`), and a failed read shows the load
+  banner instead of "no referrals" or "₹0".
 - **Every dashboard opens on the same Overview.** Patient, therapist,
   hospital and admin all render `DashboardOverview.tsx` - a strip of four
   figures (`StatStrip`), the notification feed (`ActivityFeed`), and a

@@ -25,7 +25,7 @@ export default async function Page() {
           {!d.referrals || d.referrals.length === 0 ? (
             <EmptyState
               icon="fa-hospital-user"
-              title="No d.referrals yet"
+              title="No referrals yet"
               body="Send your first patient across and it appears here with its status."
             />
           ) : (

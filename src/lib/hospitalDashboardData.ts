@@ -3,9 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { mergeSessionCodes } from "@/lib/sessionCode";
-import { mergeMeetLinks } from "@/lib/meetLink";
+import { readAllRows, readAllRowsByIds } from "@/lib/supabase/readAllRows";
+import { hospitalSessionLine } from "@/lib/hospitalEarnings";
 import { buildHospitalFeed } from "@/lib/dashboardFeed";
-import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { HOSPITAL_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import type { StatCell } from "@/components/dashboard/StatStrip";
 import {
@@ -49,16 +49,16 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
   // of one at a time, since router.refresh() re-runs this whole page on
   // every referral submit/withdraw. See admin/dashboard/page.tsx's
   // identical Promise.all for the reasoning. rawReferredSessions/
-  // sessionCodeLinks/meetLinkRows further below stay sequential -- they
+  // the session reads further below stay sequential -- they
   // genuinely need referredPatientIds to resolve first.
   const [
-    { data: profile },
+    { data: profile, error: profileError },
     { data: settingsRow },
     { data: hospitalCodeRow },
-    { data: referrals },
+    referralsResult,
     { data: capacityNoteRows },
     { data: declineReasonRows },
-    { data: referredPatients },
+    referredPatientsResult,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -80,11 +80,14 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     // whole dashboard.
     supabase.from("profiles").select("hospital_code").eq("id", user.id).maybeSingle(),
 
-    supabase
-      .from("patient_referrals")
-      .select("id, patient_name, medical_issue, status, assigned_slot_time, created_at, visit_mode, pincode")
-      .eq("hospital_id", user.id)
-      .order("created_at", { ascending: false }),
+    readAllRows<ReferralRow>(() =>
+      supabase
+        .from("patient_referrals")
+        .select("id, patient_name, medical_issue, status, assigned_slot_time, created_at, visit_mode, pincode")
+        .eq("hospital_id", user.id)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
     // capacity_note is new/migration-dependent -- kept isolated (same
     // convention used throughout this codebase) so a missing migration only
@@ -102,8 +105,27 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
       .select("id, decline_reason")
       .eq("hospital_id", user.id),
 
-    admin.from("profiles").select("id, full_name, email").eq("referred_by_hospital_id", user.id),
+    readAllRows<{ id: string; full_name: string | null; email: string | null }>(() =>
+      admin
+        .from("profiles")
+        .select("id, full_name, email")
+        .eq("referred_by_hospital_id", user.id)
+        .order("id", { ascending: true })
+    ),
   ]);
+
+  // A read that failed renders as a banner, never as a zero. "No referrals"
+  // and "₹0 earned" are statements a partner acts on, and they must not be
+  // what a database blip looks like. See AdminDataLoadBanner.
+  const missing: string[] = [];
+  const truncated: string[] = [];
+  if (profileError) missing.push("your organisation's profile");
+  if (referralsResult.error) missing.push("your referrals");
+  if (referralsResult.truncated) truncated.push("referrals");
+  if (referredPatientsResult.error) missing.push("the patients you referred");
+
+  const referrals = referralsResult.rows;
+  const referredPatients = referredPatientsResult.rows;
 
   const adminSettings = parseAdminSettings(settingsRow);
   const capacityNoteMap = new Map(
@@ -112,75 +134,81 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
   const declineReasonMap = new Map(
     (declineReasonRows ?? []).map((r) => [r.id, r.decline_reason])
   );
-  const referredPatientIds = (referredPatients ?? []).map((p) => p.id);
+  const referredPatientIds = referredPatients.map((p) => p.id);
 
-  const [{ data: rawReferredSessions }, { data: sessionCodeLinks }, { data: meetLinkRows }] =
-    referredPatientIds.length > 0 && needSessions
-      ? await Promise.all([
-          admin
-            .from("appointments")
-            .select(
-              "id, concern, slot_time, timezone, status, payment_status, amount_paid_paise, patient_id, therapist_id, created_at, refund_status, refund_amount_paise"
-            )
-            .in("patient_id", referredPatientIds)
-            .order("created_at", { ascending: false }),
-          // session_code is also new/migration-dependent -- same isolation
-          // reasoning as hospitalCodeRow above.
-          admin.from("appointments").select("id, session_code").in("patient_id", referredPatientIds),
-          // meet_link is also new/migration-dependent -- same isolation
-          // reasoning as sessionCodeLinks above.
-          admin.from("appointments").select("id, meet_link").in("patient_id", referredPatientIds),
-        ])
-      : [
-          { data: [] as never[] },
-          { data: [] as { id: string; session_code: string | null }[] },
-          { data: [] as { id: string; meet_link: string | null }[] },
-        ];
+  // Completed sessions only, read server-side and only ever that. This
+  // screen tracks what was delivered -- a partner has no business seeing a
+  // referred patient's upcoming or cancelled appointments, and never the
+  // session's Meet link: that is a private consultation, and the link used
+  // to be fetched here and rendered as a live "Join Session" button.
+  let sessionRows: HospitalSessionRow[] = [];
+  if (referredPatientIds.length > 0 && needSessions) {
+    const [base, codes, terms] = await Promise.all([
+      readAllRowsByIds(referredPatientIds, (chunk) =>
+        admin
+          .from("appointments")
+          .select(
+            "id, slot_time, timezone, status, payment_status, amount_paid_paise, patient_id, refund_status, refund_amount_paise"
+          )
+          .in("patient_id", chunk)
+          .eq("status", "completed")
+          .order("slot_time", { ascending: false })
+          .order("id", { ascending: true })
+      ),
+      // session_code is new/migration-dependent -- isolated so an
+      // unknown-column error costs the codes alone.
+      readAllRowsByIds(referredPatientIds, (chunk) =>
+        admin
+          .from("appointments")
+          .select("id, session_code")
+          .in("patient_id", chunk)
+          .eq("status", "completed")
+          .order("id", { ascending: true })
+      ),
+      // The commission inputs: pay-later terms and the rate frozen at
+      // completion. Isolated for the same reason. Without the frozen rate a
+      // renegotiated percentage rewrote every commission already earned.
+      readAllRowsByIds(referredPatientIds, (chunk) =>
+        admin
+          .from("appointments")
+          .select(
+            "id, payment_terms, amount_due_paise, hospital_share_percent_at_completion, hospital_id_at_completion"
+          )
+          .in("patient_id", chunk)
+          .eq("status", "completed")
+          .order("id", { ascending: true })
+      ),
+    ]);
+    if (base.error) missing.push("your referred patients' sessions");
+    if (base.truncated) truncated.push("sessions");
+    if (terms.error) missing.push("the commission rates on those sessions");
+    const termsById = new Map(
+      (terms.rows as CommissionTermsRow[]).map((r) => [r.id, r])
+    );
+    sessionRows = mergeSessionCodes(
+      base.rows as HospitalSessionBaseRow[],
+      codes.error ? null : (codes.rows as { id: string; session_code: string | null }[])
+    ).map((row) => ({ ...row, ...(termsById.get(row.id) ?? {}) }));
+  }
 
-  const referredSessions = mergeMeetLinks(
-    mergeSessionCodes(rawReferredSessions ?? [], sessionCodeLinks),
-    meetLinkRows
-  );
-
-  const patientMap = new Map((referredPatients ?? []).map((p) => [p.id, p]));
-
-  // Delivered, not merely paid for.
-  //
-  // This counted `payment_status === "paid"`, which is wrong in both
-  // directions at once. A session paid for and not yet held was counted as
-  // delivered -- so a partner's figure jumped the moment a patient checked
-  // out and then never moved. And a session delivered on pay-later terms is
-  // never `paid` at all, so those were missing entirely: the partner's most
-  // trusted patients were invisible on their own screen.
-  //
-  // It also disagreed with the clinic's own books. `moneyLineFor` takes a
-  // partner's share on **completed** sessions, so the admin's Money screen
-  // and the partner's Earnings screen quoted two different numbers for the
-  // same referrals -- which is exactly what the comment below says this
-  // code exists to avoid.
-  const deliveredSessions = (referredSessions ?? []).filter(
-    (s) => s.status === "completed"
-  );
-  // Sums what was actually charged per session rather than recalculating
-  // against the current session fee, so this stays correct even if pricing
-  // changes later -- then subtracts refunds that actually processed.
-  //
-  // The refund step matters beyond arithmetic: a referral commission is a
-  // share of money the clinic *kept*, so a refunded session earns none. The
-  // admin's own Money screen takes the partner's share on net revenue for
-  // exactly this reason (see moneyByBucketFor), and without the same rule
-  // here the two screens would quote a partner two different numbers for
-  // the same referrals.
-  const totalRevenuePaise = deliveredSessions.reduce((sum, s) => {
-    const grossPaise = s.amount_paid_paise ?? SESSION_FEE_PAISE;
-    const refundPaise =
-      s.refund_status === "processed" ? Math.max(0, s.refund_amount_paise ?? 0) : 0;
-    return sum + Math.max(0, grossPaise - refundPaise);
-  }, 0);
-  const totalRevenue = totalRevenuePaise / 100;
+  const patientMap = new Map(referredPatients.map((p) => [p.id, p]));
   const sharePercent = profile?.revenue_share_percent ?? 0;
-  const hospitalCut = (totalRevenue * sharePercent) / 100;
-  const companyCut = totalRevenue - hospitalCut;
+
+  // Delivered, earned and attributed to *this* partner -- through
+  // partnerCutFor, the same arithmetic the admin Money screens use, so the
+  // partner and the clinic can never quote two numbers for one referral.
+  // A session whose completion snapshot names no partner, or another one,
+  // was not this partner's on the day it was delivered and earns nothing
+  // here (a referral recorded later is not retrospective).
+  const deliveredSessions = sessionRows.flatMap((s) => {
+    const line = hospitalSessionLine(s, user.id, sharePercent);
+    return line ? [line] : [];
+  });
+  const totalRevenuePaise = deliveredSessions.reduce((sum, s) => sum + s.netPaise, 0);
+  const hospitalCutPaise = deliveredSessions.reduce((sum, s) => sum + s.partnerCutPaise, 0);
+  const totalRevenue = totalRevenuePaise / 100;
+  const hospitalCut = hospitalCutPaise / 100;
+  const companyCut = (totalRevenuePaise - hospitalCutPaise) / 100;
 
   // ---- Overview -----------------------------------------------------
   const referralRows = referrals ?? [];
@@ -244,7 +272,6 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     referrals: referralRows,
     capacityNoteMap,
     declineReasonMap,
-    referredSessions,
     patientMap,
     // Renamed from `paidSessions`: these are the sessions actually
     // delivered, which is what a partner's commission is earned on.
@@ -258,7 +285,42 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     hospitalFeed,
     overviewCells,
     navItems,
+    loadIssues: { missing, truncated },
   };
 }
+
+type ReferralRow = {
+  id: string;
+  patient_name: string;
+  medical_issue: string | null;
+  status: string;
+  assigned_slot_time: string | null;
+  created_at: string;
+  visit_mode: string | null;
+  pincode: string | null;
+};
+
+type HospitalSessionBaseRow = {
+  id: string;
+  slot_time: string | null;
+  timezone: string | null;
+  status: string;
+  payment_status: string;
+  amount_paid_paise: number | null;
+  patient_id: string;
+  refund_status: string | null;
+  refund_amount_paise: number | null;
+};
+
+type CommissionTermsRow = {
+  id: string;
+  payment_terms?: string | null;
+  amount_due_paise?: number | null;
+  hospital_share_percent_at_completion?: number | null;
+  hospital_id_at_completion?: string | null;
+};
+
+type HospitalSessionRow = HospitalSessionBaseRow &
+  Omit<CommissionTermsRow, "id"> & { session_code?: string | null };
 
 export type HospitalDashboardData = Awaited<ReturnType<typeof loadHospitalDashboard>>;

@@ -389,6 +389,42 @@ export type MoneyLine = {
 };
 
 /**
+ * A referring partner's commission on one session's net revenue -- the one
+ * implementation, read by the admin Money screens (through moneyLineFor) and
+ * by the partner's own Earnings screen, so the two can never quote the same
+ * referral two different ways.
+ *
+ * Frozen rate first, live percentage second. `?? undefined` rather than
+ * `?? liveShare` so an explicitly-recorded 0% stays 0%. A session that
+ * recorded no partner at completion was not a referred one on the day it
+ * happened, whatever the patient's profile says now -- a referral added
+ * afterwards must not retrospectively earn a commission on work already
+ * delivered. Only rows with no snapshot at all fall back to the live rate,
+ * which is what stops a renegotiated percentage rewriting history.
+ */
+export function partnerCutFor(
+  a: Pick<
+    MetricsAppointment,
+    "hospital_share_percent_at_completion" | "hospital_id_at_completion"
+  >,
+  liveSharePercent: number | undefined,
+  netPaise: number,
+  { referredByProfile }: { referredByProfile: boolean }
+): { cutPaise: number; unknown: boolean; sharePercent: number | null } {
+  const frozenShare = a.hospital_share_percent_at_completion;
+  const frozenHospitalId = a.hospital_id_at_completion;
+  const share = frozenShare !== null && frozenShare !== undefined ? frozenShare : liveSharePercent;
+  const hasCompletionSnapshot = frozenHospitalId !== undefined || frozenShare !== undefined;
+  const unknown = hasCompletionSnapshot
+    ? !!frozenHospitalId && (frozenShare === null || frozenShare === undefined)
+    : share === undefined && referredByProfile;
+  // A completion snapshot naming no partner means no commission, full stop.
+  if (hasCompletionSnapshot && !frozenHospitalId) return { cutPaise: 0, unknown, sharePercent: null };
+  if (share === undefined || unknown) return { cutPaise: 0, unknown, sharePercent: share ?? null };
+  return { cutPaise: Math.round((netPaise * share) / 100), unknown, sharePercent: share };
+}
+
+/**
  * What one session contributed, or null when it contributed nothing (unpaid,
  * or with no slot to date it by).
  *
@@ -448,22 +484,10 @@ export function moneyLineFor(
         ? rates.therapistSharePercent[a.therapist_id]
         : undefined;
 
-  const frozenHospitalShare = a.hospital_share_percent_at_completion;
-  const frozenHospitalId = a.hospital_id_at_completion;
-  const hShare =
-    frozenHospitalShare !== null && frozenHospitalShare !== undefined
-      ? frozenHospitalShare
-      : rates.patientHospitalSharePercent[a.patient_id];
-  // A session that recorded no partner at completion was not a referred one
-  // on the day it happened, whatever the patient's profile says now -- a
-  // referral added afterwards must not retrospectively earn a commission on
-  // work already delivered and paid out. Only rows with no snapshot at all
-  // fall back to asking the profile.
-  const hasCompletionSnapshot =
-    frozenHospitalId !== undefined || frozenHospitalShare !== undefined;
-  const hospitalShareUnknown = hasCompletionSnapshot
-    ? !!frozenHospitalId && (frozenHospitalShare === null || frozenHospitalShare === undefined)
-    : hShare === undefined && !!rates.hospitalReferredPatientIds[a.patient_id];
+  const partner = partnerCutFor(a, rates.patientHospitalSharePercent[a.patient_id], netPaise, {
+    referredByProfile: !!rates.hospitalReferredPatientIds[a.patient_id],
+  });
+  const hospitalShareUnknown = partner.unknown;
   if (onlineShare === undefined || hospitalShareUnknown) {
     return {
       ...base,
@@ -493,13 +517,7 @@ export function moneyLineFor(
     therapistCutPaise = Math.round((paidPaise * effectiveShare) / 100) + travelPaise;
   }
 
-  // A completion snapshot naming no partner means no commission, full stop.
-  const hospitalCutPaise =
-    hasCompletionSnapshot && !frozenHospitalId
-      ? 0
-      : hShare !== undefined
-        ? Math.round((netPaise * hShare) / 100)
-        : 0;
+  const hospitalCutPaise = partner.cutPaise;
 
   return {
     ...base,
