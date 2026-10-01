@@ -3,6 +3,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import type { PatientDashboardData } from "@/lib/patientDashboardData";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
 
 /**
  * The chrome every patient dashboard screen shares: sidebar, header,
@@ -62,6 +63,11 @@ export default function PatientDashboardShell({
       headerTitle={title}
       headerSubtitle={subtitle}
     >
+      {data.loadIssues.missing.length > 0 && (
+        <div className="mb-6">
+          <AdminDataLoadBanner missing={data.loadIssues.missing} />
+        </div>
+      )}
       {children}
     </DashboardShell>
     </JoinWindowProvider>

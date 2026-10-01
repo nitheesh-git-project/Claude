@@ -3,6 +3,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import type { TherapistDashboardData } from "@/lib/therapistDashboardData";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
 
 /**
  * The chrome every therapist dashboard screen shares. Same role as
@@ -55,6 +56,11 @@ export default function TherapistDashboardShell({
         headerTitle={title}
         headerSubtitle={subtitle}
       >
+        {data.loadIssues.missing.length > 0 && (
+          <div className="mb-6">
+            <AdminDataLoadBanner missing={data.loadIssues.missing} />
+          </div>
+        )}
         {children}
       </DashboardShell>
     </JoinWindowProvider>

@@ -116,3 +116,19 @@ export async function readAllRowsByIds<T>(
   }
   return { rows, truncated, error: null };
 }
+
+/**
+ * `readAllRows` in the `{ data, error }` shape a `Promise.all` of plain
+ * PostgREST calls already destructures, so a loader can swap a capped
+ * `.select()` for a paged one without restructuring. A walk that hit
+ * `maxRows` carries a `truncated` error rather than a quietly short list.
+ */
+export async function readAllRowsAsData<T>(
+  build: () => RangeableQuery<T>,
+  options?: { maxRows?: number }
+): Promise<{ data: T[] | null; error: unknown }> {
+  const result = await readAllRows(build, options);
+  if (result.error) return { data: null, error: result.error };
+  if (result.truncated) return { data: result.rows, error: { message: "truncated", code: "TRUNCATED" } };
+  return { data: result.rows, error: null };
+}

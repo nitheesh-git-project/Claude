@@ -1,4 +1,5 @@
 import "server-only";
+import { readAllRowsAsData } from "@/lib/supabase/readAllRows";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadActiveCarePlan, loadCarePlanHistory } from "@/lib/carePlanServer";
@@ -137,7 +138,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { data: profile },
     { data: settingsRow },
     { data: patientCodeRow },
-    { data: rawAppointments },
+    { data: rawAppointments, error: appointmentsError },
     { data: sessionCodeLinks },
     { data: meetLinkRows },
     { data: refundDetailRows },
@@ -173,30 +174,45 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // profile fetch this page's header depends on.
     supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
 
-    supabase
-      .from("appointments")
-      .select(
-        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, paid_at, razorpay_payment_id, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show, therapist_payout_paid_at"
-      )
-      .eq("patient_id", user.id)
-      .order("created_at", { ascending: false }),
+    // Every appointment read below is paged (readAllRowsAsData). PostgREST
+    // stops a plain select at 1,000 rows, and these are merged by id -- so a
+    // patient past that lost Meet links, session codes, refund lines and
+    // payment terms on whichever sessions fell off the end of one read but
+    // not another.
+    readAllRowsAsData(() =>
+      supabase
+        .from("appointments")
+        .select(
+          "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, paid_at, razorpay_payment_id, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show, therapist_payout_paid_at"
+        )
+        .eq("patient_id", user.id)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
     // session_code is also new/migration-dependent -- same isolation
     // reasoning as patientCodeRow above.
-    supabase.from("appointments").select("id, session_code").eq("patient_id", user.id),
+    readAllRowsAsData(() =>
+      supabase.from("appointments").select("id, session_code").eq("patient_id", user.id).order("id")
+    ),
 
     // meet_link is also new/migration-dependent -- same isolation reasoning
     // as sessionCodeLinks above.
-    supabase.from("appointments").select("id, meet_link").eq("patient_id", user.id),
+    readAllRowsAsData(() =>
+      supabase.from("appointments").select("id, meet_link").eq("patient_id", user.id).order("id")
+    ),
 
     // What came back and when. refunded_at is the newest column on this
     // table, so this is isolated for the usual reason -- without it a
     // database missing the migration would lose every session on this
     // dashboard rather than one line on a refunded one.
-    supabase
-      .from("appointments")
-      .select("id, refund_amount_paise, refund_reason, refunded_at")
-      .eq("patient_id", user.id),
+    readAllRowsAsData(() =>
+      supabase
+        .from("appointments")
+        .select("id, refund_amount_paise, refund_reason, refunded_at")
+        .eq("patient_id", user.id)
+        .order("id")
+    ),
 
     // Whether each session is one this patient settles afterwards.
     //
@@ -212,7 +228,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // Isolated rather than added to the shared select for the usual reason:
     // absent, this costs one feed item's wording rather than every session
     // on the screen.
-    supabase.from("appointments").select("id, payment_terms").eq("patient_id", user.id),
+    readAllRowsAsData(() =>
+      supabase.from("appointments").select("id, payment_terms").eq("patient_id", user.id).order("id")
+    ),
 
     // Full purchase history (not just currently-usable packages -- that's
     // ownedPackages below, filtered to paid ones with sessions remaining) so
@@ -297,12 +315,15 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // from the main appointments select above for the same reason as
     // everywhere else: that select feeds every session card, the calendar
     // and the receipts, so one unknown column there would blank the page.
-    supabase
-      .from("appointments")
-      .select(
-        "id, visit_mode, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_access_notes, travel_fee_paise, home_visit_purchase_id"
-      )
-      .eq("patient_id", user.id),
+    readAllRowsAsData(() =>
+      supabase
+        .from("appointments")
+        .select(
+          "id, visit_mode, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_access_notes, travel_fee_paise, home_visit_purchase_id"
+        )
+        .eq("patient_id", user.id)
+        .order("id")
+    ),
 
     // The Book a Session hub's home-visit group.
     needHub
@@ -409,11 +430,14 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   >();
   if (needReceipts) {
     try {
-      const { data: discountRows } = await admin
-        .from("appointments")
-        .select("id, list_price_paise, discount_paise, discount_source")
-        .eq("patient_id", user.id)
-        .gt("discount_paise", 0);
+      const { data: discountRows } = await readAllRowsAsData(() =>
+        admin
+          .from("appointments")
+          .select("id, list_price_paise, discount_paise, discount_source")
+          .eq("patient_id", user.id)
+          .gt("discount_paise", 0)
+          .order("id")
+      );
       for (const row of discountRows ?? []) {
         const r = row as {
           id: string;
@@ -1001,6 +1025,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   }
 
   return {
+    // The one read every screen here is built from. A failure renders the
+    // load banner rather than "no sessions yet" -- see AdminDataLoadBanner.
+    loadIssues: { missing: appointmentsError ? ["your sessions"] : [], truncated: [] as string[] },
     user,
     profile,
     patientCodeRow,

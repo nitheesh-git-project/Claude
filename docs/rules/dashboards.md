@@ -27,6 +27,16 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   which entries exist stays in the always-loaded core, or the nav would
   change shape as you move between screens. Anything rendered by more than one route
   (the session cards) is a real component, not a closure.
+- **A dashboard read that can pass 1,000 rows is paged, and the one every
+  screen is built from says when it failed.** The patient and therapist
+  loaders read each appointment column group with `readAllRowsAsData`
+  (`{ data, error }` shape, so the `Promise.all` destructuring is
+  unchanged) and the id-keyed lookups behind them with `readAllRowsByIds`.
+  These reads are merged by id, so a capped one lost Meet links, session
+  codes, refund lines and payment terms on whichever sessions fell off its
+  end - and a therapist's earnings were summed over the first page. A
+  failed main appointments read shows the load banner instead of "no
+  sessions" or "₹0".
 - **A partner sees what was delivered and what it earned them - never the
   session.** The hospital loader reads referred patients' **completed**
   sessions only, and never `meet_link`: a consultation is private to the
