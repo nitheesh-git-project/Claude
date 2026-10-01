@@ -14901,3 +14901,17 @@ create policy "pain_assessments_select_own" on pain_assessments
     (select auth.uid()) = patient_id
     and coalesce((select p.active from public.profiles p where p.id = (select auth.uid())), false)
   );
+
+-- A partner withdrawing a referral is not the clinic declining it.
+--
+-- /api/hospital/withdraw-referral wrote status = 'declined' with no reason,
+-- actor or time, so neither the partner nor an admin could tell "we took it
+-- back" from "the clinic turned this patient away" -- and the hospital's own
+-- Withdrawn filter could never match anything, because no such status
+-- existed. It is its own state now, with who and when beside it.
+alter table patient_referrals add column if not exists withdrawn_at timestamptz;
+alter table patient_referrals add column if not exists withdrawn_by uuid references profiles(id);
+
+alter table patient_referrals drop constraint if exists patient_referrals_status_check;
+alter table patient_referrals add constraint patient_referrals_status_check
+  check (status in ('pending_review', 'therapist_assigned', 'invite_sent', 'converted', 'declined', 'withdrawn'));

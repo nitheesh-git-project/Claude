@@ -146,6 +146,15 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   unserviceable pincode booked a visit with no travel fee. The System
   Health attribution check now also counts converted referrals with **no**
   patient linked, which it could not see before.
+- **A partner withdrawing a referral is `withdrawn`, not `declined`.**
+  `declined` is the clinic's decision and carries the clinic's reason;
+  the withdraw route used to write it with no reason, actor or time, and
+  the partner's own Withdrawn filter matched nothing. The status now has
+  `withdrawn_at` / `withdrawn_by` beside it (schema.sql, appended), counts
+  as closed (`isReferralClosed`), and on a database without it the route
+  falls back to `declined` with the reason "Withdrawn by the referring
+  partner." The partner's filters list every real status, including
+  Registration link sent.
 - **A referral carries a phone number, because the clinic rings before it
   links.** `patient_referrals.patient_phone` is collected on the hospital's
   own form (required, validated through `PhoneNumberField` /

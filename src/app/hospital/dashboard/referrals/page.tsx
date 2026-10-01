@@ -37,6 +37,7 @@ export default async function Page() {
               filters={[
                 { key: "pending_review", label: "Waiting on the clinic" },
                 { key: "therapist_assigned", label: "Therapist assigned" },
+                { key: "invite_sent", label: "Registration link sent" },
                 { key: "converted", label: "Booked" },
                 { key: "declined", label: "Declined" },
                 { key: "withdrawn", label: "Withdrawn" },
