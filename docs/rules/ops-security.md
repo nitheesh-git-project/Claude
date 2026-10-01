@@ -479,12 +479,17 @@ client is the only writer and the log is append-only from any session.
      names cannot rewrite it. **The row is written before the swap**, so a
      session with no record behind it cannot exist; a failed insert refuses
      the whole thing, the same posture as `/api/therapist/reveal-contact`.
-  3. **Everything done during the window is written as that user.** No column
-     on `appointments` -- or anywhere else -- can say an admin was at the
-     keyboard, so that row's `started_at`/`ended_at` window is the only thing
-     a later reader can intersect an action against. That is a real cost of
-     the swap, accepted deliberately: a read-only mirror cannot reproduce a
-     bug that only appears on submit.
+  3. **Everything done during the window is written as that user - and
+     recorded under the admin.** No column on `appointments` can say an
+     admin was at the keyboard, so the proxy now matches `/api/:path*` for
+     one purpose: a non-GET API call carrying the marker cookie is written
+     to `admin_activity_log` as `impersonation.action` under the **admin's**
+     id, with the method, path and session id (`src/lib/impersonationAudit.ts`,
+     off the response path via `waitUntil`, and only after checking the
+     cookie against the open `admin_impersonation_sessions` row). With no
+     marker an API request passes straight through. The swap itself is
+     still accepted deliberately: a read-only mirror cannot reproduce a bug
+     that only appears on submit.
   4. **It expires, and the proxy is what ends it.** The marker cookie and the
      Supabase session cookies are separate things, so letting the marker
      lapse on its own max-age would drop the banner while the swap ran on

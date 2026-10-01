@@ -494,6 +494,13 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   entry now on screen would open a different record's history. An entry
   opened from the table clears it, so no back button points at a timeline
   nobody came from.
+- **An audit write is tried twice.** `recordAdminActivity` stays
+  best-effort - the action it records has already happened - but a single
+  dropped insert used to be the whole of that effort; it now retries once
+  and still reports `false` so a money route can return
+  `ACTIVITY_LOG_WARNING`. Changes made while impersonating are recorded under
+  the admin as `impersonation.action` (see the impersonation rule in
+  `ops-security.md`).
 - **An audit entry is read months later, so it says what changed from what.**
   Tapping a row in the Logs section -- or on a limited desk's
   Today -> Activity -- opens the whole entry
