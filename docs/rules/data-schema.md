@@ -148,6 +148,38 @@ before.
   which is the **live** branch. A schema change merged to `staging`, the
   default branch, reaches staging's own database only when a person applies
   it; see STAGING.md.
+- **A new Supabase project may hold no table privileges for `anon`,
+  `authenticated` or `service_role`, and `schema.sql` does not grant any.**
+  It relies on the platform's default privileges, which are absent when the
+  project was created with automatic Data API table exposure off (or when the
+  tables were created by a role that did not receive the defaults). RLS
+  policies do nothing without the underlying privilege, so the symptom is not
+  an empty result but `42501: permission denied for table profiles` on every
+  signed-in read. It reads as a role bug: the proxy treats a failed
+  `profiles` read as "not this role", so a correctly promoted admin is
+  redirected to `/get-started` and "Go to dashboard" does the same. This
+  happened on the first production sign-in. Diagnose it from the SQL editor
+  with `begin; set local role authenticated; select set_config('request.jwt.claims',
+  '{"sub":"<user id>","role":"authenticated"}', true); select role from
+  profiles where id = '<user id>'; rollback;`. Before granting, confirm every
+  table has RLS on, since the grants make RLS the only barrier:
+  `select relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity;`
+  must return no rows. Then apply, once per new project:
+
+  ```sql
+  grant usage on schema public to anon, authenticated, service_role;
+  grant all on all tables in schema public to authenticated, service_role;
+  grant select on all tables in schema public to anon;
+  grant all on all sequences in schema public to authenticated, service_role;
+  alter default privileges in schema public grant all on tables to authenticated, service_role;
+  alter default privileges in schema public grant select on tables to anon;
+  alter default privileges in schema public grant all on sequences to authenticated, service_role;
+  ```
+
+  Tables and sequences only: function EXECUTE is deliberately left alone,
+  because the schema revokes it from `public`, `anon` and `authenticated`
+  and re-granting it wholesale would undo that.
 - New columns are migration-dependent - a live database may not have them
   yet. Query such a column in its own isolated call and merge the result in
   (see `src/lib/sessionCode.ts`), so one unknown-column error can't blank
