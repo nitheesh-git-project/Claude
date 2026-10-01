@@ -21,14 +21,58 @@
  * one useful thing -- refresh, and if it persists the figures below are not
  * to be trusted. It is shown to every scope, because a wrong figure is
  * wrong for whoever is reading it.
+ *
+ * **`truncated` is the same rule for the opposite cause**, and it is the
+ * quieter of the two. A read that failed at least fails; a read that hit
+ * PostgREST's `max_rows` succeeds, answers 200, and hands back a prefix of
+ * the table with nothing to say it did -- so every figure summed over it is
+ * understated and every screen agrees with every other screen about the wrong
+ * number. `readAllRows` walks past the cap and reports the one case it could
+ * not finish, and this is where that lands. It is amber rather than red
+ * because the figures are not garbage, they are short, and the action is
+ * different: this one wants a narrower date range, not a refresh.
  */
-export default function AdminDataLoadBanner({ missing }: { missing: string[] }) {
-  if (missing.length === 0) return null;
+export default function AdminDataLoadBanner({
+  missing,
+  truncated = [],
+}: {
+  missing: string[];
+  truncated?: string[];
+}) {
+  if (missing.length === 0 && truncated.length === 0) return null;
 
   const list =
     missing.length === 1
       ? missing[0]
       : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
+
+  const truncatedList =
+    truncated.length === 1
+      ? truncated[0]
+      : `${truncated.slice(0, -1).join(", ")} and ${truncated[truncated.length - 1]}`;
+
+  if (missing.length === 0) {
+    return (
+      <div
+        role="alert"
+        className="flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm sm:p-5"
+      >
+        <i aria-hidden className="fa-solid fa-triangle-exclamation mt-0.5 text-lg text-amber-600" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-sm font-bold text-amber-900">
+            This screen is showing part of the data
+          </span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-amber-800">
+            There is more {truncatedList} than this screen reads in one go, so
+            the figures below cover only part of it and are understated.
+          </span>
+          <span className="mt-1.5 block text-[11px] font-semibold text-amber-700">
+            Narrow the date range to get a figure you can rely on.
+          </span>
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -357,4 +357,4 @@ Sign off each line before release.
 - [ ] Every dashboard offers **Back to Home** in all three sidebar renders
 
 **Documentation**
-- [ ] `README.md`, `AGENTS.md` and `CLAUDE.md` describe the shipped behaviour - routes, roles, environment variables, npm scripts, and every documented rule (booking lead time, refund window, payment verification, Meet sync, payout maths)
+- [ ] `README.md`, `CLAUDE.md` and `docs/rules/*.md` describe the shipped behaviour - routes, roles, environment variables, npm scripts, and every documented rule (booking lead time, refund window, payment verification, Meet sync, payout maths)

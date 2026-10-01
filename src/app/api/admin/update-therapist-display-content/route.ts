@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 // Writes profiles.public_display_note -- the admin-curated blurb shown in
 // the /team popup (Feature 38), distinct from therapist_admin_notes
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     .eq("role", "therapist");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-therapist-display-content", error);
   }
 
   // /team is time-based ISR (revalidate = 300s) -- same reasoning as

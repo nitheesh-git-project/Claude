@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
+import { serverError } from "@/lib/apiError";
 
 // A therapist requests admin approval to edit (not just view) a patient's
 // condition data - Pain Map and Patient Care Intake alike share this one
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    return serverError("therapist/condition-access/request", insertError);
   }
 
   return NextResponse.json({ success: true });

@@ -10,6 +10,8 @@ import {
   isWholeHourSlot,
   NOT_WHOLE_HOUR_ERROR,
 } from "@/lib/bookingSlots";
+import { clinicWeekKey } from "@/lib/clinicWeek";
+import { readPackageTerms } from "@/lib/packageTerms";
 
 const MAX_NOTES_LENGTH = 1000;
 // Absolute ceiling regardless of the admin-configured
@@ -23,20 +25,6 @@ type SlotResult = {
   appointmentId?: string;
   error?: string;
 };
-
-function isoWeekKey(ms: number): string {
-  const d = new Date(ms);
-  // ISO week: Thursday of the week's calendar year determines the week
-  // number, and weeks start Monday. Good enough here as a stable grouping
-  // key -- exact ISO week numbering isn't the point, "same calendar week"
-  // consistency between candidate slots is.
-  const day = (d.getUTCDay() + 6) % 7; // Monday = 0
-  const thursday = new Date(d);
-  thursday.setUTCDate(d.getUTCDate() - day + 3);
-  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
-  return `${thursday.getUTCFullYear()}-W${weekNo}`;
-}
 
 // Bulk-schedules multiple package sessions in one request -- the patient
 // dashboard's "Schedule sessions" calendar. Each slot goes through the same
@@ -126,12 +114,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Package not found" }, { status: 404 });
   }
 
-  const [{ data: packageRow }, { data: settingsRow }, { data: existingAppointments }] = await Promise.all([
-    admin
-      .from("treatment_category_packages")
-      .select("session_duration_minutes, min_gap_hours, max_sessions_per_week")
-      .eq("id", purchase.package_id)
-      .maybeSingle(),
+  // The terms this patient BOUGHT, not the ones on sale today.
+  //
+  // These three -- the session length, the minimum gap and the weekly cap --
+  // were read straight off the live catalog row, so an admin editing a
+  // programme changed the rules under every patient already part-way
+  // through one. `session_entitlements.package_snapshot` has held the row
+  // as it stood at purchase all along, frozen by trigger; this is what
+  // finally reads it. A purchase made before the ledger backfill has no
+  // snapshot and falls through to the live row, which is the only
+  // description of it that exists.
+  const [packageTerms, { data: settingsRow }, { data: existingAppointments }] = await Promise.all([
+    readPackageTerms(admin, purchase.id, purchase.package_id),
     admin
       .from("site_settings")
       .select("package_bulk_schedule_max, online_booking_lead_time_hours")
@@ -178,8 +172,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const minGapMs = (packageRow?.min_gap_hours ?? 0) * 3_600_000;
-  const maxPerWeek = packageRow?.max_sessions_per_week ?? null;
+  const minGapMs = (packageTerms.minGapHours ?? 0) * 3_600_000;
+  const maxPerWeek = packageTerms.maxSessionsPerWeek ?? null;
 
   // Accepted-so-far state, seeded with what's already on the calendar for
   // this purchase -- new slots are checked against both prior real
@@ -189,7 +183,7 @@ export async function POST(request: NextRequest) {
     .filter((t): t is number => t !== null);
   const weekCounts = new Map<string, number>();
   for (const t of acceptedTimes) {
-    const key = isoWeekKey(t);
+    const key = clinicWeekKey(t);
     weekCounts.set(key, (weekCounts.get(key) ?? 0) + 1);
   }
 
@@ -219,11 +213,11 @@ export async function POST(request: NextRequest) {
       results.push({
         slotDateTime: slot.slotDateTime,
         success: false,
-        error: `Too close to another session on this package (minimum ${packageRow?.min_gap_hours}h gap).`,
+        error: `Too close to another session on this package (minimum ${packageTerms.minGapHours}h gap).`,
       });
       continue;
     }
-    const weekKey = isoWeekKey(slot.ms);
+    const weekKey = clinicWeekKey(slot.ms);
     if (maxPerWeek !== null && (weekCounts.get(weekKey) ?? 0) >= maxPerWeek) {
       results.push({
         slotDateTime: slot.slotDateTime,
@@ -252,7 +246,7 @@ export async function POST(request: NextRequest) {
       timezone: slot.timezone,
       notes,
       actorId: user.id,
-      sessionDurationMinutesOverride: packageRow?.session_duration_minutes ?? null,
+      sessionDurationMinutesOverride: packageTerms.sessionDurationMinutes,
     });
 
     if (result.success) {

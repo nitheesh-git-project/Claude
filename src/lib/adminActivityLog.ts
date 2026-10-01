@@ -188,11 +188,48 @@ export type AdminActivityEntry = {
   details?: Record<string, unknown> | null;
 };
 
+/**
+ * Said to the admin when money moved and the trail did not record it.
+ *
+ * Same shape and the same reasoning as SESSION_REVOKE_WARNING: "the door is
+ * locked but they are still inside" is worth saying out loud, and so is
+ * "the transfer went out and nothing recorded who authorised it". Neither
+ * can be undone, so the only honest thing left is to say so to somebody who
+ * can write it down elsewhere.
+ */
+export const ACTIVITY_LOG_WARNING =
+  "This went through, but it could not be recorded in the activity log. Note down what you did and when - the log will not show it.";
+
+/**
+ * Records what happened. Returns whether it managed to.
+ *
+ * Still **best-effort for its caller's own flow**: it never throws, and an
+ * audit write failing must not block the action it describes. That posture is
+ * deliberate and stays -- refusing to suspend an account because the log was
+ * unreachable leaves the account working.
+ *
+ * What changed is that the outcome is no longer thrown away. It used to
+ * return void behind a console.error, which is defensible for
+ * `setting.update` and indefensible for `payout.settle`: money leaves the
+ * clinic, cannot be recalled, and nothing anywhere records who authorised
+ * it. A console line is not a place a clinic owner looks -- the same
+ * objection AdminDataLoadBanner exists for.
+ *
+ * So the money-moving routes read the result and pass ACTIVITY_LOG_WARNING
+ * back with their success. Every other caller ignores it and behaves exactly
+ * as before, which is why this is a widening rather than a change.
+ *
+ * The genuinely transactional cases are already handled elsewhere and are a
+ * different rule: `care_plan_reviews` and `contact_reveal_log` REVERT the
+ * action when their record cannot be written, because there the action is
+ * reversible and an untraceable one is the single outcome those routes must
+ * not produce.
+ */
 export async function recordAdminActivity(
   admin: SupabaseClient,
   actorId: string,
   entry: AdminActivityEntry
-): Promise<void> {
+): Promise<boolean> {
   try {
     const { error } = await admin.from("admin_activity_log").insert({
       actor_id: actorId,
@@ -204,9 +241,12 @@ export async function recordAdminActivity(
     });
     if (error) {
       console.error("admin activity log write failed", entry.action, error.message);
+      return false;
     }
+    return true;
   } catch (err) {
     console.error("admin activity log write threw", entry.action, err);
+    return false;
   }
 }
 

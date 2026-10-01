@@ -12,6 +12,8 @@ import {
   writeOffDescription,
   WRITE_OFF_REASON_MIN_CHARS,
 } from "@/lib/payLaterWriteOff";
+import { clinicDateKey } from "@/lib/clinicWeek";
+import { serverError } from "@/lib/apiError";
 
 // Forgiving what a trusted patient owes for a session -- and taking that back.
 //
@@ -91,7 +93,7 @@ export async function POST(request: NextRequest) {
     .eq("id", appointmentId)
     .maybeSingle();
 
-  if (readError) return NextResponse.json({ error: readError.message }, { status: 500 });
+  if (readError) return serverError("admin/write-off-pay-later-session", readError);
   if (!appointment) return NextResponse.json({ error: "Session not found." }, { status: 404 });
 
   return body.writtenOff === false
@@ -141,7 +143,7 @@ async function writeOff({
     .select("id")
     .maybeSingle();
 
-  if (claimError) return NextResponse.json({ error: claimError.message }, { status: 500 });
+  if (claimError) return serverError("admin/write-off-pay-later-session", claimError);
   if (!claimed) {
     return NextResponse.json(
       { error: "Somebody else answered this session a moment ago. Refresh and check." },
@@ -164,7 +166,12 @@ async function writeOff({
   // the cost, and back-dating it into a month somebody has already read moves
   // a profit figure under them -- the same reasoning that keeps `refunded_at`
   // un-backfilled.
-  const incurredOn = new Date().toISOString().slice(0, 10);
+  //
+  // "Today" is the clinic's today. `toISOString()` gives UTC's, so a
+  // write-off decided between midnight and 05:29 IST was dated to the
+  // previous day -- and one decided on the 1st of a month landed in the
+  // month before, moving exactly the profit figure this comment is about.
+  const incurredOn = clinicDateKey(Date.now());
   const base = {
     incurred_on: incurredOn,
     category: BAD_DEBT_EXPENSE_CATEGORY,
@@ -278,7 +285,7 @@ async function reverse({
     .select("id")
     .maybeSingle();
 
-  if (claimError) return NextResponse.json({ error: claimError.message }, { status: 500 });
+  if (claimError) return serverError("admin/write-off-pay-later-session", claimError);
   if (!claimed) {
     return NextResponse.json(
       { error: "Somebody else answered this session a moment ago. Refresh and check." },

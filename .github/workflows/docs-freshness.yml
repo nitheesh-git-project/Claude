@@ -10,9 +10,14 @@ name: Docs freshness
 # refactor) genuinely need no doc update, and a required check that is
 # routinely wrong just teaches people to ignore it.
 
+# `staging` is the default branch and is what a pull request targets (see
+# STAGING.md). Listening on `main` alone meant this stopped firing the moment
+# that changed -- and a reminder that has gone silent is worse than no
+# reminder, because nobody notices the absence and it reads as approval.
+# `main` stays listed so a release merge is covered too.
 on:
   pull_request:
-    branches: [main]
+    branches: [staging, main]
 
 jobs:
   check:

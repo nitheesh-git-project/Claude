@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity, type AdminActivityAction } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { parseId } from "@/lib/financeInputs";
+import { serverError } from "@/lib/apiError";
 
 // Removing one of the three things an owner types into Business Health.
 //
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
     .eq("id", id.value)
     .select("id");
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/finance/delete", error);
   }
   if (!removed || removed.length === 0) {
     return NextResponse.json({ error: target.missing }, { status: 404 });

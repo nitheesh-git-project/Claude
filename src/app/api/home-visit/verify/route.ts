@@ -14,6 +14,31 @@ import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
 
 const MAX_NOTES_LENGTH = 1000;
 
+/**
+ * Thrown to skip the `purchased` event insert when one already exists. A
+ * sentinel rather than an early return because the insert sits inside a
+ * best-effort try/catch, and a plain `return` there would leave the route.
+ */
+class AlreadyLogged extends Error {}
+
+/**
+ * **This route deliberately does not re-read `home_visit_enabled`.**
+ *
+ * `create-order` checks it, and an admin can switch the service off in the
+ * seconds between that and the patient coming back from Razorpay. Refusing
+ * here would mean the gateway has the money and the patient has nothing --
+ * so the only honest refusal is a refund, which is a decision a person takes
+ * per purchase on the screen that already does refunds, not a check a route
+ * makes on their behalf.
+ *
+ * It is the same rule `book-visits` follows for serviceability, stated for
+ * the same reason: the behaviour was already right and right *by omission*,
+ * which is the shape where the next reader adds the check and strands a
+ * booking somebody has paid for. The switch gates what can be **sold**.
+ * What it does not cancel is now said out loud on the switch itself --
+ * `readHomeVisitCommitmentTotal` counts the paid visits still to deliver and
+ * Settings -> Programmes & Home Visits asks before it goes off.
+ */
 export async function POST(request: NextRequest) {
   // Who is asking, before anything the caller sent is looked at. An
   // anonymous request is refused here rather than after body validation,
@@ -191,6 +216,19 @@ export async function POST(request: NextRequest) {
   await mirrorEnsureEntitlement(admin, { homeVisitPurchaseId });
 
   try {
+    // Idempotent for the same reason the booking below now is: a retried
+    // verify wrote a second `purchased` event, and two of them on one
+    // purchase read as two purchases on the timeline an admin opens to work
+    // out what happened. Keyed on the thing that happened rather than on who
+    // got here first, the rule the credit ledger's own keys follow.
+    const { data: alreadyLogged } = await admin
+      .from("home_visit_purchase_events")
+      .select("id")
+      .eq("purchase_id", homeVisitPurchaseId)
+      .eq("event_type", "purchased")
+      .limit(1)
+      .maybeSingle();
+    if (alreadyLogged) throw new AlreadyLogged();
     await admin.from("home_visit_purchase_events").insert({
       purchase_id: homeVisitPurchaseId,
       event_type: "purchased",
@@ -202,11 +240,13 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (eventError) {
-    console.error(
-      "Failed to log purchased event for home visit purchase",
-      homeVisitPurchaseId,
-      eventError
-    );
+    if (!(eventError instanceof AlreadyLogged)) {
+      console.error(
+        "Failed to log purchased event for home visit purchase",
+        homeVisitPurchaseId,
+        eventError
+      );
+    }
   }
 
   if (!slotDateTime) {
@@ -275,6 +315,18 @@ export async function POST(request: NextRequest) {
         (addressForBooking as { area_id?: string | null }).area_id ?? null,
     },
   });
+
+  // A retried verify -- a double-tapped Pay, a resent browser callback,
+  // Razorpay's own at-least-once delivery racing the webhook -- is refused by
+  // the one-per-purchase-per-slot index, which means the visit it asked for
+  // already exists. That is this call succeeding twice, not failing, and the
+  // claimed credit was given back inside the helper, so the balance is right.
+  // Reporting it as an error would tell a patient whose money has moved that
+  // their visit was not booked, which is the one thing this route must never
+  // say wrongly.
+  if (!result.success && result.duplicate) {
+    return NextResponse.json({ success: true, visitBooked: true, alreadyBooked: true });
+  }
 
   if (!result.success) {
     // The purchase itself is paid and safe -- only visit 1's booking

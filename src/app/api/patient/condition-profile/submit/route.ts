@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { findMissingRequiredKeys, patientIntakeGate, questionKeysForSpecialty } from "@/lib/conditionIntake";
 import { loadConditionProfileCore, loadMergedIntakeQuestions } from "@/lib/conditionProfileServer";
+import { serverError } from "@/lib/apiError";
 
 // Patient edits their own Patient Care Intake. Every submission queues in
 // condition_change_requests and only becomes the live profile once an
@@ -103,14 +104,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { error: insertError } = await admin.from("condition_change_requests").insert({
-    patient_id: user.id,
-    submitted_by: user.id,
-    submitted_by_role: "patient",
-    proposed_data: answers,
-    proposed_specialty: profile.specialty,
-    status: "pending",
-  });
+  const { data: inserted, error: insertError } = await admin
+    .from("condition_change_requests")
+    .insert({
+      patient_id: user.id,
+      submitted_by: user.id,
+      submitted_by_role: "patient",
+      proposed_data: answers,
+      proposed_specialty: profile.specialty,
+      status: "pending",
+    })
+    .select("id")
+    .single();
   if (insertError) {
     // The count check above is a fast, friendly-error path -- the real
     // guard is condition_change_requests_one_pending (schema.sql), which
@@ -123,7 +128,7 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    return serverError("patient/condition-profile/submit", insertError);
   }
 
   const { error: upsertError } = await admin
@@ -133,7 +138,33 @@ export async function POST(request: NextRequest) {
       { onConflict: "patient_id" }
     );
   if (upsertError) {
-    return NextResponse.json({ error: upsertError.message }, { status: 500 });
+    // The same dead end as the therapist's route one file over: the
+    // submission is queued, the profile never moved, and the retry is
+    // refused as already pending -- so it failed, and trying again says it
+    // is already there. Release it rather than leaving the patient unable to
+    // resend their own answers.
+    if (inserted?.id) {
+      const { error: releaseError } = await admin
+        .from("condition_change_requests")
+        .delete()
+        .eq("id", inserted.id)
+        .eq("status", "pending");
+      if (releaseError) {
+        console.error(
+          "Failed to release condition change request after a failed profile update",
+          inserted.id,
+          releaseError
+        );
+        return NextResponse.json(
+          {
+            error:
+              "We could not save that and could not clear it either. Please contact the clinic before trying again.",
+          },
+          { status: 500 }
+        );
+      }
+    }
+    return serverError("patient/condition-profile/submit", upsertError);
   }
 
   return NextResponse.json({ success: true });

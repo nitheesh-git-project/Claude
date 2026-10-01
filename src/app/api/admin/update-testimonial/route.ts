@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -42,22 +43,26 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin
-    .from("testimonials")
-    .update({
-      patient_name: patientName,
-      quote,
-      rating: ratingValue,
-      condition_label: conditionLabel || null,
-      avatar_url:
-        typeof avatarUrl === "string" && avatarUrl.trim() ? avatarUrl.trim() : null,
-      display_order: Math.round(order),
-      active: active === undefined ? true : Boolean(active),
-    })
-    .eq("id", id);
+  // Absence means "leave it alone", never "switch it on" -- see the same
+  // correction on update-treatment-category. A default of `true` here meant
+  // an admin fixing a typo silently republished an entry they had retired.
+  const patch: Record<string, unknown> = {
+    patient_name: patientName,
+    quote,
+    rating: ratingValue,
+    condition_label: conditionLabel || null,
+    avatar_url:
+      typeof avatarUrl === "string" && avatarUrl.trim() ? avatarUrl.trim() : null,
+    display_order: Math.round(order),
+  };
+  if (active !== undefined) {
+    patch.active = Boolean(active);
+  }
+
+  const { error } = await admin.from("testimonials").update(patch).eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-testimonial", error);
   }
 
   // Catalog rows decide what is sold and at what price, so every

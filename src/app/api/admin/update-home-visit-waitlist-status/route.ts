@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 // Mirrors /api/admin/update-lead-status for the b2b_leads pipeline -- same
 // shape, same reasoning. The waitlist is demand we had to turn away, and
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-home-visit-waitlist-status", error);
   }
 
   // Who changed this, and to what. Best-effort and after the write,

@@ -226,6 +226,21 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 **Steps.** Read *Refunds to hand back* on the Money alerts strip and on the Today inbox, then open **Money → Payouts → Cash Ledger** and count the rows.
 **Expected Result.** Every one of them reads **1**. It must not read 2: the dashboard's home-visit query and its main appointments query are the **same table** (`appointments`, one of them filtered to `visit_mode = 'home_visit'`), so a count that adds the two counts every cash visit twice and puts a figure on the strip the ledger underneath it disagrees with. Repeat with one failed refund on a home visit for *Refunds that failed*.
 
+#### `FIN-SCHED-001` - A purchase nobody has booked anything against is found · P0
+
+**Feature.** The one state in the product where the clinic has taken a decision from a patient and delivered nothing at all. Everything that pointed at it pointed at the **patient** - the balance on their Programmes screen, an unbooked-sessions item pinned to their own dashboard - which is exactly the person who has already stopped. Nobody at the clinic could see it to ring them.
+
+**Preconditions.** One paid programme bought **two days ago** with no session ever booked; one **cash** home-visit purchase agreed at the door two days ago with no visit booked; one paid programme bought two days ago with one session already booked; one paid programme bought **an hour ago** with nothing booked; one abandoned checkout (unpaid, no cash mode); one refunded purchase with nothing booked.
+**Steps.** Read the Money alerts strip, then tap **Paid programmes with nothing booked**.
+**Expected Result.** The row reads **2** - the paid programme and the cash home visit, and nothing else. Tapping it opens **Catalog → Purchases** with **Nothing booked yet** ticked on both tables and every other filter cleared, listing exactly those two. The row is **not urgent**: nothing has gone wrong and nobody is out of pocket, and marking it so would flatten the difference between this and cash a therapist is holding.
+**Negative, four ways, and each is a row that must *not* appear.** The purchase with one session booked is out - the finding is the run that never started, not "has sessions left", which is true of nearly every active purchase and would count almost all of them. The hour-old one is out, because a purchase on its way to the scheduler is the normal case and a row that is on every time anybody buys anything is a row nobody reads. The abandoned checkout is out - it is not a purchase, and ringing them means ringing somebody who never bought anything. The refunded one is out - it is a decision somebody already made.
+**The cash half is the sharp one:** a cash-on-visit purchase sits at `unpaid` for its **whole life** by design, so a check written on payment status alone drops every one of them and reports a clean screen.
+
+#### `FIN-SCHED-002` - "Nothing booked yet" is not "has sessions left" · P1
+
+**Steps.** On **Catalog → Purchases**, tick **Has unscheduled sessions**, read the count, then untick it and tick **Nothing booked yet**.
+**Expected Result.** Two different lists, and the second is a subset of the first. The first is nearly every active purchase; the second is only those with no session ever completed and none currently scheduled. Two controls that looked alike and meant the same thing would be worse than one.
+
 #### `FIN-REF-012` - The All Sessions export carries no money to a desk that cannot see it · P1
 **Steps.** As **Operations**, then as **Clinical**, open **Sessions → All Sessions** and export both CSV and PDF. Repeat as **Master Admin** and as **Finance**.
 **Expected Result.** The limited desks' files contain **no** `Amount (INR)`, `Refund` or `Refunded on` column at all - not a blank one. Those three never render in this table on screen, so a desk that cannot read them there must not be able to download them; every other column is present and the row count is identical. Master Admin and Finance get all three.
@@ -495,7 +510,17 @@ Four consequences worth holding in mind while testing:
 #### `PL-OWED-005` - Finance reads the rule instead of meeting a gap · P1
 
 **Steps.** Open the same screen as **Finance**.
-**Expected Result.** A plain sentence - *balances turn amber after N days, only a Master Admin can change this* - where the control sits. Finance manages **Money** but holds **settings** at `none`, so the save route would refuse them; a control a scope cannot call must not render, and an absence reads as a half-built screen.
+**Expected Result.** A plain sentence - *balances turn amber after N days, only a Master Admin can change this* - where the control sits. Finance manages **Money** but holds **settings** at `none`, so the save route would refuse them; a control a scope cannot call must not render, and an absence reads as a half-built screen. The **ceiling** below it gets the same treatment: one sentence saying what the limit is, or that there is none, and who owns it.
+
+#### `PL-OWED-006` - The ceiling on what one patient may owe · P0
+
+**Feature.** The feature shipped with **no ceiling on purpose**: the population is tiny and hand-picked, and refusing a long-standing patient at the counter is a real product decision rather than a safety rail. It is a **setting** rather than a constant so a clinic that wants a limit is not made to choose between having one and having the feature at all.
+
+**Steps.** Read the control with nothing set. Type a figure and watch the live count without saving. Save `₹5,000`. Have a patient who already owes `₹4,500` book a `₹1,200` online session. Then have one who owes `₹3,800` book the same session. Then clear the box and repeat the first.
+**Expected Result.** Blank by default, and the field says so - *leave blank for no limit*. Typing a figure shows **"N of M patients would be asked to pay now on their next session"**, computed live from the balances already on the page. With `₹5,000` saved: the patient at `₹4,500` is **not** offered pay later and meets the ordinary payment screen - **they can still book**, which is the whole point, and nothing they already owe changes. The patient at `₹3,800` books on terms exactly as before. Clearing the box restores the original behaviour completely.
+**The boundary is inclusive of the ceiling:** a booking that lands **exactly** on the figure is allowed. A limit that refused at its own number would mean the figure an admin typed is one the clinic never actually allows.
+**What the patient is told.** *"There's a bit outstanding on your account, so this session needs paying for now. Settling what's owed opens it back up."* - it names the arrangement, because they already know they have it, says what clears it, and **quotes no figure**: what they owe is on their own dashboard, and a number in a refusal is one that can be wrong by the time it is read.
+**Negative, three ways.** `0` is **refused**, not read as "refuse every booking" - somebody who types 0 has almost certainly cleared the box, and a field that says nothing about switching the feature off must not be able to. A figure over `₹10,00,000` is refused rather than silently meaning no limit. And with the balance read **made to fail**, the patient is asked to pay now rather than waved through: waving a booking through on a failed query is the one direction a ceiling exists to stop, and the cost of the safe direction is only that they pay now.
 
 ---
 
@@ -636,6 +661,65 @@ Four consequences worth holding in mind while testing:
 
 **Steps.** Refund a prepaid, gateway-paid session.
 **Expected Result.** Entirely unchanged: a real Razorpay refund, `processed`, with the refund id recorded. The by-hand lane is keyed on the terms, so it is inert everywhere else.
+
+---
+
+#### `PL-REF-005` - A refund is written down before it is sent · P0
+
+**Feature.** Every gateway refund in this app claims its local row **first** and calls Razorpay **second**, deliberately: a refusal from Razorpay must leave no trace claiming money went back, which is why each of these routes puts its claim back when the gateway says no. The opposite failure had nothing watching it at all - Razorpay accepts the refund and the write recording what came back fails, leaving the money gone, no refund id, and a session that looks exactly like one that was claimed and never sent. `refund_attempts` records the intent before the call and the outcome after it, so neither outcome is invisible.
+
+**Steps.** Refund a gateway-paid session. In the database, read the newest `refund_attempts` row. Then open **Settings → System Health → Refunds**.
+**Expected Result.** The row names the session, the Razorpay payment, the amount, the reason and the admin who asked, and is `succeeded` with Razorpay's own refund id on it. System Health → **Refunds** is **Healthy** and reads *"Every refund sent to Razorpay has a recorded outcome."*
+
+#### `PL-REF-006` - A refund that cannot be recorded is not sent · P0
+
+**Steps.** Make the `refund_attempts` insert fail (rename the table, or revoke the service role's insert on it), then try a partial refund from the session drawer.
+**Expected Result.** **No Razorpay call is made.** The admin is refused with *"We could not record this refund, so nothing was sent. Nothing has changed - please retry."*, and the session's own refund columns are exactly as they were - the route puts its claim back before refusing. This is the same posture the reveal log and the care-plan review take: an unrecordable action is not performed.
+**The one exception is a cancellation**, whose slot is already freed and cannot be un-cancelled: there the refund is **not attempted** and the session is recorded `refund_status = 'failed'`, which is already a counted row on Money's alert strip and a **pinned** item on the patient's own feed.
+
+#### `PL-REF-007` - A refund whose answer was never recorded is named · P0
+
+**Steps.** In the database, insert a `refund_attempts` row dated two hours ago and leave it `processing`. Open **Settings → System Health**.
+**Expected Result.** **Refunds** is **red**: *"1 refund was sent to Razorpay and we never recorded what came back - check whether the money actually left."* The steps tell the owner to look in Razorpay's own Refunds list around that time, and say what to do in either case - **record it** where it went through, **issue it again** where it did not, with nothing to undo first. The sidebar badge and the verdict strip both count it as **one check**, not one row.
+**Negative:** a refund created moments ago must **not** be counted - one is legitimately unresolved for the length of a gateway call, and a check that is always red is a check nobody reads. Nothing here repairs anything: no screen can know whether Razorpay took the money, and guessing on a money record is how a discrepancy becomes permanent.
+
+#### `PL-REF-008` - The refund record cannot be rewritten or removed · P0
+
+**Steps.** Against the database, as the service role: resolve one `refund_attempts` row twice; change a resolved row's amount; delete any row; delete the appointment a row points at; delete the admin who asked for it.
+**Expected Result.** All five raise. The table permits exactly one transition (`processing` → `succeeded` or `failed`), once, plus the columns that resolution fills in; a success with **no** gateway refund id is refused outright. Every foreign key is `restrict`, so the last two are refused naming this table, and **Settings → User Access** offers suspension instead - the same refusal shape as every other record that blocks a delete.
+**Why by trigger and not by RLS:** every refund writer in this app uses the service-role client, which bypasses RLS entirely - so for a table whose whole value is that it records what was attempted *before* it was attempted, "no route rewrites it" is not the same guarantee as "a rewrite raises".
+
+#### `SYS-SETTLE-001` - The settlement record agrees with the Money screens · P0
+
+**Feature.** Every delivered session now writes one immutable row saying what it was worth and how it was split -- gross, travel, the therapist's share, the partner's and the clinic's -- beside the figures the Money screens still work out for themselves. It is written **alongside** that derivation: nothing reads these rows to decide what anybody is paid, and no historical session has one. **Settings → System Health → Settlement record** is what has to stay green before they are ever made authoritative.
+
+**Steps.** Complete a session. Open **Settings → System Health → Settlement record**. Then, in SQL, try to change that settlement's `gross_paise`, try to delete it, and try to set its `external_reference` twice.
+
+**Expected Result.** The check reads `Healthy` -- *"Every recorded settlement agrees with the figures on the Money screens."* Every money figure on Money → Summary is **unchanged** by the completion having written this row; that is the whole safety case, since nothing reads it yet. The UPDATE, the DELETE and the second `external_reference` all **raise**; the first `external_reference` lands, because what a bank called a transfer genuinely arrives later. The three shares sum to gross **exactly** -- the clinic takes the remainder rather than its own percentage, so rounding can neither invent nor lose a paisa.
+
+**Negative:** a database without the table reads **"Cannot be checked"**, never `Healthy` -- on a money reconciliation, "we could not ask" and "nothing disagrees" are opposite facts.
+
+#### `SYS-PAYOUT-ATOMIC-001` - A payout settles all of its sessions or none · P0
+
+**Feature.** Settling used to claim each appointment with its own write, so a failure part-way left some sessions settled against the batch and some not, answered an error, and a retry settled the remainder under a **second** batch id. It is one statement now, with the cash remittance inside it.
+
+**Steps.** Settle a payout for a therapist holding cash across several completed sessions. Then settle again immediately.
+
+**Expected Result.** Every session in the batch carries the batch id and a payout timestamp, or none does. The transfer is **net of the cash held**, and exactly those visits are marked remitted in the same run -- so the next payout does not net the same rupees off again. The second settlement claims **nothing** and answers *"This payout was already settled - please refresh."* A therapist holding **more** cash than they are owed floors the transfer at zero and keeps the difference open on the Cash Ledger.
+
+#### `SYS-FILES-001` - Patient files and the records describing them · P1
+
+**Feature.** `patient_medical_documents` holds metadata only - the scan itself is an object in the private `medical-reports` bucket - so the two can come apart in either direction and nothing looked.
+
+**Steps.** Delete a metadata row directly in SQL, leaving its file. Separately, delete a file from the bucket, leaving its row. Open **Settings → System Health → Patient files** after each.
+**Expected Result.** The **record with no file** is **red**: the patient has it listed on their own health profile and the view route mints a signed URL for something that is not there, so the patient meets the failure. The **file with no record** is **amber**: nothing is broken for anybody, but a scan the patient believes they deleted is still stored. The count is the two added together, and the evidence names each separately.
+**The steps must never tell anybody to delete a file.** They say plainly that nothing is removed automatically and nothing should be - a file deleted because a record could not be found is a patient's scan. They also name the ordinary pre-launch cause: **Reset data empties the records and cannot reach the stored files**, so every reset leaves its uploads behind.
+**Negative, two ways.** With a bucket too large to walk in one pass, the check reads **"only part of the file store was checked"** rather than Healthy - a partial clean result is not a clean result. With the file store unreadable it reads **"could not be checked"**, never Healthy: on this check a zero would be read as "nothing to worry about" rather than "we did not look", and what is being counted is a medical record.
+
+#### `PL-REF-009` - An unmigrated database says so, rather than Healthy · P1
+
+**Steps.** Against a database without `refund_attempts`, open **Settings → System Health**.
+**Expected Result.** **Refunds** reads **"Not set up"** - *"Cannot be checked - this database has not had the latest changes applied yet."* - and names applying `supabase/schema.sql` as the fix. It is **not** counted as a failure and **never** reads Healthy: a check that could not be run is not a check that came back clean.
 
 ---
 

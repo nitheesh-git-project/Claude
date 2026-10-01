@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { allocatePayLaterPayments } from "@/lib/payLaterSettlementServer";
+import { serverError } from "@/lib/apiError";
 
 // The money a patient said they sent has arrived.
 //
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
     .eq("id", paymentId)
     .maybeSingle();
 
-  if (readError) return NextResponse.json({ error: readError.message }, { status: 500 });
+  if (readError) return serverError("admin/confirm-pay-later-payment", readError);
   if (!row) return NextResponse.json({ error: "Payment not found" }, { status: 404 });
   if (row.status !== "pending") {
     return NextResponse.json(
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError("admin/confirm-pay-later-payment", error);
   if (!claimed) {
     return NextResponse.json(
       { error: "Somebody else confirmed this payment a moment ago." },

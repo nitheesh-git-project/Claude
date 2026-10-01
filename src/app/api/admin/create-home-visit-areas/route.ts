@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
+import { serverError } from "@/lib/apiError";
 
 // Plural on purpose. A serviceable city is dozens of pincodes, and adding
 // them one at a time is the kind of chore that ends in a half-configured
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
   );
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/create-home-visit-areas", error);
   }
 
   // The public page lists the areas served, so it has to reflect a newly

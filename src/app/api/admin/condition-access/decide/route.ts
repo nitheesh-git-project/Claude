@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 const VALID_ACTIONS = new Set(["approve", "decline", "revoke"]);
 
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/condition-access/decide", error);
   }
   if (!updatedRow) {
     return NextResponse.json(
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
   // grant for the same patient, instead of leaving two therapists able to
   // edit the same condition data simultaneously.
   if (action === "approve") {
-    await admin
+    const { error: revokeError } = await admin
       .from("condition_access_grants")
       .update({
         status: "revoked",
@@ -88,6 +89,35 @@ export async function POST(request: NextRequest) {
       .eq("patient_id", grant.patient_id)
       .eq("status", "approved")
       .neq("therapist_id", grant.therapist_id);
+
+    if (revokeError) {
+      // This write's error was not checked at all, and it is the one that
+      // makes the approval *exclusive*. A failure here left two therapists
+      // both holding approved write access to the same patient's health
+      // profile -- precisely the invariant the comment above says this exists
+      // to protect, and the admin was told the approval had succeeded.
+      //
+      // So the approval is un-made rather than left standing: an approval
+      // that did not achieve exclusivity is worse than no approval, because
+      // nothing on any screen would say which of the two therapists is meant
+      // to be editing.
+      await admin
+        .from("condition_access_grants")
+        .update({
+          status: "requested",
+          admin_notes: null,
+          decided_by: null,
+          decided_at: null,
+        })
+        .eq("id", grantId)
+        // Only while it is still the approval this request wrote.
+        .eq("status", "approved");
+
+      return serverError("admin/condition-access/decide (exclusivity)", revokeError, {
+        message:
+          "Another therapist's access could not be withdrawn, so this request has been left pending rather than granting two people write access at once. Please try again.",
+      });
+    }
   }
 
   // Who changed this, and to what. Best-effort and after the write,

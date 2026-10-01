@@ -72,6 +72,22 @@ export default async function Page() {
                       {d.capacityNoteMap.get(r.id)}
                     </p>
                   )}
+                  {/*
+                    A declined referral used to be one word and nothing else,
+                    so the partner who sent the patient could not tell a
+                    wrong-specialty referral from a capacity problem that
+                    would pass -- and kept sending the same ones. The reason
+                    is now required of the admin who declines, and this is
+                    where it is read. Rendered only when there is one:
+                    referrals declined before the reason existed carry none,
+                    and a heading over an empty box is a label on an absence.
+                  */}
+                  {r.status === "declined" && d.declineReasonMap.get(r.id) && (
+                    <div className="rounded-lg bg-rose-50 px-2.5 py-1.5 text-rose-800">
+                      <span className="block font-semibold">Why this was declined</span>
+                      <span className="block">{d.declineReasonMap.get(r.id)}</span>
+                    </div>
+                  )}
                   {(r.status === "pending_review" || r.status === "therapist_assigned") && (
                     <div className="pt-1">
                       <WithdrawReferralButton referralId={r.id} />

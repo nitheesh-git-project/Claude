@@ -10,6 +10,7 @@ import {
   formatClockLabel,
   parseDateValue,
 } from "@/lib/dateFieldValue";
+import { CalendarOutlineGlyph } from "@/components/visuals/BrandGlyphs";
 
 // The app's one date control, replacing `<input type="date">` and
 // `<input type="datetime-local">` everywhere.
@@ -142,7 +143,7 @@ export default function DateField({
         className={`flex w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-2 py-2 text-left text-xs text-slate-800 transition hover:border-teal-400 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${className}`}
       >
         <span className={shown ? "" : "text-slate-500"}>{shown ?? placeholder}</span>
-        <i className="fa-regular fa-calendar text-slate-500" aria-hidden="true"></i>
+        <CalendarOutlineGlyph className="text-slate-500" />
       </button>
 
       {open && nowMs !== null && (

@@ -70,9 +70,10 @@ export default function DebugResetButton() {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-red-800 bg-red-950/60 px-2.5 py-1.5">
       <span className="text-[11px] text-red-200">
-        Deletes people, sessions, purchases, money and settings. Admin logins
-        and your <strong>conditions</strong> (with their programmes) survive -
-        the rest of the catalog does not. No undo.
+        Deletes people, sessions, purchases and money. Your{" "}
+        <strong>settings and website content</strong> are kept - the clinic
+        name, contact details, mission, FAQs and conditions all survive. Home
+        visit packages and service areas do not. No undo.
       </span>
       <input
         value={typed}

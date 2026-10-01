@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "npm run check:realtime && npm run check:grants && eslint",
+    "lint": "npm run check:realtime && npm run check:grants && npm run check:search-path && npm run check:rls-initplan && npm run check:icon-styles && eslint",
     "check:realtime": "node scripts/check-realtime-coverage.mjs",
     "seed:qa": "node scripts/seed-qa-accounts.mjs",
     "clean:e2e": "node scripts/clean-e2e-residue.mjs",
@@ -15,7 +15,13 @@
     "test:watch": "vitest",
     "verify": "npm run lint && npm run test && npm run build",
     "check:grants": "node scripts/check-function-grants.mjs",
-    "start:cluster": "node scripts/start-cluster.mjs"
+    "start:cluster": "node scripts/start-cluster.mjs",
+    "check:concurrency": "node scripts/concurrency-checks.mjs",
+    "check:authorization": "node scripts/authorization-checks.mjs",
+    "check:search-path": "node scripts/check-search-path.mjs",
+    "check:rls-initplan": "node scripts/check-rls-initplan.mjs",
+    "check:icon-styles": "node scripts/check-icon-styles.mjs",
+    "build:rules-index": "node scripts/build-rules-index.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.3.1",

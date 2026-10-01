@@ -42,7 +42,11 @@ export type HealthCheckId =
   | "waiting_room"
   | "accounting"
   | "rate_limits"
-  | "pay_later";
+  | "pay_later"
+  | "referral_attribution"
+  | "refunds"
+  | "settlements"
+  | "patient_files";
 
 export type HealthCheck = {
   id: HealthCheckId;
@@ -142,6 +146,73 @@ export type SystemHealthInput = {
   };
   /** Null when the columns have not been applied -- see PayLaterHealth. */
   payLater?: PayLaterHealth | null;
+  /**
+   * Patients a partner referred whose profile does not say so.
+   *
+   * Null when it could not be asked, which the check reports as "could not
+   * be checked" rather than as agreement -- a read that failed is not a read
+   * that came back empty.
+   */
+  referralAttribution?: ReferralAttributionHealth | null;
+  /**
+   * Whether every refund sent to the gateway has a recorded outcome.
+   *
+   * Null when it could not be asked -- a database without `refund_attempts`
+   * has nothing to compare against, and reading that as agreement is the
+   * mistake this file corrects most often.
+   */
+  refunds?: RefundHealth | null;
+  /**
+   * Rows where the settlement record and the derivation disagree. `null` is
+   * "could not be checked" -- a database without the table -- and is not the
+   * same fact as zero.
+   */
+  settlementDisagreements?: number | null;
+  /**
+   * How many settlement rows exist at all. Zero is the state the
+   * disagreement count cannot distinguish -- see `settlementsCheck`.
+   */
+  settlementsRecorded?: number | null;
+  /**
+   * Patient files against the rows describing them.
+   *
+   * Null when it could not be asked -- on this check a zero reads as
+   * "nothing to worry about" rather than "we did not look", and the thing
+   * being counted is a medical record.
+   */
+  storage?: StorageHealth | null;
+};
+
+export type StorageHealth = {
+  /** Files in the bucket that no metadata row describes. */
+  filesWithNoRow: number;
+  /** Rows whose file is not in the bucket -- listed to the patient, and the
+   *  view route mints a signed URL for something that is not there. */
+  rowsWithNoFile: number;
+  /** Whether the walk hit its own cap, so this is part of the bucket rather
+   *  than all of it. A partial clean result is not a clean result. */
+  truncated: boolean;
+};
+
+export type RefundHealth = {
+  /** Refunds sent to Razorpay whose answer was never recorded. */
+  stuckCount: number;
+  /** How long ago the oldest of those was sent, in whole hours. A number
+   *  rather than a date, so this module stays dependency-free and the
+   *  sentence it produces is the one a person actually wants -- how long the
+   *  money has been unaccounted for. */
+  oldestStuckHours?: number | null;
+  /** Refunds the gateway accepted whose own session or purchase carries no
+   *  refund id -- money that went back and is not on the screen it belongs
+   *  on. */
+  unrecordedCount: number;
+};
+
+export type ReferralAttributionHealth = {
+  /** Referrals that converted into a patient whose profile has no partner. */
+  orphanedCount: number;
+  /** ...of which this many have already had a session completed. */
+  withCompletedSessions: number;
 };
 
 const STATUS_RANK: Record<HealthStatus, number> = {
@@ -618,6 +689,358 @@ function rateLimitCheck(
  * nobody on terms, has not got a problem, and painting that red is how red
  * stops meaning anything.
  */
+/**
+ * Partner attribution that went missing.
+ *
+ * A referral that converts writes `profiles.referred_by_hospital_id` on the
+ * new patient, and that column is what every commission figure reads. The
+ * write was best-effort with a console.error behind it, so a failure meant
+ * the partner silently earned nothing on that patient -- not on the first
+ * session, not on any of them -- and nothing in the product noticed. The
+ * comment on that line said as much and left it there.
+ *
+ * `patient_referrals.converted_patient_id` is the durable record that makes
+ * this detectable: the referral knows who it became. This is the check that
+ * asks, so the gap surfaces on a screen somebody reads instead of in a log
+ * nobody does.
+ *
+ * Amber rather than red when nothing has been delivered yet: no money has
+ * been mis-split, and putting a partner back is one edit. Red once a session
+ * has completed, because at that point a commission has genuinely been
+ * computed without them and the books are wrong.
+ */
+function referralAttributionCheck(
+  health: ReferralAttributionHealth | null
+): HealthCheck {
+  const base = {
+    id: "referral_attribution" as const,
+    label: "Partner attribution",
+    icon: "fa-handshake",
+    what: "Patients a partner hospital referred, who registered, and whose account does not record which partner sent them. That link is what every commission figure is worked out from.",
+    example:
+      "A hospital refers a patient, the patient registers and has six sessions. The link between them was never written, so the partner's Earnings screen shows nothing for any of it and the clinic's own books hand them no commission - with no error anywhere, because the registration itself worked.",
+  };
+
+  if (!health) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Could not be checked just now.",
+      fix: [
+        "Reload this page. If it keeps saying this, the referrals table could not be read.",
+      ],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  if (health.orphanedCount === 0) {
+    return {
+      ...base,
+      status: "healthy",
+      headline: "Every referred patient's account names the partner who sent them.",
+      fix: [],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  const delivered = health.withCompletedSessions;
+  return {
+    ...base,
+    status: delivered > 0 ? "broken" : "attention",
+    headline:
+      delivered > 0
+        ? `${plural(health.orphanedCount, "referred patient", "referred patients")} have no partner recorded, and ${plural(delivered, "has", "have")} already had a session delivered - so a commission has been worked out without them.`
+        : `${plural(health.orphanedCount, "referred patient", "referred patients")} have no partner recorded. No sessions have been delivered yet, so no money has been mis-split.`,
+    fix: [
+      "Open People -> Partners -> Patient Referrals and find the referral marked Registered.",
+      "Open the patient it converted to, and set the partner that referred them on their profile.",
+      "Their commission then applies to sessions from that point. Sessions already delivered keep the split that was recorded on the day.",
+    ],
+    count: health.orphanedCount,
+    evidence: [
+      `${plural(health.orphanedCount, "patient", "patients")} with no partner recorded`,
+      delivered > 0
+        ? `${plural(delivered, "patient", "patients")} already have a delivered session`
+        : "None have had a session delivered yet",
+    ],
+  };
+}
+
+/**
+ * Refunds: did what we asked the gateway for actually happen.
+ *
+ * Every gateway refund claims its local row first and calls Razorpay second,
+ * so a refusal leaves no trace claiming money went back. The opposite failure
+ * had nothing watching it at all: Razorpay accepts the refund and the write
+ * recording it fails, which leaves the money gone, `refund_id` null, and the
+ * session looking exactly like one that was claimed and never sent. In all
+ * four refund writers the only thing that noticed was a `console.error`.
+ *
+ * `refund_attempts` records the intent before the call, so both disagreements
+ * are now askable, and they are different questions. A refund still in flight
+ * long after it was sent is money whose fate is unknown -- red, because
+ * nothing automatic will resolve it and the patient is waiting. A succeeded
+ * refund whose subject row has no id is money that went back and is not on
+ * the screen it belongs on -- also red, since every figure reading that row
+ * is now wrong.
+ *
+ * Reported, never repaired: this screen cannot know whether Razorpay took the
+ * money, and guessing on a money record is how a discrepancy becomes
+ * permanent.
+ */
+/**
+ * The settlement record against the derivation every money figure still
+ * reads.
+ *
+ * `session_settlements` is written alongside that derivation and nothing
+ * reads it to decide what anybody is paid -- which is exactly why this check
+ * exists. It is the thing that has to be green before anything *does*: a
+ * shadow record nobody reconciles is a second set of books, and the first
+ * time the two disagree the new one is the one nobody trusts.
+ *
+ * `off` rather than `healthy` when there is nothing to compare: a clinic that
+ * has not completed a session since this shipped has no disagreement and no
+ * agreement either, and painting that green claims a reconciliation that
+ * never ran.
+ */
+function settlementsCheck(
+  disagreements: number | null,
+  recorded: number | null
+): HealthCheck {
+  const base = {
+    id: "settlements" as const,
+    label: "Settlement record",
+    icon: "fa-scale-balanced",
+    what: "Every delivered session now writes down what it was worth and how it was split, beside the figures the Money screens work out for themselves. This watches whether the two ever disagree.",
+    example:
+      "A session is completed and recorded as \u20b91,200 split three ways. If the Money screens later work that same session out differently - a rate read at the wrong moment, a rounding difference - this says so, before anybody is paid on the wrong one.",
+  };
+
+  if (disagreements === null) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Cannot be checked - this database has not had the latest changes applied yet.",
+      fix: ["Apply `supabase/schema.sql` to this project, then reload this page."],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  // **Zero rows is not agreement, and this check said it was.** The
+  // reconciliation only looks at sessions completed since the *first*
+  // settlement row, so with none at all it compares nothing, finds nothing,
+  // and reports healthy -- which is exactly backwards. A table written by one
+  // best-effort call that nothing reads has no symptom anywhere when its
+  // writer is broken, and the moment a writer is most likely to be broken is
+  // the moment it ships, when the table is empty. So "green" here would have
+  // meant "we have never once checked".
+  //
+  // It resolves itself: the first completion after this either puts a row in
+  // (healthy) or does not (this, still). That is the honest reading on a
+  // brand-new clinic and on a broken writer alike, which is why it does not
+  // try to tell them apart.
+  if (recorded !== null && recorded === 0) {
+    return {
+      ...base,
+      status: "unknown",
+      headline:
+        "Nothing has been recorded yet, so there is nothing to check against.",
+      fix: [
+        "Complete a session. One settlement should be recorded for it.",
+        "Come back here: if this still says nothing has been recorded, the recording is not working and no figure below can be trusted against it.",
+      ],
+      count: 0,
+      evidence: ["No settlement has been recorded on this database"],
+    };
+  }
+
+  if (disagreements === 0) {
+    return {
+      ...base,
+      status: "healthy",
+      headline: "Every recorded settlement agrees with the figures on the Money screens.",
+      fix: [],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  return {
+    ...base,
+    status: "broken",
+    headline: `${plural(disagreements, "session", "sessions")} where the recorded settlement and the Money screens do not agree.`,
+    fix: [
+      "Nothing here is paid from the recorded settlement yet, so no money has moved on the wrong figure.",
+      "Open Money -> Summary and compare the sessions named below against what they were recorded as worth.",
+      "Send this to your developer before anything is settled on these sessions.",
+    ],
+    count: disagreements,
+    evidence: [
+      `${plural(disagreements, "session", "sessions")} disagree`,
+      "Reported, never repaired - two money records that disagree need a person to decide which is right",
+    ],
+  };
+}
+
+function refundsCheck(health: RefundHealth | null): HealthCheck {
+  const base = {
+    id: "refunds" as const,
+    label: "Refunds",
+    icon: "fa-rotate-left",
+    what: "Refunds this clinic asked Razorpay for, and whether each one's answer was written down. A refund can go through at the gateway in the moment the app fails to record it, and that leaves money returned with nothing on any screen saying so.",
+    example:
+      "You refund a session, Razorpay sends the money back, and the connection drops before the app writes it down. The patient has their money, the session still reads as refundable, and every revenue figure counts the full amount - so this names it instead of leaving it to be found in a bank statement.",
+  };
+
+  if (!health) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Cannot be checked - this database has not had the latest changes applied yet.",
+      fix: [
+        "Apply `supabase/schema.sql` to this project, then reload this page.",
+      ],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  if (health.stuckCount === 0 && health.unrecordedCount === 0) {
+    return {
+      ...base,
+      status: "healthy",
+      headline: "Every refund sent to Razorpay has a recorded outcome.",
+      fix: [],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  const evidence: string[] = [];
+  if (health.stuckCount > 0) {
+    evidence.push(
+      `${plural(health.stuckCount, "refund", "refunds")} sent with no recorded answer`
+    );
+    const hours = health.oldestStuckHours;
+    if (hours !== null && hours !== undefined) {
+      evidence.push(
+        hours < 1
+          ? "Oldest sent less than an hour ago"
+          : `Oldest sent about ${plural(hours, "hour", "hours")} ago`
+      );
+    }
+  }
+  if (health.unrecordedCount > 0) {
+    evidence.push(
+      `${plural(health.unrecordedCount, "refund", "refunds")} went through but are not recorded on the session or purchase`
+    );
+  }
+
+  return {
+    ...base,
+    status: "broken",
+    headline:
+      health.stuckCount > 0
+        ? `${plural(health.stuckCount, "refund", "refunds")} were sent to Razorpay and we never recorded what came back - check whether the money actually left.`
+        : `${plural(health.unrecordedCount, "refund", "refunds")} went through at Razorpay and are not recorded against the session or purchase they belong to.`,
+    fix: [
+      "Open the Refunds section of your Razorpay dashboard and find the refunds from around the time shown here.",
+      "For each one, check whether Razorpay actually processed it.",
+      "Where it did, record it against the session or purchase from the admin screens so the money figures agree.",
+      "Where it did not, the refund can simply be issued again - nothing here has to be undone first.",
+    ],
+    count: health.stuckCount + health.unrecordedCount,
+    evidence,
+  };
+}
+
+/**
+ * Patient files: the row and the file agreeing.
+ *
+ * `patient_medical_documents` holds metadata only, so the two can come apart
+ * in either direction and nothing looked. It **lists and never deletes** --
+ * `docs/DATA-POLICY.md` §5 -- because a sweep that removes a file it could
+ * not find a row for is one bad query away from deleting a patient's scan.
+ *
+ * A row with no file is the worse half and the one that decides the colour:
+ * the document is on the patient's own health profile and the view route
+ * mints a signed URL for something that is not there, so the patient meets
+ * the failure. A file with no row is amber -- nothing is broken for anybody,
+ * but a scan report the patient believes they deleted is still in a bucket.
+ */
+function patientFilesCheck(health: StorageHealth | null): HealthCheck {
+  const base = {
+    id: "patient_files" as const,
+    label: "Patient files",
+    icon: "fa-folder-open",
+    what: "The scans and reports patients upload, checked against the records that describe them. The file lives in storage and the description lives in the database, so the two can come apart - a file nothing points at, or a record whose file is missing.",
+    example:
+      "A patient deletes a report, the record goes and the file does not - so a scan they believe they removed is still stored. Or the reverse: their health profile lists a report that will not open, because the file is gone and only the record is left.",
+  };
+
+  if (!health) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Could not be checked just now.",
+      fix: ["Reload this page. If it keeps saying this, the file store could not be read."],
+      count: 0,
+      evidence: [],
+    };
+  }
+
+  const evidence: string[] = [];
+  if (health.rowsWithNoFile > 0) {
+    evidence.push(
+      `${plural(health.rowsWithNoFile, "record", "records")} whose file is missing`
+    );
+  }
+  if (health.filesWithNoRow > 0) {
+    evidence.push(`${plural(health.filesWithNoRow, "file", "files")} nothing points at`);
+  }
+  // Said whenever it applies, including on an otherwise clean result: a
+  // partial clean result is not a clean result, and this is the sentence
+  // that stops it being read as one.
+  if (health.truncated) {
+    evidence.push("Only part of the file store was checked on this pass");
+  }
+
+  if (health.rowsWithNoFile === 0 && health.filesWithNoRow === 0) {
+    return {
+      ...base,
+      status: health.truncated ? "unknown" : "healthy",
+      headline: health.truncated
+        ? "Only part of the file store could be checked on this pass."
+        : "Every patient file has a record, and every record has its file.",
+      fix: health.truncated
+        ? ["Nothing is known to be wrong. Reload later to check the rest."]
+        : [],
+      count: 0,
+      evidence,
+    };
+  }
+
+  return {
+    ...base,
+    status: health.rowsWithNoFile > 0 ? "broken" : "attention",
+    headline:
+      health.rowsWithNoFile > 0
+        ? `${plural(health.rowsWithNoFile, "patient record", "patient records")} point at a file that is not there - the patient sees it listed and it will not open.`
+        : `${plural(health.filesWithNoRow, "patient file", "patient files")} are stored with nothing pointing at them.`,
+    fix: [
+      "Nothing here is deleted automatically, and nothing should be - a file removed because a record could not be found is a patient's scan.",
+      "For a record whose file is missing: ask the patient to upload it again, then delete the empty record.",
+      "For a file nothing points at: it is almost always a delete that half-finished. Leave it unless you are certain, and ask an engineer to confirm before removing anything.",
+      "Before launch there is one ordinary cause: Reset data empties the records and cannot reach the stored files, so every reset leaves its uploads behind. On a database with no real patients those are safe to clear.",
+    ],
+    count: health.rowsWithNoFile + health.filesWithNoRow,
+    evidence,
+  };
+}
+
 function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
   const base = {
     id: "pay_later" as const,
@@ -873,6 +1296,10 @@ export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
     accountingCheck(input.accounting),
     rateLimitCheck(input.rateLimitIdentity),
     payLaterCheck(input.payLater ?? null),
+    referralAttributionCheck(input.referralAttribution ?? null),
+    refundsCheck(input.refunds ?? null),
+    settlementsCheck(input.settlementDisagreements ?? null, input.settlementsRecorded ?? null),
+    patientFilesCheck(input.storage ?? null),
   ];
 }
 

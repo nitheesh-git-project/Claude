@@ -138,6 +138,30 @@ describe("the two kinds of refund somebody has to hand back", () => {
     expect(alerts[0].urgent).toBe(true);
   });
 
+  // The one row where the clinic has taken a decision and delivered
+  // nothing. It goes to Catalog because that is where Purchases lives --
+  // the section is chosen by where the work is done, never by which strip
+  // the row sits on.
+  it("sends a purchase with nothing booked to the screen that books it", () => {
+    const alerts = buildMoneyAlerts({ ...NONE, purchasesUnscheduled: 2 }, ALL_SECTIONS);
+    expect(alerts.map((a) => a.key)).toEqual(["purchases_unscheduled"]);
+    expect(alerts[0].section).toBe("catalog");
+    expect(alerts[0].tab).toBe("purchases");
+    expect(alerts[0].view).toBe("unscheduled");
+  });
+
+  // Nothing has gone wrong and nobody is out of pocket: it is a patient who
+  // needs a phone call, which is the opposite of the rows around it.
+  // Urgent is reserved for money that is definitely somewhere else.
+  it("does not call a purchase with nothing booked urgent", () => {
+    const [alert] = buildMoneyAlerts({ ...NONE, purchasesUnscheduled: 1 }, ALL_SECTIONS);
+    expect(alert.urgent).toBe(false);
+  });
+
+  it("reads a caller that does not count unscheduled purchases as none", () => {
+    expect(buildMoneyAlerts(NONE, ALL_SECTIONS)).toHaveLength(0);
+  });
+
   it("reads a database without the column as no pay-later refunds at all", () => {
     // The count is optional, and absent it must not become a row: before pay
     // later existed every manual_pending refund was the cash-visit kind, and

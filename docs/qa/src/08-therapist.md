@@ -331,6 +331,28 @@ A second attempt returns `This visit's payment has already been recorded.`
 #### `THR-HP-006` - Read access needs no request · P2
 **Expected Result.** An **assigned** therapist can read the patient's intake and Pain Map with no grant. Only *editing the patient's own account of their history* needs one.
 
+#### `THR-HP-007` - Clinical access follows delivered care · P0 **[SQL]**
+
+**Feature.** Four RLS policies decide whether a therapist may read a patient's health profile, Pain Map exams, uploaded reports and session notes. The rule is **access follows delivered care**: a completed session keeps whoever ran it - neither `update-appointment` nor `reassign-package-therapist` will move one - so a clinician who has actually treated somebody keeps access after the patient moves to a colleague, because the person who gave the care has to be able to answer for it. A therapist whose only link was a **future** session that was reassigned away keeps nothing: they never treated them.
+
+**Steps.** Give Therapist A one **completed** session with Patient A and one **future** one. Reassign the future session to Therapist B, and confirm Therapist A can still read Patient A's chart. Then delete (or reassign) the completed one too and read again. Separately, give Therapist B only a future session with Patient B, move it away, and have B read Patient B's chart.
+**Expected Result.** Therapist A keeps access while the delivered session is theirs, and loses it once nothing they delivered remains. Therapist B, who delivered nothing, reads **nothing** at any point. Both halves matter - a check that only proved the refusals would pass just as well on a policy that had locked every clinician out of every chart.
+
+#### `THR-HP-008` - A suspended therapist stops reading, at the database · P0 **[SQL]**
+
+**Feature.** Those four policies asked only whether the therapist had an appointment, never whether the account is still **allowed to be a therapist here**. A suspended *patient*'s live token reads their own rows for one token lifetime, with the app as the gate - bounded to their own data. A suspended **therapist** was reading *other people's medical records* on exactly the same terms, which is what suspension is meant to stop.
+
+**Steps.** As an assigned, active Therapist A, read Patient A's condition profile straight from PostgREST with A's own token. Suspend A. Read again with **the same token**. Restore A and read once more.
+**Expected Result.** The first read returns the row; the second returns **nothing at all** - `is_active_therapist()` refuses at the row rather than one token lifetime later; the third returns it again. An **unapproved** therapist is refused the same way: unlike `is_admin()`, this checks `approved` as well as `active`, because an admin is promoted by hand while a therapist still in the signup queue has no business reading a chart.
+**Also check session notes:** that policy carried a hand-written copy of `is_admin()` which did **not** check `active`, so a suspended *admin* went on reading session notes after every other admin policy had started refusing them. A suspended admin must now read none, and an active one must still read them all.
+
+#### `THR-HP-009` - Who can see this record · P1
+
+**Feature.** The rule above lived in four policies and one helper and was stated on **no screen at all**, so "who can see this patient's record" was unanswerable - for the clinic, for a patient asking, and for an admin deciding whether somebody's access should end.
+
+**Steps.** Open **People → Patients → a patient with two past therapists, one of them suspended**, and read the **Who can see this record** panel.
+**Expected Result.** It states the rule in plain words before the list. Every clinician with access is named, with **why** (how many sessions, or a programme locked to them) and when they last saw the patient, most recent first. The suspended one is **listed and marked "Access ended"**, never dropped - omitting them would make a suspension read as a deletion on the one screen whose job is to say who has a relationship with this record. A patient nobody has treated shows the sentence, not an empty list.
+
 ---
 
 ### 12.5 Recommendations (care plans) and suggested sessions

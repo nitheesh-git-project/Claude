@@ -7,6 +7,9 @@ import PayLaterAgeSetting, {
   PayLaterAgeNote,
   PayLaterMasterSwitch,
 } from "@/components/admin/PayLaterAgeSetting";
+import PayLaterCeilingSetting, {
+  PayLaterCeilingNote,
+} from "@/components/admin/PayLaterCeilingSetting";
 import { MoneyTermInfo } from "@/components/admin/MoneyFigure";
 import { formatClinicDateShort } from "@/lib/formatDateTime";
 import { adminScreenHref } from "@/lib/adminNav";
@@ -76,6 +79,7 @@ export default function AdminOwingTab({
   ageSetting,
   featureEnabled,
   canManageSettings = false,
+  ceilingPaise = null,
   settlements = [],
   manualRefunds = [],
   writtenOff = [],
@@ -88,6 +92,9 @@ export default function AdminOwingTab({
   /** How long a balance may sit before it is worth chasing, whether the clinic
    *  wants to be warned at all, and where that answer came from. */
   ageSetting: PayLaterAgeSettings;
+  /** `site_settings.pay_later_max_owed_paise`. Null means no ceiling, which
+   *  is the default and the way the feature shipped. */
+  ceilingPaise?: number | null;
   /** Payments a patient says they have made, waiting to be checked. Oldest
    *  first, and empty on a database without the table. */
   settlements?: QueuedSettlement[];
@@ -298,6 +305,17 @@ export default function AdminOwingTab({
           <PayLaterAgeNote
             days={ageSetting.days}
             enabled={ageSetting.enabled}
+            managerLabel={ADMIN_SCOPE_LABELS.full}
+          />
+        )}
+        {canManageSettings ? (
+          <PayLaterCeilingSetting
+            ceilingPaise={ceilingPaise}
+            owedPaiseByPatient={balances.map((b) => b.owedPaise)}
+          />
+        ) : (
+          <PayLaterCeilingNote
+            ceilingPaise={ceilingPaise}
             managerLabel={ADMIN_SCOPE_LABELS.full}
           />
         )}

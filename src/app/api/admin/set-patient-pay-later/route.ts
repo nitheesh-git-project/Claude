@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { readPayLaterEnabled } from "@/lib/payLaterSettingsServer";
+import { serverError } from "@/lib/apiError";
 
 const MIN_REASON_LENGTH = 10;
 
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (readError) {
-    return NextResponse.json({ error: readError.message }, { status: 500 });
+    return serverError("admin/set-patient-pay-later", readError);
   }
   if (!patient || patient.role !== "patient") {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
@@ -139,7 +140,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/set-patient-pay-later", error);
   }
   if (!updated) {
     // Somebody else got there first between the read and the write.

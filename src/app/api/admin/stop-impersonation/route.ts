@@ -8,6 +8,7 @@ import {
   IMPERSONATION_COOKIE,
   parseMarker,
 } from "@/lib/impersonation";
+import { PROFILE_CACHE_COOKIE } from "@/lib/proxyProfileCache";
 
 // Puts the admin back into their own account.
 //
@@ -93,7 +94,14 @@ export async function POST() {
       refresh_token: restoreToken,
     });
     if (!error) {
-      return NextResponse.json({ ok: true, redirectTo: "/admin/dashboard" });
+      const restored = NextResponse.json({ ok: true, redirectTo: "/admin/dashboard" });
+      // The proxy's cached profile still describes the patient who was
+      // being impersonated. The signed user id inside it means the admin's
+      // own session would reject it anyway and re-read -- this just clears
+      // it at the moment we already know it is stale, rather than leaving a
+      // dead cookie in the browser for a minute.
+      restored.cookies.delete(PROFILE_CACHE_COOKIE);
+      return restored;
     }
   }
 
@@ -104,9 +112,11 @@ export async function POST() {
   // row is evidence the caller really was impersonating, and that row is one
   // the admin it names cannot write. Proven: name the door they need. Not
   // proven: `/dashboard`, same as above.
-  return NextResponse.json({
+  const signedOut = NextResponse.json({
     ok: true,
     redirectTo: genuine ? "/admin/login" : "/dashboard",
     note: "Your own session could not be restored - please sign in again.",
   });
+  signedOut.cookies.delete(PROFILE_CACHE_COOKIE);
+  return signedOut;
 }

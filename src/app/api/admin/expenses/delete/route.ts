@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 // Removing a cost entered by mistake. A real delete rather than a soft one:
 // this is a hand-kept ledger of a few rows a month, and a mistyped expense
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
 
   const { error } = await admin.from("business_expenses").delete().eq("id", body.id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/expenses/delete", error);
   }
 
   await recordAdminActivity(admin, context.id, {

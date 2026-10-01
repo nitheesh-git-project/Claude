@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 // Excludes (or re-includes) one side's rating on one session from every
 // computed average, without touching the rating or feedback text itself --
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
     .update({ [column]: excluded })
     .eq("id", appointmentId);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/exclude-session-rating", error);
   }
 
   // Who changed this, and to what. Best-effort and after the write,

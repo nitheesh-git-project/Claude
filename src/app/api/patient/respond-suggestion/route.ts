@@ -7,6 +7,8 @@ import { bookPackageSession } from "@/lib/bookPackageSession";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { isActionable } from "@/lib/sessionSuggestions";
+import { serverError } from "@/lib/apiError";
+import { readPackageTerms } from "@/lib/packageTerms";
 
 // The patient answering a suggested session.
 //
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
       .eq("id", suggestion.id)
       .eq("status", "pending");
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError("patient/respond-suggestion", error);
     }
     return NextResponse.json({ success: true, status: "declined" });
   }
@@ -121,11 +123,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "That programme no longer exists." }, { status: 404 });
   }
 
-  const { data: packageRow } = await admin
-    .from("treatment_category_packages")
-    .select("session_duration_minutes")
-    .eq("id", purchase.package_id)
-    .maybeSingle();
+  // The session length this patient BOUGHT, not the one on sale today. This
+  // route read the live catalog row, so an admin editing a programme changed
+  // the length of a session a therapist had already proposed and a patient
+  // was about to accept -- the same correction the two bulk booking routes
+  // got, in the path that was missed.
+  const packageTerms = await readPackageTerms(admin, purchase.id, purchase.package_id);
 
   // Claims the suggestion *before* booking. If two accepts race, only one
   // moves the row out of 'pending', so only one goes on to create a session
@@ -160,8 +163,16 @@ export async function POST(request: NextRequest) {
     // The patient is the one claiming the session, even though their
     // therapist proposed the time -- they are who accepted it.
     actorId: user.id,
-    sessionDurationMinutesOverride: packageRow?.session_duration_minutes ?? null,
+    sessionDurationMinutesOverride: packageTerms.sessionDurationMinutes,
   });
+
+  // Two taps on Accept: the second is refused by the one-per-purchase-per-slot
+  // index, which means the session the patient accepted exists. Reverting the
+  // suggestion to `pending` here would ask them to accept a time they already
+  // have, so the accepted state stands and the answer is success.
+  if (!result.success && result.duplicate) {
+    return NextResponse.json({ success: true, alreadyBooked: true });
+  }
 
   if (!result.success) {
     // The booking failed after the claim, so put the suggestion back where
@@ -171,7 +182,14 @@ export async function POST(request: NextRequest) {
     await admin
       .from("session_suggestions")
       .update({ status: "pending", responded_at: null })
-      .eq("id", suggestion.id);
+      .eq("id", suggestion.id)
+      // Only while it is still the 'accepted' this request set. Without the
+      // predicate this reverts whatever the row says now -- so a decline
+      // that landed in the meantime, or a second accept, would be silently
+      // undone by a request that had already failed. Same shape as every
+      // other claim in this codebase, and the same omission the admin
+      // assignment rollback had.
+      .eq("status", "accepted");
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
 

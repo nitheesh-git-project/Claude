@@ -140,6 +140,19 @@ test.describe("partner surfaces and back-office credentials", () => {
     const rows = page.getByRole("list", { name: "Back office accounts" }).locator("> li");
     await expect(rows.first()).toBeVisible({ timeout: 60_000 });
 
+    // This list pages at ten and the back office grows -- every scoped-admin
+    // fixture the suite creates lands in it -- so on a populated database
+    // your own row is simply on another page and the assertion below fails
+    // on a working screen. Raising the page size through the pager's own
+    // control is what an admin looking for somebody does, and it keeps the
+    // test about the Reset button rather than about pagination.
+    const perPage = page.getByRole("spinbutton", { name: /how many admins to show/i });
+    if (await perPage.count()) {
+      await perPage.fill("100");
+      await perPage.blur();
+      await expect(rows.first()).toBeVisible();
+    }
+
     // Your own row carries no reset: the honest lane for your own password is
     // the emailed reset on Sign-in & Security, and this control is a
     // credential somebody else reads off the screen.

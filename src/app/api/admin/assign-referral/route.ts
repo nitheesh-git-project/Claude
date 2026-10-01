@@ -3,11 +3,6 @@ import crypto from "crypto";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
-import {
-  findTherapistConflict,
-  findConflictingAppointmentOnly,
-  findTieBrokenReferralConflict,
-} from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import {
   DEFAULT_ADMIN_SETTINGS,
@@ -15,6 +10,10 @@ import {
   SITE_SETTINGS_SELECT,
 } from "@/lib/adminSettings";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import {
+  claimReferralSlot,
+  describeReferralClaimFailure,
+} from "@/lib/claimTherapistSlot";
 import {
   isWholeHourSlot,
   leadTimeMsFromHours,
@@ -132,84 +131,33 @@ export async function POST(request: NextRequest) {
       settingsRow?.home_visit_travel_buffer_minutes ?? DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes;
   }
 
-  const conflict = await findTherapistConflict(
-    admin,
-    therapistId,
-    new Date(slotDateTime).toISOString(),
-    BASE_DURATION_MINUTES,
-    { excludeReferralId: referralId, bufferMinutes: travelBufferMinutes }
-  );
-  if (conflict) {
-    return NextResponse.json(
-      { error: "This therapist already has another session that overlaps this time slot." },
-      { status: 400 }
-    );
-  }
-
   const inviteToken = crypto.randomUUID();
 
-  const { error } = await admin
-    .from("patient_referrals")
-    .update({
-      assigned_therapist_id: therapistId,
-      assigned_slot_time: new Date(slotDateTime).toISOString(),
-      invite_token: inviteToken,
-      status: "invite_sent",
-    })
-    .eq("id", referralId);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  // Re-check for a conflict now that the write has landed - the earlier
-  // check and this write aren't atomic, so two concurrent assignments of
-  // the same therapist to overlapping slots could both pass the earlier
-  // check before either write committed.
+  // The whole reservation -- overlap test, compare-and-set and write -- in
+  // one statement under a row lock on the therapist.
   //
-  // The appointment half of this is unconditional: a real appointment
-  // isn't itself racing against this request, so any overlap it finds is a
-  // genuine conflict and this assignment must roll back.
-  //
-  // The referral half needs a tiebreak instead of a plain re-check. Two
-  // referrals assigned to the same therapist/slot at once both write, then
-  // both land here - a plain "does a conflicting invite_sent referral
-  // exist" re-check sees the OTHER row as a conflict from BOTH sides, so
-  // both would roll back and the admin would have to retry blind instead
-  // of exactly one assignment landing. findTieBrokenReferralConflict
-  // applies the same deterministic rule (earlier created_at wins, ties
-  // broken by id) from both requests' perspectives, so exactly one of them
-  // finds no disqualifying conflict and keeps its assignment - the other
-  // sees a real conflict against the winner and rolls back as before.
-  const conflictAfterWrite =
-    (await findConflictingAppointmentOnly(admin, therapistId, new Date(slotDateTime).toISOString(), BASE_DURATION_MINUTES, {
-      bufferMinutes: travelBufferMinutes,
-    })) ||
-    (await findTieBrokenReferralConflict(
-      admin,
-      therapistId,
-      new Date(slotDateTime).toISOString(),
-      BASE_DURATION_MINUTES,
-      { id: referral.id, createdAt: referral.created_at },
-      { excludeReferralId: referralId, bufferMinutes: travelBufferMinutes }
-    ));
-  if (conflictAfterWrite) {
-    await admin
-      .from("patient_referrals")
-      .update({
-        assigned_therapist_id: referral.assigned_therapist_id,
-        assigned_slot_time: referral.assigned_slot_time,
-        invite_token: referral.invite_token,
-        status: referral.status,
-      })
-      .eq("id", referralId);
-    return NextResponse.json(
-      {
-        error:
-          "This therapist was just double-booked by a concurrent assignment - please try again or pick a different therapist/time.",
-      },
-      { status: 409 }
-    );
+  // This replaces a check, a write, a re-check with a deterministic
+  // tiebreak, and a revert. The tiebreak existed only because the two
+  // writes were never serialised: two referrals assigned to the same
+  // therapist and hour at once both wrote, then each saw the other on the
+  // re-check, so a plain re-check rolled BOTH back and neither admin got an
+  // assignment. Under a lock the second request simply finds the first's
+  // committed row and is refused, which is the answer the tiebreak was
+  // reconstructing -- so it is gone, and so is the revert beside it, which
+  // restored four columns with no compare-and-set and could undo a third
+  // admin's assignment.
+  const claim = await claimReferralSlot(admin, {
+    referralId,
+    therapistId,
+    slotTime: new Date(slotDateTime).toISOString(),
+    inviteToken,
+    bufferMinutes: travelBufferMinutes,
+    durationMinutes: BASE_DURATION_MINUTES,
+  });
+
+  if (!claim.ok) {
+    const { status, error } = describeReferralClaimFailure(claim);
+    return NextResponse.json({ error }, { status });
   }
 
   await recordAdminActivity(admin, adminUser.id, {

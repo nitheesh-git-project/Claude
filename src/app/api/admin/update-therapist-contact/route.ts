@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
       email_confirm: true,
     });
     if (authError) {
-      return NextResponse.json({ error: authError.message }, { status: 500 });
+      return serverError("admin/update-therapist-contact", authError);
     }
   }
 
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     .eq("id", therapistId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-therapist-contact", error);
   }
 
   // Who changed this, and to what. Best-effort and after the write,

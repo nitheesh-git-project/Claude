@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   decidePayLaterBooking,
   payLaterRefusalMessage,
+  resolveMaxOwedPaise,
   type PayLaterBookingInput,
 } from "./payLaterBooking";
 
@@ -92,8 +93,101 @@ describe("payLaterRefusalMessage", () => {
   });
 
   it("gives every reason a sentence", () => {
-    for (const reason of ["feature_off", "not_on_terms", "home_visit", "programme"] as const) {
+    for (const reason of [
+      "feature_off",
+      "not_on_terms",
+      "home_visit",
+      "programme",
+      "over_limit",
+    ] as const) {
       expect(payLaterRefusalMessage(reason).length).toBeGreaterThan(20);
     }
+  });
+});
+
+// The ceiling on what one patient may owe. The default is **none**, and that
+// is the original design rather than an oversight: the population is tiny and
+// hand-picked, and refusing a long-standing patient at the counter is a
+// product decision. This exists so a clinic that wants one is not made to
+// choose between having a limit and having the feature.
+describe("the pay-later ceiling", () => {
+  it("changes nothing at all when no ceiling is set", () => {
+    expect(
+      decidePayLaterBooking(allowed({ currentlyOwedPaise: 9_999_999, bookingAmountPaise: 120_000 }))
+    ).toEqual({ allowed: true });
+  });
+
+  it("refuses a booking that would take the patient past it", () => {
+    expect(
+      decidePayLaterBooking(
+        allowed({ maxOwedPaise: 500_000, currentlyOwedPaise: 450_000, bookingAmountPaise: 120_000 })
+      )
+    ).toEqual({ allowed: false, reason: "over_limit" });
+  });
+
+  // Strictly greater. A limit that refused at its own number would mean the
+  // figure an admin typed is one the clinic never actually allows.
+  it("allows a booking that lands exactly on the ceiling", () => {
+    expect(
+      decidePayLaterBooking(
+        allowed({ maxOwedPaise: 500_000, currentlyOwedPaise: 380_000, bookingAmountPaise: 120_000 })
+      )
+    ).toEqual({ allowed: true });
+  });
+
+  // The ceiling is about this patient's history, so every answer that is more
+  // useful comes first -- an admin sent to a profile screen by "not on terms"
+  // is better served than one told about a limit that was never the problem.
+  it("reports the more useful reason when several apply", () => {
+    expect(
+      decidePayLaterBooking(
+        allowed({
+          patientOnTerms: false,
+          maxOwedPaise: 1,
+          currentlyOwedPaise: 500_000,
+          bookingAmountPaise: 120_000,
+        })
+      )
+    ).toEqual({ allowed: false, reason: "not_on_terms" });
+    expect(
+      decidePayLaterBooking(
+        allowed({
+          visitMode: "home_visit",
+          maxOwedPaise: 1,
+          currentlyOwedPaise: 500_000,
+        })
+      )
+    ).toEqual({ allowed: false, reason: "home_visit" });
+  });
+
+  // It names the arrangement and what clears it, because this patient already
+  // knows they have it -- unlike the two refusals that deliberately say the
+  // same thing to avoid telling somebody an arrangement exists.
+  it("tells the patient what would clear it, and quotes no figure", () => {
+    const message = payLaterRefusalMessage("over_limit");
+    expect(message).toContain("Settling");
+    expect(message).not.toMatch(/[0-9]/);
+  });
+});
+
+describe("resolveMaxOwedPaise", () => {
+  it("reads absence as no ceiling", () => {
+    expect(resolveMaxOwedPaise(null)).toBeNull();
+    expect(resolveMaxOwedPaise(undefined)).toBeNull();
+  });
+
+  // Zero is not a ceiling of nothing. Somebody who types 0 has almost
+  // certainly cleared the box, and reading it as "refuse every booking" would
+  // switch the feature off by accident through a field that says nothing
+  // about switching it off.
+  it("reads zero and anything unusable as no ceiling, never as refuse-everything", () => {
+    expect(resolveMaxOwedPaise(0)).toBeNull();
+    expect(resolveMaxOwedPaise(-5)).toBeNull();
+    expect(resolveMaxOwedPaise(Number.NaN)).toBeNull();
+  });
+
+  it("takes a real figure whole", () => {
+    expect(resolveMaxOwedPaise(500_000)).toBe(500_000);
+    expect(resolveMaxOwedPaise(500_000.9)).toBe(500_000);
   });
 });

@@ -15,6 +15,19 @@ export type MetricsAppointment = {
   // neither -- in which case every row reads as prepaid, which is what it is.
   payment_terms?: string | null;
   amount_due_paise?: number | null;
+  // The revenue-split rates frozen when this session was delivered.
+  //
+  // Optional for the reason above -- they are newer still -- and null on
+  // every session completed before they existed. A rate is a term of the
+  // agreement that was in force on the day the work was done, so reading
+  // the live percentage instead meant renegotiating a partner's commission
+  // silently rewrote every commission figure they had already been invoiced
+  // on. These are preferred where present; the live percentage remains the
+  // fallback, which is exactly as accurate as the old behaviour for rows
+  // that have no snapshot and never worse.
+  therapist_share_percent_at_completion?: number | null;
+  hospital_share_percent_at_completion?: number | null;
+  hospital_id_at_completion?: string | null;
   category_id: string | null;
   therapist_id: string | null;
   patient_id: string;
@@ -423,12 +436,34 @@ export function moneyLineFor(
     netPaise,
   };
 
-  const onlineShare = a.therapist_id
-    ? rates.therapistSharePercent[a.therapist_id]
-    : undefined;
-  const hShare = rates.patientHospitalSharePercent[a.patient_id];
-  const hospitalShareUnknown =
-    hShare === undefined && !!rates.hospitalReferredPatientIds[a.patient_id];
+  // Frozen rate first, live percentage second. `?? undefined` rather than
+  // `?? liveShare` so an explicitly-recorded 0% stays 0% -- a therapist or
+  // a partner really can be on nothing for a period, and coalescing that
+  // away would quietly put them back on the current rate.
+  const frozenTherapistShare = a.therapist_share_percent_at_completion;
+  const onlineShare =
+    frozenTherapistShare !== null && frozenTherapistShare !== undefined
+      ? frozenTherapistShare
+      : a.therapist_id
+        ? rates.therapistSharePercent[a.therapist_id]
+        : undefined;
+
+  const frozenHospitalShare = a.hospital_share_percent_at_completion;
+  const frozenHospitalId = a.hospital_id_at_completion;
+  const hShare =
+    frozenHospitalShare !== null && frozenHospitalShare !== undefined
+      ? frozenHospitalShare
+      : rates.patientHospitalSharePercent[a.patient_id];
+  // A session that recorded no partner at completion was not a referred one
+  // on the day it happened, whatever the patient's profile says now -- a
+  // referral added afterwards must not retrospectively earn a commission on
+  // work already delivered and paid out. Only rows with no snapshot at all
+  // fall back to asking the profile.
+  const hasCompletionSnapshot =
+    frozenHospitalId !== undefined || frozenHospitalShare !== undefined;
+  const hospitalShareUnknown = hasCompletionSnapshot
+    ? !!frozenHospitalId && (frozenHospitalShare === null || frozenHospitalShare === undefined)
+    : hShare === undefined && !!rates.hospitalReferredPatientIds[a.patient_id];
   if (onlineShare === undefined || hospitalShareUnknown) {
     return {
       ...base,
@@ -442,16 +477,29 @@ export function moneyLineFor(
   let therapistCutPaise = 0;
   if (a.status === "completed") {
     const isHomeVisit = a.visit_mode === "home_visit";
+    // A frozen rate already accounts for the home-visit split -- it was
+    // resolved at completion by the same rule this line applies -- so it
+    // must not be re-resolved against the live home-visit percentage here.
     const homeShare = a.therapist_id
       ? (rates.therapistHomeVisitSharePercent ?? {})[a.therapist_id]
       : undefined;
-    const effectiveShare = isHomeVisit ? homeShare ?? onlineShare : onlineShare;
+    const effectiveShare =
+      frozenTherapistShare !== null && frozenTherapistShare !== undefined
+        ? frozenTherapistShare
+        : isHomeVisit
+          ? homeShare ?? onlineShare
+          : onlineShare;
     const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
     therapistCutPaise = Math.round((paidPaise * effectiveShare) / 100) + travelPaise;
   }
 
+  // A completion snapshot naming no partner means no commission, full stop.
   const hospitalCutPaise =
-    hShare !== undefined ? Math.round((netPaise * hShare) / 100) : 0;
+    hasCompletionSnapshot && !frozenHospitalId
+      ? 0
+      : hShare !== undefined
+        ? Math.round((netPaise * hShare) / 100)
+        : 0;
 
   return {
     ...base,

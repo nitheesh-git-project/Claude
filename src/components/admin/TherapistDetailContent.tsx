@@ -40,7 +40,9 @@ function nowTimestamp() {
   return Date.now();
 }
 import SpecialtyChip from "@/components/SpecialtyChip";
+import TherapistReadinessPanel from "@/components/admin/TherapistReadinessPanel";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
+import { readableTempPassword } from "@/lib/tempPassword";
 
 // Shared body for both the standalone /admin/dashboard/therapists/[id] page
 // (hard navigation, shareable link) and the @modal intercepted route that
@@ -190,7 +192,12 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
   const patientIds = [
     ...new Set((appointments ?? []).map((a) => a.patient_id).filter(Boolean)),
   ];
-  const [{ data: categories }, { data: patients }, { data: approvedTherapists }] = await Promise.all([
+  const [
+    { data: categories },
+    { data: patients },
+    { data: approvedTherapists },
+    { count: weeklyHourCount },
+  ] = await Promise.all([
     categoryIds.length > 0
       ? admin
           .from("treatment_categories")
@@ -206,6 +213,13 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       .eq("role", "therapist")
       .eq("approved", true)
       .order("full_name"),
+    // Whether they work at all, for the readiness panel. A count rather than
+    // the rows: nothing on this page draws the roster, and "has any hours"
+    // is the whole of the question.
+    admin
+      .from("therapist_availability_template")
+      .select("therapist_id", { count: "exact", head: true })
+      .eq("therapist_id", id),
   ]);
   const homeVisitPayoutById = new Map(
     (homeVisitPayoutRows ?? [])
@@ -297,6 +311,21 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       afterMinutes={adminSettings.joinWindowAfterMinutes}
       completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
     >
+      {/* Above the header, not below the fold: what is missing here is the
+          reason an assignment will not happen, so it belongs where somebody
+          arriving to assign will read it. It renders nothing at all when
+          there is nothing missing. */}
+      <TherapistReadinessPanel
+        name={therapist.full_name ?? "This therapist"}
+        therapist={{
+          approved: therapist.approved,
+          active: therapist.active,
+          onLeave: therapist.on_leave,
+          weeklyHourCount: weeklyHourCount ?? 0,
+          revenueSharePercent: therapist.revenue_share_percent,
+          specialization: therapist.specialization,
+        }}
+      />
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
@@ -395,9 +424,15 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             {therapist.bio && <p className="text-slate-600">{therapist.bio}</p>}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+            {/*
+              A credential the clinic issued stops being shown once it has
+              aged out -- see src/lib/tempPassword.ts. It had no end date, so
+              one nobody collected sat readable indefinitely while having no
+              support value left.
+            */}
             <ResetTherapistPasswordButton
               therapistId={therapist.id}
-              currentPassword={note?.temp_password}
+              currentPassword={readableTempPassword(note, nowTimestamp()).password}
               currentPasswordSetAt={note?.temp_password_set_at}
             />
             {/* See the patient screen's note: Master Admin only, checked

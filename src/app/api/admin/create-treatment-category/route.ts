@@ -6,6 +6,7 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { writeCatalogFocal } from "@/lib/catalogImageServer";
 import { writeCatalogFeatured } from "@/lib/catalogFeaturedServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -85,11 +86,15 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/create-treatment-category", error);
   }
 
   await writeSpecialty(admin, data.id, specialty);
-  await writeCatalogFocal(admin, "treatment_categories", data.id, imageFocalX, imageFocalY);
+  // Its own isolated write, so a database one migration behind loses the
+  // position rather than refusing the whole edit -- and reported rather than
+  // swallowed, because an admin who drags a focal point and is told the save
+  // worked will not look again.
+  const focalSaved = await writeCatalogFocal(admin, "treatment_categories", data.id, imageFocalX, imageFocalY);
   await writeCatalogFeatured(admin, "treatment_categories", data.id, featured);
 
   // Catalog rows decide what is sold and at what price, so every
@@ -109,7 +114,15 @@ export async function POST(request: NextRequest) {
   revalidatePath("/conditions");
   revalidatePath("/book");
 
-  return NextResponse.json({ success: true, id: data.id });
+  return NextResponse.json({
+    success: true, id: data.id,
+    ...(focalSaved
+      ? {}
+      : {
+          warning:
+            "Saved, but the cover's position could not be written - it is still centred.",
+        }),
+  });
 }
 
 /**

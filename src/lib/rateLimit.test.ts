@@ -19,15 +19,20 @@ describe("clientIdentifier", () => {
     ).toBe("203.0.113.7");
   });
 
-  it("falls back to the first x-forwarded-for entry", () => {
+  // These two asserted the LEFTMOST forwarded entry, which is the value the
+  // caller supplied -- so they encoded the hole rather than guarding against
+  // it. A proxy appends the address it saw, so the rightmost entry is the
+  // only one a trusted hop actually observed. See clientIdentifier's own
+  // comment, and the dedicated block at the foot of this file.
+  it("falls back to the last x-forwarded-for entry, which a trusted hop added", () => {
     expect(clientIdentifier(headers({ "x-forwarded-for": "203.0.113.7, 70.41.3.18" }))).toBe(
-      "203.0.113.7"
+      "70.41.3.18"
     );
   });
 
   it("trims, because the forwarded list is comma-space separated", () => {
-    expect(clientIdentifier(headers({ "x-forwarded-for": "  203.0.113.7 , 70.41.3.18" }))).toBe(
-      "203.0.113.7"
+    expect(clientIdentifier(headers({ "x-forwarded-for": "  203.0.113.7 , 70.41.3.18 " }))).toBe(
+      "70.41.3.18"
     );
   });
 
@@ -170,5 +175,71 @@ describe("rateLimitNotice", () => {
     expect(rateLimitNotice("Enter a valid 6-digit pincode.", undefined)).toBe(
       "Enter a valid 6-digit pincode."
     );
+  });
+});
+
+describe("clientIdentifier: the forwarded list is read from the right", () => {
+  function headers(map: Record<string, string>) {
+    return {
+      get(name: string) {
+        return map[name.toLowerCase()] ?? null;
+      },
+    };
+  }
+
+  it("prefers x-real-ip, which a caller cannot pad", () => {
+    expect(
+      clientIdentifier(
+        headers({ "x-real-ip": "9.9.9.9", "x-forwarded-for": "1.1.1.1, 2.2.2.2" })
+      )
+    ).toBe("9.9.9.9");
+  });
+
+  it("takes the RIGHTMOST forwarded entry, not the leftmost", () => {
+    // The hole this closes. A proxy appends what it saw, so the leftmost
+    // entry is whatever the caller claimed. Reading it meant every request
+    // could mint its own bucket and every public cap was off while
+    // appearing to work.
+    expect(
+      clientIdentifier(headers({ "x-forwarded-for": "1.1.1.1, 2.2.2.2, 3.3.3.3" }))
+    ).toBe("3.3.3.3");
+  });
+
+  it("ignores a spoofed entry a caller prepended", () => {
+    expect(
+      clientIdentifier(headers({ "x-forwarded-for": "evil, 203.0.113.7" }))
+    ).toBe("203.0.113.7");
+  });
+
+  it("walks further right when the operator says there are more hops", () => {
+    expect(
+      clientIdentifier(headers({ "x-forwarded-for": "1.1.1.1, 2.2.2.2, 3.3.3.3" }), {
+        trustedProxyHops: 1,
+      })
+    ).toBe("2.2.2.2");
+  });
+
+  it("clamps a hop count that would walk off the list", () => {
+    // A misconfigured count must never index into caller-supplied territory
+    // beyond the start of the list.
+    expect(
+      clientIdentifier(headers({ "x-forwarded-for": "1.1.1.1, 2.2.2.2" }), {
+        trustedProxyHops: 99,
+      })
+    ).toBe("1.1.1.1");
+  });
+
+  it("handles a single-entry list", () => {
+    expect(clientIdentifier(headers({ "x-forwarded-for": "4.4.4.4" }))).toBe("4.4.4.4");
+  });
+
+  it("answers null when neither header is set", () => {
+    // Local dev. The caller allows the request rather than inventing a key,
+    // which would put every visitor in one bucket.
+    expect(clientIdentifier(headers({}))).toBeNull();
+  });
+
+  it("answers null for a header that is only separators", () => {
+    expect(clientIdentifier(headers({ "x-forwarded-for": " , , " }))).toBeNull();
   });
 });
