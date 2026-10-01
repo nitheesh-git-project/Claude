@@ -8,7 +8,7 @@ import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { isActionable } from "@/lib/sessionSuggestions";
 import { serverError } from "@/lib/apiError";
-import { readPackageTerms } from "@/lib/packageTerms";
+import { checkPackageSpacing, readPackageTerms } from "@/lib/packageTerms";
 
 // The patient answering a suggested session.
 //
@@ -136,6 +136,27 @@ export async function POST(request: NextRequest) {
   // moves the row out of 'pending', so only one goes on to create a session
   // -- the loser falls into the already-answered branch on its next read
   // rather than booking a duplicate.
+  // The programme's own spacing -- minimum gap and weekly cap -- applies to
+  // an accepted suggestion exactly as it does to a session the patient
+  // schedules themselves. It used to be skipped here: only the session
+  // length reached the booking.
+  const spacing = await checkPackageSpacing(admin, {
+    purchaseId: purchase.id,
+    slotMs: new Date(suggestion.slot_time).getTime(),
+    terms: packageTerms,
+  });
+  if (!spacing.ok) {
+    return NextResponse.json(
+      {
+        error:
+          spacing.reason === "unavailable"
+            ? spacing.error
+            : `${spacing.error} Ask your therapist to suggest another time.`,
+      },
+      { status: spacing.reason === "unavailable" ? 503 : 409 }
+    );
+  }
+
   const { data: claimed } = await admin
     .from("session_suggestions")
     .update({ status: "accepted", responded_at: new Date().toISOString() })
@@ -157,6 +178,17 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // Only an approved, active therapist is reserved -- the slot claim itself
+  // does not check standing, and a suggestion can outlive a suspension.
+  // Otherwise the session lands in the admin's queue as it always did.
+  const { data: suggester } = await admin
+    .from("profiles")
+    .select("role, active, approved")
+    .eq("id", suggestion.therapist_id)
+    .maybeSingle();
+  const suggesterCanTakeIt =
+    suggester?.role === "therapist" && suggester.active === true && suggester.approved === true;
+
   const result = await bookPackageSession(admin, {
     purchase,
     slotDateTime: suggestion.slot_time,
@@ -166,6 +198,9 @@ export async function POST(request: NextRequest) {
     // therapist proposed the time -- they are who accepted it.
     actorId: user.id,
     sessionDurationMinutesOverride: packageTerms.sessionDurationMinutes,
+    // The therapist who offered this exact time keeps it, rather than the
+    // accepted session landing unassigned in the admin's queue.
+    assignTherapistId: suggesterCanTakeIt ? suggestion.therapist_id : null,
   });
 
   // Two taps on Accept: the second is refused by the one-per-purchase-per-slot

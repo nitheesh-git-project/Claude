@@ -73,6 +73,7 @@ export async function bookPackageSession(
     actorId,
     sessionDurationMinutesOverride,
     preferredTherapistId,
+    assignTherapistId,
   }: {
     purchase: PurchaseForBooking;
     slotDateTime: string;
@@ -95,6 +96,12 @@ export async function bookPackageSession(
     // Never auto-assigns; auto-assignment only ever happens from an
     // existing lock, never from a preference.
     preferredTherapistId?: string | null;
+    // The therapist to reserve when the purchase has no lock -- the one who
+    // proposed this exact time in a session suggestion. Without it an
+    // accepted suggestion landed unassigned in the admin's queue, and the
+    // therapist who had offered the slot lost it. Ignored when a lock
+    // exists: the lock decides.
+    assignTherapistId?: string | null;
   }
 ): Promise<BookPackageSessionResult> {
   if (purchase.payment_status !== "paid") {
@@ -253,10 +260,11 @@ export async function bookPackageSession(
   // lock on that therapist.
   let assignedTherapistId: string | null = null;
   let shouldAutoConfirm = false;
-  if (purchase.locked_therapist_id) {
+  const reserveTherapistId = purchase.locked_therapist_id ?? assignTherapistId ?? null;
+  if (reserveTherapistId) {
     const claim = await claimTherapistSlot(admin, {
       appointmentId: appointment.id,
-      therapistId: purchase.locked_therapist_id,
+      therapistId: reserveTherapistId,
       expectUnassigned: true,
       // Paid already, and a locked therapist who is free leaves nothing
       // for an admin to approve -- so the confirmation happens in the same
@@ -265,7 +273,7 @@ export async function bookPackageSession(
       confirm: true,
     });
     if (claim.ok) {
-      assignedTherapistId = purchase.locked_therapist_id;
+      assignedTherapistId = reserveTherapistId;
       shouldAutoConfirm = true;
       // The preference was only ever a fallback for an unassigned session.
       await admin

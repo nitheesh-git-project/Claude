@@ -6,7 +6,7 @@ import { isWholeHourSlot, leadTimeMsFromHours, NOT_WHOLE_HOUR_ERROR } from "@/li
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { bookPackageSession } from "@/lib/bookPackageSession";
-import { readPackageTerms } from "@/lib/packageTerms";
+import { checkPackageSpacing, readPackageTerms } from "@/lib/packageTerms";
 
 const MAX_NOTES_LENGTH = 1000;
 
@@ -104,6 +104,20 @@ export async function POST(request: NextRequest) {
   // live row meant an admin editing a programme changed the length of
   // sessions somebody had already paid for, mid-programme.
   const packageTerms = await readPackageTerms(admin, purchase.id, purchase.package_id);
+
+  // The programme's minimum gap and weekly cap, which the bulk scheduler
+  // applied and this single-session door did not.
+  const spacing = await checkPackageSpacing(admin, {
+    purchaseId: purchase.id,
+    slotMs: slotTimestamp,
+    terms: packageTerms,
+  });
+  if (!spacing.ok) {
+    return NextResponse.json(
+      { error: spacing.error },
+      { status: spacing.reason === "unavailable" ? 503 : 409 }
+    );
+  }
 
   const result = await bookPackageSession(admin, {
     purchase,

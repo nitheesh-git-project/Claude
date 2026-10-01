@@ -28,7 +28,13 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
      It is strictly a **proposal**: every slot still goes through
      `/api/appointments/book-package-sessions`, which re-checks all of it
      server-side, so this module being wrong can only produce a worse
-     suggestion and never a booking that should not exist. Two rules inside
+     suggestion and never a booking that should not exist. The gap and
+     weekly cap are checked by one function, `checkPackageSpacing`
+     (`src/lib/packageTerms.ts`), at **every** door that adds a session to
+     a programme: the bulk scheduler, `book-with-package`, a therapist's
+     suggestion (when it is made) and its acceptance. The last two used to
+     skip both, and the suggestion's clash check assumed every session was
+     60 minutes rather than the length the patient bought. Two rules inside
      it are load-bearing. A day that cannot take the run's hour is
      **skipped rather than substituted** -- someone who asked for five
      o'clock and was handed nine in the evening because it was the only
