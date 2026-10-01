@@ -12,7 +12,7 @@
 -- Concurrency is deliberately NOT asserted here -- one psql session cannot
 -- race itself. That property (12 parallel calls against a cap of 5 allowing
 -- exactly 5, with no lost update) is checked by firing real parallel
--- requests at the RPC; see the rate-limit rule in AGENTS.md.
+-- requests at the RPC; see the rate-limit rule in docs/rules/ops-security.md.
 
 begin;
 

@@ -7,7 +7,7 @@
 | Requirement | Value / note |
 | --- | --- |
 | A **throwaway Supabase project** | Never a project holding real data. The reset in Step 0 truncates every table. |
-| `supabase/schema.sql` applied to it | `node scripts/run-schema.mjs`, or push to `main` and let `.github/workflows/schema-apply.yml` run it. Re-apply twice to confirm it is re-runnable. |
+| `supabase/schema.sql` applied to it | `node scripts/run-schema.mjs`, or the Supabase SQL editor. The CI workflow (`.github/workflows/schema-apply.yml`) runs on pushes to **`main`** only, against the *live* project, so a staging or test database is applied **by hand** - and before the app is exercised against it, since the code assumes policies and functions that are otherwise simply absent. Re-apply twice to confirm it is re-runnable. |
 | **Supabase Auth → Confirm email = OFF** | The application assumes this. With it on, every sign-up path fails. |
 | **Razorpay test-mode keys** | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` from the Razorpay dashboard in **Test Mode**. Never live keys. |
 | `RAZORPAY_WEBHOOK_SECRET` set | Without it `/api/razorpay/webhook` answers `503 {"error":"Webhook not configured"}` and a patient who pays and closes the tab leaves a paid order against an unpaid booking. Webhook tests need it. |
@@ -148,7 +148,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 * Navigating to **Logs → All Activity** shows an empty log apart from the reset's own row (the reset truncates the table, then records itself).
 * Navigating to **Settings → User Access** still lists at least one admin, and your own row is there. **If this list is empty, stop immediately and restore from backup - the reset must never leave the clinic without an admin.**
 * Navigating to **Today → Risk** shows an **empty** queue. **[SQL]** confirm with `select count(*) from communication_flags;` and `select count(*) from risk_signals;` - both must return `0`. A non-zero count here is the regression described above, and it will silently suppress the detector tests later in this plan.
-* **[SQL]** `select rule_key, enabled from risk_rules;` still returns the eight rules, with `plan_conversion_low` and `post_consultation_dropout` back to **disabled** - thresholds are restored to their seeded defaults, not wiped.
+* **[SQL]** `select rule_key, enabled, config from risk_rules;` still returns all **ten** seeded rules **exactly as you left them**. The table is not touched by the reset at all, so a threshold you changed in §22 is still the one you set and a rule you switched on is still on - the restore-to-defaults behaviour this step used to assert is gone, for the same reason `site_settings` is kept: an admin's tuning is configuration, not test data. The **signals** those rules produced are rows and are removed.
 
 **Cleanup.** None. This is the starting state for the whole plan.
 

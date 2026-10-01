@@ -17,7 +17,23 @@ rewritten. It reaches a live database two ways:
 
 - `node scripts/run-schema.mjs` — by hand, over the Supabase Management API.
 - `.github/workflows/schema-apply.yml` — automatically on every push to
-  `main` that touches the file.
+  **`main`** that touches the file. It runs in the `Production` GitHub
+  environment and reads `SUPABASE_ACCESS_TOKEN` and
+  `NEXT_PUBLIC_SUPABASE_URL` from there, not from repository secrets.
+
+**`main` only, and that is a decision rather than an oversight.** `staging`
+is the default branch and where everything merges, but those secrets point
+at the live project — widening the trigger would apply a staging merge's
+schema to the production database. So **staging's database is applied by
+hand**, with `run-schema.mjs` or the SQL editor, and that step belongs
+*before* the branch is exercised there: the code assumes policies and
+functions that are otherwise simply absent, which fails in ways that read as
+code bugs rather than as a migration nobody ran.
+
+Automating it for staging means a separate `Staging` GitHub environment
+holding staging's own two values, and a second trigger on `staging`. Until
+that exists, the hand-application is the step that must not be skipped —
+`STAGING.md` holds the whole model.
 
 **Verification before merge**: apply it twice against the target and run the
 `scripts/*-sql-checks.sql` files. Applying twice is the actual test — the

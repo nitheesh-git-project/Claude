@@ -4,7 +4,7 @@
 // so a package configured today gets these visuals with no further work.
 //
 // Presentational only: the arithmetic lives in packageProgress /
-// homeVisitProgress per AGENTS.md's "business math in dependency-free
+// homeVisitProgress per CLAUDE.md's "business math in dependency-free
 // src/lib/ modules" rule, and is passed in already computed.
 
 export function rupees(paise: number): string {

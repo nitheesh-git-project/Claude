@@ -30,7 +30,8 @@ const WHEN_LABEL: Record<When, string> = {
  * Video consultations and home visits were two sidebar entries over the
  * same `appointments` rows, so "when is my next session?" meant checking
  * two screens and merging them by hand. This is the same rule the admin
- * dashboard already follows ("a session is listed once" -- see AGENTS.md):
+ * dashboard already follows ("a session is listed once" -- see
+ * docs/rules/dashboards.md):
  * one list, filters on top. The mode filter only appears for people who
  * actually have both kinds, so a video-only patient never sees a control
  * that does nothing.

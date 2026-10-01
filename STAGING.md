@@ -59,3 +59,27 @@ it is left to a person; the manual step is the honest default until then.
   decides this. It deliberately does **not** also fire on `main`: the graph
   travels there with the release merge, and a second trigger would open a
   duplicate pull request to rebuild something already current.
+- **A new cloud session's clone.** A Claude Code session clones the
+  repository its environment names, at the source revision if one is pinned
+  and otherwise at the **default branch**. Nothing pins one here, so a
+  session started now begins on `staging` -- with every merged change
+  already in the checkout -- where a session started before the change began
+  on `main`. Worth knowing because it is silent: the first session that
+  comes up on the older branch looks like a session whose work has
+  disappeared. `git branch --show-current && git log --oneline -1` in the
+  first turn settles it, and `git fetch origin staging && git checkout
+  staging` is the whole fix.
+
+## Releasing to `main`
+
+The owner's own step, by hand, deliberately. A merge to `main` is a release
+to the deployed site **and** to the production Supabase project: pushing
+`supabase/schema.sql` there triggers `schema-apply.yml`, which applies it to
+the live database. That is not something to arrive at as the last step of
+finishing a piece of work, which is the whole reason it is not automated and
+the reason no agent takes it.
+
+Before taking it, the two things worth checking are that the full e2e suite
+was run on `staging` as it stands (see `e2e/README.md` for what a legitimate
+red looks like) and that any schema change in the merge is one you intend to
+apply to production the moment it lands.

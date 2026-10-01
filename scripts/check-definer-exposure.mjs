@@ -156,7 +156,7 @@ if (takesArguments.length > 0) {
 }
 console.log(
   "\nEither revoke it from public, anon AND authenticated (all three -- see the grant" +
-    "\nrule in AGENTS.md), or add it to ALLOWED in this file with the reason. The bar is" +
+    "\nrule in docs/rules/data-schema.md), or add it to ALLOWED in this file with the reason. The bar is" +
     "\nis_admin()'s: no arguments, and an answer about nobody but the caller."
 );
 process.exit(1);

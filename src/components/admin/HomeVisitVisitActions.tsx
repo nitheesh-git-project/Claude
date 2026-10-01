@@ -3,7 +3,8 @@
 // The two things an admin does to a single home visit -- fix the address it
 // is being delivered to, and put a therapist on it. They used to live inside
 // a Home Visit-only queue screen; the queue itself is gone (a home visit is
-// a delivery mode, not a parallel booking system -- see AGENTS.md), so its
+// a delivery mode, not a parallel booking system -- see
+// docs/rules/home-visit.md), so its
 // rows are now part of the one All Sessions list and these two forms are
 // rendered from the shared session drawer instead.
 

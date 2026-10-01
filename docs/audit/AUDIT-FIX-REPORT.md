@@ -74,7 +74,7 @@ proof. Item 109 has the detail.
 ## How to verify all of it
 
 ```bash
-npm run verify              # lint (3 schema checks + eslint) + 1163 unit tests + build
+npm run verify              # lint (3 schema checks + eslint) + 1,173 unit tests + build
 npm run check:concurrency   # against a real database
 npm run check:authorization # cross-tenant, IDOR, enumeration, at the policy layer
 node scripts/run-schema.mjs # applies cleanly, twice (re-runnability is the test)
@@ -1472,7 +1472,7 @@ two questions nothing could ask before. Was every refund we sent to the
 gateway answered, and is every refund the gateway accepted recorded against
 the thing it was for.
 
-That brings System Health to nine checks, every one of them the same shape: a
+That brings System Health to eleven checks, every one of them the same shape: a
 status word as well as a colour, steps an owner can follow alone, the
 teaching text behind the (i), and — the rule this file keeps returning to —
 **"could not be checked" is not "healthy"**. A database missing the table
