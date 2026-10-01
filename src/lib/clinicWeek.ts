@@ -35,6 +35,17 @@ export function clinicDateKey(value: string | number | Date): string {
   return CLINIC_DATE_PARTS.format(new Date(value));
 }
 
+const CLINIC_HOUR = new Intl.DateTimeFormat("en-GB", {
+  timeZone: CLINIC_TIMEZONE,
+  hour: "2-digit",
+  hourCycle: "h23",
+});
+
+/** The clinic-local hour (0-23) an instant falls in -- what the roster is keyed by. */
+export function clinicHour(value: string | number | Date): number {
+  return Number(CLINIC_HOUR.format(new Date(value)));
+}
+
 /**
  * The clinic-local calendar date as a UTC-midnight Date.
  *

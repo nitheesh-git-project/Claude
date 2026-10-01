@@ -197,7 +197,10 @@ Availability as periods over hour rows, specialisation as a value, what readines
   removes. `decideAutoAssignment()` is that rule with the database taken
   out, so the judgement is unit-tested rather than only integration-tested.
   It never throws: this runs inside payment confirmation and a booking must
-  never fail for it. Gated by `site_settings.auto_assign_therapist_enabled`,
+  never fail for it. The roster's date and hour are **clinic-local**
+  (`clinicDateKey` / `clinicHour`) - they were read off the server's clock,
+  so on a UTC host a 9:00 IST booking looked for a 03:00 slot and every
+  session stayed unassigned. Gated by `site_settings.auto_assign_therapist_enabled`,
   read in its own call and failing **closed**.
   **This is not the roster filtering the patient's picker** -- that
   separation stays, and `e2e/therapist-roster.spec.ts` R-B02 still guards

@@ -270,7 +270,11 @@ client is the only writer and the log is append-only from any session.
      request has turned a blip into a checkout outage, which is worse than
      the burst it would have stopped -- the direction `contact_scan_mode`
      fails, and the opposite of `contact_masking_enabled`, because the safe
-     answer differs by what is at stake. Logged, never silent. **No
+     answer differs by what is at stake. Logged, never silent. The limits
+     marked `onCheckFailure: "closed"` (the enumerable lookups) refuse
+     instead, and a **thrown** failure takes the same direction as a
+     returned error - it used to allow the request unconditionally, so a
+     dropped connection opened exactly the limits meant to stay shut. **No
      identifier is the same case**: with neither `x-real-ip` nor
      `x-forwarded-for` (local dev, or any host that does not set them) the
      request is allowed rather than filed under an invented key, which would
