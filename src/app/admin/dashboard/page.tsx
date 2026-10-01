@@ -191,7 +191,6 @@ import type { RiskSeverity, RiskStatus, RiskSubjectKind } from "@/lib/riskSignal
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import {
-  readableTempPassword,
   TEMP_PASSWORD_VISIBLE_DAYS,
 } from "@/lib/tempPassword";
 import { readReferralAttributionHealth } from "@/lib/referralAttribution";
@@ -327,9 +326,7 @@ export default async function AdminDashboardPage({
   // used to matter on every single admin button click, not just page load:
   // router.refresh() re-runs this entire Server Component, so every prior
   // query's latency was paid again before the next one even started.
-  // hospitalNotes further down is the one real exception (it needs
-  // allProfiles' hospital ids first) and stays a separate awaited call
-  // after this batch resolves. Comments on each query explain the
+  // Comments on each query explain the
   // isolation/migration-dependent reasoning for that particular fetch, same
   // as before this was parallelized.
 
@@ -808,10 +805,6 @@ export default async function AdminDashboardPage({
   const guard = <T,>(run: () => Promise<T>, fallback: T): Promise<T> =>
     run().catch(() => fallback);
 
-  const hospitalIds = (allProfiles ?? [])
-    .filter((p) => p.role === "hospital")
-    .map((h) => h.id);
-
   const [
     accountingHealth,
     suggestionsToggleRow,
@@ -826,9 +819,7 @@ export default async function AdminDashboardPage({
     categoryFeaturedRows,
     homeVisitFeaturedRows,
     testimonialAvatarRows,
-    hospitalNotes,
     refundDetailRows,
-    adminAccountNotes,
     googleConnection,
     syncModeRows,
     expenseClassRows,
@@ -933,16 +924,6 @@ export default async function AdminDashboardPage({
       async () => (await admin.from("testimonials").select("id, avatar_url")).data,
       null as { id: string; avatar_url: string | null }[] | null
     ),
-    guard(
-      async () =>
-        (
-          await admin
-            .from("hospital_admin_notes")
-            .select("hospital_id, temp_password, temp_password_set_at")
-            .in("hospital_id", hospitalIds)
-        ).data,
-      null as { hospital_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
-    ),
     // The refund detail the session drawer shows -- when it went back, why,
     // and the gateway's own reference. Isolated because `refunded_at` and
     // `refunded_by` are the newest columns on `appointments`: on a database
@@ -962,20 +943,6 @@ export default async function AdminDashboardPage({
         refund_reason: string | null;
         refund_id: string | null;
       }[] | null
-    ),
-    // The password this clinic issued to each back-office account, still
-    // outstanding. In this batch rather than the main one because
-    // admin_account_notes is the newest table in the file: a database that
-    // has not applied it yet loses one column of the directory rather than
-    // every screen on this page.
-    guard(
-      async () =>
-        (
-          await admin
-            .from("admin_account_notes")
-            .select("admin_id, temp_password, temp_password_set_at")
-        ).data,
-      null as { admin_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
     ),
     // One outbound call to Google, memoized for ten minutes, so the System
     // Health screen can say whether the account is still connected rather
@@ -1653,9 +1620,6 @@ export default async function AdminDashboardPage({
     }));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
-  const hospitalNoteMap = new Map(
-    (hospitalNotes ?? []).map((n) => [n.hospital_id, n])
-  );
   const patients = (allProfiles ?? [])
     .filter((p) => p.role === "patient")
     .sort(
@@ -2149,15 +2113,7 @@ export default async function AdminDashboardPage({
                         userName={h.full_name ?? "this hospital"}
                       />
                     )}
-                    <ResetHospitalPasswordButton
-                      hospitalId={h.id}
-                      currentPassword={
-                        readableTempPassword(hospitalNoteMap.get(h.id), nowTimestamp()).password
-                      }
-                      currentPasswordSetAt={
-                        hospitalNoteMap.get(h.id)?.temp_password_set_at
-                      }
-                    />
+                    <ResetHospitalPasswordButton hospitalId={h.id} />
                     {/* Same rule as the button above: Master Admin only,
                         re-checked by the route. A partner with referrals on
                         file is refused and offered the suspend toggle
@@ -3519,8 +3475,6 @@ export default async function AdminDashboardPage({
     />
   );
 
-  const adminNoteMap = new Map((adminAccountNotes ?? []).map((n) => [n.admin_id, n]));
-
   const adminRows: AdminRow[] = (allProfiles ?? [])
     .filter((p) => p.role === "admin")
     .map((p) => ({
@@ -3534,13 +3488,6 @@ export default async function AdminDashboardPage({
       // role's screens give it.
       active: p.active !== false,
       isSelf: p.id === user.id,
-      // The password this clinic issued them, while it is still the one they
-      // sign in with. Null once they have set their own -- a password a
-      // person chose is a bcrypt hash and can never be read back, so the
-      // directory says which of the two states an account is in rather than
-      // pretending to know a secret it does not have.
-      tempPassword: readableTempPassword(adminNoteMap.get(p.id), nowTimestamp()).password,
-      tempPasswordSetAt: adminNoteMap.get(p.id)?.temp_password_set_at ?? null,
     }))
     // By name, because a directory of people with no stated order has one
     // anyway -- whatever Postgres hands back, which can differ between two

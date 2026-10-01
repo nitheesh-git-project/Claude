@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { serverError } from "@/lib/apiError";
-
-function generatePassword() {
-  return crypto.randomBytes(9).toString("base64url");
-}
+import { issueSetPasswordLink, unknowablePassword } from "@/lib/accessLink";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -41,7 +37,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const password = generatePassword();
+  // A password nobody knows: the reset still locks out whoever holds the
+  // current one, and the person sets their own through the one-time link
+  // below. Nothing is stored or shown -- see src/lib/accessLink.ts.
+  const password = unknowablePassword();
   const { error } = await admin.auth.admin.updateUserById(hospitalId, {
     password,
   });
@@ -50,14 +49,17 @@ export async function POST(request: NextRequest) {
     return serverError("admin/reset-hospital-password", error);
   }
 
-  // Kept visible to admins (not shown just once) so they can walk the
-  // hospital contact through logging in over a support call - matches the
-  // patient/therapist reset routes, which this one was missing before.
-  await admin.from("hospital_admin_notes").upsert({
-    hospital_id: hospitalId,
-    temp_password: password,
-    temp_password_set_at: new Date().toISOString(),
-  });
+  // Any plaintext an older version of this route left behind is cleared:
+  // it is a credential for the password just replaced.
+  await admin.from("hospital_admin_notes").update({ temp_password: null }).eq("hospital_id", hospitalId);
+
+  const link = await issueSetPasswordLink(admin, hospital.email);
+  if (!link.ok) {
+    return serverError("admin/reset-hospital-password", link.error, {
+      message:
+        "The old password was cleared, but a sign-in link could not be made. Press the button again to issue one.",
+    });
+  }
 
   // The generated password is deliberately NOT in the log -- it is a live
   // credential, and admin_activity_log is read by every admin. That an
@@ -68,5 +70,5 @@ export async function POST(request: NextRequest) {
     details: { role: "hospital" },
   });
 
-  return NextResponse.json({ email: hospital.email, password });
+  return NextResponse.json({ email: hospital.email, linkPath: link.path });
 }

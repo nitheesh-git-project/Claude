@@ -143,7 +143,7 @@ wrong are exactly the things a restore drill finds:
 | `admin_impersonation_sessions` | Indefinitely | Nothing but closing it once. |
 | Clinical records (`patient_condition_profiles`, `pain_assessments`, `session_notes`) | Indefinitely | Nothing |
 | Uploaded reports | Until the patient deletes one | The patient, or cascade on account deletion |
-| Issued credentials (`*_admin_notes.temp_password`) | 14 days | Expiry on read, plus `purge_expired_temp_passwords()` |
+| Issued credentials (`*_admin_notes.temp_password`) | Not kept | No password is issued any more - accounts get a one-time sign-in link (`src/lib/accessLink.ts`); `schema.sql` clears any plaintext earlier versions stored |
 | `rate_limit_counters` | One window | The next call for that bucket |
 
 ### The audit log's archival strategy

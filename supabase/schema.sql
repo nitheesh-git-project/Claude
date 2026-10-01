@@ -14915,3 +14915,16 @@ alter table patient_referrals add column if not exists withdrawn_by uuid referen
 alter table patient_referrals drop constraint if exists patient_referrals_status_check;
 alter table patient_referrals add constraint patient_referrals_status_check
   check (status in ('pending_review', 'therapist_assigned', 'invite_sent', 'converted', 'declined', 'withdrawn'));
+
+-- No password the clinic issued is kept in plaintext.
+--
+-- Accounts an admin creates or resets now get a one-time Supabase recovery
+-- link to set their own password (src/lib/accessLink.ts); nothing readable
+-- is written to the *_admin_notes tables. This clears what earlier versions
+-- left there -- each is a working credential for an account that may not
+-- have changed it. The columns stay (temp_password_set_at is the record that
+-- one was issued) and purge_expired_temp_passwords() keeps running harmlessly.
+update patient_admin_notes set temp_password = null where temp_password is not null;
+update therapist_admin_notes set temp_password = null where temp_password is not null;
+update hospital_admin_notes set temp_password = null where temp_password is not null;
+update admin_account_notes set temp_password = null where temp_password is not null;

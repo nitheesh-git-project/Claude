@@ -5,10 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { serverError } from "@/lib/apiError";
-
-function generatePassword() {
-  return crypto.randomBytes(9).toString("base64url");
-}
+import { issueSetPasswordLink, unknowablePassword } from "@/lib/accessLink";
 
 function generateReferralCode() {
   return crypto.randomBytes(4).toString("hex").toUpperCase();
@@ -48,7 +45,9 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const password = generatePassword();
+  // No password for the partner is generated, stored or shown -- they set
+  // their own through the one-time link below (src/lib/accessLink.ts).
+  const password = unknowablePassword();
   const referralCode = generateReferralCode();
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({
@@ -120,27 +119,13 @@ export async function POST(request: NextRequest) {
     await admin.from("b2b_leads").update({ status: "onboarded" }).eq("id", leadId);
   }
 
-  // The credential outlives the screen that issued it.
-  //
-  // This route generated the password, returned it, and wrote it nowhere -- so
-  // it lived only in `OnboardHospitalForm`'s React state, and the banner's own
-  // "they won't be shown again" was literally true: one refresh, one navigation
-  // or one realtime remount and it was gone for good. A freshly onboarded
-  // partner then had no readable password anywhere, unlike a patient, a
-  // therapist or a back-office admin, and the only way to help them sign in was
-  // to reset a credential that had never been used.
-  //
-  // `hospital_admin_notes` exists for exactly this and was already read by the
-  // Partners card -- it was only ever written by the reset route. Best-effort
-  // and logged: an account that exists with an unstored password is recoverable
-  // by a reset, where failing the whole onboarding over a note row is not.
-  const { error: noteError } = await admin.from("hospital_admin_notes").upsert({
-    hospital_id: created.user.id,
-    temp_password: password,
-    temp_password_set_at: new Date().toISOString(),
-  });
-  if (noteError) {
-    console.error("onboard-hospital: temp password not persisted", noteError.message);
+  // The partner's way in: a one-time link to set their own password,
+  // handed over by the admin. Best-effort: the partner exists either way,
+  // and a lost or failed link is replaced from the Partners card (Send
+  // sign-in link) rather than by failing the onboarding.
+  const link = await issueSetPasswordLink(admin, email);
+  if (!link.ok) {
+    console.error("onboard-hospital: sign-in link not issued", link.error);
   }
 
   // Same rule as the password-reset routes: the generated credential never
@@ -152,5 +137,12 @@ export async function POST(request: NextRequest) {
     details: { referralCode, leadId: leadId ?? null },
   });
 
-  return NextResponse.json({ email, password, referralCode });
+  return NextResponse.json({
+    email,
+    referralCode,
+    linkPath: link.ok ? link.path : null,
+    ...(link.ok
+      ? {}
+      : { warning: "The partner was created, but a sign-in link could not be made. Send one from their card." }),
+  });
 }
