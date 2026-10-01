@@ -379,7 +379,11 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   goes through that module's `toWinAnsi()` before it is drawn - a
   Devanagari name would otherwise throw at draw time and 500 the whole
   export rather than degrading. Session notes stay excluded from every
-  format, same rule as before.
+  format, same rule as before. **An export is complete or it is refused**:
+  every read carrying part of the record is checked and its lists are
+  paged, and a failure answers 503 rather than a document missing a
+  section. The button fetches the file instead of linking to it, so that
+  refusal reads as a sentence beside the button, not a page of JSON.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate
