@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  appointmentGrantsClinicalAccess,
   clinicalAccessHolders,
+  programmeLockGrantsClinicalAccess,
   describeAccessReason,
   type ClinicalAccessSource,
   type TherapistStanding,
@@ -135,5 +137,25 @@ describe("describeAccessReason", () => {
         active: true,
       })
     ).toBe("No current reason on record");
+  });
+});
+
+describe("what grants clinical access", () => {
+  it("is a live or delivered session, never a cancelled one", () => {
+    expect(appointmentGrantsClinicalAccess("requested")).toBe(true);
+    expect(appointmentGrantsClinicalAccess("confirmed")).toBe(true);
+    expect(appointmentGrantsClinicalAccess("completed")).toBe(true);
+    expect(appointmentGrantsClinicalAccess("cancelled")).toBe(false);
+    expect(appointmentGrantsClinicalAccess(null)).toBe(false);
+  });
+
+  it("is a programme lock only while the programme is paid, active and unexpired", () => {
+    const now = Date.parse("2026-10-01T00:00:00Z");
+    const live = { payment_status: "paid", status: "active", expires_at: "2026-12-01T00:00:00Z" };
+    expect(programmeLockGrantsClinicalAccess(live, now)).toBe(true);
+    expect(programmeLockGrantsClinicalAccess({ ...live, expires_at: null }, now)).toBe(true);
+    expect(programmeLockGrantsClinicalAccess({ ...live, payment_status: "unpaid" }, now)).toBe(false);
+    expect(programmeLockGrantsClinicalAccess({ ...live, status: "refunded" }, now)).toBe(false);
+    expect(programmeLockGrantsClinicalAccess({ ...live, expires_at: "2026-09-01T00:00:00Z" }, now)).toBe(false);
   });
 });
