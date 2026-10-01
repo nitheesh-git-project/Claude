@@ -159,35 +159,51 @@ export async function authorCarePlanVersion(
   // waiting on the clinic and one waiting on the patient are both live, and
   // a new version belongs on the existing thread rather than opening a
   // second one the unique index would refuse anyway.
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await admin
     .from("care_plans")
     .select("id, status, therapist_id")
     .in("status", ["active", "pending_review"])
     .eq("patient_id", patientId)
     .maybeSingle();
+  if (existingError) {
+    return { ok: false, status: 503, error: "Couldn't check this patient's recommendations just now. Please try again." };
+  }
+
+  // A plan belongs to the therapist who opened it. A second therapist used
+  // to "revise" it -- their version became current on a plan still
+  // attributed to the first, so the patient read one clinician's advice
+  // under another's name. There is one open plan per patient, so the
+  // honest answer is to say whose it is and let the clinic decide.
+  if (existing && existing.therapist_id !== authoredBy) {
+    return {
+      ok: false,
+      status: 409,
+      error:
+        "This patient already has an open recommendation from another therapist. Ask the clinic to withdraw it before writing a new one.",
+    };
+  }
 
   let planId: string;
   let nextVersionNo = 1;
+  let createdNewPlan = false;
 
   if (existing) {
     planId = existing.id;
-    const { data: latest } = await admin
+    const { data: latest, error: latestError } = await admin
       .from("care_plan_versions")
       .select("version_no")
       .eq("care_plan_id", planId)
       .order("version_no", { ascending: false })
       .limit(1)
       .maybeSingle();
-    nextVersionNo = (latest?.version_no ?? 0) + 1;
-
-    const { error: retireError } = await admin
-      .from("care_plan_versions")
-      .update({ is_current: false })
-      .eq("care_plan_id", planId)
-      .eq("is_current", true);
-    if (retireError) {
-      return { ok: false, status: 500, error: retireError.message };
+    if (latestError) {
+      return { ok: false, status: 503, error: "Couldn't read this recommendation just now. Please try again." };
     }
+    nextVersionNo = (latest?.version_no ?? 0) + 1;
+    // Nothing is retired here any more. The new version goes in as not
+    // current, and publish_care_plan_version swaps the flags and the pointer
+    // in one transaction below -- so a failure anywhere leaves the version
+    // the patient can see exactly as it was.
   } else {
     const { data: previous } = await admin
       .from("care_plans")
@@ -227,6 +243,7 @@ export async function authorCarePlanVersion(
       };
     }
     planId = created.id;
+    createdNewPlan = true;
   }
 
   const { data: version, error: versionError } = await admin
@@ -247,12 +264,20 @@ export async function authorCarePlanVersion(
       clinical_rationale: input.clinicalRationale || null,
       instructions: input.instructions || null,
       expires_at: expiresAt,
-      is_current: true,
+      // Not current until publish_care_plan_version makes it so.
+      is_current: false,
     })
     .select("id, version_no")
     .single();
 
   if (versionError || !version) {
+    if (createdNewPlan) {
+      await admin
+        .from("care_plans")
+        .update({ status: "withdrawn", updated_at: new Date().toISOString() })
+        .eq("id", planId)
+        .is("current_version_id", null);
+    }
     return {
       ok: false,
       status: 500,
@@ -260,22 +285,34 @@ export async function authorCarePlanVersion(
     };
   }
 
-  // The pointer, and the thread's own state. A new version on an existing
-  // thread carries that thread with it: a therapist revising a plan the
-  // clinic already published sends the whole thread back for review, which
-  // does take a live offer off the patient's screen -- deliberately, since
-  // the offer they can now see is one nobody has approved.
-  const { error: pointerError } = await admin
-    .from("care_plans")
-    .update({
-      current_version_id: version.id,
-      status: landsApproved ? "active" : "pending_review",
-      submitted_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", planId);
-  if (pointerError) {
-    console.error("Care plan version saved but the pointer failed", planId, pointerError);
+  // The pointer, the two current flags and the thread's own state, in one
+  // transaction. A new version on an existing thread carries that thread
+  // with it: a therapist revising a plan the clinic already published sends
+  // the whole thread back for review, which does take a live offer off the
+  // patient's screen -- deliberately, since the offer they can now see is
+  // one nobody has approved.
+  const { error: publishError } = await admin.rpc("publish_care_plan_version", {
+    p_care_plan_id: planId,
+    p_version_id: version.id,
+    p_lands_approved: landsApproved,
+  });
+  if (publishError) {
+    console.error("Care plan version saved but could not be published", planId, publishError.message);
+    // A thread opened by this very request has no version the patient can
+    // see. Close it, so it neither shows as an empty recommendation nor
+    // blocks the retry behind the one-open-plan-per-patient index.
+    if (createdNewPlan) {
+      await admin
+        .from("care_plans")
+        .update({ status: "withdrawn", updated_at: new Date().toISOString() })
+        .eq("id", planId)
+        .is("current_version_id", null);
+    }
+    return {
+      ok: false,
+      status: 500,
+      error: "Could not save the recommendation. Nothing the patient sees has changed -- please try again.",
+    };
   }
 
   return { ok: true, carePlanId: planId, versionId: version.id, versionNo: version.version_no };

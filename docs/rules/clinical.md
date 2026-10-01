@@ -169,6 +169,15 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   naming only the admin a louder one about whose judgement it is.
   `/api/admin/author-care-plan` takes `requireAdminScope("sessions")`, a
   mandatory reason, and writes a `care_plan.author_on_behalf` audit row.
+  **A version is published in one transaction, and only by the plan's own
+  therapist.** The new version is inserted with `is_current = false`, and
+  `publish_care_plan_version()` (schema.sql) moves both current flags and
+  the plan's pointer together under a row lock - the old order (retire,
+  insert, repoint, with the repoint's failure only logged) could leave a
+  plan with no current version or pointing at one it did not hold. A new
+  thread whose first version fails to publish is withdrawn, so it neither
+  shows empty nor blocks the retry. An open plan belonging to another
+  therapist is refused (409) rather than revised under their name.
   The admin's panel matches the therapist's dialog on the two things that
   decide what gets picked. The programmes on offer are narrowed to the
   chosen session's own condition, through `narrowToCategory()` in

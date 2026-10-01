@@ -14765,3 +14765,54 @@ create policy "pain_assessments_insert_assigned_therapist" on pain_assessments
         )
     )
   );
+
+-- Publishing a care plan version is one transaction.
+--
+-- authorCarePlanVersion used to retire the current version, then insert the
+-- new one, then move the plan's pointer -- three statements. An insert that
+-- failed left the plan with no current version at all; a pointer update that
+-- failed was logged and the route still answered success, pointing the
+-- patient at a version the plan did not reference. The new version is now
+-- inserted with is_current = false (so nothing is retired yet), and this
+-- function moves both flags and the pointer together under a lock on the
+-- plan. If it fails, the old version is still current and still pointed at.
+create or replace function public.publish_care_plan_version(
+  p_care_plan_id uuid,
+  p_version_id uuid,
+  p_lands_approved boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform 1 from care_plans where id = p_care_plan_id for update;
+  if not found then
+    raise exception 'care plan % not found', p_care_plan_id;
+  end if;
+
+  update care_plan_versions
+     set is_current = false
+   where care_plan_id = p_care_plan_id
+     and is_current
+     and id <> p_version_id;
+
+  update care_plan_versions
+     set is_current = true
+   where id = p_version_id
+     and care_plan_id = p_care_plan_id;
+  if not found then
+    raise exception 'version % does not belong to care plan %', p_version_id, p_care_plan_id;
+  end if;
+
+  update care_plans
+     set current_version_id = p_version_id,
+         status = case when p_lands_approved then 'active' else 'pending_review' end,
+         submitted_at = now(),
+         updated_at = now()
+   where id = p_care_plan_id;
+end;
+$$;
+
+revoke all on function public.publish_care_plan_version(uuid, uuid, boolean) from public, anon, authenticated;
