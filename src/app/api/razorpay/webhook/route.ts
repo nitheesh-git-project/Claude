@@ -241,8 +241,17 @@ export async function POST(request: NextRequest) {
   // callback never lands -- a patient who pays and closes the tab. Both are
   // idempotent, so whichever arrives first does the work and the second
   // finds it done.
-  if (result.applied && result.targetAppointmentId) {
-    await settleInvitesOnCapture(admin, result.targetAppointmentId);
+  //
+  // Run on every capture of an appointment, applied or not: if the browser
+  // callback won the race but its settlement failed, this delivery is the
+  // repair. A failure is retryable, so Razorpay delivers again rather than
+  // the discount and the inviter's reward staying unsettled.
+  if (result.targetAppointmentId) {
+    const invitesSettled = await settleInvitesOnCapture(admin, result.targetAppointmentId);
+    if (!invitesSettled) {
+      await markProcessed(`${WEBHOOK_RETRYABLE_PREFIX}invite settlement failed`);
+      return NextResponse.json({ error: "Could not settle invite rewards" }, { status: 500 });
+    }
   }
 
   // The one thing record_payment_capture deliberately does not do, because

@@ -172,15 +172,23 @@ export async function settleInviteHalf(
   admin: AdminClient,
   appointmentId: string,
   source: DiscountSource | null
-): Promise<void> {
-  if (source !== "invite_reward" && source !== "invite_welcome") return;
+): Promise<boolean> {
+  if (source !== "invite_reward" && source !== "invite_welcome") return true;
   try {
-    await admin.rpc("settle_invite_half", {
+    // supabase-js reports an RPC failure as a returned `error`, not a throw
+    // -- checking only the catch is how a failed settlement read as done.
+    const { error } = await admin.rpc("settle_invite_half", {
       p_appointment_id: appointmentId,
       p_half: source === "invite_reward" ? "reward" : "welcome",
     });
+    if (error) {
+      console.error("settle_invite_half failed", appointmentId, error.message);
+      return false;
+    }
+    return true;
   } catch (err) {
     console.error("settle_invite_half failed", err);
+    return false;
   }
 }
 
@@ -196,14 +204,20 @@ export async function grantInviteRewardOnPayment(
   admin: AdminClient,
   patientId: string,
   appointmentId: string
-): Promise<void> {
+): Promise<boolean> {
   try {
-    await admin.rpc("grant_invite_reward", {
+    const { error } = await admin.rpc("grant_invite_reward", {
       p_invitee_id: patientId,
       p_appointment_id: appointmentId,
     });
+    if (error) {
+      console.error("grant_invite_reward failed", appointmentId, error.message);
+      return false;
+    }
+    return true;
   } catch (err) {
     console.error("grant_invite_reward failed", err);
+    return false;
   }
 }
 
@@ -244,25 +258,31 @@ export async function readInviteSummary(
  * that lives in two routes drifts into two rules. Reads the source itself so
  * neither caller has to remember to select it.
  *
- * Never throws and never blocks: the patient has already been charged by the
- * time this runs, so a failure here is a server-log problem, the same
- * posture recordPaymentCapture is called with.
+ * Never throws and never blocks the patient: they have already been charged
+ * by the time this runs. It does say whether it finished, so the webhook --
+ * which Razorpay retries -- can ask for another delivery rather than leave a
+ * discount and a reward unsettled for good. Both steps are idempotent, so a
+ * retry that finds them done changes nothing.
  */
 export async function settleInvitesOnCapture(
   admin: AdminClient,
   appointmentId: string
-): Promise<void> {
+): Promise<boolean> {
   try {
-    const { data } = await admin
+    const { data, error } = await admin
       .from("appointments")
       .select("patient_id, discount_source")
       .eq("id", appointmentId)
       .maybeSingle();
+    if (error) {
+      console.error("settleInvitesOnCapture: could not read appointment", appointmentId, error.message);
+      return false;
+    }
     const row = data as { patient_id?: string; discount_source?: string | null } | null;
-    if (!row?.patient_id) return;
+    if (!row?.patient_id) return true;
 
     // Spending a half is final once the booking it paid for is paid for.
-    await settleInviteHalf(
+    const halfSettled = await settleInviteHalf(
       admin,
       appointmentId,
       (row.discount_source ?? null) as DiscountSource | null
@@ -272,8 +292,10 @@ export async function settleInvitesOnCapture(
     // Called unconditionally: an invite can only be claimed before a
     // patient's first paid session, so the function finding one means this
     // is that session, and it is idempotent besides.
-    await grantInviteRewardOnPayment(admin, row.patient_id, appointmentId);
+    const rewardGranted = await grantInviteRewardOnPayment(admin, row.patient_id, appointmentId);
+    return halfSettled && rewardGranted;
   } catch (err) {
     console.error("settleInvitesOnCapture failed", err);
+    return false;
   }
 }
