@@ -1,5 +1,15 @@
 # MoveRestore Physiotherapy
 
+**`staging` is the default branch and the only one anything merges to.
+`main` is live.** "Merge" with no branch named means merge to `staging`, as a
+pull request -- both branches refuse a direct push, so a `GH013` refusal is
+the rule working rather than a credential to go hunting for. **Never merge to
+`main`:** that is a release to the deployed site and the production Supabase
+project, and the owner does it by hand, deliberately, not as the last step of
+finishing a piece of work. The whole model, and the one thing that does *not*
+travel with a merge -- `supabase/schema.sql`, which reaches staging's database
+only when a person applies it -- is in `STAGING.md`.
+
 Production Next.js 16 (App Router) + React 19 + TypeScript + Tailwind v4 app
 for a physical therapy practice: public marketing site, patient booking and
 Razorpay payments across two delivery modes (video consultation and in-home
@@ -983,6 +993,6 @@ which are built on request and never as part of a fix: whenever a change
 adds or removes a route, role, environment variable, npm script, or alters a
 documented rule (booking lead time, refund window, payment verification, Meet
 sync, payout math) or a schema flow, update the docs in that same change
-before it reaches `main`. See "Keeping the docs current" in `AGENTS.md`.
+before it reaches `staging`. See "Keeping the docs current" in `AGENTS.md`.
 
 @AGENTS.md

@@ -2653,14 +2653,14 @@ Notable conventions:
 ## Knowledge graph (optional, one-time)
 
 `graphify-out/graph.json`, `GRAPH_REPORT.md` and `manifest.json` are committed
-and refreshed by CI on every merge to `main`
+and refreshed by CI on every merge to `staging`, the default branch
 (`.github/workflows/graphify.yml`), so a fresh clone already has a current
 graph. `manifest.json` is what keeps the refresh incremental - it records the
 hashes of the last build, so CI re-extracts only what changed instead of the
 whole repo. When the semantic pass can't run (no `GEMINI_API_KEY` secret, or
 its free-tier quota is spent), CI falls back to a structural graph rather than
 failing. To also refresh it locally whenever you
-merge into `main`:
+merge into `staging`:
 
 ```bash
 pip install graphifyy               # the graphify CLI
@@ -2676,3 +2676,19 @@ Deployed on Vercel. Set every variable from the table above in the project's
 environment settings (service role, Razorpay secret, and Google credentials
 as server-only), and apply `supabase/schema.sql` to the target Supabase
 project before the first deploy.
+
+### Branches
+
+`staging` is the **default branch** and where every pull request lands;
+`main` is **live**, and is merged by the owner by hand as a release rather
+than as the end of a piece of work. Each has its own Supabase project, and
+both refuse a direct push -- a `GH013` refusal means the ruleset is working,
+not that a credential is wrong.
+
+The one thing that does not travel with a merge is the schema.
+`.github/workflows/schema-apply.yml` applies `supabase/schema.sql`
+automatically on `main` only, from the `Production` environment's own
+secrets -- so a schema change merged to `staging` reaches staging's database
+only when somebody applies it there, and that has to happen *before* the app
+is exercised. `STAGING.md` has the whole model and the reason the trigger is
+deliberately narrow.
