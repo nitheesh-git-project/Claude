@@ -9,6 +9,7 @@ import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
+import { WEBHOOK_RETRYABLE_PREFIX, webhookRetryVerdict } from "@/lib/webhookRetry";
 
 // Razorpay's server-to-server notification that a payment happened.
 //
@@ -118,19 +119,48 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
 
+  let eventRowId = recorded?.id;
+
   if (insertError) {
-    if (insertError.code === "23505") {
-      // Already seen. Razorpay retries until it gets a 2xx, so this must be
-      // a success -- answering an error would have it retry forever.
+    if (insertError.code !== "23505") {
+      console.error("Failed to record Razorpay webhook event", eventId, insertError);
+      // A 500 asks Razorpay to retry, which is right: we have not processed
+      // it and have no record that we saw it.
+      return NextResponse.json({ error: "Could not record event" }, { status: 500 });
+    }
+
+    // Already seen. Whether that makes this a duplicate depends on how the
+    // first attempt ended -- the row cannot be deleted to make room for a
+    // retry (trg_payment_webhook_events_identity forbids it, because the row
+    // IS the dedup), so a failed attempt is recorded on the row instead and
+    // read back here. Acknowledging a retry of a failed capture as a
+    // duplicate is how a paid booking stayed unpaid for good.
+    const { data: prior, error: priorError } = await admin
+      .from("payment_webhook_events")
+      .select("id, processed_at, processing_error, received_at")
+      .eq("razorpay_event_id", eventId)
+      .maybeSingle();
+    if (priorError || !prior) {
+      console.error("Could not read prior webhook attempt", eventId, priorError?.message);
+      return NextResponse.json({ error: "Could not read event" }, { status: 500 });
+    }
+    const verdict = webhookRetryVerdict(prior, Date.now());
+    if (verdict === "duplicate") {
+      // Razorpay retries until it gets a 2xx, so a genuine duplicate must
+      // be a success -- answering an error would have it retry forever.
       return NextResponse.json({ received: true, duplicate: true });
     }
-    console.error("Failed to record Razorpay webhook event", eventId, insertError);
-    // A 500 asks Razorpay to retry, which is right: we have not processed
-    // it and have no record that we saw it.
-    return NextResponse.json({ error: "Could not record event" }, { status: 500 });
+    if (verdict === "in_flight") {
+      // Another delivery is working on it right now. Not a 2xx: if that one
+      // dies, this retry is the only way the capture lands.
+      return NextResponse.json({ error: "Event in progress" }, { status: 409 });
+    }
+    // "retry": the earlier attempt failed, or died before recording an
+    // outcome. Run it again on the same row; record_payment_capture is
+    // idempotent, so a capture that did land is a no-op the second time.
+    eventRowId = prior.id;
   }
 
-  const eventRowId = recorded?.id;
   const markProcessed = async (processingError?: string) => {
     if (!eventRowId) return;
     const { error } = await admin
@@ -179,15 +209,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (!result) {
-    await markProcessed("record_payment_capture failed");
-    // Retryable: nothing was applied, and the next delivery collides on the
-    // event id... which would then be answered as a duplicate and never
-    // retried. So the event row is removed here, deliberately, so a retry
-    // gets a real second attempt. This is the one case where dropping the
-    // dedup row is correct -- it records an attempt that did nothing.
-    if (eventRowId) {
-      await admin.from("payment_webhook_events").delete().eq("id", eventRowId);
-    }
+    // Retryable: nothing was applied. The row stays (it cannot be deleted)
+    // and carries the retryable marker, which is what tells the next
+    // delivery of this event id to try again rather than call it a
+    // duplicate. See webhookRetryVerdict.
+    await markProcessed(`${WEBHOOK_RETRYABLE_PREFIX}record_payment_capture failed`);
     return NextResponse.json({ error: "Could not apply capture" }, { status: 500 });
   }
 

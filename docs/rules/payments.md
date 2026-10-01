@@ -35,7 +35,14 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   `payment_webhook_events` row **before** doing any work, because that
   insert colliding on `razorpay_event_id` is the deduplication; processing
   first and recording after would let a retry arriving mid-flight do the
-  work twice.
+  work twice. **A failed attempt is written on that row, never deleted
+  from it** - the row cannot be deleted (`trg_payment_webhook_events_identity`),
+  and the old "delete so the retry gets a real attempt" path raised, so the
+  retry was acknowledged as a duplicate and a paid booking stayed unpaid.
+  A retryable failure sets `processing_error` with the `retryable: ` prefix;
+  `webhookRetryVerdict` (`src/lib/webhookRetry.ts`) then answers a repeat
+  delivery as `retry` (reprocess on the same row), `in_flight` (409, a
+  live attempt under two minutes old), or `duplicate` (200).
   **`payment.captured` is the only event that applies anything, and
   `payment.authorized` is not a capture.** An authorization is a hold, not
   money taken: Razorpay voids one that is never captured and auto-refunds
