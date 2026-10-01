@@ -33,6 +33,38 @@ export const DISCOUNT_SOURCES = [
 ] as const;
 export type DiscountSource = (typeof DISCOUNT_SOURCES)[number];
 
+/**
+ * Which discount wins an exact tie, lowest number first.
+ *
+ * The rule is "the largest discount applies, and a tie goes to the most
+ * deliberate decision". The second half used to be carried by the *order the
+ * caller passed its candidates in* -- so a caller that listed them
+ * differently, or a new caller that had not read the comment, silently
+ * changed which rule a patient's money came off, and nothing failed. That is
+ * the kind of ordering that holds right up until somebody adds a discount.
+ *
+ * Declared here instead, and applied inside `resolveDiscount`, so the
+ * precedence is a property of the rules rather than of the call site:
+ *
+ *   1. goodwill        an admin looked at this patient and typed a figure
+ *   2. promo_code      the patient typed a code somebody set up
+ *   3. invite_reward   earned by sending a friend who then paid
+ *   4. invite_welcome  earned by being sent
+ *   5. first_session   a standing campaign that runs itself
+ *
+ * Reward above welcome because the reward was earned by doing something, and
+ * both above the standing offer for the same reason the whole list is
+ * ordered: the more deliberate the decision behind a discount, the less
+ * comfortable it is to override.
+ */
+export const DISCOUNT_PRECEDENCE: Record<DiscountSource, number> = {
+  goodwill: 1,
+  promo_code: 2,
+  invite_reward: 3,
+  invite_welcome: 4,
+  first_session: 5,
+};
+
 export const DISCOUNT_SOURCE_LABELS: Record<DiscountSource, string> = {
   first_session: "First session offer",
   goodwill: "Goodwill adjustment",
@@ -273,16 +305,25 @@ export function resolveDiscount({
   const goodwill = applyGoodwillDiscount(listPricePaise, goodwillPaise ?? 0);
   const firstSession = offerEligible ? applyFirstSessionOffer(listPricePaise, offer) : nothing;
 
-  // Goodwill first, then whatever the caller resolved, then the standing
-  // offer. On an exact tie the earlier one wins, which puts the most
-  // deliberate decision on top: an admin who looked at this patient beats a
-  // code the patient typed, which beats a campaign that runs itself.
   const ordered = [goodwill, ...candidates, firstSession].filter((c) => c.source !== null);
   if (ordered.length === 0) return nothing;
 
+  // Largest discount wins; an exact tie goes to the more deliberate rule,
+  // read from DISCOUNT_PRECEDENCE rather than from the order the caller
+  // happened to pass these in. That ordering was the tie-break until now,
+  // which meant a caller listing its candidates differently silently changed
+  // which rule a patient's money came off -- with nothing failing to say so.
   let best = ordered[0];
   for (const candidate of ordered.slice(1)) {
-    if (candidate.discountPaise > best.discountPaise) best = candidate;
+    if (candidate.discountPaise > best.discountPaise) {
+      best = candidate;
+      continue;
+    }
+    if (candidate.discountPaise === best.discountPaise) {
+      const candidateRank = DISCOUNT_PRECEDENCE[candidate.source as DiscountSource];
+      const bestRank = DISCOUNT_PRECEDENCE[best.source as DiscountSource];
+      if (candidateRank < bestRank) best = candidate;
+    }
   }
   return best;
 }

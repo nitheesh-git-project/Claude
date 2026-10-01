@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { serverError } from "@/lib/apiError";
 
 // Soft delete only. A past visit's visit_address_id points at this row, and
 // hard-deleting it would break that link -- the appointment keeps its own
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     .eq("patient_id", user.id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("patient/addresses/remove", error);
   }
 
   return NextResponse.json({ success: true });

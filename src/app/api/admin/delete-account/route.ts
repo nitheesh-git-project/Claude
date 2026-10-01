@@ -57,6 +57,11 @@ const GROUP_BY_TABLE: Record<string, keyof AccountReferences> = {
   therapist_payout_batches: "money",
   therapist_payout_requests: "money",
   business_expenses: "money",
+  // The record of a refund this admin asked the gateway for. It is
+  // append-only and its foreign keys are `restrict`, so it genuinely blocks
+  // -- and "1 money record" sends somebody to the right screen where "1
+  // other record" sends them to none.
+  refund_attempts: "money",
 
   patient_package_purchases: "programmes",
   home_visit_package_purchases: "programmes",

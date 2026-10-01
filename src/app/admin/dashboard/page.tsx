@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
+import { getAdminContextResult } from "@/lib/supabase/requireAdmin";
+import AdminAccessUnavailable from "@/components/admin/AdminAccessUnavailable";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import DeclineAccountButton from "@/components/admin/DeclineAccountButton";
 import OnboardHospitalForm from "@/components/admin/OnboardHospitalForm";
@@ -46,6 +49,7 @@ import MoneyAlertsStrip from "@/components/admin/MoneyAlertsStrip";
 import AdminOwingTab from "@/components/admin/AdminOwingTab";
 import {
   readPayLaterAgeSettings,
+  readPayLaterCeilingPaise,
   readPayLaterEnabled,
 } from "@/lib/payLaterSettingsServer";
 import {
@@ -141,9 +145,11 @@ import {
   retryDueMeetAccess,
   MAX_MEET_SYNC_AUTO_ATTEMPTS,
   MAX_MEET_ACCESS_AUTO_ATTEMPTS,
+  MEET_SYNC_CLAIM_STALE_MS,
 } from "@/lib/retryDueMeetSyncs";
 import { checkGoogleConnection } from "@/lib/googleConnectionHealth";
-import { sessionNeedsCalendarSync } from "@/lib/meetSyncState";
+import { describeCalendarSync, sessionNeedsCalendarSync } from "@/lib/meetSyncState";
+import { readAllRows } from "@/lib/supabase/readAllRows";
 import { runRiskSweep } from "@/lib/riskDetectors";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -179,6 +185,18 @@ import { summariseFindings, type LeakFinding } from "@/lib/contactLeakScan";
 import type { RiskSeverity, RiskStatus, RiskSubjectKind } from "@/lib/riskSignals";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import {
+  readableTempPassword,
+  TEMP_PASSWORD_VISIBLE_DAYS,
+} from "@/lib/tempPassword";
+import { readReferralAttributionHealth } from "@/lib/referralAttribution";
+import { readRefundHealth } from "@/lib/refundHealthServer";
+import { readStorageReconciliation } from "@/lib/storageReconciliation";
+import { countAwaitingFirstBooking } from "@/lib/unscheduledPurchases";
+import {
+  readHomeVisitAreaCommitments,
+  readHomeVisitCommitmentTotal,
+} from "@/lib/homeVisitAreaCommitments";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | MoveRestore",
@@ -202,15 +220,48 @@ export default async function AdminDashboardPage({
   searchParams: Promise<{ section?: string; tab?: string }>;
 }) {
   const { section: sectionParam, tab: tabParam } = await searchParams;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) {
-    return null;
+  // The page proves for itself that this caller is an active admin, rather
+  // than trusting the proxy to have done it.
+  //
+  // Two reasons it cannot be left to src/proxy.ts alone. The proxy guards a
+  // *matcher* -- a path list in one file -- so any admin surface added
+  // outside it is unguarded on the day it ships, and nothing fails loudly
+  // when that happens. And the failure here is not "an unauthorised person
+  // sees an empty screen": `viewerScope` below is derived by looking this
+  // user's id up in the admin-scope map, and `parseAdminScope` answers an
+  // absent value with "full" -- correct for an admin predating scopes, and
+  // catastrophic for a non-admin, who would render as Master Admin with
+  // every section open. The guard has to come first.
+  //
+  // All three outcomes are kept apart, per the rule that a check which
+  // could not be run is not a check that came back negative:
+  const adminGuard = await getAdminContextResult();
+
+  if (!adminGuard.ok) {
+    if (adminGuard.reason === "unauthenticated") {
+      // The real admin's way in. An unauthenticated visitor is the one
+      // caller for whom naming this door costs nothing -- they cannot be
+      // told apart from the admin who has simply been signed out.
+      redirect("/admin/login");
+    }
+    if (adminGuard.reason === "unavailable") {
+      // Signed in, and we could not establish what they are. Never a
+      // redirect: bouncing a Master Admin off the back office because a
+      // profile read blipped is the exact misreport this branch exists for.
+      return <AdminAccessUnavailable />;
+    }
+    // `forbidden`. /get-started, never /admin/login -- redirecting a
+    // signed-in non-admin to the admin login page confirms the back office
+    // exists and names its door, which is the rule this app already holds
+    // for the proxy's own admin branch.
+    redirect("/get-started");
   }
 
+  const user = adminGuard.user;
+  const authoritativeScope = adminGuard.context.scope;
+
+  const supabase = await createClient();
   const admin = createAdminClient();
 
   // Runs before the big read below so this same request already sees any
@@ -245,6 +296,24 @@ export default async function AdminDashboardPage({
     // exists for patterns that have been building for days. Its own
     // interval guard means most renders skip it entirely.
     await runRiskSweep(admin);
+    // Not keeping a credential the clinic issued and nobody collected.
+    //
+    // The screens already stop *showing* one past its window (see
+    // src/lib/tempPassword.ts); this is the other half, so the plaintext is
+    // not left on disk indefinitely. In after() with the other sweeps
+    // because there is no worker in this deployment, and it is cheap, bounded
+    // and idempotent -- four qualified UPDATEs that match nothing on almost
+    // every render.
+    //
+    // A failure is swallowed deliberately: this is housekeeping, and it must
+    // never be the thing that takes the dashboard down.
+    try {
+      await admin.rpc("purge_expired_temp_passwords", {
+        p_older_than_days: TEMP_PASSWORD_VISIBLE_DAYS,
+      });
+    } catch (err) {
+      console.error("Could not purge expired temporary passwords", err);
+    }
   });
 
   // All of these are independent reads -- none needs another query's data,
@@ -262,7 +331,7 @@ export default async function AdminDashboardPage({
     { data: pendingAccounts },
     { data: pendingProfileChanges },
     { data: approvedTherapists },
-    { data: appointments, error: appointmentsError },
+    { data: appointments, error: appointmentsError, truncated: appointmentsTruncated },
     { data: packagePurchases },
     { data: paymentFailures },
     { data: payoutBatches },
@@ -343,12 +412,20 @@ export default async function AdminDashboardPage({
       .eq("approved", true)
       .order("full_name"),
 
-    admin
-      .from("appointments")
-      .select(
-        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, razorpay_payment_id, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note, no_show"
-      )
-      .order("created_at", { ascending: false }),
+    // Read in pages, because PostgREST caps a response at `max_rows` (1,000
+    // on this project) and answers 200 with no error when it truncates. This
+    // array is what every Money figure sums over, so a silent cap does not
+    // make the dashboard slow -- it makes revenue quietly understated by
+    // however many rows fell off the end, agreeing with itself on every
+    // screen. `readAllRows` walks to the end and *says* when it could not.
+    readAllRows(() =>
+      admin
+        .from("appointments")
+        .select(
+          "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, patient_id, therapist_id, notes, created_at, paid_at, razorpay_payment_id, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, preferred_therapist_id, package_purchase_id, therapist_payout_paid_at, therapist_payout_amount_paise, therapist_payout_method, therapist_payout_note, no_show"
+        )
+        .order("created_at", { ascending: false })
+    ).then((r) => ({ data: r.rows, error: r.error, truncated: r.truncated })),
 
     // Feeds the Payment History tab's Patient section -- a package purchase
     // is its own real payment event (own razorpay_payment_id), separate from
@@ -407,7 +484,9 @@ export default async function AdminDashboardPage({
     // that hasn't had this migration applied yet would otherwise fail that
     // query too and blank the whole Sync Health panel, instead of just
     // losing the "gave up" flag. Same convention as the settled columns above.
-    admin.from("appointments").select("id, google_calendar_sync_attempts"),
+    admin
+      .from("appointments")
+      .select("id, google_calendar_sync_attempts, google_calendar_sync_claimed_at"),
 
     // The Meet waiting-room columns, newest of all and isolated for the same
     // reason: a database this migration has not reached loses the Waiting
@@ -652,7 +731,14 @@ export default async function AdminDashboardPage({
   // person pages are the exception, and compute their own (see
   // PatientDetailContent).
   const adminScopeById = new Map((adminScopeRows ?? []).map((r) => [r.id, r.admin_scope]));
-  const viewerScope = parseAdminScope(adminScopeById.get(user.id));
+  // The viewer's own scope comes from the guard above, not from this map.
+  // The map is a bulk read of every admin row and is what the team list and
+  // the activity feed render other people from; if it fails, or if it simply
+  // does not contain this id, the lookup falls through parseAdminScope to
+  // "full". That is the right default for a *row that exists* with no scope
+  // set, and the wrong one for "we did not find you" -- so the viewer is
+  // resolved once, by the guard, from their own profile.
+  const viewerScope = authoritativeScope;
   const allowedSections = sectionsForScope(viewerScope);
   // The subset they can act in. Queues and quick actions read this rather
   // than `allowedSections`: a queue is a piece of work, and finance reads
@@ -720,12 +806,21 @@ export default async function AdminDashboardPage({
     payLaterFeatureEnabled,
     payLaterPatients,
     payLaterRows,
+    completionRateRows,
     payLaterSettlementRows,
     payLaterReconciliation,
     payLaterPoolRows,
     payLaterManualRefunds,
     payLaterWrittenOff,
     payLaterWriteOffReconciliation,
+    referralAttributionHealth,
+    refundHealth,
+    areaCommitments,
+    homeVisitCommitmentTotal,
+    payLaterCeilingPaise,
+    storageHealth,
+    settlementDisagreements,
+    settlementsRecorded,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -993,6 +1088,31 @@ export default async function AdminDashboardPage({
           }[]
         | null
     ),
+    // The revenue-split rates frozen onto each session when it was
+    // delivered. Its own isolated read for the usual reason -- these are the
+    // newest columns on `appointments`, and folding them into the shared
+    // select would blank every money figure on a database that has not run
+    // the migration. Absent, every session falls back to the live
+    // percentage, which is exactly how all of them behaved before.
+    guard(
+      async () =>
+        (
+          await admin
+            .from("appointments")
+            .select(
+              "id, therapist_share_percent_at_completion, hospital_share_percent_at_completion, hospital_id_at_completion"
+            )
+            .eq("status", "completed")
+        ).data,
+      null as
+        | {
+            id: string;
+            therapist_share_percent_at_completion: number | null;
+            hospital_share_percent_at_completion: number | null;
+            hospital_id_at_completion: string | null;
+          }[]
+        | null
+    ),
     // Payments a patient says they have made, waiting to be checked. Its own
     // read, like everything else in this block: `pay_later_payments` is the
     // newest table in the app, and a database without it loses this one panel
@@ -1014,6 +1134,56 @@ export default async function AdminDashboardPage({
     // Written-off sessions against the bad debt recorded for them. Null when
     // it cannot be asked, which the check reports as "could not be checked".
     readWriteOffReconciliation(admin),
+    // Referred patients whose account does not name the partner who sent
+    // them. Its own read for the usual reason, and it answers null when it
+    // could not be asked so the check reports that rather than agreement.
+    readReferralAttributionHealth(admin),
+    // Whether every refund sent to Razorpay has a recorded outcome. Its own
+    // read, and null when it could not be asked -- a database without
+    // `refund_attempts` reports "not applied yet" rather than agreement.
+    readRefundHealth(admin),
+    // Visits already paid for that the clinic still has to drive to, per
+    // area. A purchase is honoured whatever happens to the catchment, so
+    // deactivating an area cancels nothing -- and an admin was doing it with
+    // no idea what was still owed. Null when it could not be asked, which
+    // the row reports rather than showing as zero.
+    readHomeVisitAreaCommitments(admin),
+    // The same question asked of the whole service, for the master switch --
+    // which is the wider version of deactivating one area and had the same
+    // blind spot. It counts purchases whose address carries no area too, so
+    // it is its own read rather than a sum of the map above.
+    readHomeVisitCommitmentTotal(admin),
+    // The clinic's own ceiling on what one patient may owe. Null is no
+    // ceiling, which is the default and how the feature shipped.
+    readPayLaterCeilingPaise(admin),
+    // Patient files against the rows describing them. Its own read, null
+    // when it could not be asked -- the one reconciliation on that screen
+    // whose subject is a medical record rather than a number.
+    readStorageReconciliation(admin),
+    // The settlement record against the derivation every money figure still
+    // reads. Its own call, null on a database without the table -- "could not
+    // be checked" is not the same fact as "nothing disagrees", and on a money
+    // reconciliation that difference is the whole point.
+    admin
+      .rpc("verify_settlement_agreement")
+      .then((r) => (r.error ? null : ((r.data ?? []) as unknown[]).length))
+      .then(
+        (n) => n,
+        () => null
+      ),
+    // How many settlements exist at all. Its own read, because zero is the
+    // one state the disagreement count above cannot distinguish: with no rows
+    // there is nothing to compare, so it finds nothing and would read as
+    // agreement -- on a write-only table whose broken writer has no other
+    // symptom anywhere.
+    admin
+      .from("session_settlements")
+      .select("id", { count: "exact", head: true })
+      .then((r) => (r.error ? null : r.count ?? 0))
+      .then(
+        (n) => n,
+        () => null
+      ),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -1216,6 +1386,9 @@ export default async function AdminDashboardPage({
 
   const refundDetailById = new Map((refundDetailRows ?? []).map((r) => [r.id, r]));
   const payLaterById = new Map((payLaterRows ?? []).map((r) => [r.id, r]));
+  const completionRatesById = new Map(
+    (completionRateRows ?? []).map((r) => [r.id, r])
+  );
 
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
@@ -1234,6 +1407,10 @@ export default async function AdminDashboardPage({
     const refund = refundDetailById.get(a.id);
     // And the same again for the pay-later columns, which are newer still.
     const terms = payLaterById.get(a.id);
+    // And the frozen revenue-split rates, newer again. Merged rather than
+    // selected so a missing migration costs the freeze and nothing else --
+    // the money maths falls back to the live percentage per row.
+    const frozenRates = completionRatesById.get(a.id);
     const withTerms = terms
       ? {
           ...a,
@@ -1242,14 +1419,24 @@ export default async function AdminDashboardPage({
           pay_later_outcome: terms.pay_later_outcome,
         }
       : a;
-    const withRefund = refund
+    const withRates = frozenRates
       ? {
           ...withTerms,
+          therapist_share_percent_at_completion:
+            frozenRates.therapist_share_percent_at_completion,
+          hospital_share_percent_at_completion:
+            frozenRates.hospital_share_percent_at_completion,
+          hospital_id_at_completion: frozenRates.hospital_id_at_completion,
+        }
+      : withTerms;
+    const withRefund = refund
+      ? {
+          ...withRates,
           refunded_at: refund.refunded_at,
           refund_reason: refund.refund_reason,
           refund_id: refund.refund_id,
         }
-      : withTerms;
+      : withRates;
     return discount
       ? {
           ...withRefund,
@@ -1319,6 +1506,13 @@ export default async function AdminDashboardPage({
   // offered could only ever mint a duplicate calendar event. See
   // src/lib/meetSyncState.ts.
   const syncModeById = new Map((syncModeRows ?? []).map((r) => [r.id, r]));
+  // The claim column rides in the same isolated select as the attempt
+  // counter: both arrived with the sweep, so they are one migration and
+  // splitting them would buy tolerance for a state that cannot exist.
+  const syncClaimById = new Map(
+    (syncAttemptRows ?? []).map((r) => [r.id, r.google_calendar_sync_claimed_at ?? null])
+  );
+  const syncNowMs = nowTimestamp();
   const googleMeetSyncIssues = appointmentsWithSessionCode
     .filter((a) => a.status === "confirmed")
     .map((a) => ({
@@ -1350,6 +1544,25 @@ export default async function AdminDashboardPage({
       autoRetryExhausted:
         (a.google_calendar_sync_attempts ?? 0) >= MAX_MEET_SYNC_AUTO_ATTEMPTS,
       autoRetryAttempts: a.google_calendar_sync_attempts ?? 0,
+      // The same facts as one named state, so the card reads a word rather
+      // than recombining four columns at the point of render -- and so the
+      // claim column, which reached no screen at all, can say "trying now"
+      // instead of looking identical to "the sweep has not got here yet".
+      syncState: describeCalendarSync(
+        {
+          visit_mode: syncModeById.get(a.id)?.visit_mode,
+          meet_link: a.meet_link,
+          google_event_id: syncModeById.get(a.id)?.google_event_id,
+          google_calendar_sync_error: a.google_calendar_sync_error,
+          google_calendar_sync_attempts: a.google_calendar_sync_attempts,
+          google_calendar_sync_claimed_at: syncClaimById.get(a.id) ?? null,
+        },
+        {
+          maxAttempts: MAX_MEET_SYNC_AUTO_ATTEMPTS,
+          claimStaleMs: MEET_SYNC_CLAIM_STALE_MS,
+          nowMs: syncNowMs,
+        }
+      ),
     }));
 
   // Waiting Room panel (Settings -> System Health): confirmed sessions whose
@@ -1875,7 +2088,9 @@ export default async function AdminDashboardPage({
                     )}
                     <ResetHospitalPasswordButton
                       hospitalId={h.id}
-                      currentPassword={hospitalNoteMap.get(h.id)?.temp_password}
+                      currentPassword={
+                        readableTempPassword(hospitalNoteMap.get(h.id), nowTimestamp()).password
+                      }
                       currentPasswordSetAt={
                         hospitalNoteMap.get(h.id)?.temp_password_set_at
                       }
@@ -2859,6 +3074,18 @@ export default async function AdminDashboardPage({
     };
   });
 
+  // Purchases somebody paid for, or agreed at the door, and never booked a
+  // single appointment against. The one state where the clinic has taken a
+  // decision from a patient and delivered nothing at all -- and until this,
+  // every mechanism pointing at it pointed at the *patient*: the balance on
+  // their Programmes screen, an unbooked-sessions item pinned to their own
+  // dashboard. Which is the failure, since the patient is exactly who has
+  // already stopped. Both kinds are counted together, because the work is
+  // one phone call either way.
+  const purchasesUnscheduled =
+    countAwaitingFirstBooking(packagePurchaseRows, nowTimestamp()) +
+    countAwaitingFirstBooking(homeVisitPurchaseRows, nowTimestamp());
+
   const catalogPurchasesTab = (
     <div className="space-y-8">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -2911,6 +3138,8 @@ export default async function AdminDashboardPage({
         areas={(homeVisitAreas ?? []).map((a) => ({
           ...a,
           in_use: usedAreaIds.has(a.id),
+          pending_visits:
+            areaCommitments === null ? null : areaCommitments.get(a.id)?.visits ?? 0,
         }))}
         waitlist={homeVisitWaitlist ?? []}
       />
@@ -3171,6 +3400,7 @@ export default async function AdminDashboardPage({
           settings={adminSettings}
           areaCount={(homeVisitAreas ?? []).length}
           packageCount={(homeVisitPackages ?? []).length}
+          commitment={homeVisitCommitmentTotal}
         />
       </SettingsSection>
     </div>
@@ -3244,9 +3474,29 @@ export default async function AdminDashboardPage({
       // person chose is a bcrypt hash and can never be read back, so the
       // directory says which of the two states an account is in rather than
       // pretending to know a secret it does not have.
-      tempPassword: adminNoteMap.get(p.id)?.temp_password ?? null,
+      tempPassword: readableTempPassword(adminNoteMap.get(p.id), nowTimestamp()).password,
       tempPasswordSetAt: adminNoteMap.get(p.id)?.temp_password_set_at ?? null,
-    }));
+    }))
+    // By name, because a directory of people with no stated order has one
+    // anyway -- whatever Postgres hands back, which can differ between two
+    // renders of the same screen. That is invisible while everyone fits on
+    // one page and becomes a real fault the moment they do not: this list
+    // pages at ten, so an unordered read decides *who is on page one*, and
+    // an owner looking for somebody finds them somewhere different each
+    // time. Unnamed rows sort last rather than being called "Unnamed admin"
+    // here -- that wording belongs to the surfaces that render it.
+    .sort((a, b) => {
+      const an = a.fullName?.trim() ?? "";
+      const bn = b.fullName?.trim() ?? "";
+      // An empty string sorts before every name, so the absence is tested
+      // first rather than leaned on -- nameless rows go to the end, and two
+      // of them fall back to the email, which every account has.
+      if (!an !== !bn) return an ? -1 : 1;
+      return (
+        an.localeCompare(bn, "en", { sensitivity: "base" }) ||
+        (a.email ?? "").localeCompare(b.email ?? "", "en", { sensitivity: "base" })
+      );
+    });
 
   // Who can reach this dashboard and what they get when they do, plus the
   // one access question that is about a therapist rather than an admin: how
@@ -4259,6 +4509,7 @@ export default async function AdminDashboardPage({
             nowTimestamp()
           ).length,
           settlementsWaiting: payLaterSettlementRows?.length ?? 0,
+        purchasesUnscheduled,
           oldestSettlementWaitDays: settlementWaitDays(
             // Arrives oldest first from the server, so the first row is the
             // one that has waited longest.
@@ -4318,6 +4569,11 @@ export default async function AdminDashboardPage({
     openAccessEnabled: adminSettings.meetOpenAccessEnabled,
     rateLimitIdentity,
     payLater: payLaterHealth,
+    referralAttribution: referralAttributionHealth,
+    refunds: refundHealth,
+    settlementDisagreements: settlementDisagreements,
+    settlementsRecorded: settlementsRecorded,
+    storage: storageHealth,
   });
 
   const home = buildAdminHome(viewerScope, {
@@ -4344,7 +4600,10 @@ export default async function AdminDashboardPage({
       // reach would land them somewhere else via findTab's fallback.
       banner={
         <>
-          <AdminDataLoadBanner missing={failedCoreReads} />
+          <AdminDataLoadBanner
+            missing={failedCoreReads}
+            truncated={appointmentsTruncated ? ["sessions"] : []}
+          />
           {allowedSections.includes("settings") ? (
             <AdminHealthBanner checks={systemHealthChecks} />
           ) : null}
@@ -4500,6 +4759,7 @@ export default async function AdminDashboardPage({
           }
           nowMs={nowTimestamp()}
           ageSetting={payLaterAgeSetting}
+          ceilingPaise={payLaterCeilingPaise}
           payments={payLaterPoolRows ?? []}
           settlements={payLaterSettlementRows ?? []}
           manualRefunds={payLaterManualRefunds ?? []}

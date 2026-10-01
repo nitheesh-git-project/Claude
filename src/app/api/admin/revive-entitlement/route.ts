@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { adjustSessionCredits, creditErrorMessage } from "@/lib/sessionCredits";
+import { serverError } from "@/lib/apiError";
 
 const MAX_REASON_LENGTH = 500;
 const MIN_REASON_LENGTH = 10;
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return serverError("admin/revive-entitlement", updateError);
   }
   if (!revived) {
     return NextResponse.json(

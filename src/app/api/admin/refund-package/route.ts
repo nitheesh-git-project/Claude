@@ -6,6 +6,12 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { mirrorVoid } from "@/lib/sessionCreditMirror";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
+import { serverError } from "@/lib/apiError";
+import {
+  openRefundAttempt,
+  succeedRefundAttempt,
+  failRefundAttempt,
+} from "@/lib/refundAttempt";
 
 const MAX_REASON_LENGTH = 500;
 
@@ -109,12 +115,39 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
   if (claimError) {
-    return NextResponse.json({ error: claimError.message }, { status: 500 });
+    return serverError("admin/refund-package", claimError);
   }
   if (!claimed) {
     return NextResponse.json(
       { error: "This package was already refunded or changed concurrently - please refresh." },
       { status: 409 }
+    );
+  }
+
+  // Recorded before the gateway call, so a refund that went through and
+  // could not be written back leaves a row a person can find rather than a
+  // console line -- see src/lib/refundAttempt.ts. Unrecordable means not
+  // attempted, so the claim goes back and the caller is refused.
+  const attemptId = await openRefundAttempt(admin, {
+    purpose: "package_purchase",
+    subjectId: purchaseId,
+    razorpayPaymentId: purchase.razorpay_payment_id,
+    amountPaise: refundAmountPaise,
+    reason,
+    requestedBy: adminUser.id,
+  });
+  if (!attemptId) {
+    await admin
+      .from("patient_package_purchases")
+      .update({ status: "active", refund_amount_paise: null, refunded_at: null })
+      .eq("id", purchaseId)
+      .eq("status", "refunded");
+    return NextResponse.json(
+      {
+        error:
+          "We could not record this refund, so nothing was sent. Nothing has changed - please retry.",
+      },
+      { status: 503 }
     );
   }
 
@@ -128,8 +161,10 @@ export async function POST(request: NextRequest) {
       amount: refundAmountPaise,
     });
     refundId = refund.id;
+    await succeedRefundAttempt(admin, attemptId, refund.id);
   } catch (err) {
     console.error("Package refund failed for purchase", purchaseId, err);
+    await failRefundAttempt(admin, attemptId, err);
     const { error: revertError } = await admin
       .from("patient_package_purchases")
       .update({ status: "active", refund_amount_paise: null, refunded_at: null })

@@ -88,6 +88,76 @@ than the visitor's leaves every public cap either off or shared between
 everybody, with no 429 and no log line to notice it by. See the transport
 rule in `AGENTS.md`.
 
+**A refund records what it is about to do, before the money moves.** Every
+gateway refund here claims its local row first and calls Razorpay second, so
+a refusal leaves no trace claiming money went back -- and every one of these
+routes reverts its claim when Razorpay says no. The opposite failure had
+nothing watching it: Razorpay accepts the refund and the write recording it
+fails, which leaves the money gone, `refund_id` null, and the session
+indistinguishable from one that was claimed and never sent. All four refund
+writers had that window and in all four the only thing that noticed was a
+`console.error`, which is not a place a clinic owner looks. `refund_attempts`
+(`src/lib/refundAttempt.ts`) is the record, written **first**: a row lands as
+`processing`, the gateway is called, and the row resolves to `succeeded` with
+the gateway's own refund id or `failed` with what it said. A refund that
+cannot be recorded is **not attempted** -- the three admin routes put their
+claim back and answer 503 -- with `cancelAppointmentAndRefund` the one
+exception, since its cancellation is already committed and its slot
+legitimately freed, so it records a failed refund instead, which is already a
+pinned item on the patient's own feed. Resolving never throws: by then the
+money has moved, and a row left at `processing` is exactly what Settings ->
+System Health -> **Refunds**, the ninth check, exists to name. It asks two
+different questions -- a refund sent whose answer was never recorded, and a
+refund the gateway accepted whose session or purchase carries no id -- and
+reports, never repairs. The table is append-only by trigger with every
+foreign key `restrict`, because `set null` is an UPDATE the trigger refuses
+and `cascade` would destroy the record of money moving. See the refund-record
+rule in `AGENTS.md`.
+
+**Every delivered session writes down what it was worth.**
+`session_settlements` is one immutable row per completed session, written in
+the same request that makes it payable, carrying the **amounts** rather than
+the rates -- gross, travel, the therapist's share, the partner's and the
+clinic's. Every money figure was a *derivation* before it, which is correct
+arithmetic and not a record: a settlement could not be queried, nothing said
+*when* a split was computed, and a payout batch referenced appointments. It is
+written **alongside** that derivation and nothing reads it yet -- the
+`session_credit_ledger` playbook, and the whole reason it needed no backfill
+and moved no figure. `verify_settlement_agreement()` reports disagreement on
+Settings -> System Health -> **Settlement record**, and that staying green on
+real data is the precondition for ever making these rows authoritative. The
+clinic takes the **remainder** rather than its own percentage, so the three
+shares sum to gross exactly and rounding can neither invent nor lose a paisa.
+Append-only by trigger, with `external_reference` -- what a bank called it --
+the one column that may be filled in later and only once. See the settlement
+rule in `AGENTS.md`.
+
+**And a payout settles all of its sessions or none of them.** It used to claim
+each appointment with its own UPDATE inside a `Promise.all`, so a failure
+part-way left some settled and some not, answered 500, and a retry settled the
+remainder under a second batch id -- the largest money-moving action in the app
+being the least atomic. `settle_therapist_payout_batch()` does the claims in
+one statement, with the cash remittance inside it, since deducting the cash
+*is* the remittance and recording one without the other let the next run net
+the same rupees off again. It is a **writer, not a rule**: the amounts come
+from `sessionTherapistCutPaise()`, the one implementation of a therapist's cut,
+which a source walk now keeps singular after two screens were found quoting a
+therapist a different figure from the one the Pay button transfers.
+
+**A retried payment cannot book the same session twice.**
+`record_payment_capture` is idempotent by construction; the booking below it
+was not, so a resent verify callback booked a second visit at the same slot and
+spent a second credit. Two partial unique indexes on (purchase, slot_time) fix
+it at the row, and a refusal from them is answered as **success** -- the visit
+the patient paid for exists. See the idempotency rule in `AGENTS.md`.
+
+**PostgREST caps a response at 1,000 rows, silently.** A `.select()` with no
+`.range()` does not read the table; it reads a prefix and answers 200. The
+admin dashboard's appointments read is what every Money figure sums over, so it
+goes through `src/lib/supabase/readAllRows.ts`, which pages to the end and
+*says* when it could not -- an understated revenue figure that every screen
+agrees on is worse than a slow one.
+
 **Suspension reaches the database, not only the app.** `profiles.active` is
 read by `src/proxy.ts` and `requireActiveProfile`, and both are this
 application -- a session cookie reaches PostgREST without passing either, and
@@ -191,12 +261,47 @@ dialog at all: it is stated as chosen, with its photograph and its price.
 Continue appears once a service is chosen, the same way Step 1 has always
 waited for a date, an hour and a language.
 
+**One atomic claim reserves a therapist, and every booking path uses it.**
+Six paths each did it as a read, a write and at best a re-read with a
+hand-rolled revert -- which cannot stop two requests both passing the check
+before either write lands, and whose revert rewrote `therapist_id` with no
+compare-and-set, so a third admin's assignment could be stamped over by a
+request that had already lost. `claim_therapist_slot()` does the overlap test,
+the compare-and-set and the write in one transaction under a row lock on the
+therapist; `claim_therapist_referral_slot()` is the sibling for a referral
+holding a slot before any appointment exists. The revert branches are gone
+because there is no window to revert from, and the deterministic referral
+tie-break went with them -- it only ever existed because two writes were never
+serialised. **And the revenue split is frozen when the work is delivered**:
+`therapist_share_percent_at_completion`, `hospital_share_percent_at_completion`
+and `hospital_id_at_completion`, so renegotiating a rate no longer rewrites
+every figure somebody has already been invoiced on. Purchased terms -- the
+session length, the minimum gap, the weekly cap -- read
+`session_entitlements.package_snapshot` through `readPackageTerms` rather than
+the live catalogue row, so an admin editing a programme no longer changes the
+rules under a patient part-way through one. See `docs/MONEY-MODEL.md` and
+`docs/audit/AUDIT-FIX-REPORT.md`.
+
 - `README.md` - product overview, setup, environment variables, routes, and
   how each flow works.
 - `AGENTS.md` - the working rules for editing this codebase (imported below;
   follow it in full).
 - `supabase/schema.sql` - the entire database schema, RLS policies, views,
   and triggers. Single source of truth, re-runnable, append-only.
+
+**A data reset resets data, not configuration.** `debug_reset_all_data()` used
+to put ~60 `site_settings` columns back to their defaults, so clearing a few
+test patients also handed back a site calling itself something else with
+somebody else's contact details on it. None of that is data: the clinic's name,
+tagline, description, contact email and phone, footer, mission and vision, the
+splash wording and every window, lead time and switch are things a person
+chose, and testing generates none of them. `site_settings` and `risk_rules` are
+no longer touched, and `faqs`, `testimonials` and `mission_principles` are kept
+for the same reason `treatment_categories` already was -- the website's own
+content, written on Settings -> Public Site, which has to be retyped by hand.
+Patient, therapist, hospital and every row hanging off them still goes.
+`scripts/debug-reset-sql-checks.sql` asserts both halves and must never be run
+against a database anything else is using. See the reset rule in `AGENTS.md`.
 
 **The debug bar stays switched on, in every environment, until launch.**
 This app has no real patients yet. `isDebugNavVisible()`
@@ -337,6 +442,27 @@ and from what the clinic already charges in that city, with two answers:
 open the area and mark it served, or mark it served alone. See the waitlist
 rule in `AGENTS.md`.
 
+**And closing an area does not take back what somebody already bought.** A
+service area gates what can be *sold*; a patient who bought six visits and has
+had two keeps the other four at the travel fee frozen on their purchase, even
+after the clinic stops serving their pincode. The catchment is the clinic's
+choice and not the patient's, and withdrawing treatment somebody has paid for
+is the one outcome a service area must not produce -- so `book-visits`
+deliberately does not re-check serviceability. That was true by omission
+before it was true by decision, which is the shape where the next reader
+"fixes" it and strands paid visits. Turning an area off used to say nothing
+about what it did not cancel: the row now states how many paid visits are
+still to deliver there (`src/lib/homeVisitAreaCommitments.ts`) and Deactivate
+asks first, naming the number. A count it could not read says so rather than
+reading zero, on the one screen where zero would be read as permission. The
+**master switch** works the same way one level wider, and
+`/api/home-visit/verify` is why: it deliberately does not re-read
+`home_visit_enabled`, because by then Razorpay has the money and refusing
+would take a patient's payment and give them nothing -- the honest refusal is
+a refund, which is a person's decision per purchase. So Settings -> Programmes
+& Home Visits names the paid visits still to deliver beside the switch and
+asks before it goes off, counting purchases whose address carries no area too.
+
 The health profile is **per specialty**: a condition profile carries
 `specialty` (`ortho`, `neuro`, `pediatrics`), and that decides its seven
 questions, its summary card, its snapshot figures and its progress line.
@@ -345,6 +471,25 @@ record - needing only assignment, and going live with no review - and that
 fill is what unlocks the patient's own access to it. The Pain Map is an
 orthopaedic layer and stays one; the other two exam layers are explicitly
 deferred. See the "Patient Care Intake and Pain Map" rule in `AGENTS.md`.
+
+**And who can read a patient's record is a question the product can now
+answer.** Access follows **delivered care**: a therapist reads the health
+profile, exams, uploaded reports and session notes of a patient they have
+treated, and keeps it after that patient moves to a colleague -- a completed
+session keeps whoever ran it, so the person who gave the care can still answer
+for it. A therapist whose only link was a *future* session that was reassigned
+away reads nothing, because they never treated them. That rule lived in four
+RLS policies and one helper and was stated on no screen at all, which is what
+the audit actually reported: `src/lib/clinicalAccess.ts` plus **Who can see
+this record** on the admin's patient page names every clinician, why, and when
+they last saw the patient -- a suspended one listed and *marked*, never
+dropped, since omitting them would make a suspension read as a deletion. Those
+policies also never asked whether the account is still allowed to be a
+therapist here, so a suspended one went on reading other people's medical
+records for a token lifetime; `is_active_therapist()` closes it at the row, and
+`session_notes_select_clinician`'s hand-written copy of `is_admin()` -- which
+did not check `active` -- calls the function now. See the clinical-access rule
+in `AGENTS.md`.
 
 Patient files (avatars, and the test reports and scans patients upload to
 their health profile) live in Supabase Storage, never in a table column -
@@ -426,6 +571,24 @@ admin's queue exactly as before. It is one switch
 (`auto_assign_therapist_enabled`, off for its first release) and it does not
 change what times a patient is offered: the roster still does not filter the
 booking picker.
+
+**And approved is not the same as ready.** `profiles.approved` means a person
+vetted the account, and the product read it as "ready to be assigned" -- so a
+therapist could be approved with no hours on the roster and no revenue share,
+both of which fail *silently*: nothing can offer them a session, and a session
+they do deliver leaves them owed nothing with no screen saying why.
+`src/lib/therapistReadiness.ts` is the five things this app itself needs, and
+it is a **derivation rather than a column**: a `production_ready` flag
+somebody ticks is a second source of truth that drifts from the facts it
+describes. It is **advisory for a person and binding for the machine** -- an
+admin assigning has the therapist in front of them and nothing here disables a
+control, while the automatic assigner, which picks somebody with nobody
+watching, refuses a therapist with no roster or no rate. It does not refuse
+over a missing specialisation: that costs a patient a sentence on a profile
+page rather than making an assignment wrong. A ready therapist gets no panel
+at all, the same rule an unrefunded session's missing refund chip follows.
+Leave is not on the list -- a therapist on leave is not *unfinished*. See the
+readiness rule in `AGENTS.md`.
 
 Session credits live in an append-only ledger (`session_credit_ledger`)
 over `session_entitlements`, not in a mutable counter. Every movement goes
@@ -533,8 +696,17 @@ carries the gap. `appointments.payment_terms` is the new axis because
 two apart is what stops an abandoned cart being counted as a debt. The money is
 read on **Money -> Owed by Patients** (`src/lib/patientBalances.ts`), which leads
 with the total and the age of the oldest unsettled session -- there is no ceiling
-on what a trusted patient may owe, so those two figures are the entire early
-warning. How long a balance may sit before it counts as worth chasing is the
+on what a trusted patient may owe **unless the clinic sets one**
+(`pay_later_max_owed_paise`, blank by default and blank is the undo), so those
+two figures are the entire early warning in the ordinary case. A ceiling is a
+setting rather than a constant because holding an opinion the clinic may not
+share belongs in a switch: set, a booking that would go past it is refused with
+its own named reason and the patient is offered the ordinary payment screen
+instead -- paying now is never taken away, and nothing already owed changes.
+There is deliberately no zero, since somebody who types 0 has almost certainly
+cleared the box, and a balance that could not be read counts as **at** the
+ceiling rather than zero -- waving a booking through on a failed query is the
+one direction a ceiling exists to stop. How long a balance may sit before it counts as worth chasing is the
 clinic's own (`pay_later_aged_after_days`, 60 days by default, set on that same
 screen beside the figure it colours, with a live count saying how many patients
 that number would flag before it is saved): it is the only automatic warning the
@@ -619,6 +791,25 @@ campaign's revenue is traced by promo code or not at all -- untraceable spend
 is stated, never divided into -- and working capital counts sessions patients
 have paid for and not had as the liability it is. See the Business Health
 rule in `AGENTS.md`.
+
+**And a purchase nobody ever booked anything against is a phone call.** The
+one state where the clinic had taken a decision from a patient and delivered
+nothing at all had no row anywhere: the balance was on their Programmes
+screen and unbooked sessions were pinned to their own dashboard, so every
+mechanism pointed at the patient -- who is exactly the person who had already
+stopped. `src/lib/unscheduledPurchases.ts` is the judgement, dependency-free
+because it decides who gets rung: still active, money **committed** (paid, or
+a home visit agreed at the door, since a cash purchase is `unpaid` for its
+whole life by design), nothing booked **ever** rather than "has sessions
+left", and past a 24-hour grace window so a purchase on its way to the
+scheduler is not a fault seconds after it is made. It sits on Money's alert
+strip as *Paid programmes with nothing booked*, deliberately **not** urgent
+-- nothing has gone wrong and nobody is out of pocket -- and links into
+Catalog -> Purchases with a *Nothing booked yet* filter, which is a different
+question from the *Has unscheduled sessions* checkbox beside it. That strip
+is work waiting on somebody and System Health is records disagreeing; a new
+finding goes on whichever it actually is, and never on a third screen that
+would be a third answer to "is anything wrong".
 
 Four acquisition discounts exist and no more (`src/lib/discounts.ts`,
 `promoCodes.ts`, `inviteRewards.ts`), recorded as five sources because an
@@ -730,9 +921,15 @@ runs `npm run check:realtime`, the Supabase Realtime publication coverage
 check, and `npm run check:grants`, which fails when a `security definer`
 function in `schema.sql` is not revoked from all three of `public`, `anon`
 and `authenticated` -- `scripts/check-live-grants.mjs` asks the running
-database the same question and is run by hand after a schema change),
+database the same question and is run by hand after a schema change, and
+`scripts/check-definer-exposure.mjs` beside it asks the one neither answers:
+which definer functions a browser can actually **call**, which is what decides
+whether a missing check inside a body is a bug in a route or a door for a
+stranger. Three are reachable on purpose and each carries its reason),
 `npm run seed:qa`, which recreates every account the manual test
-plan names after a data reset has deleted them, and `npm run clean:e2e`,
+plan names after a data reset has deleted them - plus `qa.patient.e`, which
+the plan does not name but `e2e/pay-later.spec.ts` does, and which nothing
+created until now, so that whole file failed on its first line - and `npm run clean:e2e`,
 which clears the fixture rows earlier e2e runs left in the database -- a
 direct-insert purchase or appointment never claims `visits_used` and never
 gets a calendar event, so each one left behind is a permanent red row on
@@ -757,7 +954,9 @@ putting the money in three places at once, a declaration that settles
 nothing until an admin confirms it, and a write-off that costs the clinic
 without moving a single money figure, and the payment step's own pay button
 staying tappable while its price loads, and the admin Refresh button's badge
-counting other people's changes rather than the admin's own taps
+counting other people's changes rather than the admin's own taps, and the
+refund record that a refund writes before the money moves - which cannot be
+resolved twice, rewritten or deleted
 (`npm run test:e2e`, see `e2e/`)
 but needs a test Supabase project and Razorpay test keys - verify a change
 with a build and a lint.

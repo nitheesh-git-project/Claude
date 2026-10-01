@@ -122,12 +122,28 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
   test("A-045: a patient opens as an overlay, and direct navigation renders the page", async ({
     page,
   }) => {
+    // A *direct* load of a detail route renders the whole dashboard (~49
+    // queries) and the overlay on top -- by design, so the two ways in are
+    // pixel-identical. On a machine that serves a plain dashboard in 8-12s
+    // that does not fit the 20s expect budget, and this failed at 21.1s three
+    // runs running: a red line describing a working product.
+    test.setTimeout(180_000);
     const admin = adminClient();
     const patientId = await profileIdFor(admin, QA_EMAILS.patientA);
 
     await page.goto(`${BASE}/admin/dashboard/patients/${patientId}`);
-    await expect(page.getByText("Care Record")).toBeVisible();
-    await expect(page.getByText("Personal Details")).toBeVisible();
+    // Located by role and name, never by bare text. This page now renders the
+    // *real* dashboard behind the overlay (see AdminDetailDashboard), and the
+    // dashboard mounts all 34 screens at once behind `hidden` -- so a loose
+    // `getByText("Care Record")` also matches the two scope blurbs reading
+    // "Patients, sessions and care records", and fails on a strict-mode
+    // violation describing a working page.
+    await expect(
+      page.getByRole("link", { name: /^Care Record/ })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Personal Details" })
+    ).toBeVisible();
   });
 
   test("C-001/C-002: spamming a save button produces exactly one request", async ({ page }) => {

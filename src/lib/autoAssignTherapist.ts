@@ -4,6 +4,7 @@ import { AVAILABILITY_HOURS, computeDayAvailability } from "@/lib/therapistAvail
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { toDateKey } from "@/lib/bookingSlots";
+import { canAutoAssignTo } from "@/lib/therapistReadiness";
 
 /**
  * Assigns a therapist to a freshly paid session, when exactly one is
@@ -69,7 +70,7 @@ export type AutoAssignResult = {
   reason: "preferred" | "only_candidate";
 };
 
-type TherapistRow = { id: string };
+type TherapistRow = { id: string; revenue_share_percent: number | null };
 
 export type AutoAssignSettings = {
   enabled: boolean;
@@ -136,9 +137,14 @@ export async function pickAutoAssignTherapist(
 
     // Eligible at all: an approved, active therapist who is not on leave.
     // Exactly the set an admin's own assign form offers.
+    //
+    // `revenue_share_percent` comes back with them because the automatic
+    // assigner applies a stricter test than a person does -- see
+    // `canAutoAssignTo` below, and src/lib/therapistReadiness.ts for why the
+    // two differ.
     const { data: therapists, error: therapistError } = await admin
       .from("profiles")
-      .select("id")
+      .select("id, revenue_share_percent")
       .eq("role", "therapist")
       .eq("approved", true)
       .eq("active", true)
@@ -162,6 +168,10 @@ export async function pickAutoAssignTherapist(
         .eq("date", dateKey),
     ]);
 
+    const shareById = new Map(
+      (therapists as TherapistRow[]).map((t) => [t.id, t.revenue_share_percent ?? null])
+    );
+
     const rostered = ids.filter((id) => {
       const template = (templateRows ?? [])
         .filter((r) => r.therapist_id === id)
@@ -170,7 +180,22 @@ export async function pickAutoAssignTherapist(
         .filter((r) => r.therapist_id === id)
         .map((r) => ({ date: r.date, hour: r.hour, available: r.available }));
       const state = computeDayAvailability(dateKey, template, overrides)[hour];
-      return state === "available" || state === "override_available";
+      if (state !== "available" && state !== "override_available") return false;
+
+      // The machine holds itself to a higher bar than a person does. An
+      // admin assigning has the therapist in front of them and may have
+      // every reason to go ahead; this picks somebody with nobody watching,
+      // and the failure it must not cause is silent -- a session delivered
+      // by a clinician with no revenue share, who is then owed nothing for
+      // it and no screen says why. Approved, active and not-on-leave are
+      // already true of everything in `ids`; the template count is this
+      // therapist's own weekly hours, which the filter above has just read.
+      return canAutoAssignTo({
+        approved: true,
+        active: true,
+        weeklyHourCount: template.length,
+        revenueSharePercent: shareById.get(id) ?? null,
+      });
     });
     if (!rostered.length) return null;
 

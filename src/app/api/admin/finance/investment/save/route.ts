@@ -12,6 +12,7 @@ import {
   parsePaise,
   parseUsefulLifeMonths,
 } from "@/lib/financeInputs";
+import { serverError } from "@/lib/apiError";
 
 // What the owner put into the business, and what it is worth now.
 //
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
       .select("id")
       .maybeSingle();
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError("admin/finance/investment/save", error);
     }
     if (!updated) {
       return NextResponse.json(

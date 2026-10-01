@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 // Wipes one side's submitted rating/feedback so they can be prompted to
 // re-rate (e.g. a therapist fat-fingered 5 stars instead of 2). Admin-only -
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   const { error } = await admin.from("appointments").update(updates).eq("id", appointmentId);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/clear-session-rating", error);
   }
 
   // Who changed this, and to what. Best-effort and after the write,

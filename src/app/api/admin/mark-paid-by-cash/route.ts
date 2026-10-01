@@ -5,6 +5,7 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("money");
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/mark-paid-by-cash", error);
   }
   if (!claimed) {
     return NextResponse.json(

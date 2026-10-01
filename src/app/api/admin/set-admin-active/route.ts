@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revokeAllSessions, SESSION_REVOKE_WARNING } from "@/lib/supabase/revokeSessions";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 // Suspends another admin's access to this dashboard, or gives it back.
 //
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
     .eq("role", "admin");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/set-admin-active", error);
   }
 
   // Suspending writes `active = false`, which src/proxy.ts and

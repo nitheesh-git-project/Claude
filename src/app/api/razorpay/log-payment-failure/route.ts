@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { serverError } from "@/lib/apiError";
 
 const MAX_TEXT_LENGTH = 500;
 
@@ -122,7 +123,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("razorpay/log-payment-failure", error);
   }
 
   return NextResponse.json({ success: true });

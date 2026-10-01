@@ -1,6 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  isAwaitingFirstBooking,
+  type SchedulablePurchase,
+} from "@/lib/unscheduledPurchases";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import type { CsvColumn } from "@/lib/csvExport";
 import DataExportButtons from "@/components/admin/DataExportButtons";
@@ -37,6 +42,26 @@ export type PurchaseRow = {
 const STATUS_OPTIONS = ["active", "completed", "expired", "refunded", "cancelled"] as const;
 const EXPIRING_WINDOW_DAYS = 30;
 
+
+/** The two tables' own row shape, as the shared judgement reads it. */
+function toSchedulable(p: {
+  status: string;
+  paymentStatus: string;
+  completedCount: number;
+  scheduledCount: number;
+  createdAt: string;
+}): SchedulablePurchase {
+  return {
+    status: p.status,
+    paymentStatus: p.paymentStatus,
+    // A session programme is always prepaid; there is no door to collect at.
+    paymentMode: null,
+    completedCount: p.completedCount,
+    scheduledCount: p.scheduledCount,
+    createdAt: p.createdAt,
+  };
+}
+
 export default function PackagePurchasesTable({
   purchases,
   packages,
@@ -52,6 +77,7 @@ export default function PackagePurchasesTable({
   // button when the viewer's scope cannot open Money. See that component.
   canSeeMoney: boolean;
 }) {
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [packageId, setPackageId] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -59,10 +85,37 @@ export default function PackagePurchasesTable({
   const [therapistId, setTherapistId] = useState("");
   const [expiringSoonOnly, setExpiringSoonOnly] = useState(false);
   const [unscheduledOnly, setUnscheduledOnly] = useState(false);
+  // Distinct from the checkbox above it, and the difference is the point:
+  // "has sessions left to book" is true of nearly every active purchase by
+  // definition, while "nothing booked yet" is the run that never started --
+  // the one state where the clinic has taken a decision and delivered
+  // nothing. See src/lib/unscheduledPurchases.ts.
+  const [nothingBookedOnly, setNothingBookedOnly] = useState(false);
   const [openPurchaseId, setOpenPurchaseId] = useState<string | null>(null);
   // Lazy initializer -- read once at mount, not on every render/filter
   // pass. Same pattern as ProfileSessionList/BookingWizard elsewhere.
   const [now] = useState(() => Date.now());
+
+  // The `?view=` preset, applied **during render** rather than in an effect:
+  // every admin screen is mounted at once behind `hidden`, so there is no
+  // mount to hang it on when an admin already on the dashboard taps a count,
+  // and an effect would paint the unfiltered table first. It clears the
+  // screen's other filters, because a remembered package or status would
+  // hide rows the count included -- the same "the list agrees with the
+  // number" rule the count itself follows.
+  const viewParam = searchParams.get("view");
+  const [appliedView, setAppliedView] = useState<string | null>(null);
+  if (viewParam !== appliedView) {
+    setAppliedView(viewParam);
+      setPackageId("");
+      setCategoryId("");
+      setStatus("");
+      setTherapistId("");
+      setExpiringSoonOnly(false);
+      setUnscheduledOnly(false);
+      setSearch("");
+      setNothingBookedOnly(viewParam === "unscheduled");
+  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -72,6 +125,7 @@ export default function PackagePurchasesTable({
       if (status && p.status !== status) return false;
       if (therapistId && p.therapistId !== therapistId) return false;
       if (unscheduledOnly && p.pendingCount <= 0) return false;
+      if (nothingBookedOnly && !isAwaitingFirstBooking(toSchedulable(p), now)) return false;
       if (expiringSoonOnly) {
         const days = daysUntilExpiry(p.expiresAt, now);
         if (days === null || days > EXPIRING_WINDOW_DAYS || p.status !== "active") return false;
@@ -82,7 +136,7 @@ export default function PackagePurchasesTable({
       }
       return true;
     });
-  }, [purchases, packageId, categoryId, status, therapistId, expiringSoonOnly, unscheduledOnly, search, now]);
+  }, [purchases, packageId, categoryId, status, therapistId, expiringSoonOnly, unscheduledOnly, nothingBookedOnly, search, now]);
 
   const { rows: pageRows, pager } = usePagedList(filtered, { storageKey: "admin-package-purchases" });
 
@@ -137,6 +191,15 @@ export default function PackagePurchasesTable({
         <label className="flex items-center gap-1.5 text-xs text-slate-600 pb-2">
           <input type="checkbox" checked={unscheduledOnly} onChange={(e) => setUnscheduledOnly(e.target.checked)} className="accent-teal-600" />
           Has unscheduled sessions
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 pb-2">
+          <input
+            type="checkbox"
+            checked={nothingBookedOnly}
+            onChange={(e) => setNothingBookedOnly(e.target.checked)}
+            className="accent-teal-600"
+          />
+          Nothing booked yet
         </label>
         <DataExportButtons
           filename="session-package-purchases"

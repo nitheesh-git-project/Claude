@@ -98,19 +98,6 @@ async function findConflictingReferrals(
   );
 }
 
-/** Appointment-only half of findTherapistConflict -- see findTieBrokenReferralConflict's comment for why assign-referral's post-write recheck needs these split apart. */
-export async function findConflictingAppointmentOnly(
-  admin: SupabaseClient,
-  therapistId: string,
-  slotTime: string,
-  durationMinutes: number,
-  options: { excludeAppointmentId?: string; bufferMinutes?: number } = {}
-): Promise<boolean> {
-  const bufferMs = Math.max(0, options.bufferMinutes ?? 0) * 60_000;
-  const newStart = new Date(slotTime).getTime() - bufferMs;
-  const newEnd = new Date(slotTime).getTime() + durationMinutes * 60_000 + bufferMs;
-  return findConflictingAppointment(admin, therapistId, newStart, newEnd, options.excludeAppointmentId);
-}
 
 export async function findTherapistConflict(
   admin: SupabaseClient,
@@ -140,32 +127,26 @@ export async function findTherapistConflict(
   return referralConflicts.length > 0;
 }
 
-/**
- * Referral-vs-referral conflict check with a deterministic tiebreak, for
- * callers (assign-referral) that need exactly one winner when two referrals
- * are assigned to the same therapist/slot concurrently. `selfCreatedAt`/
- * `selfId` identify the referral making the check; a conflicting referral
- * only counts against it if that referral is the one that should win the
- * tie (created first, or -- on an exact tie -- the lexicographically
- * smaller id). Both concurrent requests apply the same rule against each
- * other's row, so exactly one of them finds no disqualifying conflict.
+
+/*
+ * `findConflictingAppointmentOnly` and `findTieBrokenReferralConflict` used
+ * to live here and have been removed.
+ *
+ * Both existed only to make `/api/admin/assign-referral`'s post-write
+ * re-check work: two referrals assigned to the same therapist and hour at
+ * once both wrote, then each saw the other on the re-check, so a plain
+ * re-check rolled BOTH back and neither admin got an assignment. The
+ * tiebreak (earliest created_at wins, ties broken by id) reconstructed a
+ * winner from two requests that had never been serialised.
+ *
+ * `claim_therapist_referral_slot` serialises them for real, under a row lock
+ * on the therapist, so the second request simply finds the first's committed
+ * row and is refused. There is no tie left to break.
+ *
+ * `findTherapistConflict` stays, and is still the right tool where the
+ * question is "who could take this?" rather than "reserve this": the
+ * auto-assigner uses it to narrow the candidates before claiming one, and
+ * the therapist's own suggestion form uses it to avoid proposing a time it
+ * can already see is taken. Neither is a reservation, and neither writes
+ * `therapist_id` -- the claim function is what does that.
  */
-export async function findTieBrokenReferralConflict(
-  admin: SupabaseClient,
-  therapistId: string,
-  slotTime: string,
-  durationMinutes: number,
-  self: { id: string; createdAt: string },
-  options: { excludeReferralId?: string; bufferMinutes?: number } = {}
-): Promise<boolean> {
-  const bufferMs = Math.max(0, options.bufferMinutes ?? 0) * 60_000;
-  const newStart = new Date(slotTime).getTime() - bufferMs;
-  const newEnd = new Date(slotTime).getTime() + durationMinutes * 60_000 + bufferMs;
-  const conflicts = await findConflictingReferrals(admin, therapistId, newStart, newEnd, options.excludeReferralId);
-  return conflicts.some((other) => {
-    const otherMs = new Date(other.created_at).getTime();
-    const selfMs = new Date(self.createdAt).getTime();
-    if (otherMs !== selfMs) return otherMs < selfMs;
-    return other.id < self.id;
-  });
-}

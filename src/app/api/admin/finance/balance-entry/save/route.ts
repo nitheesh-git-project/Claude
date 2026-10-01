@@ -10,6 +10,7 @@ import {
   parseOptionalText,
   parsePaise,
 } from "@/lib/financeInputs";
+import { serverError } from "@/lib/apiError";
 
 // One line of what the clinic owns or owes, as of a date.
 //
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
       .eq("id", id.value)
       .select("id")
       .maybeSingle();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return serverError("admin/finance/balance-entry/save", error);
     if (!updated) {
       return NextResponse.json(
         { error: "That entry is no longer there - somebody may have removed it." },

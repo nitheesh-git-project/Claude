@@ -514,6 +514,24 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 **Clearing the home-visit share is allowed and means "use the ordinary share"** - which is what every therapist carries by default, so a box that could be set and never unset would be a one-way door. Clearing the **ordinary** share is still refused: there is no rate behind it to fall back to.
 **The three figures agree.** This page used to compute its own payout from the ordinary share alone, with no home-visit rate and no travel fee, so a therapist who did home visits read one number on their profile and a different one on Payouts - and the Pay button transferred the third. Any disagreement here is that defect.
 
+#### `ADM-PEOP-009` - Approved is not ready, and the page says which · P0
+
+**Feature.** `profiles.approved` means a person vetted the account, and the product read it as "ready to be assigned live patients" - which are different facts. A therapist could be approved with **no hours on the roster** and **no revenue share**, and both of those fail *silently*: nothing can offer them a session, and a session they do deliver leaves them owed nothing with no screen saying why. It is derived from what the app already holds rather than being a tickbox, so it cannot drift from the thing it describes.
+
+**Steps.** Approve a new therapist and open their admin page before setting anything. Then add working hours and save. Then set a revenue share. Then set a specialisation. Read the panel after each step.
+**Expected Result.** A panel above the header reads **Not ready for patients yet**, naming each missing thing **and why it matters** - never "this field is required". Each item disappears as it is set, and once everything is set the panel is **gone entirely**, not green: an "all set" card on every profile is a row a reader learns to scroll past, and then misses the one profile that is not.
+**Nothing is blocked.** Every control on the page still works throughout - you can assign this therapist a session by hand at any point. The panel is a reminder, and a gate on a field nobody was told about would be worse than no panel at all.
+**Leave is not on the list.** Put the therapist on leave and the panel does not gain a row: leave is a temporary state somebody set on purpose, not something missing from the account, and a therapist on leave is not *unfinished*.
+
+#### `ADM-PEOP-010` - The automatic assigner holds a higher bar than a person · P0
+
+**Feature.** An admin assigning has the therapist in front of them; the automatic assigner picks one with **nobody watching**. So it refuses what a person may go ahead with.
+
+**Preconditions.** `Auto-assign therapist` **on**. Exactly one therapist rostered and free for the slot, with **no revenue share set**.
+**Steps.** Have a patient pay for a session in that hour. Then set that therapist's revenue share and repeat with a new booking.
+**Expected Result.** The first session stays `requested` and **unassigned** in the admin's queue - the pre-existing behaviour, which is always the safe fallback here. The second is auto-assigned and auto-confirmed with its Meet link. **Without this the session is delivered and the therapist is owed nothing for it**, and no screen anywhere says why.
+**Negative:** a missing **specialisation** must **not** hold an assignment up. Clear it and repeat: the session is still assigned. It costs a patient a sentence on a profile page rather than making an assignment wrong, and refusing would leave paid sessions in the queue for a field nobody was told about.
+
 #### `ADM-PEOP-007` - Suspend and restore a therapist · P1
 **Steps.** Toggle Therapist A inactive, then active.
 **Expected Result.** While inactive: their dashboard redirects to `/account-suspended`, their API routes 403, they disappear from `/team` and from `?therapist=` resolution, and they cannot be assigned. Restoring reverses all of it. **Their existing appointments are unchanged.**
@@ -660,6 +678,25 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 * Closing the dialog with **×** is the third outcome: nothing changes at all, not even the status.
 * A pincode that is **already** a service area is told so in the dialog with the clinic's own city and fee, and is offered **Mark served** alone - there is nothing to add.
 * The area is written **first**: if it cannot be created, the status stays where it was and the dialog says why.
+
+#### `ADM-CAT-012` - Closing an area does not take back what somebody bought · P0
+
+**Feature.** A service area gates what can be **sold**, and nothing else. A patient who bought six visits and has had two keeps the other four even after the clinic stops serving their pincode, at the travel fee **frozen on their purchase** rather than the live area row. The catchment is the clinic's decision and not the patient's, and withdrawing treatment somebody has already paid for is the one outcome a service area must not produce. Refunding instead is still available, per purchase, on the screen that already does refunds.
+
+**Preconditions.** A patient with an active six-visit home-visit purchase in Area 1, two visits delivered, four still to schedule.
+**Steps.** Open **Catalog → Service Areas** and read Area 1's row. Tap **Deactivate** and read the dialog. Confirm. Then, as that patient, schedule another visit from the purchase.
+**Expected Result.** The row states **"4 visits already paid for, still to deliver here"** before you touch anything. Deactivate asks first, naming that number and saying those visits stay owed and can still be scheduled at the fee agreed when they were bought. After confirming, the patient **can still book** their remaining visits, and each one carries the **original** travel fee - not the current area's, and not zero.
+**What deactivating does change:** `/book-home-visit` stops accepting that pincode for anyone new, and every purchase route refuses it server-side.
+**Negative:** the count must not read **0** when it could not be worked out. Make the read fail and the row says *"We could not check what is still owed here just now."* - on this screen a zero reads as permission to close the area, which is exactly the wrong conclusion.
+
+#### `ADM-CAT-013` - Switching Home Visit off does not take it back either · P0
+
+**Feature.** The master switch is the same rule as `ADM-CAT-012` one level wider: it gates what can be **sold** and cancels nothing already bought. `/api/home-visit/verify` deliberately does **not** re-read the switch - by the time it runs the gateway has the money, so refusing there would take a patient's payment and give them nothing; the honest refusal is a refund, which is a person's decision per purchase. `create-order` and the referral route both *do* check it, which is the difference: nothing has moved yet.
+
+**Preconditions.** Home Visit on, and at least one active home-visit purchase with visits still to schedule.
+**Steps.** Open **Settings → Programmes & Home Visits** and read the line under **Home Visit enabled**. Tap the switch off and read the dialog. Cancel; the switch stays **on**. Tap it off again and confirm.
+**Expected Result.** While it is on, the switch states how many paid visits across how many purchases are still to deliver, and that switching it off does not cancel any of them. Switching off asks first and repeats the number. Switching it back **on** asks nothing - turning a service on takes nothing from anybody. After confirming, `/home-visit` and `/book-home-visit` both return Not Found and the nav link is gone, while an existing purchase still books its remaining visits and staff still see every booked visit.
+**Negative:** make the count's read fail - the line must say *"We could not check how many paid visits are still to deliver."* and never a **0**, which on this switch reads as nothing to lose. The count includes a purchase whose address carries **no** area, which the per-area rows in `ADM-CAT-012` cannot show.
 
 #### `ADM-CAT-014` - Purchases · P1
 **Steps.** Open **Catalog → Purchases**. Open a package purchase's detail modal; then a home-visit purchase's.

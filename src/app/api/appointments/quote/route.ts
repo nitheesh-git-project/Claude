@@ -129,20 +129,26 @@ export async function POST(request: NextRequest) {
   // would then refuse. A signed-out visitor is never eligible and is not
   // asked about: the anonymous quote answers for "a new patient", and terms
   // are granted to an account by an admin.
+  // The quote is resolved **first** now, because the eligibility check needs
+  // the figure: a ceiling on what a patient may owe has to be applied to
+  // what this booking would actually add, not to its list price. `claim:
+  // false` makes that free -- it is a read that promises nothing, which is
+  // what this route has always been.
+  const quote = await resolveCheckoutQuote(admin, {
+    appointment,
+    promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
+    claim: false,
+  });
+
   const payLater =
     user && !hasProgramme
       ? await readPayLaterBookingEligibility(admin, {
           patientId: user.id,
           visitMode: appointment.visit_mode,
           hasProgramme,
+          bookingAmountPaise: quote.payablePaise,
         })
       : { allowed: false as const, reason: "not_on_terms" as const };
-
-  const quote = await resolveCheckoutQuote(admin, {
-    appointment,
-    promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
-    claim: false,
-  });
 
   return NextResponse.json({
     listPricePaise: quote.listPricePaise,

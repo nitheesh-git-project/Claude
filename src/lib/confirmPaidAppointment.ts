@@ -21,6 +21,7 @@ import {
   readAutoAssignSettings,
 } from "@/lib/autoAssignTherapist";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
 
 type AdminClient = SupabaseClient;
 
@@ -44,6 +45,16 @@ export type ConfirmResult = {
   error: string | null;
   assignedTherapistId: string | null;
   autoConfirmed: boolean;
+  /**
+   * Why the auto-assigner picked who it picked, or null when it did not
+   * pick (nobody free, more than one free, or an admin got there first).
+   * Returned rather than discarded: this is the one decision in the booking
+   * flow that nobody made by hand, so "the only therapist free that hour"
+   * versus "the therapist the patient asked for" is the difference between
+   * an assignment an admin will leave alone and one they will want to look
+   * at.
+   */
+  autoAssignReason: string | null;
 };
 
 /**
@@ -86,8 +97,40 @@ async function runConfirmation(
       travelBufferMinutes: settings.travelBufferMinutes,
     });
     if (picked) {
-      assignedTherapistId = picked.therapistId;
-      autoAssignReason = picked.reason;
+      // Reserved through the one atomic claim rather than written as a
+      // field on the payment update below.
+      //
+      // That update compare-and-sets on `status` and never on
+      // `therapist_id`, and an admin assigning by hand leaves the status at
+      // `requested` -- which is exactly the window this runs in. So an
+      // admin who picked a therapist in the moments between checkout
+      // starting and the payment landing had their choice silently
+      // overwritten by the auto-assigner, and the session went out with a
+      // calendar invite naming somebody the admin had not chosen.
+      //
+      // `expectUnassigned` is what refuses that: the reservation only
+      // applies while nobody is on the session. If an admin got there
+      // first, the claim is refused, their therapist stands, and the
+      // booking simply confirms with the person they picked.
+      const claim = await claimTherapistSlot(admin, {
+        appointmentId: appointment.id,
+        therapistId: picked.therapistId,
+        expectUnassigned: true,
+        bufferMinutes: settings.travelBufferMinutes,
+      });
+      if (claim.ok) {
+        assignedTherapistId = picked.therapistId;
+        autoAssignReason = picked.reason;
+      } else if (claim.reason === "reassigned") {
+        // Somebody assigned this session while we were deciding. Re-read
+        // who, so the confirmation below still names the right person on
+        // the calendar invite rather than leaving it unassigned.
+        assignedTherapistId = claim.currentTherapistId ?? appointment.therapist_id;
+      }
+      // Any other refusal (a clash that appeared, or a reservation we could
+      // not make) leaves the session unassigned in the admin's queue --
+      // which is the documented fallback and exactly what happened before
+      // auto-assignment existed. A payment is never failed for it.
     }
   }
 
@@ -103,14 +146,11 @@ async function runConfirmation(
     .update({
       ...args.paymentFields,
       ...(args.extraFields ?? {}),
-      ...(shouldAutoConfirm
-        ? {
-            status: "confirmed",
-            // Written in the same claim as the confirmation, so a session
-            // can never be confirmed with nobody on it.
-            ...(autoAssignReason ? { therapist_id: assignedTherapistId } : {}),
-          }
-        : {}),
+      // `therapist_id` is deliberately NOT written here any more -- the
+      // reservation above already wrote it, atomically, under a lock. A
+      // session still cannot be confirmed with nobody on it, because
+      // `shouldAutoConfirm` is false unless somebody is.
+      ...(shouldAutoConfirm ? { status: "confirmed" } : {}),
     })
     .eq("id", appointment.id)
     .in("status", ["requested", "confirmed"])
@@ -123,10 +163,17 @@ async function runConfirmation(
       error: claimError.message,
       assignedTherapistId,
       autoConfirmed: false,
+      autoAssignReason,
     };
   }
   if (!claimed) {
-    return { claimed: false, error: null, assignedTherapistId, autoConfirmed: false };
+    return {
+      claimed: false,
+      error: null,
+      assignedTherapistId,
+      autoConfirmed: false,
+      autoAssignReason,
+    };
   }
 
   // The claim above already applied shouldAutoConfirm inside the same write,
@@ -143,7 +190,13 @@ async function runConfirmation(
     });
   }
 
-  return { claimed: true, error: null, assignedTherapistId, autoConfirmed: shouldAutoConfirm };
+  return {
+    claimed: true,
+    error: null,
+    assignedTherapistId,
+    autoConfirmed: shouldAutoConfirm,
+    autoAssignReason,
+  };
 }
 
 /**

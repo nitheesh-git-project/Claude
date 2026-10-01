@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
-import { findTherapistConflict } from "@/lib/checkTherapistConflict";
-import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
+import {
+  claimTherapistSlot,
+  describeClaimFailure,
+} from "@/lib/claimTherapistSlot";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("sessions");
@@ -114,22 +116,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
   }
 
-  if (appointment.slot_time) {
-    const conflict = await findTherapistConflict(
-      admin,
-      therapistId,
-      appointment.slot_time,
-      appointment.duration_minutes ?? BASE_DURATION_MINUTES,
-      { excludeAppointmentId: appointmentId, bufferMinutes: travelBufferMinutes }
-    );
-    if (conflict) {
-      return NextResponse.json(
-        { error: "This therapist already has another session that overlaps this time slot." },
-        { status: 400 }
-      );
-    }
-  }
-
   // Only flip to "confirmed" once the patient has actually paid - otherwise
   // assigning a therapist would silently confirm an unpaid booking. If it's
   // still unpaid, the therapist is assigned but status stays "requested";
@@ -142,71 +128,32 @@ export async function POST(request: NextRequest) {
   const shouldConfirm =
     appointment.payment_status === "paid" || terms?.payment_terms === "pay_later";
 
-  // Compare-and-set on the therapist this request believes is currently on
-  // the session. Without it, two admins assigning *different* therapists to
-  // the same session at the same moment both succeed: the second write wins
-  // silently, and both requests have already created a calendar invite, so
-  // the patient gets two. The conflict re-check further down guards a
-  // different race (the same therapist being double-booked across two
-  // sessions) and cannot catch this one.
-  const claimQuery = admin
-    .from("appointments")
-    .update({
-      therapist_id: therapistId,
-      ...(shouldConfirm ? { status: "confirmed" } : {}),
-    })
-    .eq("id", appointmentId);
-  // An unassigned session is claimed only while it is still unassigned; a
-  // deliberate reassignment is applied only while the therapist it was read
-  // with is still the one on it.
-  const { data: claimed, error } = await (appointment.therapist_id === null
-    ? claimQuery.is("therapist_id", null)
-    : claimQuery.eq("therapist_id", appointment.therapist_id)
-  )
-    .select("id")
-    .maybeSingle();
+  // The whole reservation -- overlap test, compare-and-set and write -- in
+  // one statement, under a row lock on the therapist.
+  //
+  // This replaces a check, a write, a re-check and a revert. That sequence
+  // could not hold the property it existed for: two admins assigning the
+  // same therapist to overlapping slots both passed the first check before
+  // either write committed. And the revert carried a bug of its own -- it
+  // rewrote `therapist_id` with no compare-and-set, so a *third* admin's
+  // assignment landing in between was silently overwritten by a request
+  // that had already lost its own race. There is nothing to revert now,
+  // because there is no window to revert from.
+  const claim = await claimTherapistSlot(admin, {
+    appointmentId,
+    therapistId,
+    // Two different assertions, kept apart on purpose: an unassigned
+    // session is claimed only while still unassigned, and a deliberate
+    // reassignment only while the therapist it was read with is still on it.
+    expectUnassigned: appointment.therapist_id === null,
+    expectedTherapistId: appointment.therapist_id,
+    bufferMinutes: travelBufferMinutes,
+    confirm: shouldConfirm,
+  });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  if (!claimed) {
-    return NextResponse.json(
-      {
-        error:
-          "Someone else assigned this session a moment ago. Refresh to see who is on it before reassigning.",
-      },
-      { status: 409 }
-    );
-  }
-
-  // Re-check for a conflict now that the write has landed - the earlier
-  // check and this write aren't atomic, so two concurrent assignments of
-  // the same therapist to overlapping slots could both pass the earlier
-  // check before either write committed, double-booking that therapist.
-  // Whichever request's write lands second will see the other's
-  // now-committed row here and can roll its own assignment back instead of
-  // leaving a real double-booking in place.
-  if (appointment.slot_time) {
-    const conflictAfterWrite = await findTherapistConflict(
-      admin,
-      therapistId,
-      appointment.slot_time,
-      appointment.duration_minutes ?? BASE_DURATION_MINUTES,
-      { excludeAppointmentId: appointmentId, bufferMinutes: travelBufferMinutes }
-    );
-    if (conflictAfterWrite) {
-      await admin
-        .from("appointments")
-        .update({ therapist_id: appointment.therapist_id, status: appointment.status })
-        .eq("id", appointmentId);
-      return NextResponse.json(
-        {
-          error:
-            "This therapist was just double-booked by a concurrent assignment - please try again or pick a different therapist/time.",
-        },
-        { status: 409 }
-      );
-    }
+  if (!claim.ok) {
+    const { status, error } = describeClaimFailure(claim);
+    return NextResponse.json({ error }, { status });
   }
 
   if (appointment.therapist_id !== therapistId) {

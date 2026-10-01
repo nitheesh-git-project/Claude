@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 // The rate a therapist is paid at for a **home visit**, which is a different
 // number from the one they are paid for a video session and has been read by
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
     .eq("role", "therapist");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-therapist-home-visit-revenue-share", error);
   }
 
   await recordAdminActivity(admin, adminUser.id, {

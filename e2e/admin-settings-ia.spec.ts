@@ -1,3 +1,9 @@
+// Every case here opens the admin dashboard, which this sandbox serves in
+// 8-12s a render -- and CFG-003 and CFG-007 open it several times each (two
+// Settings screens, and three separate desks signing in). The 30s test budget
+// is tuned for a developer's machine; here it produced red lines describing a
+// working product, so these take real headroom. Same treatment as
+// HV-OFF-001 and A-045.
 // Suite CFG -- the shape of Settings, and the settings that reach a feature.
 //
 // Settings had grown to nine screens in one flat list, with three things on
@@ -86,6 +92,7 @@ test.describe("CFG -- Settings information architecture", () => {
   });
 
   test("CFG-003 the session-balance cutover is quarantined on Advanced", async ({ page }) => {
+    test.setTimeout(180_000);
     await openSettings(page, "programmes");
     await expect(onScreen(page, /remaining sessions are counted/)).toHaveCount(0);
 
@@ -191,6 +198,7 @@ test.describe("CFG -- Settings information architecture", () => {
   test("CFG-007 a limited desk reaches none of it, at the screen or the route", async ({
     browser,
   }) => {
+    test.setTimeout(240_000);
     for (const email of [
       "qa.admin.ops@example.test",
       "qa.admin.finance@example.test",

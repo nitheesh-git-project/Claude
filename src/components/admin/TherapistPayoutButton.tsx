@@ -33,7 +33,7 @@ export default function TherapistPayoutButton({
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [settled, setSettled] = useState<{ amountPaise: number; count: number; method: PayoutMethod } | null>(
+  const [settled, setSettled] = useState<{ amountPaise: number; count: number; method: PayoutMethod; warning?: string | null } | null>(
     null
   );
   const router = useRouter();
@@ -74,7 +74,17 @@ export default function TherapistPayoutButton({
     // Show what the server actually settled, not the owedPaise this
     // component was rendered with - a payment could have landed in the
     // gap between page load and this click, so the two can differ.
-    setSettled({ amountPaise: data.settledAmountPaise, count: data.settledCount, method });
+    setSettled({
+      amountPaise: data.settledAmountPaise,
+      count: data.settledCount,
+      method,
+      // The route says so when the transfer went through and the activity
+      // log did not record it. Money has left the clinic and cannot be
+      // recalled, so this is not a failed payout -- but it is the one thing
+      // the admin needs to write down elsewhere, and a console line is not
+      // a place anybody looks.
+      warning: typeof data.warning === "string" ? data.warning : null,
+    });
     setView("closed");
     setNote("");
     router.refresh();
@@ -91,6 +101,11 @@ export default function TherapistPayoutButton({
       <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-xs text-teal-900">
         Paid ₹{(settled.amountPaise / 100).toLocaleString("en-IN")} via {METHOD_LABEL[settled.method]}{" "}
         across {settled.count} session{settled.count > 1 ? "s" : ""}.
+        {settled.warning && (
+          <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-amber-900">
+            {settled.warning}
+          </p>
+        )}
       </div>
     );
   }

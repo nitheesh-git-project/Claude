@@ -102,8 +102,26 @@ const SECTION_ACCESS: Record<AdminScope, Record<AdminSectionKey, AccessLevel>> =
   },
   finance: {
     today: "manage",
+    // **view, not manage.** Finance needs to read the directory and a
+    // person's profile to reconcile a payout or chase a balance, and it
+    // needed nothing it can only do with `manage`: every money capability is
+    // guarded by `money` on its own route, including the ones whose button
+    // sits on a person's page (`set-patient-pay-later`,
+    // `update-therapist-revenue-share`).
+    //
+    // What `manage` was handing them is the whole of People's 29 routes, and
+    // not one is a money question: resetting a patient's password, changing
+    // their sign-in email, deciding who may read a health profile, deleting
+    // an account -- and `pain-assessments/submit`, so the person reconciling
+    // the books could file clinical exam findings. The blurb on this scope
+    // says "Money, payouts and partner revenue. Reads sessions without
+    // changing them", and the grid now says the same thing.
+    //
+    // Same reasoning as the existing `sessions: "view"` grant one line up,
+    // which exists so the person reconciling the books cannot cancel the
+    // sessions they are reconciling.
+    people: "view",
     sessions: "view",
-    people: "manage",
     money: "manage",
     catalog: "none",
     logs: "none",

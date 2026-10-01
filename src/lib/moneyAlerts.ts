@@ -22,7 +22,8 @@ export type MoneyAlertKey =
   | "refunds_failed"
   | "unmatched_payments"
   | "patients_owing_aged"
-  | "settlements_waiting";
+  | "settlements_waiting"
+  | "purchases_unscheduled";
 
 export type MoneyAlert = {
   key: MoneyAlertKey;
@@ -32,7 +33,7 @@ export type MoneyAlert = {
   hint: string;
   /** Which admin section the fix lives in, so an unreachable one is dropped
    *  rather than rendered as a link that lands somewhere else. */
-  section: "money" | "settings" | "sessions";
+  section: "money" | "settings" | "sessions" | "catalog";
   tab: string;
   /** Preset the target screen applies to its own filters on arrival. */
   view?: string;
@@ -79,7 +80,36 @@ export type MoneyAlertCounts = {
    *  Optional for the same reason as the row above: a caller predating the
    *  settlement table counts zero and the row is dropped. */
   settlementsWaiting?: number;
+  /** Programmes and home-visit packages that were paid for and have never
+   *  had a single appointment booked against them.
+   *
+   *  This is the one row here where the clinic has taken money and delivered
+   *  nothing at all, and until now nothing in the product looked for it. The
+   *  patient is not stranded -- the balance is on their Programmes screen and
+   *  unbooked sessions are a pinned item on their own dashboard -- but that
+   *  is precisely the failure: it waits on a patient who may have paid and
+   *  then been distracted, and no one at the clinic can see it to ring them.
+   *
+   *  Counted only past a grace window (`PURCHASE_UNSCHEDULED_AFTER_HOURS`),
+   *  because a purchase made ten minutes ago on its way to the scheduler is
+   *  the normal case and counting it would make this row permanently on --
+   *  which is how a row stops being read.
+   *
+   *  Optional, so a caller that does not compute it counts zero and the row
+   *  is dropped like any other empty alert. */
+  purchasesUnscheduled?: number;
 };
+
+/**
+ * How long a paid purchase may sit with nothing booked before an admin
+ * should be told about it.
+ *
+ * A day rather than an hour: the scheduler opens with the whole run already
+ * proposed, so most patients book immediately, and the ones who do not are
+ * usually deciding rather than stuck. Ringing somebody the same afternoon
+ * they paid reads as chasing; ringing them the next day reads as service.
+ */
+export const PURCHASE_UNSCHEDULED_AFTER_HOURS = 24;
 
 export function buildMoneyAlerts(
   counts: MoneyAlertCounts,
@@ -158,6 +188,22 @@ export function buildMoneyAlerts(
       // Work in a queue rather than money out of the clinic's control: the
       // money may well be in the bank already. Urgent is reserved for the
       // rows where it is definitely somewhere else.
+      urgent: false,
+    },
+    {
+      key: "purchases_unscheduled",
+      label: "Paid programmes with nothing booked",
+      count: counts.purchasesUnscheduled ?? 0,
+      hint: "They paid and never picked a date. Ring them and book the first session - the scheduler proposes the whole run from their own plan.",
+      // Catalog, because that is where Purchases lives -- the section is
+      // chosen by where the work is done, never by which strip the row sits
+      // on, the same rule a failed session refund follows into Sessions.
+      section: "catalog",
+      tab: "purchases",
+      view: "unscheduled",
+      // Money taken for work not begun. Not urgent: nothing has gone wrong
+      // and nobody is out of pocket -- it is a patient who needs a phone
+      // call, which is the opposite of the rows above it.
       urgent: false,
     },
     {

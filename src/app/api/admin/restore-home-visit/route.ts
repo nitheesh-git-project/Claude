@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { mirrorAdminRestore } from "@/lib/sessionCreditMirror";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 const MAX_REASON_LENGTH = 500;
 
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return serverError("admin/restore-home-visit", updateError);
   }
   if (!claimed) {
     return NextResponse.json(

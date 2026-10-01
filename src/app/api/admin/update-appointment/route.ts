@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
-import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { updateMeetEventForAppointment } from "@/lib/googleCalendarSync";
 import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
+import {
+  claimTherapistSlot,
+  describeClaimFailure,
+} from "@/lib/claimTherapistSlot";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("sessions");
@@ -133,66 +136,37 @@ export async function POST(request: NextRequest) {
     durationMinutes = category.duration_minutes ?? durationMinutes;
   }
 
-  const conflict = await findTherapistConflict(
-    admin,
-    therapistId,
-    new Date(slotDateTime).toISOString(),
-    durationMinutes,
-    { excludeAppointmentId: appointmentId }
-  );
-  if (conflict) {
-    return NextResponse.json(
-      { error: "This therapist already has another session that overlaps this time slot." },
-      { status: 400 }
-    );
-  }
-
   const newSlotIso = new Date(slotDateTime).toISOString();
-  const { error } = await admin
-    .from("appointments")
-    .update({
-      therapist_id: therapistId,
-      slot_time: newSlotIso,
-      category_id: resolvedCategoryId,
-      duration_minutes: durationMinutes,
-    })
-    .eq("id", appointmentId);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  // Re-check for a conflict now that the write has landed - the earlier
-  // check and this write aren't atomic, so two concurrent reschedules onto
-  // the same therapist with overlapping times could both pass the earlier
-  // check before either write committed, double-booking that therapist.
-  // Whichever request's write lands second will see the other's
-  // now-committed row here and can roll its own change back instead of
-  // leaving a real double-booking in place.
-  const conflictAfterWrite = await findTherapistConflict(
-    admin,
+  // Moving the session and reserving the therapist for the time it is
+  // moving TO, in one statement under a row lock on that therapist.
+  //
+  // This replaces a check, a write, a re-check and a revert. The re-check
+  // narrowed the double-booking window without closing it -- two
+  // reschedules onto overlapping times both passed the first check before
+  // either write committed -- and the revert rewrote four columns with no
+  // compare-and-set, so a third admin's change landing in between was
+  // silently undone by a request that had already lost.
+  //
+  // The new slot is passed in rather than written first, because the
+  // overlap test has to judge the time being moved to. Writing first and
+  // testing afterwards is exactly the sequence this removes.
+  const claim = await claimTherapistSlot(admin, {
+    appointmentId,
     therapistId,
-    newSlotIso,
-    durationMinutes,
-    { excludeAppointmentId: appointmentId }
-  );
-  if (conflictAfterWrite) {
-    await admin
-      .from("appointments")
-      .update({
-        therapist_id: appointment.therapist_id,
-        slot_time: appointment.slot_time,
-        category_id: appointment.category_id,
-        duration_minutes: appointment.duration_minutes,
-      })
-      .eq("id", appointmentId);
-    return NextResponse.json(
-      {
-        error:
-          "This therapist was just double-booked by a concurrent change - please try again or pick a different therapist/time.",
-      },
-      { status: 409 }
-    );
+    // A reschedule is applied only while the therapist this request was
+    // read with is still the one on the session. `is not distinct from`
+    // inside the function means an unassigned session is matched by a null
+    // here, so an edit that assigns and reschedules at once still works.
+    expectedTherapistId: appointment.therapist_id,
+    newSlotTime: newSlotIso,
+    newDurationMinutes: durationMinutes,
+    newCategoryId: resolvedCategoryId,
+  });
+
+  if (!claim.ok) {
+    const { status, error } = describeClaimFailure(claim);
+    return NextResponse.json({ error }, { status });
   }
 
   // Best-effort audit trail - logged only when something actually changed,

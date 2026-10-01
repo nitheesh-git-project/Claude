@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 // The global kill-switch: off means no rating numbers show on /team or the
 // homepage for ANY therapist, regardless of that therapist's own
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     .eq("id", true);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/set-ratings-visible-publicly", error);
   }
 
   // The rating summary renders on three ISR-cached public pages

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isPatientProfile, isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { serverError } from "@/lib/apiError";
 
 // Marks the one-time welcome modal as seen. Called both on "Skip for now"
 // and on the CTA button, so either way it never shows again for this
@@ -36,7 +37,7 @@ export async function POST() {
     .update({ onboarding_seen_at: new Date().toISOString() })
     .eq("id", user.id);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("patient/dismiss-onboarding", error);
   }
 
   return NextResponse.json({ success: true });

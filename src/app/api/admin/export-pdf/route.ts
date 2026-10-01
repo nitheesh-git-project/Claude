@@ -13,6 +13,15 @@ import { buildTablePdf, tablePdfFilename } from "@/lib/tablePdf";
 // produced the rows was already gated by requireAdminScope, and this route
 // discloses nothing the caller did not send. It is still admin-only so it
 // isn't a free PDF renderer for anyone with a session.
+//
+// What reading nothing does NOT give is any guarantee the rows are the
+// clinic's: an admin could post anything and get back a document carrying
+// the clinic's name. Re-querying server-side would close that and would
+// break the one thing this shape exists for, since the CSV is built in the
+// browser and the two would then be free to disagree. So the document is
+// made attributable instead -- it names the admin who generated it -- and
+// that is a deliberate trade rather than an oversight. See
+// docs/audit/AUDIT-FIX-REPORT.md, item 71.
 const MAX_ROWS = 10_000;
 const MAX_COLUMNS = 40;
 
@@ -66,6 +75,11 @@ export async function POST(request: NextRequest) {
     columns,
     rows,
     generatedAt,
+    // The admin who asked. This route typesets rows the browser sent, which
+    // is what keeps the CSV and the PDF identical -- but it means the rows
+    // are not proven to be the clinic's, and for a financial export that is
+    // worth closing the honest way: the document is attributable.
+    generatedBy: admin.email ?? null,
   });
 
   // A fresh ArrayBuffer: pdf-lib's view can sit inside a larger pooled

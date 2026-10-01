@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -12,11 +13,31 @@ export async function POST(request: NextRequest) {
 
   const { data: body, error: parseError } = await parseJsonBody<{
     referralId?: string;
+    reason?: string;
   }>(request);
   if (parseError) return parseError;
   const { referralId } = body;
   if (!referralId) {
     return NextResponse.json({ error: "Missing referralId" }, { status: 400 });
+  }
+
+  // Declining is the one outcome here that takes something away -- from the
+  // partner who sent the patient, and from the patient, who is now not
+  // being seen. It recorded nothing but a status word, so the hospital read
+  // "Declined" and could not tell a wrong-specialty referral from a
+  // capacity problem that would pass by Thursday, and the clinic lost the
+  // one chance it had to say "send these to us, not those". Same ten-
+  // character floor as every other reason in this codebase, and enforced by
+  // the column's CHECK as well as here.
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+  if (reason.length < 10) {
+    return NextResponse.json(
+      {
+        error:
+          "Give a reason of at least 10 characters - the hospital reads this, and it is what tells them what to send instead.",
+      },
+      { status: 400 }
+    );
   }
 
   const admin = createAdminClient();
@@ -45,14 +66,19 @@ export async function POST(request: NextRequest) {
   // the pre-invite set at write time closes that.
   const { data: updated, error } = await admin
     .from("patient_referrals")
-    .update({ status: "declined" })
+    .update({
+      status: "declined",
+      decline_reason: reason,
+      declined_at: new Date().toISOString(),
+      declined_by: adminUser.id,
+    })
     .eq("id", referralId)
     .in("status", ["pending_review", "therapist_assigned"])
     .select("id")
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/decline-referral", error);
   }
   if (!updated) {
     return NextResponse.json(
@@ -64,6 +90,12 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "referral.decline",
     targetId: referralId,
+    // The reason is the actionable half of this decision and the log is
+    // where a dispute is read from months later, so it is recorded rather
+    // than only delivered. It is about a referral rather than about a
+    // person, so the note-length rule that keeps free text about patients
+    // out of the log does not apply.
+    details: { reason },
   });
 
   return NextResponse.json({ success: true });

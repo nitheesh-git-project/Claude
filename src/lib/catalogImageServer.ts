@@ -15,6 +15,12 @@ import { clampFocal } from "@/lib/catalogImage";
  * Best-effort by the same reasoning: a failure here leaves the picture
  * centred, which is exactly where it was. It never throws, so it cannot take
  * down the save it is attached to.
+ *
+ * **It reports, though.** Swallowing the failure silently meant an admin drags
+ * a cover's focal point, is told the catalogue saved, and the picture does not
+ * move -- which is the "never tell somebody they did something they did not
+ * do" rule, on the one part of this save a person can see. The boolean lets
+ * the route say so; nothing is refused and nothing is rolled back.
  */
 export async function writeCatalogFocal(
   admin: SupabaseClient,
@@ -22,16 +28,23 @@ export async function writeCatalogFocal(
   rowId: string,
   focalX: unknown,
   focalY: unknown
-): Promise<void> {
+): Promise<boolean> {
   try {
-    await admin
+    const { error } = await admin
       .from(table)
       .update({
         image_focal_x: clampFocal(focalX),
         image_focal_y: clampFocal(focalY),
       })
       .eq("id", rowId);
-  } catch {
-    // Swallowed on purpose - see above.
+    if (error) {
+      console.error("Could not write a catalog cover's focal point", table, rowId, error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    // Never rethrown -- see above. Reported so the caller can say so.
+    console.error("Writing a catalog cover's focal point threw", table, rowId, err);
+    return false;
   }
 }

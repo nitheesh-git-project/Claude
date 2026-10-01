@@ -4,6 +4,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
+import { serverError } from "@/lib/apiError";
 
 const MAX_NAME_LENGTH = 120;
 const MAX_NOTE_LENGTH = 500;
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("home-visit/join-waitlist", error);
   }
 
   return NextResponse.json({ success: true });

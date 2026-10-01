@@ -2,6 +2,8 @@
 
 import { useId, useOptimistic, useState, useTransition } from "react";
 import { useSaveSetting } from "@/lib/useSaveSetting";
+import { useConfirm } from "@/lib/useConfirm";
+import { describeHomeVisitCommitment } from "@/lib/homeVisitAreaCommitments";
 import { useRouter } from "@/lib/useRouter";
 import type { AdminSettings } from "@/lib/adminSettings";
 
@@ -10,20 +12,37 @@ function Toggle({
   hint,
   value,
   settingKey,
+  note,
+  confirmOff,
 }: {
   label: string;
   hint: string;
   value: boolean;
   settingKey: string;
+  /** A standing fact about this switch, shown whether or not it is touched. */
+  note?: string | null;
+  /**
+   * Asked before the switch goes **off** only. Turning a service on takes
+   * nothing away from anybody, so there is nothing to confirm in that
+   * direction and a prompt there would be the dialog nobody reads.
+   */
+  confirmOff?: string | null;
 }) {
   const saveSetting = useSaveSetting();
+  const { confirm, dialog } = useConfirm();
   const [optimistic, setOptimistic] = useOptimistic(value);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  function handleToggle() {
+  async function handleToggle() {
     const next = !optimistic;
+    // The decision is awaited BEFORE the transition, never inside it: the
+    // dialog renders from state, so a transition waiting on it is waiting on
+    // an update that belongs to itself and nothing ever paints.
+    if (!next && confirmOff) {
+      if (!(await confirm(confirmOff))) return;
+    }
     setError(null);
     startTransition(async () => {
       setOptimistic(next);
@@ -38,13 +57,15 @@ function Toggle({
 
   return (
     <div className="flex items-start justify-between gap-4 py-3">
+      {dialog}
       <div>
         <p className="text-xs font-semibold text-slate-800">{label}</p>
         <p className="text-[11px] text-slate-500 mt-0.5">{hint}</p>
+        {note && <p className="text-[11px] text-amber-700 mt-1">{note}</p>}
         {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
       </div>
       <button
-        onClick={handleToggle}
+        onClick={() => void handleToggle()}
         disabled={isPending}
         className={`shrink-0 w-11 h-6 rounded-full transition relative disabled:opacity-60 ${
           optimistic ? "bg-teal-600" : "bg-slate-300"
@@ -218,12 +239,20 @@ export default function HomeVisitSettingsForm({
   settings,
   areaCount,
   packageCount,
+  commitment,
 }: {
   settings: AdminSettings;
   areaCount: number;
   packageCount: number;
+  /**
+   * Paid visits still to deliver. `null` means the read failed and
+   * `undefined` that this caller does not know -- both say so rather than
+   * reading as nothing outstanding.
+   */
+  commitment?: { purchases: number; visits: number } | null;
 }) {
   const notReady = areaCount === 0 || packageCount === 0;
+  const owed = describeHomeVisitCommitment(commitment);
 
   return (
     <div className="space-y-6">
@@ -249,6 +278,8 @@ export default function HomeVisitSettingsForm({
             hint="Turns the public page, the nav link and the booking wizard on."
             value={settings.homeVisitEnabled}
             settingKey="home_visit_enabled"
+            note={settings.homeVisitEnabled ? owed.note : null}
+            confirmOff={owed.confirm}
           />
           <Toggle
             label="Allow cash on visit"

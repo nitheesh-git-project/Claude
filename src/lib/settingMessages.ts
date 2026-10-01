@@ -56,6 +56,13 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     describe: (v) =>
       `A patient who has owed for more than ${plural(v, "day", "days")} now shows as worth chasing.`,
   },
+  pay_later_max_owed_paise: {
+    kind: "number",
+    describe: (v) =>
+      v === null || v === 0
+        ? "There is no limit on what a trusted patient may owe."
+        : `A patient is now asked to pay now once they would owe more than ₹${(v / 100).toLocaleString("en-IN")}.`,
+  },
   home_visit_lead_time_hours: {
     kind: "number",
     describe: (v) => `Home visits must now be booked at least ${plural(v, "hour", "hours")} ahead.`,
