@@ -123,6 +123,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   appears for a therapist with package patients. Booking is the deliberate
   exception: it is always shown, because that is how a patient gets their
   first of anything.
+- **A dropped live connection is said, and caught up on.** `RealtimeRefresh`
+  passes a status callback to `channel.subscribe`: `CHANNEL_ERROR`,
+  `TIMED_OUT` or an unexpected `CLOSED` shows a small "Live updates paused"
+  notice with a Refresh button, and the next `SUBSCRIBED` clears it and
+  refreshes once, since nothing that changed during the gap was delivered.
+  It used to subscribe with no callback, so a refused or dropped socket
+  stopped the dashboard updating with nothing on screen to say so.
 - **A dashboard refresh is expensive; debounce accordingly.**
   `RealtimeRefresh` turns a `postgres_changes` event into `router.refresh()`,
   which on the admin dashboard re-runs the whole Server Component - ~40
