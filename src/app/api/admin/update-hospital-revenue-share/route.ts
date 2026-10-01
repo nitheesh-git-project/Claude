@@ -51,14 +51,25 @@ export async function POST(request: NextRequest) {
     .eq("role", "hospital")
     .maybeSingle();
 
-  const { error } = await admin
+  if (!before) {
+    return NextResponse.json({ error: "That partner doesn't exist." }, { status: 404 });
+  }
+
+  // The row comes back, so "nothing matched" is a 404 rather than a success
+  // and an audit entry for a change that never happened.
+  const { data: updated, error } = await admin
     .from("profiles")
     .update({ revenue_share_percent: sharePercent })
     .eq("id", hospitalId)
-    .eq("role", "hospital");
+    .eq("role", "hospital")
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return serverError("admin/update-hospital-revenue-share", error);
+  }
+  if (!updated) {
+    return NextResponse.json({ error: "That partner doesn't exist." }, { status: 404 });
   }
 
   // Counted as a money action (see isMoneyAction): this percentage decides

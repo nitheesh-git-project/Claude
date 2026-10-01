@@ -51,6 +51,9 @@ export type TablePdfInput = {
    * between the two formats.
    */
   generatedBy?: string | null;
+  /** One line printed under the stamp saying what this document is (and is
+   *  not), so a reproduction of a screen is not mistaken for the books. */
+  provenance?: string | null;
 };
 
 /** Column widths from the widest cell in each column, scaled to the page.
@@ -149,6 +152,16 @@ export async function buildTablePdf(input: TablePdfInput): Promise<Uint8Array> {
       }
       page.drawText(toWinAnsi(stamp), { x: MARGIN, y: y - 10, size: 8, font, color: MUTED });
       y -= 20;
+      if (input.provenance) {
+        page.drawText(truncateToWidth(toWinAnsi(input.provenance), font, 8, CONTENT_WIDTH), {
+          x: MARGIN,
+          y: y - 4,
+          size: 8,
+          font,
+          color: MUTED,
+        });
+        y -= 14;
+      }
     }
     // The header row repeats on every page: a printed table whose columns
     // are only labelled on page 1 is unreadable from page 2 onward.

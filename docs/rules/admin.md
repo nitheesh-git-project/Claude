@@ -423,8 +423,12 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   out of the admin dashboard's client bundle - that page already ships
   every screen at once. That route reads nothing: the caller sends the
   exact filtered rows it rendered, which is what guarantees the two
-  formats agree, and it means there is nothing there to scope-check
-  beyond being an admin at all. Give every export a `subtitle` naming
+  formats agree. Because the rows are the caller's, the route is **scoped
+  to the section they came from**: `DataExportButtons` sends the shell's
+  current `?section=`, and the route refuses one the caller's scope cannot
+  open - any admin used to be able to print a clinic-branded document of
+  anything. Every PDF also prints who exported it and a line saying it
+  reproduces the screen and is not a statement of account. Give every export a `subtitle` naming
   what the rows are scoped to - a printed table nobody can date is
   worthless. Nothing in the admin dashboard exports JSON, and nothing
   should.

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminUser } from "@/lib/supabase/requireAdmin";
+import { getAdminContext } from "@/lib/supabase/requireAdmin";
+import { scopeCanOpen } from "@/lib/adminScope";
+import { ADMIN_SECTIONS, type AdminSectionKey } from "@/lib/adminNav";
 import { createClient } from "@/lib/supabase/server";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { buildTablePdf, tablePdfFilename } from "@/lib/tablePdf";
@@ -26,7 +28,7 @@ const MAX_ROWS = 10_000;
 const MAX_COLUMNS = 40;
 
 export async function POST(request: NextRequest) {
-  const admin = await getAdminUser();
+  const admin = await getAdminContext();
   if (!admin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -37,8 +39,18 @@ export async function POST(request: NextRequest) {
     filename?: unknown;
     columns?: unknown;
     rows?: unknown;
+    section?: unknown;
   }>(request);
   if (parseError) return parseError;
+
+  // Scoped to the section the table came from. Any admin could print a
+  // clinic-branded PDF of anything; a desk now prints only from a section
+  // its scope can open, and the document names who printed it and says it
+  // reproduces the screen rather than the books.
+  const section = ADMIN_SECTIONS.find((s) => s.key === body.section)?.key as AdminSectionKey | undefined;
+  if (!section || !scopeCanOpen(admin.scope, section)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : "Export";
   const subtitle = typeof body.subtitle === "string" ? body.subtitle : undefined;
@@ -80,6 +92,7 @@ export async function POST(request: NextRequest) {
     // are not proven to be the clinic's, and for a financial export that is
     // worth closing the honest way: the document is attributable.
     generatedBy: admin.email ?? null,
+    provenance: "Reproduces the table as shown on the admin dashboard; not a statement of account.",
   });
 
   // A fresh ArrayBuffer: pdf-lib's view can sit inside a larger pooled

@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
   // three are re-derived here, same rule as every other admin route.
   const { data: patient } = await admin
     .from("profiles")
-    .select("id, full_name, role, active")
+    .select("id, full_name, role, active, approved")
     .eq("id", patientId)
     .maybeSingle();
 
@@ -88,6 +88,18 @@ export async function POST(request: NextRequest) {
   if (patient.active === false) {
     return NextResponse.json(
       { error: "That patient is suspended. Reactivate the account before booking for them." },
+      { status: 409 }
+    );
+  }
+  // The approval queue is the decision to take somebody on. Booking for a
+  // patient still in it used to skip that decision silently; approving them
+  // is one click, and it keeps the record of who was let in, and when.
+  if (patient.approved === false) {
+    return NextResponse.json(
+      {
+        error:
+          "This patient's account is still waiting for approval. Approve it under Today -> Approvals, then book for them.",
+      },
       { status: 409 }
     );
   }
