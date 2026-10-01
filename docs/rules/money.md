@@ -25,6 +25,13 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   `cash.correct_amount` audit row. It refuses a visit whose cash has already
   been remitted - that transfer has gone out, so the fix is an adjustment
   against the next payout rather than a silent edit of a settled one.
+  **Cash is recorded at the visit, for a visit that is still on, at a
+  price the system could read.** The route refuses a `requested` or
+  cancelled visit and a confirmed one before its join window, re-checks
+  the status inside the claiming write (a visit cancelled between the read
+  and the write is not marked paid), and refuses outright when the
+  purchase price cannot be read - it used to fall back to a fee of zero and
+  still mark the visit paid.
 
 - **One money word per role.** Money owed *to* someone is **Earnings**
   (therapist and hospital), money going *out* is **Payments** (patient),
