@@ -3,7 +3,7 @@
  * Regenerates docs/rules/00-index.md from the rules files themselves.
  *
  * The index is every rule's own opening sentence, with the file it lives in.
- * It is generated rather than written because a hand-kept index of 130 rules
+ * It is generated rather than written because a hand-kept index of 148 rules
  * is one that disagrees with the rules within a week -- the same reason the
  * User Access matrix is derived and not a second list of permissions.
  *
