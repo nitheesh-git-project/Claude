@@ -384,6 +384,22 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   paged, and a failure answers 503 rather than a document missing a
   section. The button fetches the file instead of linking to it, so that
   refusal reads as a sentence beside the button, not a page of JSON.
+- **Clinical access follows live or delivered care - never a cancelled
+  session or a lapsed programme.** A therapist reads a patient's health
+  profile, Pain Map exams, reports, addresses and other clinicians' session
+  notes while named on one of their `requested`, `confirmed` or
+  `completed` appointments, or while holding the lock on a programme that
+  is paid, active and unexpired. The policies used to match *any*
+  appointment row, so a therapist attached only to a session cancelled
+  before it happened kept reading the record for good. The rule lives in
+  the RLS policies appended at the end of `schema.sql`, in
+  `CLINICAL_ACCESS_APPOINTMENT_STATUSES` / `programmeLockGrantsClinicalAccess`
+  (`src/lib/clinicalAccess.ts`, which the admin's "who can see this"
+  panel reads) and in `isTherapistAssignedToPatient`; change all three
+  together. **A Pain Map exam also needs a session that has started**
+  (`hasStartedSessionWithPatient`: completed, or confirmed and inside its
+  join window) - it records an observation from a session the therapist
+  ran, so being assigned to a future session is not enough.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate

@@ -14619,3 +14619,149 @@ create trigger trg_appointments_patient_no_overlap
   for each row execute function public.appointments_patient_no_overlap();
 
 revoke all on function public.appointments_patient_no_overlap() from public, anon, authenticated;
+
+-- Clinical access follows care that is live or delivered -- never a
+-- cancelled session, and never a programme that is unpaid, refunded,
+-- cancelled or past its expiry.
+--
+-- "Assigned" used to mean *any* appointment row naming the therapist, of any
+-- status, or any package lock. A therapist attached only to a session that
+-- was cancelled before it happened kept reading the patient's documents,
+-- health profile, Pain Map exams and other clinicians' session notes for
+-- good. The retention rule in the comment above is unchanged -- a completed
+-- session keeps whoever ran it -- and it is now what the policies actually
+-- say. src/lib/clinicalAccess.ts (CLINICAL_ACCESS_APPOINTMENT_STATUSES,
+-- programmeLockGrantsClinicalAccess) and src/lib/conditionAccess.ts hold the
+-- same rule for the routes and the admin's "who can see this" panel.
+
+drop policy if exists "condition_profiles_select_assigned_therapist" on patient_condition_profiles;
+create policy "condition_profiles_select_assigned_therapist" on patient_condition_profiles
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_condition_profiles.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_condition_profiles.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "pain_assessments_select_assigned_therapist" on pain_assessments;
+create policy "pain_assessments_select_assigned_therapist" on pain_assessments
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = pain_assessments.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = pain_assessments.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "patient_medical_documents_select_assigned_therapist" on patient_medical_documents;
+create policy "patient_medical_documents_select_assigned_therapist" on patient_medical_documents
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_medical_documents.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_medical_documents.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "patient_addresses_select_assigned_therapist" on patient_addresses;
+create policy "patient_addresses_select_assigned_therapist" on patient_addresses
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_addresses.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_addresses.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "session_notes_select_clinician" on session_notes;
+create policy "session_notes_select_clinician" on session_notes
+  for select using (
+    (
+      is_active_therapist()
+      and (
+      exists (
+          select 1 from appointments a
+          where a.patient_id = session_notes.patient_id
+            and a.therapist_id = (select auth.uid())
+            and a.status in ('requested', 'confirmed', 'completed')
+        )
+        or exists (
+          select 1 from patient_package_purchases pp
+          where pp.patient_id = session_notes.patient_id
+            and pp.locked_therapist_id = (select auth.uid())
+            and pp.payment_status = 'paid'
+            and pp.status = 'active'
+            and (pp.expires_at is null or pp.expires_at > now())
+        )
+      )
+    )
+    or is_admin()
+  );
+
+-- A Pain Map exam records what the therapist observed in a session they
+-- ran, so the insert is tied to one: a confirmed session that has started,
+-- or a completed one -- never a requested, cancelled or future session.
+drop policy if exists "pain_assessments_insert_assigned_therapist" on pain_assessments;
+create policy "pain_assessments_insert_assigned_therapist" on pain_assessments
+  for insert with check (
+    (select auth.uid()) = submitted_by and submitted_by_role = 'therapist'
+    and is_active_therapist()
+    and exists (
+      select 1 from appointments a
+      where a.patient_id = pain_assessments.patient_id
+        and a.therapist_id = (select auth.uid())
+        and (
+          a.status = 'completed'
+          or (a.status = 'confirmed' and a.slot_time <= now() + interval '15 minutes')
+        )
+    )
+  );

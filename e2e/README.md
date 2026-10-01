@@ -120,7 +120,7 @@ total, which moves with every spec added.
 
 | Spec | Cases | Covers |
 | --- | --- | --- |
-| `health-profile` | 27 | the per-specialty intake, the Pain Map, and the double-submit no-op |
+| `health-profile` | 28 | the per-specialty intake, the Pain Map, the double-submit no-op, and clinical access following live or delivered care |
 | `admin-care-plans` | 21 | who may write a recommendation on a therapist's behalf, and the whole review step |
 | `session-suggestions` | 18 | therapist-suggested sessions, including button spam, concurrent answers and a dropped connection |
 | `therapist-roster` | 16 | ranges, exceptions, leave, authorization, stale and double-clicked saves, and that no roster change moved a booking |

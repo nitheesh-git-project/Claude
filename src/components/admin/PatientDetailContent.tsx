@@ -20,7 +20,11 @@ import PatientProfitChart from "@/components/admin/PatientProfitChart";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
 import ClinicalAccessPanel from "@/components/admin/ClinicalAccessPanel";
-import { clinicalAccessHolders } from "@/lib/clinicalAccess";
+import {
+  appointmentGrantsClinicalAccess,
+  clinicalAccessHolders,
+  programmeLockGrantsClinicalAccess,
+} from "@/lib/clinicalAccess";
 import PayLaterGrantCard from "@/components/admin/PayLaterGrantCard";
 import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawer";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
@@ -235,7 +239,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     // answered from the appointments alone.
     admin
       .from("patient_package_purchases")
-      .select("locked_therapist_id")
+      .select("locked_therapist_id, payment_status, status, expires_at")
       .eq("patient_id", id)
       .not("locked_therapist_id", "is", null),
   ]);
@@ -246,13 +250,17 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   // see src/lib/clinicalAccess.ts for the decision it makes explicit.
   const accessHolders = clinicalAccessHolders(
     [
+      // The same rule the RLS policies apply: a cancelled session and a
+      // paid-off, lapsed or refunded programme grant nothing.
       ...(appointments ?? [])
-        .filter((a) => a.therapist_id)
+        .filter((a) => a.therapist_id && appointmentGrantsClinicalAccess(a.status))
         .map((a) => ({ therapistId: a.therapist_id as string, slotTime: a.slot_time })),
-      ...(lockedPurchases ?? []).map((p) => ({
-        therapistId: p.locked_therapist_id as string,
-        viaProgrammeLock: true,
-      })),
+      ...(lockedPurchases ?? [])
+        .filter((p) => programmeLockGrantsClinicalAccess(p, nowTimestamp()))
+        .map((p) => ({
+          therapistId: p.locked_therapist_id as string,
+          viaProgrammeLock: true,
+        })),
     ],
     new Map(
       (sessionTherapists ?? []).map((t) => [
