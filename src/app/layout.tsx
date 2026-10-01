@@ -8,7 +8,7 @@ import Footer from "@/components/Footer";
 import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
 import { SectionNavProvider } from "@/components/SectionNavContext";
-import { createPublicClient } from "@/lib/supabase/public";
+import { getLayoutSettings } from "@/lib/siteSettingsCache";
 import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
@@ -75,52 +75,31 @@ export default async function RootLayout({
   // can stay statically generated/ISR-cached; parseAdminSettings() already
   // degrades to the old hardcoded strings as defaults if the migration
   // adding these columns hasn't run yet.
-  const supabase = createPublicClient();
-  const { data: settingsRow } = await supabase
-    .from("site_settings")
-    .select(
-      "site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text"
-    )
-    .maybeSingle();
+  //
+  // All four groups below are still four separate selects -- see
+  // siteSettingsCache.ts for why a newer column must not be able to blank
+  // the site name -- but they now run concurrently and the whole set is
+  // cached under the `site-settings` tag. This layout wraps every page in
+  // the app, so what used to be four serial Supabase round-trips before
+  // first byte, on every single page load, is now usually none.
+  const { brand: settingsRow, homeVisit: homeVisitRow, farewell: farewellRow, splash: splashRow } =
+    await getLayoutSettings();
   const brand = parseAdminSettings(settingsRow);
 
-  // Whether the Navbar shows its Home Visit link. Its own isolated query,
-  // not folded into the brand select above: home_visit_enabled is a newer
-  // column, and an unknown-column error here would otherwise blank the
-  // site name and tagline on every page as collateral. Defaults to hidden
-  // when the column doesn't exist yet, which is also the right answer for
-  // a database that has never configured the feature.
-  const { data: homeVisitRow } = await supabase
-    .from("site_settings")
-    .select("home_visit_enabled")
-    .maybeSingle();
+  // Whether the Navbar shows its Home Visit link. Defaults to hidden when
+  // the column doesn't exist yet, which is also the right answer for a
+  // database that has never configured the feature.
   const homeVisitEnabled = homeVisitRow?.home_visit_enabled === true;
 
-  // How long the post-logout banner stays up. Its own isolated select for
-  // the same reason as the one above: a newer column that a database which
-  // hasn't re-run schema.sql does not have yet, and an unknown-column error
-  // must not take the site name and tagline down with it.
-  const { data: farewellRow } = await supabase
-    .from("site_settings")
-    .select("farewell_banner_seconds")
-    .maybeSingle();
+  // How long the post-logout banner stays up.
   const farewellBannerSeconds =
     typeof farewellRow?.farewell_banner_seconds === "number"
       ? farewellRow.farewell_banner_seconds
       : DEFAULT_ADMIN_SETTINGS.farewellBannerSeconds;
 
-  // The opening splash's four settings, in their own isolated select for
-  // the same migration-tolerance reason as the two above: these columns are
-  // the newest in the table, and an unknown-column error here must not take
-  // the site name and tagline down with it. Falls back to the defaults in
+  // The opening splash's four settings. Falls back to the defaults in
   // splashScreen.ts, which is what a database that has never configured the
   // greeting should get.
-  const { data: splashRow } = await supabase
-    .from("site_settings")
-    .select(
-      "splash_enabled, splash_brand_line, splash_phrase, splash_hold_seconds, splash_revisit_minutes"
-    )
-    .maybeSingle();
   const splash: SplashConfig = {
     enabled: splashRow?.splash_enabled ?? DEFAULT_SPLASH_CONFIG.enabled,
     // Blank (the default) means "follow the site name", so the greeting and

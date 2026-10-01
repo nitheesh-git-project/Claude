@@ -43,7 +43,23 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // `motion` is a barrel: importing one component from it pulls the whole
+  // module graph into the client bundle before tree-shaking gets a chance.
+  // This rewrites those imports to the specific files, which is the
+  // difference between shipping the animation library and shipping the two
+  // pieces of it this app actually animates with.
+  experimental: {
+    optimizePackageImports: ["motion"],
+  },
   images: {
+    // AVIF first, WebP second, original last. The public pages carry 3.8 MB
+    // of photography in public/photos (the conditions hero alone is 302 KB
+    // as JPEG), and AVIF is routinely a third of that at the same visual
+    // quality. Next only serves a format the requesting browser lists in
+    // its Accept header, so the JPEG remains the answer for anything that
+    // cannot take the other two -- this adds a better option rather than
+    // removing the working one.
+    formats: ["image/avif", "image/webp"],
     // Avatars and catalog covers live in Supabase Storage's public buckets.
     // Wildcarded rather than pinned to one project ref so this keeps working
     // across dev/staging/prod Supabase projects without editing config per

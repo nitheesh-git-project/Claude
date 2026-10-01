@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
@@ -18,6 +18,7 @@ import {
   MAX_PAY_LATER_AGED_AFTER_DAYS,
 } from "@/lib/patientBalances";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { SITE_SETTINGS_TAG } from "@/lib/siteSettingsCache";
 import { serverError } from "@/lib/apiError";
 
 const ALLOWED_COLUMNS = new Set([
@@ -765,6 +766,23 @@ export async function POST(request: NextRequest) {
   ) {
     revalidatePath("/", "layout");
   }
+
+  // Unconditional, and separate from every revalidatePath above.
+  //
+  // Those invalidate rendered *pages*; this invalidates the cached
+  // site_settings *read* behind them (see siteSettingsCache.ts). A page
+  // rebuilt from a stale data cache shows the old value just as surely as
+  // a page that was never rebuilt, so both have to be dropped. It is
+  // unconditional because every key this route writes lives in the same
+  // single row, and there is no key whose change should leave that row's
+  // cached copy standing.
+  // `{ expire: 0 }`, not the recommended "max": "max" is
+  // stale-while-revalidate, which would serve the admin who just saved the
+  // setting the old value one more time -- the exact "did my save work?"
+  // confusion the revalidatePath calls above exist to prevent. Next 16's
+  // immediate-expiry path for a Route Handler is this object form;
+  // updateTag(), the other immediate option, is Server-Actions-only.
+  revalidateTag(SITE_SETTINGS_TAG, { expire: 0 });
 
   return NextResponse.json({ success: true });
 }

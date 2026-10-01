@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { isDashboardShellRoute } from "@/lib/dashboardShellRoutes";
 import { MARKETING_PAGES } from "@/lib/marketingNav";
 import BrandMark from "@/components/BrandMark";
+import type { ReactNode } from "react";
+import { WhatsAppGlyph } from "@/components/visuals/BrandGlyphs";
 
 export default function Footer({
   siteName,
@@ -78,20 +80,20 @@ export default function Footer({
           <h4 className="text-white text-sm font-semibold mb-3">Contact</h4>
           <ul className="space-y-2 text-xs text-slate-400">
             <ContactLine
-              icon="fa-solid fa-envelope"
+              icon={<i aria-hidden="true" className="fa-solid fa-envelope" />}
               value={contactEmail}
               href={`mailto:${contactEmail}`}
               show={hasRealEmail(contactEmail)}
             />
             <ContactLine
-              icon="fa-brands fa-whatsapp"
+              icon={<WhatsAppGlyph />}
               value={whatsappNumber}
               href={`https://wa.me/${digitsOnly(whatsappNumber)}`}
               label="Chat on WhatsApp"
               show={hasRealPhone(whatsappNumber)}
             />
             <ContactLine
-              icon="fa-solid fa-phone"
+              icon={<i aria-hidden="true" className="fa-solid fa-phone" />}
               value={contactPhone}
               href={`tel:${digitsOnly(contactPhone, true)}`}
               show={hasRealPhone(contactPhone)}
@@ -142,7 +144,7 @@ function ContactLine({
   label,
   show,
 }: {
-  icon: string;
+  icon: ReactNode;
   value: string;
   href: string;
   label?: string;
@@ -159,7 +161,12 @@ function ContactLine({
         aria-label={label}
         className="inline-block py-1 hover:text-teal-400 transition"
       >
-        <i aria-hidden="true" className={`${icon} text-teal-500 mr-2`}></i>
+        {/* The glyph is a node rather than a class string: the WhatsApp one
+            is now inline SVG (see BrandGlyphs.tsx), which saved pulling the
+            113 KB fa-brands webfont into every page for this single icon.
+            The shared colour and spacing stay here so all three lines still
+            match. */}
+        <span className="text-teal-500 mr-2 inline-block">{icon}</span>
         {value}
       </a>
     </li>
