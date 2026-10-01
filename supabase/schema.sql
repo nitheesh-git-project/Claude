@@ -14534,3 +14534,21 @@ create index if not exists session_entitlements_legacy_home_visit_idx
 create index if not exists session_entitlements_locked_therapist_idx
   on session_entitlements (locked_therapist_id)
   where locked_therapist_id is not null;
+
+-- ===========================================================================
+-- Audit remediation, October 2026
+--
+-- Appended in the file's own re-runnable style. Each block names the finding
+-- it closes; the reasoning lives in docs/rules/ beside the rule it enforces.
+-- ===========================================================================
+
+-- A payout request is answered by a payout. `completed` used to be a status
+-- an admin could set with nothing behind it -- no batch, no settled
+-- sessions -- and the therapist was then told they had been paid. The
+-- request now records the batch that answered it, and the routes refuse to
+-- complete one without it (settle-therapist-payout links it automatically).
+alter table therapist_payout_requests
+  add column if not exists payout_batch_id uuid references therapist_payout_batches(id);
+create index if not exists therapist_payout_requests_batch_idx
+  on therapist_payout_requests (payout_batch_id)
+  where payout_batch_id is not null;

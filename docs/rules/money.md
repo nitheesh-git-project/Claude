@@ -302,6 +302,24 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   Checked by `scripts/payout-atomicity-sql-checks.sql` -- the settlement that
   must land, the second call that must claim nothing, and a malformed payload
   leaving nothing settled -- plus a negative control.
+- **What a therapist can request, an admin can settle, and a request is
+  only completed by a payout.** `isTherapistShareEarned`
+  (`src/lib/therapistPayouts.ts`) is the one eligibility predicate -
+  completed, and paid *or* on pay-later terms - read by the summary, by
+  `/api/therapist/request-payout` and by `settle-therapist-payout`. The
+  settle route used to ask for `payment_status = 'paid'` alone, so delivered
+  pay-later sessions were requested and never settleable. The request route
+  had selected a column that does not exist (`cash_collected_paise`), dropped
+  the error and told every therapist "nothing owed"; every read in both
+  routes is now paged and checked, and a failed one is a 503, never a zero.
+  The payout batch is **inserted at the amount it is about to settle**, with
+  its note written - not at ₹0 and corrected by a second write that could
+  fail and leave paid-out sessions behind a ₹0 receipt; it is rewritten only
+  when a concurrent settle claimed some sessions first. Settling closes the
+  therapist's open request and records `payout_batch_id` on it
+  (`linkOpenPayoutRequest`); `/api/admin/complete-payout-request` refuses
+  unless a batch created since the request was raised exists to link, so a
+  therapist is told they were paid only when a payout was recorded.
 - **Netting cash off a payout is a remittance.** `settle-therapist-payout`
   reduces the transfer by the cash a therapist is holding, so it marks
   exactly those visits `cash_remitted_at` in the same run. Without that the
