@@ -224,6 +224,15 @@ export async function bookPackageSession(
     if (!reverted.ok) {
       console.error("Failed to revert claimed package session for purchase", purchase.id, reverted.error);
     }
+    // trg_appointments_patient_no_overlap: the patient already has another
+    // session at this time. The credit has been given back above.
+    if ((insertError as { code?: string } | null)?.code === "23P01") {
+      return {
+        success: false,
+        status: 409,
+        error: "You already have a session around this time. Pick a different slot.",
+      };
+    }
     if ((insertError as { code?: string } | null)?.code === "23505") {
       return {
         success: false,

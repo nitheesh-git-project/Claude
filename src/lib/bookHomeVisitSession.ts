@@ -275,6 +275,15 @@ export async function bookHomeVisitSession(
     // the balance is right either way. Saying "could not book" here would
     // report a working booking as a failure -- the one thing this route must
     // not do after money has moved.
+    // trg_appointments_patient_no_overlap: the patient already has another
+    // session at this time. The credit has been given back above.
+    if ((insertError as { code?: string } | null)?.code === "23P01") {
+      return {
+        success: false,
+        status: 409,
+        error: "You already have a session around this time. Pick a different slot.",
+      };
+    }
     if ((insertError as { code?: string } | null)?.code === "23505") {
       return { success: false, duplicate: true, status: 409, error: DUPLICATE_SLOT_ERROR };
     }

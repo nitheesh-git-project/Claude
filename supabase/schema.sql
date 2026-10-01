@@ -14552,3 +14552,70 @@ alter table therapist_payout_requests
 create index if not exists therapist_payout_requests_batch_idx
   on therapist_payout_requests (payout_batch_id)
   where payout_batch_id is not null;
+
+-- One patient, one session at a time -- enforced where two requests meet.
+--
+-- /api/appointments/create checked for an overlapping session and then
+-- inserted, two statements apart: two requests fired together (a double-tap,
+-- two tabs) both passed the check and both inserted, and the patient held two
+-- sessions at the same hour. The check now lives in the insert itself, under
+-- a per-patient advisory lock, so a second request waits for the first to
+-- commit and then sees its row. Insert only: a reschedule is its own flow
+-- with its own checks, and widening this to updates would make a live row
+-- that already overlaps (the finding, if one exists) refuse every edit.
+-- Raised as exclusion_violation (23P01) so callers can tell it apart.
+create or replace function public.appointments_patient_no_overlap()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_new_start timestamptz;
+  v_new_end timestamptz;
+begin
+  if new.patient_id is null
+     or new.slot_time is null
+     or new.status not in ('requested', 'confirmed') then
+    return new;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('appointments_patient_overlap:' || new.patient_id::text));
+
+  v_new_start := new.slot_time;
+  v_new_end := new.slot_time + make_interval(mins => coalesce(new.duration_minutes, 60));
+
+  if exists (
+    select 1
+      from appointments a
+     where a.patient_id = new.patient_id
+       and a.id is distinct from new.id
+       and a.status in ('requested', 'confirmed')
+       and a.slot_time is not null
+       and a.slot_time < v_new_end
+       and v_new_start < a.slot_time + make_interval(mins => coalesce(a.duration_minutes, 60))
+       -- The same purchase at the same instant is a retried booking (a
+       -- replayed verify, a double-tapped Pay), not a second session. Left
+       -- to the unique indexes, whose 23505 the booking helpers already
+       -- answer as "that visit exists" rather than as a failure.
+       and not (
+         a.slot_time = new.slot_time
+         and (
+           (new.home_visit_purchase_id is not null and a.home_visit_purchase_id = new.home_visit_purchase_id)
+           or (new.package_purchase_id is not null and a.package_purchase_id = new.package_purchase_id)
+         )
+       )
+  ) then
+    raise exception 'patient already has a session overlapping this time'
+      using errcode = '23P01';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_appointments_patient_no_overlap on appointments;
+create trigger trg_appointments_patient_no_overlap
+  before insert on appointments
+  for each row execute function public.appointments_patient_no_overlap();
+
+revoke all on function public.appointments_patient_no_overlap() from public, anon, authenticated;

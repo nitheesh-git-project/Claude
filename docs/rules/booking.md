@@ -10,6 +10,14 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
 
 ---
 
+- **A patient holds one session at a time, and the database says so.**
+  `/api/appointments/create` checks for an overlapping live session for
+  immediate feedback, but a check and an insert two statements apart let two
+  requests fired together both pass. `trg_appointments_patient_no_overlap`
+  (insert only, per-patient advisory lock) is what binds, raising `23P01`;
+  every inserting route maps that to a 409 in words. The same purchase at
+  the same instant is exempt - that is a retried booking, and the unique
+  indexes' `23505` already answers it as "that visit exists".
 - **Booking lead time** is `site_settings.online_booking_lead_time_hours`,
   defaulting to the 12 hours `src/lib/bookingSlots.ts` still holds as
   `BOOKING_LEAD_TIME_HOURS`, and shared by the picker and the validator so

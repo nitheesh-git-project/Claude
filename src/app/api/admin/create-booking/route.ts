@@ -198,6 +198,13 @@ export async function POST(request: NextRequest) {
     .select("id")
     .single();
 
+  if (error?.code === "23P01") {
+    // trg_appointments_patient_no_overlap.
+    return NextResponse.json(
+      { error: "This patient already has a session around that time. Pick a different slot." },
+      { status: 409 }
+    );
+  }
   if (error || !created) {
     return NextResponse.json(
       { error: error?.message ?? "Could not create the booking." },
