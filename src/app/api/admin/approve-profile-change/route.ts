@@ -92,6 +92,47 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This request has already been reviewed" }, { status: 409 });
   }
 
+  const releaseClaim = () =>
+    admin
+      .from("profile_change_requests")
+      .update({ status: "pending", reviewed_by: null, reviewed_at: null })
+      .eq("id", requestId)
+      .eq("status", "approved")
+      .eq("reviewed_at", reviewedAt);
+
+  // An email change moves the sign-in first: a profile reading the new
+  // address while the account still signs in with the old one would be the
+  // two disagreeing about who this is. If the profile write then fails, the
+  // sign-in is moved back.
+  const newEmail = typeof verdict.values.email === "string" ? verdict.values.email : null;
+  let previousEmail: string | null = null;
+  if (newEmail) {
+    const { data: authUser, error: authReadError } = await admin.auth.admin.getUserById(changeRequest.user_id);
+    if (authReadError || !authUser.user) {
+      await releaseClaim();
+      return serverError("admin/approve-profile-change", authReadError ?? "auth user missing", {
+        message: "Could not read this account's sign-in. The request is still waiting -- please try again.",
+      });
+    }
+    previousEmail = authUser.user.email ?? null;
+    const { error: authError } = await admin.auth.admin.updateUserById(changeRequest.user_id, {
+      email: newEmail,
+      email_confirm: true,
+    });
+    if (authError) {
+      await releaseClaim();
+      const taken = /already|registered|exists/i.test(authError.message);
+      return NextResponse.json(
+        {
+          error: taken
+            ? "Another account already uses that email address, so this change can't be approved."
+            : "Could not move this account's sign-in to the new email. The request is still waiting -- please try again.",
+        },
+        { status: taken ? 409 : 503 }
+      );
+    }
+  }
+
   const { data: applied, error: applyError } = await admin
     .from("profiles")
     .update(verdict.values)
@@ -99,12 +140,16 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
   if (applyError || !applied) {
-    await admin
-      .from("profile_change_requests")
-      .update({ status: "pending", reviewed_by: null, reviewed_at: null })
-      .eq("id", requestId)
-      .eq("status", "approved")
-      .eq("reviewed_at", reviewedAt);
+    if (newEmail && previousEmail) {
+      const { error: revertError } = await admin.auth.admin.updateUserById(changeRequest.user_id, {
+        email: previousEmail,
+        email_confirm: true,
+      });
+      if (revertError) {
+        console.error("approve-profile-change: could not restore the previous sign-in email", changeRequest.user_id, revertError.message);
+      }
+    }
+    await releaseClaim();
     return serverError("admin/approve-profile-change", applyError ?? "profile row not updated", {
       message: "Could not apply this change. The request is still waiting -- please try again.",
     });

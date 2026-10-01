@@ -106,11 +106,15 @@ export default async function HospitalProfilePage() {
               { name: "organization_name", label: "Organisation Name", type: "text" },
               { name: "full_name", label: "Primary Contact Name", type: "text" },
               { name: "phone", label: "Contact Phone", type: "phone" },
+              // Also the address this account signs in with: once approved,
+              // the login moves with it.
+              { name: "email", label: "Email (also your sign-in)", type: "email" },
             ]}
             currentValues={{
               organization_name: profile?.organization_name ?? "",
               full_name: profile?.full_name ?? "",
               phone: profile?.phone ?? "",
+              email: profile?.email ?? user.email ?? "",
             }}
             fieldStatus={fieldStatus}
           />

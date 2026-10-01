@@ -103,6 +103,13 @@ function validateField(
       if (nowMs - ms > 120 * 365.25 * 86_400_000) return { ok: false, error: "The new date of birth is too far in the past." };
       return { ok: true, value: v };
     }
+    case "email": {
+      const v = text(raw)?.toLowerCase() ?? "";
+      if (!v || v.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) {
+        return { ok: false, error: "The new email address isn't valid." };
+      }
+      return { ok: true, value: v };
+    }
     case "gender": {
       const v = text(raw);
       if (!v || !(GENDER_OPTIONS as readonly string[]).includes(v)) {

@@ -9,7 +9,7 @@ import { validateProfileChanges } from "@/lib/profileChangeValidation";
 type FieldConfig = {
   name: string;
   label: string;
-  type: "text" | "date" | "number" | "select" | "phone";
+  type: "text" | "date" | "number" | "select" | "phone" | "email";
   options?: string[];
   min?: string | number;
   max?: string | number;

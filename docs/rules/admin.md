@@ -566,6 +566,11 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   sending. Approval then claims the request (`pending` -> `approved`) first
   and applies it second, releasing the claim if the apply fails; the old
   order left a change live while its request still sat in the queue.
+  A partner's **email** is a gated field too, because it is also their
+  sign-in: approving it moves the auth login first
+  (`auth.admin.updateUserById`), then the profile, and moves the login back
+  if the profile write fails - an address already used by another account
+  is refused with a 409.
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.
