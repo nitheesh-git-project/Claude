@@ -3,6 +3,7 @@ import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { mirrorReserve } from "@/lib/sessionCreditMirror";
 import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
+import { decrementUsedCounter } from "@/lib/purchaseCounter";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -211,24 +212,17 @@ export async function bookPackageSession(
     // blindly overwriting with the pre-claim value, which could clobber a
     // concurrent cancellation/refund on this same package that landed in
     // between the claim above and this rollback.
-    const { data: current } = await admin
-      .from("patient_package_purchases")
-      .select("sessions_used")
-      .eq("id", purchase.id)
-      .single();
-    if (current && current.sessions_used > 0) {
-      const { error: revertError } = await admin
-        .from("patient_package_purchases")
-        .update({ sessions_used: current.sessions_used - 1 })
-        .eq("id", purchase.id)
-        .eq("sessions_used", current.sessions_used);
-      if (revertError) {
-        console.error(
-          "Failed to revert claimed package session for purchase",
-          purchase.id,
-          revertError
-        );
-      }
+    // Retried until it lands (decrementUsedCounter): a single attempt that
+    // lost a race, or matched no row, used to leave the credit consumed
+    // with no session to show for it -- only the error was ever checked.
+    const reverted = await decrementUsedCounter(
+      admin,
+      "patient_package_purchases",
+      "sessions_used",
+      purchase.id
+    );
+    if (!reverted.ok) {
+      console.error("Failed to revert claimed package session for purchase", purchase.id, reverted.error);
     }
     if ((insertError as { code?: string } | null)?.code === "23505") {
       return {

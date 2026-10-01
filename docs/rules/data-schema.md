@@ -264,6 +264,14 @@ before.
   counter's compare-and-swap still wins the booking race, with the ledger's
   row lock beside it. Making the ledger the claiming mechanism means
   deleting the counter writes, which is its own change with its own risk.
+  **Giving a credit back is retried until it lands.** Every restore and
+  every failed-booking rollback goes through `decrementUsedCounter`
+  (`src/lib/purchaseCounter.ts`). Each used to make one compare-and-swap
+  attempt: losing a race against another cancellation returned no credit,
+  and a rollback that matched zero rows read as success because only the
+  error was checked. Each caller is already exactly-once (an appointment is
+  claimed cancelled once; a failed insert rolls back once), so retrying
+  cannot double-restore - it can only stop losing.
 
   **The ledger is written alongside the old counters, and does not yet
   replace them.** All eight statements in `src/` that mutate
