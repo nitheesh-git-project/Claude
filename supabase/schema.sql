@@ -13964,3 +13964,573 @@ begin
   alter publication supabase_realtime add table session_settlements;
 exception when duplicate_object then null;
 end $$;
+
+
+-- ===========================================================================
+-- RLS predicates: auth.uid() wrapped as (select auth.uid())
+-- ===========================================================================
+--
+-- Pure performance. Every policy below is the policy that was already here,
+-- predicate for predicate, with one change: each bare `auth.uid()` is now
+-- `(select auth.uid())`. Same rows, same authorisation, same answers.
+--
+-- Why it matters. Postgres does not know `auth.uid()` is stable within a
+-- statement -- it reads the request JWT out of a GUC and is marked volatile
+-- -- so a policy calling it bare is re-evaluated **once per candidate row**.
+-- On `appointments_select_own` that is one function call per appointment
+-- row the planner considers, every time a patient opens their sessions list.
+-- Wrapped in a scalar subquery it becomes an InitPlan: evaluated once for
+-- the whole statement and reused. The predicate is unchanged; only how many
+-- times Postgres computes the same constant changes.
+--
+-- It compounds inside the `exists (...)` subqueries below. There the per-row
+-- call sits in the inner scan too, so a policy like
+-- condition_profiles_select_assigned_therapist was paying for it across the
+-- product of two row counts.
+--
+-- Four policies that contain `auth.uid()` are deliberately **not** here:
+-- appointments_insert_own, b2b_leads_insert_public, pain_assessments_insert_gated
+-- and patient_referrals_insert_own. Each is dropped later in this file and
+-- never recreated -- the client-side INSERT was deliberately withdrawn and
+-- those writes now go through service-role routes. Re-creating them here to
+-- make them faster would quietly reopen what was deliberately closed, so the
+-- generator that produced this block checks for a drop with no later create
+-- and skips it. scripts/check-rls-initplan.mjs enforces the rule going
+-- forward: a new policy written with a bare auth.uid() fails `npm run lint`.
+--
+-- Re-runnable in the usual way: each gets `drop policy if exists` under its
+-- own name immediately before its `create policy`.
+
+drop policy if exists "patient_referrals_select_own" on patient_referrals;
+create policy "patient_referrals_select_own" on patient_referrals
+  for select using ((select auth.uid()) = hospital_id);
+
+drop policy if exists "profiles_select_own" on profiles;
+create policy "profiles_select_own" on profiles
+  for select using ((select auth.uid()) = id);
+
+drop policy if exists "profiles_insert_own" on profiles;
+create policy "profiles_insert_own" on profiles
+  for insert with check ((select auth.uid()) = id);
+
+drop policy if exists "profiles_update_own" on profiles;
+create policy "profiles_update_own" on profiles
+  for update using ((select auth.uid()) = id);
+
+drop policy if exists "appointments_select_own" on appointments;
+create policy "appointments_select_own" on appointments
+  for select using ((select auth.uid()) = patient_id or (select auth.uid()) = therapist_id);
+
+drop policy if exists "profile_change_requests_select_own" on profile_change_requests;
+create policy "profile_change_requests_select_own" on profile_change_requests
+  for select using ((select auth.uid()) = user_id);
+
+drop policy if exists "profile_change_requests_insert_own" on profile_change_requests;
+create policy "profile_change_requests_insert_own" on profile_change_requests
+  for insert with check ((select auth.uid()) = user_id and status = 'pending');
+
+drop policy if exists "profile_change_requests_delete_own_pending" on profile_change_requests;
+create policy "profile_change_requests_delete_own_pending" on profile_change_requests
+  for delete using ((select auth.uid()) = user_id and status = 'pending');
+
+drop policy if exists "avatar_insert_own" on storage.objects;
+create policy "avatar_insert_own" on storage.objects
+  for insert with check (
+    bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text
+  );
+
+drop policy if exists "avatar_update_own" on storage.objects;
+create policy "avatar_update_own" on storage.objects
+  for update using (
+    bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text
+  );
+
+drop policy if exists "avatar_delete_own" on storage.objects;
+create policy "avatar_delete_own" on storage.objects
+  for delete using (
+    bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text
+  );
+
+drop policy if exists "package_purchases_select_own" on patient_package_purchases;
+create policy "package_purchases_select_own" on patient_package_purchases
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "availability_template_select_own" on therapist_availability_template;
+create policy "availability_template_select_own" on therapist_availability_template
+  for select using ((select auth.uid()) = therapist_id);
+
+drop policy if exists "availability_override_select_own" on therapist_availability_override;
+create policy "availability_override_select_own" on therapist_availability_override
+  for select using ((select auth.uid()) = therapist_id);
+
+drop policy if exists "payment_failure_log_select_own" on payment_failure_log;
+create policy "payment_failure_log_select_own" on payment_failure_log
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "payout_batches_select_own" on therapist_payout_batches;
+create policy "payout_batches_select_own" on therapist_payout_batches
+  for select using ((select auth.uid()) = therapist_id);
+
+drop policy if exists "payout_requests_select_own" on therapist_payout_requests;
+create policy "payout_requests_select_own" on therapist_payout_requests
+  for select using ((select auth.uid()) = therapist_id);
+
+drop policy if exists "package_purchases_select_locked_therapist" on patient_package_purchases;
+create policy "package_purchases_select_locked_therapist" on patient_package_purchases
+  for select using ((select auth.uid()) = locked_therapist_id);
+
+drop policy if exists "package_purchase_events_select_own" on package_purchase_events;
+create policy "package_purchase_events_select_own" on package_purchase_events
+  for select using (
+    exists (
+      select 1 from patient_package_purchases pp
+      where pp.id = package_purchase_events.purchase_id and pp.patient_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists "package_purchase_events_select_locked_therapist" on package_purchase_events;
+create policy "package_purchase_events_select_locked_therapist" on package_purchase_events
+  for select using (
+    exists (
+      select 1 from patient_package_purchases pp
+      where pp.id = package_purchase_events.purchase_id and pp.locked_therapist_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists "condition_profiles_select_own" on patient_condition_profiles;
+create policy "condition_profiles_select_own" on patient_condition_profiles
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "condition_profiles_select_assigned_therapist" on patient_condition_profiles;
+create policy "condition_profiles_select_assigned_therapist" on patient_condition_profiles
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_condition_profiles.patient_id
+          and a.therapist_id = (select auth.uid())
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_condition_profiles.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+      )
+    )
+  );
+
+drop policy if exists "condition_access_grants_select_involved" on condition_access_grants;
+create policy "condition_access_grants_select_involved" on condition_access_grants
+  for select using ((select auth.uid()) = patient_id or (select auth.uid()) = therapist_id);
+
+drop policy if exists "condition_access_grants_insert_own" on condition_access_grants;
+create policy "condition_access_grants_insert_own" on condition_access_grants
+  for insert with check (
+    (select auth.uid()) = therapist_id and status = 'requested'
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = condition_access_grants.patient_id
+          and a.therapist_id = (select auth.uid())
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = condition_access_grants.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+      )
+    )
+  );
+
+drop policy if exists "condition_access_grants_delete_own_requested" on condition_access_grants;
+create policy "condition_access_grants_delete_own_requested" on condition_access_grants
+  for delete using ((select auth.uid()) = therapist_id and status = 'requested');
+
+drop policy if exists "condition_change_requests_select_involved" on condition_change_requests;
+create policy "condition_change_requests_select_involved" on condition_change_requests
+  for select using ((select auth.uid()) = submitted_by or (select auth.uid()) = patient_id);
+
+drop policy if exists "condition_change_requests_insert_gated" on condition_change_requests;
+create policy "condition_change_requests_insert_gated" on condition_change_requests
+  for insert with check (
+    (select auth.uid()) = submitted_by and status = 'pending'
+    and (
+      (
+        submitted_by_role = 'patient' and (select auth.uid()) = patient_id
+        and exists (
+          select 1 from patient_condition_profiles p
+          where p.patient_id = condition_change_requests.patient_id
+            and p.data <> '{}'::jsonb
+        )
+      )
+      or (
+        submitted_by_role = 'therapist'
+        and exists (
+          select 1 from condition_access_grants g
+          where g.patient_id = condition_change_requests.patient_id
+            and g.therapist_id = (select auth.uid())
+            and g.status = 'approved'
+        )
+      )
+    )
+  );
+
+drop policy if exists "condition_change_requests_delete_own_pending" on condition_change_requests;
+create policy "condition_change_requests_delete_own_pending" on condition_change_requests
+  for delete using ((select auth.uid()) = submitted_by and status = 'pending');
+
+drop policy if exists "pain_assessments_select_own" on pain_assessments;
+create policy "pain_assessments_select_own" on pain_assessments
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "pain_assessments_select_assigned_therapist" on pain_assessments;
+create policy "pain_assessments_select_assigned_therapist" on pain_assessments
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = pain_assessments.patient_id
+          and a.therapist_id = (select auth.uid())
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = pain_assessments.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+      )
+    )
+  );
+
+drop policy if exists "patient_addresses_select_own" on patient_addresses;
+create policy "patient_addresses_select_own" on patient_addresses
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "patient_addresses_select_assigned_therapist" on patient_addresses;
+create policy "patient_addresses_select_assigned_therapist" on patient_addresses
+  for select using (
+    exists (
+      select 1 from appointments a
+      where a.patient_id = patient_addresses.patient_id
+        and a.therapist_id = (select auth.uid())
+    )
+    or exists (
+      select 1 from patient_package_purchases pp
+      where pp.patient_id = patient_addresses.patient_id
+        and pp.locked_therapist_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists "patient_addresses_insert_own" on patient_addresses;
+create policy "patient_addresses_insert_own" on patient_addresses
+  for insert with check (
+    (select auth.uid()) = patient_id
+    and exists (
+      select 1 from public.profiles
+      where id = (select auth.uid()) and approved = true and active = true
+    )
+  );
+
+drop policy if exists "patient_addresses_update_own" on patient_addresses;
+create policy "patient_addresses_update_own" on patient_addresses
+  for update using ((select auth.uid()) = patient_id) with check ((select auth.uid()) = patient_id);
+
+drop policy if exists "home_visit_purchases_select_own" on home_visit_package_purchases;
+create policy "home_visit_purchases_select_own" on home_visit_package_purchases
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "home_visit_purchases_select_locked_therapist" on home_visit_package_purchases;
+create policy "home_visit_purchases_select_locked_therapist" on home_visit_package_purchases
+  for select using ((select auth.uid()) = locked_therapist_id);
+
+drop policy if exists "home_visit_events_select_own" on home_visit_purchase_events;
+create policy "home_visit_events_select_own" on home_visit_purchase_events
+  for select using (
+    exists (
+      select 1 from home_visit_package_purchases hp
+      where hp.id = home_visit_purchase_events.purchase_id and hp.patient_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists "home_visit_events_select_locked_therapist" on home_visit_purchase_events;
+create policy "home_visit_events_select_locked_therapist" on home_visit_purchase_events
+  for select using (
+    exists (
+      select 1 from home_visit_package_purchases hp
+      where hp.id = home_visit_purchase_events.purchase_id
+        and hp.locked_therapist_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists "session_notes_select_clinician" on session_notes;
+create policy "session_notes_select_clinician" on session_notes
+  for select using (
+    (
+      is_active_therapist()
+      and (
+        exists (
+          select 1 from appointments a
+          where a.patient_id = session_notes.patient_id
+            and a.therapist_id = (select auth.uid())
+        )
+        or exists (
+          select 1 from patient_package_purchases pp
+          where pp.patient_id = session_notes.patient_id
+            and pp.locked_therapist_id = (select auth.uid())
+        )
+      )
+    )
+    or is_admin()
+  );
+
+drop policy if exists "session_notes_insert_own_session" on session_notes;
+create policy "session_notes_insert_own_session" on session_notes
+  for insert with check (
+    (select auth.uid()) = therapist_id
+    and exists (
+      select 1 from appointments a
+      where a.id = session_notes.appointment_id
+        and a.therapist_id = (select auth.uid())
+        and a.patient_id = session_notes.patient_id
+    )
+  );
+
+drop policy if exists "session_notes_update_own" on session_notes;
+create policy "session_notes_update_own" on session_notes
+  for update using ((select auth.uid()) = therapist_id) with check ((select auth.uid()) = therapist_id);
+
+drop policy if exists "session_note_revisions_select_clinician" on session_note_revisions;
+create policy "session_note_revisions_select_clinician" on session_note_revisions
+  for select using (
+    exists (
+      select 1 from session_notes n
+      where n.id = session_note_revisions.note_id
+        and (n.therapist_id = (select auth.uid()) or is_admin())
+    )
+  );
+
+drop policy if exists "pain_assessments_insert_assigned_therapist" on pain_assessments;
+create policy "pain_assessments_insert_assigned_therapist" on pain_assessments
+  for insert with check (
+    (select auth.uid()) = submitted_by and submitted_by_role = 'therapist'
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = pain_assessments.patient_id
+          and a.therapist_id = (select auth.uid())
+      )
+      or exists (
+        select 1 from patient_package_purchases p
+        where p.patient_id = pain_assessments.patient_id
+          and p.locked_therapist_id = (select auth.uid())
+      )
+    )
+  );
+
+drop policy if exists "medical_report_insert_own" on storage.objects;
+create policy "medical_report_insert_own" on storage.objects
+  for insert with check (
+    bucket_id = 'medical-reports' and (storage.foldername(name))[1] = (select auth.uid())::text
+  );
+
+drop policy if exists "medical_report_select_own" on storage.objects;
+create policy "medical_report_select_own" on storage.objects
+  for select using (
+    bucket_id = 'medical-reports' and (storage.foldername(name))[1] = (select auth.uid())::text
+  );
+
+drop policy if exists "medical_report_delete_own" on storage.objects;
+create policy "medical_report_delete_own" on storage.objects
+  for delete using (
+    bucket_id = 'medical-reports' and (storage.foldername(name))[1] = (select auth.uid())::text
+  );
+
+drop policy if exists "patient_medical_documents_select_own" on patient_medical_documents;
+create policy "patient_medical_documents_select_own" on patient_medical_documents
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "patient_medical_documents_select_assigned_therapist" on patient_medical_documents;
+create policy "patient_medical_documents_select_assigned_therapist" on patient_medical_documents
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_medical_documents.patient_id
+          and a.therapist_id = (select auth.uid())
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_medical_documents.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+      )
+    )
+  );
+
+drop policy if exists "patient_medical_documents_insert_own" on patient_medical_documents;
+create policy "patient_medical_documents_insert_own" on patient_medical_documents
+  for insert with check ((select auth.uid()) = patient_id);
+
+drop policy if exists "patient_medical_documents_delete_own" on patient_medical_documents;
+create policy "patient_medical_documents_delete_own" on patient_medical_documents
+  for delete using ((select auth.uid()) = patient_id);
+
+drop policy if exists "session_suggestions_select_own" on session_suggestions;
+create policy "session_suggestions_select_own" on session_suggestions
+  for select using ((select auth.uid()) = patient_id or (select auth.uid()) = therapist_id);
+
+drop policy if exists "payments_select_own" on payments;
+create policy "payments_select_own" on payments
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "session_entitlements_select_own" on session_entitlements;
+create policy "session_entitlements_select_own" on session_entitlements
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "session_entitlements_select_locked_therapist" on session_entitlements;
+create policy "session_entitlements_select_locked_therapist" on session_entitlements
+  for select using ((select auth.uid()) = locked_therapist_id);
+
+drop policy if exists "session_credit_ledger_select_own" on session_credit_ledger;
+create policy "session_credit_ledger_select_own" on session_credit_ledger
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "care_plans_select_own" on care_plans;
+create policy "care_plans_select_own" on care_plans
+  for select using ((select auth.uid()) = patient_id or (select auth.uid()) = therapist_id);
+
+drop policy if exists "care_plan_versions_select_own" on care_plan_versions;
+create policy "care_plan_versions_select_own" on care_plan_versions
+  for select using (
+    exists (
+      select 1 from care_plans p
+      where p.id = care_plan_versions.care_plan_id
+        and (p.patient_id = (select auth.uid()) or p.therapist_id = (select auth.uid()))
+    )
+  );
+
+drop policy if exists "schedule_state_select_own" on therapist_schedule_state;
+create policy "schedule_state_select_own" on therapist_schedule_state
+  for select using ((select auth.uid()) = therapist_id);
+
+
+
+-- ===========================================================================
+-- Indexes for the query shapes this app actually issues
+-- ===========================================================================
+--
+-- Every index below was chosen from a real call site or a real RLS
+-- predicate, not from a guess about what might get slow. An index is not
+-- free -- each one is another structure every INSERT and UPDATE to the table
+-- has to maintain, and `appointments` is both the most-read table here (189
+-- call sites) and a write-heavy one. So the rule used was: add it only where
+-- a `.eq()`/`.in()`/`.order()` combination in src/ or an `exists (...)` in a
+-- policy above names those columns in that order.
+--
+-- Two things Postgres does not do for you, and both bit here:
+--
+-- 1. **A foreign key is not indexed automatically.** 93 FK columns in this
+--    file had no index. That costs on the obvious side (a join or filter on
+--    the column is a sequential scan) and on a less obvious one: deleting a
+--    parent row makes Postgres scan the *child* table to enforce the
+--    constraint, once per parent row. With `restrict` relationships that is
+--    what clean-e2e-residue.mjs pays on every run.
+--
+-- 2. **A composite index serves its own prefix.** `(patient_id, status)`
+--    answers a query filtering on `patient_id` alone just as well as the
+--    single-column index does, which is why the pairs below are pairs rather
+--    than four more single-column indexes. The pre-existing single-column
+--    indexes on those same leading columns are now redundant for reads and
+--    are left in place deliberately: dropping an index is the one change
+--    here that cannot be undone by re-running this file, and the write cost
+--    of keeping them is small. Worth revisiting once there is production
+--    traffic to measure it against.
+--
+-- These are plain `create index`, not `create index concurrently`, to match
+-- the other 86 in this file and because `concurrently` cannot run inside a
+-- transaction block -- which is how this file is applied. On a table with
+-- real volume that takes a lock that blocks writes for the duration, so an
+-- index added here *after* launch should be applied by hand with
+-- `concurrently` first, and this file then catches up as a no-op via
+-- `if not exists`.
+
+-- appointments: the hot table. Each pair below is a measured shape.
+-- (patient_id, status): a patient's own list, filtered by state.
+create index if not exists appointments_patient_status_idx
+  on appointments (patient_id, status);
+-- (therapist_id, slot_time): the roster and the therapist's day view.
+create index if not exists appointments_therapist_slot_idx
+  on appointments (therapist_id, slot_time);
+-- (status, slot_time): the admin queues, which are all "this state, soonest
+-- first" -- this serves the filter and the sort from one structure.
+create index if not exists appointments_status_slot_idx
+  on appointments (status, slot_time);
+-- (patient_id, therapist_id): not a query shape but an RLS one. The
+-- `exists (select 1 from appointments a where a.patient_id = ... and
+-- a.therapist_id = (select auth.uid()))` subquery in the clinical-access
+-- policies above runs this exact lookup for every row it is gating.
+create index if not exists appointments_patient_therapist_idx
+  on appointments (patient_id, therapist_id);
+-- package_purchase_id had no index at all, and every "sessions used against
+-- this purchase" count filters on it with a status.
+create index if not exists appointments_package_purchase_status_idx
+  on appointments (package_purchase_id, status)
+  where package_purchase_id is not null;
+create index if not exists appointments_home_visit_purchase_status_idx
+  on appointments (home_visit_purchase_id, status)
+  where home_visit_purchase_id is not null;
+create index if not exists appointments_category_id_idx
+  on appointments (category_id)
+  where category_id is not null;
+
+-- patient_package_purchases: (patient_id, locked_therapist_id) is the other
+-- half of the clinical-access RLS subquery; (patient_id, payment_status) is
+-- what the pay-later screens filter on.
+create index if not exists patient_package_purchases_patient_locked_idx
+  on patient_package_purchases (patient_id, locked_therapist_id);
+create index if not exists patient_package_purchases_patient_payment_idx
+  on patient_package_purchases (patient_id, payment_status);
+
+create index if not exists home_visit_purchases_patient_status_idx
+  on home_visit_package_purchases (patient_id, status);
+
+-- therapist_availability_template is deliberately absent: its
+-- `unique (therapist_id, day_of_week, hour)` constraint already builds an
+-- index led by therapist_id, which serves every lookup that table takes. A
+-- table-level UNIQUE is an index, and it is easy to miss when auditing
+-- foreign keys for coverage.
+
+-- condition_access_grants: the gate checked before a therapist sees a
+-- patient's clinical record, looked up by all three columns together.
+create index if not exists condition_access_grants_patient_therapist_status_idx
+  on condition_access_grants (patient_id, therapist_id, status);
+create index if not exists condition_access_grants_therapist_status_idx
+  on condition_access_grants (therapist_id, status);
+
+create index if not exists profile_change_requests_user_idx
+  on profile_change_requests (user_id, created_at desc);
+create index if not exists profile_change_requests_status_idx
+  on profile_change_requests (status, created_at desc);
+
+create index if not exists therapist_payout_batches_therapist_idx
+  on therapist_payout_batches (therapist_id, created_at desc);
+
+create index if not exists treatment_category_packages_category_idx
+  on treatment_category_packages (category_id);
+
+-- pain_assessments has no direct .from() call site -- it is reached through
+-- views and RPCs -- but its RLS policy filters on patient_id, so the index
+-- is what stops that policy scanning the table per gated row.
+create index if not exists pain_assessments_patient_idx
+  on pain_assessments (patient_id, created_at desc);
+
+-- session_entitlements: the two legacy pointers are how a purchase made
+-- before the ledger existed is matched to its entitlement, and
+-- locked_therapist_id gates which therapist may spend it.
+create index if not exists session_entitlements_legacy_purchase_idx
+  on session_entitlements (legacy_purchase_id)
+  where legacy_purchase_id is not null;
+create index if not exists session_entitlements_legacy_home_visit_idx
+  on session_entitlements (legacy_home_visit_purchase_id)
+  where legacy_home_visit_purchase_id is not null;
+create index if not exists session_entitlements_locked_therapist_idx
+  on session_entitlements (locked_therapist_id)
+  where locked_therapist_id is not null;

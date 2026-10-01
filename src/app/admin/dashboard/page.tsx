@@ -327,6 +327,37 @@ export default async function AdminDashboardPage({
   // after this batch resolves. Comments on each query explain the
   // isolation/migration-dependent reasoning for that particular fetch, same
   // as before this was parallelized.
+
+  // Two reads that are started here and awaited much further down.
+  //
+  // Both stay their own queries for the reason their own comments give --
+  // each touches a newer column or table, and an unknown-column error
+  // inside the big Promise.all below would blank every screen rather than
+  // one control. But being *separate* never required being *serial*, and
+  // that is what they were: each sat at its point of use, hundreds of
+  // lines down, so neither could begin until the ~40-query wave below had
+  // completely finished, despite depending on nothing in it. Two more
+  // round-trips to Supabase, strictly one after another.
+  //
+  // Started here they overlap the wave that follows, and by the time the
+  // code that needs them is reached the answers are already in hand.
+  // Deliberately not awaited here: `await` is the thing that makes a
+  // promise serial. `authoringDataPromise` further down is the same
+  // pattern, already in use in this file.
+  const conditionSpecialtyPromise = admin
+    .from("patient_condition_profiles")
+    .select("patient_id, specialty");
+
+  // The claims count that follows this one at its use site genuinely does
+  // depend on the result -- it is narrowed to the ids returned here -- so
+  // that query stays where it is and is simply reached sooner.
+  const promoCodesPromise = admin
+    .from("promo_codes")
+    .select(
+      "id, code, kind, value, active, starts_at, ends_at, max_redemptions, max_per_patient, min_spend_paise, first_session_only, description"
+    )
+    .order("created_at", { ascending: false });
+
   const [
     { data: pendingAccounts },
     { data: pendingProfileChanges },
@@ -371,6 +402,7 @@ export default async function AdminDashboardPage({
     { data: adminScopeRows },
     { data: activityLogRows },
     { data: businessExpenseRows },
+
   ] = await Promise.all([
     // Both self-serve roles wait on admin approval, so this one query feeds
     // the single "Pending Approvals" list -- therapist applications and
@@ -1296,12 +1328,7 @@ export default async function AdminDashboardPage({
 
   let promoCodeRows: PromoCodeRow[] = [];
   try {
-    const { data: codes } = await admin
-      .from("promo_codes")
-      .select(
-        "id, code, kind, value, active, starts_at, ends_at, max_redemptions, max_per_patient, min_spend_paise, first_session_only, description"
-      )
-      .order("created_at", { ascending: false });
+    const { data: codes } = await promoCodesPromise;
     const rows = (codes ?? []) as {
       id: string;
       code: string;
@@ -1322,13 +1349,44 @@ export default async function AdminDashboardPage({
     // money. Delete is only offered where this is zero.
     const claims = new Map<string, number>();
     if (rows.length > 0) {
-      const { data: claimed } = await admin
-        .from("appointments")
-        .select("promo_code_id")
-        .not("promo_code_id", "is", null);
-      for (const row of (claimed ?? []) as { promo_code_id: string | null }[]) {
+      // Paged through readAllRows, and narrowed to the codes actually on
+      // screen.
+      //
+      // This used to be a bare `.select()` over every appointment holding a
+      // promo code. PostgREST caps a response at 1,000 rows and says
+      // nothing about it (see readAllRows.ts), so past the thousandth
+      // claimed booking this count silently stopped growing -- and because
+      // Delete is only offered where the count is zero, a code with real
+      // claims behind the cap could be offered for deletion. Undercounting
+      // in the direction that unlocks a destructive control is the worst
+      // way round for this particular number to be wrong.
+      //
+      // The `.in()` is the performance half: it uses the existing
+      // (promo_code_id, promo_claimed_at desc) index and reads only rows
+      // belonging to a code being displayed, rather than every promo-coded
+      // appointment the clinic has ever taken.
+      const codeIds = rows.map((row) => row.id);
+      const { rows: claimed, truncated } = await readAllRows<{
+        promo_code_id: string | null;
+      }>(() =>
+        admin
+          .from("appointments")
+          .select("promo_code_id")
+          .in("promo_code_id", codeIds)
+      );
+      for (const row of claimed) {
         if (!row.promo_code_id) continue;
         claims.set(row.promo_code_id, (claims.get(row.promo_code_id) ?? 0) + 1);
+      }
+      // A walk that hit its bound has produced a floor, not a count. Every
+      // code is marked as claimed rather than reporting a number that is
+      // too low, because the only decision this feeds is whether deleting
+      // is safe, and "we could not finish counting" must answer that the
+      // same way "it has claims" does.
+      if (truncated) {
+        for (const id of codeIds) {
+          if (!claims.has(id)) claims.set(id, 1);
+        }
       }
     }
     promoCodeRows = rows.map((row) => ({
@@ -2305,9 +2363,11 @@ export default async function AdminDashboardPage({
   // merged in. The dashboard's main Promise.all is ~40 queries deep and
   // an unknown-column error inside it would blank every screen rather
   // than one chip -- the rule treatment_categories.image_url documents.
-  const { data: conditionSpecialtyRows } = await admin
-    .from("patient_condition_profiles")
-    .select("patient_id, specialty");
+  //
+  // Launched before the page's main query wave (see
+  // conditionSpecialtyPromise), so this await is almost always already
+  // settled: the isolation is kept, the extra serial round-trip is not.
+  const { data: conditionSpecialtyRows } = await conditionSpecialtyPromise;
   const conditionSpecialtyByPatientId = new Map(
     (conditionSpecialtyRows ?? []).map((c) => [
       c.patient_id as string,

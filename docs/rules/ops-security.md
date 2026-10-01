@@ -811,3 +811,68 @@ line describing nothing but carelessness. Before real patients exist, remove
 - Secrets (`SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET`, Google
   credentials) are server-only. Never add a `NEXT_PUBLIC_` prefix to them and
   never commit real values.
+
+---
+
+## The proxy's profile cookie
+
+`src/proxy.ts` guards four dashboard route trees, and it runs on **every**
+request under them — every client-side navigation, not just every page load.
+It used to make two network calls to Supabase in sequence: `auth.getUser()`,
+then a `profiles` select for `role`, `approved` and `active`.
+
+`getUser()` stays. It refreshes the access token, and the cookies it writes
+through the `setAll` callback are load-bearing — the comment above
+`redirectTo` in `src/lib/supabase/proxy.ts` describes the sign-in loop that
+happens when a redirect loses them.
+
+The second call is now a signed cookie, `src/lib/proxyProfileCache.ts`:
+
+- The three fields are written with the user id they belong to and an
+  expiry, HMAC-signed (Web Crypto, because the proxy runs on the Edge
+  runtime where `node:crypto` is unavailable) with
+  `PROXY_PROFILE_CACHE_SECRET`.
+- **The signature is the whole guarantee.** Without it the cookie is a
+  sentence the browser gets to write, and the sentence is "this user is an
+  admin". Never give that variable a `NEXT_PUBLIC_` prefix.
+- **The user id in the payload is the second guarantee.** Without it, a
+  cookie minted for one account would verify for another after a sign-out
+  and sign-in on the same browser. Verification is constant-time, so a wrong
+  signature leaks nothing through timing.
+- **Only a successful read is cached.** A failed `profiles` read is "we could
+  not check", and caching that would turn one transient error into a minute
+  of them — the same rule as everywhere else here.
+- **No secret configured means no caching**, and the proxy falls through to
+  the read it always did. A missing environment variable makes the app
+  slower, never wrong and never open.
+
+**The trade-off, which is real and was chosen deliberately:** for up to 60
+seconds a session that is *already open* keeps the role and flags it had when
+the cookie was written. Suspending an account, demoting an admin or revoking
+an approval therefore takes up to a minute to lock out a tab already sitting
+on a dashboard. New sign-ins are unaffected. Sixty seconds is the longest
+window that is still shorter than a person noticing and acting.
+
+`PROXY_PROFILE_CACHE_TTL_SECONDS` sizes that window, and it is **clamped to
+5-300**. Treat it as a security setting rather than a tuning knob: it is the
+length of time a revoked admin keeps working, and a mistyped `86400` would
+make that a day with nothing on screen looking wrong. The clamp is what makes
+it safe to expose as an environment variable at all. Anything unusable --
+blank, non-numeric, zero, negative -- falls back to 60 rather than being
+coerced, because `Number("")` is `0` and a variable someone left empty must
+not read as "expire immediately".
+
+Wanting longer than five minutes means changing
+`MAX_PROFILE_CACHE_TTL_SECONDS` in `src/lib/proxyProfileCache.ts` -- a
+reviewed commit, which is the right amount of friction for that decision.
+
+**Not an admin setting, deliberately.** Everything admin-configurable in this
+app goes through `src/lib/adminSettings.ts`, and this one does not: reading
+it would mean a database call on every request, which is precisely the call
+this feature exists to remove.
+
+The cookie is `httpOnly`, so the client-side sign-out buttons cannot clear
+it — and do not need to. A signed-out browser has no user for the id to
+match, and a different user signing in fails the id check and re-reads.
+`stop-impersonation` clears it explicitly anyway, at the one moment the
+server already knows it is stale.

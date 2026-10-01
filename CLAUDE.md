@@ -224,8 +224,8 @@ the ones that matter for that area.
 ```bash
 npm run dev                  # Next dev server
 npm run verify               # lint + unit tests + build -- run before pushing
-npm run lint                 # 3 schema checks, then eslint
-npm run test                 # Vitest, 1,173 tests over dependency-free src/lib
+npm run lint                 # 5 schema/asset checks, then eslint
+npm run test                 # Vitest, 1,184 tests over dependency-free src/lib
 npm run build
 npm run start:cluster        # production on several Node workers
 

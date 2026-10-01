@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
   revalidatePath("/mission");
   revalidatePath("/team");
 
+
   // Who changed this, and to what. Best-effort and after the write,
   // per the audit-log rule in AGENTS.md.
   await recordAdminActivity(admin, adminUser.id, {

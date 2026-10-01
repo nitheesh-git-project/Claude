@@ -1,5 +1,22 @@
 @import "tailwindcss";
-@import "@fortawesome/fontawesome-free/css/all.min.css";
+/* Solid only, deliberately -- not all.min.css.
+ *
+ * `all.min.css` declares @font-face for every Font Awesome style (solid,
+ * regular, brands, and the v4 compatibility shim) and ships the class
+ * definitions for all of them: 88 KB of CSS, where these two files are 71 KB.
+ * Worse than the CSS, a browser fetches a style's webfont the moment one
+ * glyph from it renders, and this site used exactly one brands icon
+ * (WhatsApp, in the footer on every page -- 113 KB) and exactly one regular
+ * icon (the calendar in DateField -- 19 KB). Both are now inline SVG in
+ * src/components/visuals/BrandGlyphs.tsx, so nothing references those fonts
+ * and nothing declares them either.
+ *
+ * Everything else in the app is `fa-solid`, which is the one font still
+ * loaded. Adding an icon from another style means adding it to BrandGlyphs
+ * rather than re-importing a whole stylesheet and its font for one glyph --
+ * see docs/rules/frontend.md. */
+@import "@fortawesome/fontawesome-free/css/fontawesome.min.css";
+@import "@fortawesome/fontawesome-free/css/solid.min.css";
 
 :root {
   --background: #f8fafc;

@@ -7,6 +7,13 @@ import {
   parseMarker,
 } from "@/lib/impersonation";
 import { resilientSupabaseFetch } from "./resilientFetch";
+import {
+  PROFILE_CACHE_COOKIE,
+  profileCacheTtlSeconds,
+  issueProfileCookie,
+  readProfileCookie,
+  type CachedProfile,
+} from "@/lib/proxyProfileCache";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -54,6 +61,11 @@ export async function updateSession(request: NextRequest) {
     const expired = redirectTo("/admin/login?expired=impersonation");
     expired.cookies.delete(IMPERSONATION_COOKIE);
     expired.cookies.delete(ADMIN_RESTORE_COOKIE);
+    // The cached profile belongs to whoever was signed in a moment ago --
+    // during an impersonation window, the patient being impersonated. It
+    // must not outlive the session it describes, and the admin coming back
+    // must not inherit it.
+    expired.cookies.delete(PROFILE_CACHE_COOKIE);
     return expired;
   }
 
@@ -96,23 +108,59 @@ export async function updateSession(request: NextRequest) {
       path.startsWith("/admin/dashboard") ||
       path.startsWith("/hospital/dashboard"))
   ) {
-    let { data: profile } = await supabase
-      .from("profiles")
-      .select("role, approved, active")
-      .eq("id", user.id)
-      .single();
+    // Signed, 60-second cache of exactly the three fields gated on below.
+    // This read used to run on every request under these four trees --
+    // every client-side navigation included -- asking the same question and
+    // getting the same answer while somebody clicked around. The signature
+    // is what makes trusting a cookie here safe, and the user id inside it
+    // is what stops one account's cached answer being replayed for another.
+    // See src/lib/proxyProfileCache.ts for the full reasoning and the
+    // freshness trade-off this accepts.
+    let profile: CachedProfile | null = await readProfileCookie(
+      request.cookies.get(PROFILE_CACHE_COOKIE)?.value,
+      user.id
+    );
 
-    // The signup trigger guarantees a profiles row exists for every
-    // authenticated user, so a null result here right after sign-in is a
-    // transient read (not a real "no such profile") - worth one retry
-    // before treating it as a genuine role mismatch and bouncing an
-    // already-valid user out to /get-started.
     if (!profile) {
-      ({ data: profile } = await supabase
+      let { data: row } = await supabase
         .from("profiles")
         .select("role, approved, active")
         .eq("id", user.id)
-        .single());
+        .single();
+
+      // The signup trigger guarantees a profiles row exists for every
+      // authenticated user, so a null result here right after sign-in is a
+      // transient read (not a real "no such profile") - worth one retry
+      // before treating it as a genuine role mismatch and bouncing an
+      // already-valid user out to /get-started.
+      if (!row) {
+        ({ data: row } = await supabase
+          .from("profiles")
+          .select("role, approved, active")
+          .eq("id", user.id)
+          .single());
+      }
+
+      if (row) {
+        profile = {
+          role: String(row.role),
+          approved: row.approved === true,
+          active: row.active === true,
+        };
+        // Only a real read is cached. A failed one is "we could not check",
+        // and caching that would turn one transient error into a minute of
+        // them -- the check-that-could-not-be-run rule in CLAUDE.md.
+        const cookie = await issueProfileCookie(user.id, profile);
+        if (cookie) {
+          response.cookies.set(PROFILE_CACHE_COOKIE, cookie, {
+            httpOnly: true,
+            sameSite: "lax",
+            secure: process.env.NODE_ENV === "production",
+            path: "/",
+            maxAge: profileCacheTtlSeconds(),
+          });
+        }
+      }
     }
 
     if (path.startsWith("/therapist/dashboard")) {

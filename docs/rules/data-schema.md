@@ -530,3 +530,72 @@ before.
   screen was measured too, and it cut the response to 135KB while moving the
   wall-clock by 0.4s. Bytes and latency are separate problems here, and the
   "every screen stays mounted" design costs the second one almost nothing.
+
+---
+
+## Indexes
+
+**A foreign key is not indexed automatically.** Postgres creates an index for
+a PRIMARY KEY and for a UNIQUE constraint, and for nothing else. 93 FK
+columns in `schema.sql` had none. That costs twice: a filter or join on the
+column is a sequential scan, and deleting a *parent* row makes Postgres scan
+the **child** table to enforce the constraint, once per parent row — which is
+what `scripts/clean-e2e-residue.mjs` pays on every run against the `restrict`
+relationships.
+
+Three rules when adding one:
+
+- **Earn it from a real call site or a real policy.** An index is another
+  structure every INSERT and UPDATE maintains, and `appointments` is both the
+  most-read table here (189 call sites) and a write-heavy one. The set added
+  in the index block at the end of `schema.sql` each matches an
+  `.eq()`/`.in()`/`.order()` combination in `src/` or an `exists (...)` inside
+  an RLS policy. Nothing was added speculatively.
+- **A composite index serves its own prefix.** `(patient_id, status)` answers
+  a `patient_id`-only filter as well as a single-column index does, so prefer
+  the pair over adding a second index. The pre-existing single-column indexes
+  on those leading columns are now redundant for reads and were left in place
+  on purpose: dropping an index is the one schema change a re-run cannot undo.
+- **Check for a table-level UNIQUE before calling a FK uncovered.**
+  `therapist_availability_template.therapist_id` looks like a gap in any
+  FK audit and is not — `unique (therapist_id, day_of_week, hour)` already
+  builds an index led by that column.
+
+`create index concurrently` cannot run inside a transaction block, which is
+how this file is applied, so the entries here are plain `create index if not
+exists`. On a table with real volume that takes a lock that blocks writes for
+the duration. **After launch, add the index by hand with `concurrently`
+first**; this file then catches up as a no-op through its `if not exists`.
+
+## RLS predicates: always `(select auth.uid())`
+
+Never write `auth.uid()` bare in a policy. Write `(select auth.uid())`.
+
+Postgres marks `auth.uid()` volatile — it reads the request JWT out of a GUC
+— so a bare call is re-evaluated **once per candidate row**. Wrapped in a
+scalar subquery the planner hoists it into an InitPlan and computes it once
+for the whole statement. The predicate is identical; only the number of calls
+changes. Inside an `exists (...)` subquery it is worse again: the per-row call
+sits in the inner scan too, so the clinical-access policies were paying it
+across the product of two row counts.
+
+`npm run lint` fails on a bare one (`scripts/check-rls-initplan.mjs`). The
+check only looks at the **live** definition of each policy: this file is
+re-runnable and later sections supersede earlier ones, so an earlier
+declaration is dead text, and a policy whose last mention is a `drop policy
+if exists` with no later `create` has been withdrawn deliberately. Four
+policies are in that last category — `appointments_insert_own`,
+`b2b_leads_insert_public`, `pain_assessments_insert_gated` and
+`patient_referrals_insert_own`. **Do not re-create them to make them faster**:
+each had its client-side INSERT withdrawn on purpose, and those writes now go
+through service-role routes.
+
+## PostgREST's row cap applies to every bare `.select()`
+
+Covered above under the clients, and worth repeating as a rule because it has
+now been found three times: a `.select()` with no `.range()` stops at 1,000
+rows and answers **200**, with nothing to distinguish it from a table that
+holds exactly a thousand rows. Any read that **sums money, counts for a
+decision, or reconciles two totals** goes through `readAllRows` and acts on
+its `truncated` flag — a partial total is not a smaller total, it is an
+unknown one, and the caller must say so rather than publish it.

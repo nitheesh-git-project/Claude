@@ -621,3 +621,32 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
      what the request typed.
   Both routes are unchanged. `e2e/waitlist-serve-area.spec.ts` walks both
   answers against the database.
+
+---
+
+## Icons: solid only
+
+`globals.css` imports `fontawesome.min.css` + `solid.min.css`, **not**
+`all.min.css`. Font Awesome ships one webfont per style and a browser fetches
+a style's font the moment one glyph from it renders, so a single icon from a
+style costs that whole file. This app had exactly one `fa-brands` icon
+(WhatsApp, in the footer, on every page — 113 KB) and exactly one
+`fa-regular` icon (the calendar in `DateField` — 19 KB). Both are now inline
+SVG in `src/components/visuals/BrandGlyphs.tsx`, copied verbatim from the
+package's own `svgs/` so they are the same shapes rather than lookalikes.
+
+**Writing `fa-brands fa-whatsapp` now renders nothing.** Not a fallback, not
+an error — an empty inline box, silently. `npm run lint` fails on it
+(`scripts/check-icon-styles.mjs`), which is the only reason that is safe.
+
+Need an icon from another style? Add it to `BrandGlyphs.tsx`. Re-importing a
+stylesheet and its webfont for one glyph is the expensive answer — though it
+becomes the right one if the app ever needs a dozen brand icons, and the
+check reads `globals.css`, so it passes automatically once the import is
+there.
+
+Icon names that reach the database (`mission_principles.icon`) are safe
+because the route validates them against `MISSION_ICONS` in
+`src/lib/mission.ts`, which is a literal array the scanner can see. Keep it
+that way: an icon name built by concatenation, or accepted from a text box,
+is invisible to any tooling here.

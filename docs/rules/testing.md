@@ -499,6 +499,44 @@ one, suspect leftover state before suspecting the app.
   Access's back-office list now carry `aria-label`s they should have had anyway.
   `getByRole` also skips hidden elements, so a role query that finds *nothing*
   on this page usually means the wrong `?tab=` rather than a missing control.
+## The lint's schema and asset checks
+
+`npm run lint` runs five checks before eslint, and they exist for the same
+reason: each guards a failure with **no runtime symptom**. Nothing throws,
+no test goes red, the page renders — it is just wrong, or slower than it
+should be, in a way nobody notices until production.
+
+| Check | Catches |
+| --- | --- |
+| `check:realtime` | A table subscribed in the UI but not in the publication |
+| `check:grants` | A `security definer` function not revoked from all three of public/anon/authenticated |
+| `check:search-path` | A `security definer` function with no explicit safe `search_path` |
+| `check:rls-initplan` | A live policy calling `auth.uid()` bare instead of `(select auth.uid())` |
+| `check:icon-styles` | A Font Awesome style used but not imported — renders an empty box, silently |
+
+Adding one: **prove it fails before trusting that it passes.** Append a
+known-bad fixture to the file it reads, confirm a non-zero exit and a
+message that names the file and line, then restore. A check that cannot
+fail is not a check, and the two added most recently were both wrong on
+their first run — one truncated `storage.objects` to `storage` (which would
+have produced a `DROP` against a table that does not exist and broken the
+whole schema apply), the other failed on the very comments documenting the
+rule it enforces.
+
+## Unit tests and the dependency-free rule
+
+`vitest.config.ts` includes `src/**/*.test.ts` and runs in a `node`
+environment. The suite covers the dependency-free modules in `src/lib` —
+the business maths lives there precisely so it can be tested without
+rendering or a database. Anything needing a browser or Supabase belongs in
+`e2e/`, and nothing here uses `vi.mock` to pretend otherwise.
+
+`proxyProfileCache.test.ts` is the shape to copy for anything
+security-bearing: it is mostly about the ways the thing must **refuse** —
+a different user, an edited payload, a swapped signature, a wrong secret,
+a malformed value — and it takes `nowMs` as a parameter so expiry is
+asserted to the millisecond rather than waited out.
+
 ## Keeping the docs current
 
 `README.md`, `CLAUDE.md` and `docs/rules/*.md` describe the app itself, so they go

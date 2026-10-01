@@ -766,5 +766,6 @@ export async function POST(request: NextRequest) {
     revalidatePath("/", "layout");
   }
 
+
   return NextResponse.json({ success: true });
 }

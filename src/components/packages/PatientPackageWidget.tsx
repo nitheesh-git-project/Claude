@@ -4,6 +4,7 @@ import { useState } from "react";
 import { computePackageCounts, daysUntilExpiry } from "@/lib/packageProgress";
 import PackageDetailModal from "@/components/packages/PackageDetailModal";
 import PackageBulkScheduler from "@/components/packages/PackageBulkScheduler";
+import Image from "next/image";
 
 export type PatientPackageCard = {
   id: string;
@@ -75,8 +76,19 @@ export default function PatientPackageWidget({
           return (
             <div key={p.id} className="overflow-hidden rounded-xl border border-slate-200">
               {p.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.imageUrl} alt="" className="h-28 w-full object-cover" />
+                // next/image rather than a raw <img>: these covers come
+                // from Supabase Storage at whatever size they were
+                // uploaded, and the optimizer serves a resized AVIF/WebP
+                // for a box that is only 112px tall. The eslint suppression
+                // that used to sit here was hiding exactly that cost.
+                <Image
+                  src={p.imageUrl}
+                  alt=""
+                  width={400}
+                  height={112}
+                  sizes="(min-width: 768px) 400px, 100vw"
+                  className="h-28 w-full object-cover"
+                />
               ) : (
                 <div className="flex h-28 w-full items-center justify-center bg-teal-50 text-teal-300">
                   <i className="fa-solid fa-layer-group text-3xl" />
