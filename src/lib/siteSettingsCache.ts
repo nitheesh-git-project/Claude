@@ -1,52 +1,53 @@
 import { cache } from "react";
-import { unstable_cache } from "next/cache";
 import { createPublicClient } from "@/lib/supabase/public";
 
 /**
- * The one row of `site_settings`, read once instead of once per caller.
+ * The one row of `site_settings`, read once per request instead of once per
+ * caller, and read concurrently rather than one query after another.
  *
- * `site_settings` is a single-row table that almost every surface in the app
- * needs something from: the root layout wants the brand strings, the splash
+ * `site_settings` is a single-row table that almost every surface needs
+ * something from: the root layout wants the brand strings, the splash
  * timings and the farewell banner; the booking pages want lead times; the
- * public pages want the home-visit flag. Before this module each of those
- * issued its own PostgREST round-trip, and the root layout alone issued
- * four of them one after another -- so every page in the app, including the
- * marketing homepage, paid four serial network hops before it could render
- * a single byte.
+ * public pages want the home-visit flag. The root layout alone issued four
+ * of those reads **sequentially**, so every page in the app -- the marketing
+ * homepage included -- paid four serial network hops before it could render
+ * a byte. They now run together: the cost of the slowest, not the sum.
  *
- * Two layers of caching sit here, and they do different jobs:
+ * `cache()` from React dedupes within one request. Two components in the
+ * same render that both want the brand strings cause one read, not two. It
+ * has no staleness of any kind -- the memo dies with the request.
  *
- * 1. `cache()` from React dedupes within **one** request. Two components in
- *    the same render that both want the brand strings make one query, not
- *    two. This is free and has no staleness of any kind -- the memo dies
- *    with the request.
- * 2. `unstable_cache` reuses the result **across** requests, keyed by the
- *    `SITE_SETTINGS_TAG` below. This is the layer that takes the cost to
- *    zero for the overwhelming majority of page loads.
+ * ## Why there is no cross-request cache here
  *
- * `unstable_cache` rather than Next 16's `"use cache"` directive
- * deliberately: `"use cache"` requires `cacheComponents: true` in
- * next.config.ts, which changes caching semantics for every route in the
- * app at once. That is a migration, not a performance fix, and it is not
- * something to flip underneath a payment flow. `unstable_cache` is
- * superseded but fully supported in 16, and it is scoped to exactly the
- * reads we want cached.
+ * There was one, briefly: `unstable_cache` with a `site-settings` tag, which
+ * took the cost to zero on a warm cache, with the admin's save dropping the
+ * tag so an edit still landed immediately.
  *
- * **Admin edits are not delayed by this.** `revalidateTag(SITE_SETTINGS_TAG)`
- * in the update-setting route drops the entry the moment a setting changes,
- * so the next read is fresh. The `revalidate` window below is only a
- * backstop for a write that somehow misses the tag -- a setting changed
- * directly in the Supabase dashboard, say.
+ * It was wrong, and the e2e suite said so. Three splash-screen specs change
+ * a setting and immediately load the page, and they write **straight to the
+ * database** with the service-role client rather than going through
+ * `update-setting`. Nothing in Next can know that happened, so no tag is
+ * dropped and the page keeps rendering the old greeting until the backstop
+ * window expires.
+ *
+ * That is not a test being awkward. `e2e/README.md` records
+ * `home-visit-disabled` as covering "the master switch off, flipped in the
+ * **database** rather than through the route -- the case the cache could not
+ * survive", so this project has already been bitten by precisely this and
+ * left the alarm wired up. Rewriting those specs to suit a new cache would
+ * be switching the alarm off.
+ *
+ * What the cross-request layer actually bought was one parallel round-trip
+ * on the 215 dynamic routes -- the 19 public pages are ISR-cached at
+ * `revalidate = 300` already, so their HTML, layout included, is reused
+ * without re-reading anything. One round-trip is not worth a settings change
+ * that silently fails to appear.
+ *
+ * If it is ever worth revisiting, the honest version invalidates on the
+ * *database* changing (`site_settings` is already in the realtime
+ * publication) rather than on the app's own route being the one to change
+ * it.
  */
-export const SITE_SETTINGS_TAG = "site-settings";
-
-/**
- * Backstop only. The tag above is the real invalidation path; this bounds
- * how long a change made outside the app (straight into the database) can
- * go unnoticed.
- */
-const SITE_SETTINGS_TTL_SECONDS = 300;
-
 /**
  * Each select stays its own query, and that is not an oversight.
  *
@@ -108,18 +109,10 @@ async function readLayoutSettings(): Promise<LayoutSettingsRow> {
   };
 }
 
-const readLayoutSettingsCached = unstable_cache(
-  readLayoutSettings,
-  ["site-settings:layout"],
-  { tags: [SITE_SETTINGS_TAG], revalidate: SITE_SETTINGS_TTL_SECONDS }
-);
-
 /**
- * The four groups the root layout needs, in one call, cached across
- * requests and deduped within one. Returns nulls rather than throwing when
- * a group's columns do not exist yet -- the callers already fall back to
- * the defaults in adminSettings.ts and splashScreen.ts.
+ * The four groups the root layout needs, in one call, deduped within the
+ * request. Returns nulls rather than throwing when a group's columns do not
+ * exist yet -- the callers already fall back to the defaults in
+ * adminSettings.ts and splashScreen.ts.
  */
-export const getLayoutSettings = cache(
-  async (): Promise<LayoutSettingsRow> => readLayoutSettingsCached()
-);
+export const getLayoutSettings = cache(readLayoutSettings);

@@ -43,18 +43,26 @@ What changed is that they are concurrent, and cached —
 `src/lib/siteSettingsCache.ts`, with React `cache()` for per-request dedupe
 and `unstable_cache` tagged `site-settings` across requests.
 
-`unstable_cache` rather than Next 16's `"use cache"` **on purpose**:
-`"use cache"` requires `cacheComponents: true`, which changes caching
-semantics for every route at once. That is a migration, not a performance
-fix, and not something to flip underneath a payment flow.
+**There is no cross-request cache, and that was a correction.** The first
+version added `unstable_cache` with a `site-settings` tag, dropped by both
+routes that write the table. The e2e suite caught it: three splash-screen
+specs change a setting and immediately load the page, writing **straight to
+the database** with the service-role client rather than going through
+`update-setting`. Nothing in Next can know that happened, so no tag is
+dropped and the page keeps serving the old greeting.
 
-Both routes that write the table drop the tag. They pass `{ expire: 0 }`
-rather than the generally-recommended `"max"`, because `"max"` is
-stale-while-revalidate — it would show the admin who just saved a setting
-the old value one more time, which is exactly the "did my save work?"
-confusion the existing `revalidatePath` calls were added to prevent.
-(`updateTag`, the other immediate option, is Server-Actions-only and these
-are Route Handlers.)
+That is not an awkward test. `e2e/README.md` already records
+`home-visit-disabled` as covering "the master switch off, flipped in the
+**database** rather than through the route — the case the cache could not
+survive". This project had been bitten by exactly this and left the alarm
+wired up; rewriting those specs to suit a new cache would have been
+switching it off.
+
+What the cache bought was one parallel round-trip on the 215 dynamic routes
+— the 19 public pages are ISR-cached at `revalidate = 300`, so their HTML,
+layout included, is already reused without re-reading anything. Not worth a
+settings change that silently fails to appear. The `Promise.all` and the
+per-request `cache()` are where the win actually was, and both stay.
 
 ### 2. RLS predicates
 
