@@ -9,6 +9,16 @@ name: Apply schema to Supabase
 # in production. This applies the file automatically on every push to main
 # that touches it, so the schema in the repo and the schema in Supabase can
 # never drift apart for more than one merge.
+#
+# **`main` only, and that is not an oversight now that `staging` is the
+# default branch.** This job runs in the `Production` environment and its
+# secrets point at the live project, so adding `staging` to the trigger would
+# take a staging merge and apply its schema to the **production** database --
+# the one outcome the two-branch split exists to prevent. Staging's own
+# database is applied by hand (`node scripts/run-schema.mjs` against it, or
+# the file pasted into its SQL editor), and automating that needs a second
+# environment holding that project's credentials rather than a wider trigger
+# here. See STAGING.md.
 
 on:
   push:

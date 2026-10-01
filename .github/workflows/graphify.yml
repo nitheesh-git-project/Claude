@@ -1,14 +1,21 @@
 name: Refresh graphify graph
 
-# Rebuilds the knowledge graph whenever code lands on main and commits the
-# result back, so a fresh clone always has a current graph without anyone
-# remembering to run /graphify.
+# Rebuilds the knowledge graph whenever code lands on the default branch and
+# commits the result back, so a fresh clone always has a current graph without
+# anyone remembering to run /graphify.
+#
+# That branch is `staging` (see STAGING.md), which is where every pull request
+# lands. Deliberately not `main` as well: the graph travels to `main` with the
+# release merge, so a second trigger would open a duplicate pull request to
+# rebuild something already current. The pull request this opens is based on
+# `github.ref_name` further down, so this trigger is the only thing deciding
+# which branch it targets.
 on:
   push:
-    branches: [main]
+    branches: [staging]
     # Without this, the commit made at the end of this workflow would push to
-    # main and trigger the workflow again, forever. The "[skip ci]" in that
-    # commit message is the second guard.
+    # that branch and trigger the workflow again, forever. The "[skip ci]" in
+    # that commit message is the second guard.
     paths-ignore:
       - "graphify-out/**"
 

@@ -888,7 +888,10 @@ before.
   replaces), and `alter publication ... add table` needs the
   `do $$ ... exception when duplicate_object then null; end $$` wrapper every
   other publication line in the file uses. Re-apply the file twice after
-  touching it - the schema-apply workflow runs it on every push to `main`.
+  touching it - the schema-apply workflow runs it on every push to `main`,
+  which is the **live** branch. A schema change merged to `staging`, the
+  default branch, reaches staging's own database only when a person applies
+  it; see STAGING.md.
 - New columns are migration-dependent - a live database may not have them
   yet. Query such a column in its own isolated call and merge the result in
   (see `src/lib/sessionCode.ts`), so one unknown-column error can't blank
@@ -1153,14 +1156,22 @@ before.
   failed revoke never un-suspends the account - it returns a warning the
   route passes on, because "the door is locked but they are still inside"
   is worth saying out loud.
-- A change to `schema.sql` only reaches the live database once it's applied
+- A change to `schema.sql` only reaches a database once it's applied
   - either by hand with `node scripts/run-schema.mjs`, or automatically via
   `.github/workflows/schema-apply.yml`, which runs that same script against
-  Supabase on every push to `main` that touches `supabase/schema.sql` (needs
-  the `SUPABASE_ACCESS_TOKEN` and `NEXT_PUBLIC_SUPABASE_URL` repo secrets
-  set). Merging a schema change without either path running leaves the DB's
-  policies out of sync with code that assumes them - the app can look fixed
-  in review and still fail in production the same way.
+  Supabase on every push to `main` that touches `supabase/schema.sql` (it
+  runs in the `Production` GitHub environment and reads
+  `SUPABASE_ACCESS_TOKEN` and `NEXT_PUBLIC_SUPABASE_URL` from there, not
+  from repository secrets). Merging a schema change without either path
+  running leaves the DB's policies out of sync with code that assumes them -
+  the app can look fixed in review and still fail in production the same way.
+  **`main` only, and deliberately so now that `staging` is the default
+  branch**: those secrets point at the live project, so widening the trigger
+  would apply a staging merge's schema to the production database. Staging's
+  database is therefore applied **by hand**, and that step belongs *before*
+  the app is exercised there -- the code assumes policies and functions that
+  are otherwise simply absent, which fails in ways that read as code bugs.
+  STAGING.md holds the whole model.
 
 ## Domain rules worth knowing before editing
 
@@ -5686,7 +5697,7 @@ line describing nothing but carelessness. Before real patients exist, remove
 
 `README.md`, `AGENTS.md`, and `CLAUDE.md` describe the app itself, so they go
 stale the moment the app changes. Update them **in the same change** that
-makes them wrong - do not leave it for later, and do not merge to `main`
+makes them wrong - do not leave it for later, and do not merge to `staging`
 without checking. Anything in this list means the docs need a look:
 
 - a new or removed route, page, or API route handler
@@ -6216,10 +6227,13 @@ must not have.
   made the workflow fail with a wall of 429s. That failure is now soft --
   the run retries with the key unset and commits a structural graph rather
   than leaving the committed one stale.
-  **It arrives as a pull request, not as a commit on `main`.** The workflow
-  used to push straight to `main`, which the branch-protection ruleset
-  rejects (`GH013`), so it failed on every merge and threw away the graph it
-  had just built. It force-pushes one long-lived `chore/graphify-refresh`
+  **It arrives as a pull request, not as a commit on the branch it was
+  triggered by.** The workflow used to push straight to that branch, which
+  the ruleset rejects (`GH013`), so it failed on every merge and threw away
+  the graph it had just built. It triggers on `staging` now rather than
+  `main` -- the graph should be rebuilt where code lands, and `staging` is
+  the default branch; its PR is based on `github.ref_name`, so the trigger
+  is the only thing deciding the target. It force-pushes one long-lived `chore/graphify-refresh`
   branch and opens a PR from it instead -- deliberately not a commit onto the
   branch that was merged, since sessions here push to their own `claude/*`
   branches constantly and a CI commit landing underneath one turns their next
