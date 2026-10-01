@@ -133,6 +133,19 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   conversion then booked a visit at "Address on file with referring
   hospital". And one partner cannot hold two open referrals
   (`OPEN_REFERRAL_STATUSES`) for the same phone number.
+- **Converting a referral either completes or leaves nothing behind.**
+  `/api/patient/register-via-referral` checks everything that can refuse
+  it (a home visit's address and a served area) *before* writing
+  anything, then claims the referral, creates the account, links
+  `converted_patient_id`, sets `referred_by_hospital_id` and books the
+  session. If any of the last three fails, the new account is deleted and
+  the referral released, so the patient's link works again. It used to
+  mark the referral converted first and treat the rest as best-effort: a
+  failed booking left the referral converted with no session and the link
+  burned; a failed attribution earned the partner nothing; an
+  unserviceable pincode booked a visit with no travel fee. The System
+  Health attribution check now also counts converted referrals with **no**
+  patient linked, which it could not see before.
 - **A referral carries a phone number, because the clinic rings before it
   links.** `patient_referrals.patient_phone` is collected on the hospital's
   own form (required, validated through `PhoneNumberField` /

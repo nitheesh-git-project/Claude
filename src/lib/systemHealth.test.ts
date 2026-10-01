@@ -749,6 +749,14 @@ describe("the partner attribution check", () => {
     expect(check(withAttribution(null)).status).toBe("unknown");
   });
 
+  it("is amber for a referral marked registered with no patient linked", () => {
+    // Invisible to the comparison, which needs a linked patient to compare.
+    const c = check(withAttribution({ unlinkedCount: 1 }));
+    expect(c.status).toBe("attention");
+    expect(c.count).toBe(1);
+    expect(c.fix.length).toBeGreaterThan(0);
+  });
+
   it("gives an owner steps they can follow alone whenever it is not healthy", () => {
     expect(check(withAttribution({ orphanedCount: 1 })).fix.length).toBeGreaterThan(0);
     expect(check(withAttribution(null)).fix.length).toBeGreaterThan(0);
