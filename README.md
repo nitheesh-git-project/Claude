@@ -20,10 +20,34 @@ npm run dev
 Open http://localhost:3000.
 
 Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
-`npm run test`, `npm run check:realtime`, `npm run test:e2e`,
-`npm run seed:qa`, `npm run clean:e2e`, and
+`npm run test`, `npm run check:realtime`, `npm run check:grants`,
+`npm run check:search-path`, `npm run test:e2e`, `npm run seed:qa`,
+`npm run clean:e2e`, and
 `npm run verify` (lint, then unit tests, then build - the one to run before
 pushing).
+
+Two further checks need a real database rather than a build, so they are not
+part of `verify`:
+
+- `npm run check:concurrency` fires parallel requests at the things whose
+  whole purpose is to hold under contention -- the atomic therapist-slot
+  claim, the rate limiter's cap, the invite reward cap. Read the note at the
+  top of `scripts/concurrency-checks.mjs` first: it guards the verdicts
+  rather than proving serialisation, and the difference is measured.
+- `npm run check:authorization` asserts cross-tenant isolation, IDOR
+  resistance and enumeration resistance **at the policy layer**, below the
+  routes -- because a valid session cookie reaches PostgREST without passing
+  any route guard.
+
+Both create their own fixtures and remove them, and neither should ever be
+pointed at a database with real patients.
+
+Three documents describe decisions rather than code:
+`docs/MONEY-MODEL.md` (the money vocabulary, cash versus accrual, revenue
+recognition, and what is not yet canonical), `docs/LIFECYCLE-STATES.md`
+(every state machine), and `docs/DATA-POLICY.md` (schema changes and
+forward-fix recovery, the backup restore drill, retention per table, and
+account deletion).
 
 ### Clearing e2e fixture residue
 
@@ -705,8 +729,8 @@ problem or someone working outside the normal flow, and both want a person.
 ### System Health
 
 **Settings → System Health** is the app reporting on itself: nothing there is
-a setting. It answers five questions, and every one of them answers in the
-same shape, so the screen can be read without learning five layouts:
+a setting. It answers ten questions, and every one of them answers in the
+same shape, so the screen can be read without learning ten layouts:
 
 | Check | Asks |
 | --- | --- |
@@ -715,6 +739,11 @@ same shape, so the screen can be read without learning five layouts:
 | **Session Links** | Does every confirmed session have its calendar event and video link? |
 | **Waiting Room** | Do patients and therapists walk into their sessions, or knock? |
 | **Books & Sessions Agree** | Do the programme balances, the payments and the delivered sessions all add up? |
+| **Public doors** | Can this server tell one visitor from another, so its public limits mean anything? |
+| **Pay Later** | What do trusted patients owe, how long has it been owed, and did any delivered session never get closed? |
+| **Partner attribution** | Does every referred patient's account name the partner who sent them? |
+| **Refunds** | Did every refund we sent to Razorpay come back with an answer we wrote down? |
+| **Patient files** | Does every uploaded scan have a record, and every record its file? |
 
 A verdict strip at the top says how many checks need a person, with a chip
 per failing check that jumps straight to it - so "is anything wrong?" is

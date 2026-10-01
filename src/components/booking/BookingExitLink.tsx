@@ -18,11 +18,32 @@ import { useAccountDestination } from "@/lib/useAccountDestination";
  * started on.
  *
  * So the label follows the account. Signed out, it still says Back to Home
- * and goes there. Signed in, it names where that account actually lands --
- * which for an unapproved patient mid-booking is the pending-approval
- * screen, not a dashboard they would bounce off. `useAccountDestination()`
- * is that rule, shared with the public Navbar so the two cannot grow
- * different answers.
+ * and goes there. Signed in, it names where that account actually lands.
+ * `useAccountDestination()` is that rule, shared with the public Navbar so
+ * the two cannot grow different answers.
+ *
+ * **Except one, and it was shipped here as though it were the design.** This
+ * file used to say the right destination for an unapproved patient mid-booking
+ * was the pending-approval screen. It is not, and the account is unapproved
+ * for a reason that has nothing to do with waiting on anybody: a patient who
+ * signs up *inside this wizard* is unapproved **by construction**, and
+ * `/api/razorpay/create-order` flips `approved` the moment they genuinely
+ * attempt checkout, precisely so they land in their dashboard rather than on
+ * a waiting screen. So between Step 2 creating the account and Step 3 taking
+ * the payment, the one control on the payment screen read **"Approval
+ * pending"** -- telling somebody their account is awaiting approval at the
+ * exact moment they are about to pay, which reads as "you cannot do this" and
+ * offers, as its only way out, a dead-end screen that abandons the booking.
+ *
+ * A patient mid-booking is not waiting on approval. They are mid-purchase. So
+ * the pending-approval destination is **not offered here** -- they get the
+ * ordinary way back instead. The public Navbar still names it, correctly: out
+ * on the marketing site an unapproved account really would be bounced there,
+ * and the label naming the real destination is the rule that exists.
+ *
+ * **Suspended is deliberately still named.** That is not a state somebody is
+ * about to leave by paying -- checkout will refuse them -- so saying nothing
+ * would leave them tapping a button that cannot work.
  */
 export default function BookingExitLink({
   // Where a signed-out visitor goes, which differs per wizard: /book came
@@ -36,13 +57,19 @@ export default function BookingExitLink({
   signedOutLabel?: string;
 } = {}) {
   const { destination } = useAccountDestination();
-  const href = destination?.href ?? signedOutHref;
+
+  // Not offered mid-booking, for the reason above: this account is unapproved
+  // because it was made here seconds ago, and paying is what approves it.
+  const offersWaitingScreen = destination?.href === "/pending-approval";
+  const usable = offersWaitingScreen ? null : destination;
+
+  const href = usable?.href ?? signedOutHref;
   const label =
-    destination === null
+    usable === null
       ? signedOutLabel
-      : destination.label === "Go to Dashboard"
+      : usable.label === "Go to Dashboard"
         ? "Back to Dashboard"
-        : destination.label;
+        : usable.label;
 
   return (
     <div className="mt-6 flex justify-end">

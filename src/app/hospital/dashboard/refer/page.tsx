@@ -19,7 +19,7 @@ export default async function Page() {
           icon="fa-user-plus"
           subtitle="Send a patient across and the clinic takes it from there."
         >
-          <SubmitReferralForm hospitalId={d.user.id} homeVisitEnabled={d.adminSettings.homeVisitEnabled} />
+          <SubmitReferralForm homeVisitEnabled={d.adminSettings.homeVisitEnabled} />
         </SurfaceCard>
     </HospitalDashboardShell>
   );

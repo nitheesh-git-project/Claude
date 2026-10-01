@@ -1,0 +1,191 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { parseJsonBody } from "@/lib/parseJsonBody";
+import { isValidStoredPhone } from "@/lib/phoneNumber";
+import { enforceRateLimit } from "@/lib/rateLimitServer";
+import {
+  describeProfileStanding,
+  getProfileStanding,
+} from "@/lib/supabase/requireActiveProfile";
+import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+
+const MAX_NAME_LENGTH = 120;
+const MAX_ADDRESS_LENGTH = 500;
+const MAX_ISSUE_LENGTH = 2000;
+const MAX_TREATMENT_LENGTH = 1000;
+const MAX_LANGUAGE_LENGTH = 40;
+const VISIT_MODES = ["online", "home_visit"] as const;
+
+/**
+ * A partner hospital files a referral.
+ *
+ * This replaces a direct browser insert into `patient_referrals`, and the
+ * reasons are the ones that put `/api/hospitals/inquiry` in front of
+ * `b2b_leads`, plus one that is sharper here because these rows carry a
+ * named patient and their medical issue:
+ *
+ * 1. **`patient_referrals_insert_own` checked `auth.uid() = hospital_id`
+ *    and nothing else.** That is an ownership test, not a lifecycle one, so
+ *    a hospital that had been suspended -- or one whose account had never
+ *    been approved -- could keep filing referrals indefinitely, and the rows
+ *    landed in the admin's queue looking exactly like a live partner's.
+ *    Suspending a partner is meant to stop them sending patients; it did
+ *    not, because nothing between the browser and the table asked.
+ * 2. **Every rule was in the form's own JavaScript.** The pincode regex,
+ *    the phone check, the "home visit needs a pincode" pairing and the
+ *    home-visit master switch were all client-side, so a session cookie and
+ *    a direct POST bypassed all four -- including the switch, which meant a
+ *    home-visit referral could be filed against a service the clinic had
+ *    turned off, and nothing downstream would catch it until an admin tried
+ *    to staff it.
+ * 3. **There was no door to put a rate limit on.** Same sentence as the
+ *    inquiry route: a browser insert has no server-side handler, so the
+ *    table was unbounded and nothing in this deployment sweeps it.
+ *
+ * The policy and the insert grant are dropped at the end of `schema.sql`,
+ * the same move `appointments_insert_own` and `b2b_leads_insert_public` got.
+ */
+export async function POST(request: NextRequest) {
+  // Who is asking, before anything they sent is read.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Role, suspension and approval in one named check. A referral is the one
+  // thing a partner account exists to do, so this is the gate that makes
+  // suspending one mean anything.
+  const standing = await getProfileStanding(user.id, "hospital");
+  if (!standing.ok) {
+    const { status, error } = describeProfileStanding(standing.reason);
+    return NextResponse.json({ error }, { status });
+  }
+
+  const { data: body, error: parseError } = await parseJsonBody<{
+    patientName?: string;
+    patientPhone?: string;
+    address?: string;
+    preferredLanguage?: string;
+    medicalIssue?: string;
+    treatmentNeeded?: string;
+    visitMode?: string;
+    pincode?: string;
+  }>(request);
+  if (parseError) return parseError;
+
+  const patientName =
+    typeof body.patientName === "string"
+      ? body.patientName.trim().slice(0, MAX_NAME_LENGTH)
+      : "";
+  if (!patientName) {
+    return NextResponse.json(
+      { error: "Enter the patient's full name." },
+      { status: 400 }
+    );
+  }
+
+  // Required, because the clinic phones this patient before sending a
+  // registration link -- a referral with no reachable number is one the
+  // admin has to go back to the hospital for.
+  const patientPhone = typeof body.patientPhone === "string" ? body.patientPhone.trim() : "";
+  if (!isValidStoredPhone(patientPhone)) {
+    return NextResponse.json(
+      { error: "Enter the patient's phone number so our team can reach them." },
+      { status: 400 }
+    );
+  }
+
+  const medicalIssue =
+    typeof body.medicalIssue === "string"
+      ? body.medicalIssue.trim().slice(0, MAX_ISSUE_LENGTH)
+      : "";
+  if (!medicalIssue) {
+    return NextResponse.json(
+      { error: "Describe the patient's medical issue." },
+      { status: 400 }
+    );
+  }
+
+  // CHECKed on the column, so an unknown value would be a Postgres 500
+  // rather than a sentence the hospital can act on.
+  const visitMode = typeof body.visitMode === "string" ? body.visitMode : "online";
+  if (!VISIT_MODES.includes(visitMode as (typeof VISIT_MODES)[number])) {
+    return NextResponse.json({ error: "Choose how the patient is seen." }, { status: 400 });
+  }
+
+  let pincode: string | null = null;
+  if (visitMode === "home_visit") {
+    // Re-derived rather than trusted: the form hides the option when home
+    // visits are off, and hiding a control is presentation. A referral for
+    // a service the clinic has withdrawn reaches an admin who cannot staff
+    // it and a patient who was told somebody is coming.
+    if (!(await readHomeVisitEnabled())) {
+      return NextResponse.json(
+        {
+          error:
+            "Home visits aren't being offered at the moment. Please refer this patient for an online session.",
+        },
+        { status: 409 }
+      );
+    }
+    const raw = typeof body.pincode === "string" ? body.pincode.trim() : "";
+    if (!/^[1-9]\d{5}$/.test(raw)) {
+      return NextResponse.json(
+        { error: "Enter the patient's 6-digit pincode for a home visit referral." },
+        { status: 400 }
+      );
+    }
+    pincode = raw;
+  }
+
+  const address =
+    typeof body.address === "string" ? body.address.trim().slice(0, MAX_ADDRESS_LENGTH) : "";
+  const preferredLanguage =
+    typeof body.preferredLanguage === "string"
+      ? body.preferredLanguage.trim().slice(0, MAX_LANGUAGE_LENGTH)
+      : "";
+  const treatmentNeeded =
+    typeof body.treatmentNeeded === "string"
+      ? body.treatmentNeeded.trim().slice(0, MAX_TREATMENT_LENGTH)
+      : "";
+
+  // Counted after the shape is checked, per the ordering rule: the limiter
+  // costs a round trip where the checks above cost a trim and a regex, and
+  // a hospital correcting a typo must not spend an allowance meant for
+  // abuse. Keyed on the account rather than the address -- a hospital
+  // network behind one egress IP would otherwise have its clinics spending
+  // each other's allowance.
+  const limited = await enforceRateLimit(request, "referralSubmit", {
+    identifier: user.id,
+  });
+  if (limited) return limited;
+
+  // Service role for the insert: `hospital_id` is taken from the session
+  // rather than the body, so there is nothing a caller could point at
+  // somebody else's account.
+  const { error } = await createAdminClient().from("patient_referrals").insert({
+    hospital_id: user.id,
+    patient_name: patientName,
+    patient_phone: patientPhone,
+    address: address || null,
+    preferred_language: preferredLanguage || null,
+    medical_issue: medicalIssue,
+    treatment_needed: treatmentNeeded || null,
+    visit_mode: visitMode,
+    pincode,
+  });
+
+  if (error) {
+    console.error("Could not record a patient referral", error.message);
+    return NextResponse.json(
+      { error: "Could not submit the referral. Please try again." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ success: true });
+}

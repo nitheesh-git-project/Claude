@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
+import { serverError } from "@/lib/apiError";
 
 // The therapist confirming they took payment at the door. This is the one
 // moment a cash-on-visit appointment actually becomes "paid" -- until now
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("therapist/record-cash-collection", error);
   }
   if (!claimed) {
     return NextResponse.json(

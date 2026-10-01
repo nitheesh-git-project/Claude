@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   // Who is asking, before anything the caller sent is looked at. An
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("therapist/acknowledge-payout-request", error);
   }
   if (!updated) {
     return NextResponse.json({ error: "Request not found" }, { status: 404 });

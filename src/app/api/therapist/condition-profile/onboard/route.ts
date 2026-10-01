@@ -17,6 +17,7 @@ import {
   readEnabledSpecialties,
 } from "@/lib/conditionProfileServer";
 import { isConditionSpecialty, TRIAGE_QUESTIONS } from "@/lib/conditionSpecialty";
+import { serverError } from "@/lib/apiError";
 
 const TRIAGE_KEYS = new Set(TRIAGE_QUESTIONS.map((q) => q.key));
 
@@ -238,7 +239,7 @@ export async function POST(request: NextRequest) {
       .select("patient_id")
       .maybeSingle();
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return serverError("therapist/condition-profile/onboard", updateError);
     }
     claimed = !!won;
   } else {
@@ -250,7 +251,7 @@ export async function POST(request: NextRequest) {
     // 23505 = another caller inserted the first row a moment ago. That is
     // a lost race, not a server error.
     if (insertError && insertError.code !== "23505") {
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+      return serverError("therapist/condition-profile/onboard", insertError);
     }
     claimed = !!won;
   }

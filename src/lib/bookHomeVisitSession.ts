@@ -1,10 +1,10 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
 import { formatAddressOneLine, type VisitAddress } from "@/lib/formatAddress";
 import { mirrorReserve } from "@/lib/sessionCreditMirror";
+import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -39,9 +39,27 @@ export type HomeVisitAddressInput = VisitAddress & {
   area_id?: string | null;
 };
 
+/**
+ * The message for the one refusal that means "this is already booked". Named
+ * rather than inlined because two callers have to recognise it and a string
+ * compared in two files is a string that drifts in one of them.
+ */
+export const DUPLICATE_SLOT_ERROR =
+  "This visit is already booked for that time.";
+
 export type BookHomeVisitSessionResult =
   | { success: true; appointmentId: string; assignedTherapistId: string | null }
-  | { success: false; status: number; error: string };
+  | {
+      success: false;
+      status: number;
+      error: string;
+      /**
+       * The refusal came from the one-per-purchase-per-slot index, so the
+       * visit the caller asked for exists. Not an error to report to a
+       * patient whose money has already moved.
+       */
+      duplicate?: boolean;
+    };
 
 /**
  * The one implementation of "claim a visit on a home-visit purchase, then
@@ -187,26 +205,13 @@ export async function bookHomeVisitSession(
   // travel time is accounted for. A conflict never fails the booking -- the
   // visit is still created, just unassigned and 'requested', landing in the
   // admin queue rather than costing the patient a visit.
-  let assignedTherapistId: string | null = null;
-  if (purchase.locked_therapist_id) {
-    const conflict = await findTherapistConflict(
-      admin,
-      purchase.locked_therapist_id,
-      new Date(slotDateTime).toISOString(),
-      durationMinutes,
-      { bufferMinutes: travelBufferMinutes }
-    );
-    if (!conflict) {
-      assignedTherapistId = purchase.locked_therapist_id;
-    }
-  }
-
-  // A prepaid visit with a free locked therapist has nothing left for an
-  // admin to approve. A cash visit always does: nobody has paid yet, so the
-  // business decides whether to send someone before the patient is
-  // committed to anything.
+  // The visit is inserted UNASSIGNED and the locked therapist reserved
+  // afterwards through the one atomic claim -- see bookPackageSession for
+  // the same correction and the same reasoning. The read-then-insert this
+  // replaces could double-book a locked therapist across two visits booked
+  // at the same moment, which for a home visit means sending one person to
+  // two addresses.
   const isPrepaid = purchase.payment_mode !== "cash_on_visit";
-  const shouldAutoConfirm = !!assignedTherapistId && isPrepaid;
 
   const { data: appointment, error: insertError } = await admin
     .from("appointments")
@@ -217,9 +222,9 @@ export async function bookHomeVisitSession(
       concern: concern || "Home Physiotherapy Visit",
       duration_minutes: durationMinutes,
       notes: notes || null,
-      status: shouldAutoConfirm ? "confirmed" : "requested",
-      therapist_id: assignedTherapistId,
-      preferred_therapist_id: assignedTherapistId ? null : preferredTherapistId || null,
+      status: "requested",
+      therapist_id: null,
+      preferred_therapist_id: preferredTherapistId || null,
       visit_mode: "home_visit",
       home_visit_purchase_id: purchase.id,
       payment_status: isPrepaid ? "paid" : "unpaid",
@@ -269,11 +274,52 @@ export async function bookHomeVisitSession(
         );
       }
     }
+    // A unique violation here is the one "failure" that is not one: the
+    // partial index `appointments_one_per_home_visit_purchase_slot` refuses a
+    // second visit on the same purchase at the same instant, which is exactly
+    // what a retried verify or a double-tapped Pay produces. The visit the
+    // patient wanted exists; the credit has just been given back above, so
+    // the balance is right either way. Saying "could not book" here would
+    // report a working booking as a failure -- the one thing this route must
+    // not do after money has moved.
+    if ((insertError as { code?: string } | null)?.code === "23505") {
+      return { success: false, duplicate: true, status: 409, error: DUPLICATE_SLOT_ERROR };
+    }
     return {
       success: false,
       status: 500,
       error: insertError?.message ?? "Could not book this visit. Please try again.",
     };
+  }
+
+  // Reserve the locked therapist, atomically, now that a real appointment
+  // id exists to lock against. A prepaid visit with a free locked
+  // therapist has nothing left for an admin to approve, so it confirms in
+  // the same statement; a cash visit never does -- nobody has paid yet, so
+  // the clinic decides whether to send somebody before the patient is
+  // committed to anything.
+  let assignedTherapistId: string | null = null;
+  let shouldAutoConfirm = false;
+  if (purchase.locked_therapist_id) {
+    const claim = await claimTherapistSlot(admin, {
+      appointmentId: appointment.id,
+      therapistId: purchase.locked_therapist_id,
+      expectUnassigned: true,
+      // Travel padding on both sides: a therapist finishing at one address
+      // cannot be at another minutes later.
+      bufferMinutes: travelBufferMinutes,
+      confirm: isPrepaid,
+    });
+    if (claim.ok) {
+      assignedTherapistId = purchase.locked_therapist_id;
+      shouldAutoConfirm = isPrepaid;
+      await admin
+        .from("appointments")
+        .update({ preferred_therapist_id: null })
+        .eq("id", appointment.id);
+    }
+    // Refused: the visit is still created, unassigned and `requested`, in
+    // the admin's queue. A clash never costs the patient their visit.
   }
 
   if (shouldAutoConfirm && assignedTherapistId) {

@@ -13,6 +13,7 @@ import {
   parseYearsExperience,
   YEARS_EXPERIENCE_ERROR,
 } from "@/lib/therapistExperience";
+import { serverError } from "@/lib/apiError";
 
 // Creates a patient, therapist or admin account by hand.
 //
@@ -194,7 +195,31 @@ export async function POST(request: NextRequest) {
     .eq("id", created.user.id);
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    // Release the account, exactly as onboard-hospital does and for the same
+    // reason: `handle_new_user` has already given this a **patient** profile
+    // (the trigger ignores a role from metadata by design), so this update is
+    // what makes it the account the admin asked for. A failure leaves an
+    // unusable patient row on the email address, and the next attempt fails
+    // with "an account with that email already exists" -- which is true, and
+    // useless, and points at nothing the admin can see.
+    //
+    // Safe: the account is seconds old with nothing pointing at it, which is
+    // the "no history at all" case delete-account is deliberately narrow for.
+    const { error: cleanupError } = await admin.auth.admin.deleteUser(created.user.id);
+    if (cleanupError) {
+      console.error(
+        "Could not release a half-provisioned account",
+        created.user.id,
+        cleanupError
+      );
+      return serverError("admin/create-account (stranded)", updateError, {
+        message:
+          "The account was created but could not be set up, and could not be removed either. That email cannot be used again until it is deleted - please pass this reference on.",
+      });
+    }
+    return serverError("admin/create-account", updateError, {
+      message: "The account could not be set up, so nothing has been created. Please try again.",
+    });
   }
 
   // A therapist created here arrives approved, active and (by column

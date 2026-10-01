@@ -11,6 +11,7 @@ import {
   isCatalogImageType,
   type CatalogImageType,
 } from "@/lib/catalogImage";
+import { serverError } from "@/lib/apiError";
 
 // The one writer of the `catalog-images` bucket.
 //
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
     .upload(path, file, { upsert: true, contentType, cacheControl: "3600" });
 
   if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 500 });
+    return serverError("admin/upload-catalog-image", uploadError);
   }
 
   const {

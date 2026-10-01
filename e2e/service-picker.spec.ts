@@ -126,11 +126,17 @@ test.describe("Public booking service picker", () => {
     // The whole point of the change, and the one regression a careless
     // revert would produce. Scoped to the two public wizards; the admin
     // screens keep their selects.
-    await page.goto(`${BASE}/book`);
-    await expect(page.locator("select")).toHaveCount(0);
-
-    await page.goto(`${BASE}/book-home-visit`);
-    await expect(page.locator("select")).toHaveCount(0);
+    // Scoped to the wizard, not the document. The pre-launch debug bar is on
+    // in every environment by design (isDebugNavVisible) and renders a
+    // `<select>` page picker of its own, so a document-wide count asserts
+    // something this spec never meant and fails on a correct page. Switching
+    // the bar off for the suite would be worse: it ships on, so the tests
+    // would stop exercising what a visitor actually gets.
+    for (const path of ["/book", "/book-home-visit"]) {
+      await page.goto(`${BASE}${path}`);
+      await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+      await expect(page.locator("main select")).toHaveCount(0);
+    }
   });
 
   test("SP-002: the picker opens on Step 1 and keeps the dialog contract", async ({ page }) => {

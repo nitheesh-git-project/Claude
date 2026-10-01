@@ -18,6 +18,7 @@ import {
   MAX_PAY_LATER_AGED_AFTER_DAYS,
 } from "@/lib/patientBalances";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
@@ -39,6 +40,7 @@ const ALLOWED_COLUMNS = new Set([
   // first release, and read everywhere else in its own call failing closed.
   "pay_later_enabled",
   "pay_later_aged_after_days",
+  "pay_later_max_owed_paise",
   // Whether that ageing warning runs at all. A switch rather than a zero in
   // the number above, because zero there reads as "chase everything" to one
   // person and "never warn me" to another.
@@ -262,6 +264,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: `Enter a whole number of days between ${MIN_PAY_LATER_AGED_AFTER_DAYS} and ${MAX_PAY_LATER_AGED_AFTER_DAYS}.`,
+        },
+        { status: 400 }
+      );
+    }
+  }
+  // Null is a real value here and is the default: blank means no ceiling,
+  // exactly as before the column existed. Zero is refused rather than read as
+  // "refuse every booking" -- somebody who types 0 has almost certainly
+  // cleared the box, and a field that says nothing about switching the
+  // feature off must not be able to.
+  if (key === "pay_later_max_owed_paise") {
+    const ok =
+      value === null ||
+      (typeof value === "number" &&
+        Number.isInteger(value) &&
+        value >= 1 &&
+        value <= 100_000_000);
+    if (!ok) {
+      return NextResponse.json(
+        {
+          error:
+            "Enter a whole number of rupees between 1 and 10,00,000, or leave it blank for no limit.",
         },
         { status: 400 }
       );
@@ -584,19 +608,90 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin
+
+  // Read the value being replaced, then write only while it is still that
+  // value. Two things come out of one extra read:
+  //
+  // 1. **The log records what it was.** This wrote `{ value: nextValue }`
+  //    and nothing else, so the one question the settings log gets asked --
+  //    "what was the refund window before somebody changed it?" -- had no
+  //    answer. That is the same defect `patient.update_contact` was already
+  //    corrected for, and the rule is stated in AGENTS.md: record the
+  //    values, not that something changed.
+  // 2. **A concurrent change is refused rather than silently lost.** Two
+  //    admins on the same setting used to be last-write-wins with nothing on
+  //    either screen saying so -- and these are rules that decide what
+  //    patients are charged and when they may cancel, so quietly discarding
+  //    one admin's decision is not a small thing.
+  const { data: before, error: readError } = await admin
     .from("site_settings")
-    .update({ [key]: nextValue })
-    .eq("id", true);
+    .select(key)
+    .eq("id", true)
+    .maybeSingle();
+
+  if (readError) {
+    // A read that failed is not a value that was absent -- writing anyway
+    // would record a `from` we never saw.
+    return serverError("admin/update-setting (read)", readError);
+  }
+
+  const previousValue = (before as Record<string, unknown> | null)?.[key] ?? null;
+
+  const claim = admin.from("site_settings").update({ [key]: nextValue }).eq("id", true);
+  // `.is()` for null and `.eq()` otherwise: PostgREST renders a null filter
+  // as `is.null`, and `eq.null` matches nothing at all -- which would refuse
+  // every first-time save of a setting that has never been set.
+  //
+  // A jsonb setting is compared as its **JSON text**, never as the value
+  // postgrest-js was handed. Two of these columns hold arrays --
+  // `booking_languages` and `enabled_intake_specialties` -- and postgrest-js
+  // renders a JS array into a Postgres *array* literal, `{ortho,neuro}`,
+  // which Postgres then tries to read as json: `22P02 invalid input syntax
+  // for type json, Token "ortho" is invalid`. The route answered **500** and
+  // the setting could not be saved at all. `booking_languages` is
+  // `not null default '["English"]'`, so its previous value is never null,
+  // the `.eq()` branch always ran, and the failure was total rather than
+  // occasional. Passing the serialised text keeps the compare-and-swap real
+  // -- verified both ways against a live database: the correct text matches
+  // the row, and a value the column does not hold still matches nothing, so
+  // the stale-write 409 below is unchanged.
+  const previousFilterValue =
+    typeof previousValue === "object" ? JSON.stringify(previousValue) : previousValue;
+  const { data: updated, error } = await (previousValue === null
+    ? claim.is(key, null)
+    : claim.eq(key, previousFilterValue as never)
+  )
+    .select("id")
+    .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-setting", error);
+  }
+
+  if (!updated) {
+    // Either somebody else changed this setting in the meantime, or it
+    // already holds the value being written. The second is harmless, so it
+    // is reported as success rather than as a conflict the admin cannot
+    // act on -- a no-op save must not read as a failure.
+    if (previousValue === nextValue) {
+      return NextResponse.json({ success: true, unchanged: true });
+    }
+    return NextResponse.json(
+      {
+        error:
+          "Someone else changed this setting a moment ago. Refresh to see what it says now before saving again.",
+      },
+      { status: 409 }
+    );
   }
 
   await recordAdminActivity(admin, adminUser.id, {
     action: "setting.update",
     targetLabel: key,
-    details: { value: nextValue },
+    // `from` and `to`, which is one of the five pairs readableDetails()
+    // already recognises -- so the detail dialog reads this as a change
+    // rather than as a bare new value.
+    details: { from: previousValue, to: nextValue },
   });
 
   // /book is ISR-cached (revalidate = 300), so without this an edited

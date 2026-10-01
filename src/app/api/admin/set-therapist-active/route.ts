@@ -5,6 +5,7 @@ import { revokeAllSessions, SESSION_REVOKE_WARNING } from "@/lib/supabase/revoke
 import { revalidatePath } from "next/cache";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/set-therapist-active", error);
   }
   if (!updated) {
     return NextResponse.json({ error: "Therapist not found" }, { status: 404 });

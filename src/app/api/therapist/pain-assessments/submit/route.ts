@@ -13,6 +13,7 @@ import {
   type PainMapSide,
 } from "@/lib/painMap";
 import { guardCommunication } from "@/lib/communicationFlags";
+import { serverError } from "@/lib/apiError";
 
 type AnswerInput = { key: string; value: string };
 
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest) {
     pain_percent: Math.round(painPercent),
   });
   if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    return serverError("therapist/pain-assessments/submit", insertError);
   }
 
   return NextResponse.json({ success: true });

@@ -711,3 +711,114 @@ describe("a write-off changes no figure either", () => {
     );
   });
 });
+
+/**
+ * The rates are frozen when the session is delivered.
+ *
+ * Every figure here used to be computed from the percentages on `profiles`
+ * as they stand *now*, so renegotiating a partner's commission -- or
+ * changing a therapist's share -- rewrote every historical figure both of
+ * them had already been paid and invoiced on. A partner opening their own
+ * Earnings screen after a renegotiation saw different numbers against
+ * sessions delivered months earlier, with nothing on the screen saying why.
+ *
+ * The fixtures above carry no snapshot, which is why every test before this
+ * point still passes unchanged: a row with no frozen rate reads the live
+ * percentage exactly as it always did. These assert the other half.
+ */
+describe("revenue split: rates frozen at completion", () => {
+  it("prefers the rate recorded on the session over the current one", () => {
+    // Delivered when the therapist was on 50%; they are on 60% today.
+    const out = run([
+      appointment({
+        amount_paid_paise: 100000,
+        therapist_share_percent_at_completion: 50,
+      }),
+    ]);
+    expect(out.therapist).toBe(50000);
+    expect(out.clinic).toBe(50000);
+  });
+
+  it("falls back to the current rate when nothing was recorded", () => {
+    const out = run([appointment({ amount_paid_paise: 100000 })]);
+    expect(out.therapist).toBe(60000);
+  });
+
+  it("honours a recorded 0%, rather than reading it as 'not recorded'", () => {
+    // A therapist really can be on nothing for a period. Coalescing a
+    // recorded zero away would quietly put them back on today's rate, which
+    // is the opposite of what freezing is for.
+    const out = run([
+      appointment({
+        amount_paid_paise: 100000,
+        therapist_share_percent_at_completion: 0,
+      }),
+    ]);
+    expect(out.therapist).toBe(0);
+    expect(out.clinic).toBe(100000);
+  });
+
+  it("does not re-resolve a frozen rate against the home-visit percentage", () => {
+    // The frozen figure was already resolved at completion by the same rule
+    // (home rate, falling back to the online one). Applying that rule again
+    // here would read a home visit's frozen 50% as the live 65%.
+    const out = run([
+      appointment({
+        amount_paid_paise: 100000,
+        visit_mode: "home_visit",
+        travel_fee_paise: 15000,
+        therapist_share_percent_at_completion: 50,
+      } as Partial<MetricsAppointment>),
+    ]);
+    // 50% of the service line, plus travel passed through in full.
+    expect(out.therapist).toBe(50000 + 15000);
+  });
+
+  it("pays a partner the commission recorded on the session", () => {
+    const out = run([
+      appointment({
+        patient_id: PATIENT_REFERRED,
+        amount_paid_paise: 100000,
+        therapist_share_percent_at_completion: 60,
+        hospital_id_at_completion: "hospital-a",
+        hospital_share_percent_at_completion: 20,
+      } as Partial<MetricsAppointment>),
+    ]);
+    // 20%, the rate on the day -- not the 10% the partner is on now.
+    expect(out.hospital).toBe(20000);
+  });
+
+  it("pays no commission on a session delivered before the referral existed", () => {
+    // A referral added to a patient's profile afterwards must not
+    // retrospectively earn a partner a cut of work already delivered and
+    // paid out. The session recorded no partner, so there is none.
+    const out = run([
+      appointment({
+        patient_id: PATIENT_REFERRED,
+        amount_paid_paise: 100000,
+        therapist_share_percent_at_completion: 60,
+        hospital_id_at_completion: null,
+        hospital_share_percent_at_completion: null,
+      } as Partial<MetricsAppointment>),
+    ]);
+    expect(out.hospital).toBe(0);
+    expect(out.excludedCount).toBe(0);
+  });
+
+  it("still excludes a session whose recorded partner has no recorded rate", () => {
+    // The "don't guess" rule, carried over to the frozen case: a partner
+    // was named and their share was not, so the split is unknowable and the
+    // session is reported rather than divided.
+    const out = run([
+      appointment({
+        patient_id: PATIENT_REFERRED,
+        amount_paid_paise: 100000,
+        therapist_share_percent_at_completion: 60,
+        hospital_id_at_completion: "hospital-a",
+        hospital_share_percent_at_completion: null,
+      } as Partial<MetricsAppointment>),
+    ]);
+    expect(out.excludedCount).toBe(1);
+    expect(out.hospital).toBe(0);
+  });
+});

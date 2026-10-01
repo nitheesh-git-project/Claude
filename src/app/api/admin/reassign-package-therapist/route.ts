@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
-import { findTherapistConflict } from "@/lib/checkTherapistConflict";
-import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { updateMeetEventForAppointment } from "@/lib/googleCalendarSync";
+import {
+  claimTherapistSlot,
+  describeClaimFailure,
+} from "@/lib/claimTherapistSlot";
+import { serverError } from "@/lib/apiError";
 
 // Moves an entire package purchase's remaining programme to a new
 // therapist in one action -- the answer to "the locked therapist went on
@@ -76,43 +79,21 @@ export async function POST(request: NextRequest) {
       skipped.push({ appointmentId: appointment.id, reason: "No slot time recorded." });
       continue;
     }
-    const conflict = await findTherapistConflict(
-      admin,
+    // The overlap test and the compare-and-set together, under a row lock
+    // on the incoming therapist. Separately -- as a check and then a
+    // conditional write -- two sessions in this same loop could each be
+    // moved onto the new therapist at overlapping times, since each one's
+    // check ran before the other's write landed. Moving a whole programme
+    // is precisely the case that produces several of those in a row.
+    const claim = await claimTherapistSlot(admin, {
+      appointmentId: appointment.id,
       therapistId,
-      appointment.slot_time,
-      appointment.duration_minutes ?? BASE_DURATION_MINUTES,
-      { excludeAppointmentId: appointment.id }
-    );
-    if (conflict) {
-      skipped.push({
-        appointmentId: appointment.id,
-        reason: "The new therapist already has another session at that time.",
-      });
-      continue;
-    }
-
-    // CAS on the therapist_id this request actually read -- without this,
-    // two concurrent reassigns of the same purchase to different
-    // therapists could both pass the conflict check above and then both
-    // write, leaving whichever wrote last as the silent winner with no
-    // trace of the race. A lost claim here means someone else already
-    // moved this session; it's correctly reported as skipped, not retried.
-    const { data: claimedAppointment, error: updateError } = await admin
-      .from("appointments")
-      .update({ therapist_id: therapistId })
-      .eq("id", appointment.id)
-      .eq("therapist_id", appointment.therapist_id)
-      .select("id")
-      .maybeSingle();
-    if (updateError) {
-      skipped.push({ appointmentId: appointment.id, reason: updateError.message });
-      continue;
-    }
-    if (!claimedAppointment) {
-      skipped.push({
-        appointmentId: appointment.id,
-        reason: "This session's therapist was changed concurrently by another request.",
-      });
+      expectedTherapistId: appointment.therapist_id,
+      bufferMinutes: 0,
+    });
+    if (!claim.ok) {
+      const { error: claimMessage } = describeClaimFailure(claim);
+      skipped.push({ appointmentId: appointment.id, reason: claimMessage });
       continue;
     }
 
@@ -156,7 +137,7 @@ export async function POST(request: NextRequest) {
     .select("id")
     .maybeSingle();
   if (purchaseUpdateError) {
-    return NextResponse.json({ error: purchaseUpdateError.message }, { status: 500 });
+    return serverError("admin/reassign-package-therapist", purchaseUpdateError);
   }
 
   if (claimedPurchase) {

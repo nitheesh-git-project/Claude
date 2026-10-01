@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeNetPayout } from "@/lib/therapistCashLedger";
-import { recordAdminActivity } from "@/lib/adminActivityLog";
+import {
+  sessionTherapistCutPaise,
+  type PayoutAppointment,
+} from "@/lib/therapistPayouts";
+import {
+  ACTIVITY_LOG_WARNING,
+  recordAdminActivity,
+} from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 // "online" here means the admin already sent the money themselves (UPI,
@@ -142,43 +148,66 @@ export async function POST(request: NextRequest) {
   // Guarding the write on therapist_payout_paid_at still being null closes
   // that: a losing claim settles nothing, and the response reflects
   // exactly what this request actually claimed, never a phantom amount.
-  const claims = await Promise.all(
-    unsettled.map(async (a) => {
-      const isHomeVisit = a.visit_mode === "home_visit";
-      const effectiveShare = isHomeVisit
-        ? therapist.home_visit_revenue_share_percent ?? therapist.revenue_share_percent!
-        : therapist.revenue_share_percent!;
-      const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
-      const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
-      const payoutPaise = Math.round((paidPaise * effectiveShare) / 100) + travelPaise;
-      const { data: claimed, error } = await admin
-        .from("appointments")
-        .update({
-          therapist_payout_paid_at: paidAt,
-          // Per-session amount stays the full gross figure (share + travel)
-          // regardless of any cash net-off below -- this is what that
-          // specific session was worth, for receipts and the therapist's
-          // own Earnings tab. The net-off only affects how much of the
-          // total actually needs to change hands via this batch.
-          therapist_payout_amount_paise: payoutPaise,
-          therapist_payout_method: method,
-          therapist_payout_note: note || null,
-          therapist_payout_batch_id: batch.id,
-        })
-        .eq("id", a.id)
-        .is("therapist_payout_paid_at", null)
-        .select("id")
-        .maybeSingle();
-      return { error, claimed: !!claimed, payoutPaise };
-    })
+  // One statement rather than a `Promise.all` of per-row updates. Each of
+  // those was its own transaction, so a failure part-way left some sessions
+  // settled against this batch and some not -- and the route then answered
+  // 500, so the admin who had just been told how much cash to hand over did
+  // not know whether any of it had been recorded, and a retry would settle
+  // the remainder under a second batch id. The largest money-moving action in
+  // the app was the least atomic one (audit item 8).
+  //
+  // The amounts are still computed **here**, by the one module that owns that
+  // rule, and passed in. The database function is a writer rather than a
+  // rule: a third copy of the cut arithmetic written in SQL would be exactly
+  // the mistake item 126 had just corrected, with a longer fuse.
+  const settlements = unsettled.map((a) => ({
+    appointment_id: a.id,
+    payout_paise: sessionTherapistCutPaise(
+      a as unknown as PayoutAppointment,
+      therapist.revenue_share_percent!,
+      therapist.home_visit_revenue_share_percent ?? null
+    ),
+  }));
+  const payoutById = new Map(settlements.map((x) => [x.appointment_id, x.payout_paise]));
+
+  // The cash remittance rides inside the same call for the reason it exists:
+  // deducting the cash *is* the remittance, and a settlement that recorded the
+  // deduction without closing the collections let the next run net the same
+  // rupees off again. Only when the payout fully absorbs the cash -- if the
+  // therapist holds more than they are owed, `computeNetPayout` floors the
+  // transfer at zero and the difference stays on the Cash Ledger as a real
+  // debt the other way, which clearing these rows would erase.
+  const willRemitCash =
+    cashHeldPaise > 0 && cashHeldIds.length > 0
+      ? computeNetPayout({
+          owedPaise: settlements.reduce((sum, x) => sum + x.payout_paise, 0),
+          cashHeldPaise,
+        }).stillOwedToBusinessPaise === 0
+      : false;
+
+  const { data: settledRows, error: settleError } = await admin.rpc(
+    "settle_therapist_payout_batch",
+    {
+      p_batch_id: batch.id,
+      p_paid_at: paidAt,
+      p_method: method,
+      p_note: note || null,
+      p_settlements: settlements,
+      p_cash_remitted_ids: willRemitCash ? cashHeldIds : null,
+    }
   );
 
-  const failed = claims.find((c) => c.error);
-  if (failed?.error) {
-    return NextResponse.json({ error: failed.error.message }, { status: 500 });
+  if (settleError) {
+    // Nothing was written -- the whole statement rolled back -- so this is a
+    // genuine "try again", not a partial payout to reconcile by hand.
+    return NextResponse.json({ error: settleError.message }, { status: 500 });
   }
 
-  const actuallySettled = claims.filter((c) => c.claimed);
+  const actuallySettled = ((settledRows ?? []) as { settled_id: string }[]).map((r) => ({
+    claimed: true,
+    payoutPaise: payoutById.get(r.settled_id) ?? 0,
+  }));
+
   if (actuallySettled.length === 0) {
     // Leaves behind the empty batch row created above -- see its own
     // comment for why that's an accepted, harmless no-op rather than
@@ -219,40 +248,22 @@ export async function POST(request: NextRequest) {
     console.error("Failed to set final amount on payout batch", batch.id, batchAmountError);
   }
 
-  // Deducting the cash IS the remittance, so the visits it came from have to
-  // be closed out here. Without this the collection stayed open after being
-  // netted off, and the very next payout run netted the same rupees off
-  // again -- the therapist paid for the same cash twice, and the Cash Ledger
-  // went on asking an admin to chase money the business had already taken
-  // back. Only ever the rows whose amounts went into `cashHeldPaise` above,
-  // and only when a deduction actually happened.
+  // The cash remittance happened inside the settlement call above, in the
+  // same transaction as the claims. It used to be a separate best-effort
+  // UPDATE down here, which is the exact shape item 8 is about: deducting the
+  // cash *is* the remittance, so a settlement that recorded the deduction and
+  // then failed to close the collections let the very next payout run net the
+  // same rupees off again -- the therapist paying for the same cash twice,
+  // with the Cash Ledger still asking an admin to chase money the business had
+  // already taken back.
   //
-  // Same CAS guard as mark-cash-remitted: the `is null` filter means a
-  // concurrent remittance wins and this one silently no-ops rather than
-  // overwriting someone else's timestamp. Best-effort like the batch amount
-  // above -- the payout itself has already been claimed by this point, so a
-  // failure here must be logged for reconciliation, not thrown back at an
-  // admin who would then retry a settlement that already happened.
-  // Only when the payout fully absorbs the cash. If the therapist is holding
-  // MORE than they are owed, computeNetPayout floors the transfer at zero and
-  // leaves the difference as stillOwedToBusinessPaise -- a real debt the other
-  // way that a person has to chase. Clearing those collections here would
-  // erase the only record of it, and there is no honest way to part-remit an
-  // indivisible per-visit amount, so that case stays on the Cash Ledger.
-  if (net.cashHeldPaise > 0 && cashHeldIds.length > 0 && net.stillOwedToBusinessPaise === 0) {
-    const { error: remitError } = await admin
-      .from("appointments")
-      .update({ cash_remitted_at: paidAt })
-      .in("id", cashHeldIds)
-      .is("cash_remitted_at", null);
-    if (remitError) {
-      console.error(
-        "Payout settled but cash could not be marked remitted - reconcile by hand",
-        { batchId: batch.id, therapistId, cashHeldIds },
-        remitError
-      );
-    }
-  }
+  // `willRemitCash` above carries the one condition that has not changed: only
+  // when the payout fully absorbs the cash. If the therapist holds MORE than
+  // they are owed, `computeNetPayout` floors the transfer at zero and leaves
+  // the difference as `stillOwedToBusinessPaise` -- a real debt the other way
+  // that a person has to chase, and clearing those collections would erase the
+  // only record of it. There is no honest way to part-remit an indivisible
+  // per-visit amount, so that case stays on the Cash Ledger.
 
   // The single largest money-moving action in the app, and until now the
   // only one that left no trace of who ran it beyond
@@ -260,7 +271,7 @@ export async function POST(request: NextRequest) {
   // moved or what it absorbed. Best-effort, like every other call to this:
   // the payout has already been claimed by this point, so a logging failure
   // must not be reported back as a failed settlement.
-  await recordAdminActivity(admin, adminUser.id, {
+  const logged = await recordAdminActivity(admin, adminUser.id, {
     action: "payout.settle",
     targetId: therapistId,
     targetLabel: therapist.full_name,
@@ -288,5 +299,12 @@ export async function POST(request: NextRequest) {
     settledAmountPaise: net.netPayablePaise,
     grossOwedPaise: grossSettledPaise,
     cashHeldPaise: net.cashHeldPaise,
+    // Money has left the clinic and cannot be recalled, so a failed audit
+    // write is not something to swallow: nothing anywhere would record who
+    // authorised the largest money move in the app. It still is not a failed
+    // settlement -- the transfer happened -- so it rides back with the
+    // success as a warning, the same shape SESSION_REVOKE_WARNING uses for
+    // "the door is locked but they are still inside".
+    ...(logged ? {} : { warning: ACTIVITY_LOG_WARNING }),
   });
 }

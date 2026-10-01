@@ -11,6 +11,7 @@ import {
   type PainMapSide,
 } from "@/lib/painMap";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 type AnswerInput = { key: string; value: string };
 
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
     pain_percent: Math.round(painPercent),
   });
   if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    return serverError("admin/pain-assessments/submit", insertError);
   }
 
   // Who changed this, and to what. Best-effort and after the write,

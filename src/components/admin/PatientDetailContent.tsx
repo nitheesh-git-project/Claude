@@ -19,6 +19,8 @@ import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import PatientProfitChart from "@/components/admin/PatientProfitChart";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
+import ClinicalAccessPanel from "@/components/admin/ClinicalAccessPanel";
+import { clinicalAccessHolders } from "@/lib/clinicalAccess";
 import PayLaterGrantCard from "@/components/admin/PayLaterGrantCard";
 import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawer";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
@@ -30,6 +32,20 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import { readableTempPassword } from "@/lib/tempPassword";
+import {
+  sessionTherapistCutPaise,
+  type PayoutAppointment,
+} from "@/lib/therapistPayouts";
+
+// A module-level helper rather than an inline `Date.now()` in the component
+// body: `react-hooks/purity` refuses a clock read during render, and the rule
+// is right -- a render must not depend on when it happened. Same shape as the
+// admin dashboard's own nowTimestamp().
+function nowTimestamp() {
+  return Date.now();
+}
+
 
 // Shared body for both the standalone /admin/dashboard/patients/[id] page
 // (hard navigation, shareable link) and the @modal intercepted route that
@@ -109,7 +125,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     admin
       .from("appointments")
       .select(
-        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, razorpay_payment_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at"
+        "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, duration_minutes, category_id, notes, created_at, patient_id, therapist_id, razorpay_payment_id, paid_at, patient_rating, patient_feedback, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_rating_excluded, cancellation_reason, refund_status, refund_amount_paise, package_purchase_id, no_show, therapist_payout_paid_at, therapist_payout_amount_paise, visit_mode, travel_fee_paise"
       )
       .eq("patient_id", id)
       // Not what decides the list's order any more -- ProfileSessionList
@@ -189,14 +205,24 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   const therapistIds = [
     ...new Set((appointments ?? []).map((a) => a.therapist_id).filter(Boolean)),
   ];
-  const [{ data: sessionTherapists }, { data: approvedTherapists }] = await Promise.all([
+  const [{ data: sessionTherapists }, { data: approvedTherapists }, { data: lockedPurchases }] =
+    await Promise.all([
     therapistIds.length > 0
       ? admin
           .from("profiles")
-          .select("id, full_name, revenue_share_percent")
+          .select(
+            "id, full_name, revenue_share_percent, home_visit_revenue_share_percent, approved, active"
+          )
           .in("id", therapistIds as string[])
       : Promise.resolve({
-          data: [] as { id: string; full_name: string; revenue_share_percent: number | null }[],
+          data: [] as {
+            id: string;
+            full_name: string;
+            revenue_share_percent: number | null;
+            home_visit_revenue_share_percent: number | null;
+            approved: boolean | null;
+            active: boolean | null;
+          }[],
         }),
     admin
       .from("profiles")
@@ -204,8 +230,37 @@ export default async function PatientDetailContent({ id }: { id: string }) {
       .eq("role", "therapist")
       .eq("approved", true)
       .order("full_name"),
+    // A programme locked to a therapist grants clinical access on its own,
+    // with no session behind it -- so "who can see this record" cannot be
+    // answered from the appointments alone.
+    admin
+      .from("patient_package_purchases")
+      .select("locked_therapist_id")
+      .eq("patient_id", id)
+      .not("locked_therapist_id", "is", null),
   ]);
   const therapistMap = new Map((sessionTherapists ?? []).map((t) => [t.id, t]));
+
+  // Who can read this patient's clinical record, and why. The rule lives in
+  // four RLS policies and one helper and was stated on no screen at all --
+  // see src/lib/clinicalAccess.ts for the decision it makes explicit.
+  const accessHolders = clinicalAccessHolders(
+    [
+      ...(appointments ?? [])
+        .filter((a) => a.therapist_id)
+        .map((a) => ({ therapistId: a.therapist_id as string, slotTime: a.slot_time })),
+      ...(lockedPurchases ?? []).map((p) => ({
+        therapistId: p.locked_therapist_id as string,
+        viaProgrammeLock: true,
+      })),
+    ],
+    new Map(
+      (sessionTherapists ?? []).map((t) => [
+        t.id,
+        { approved: t.approved ?? null, active: t.active ?? null },
+      ])
+    )
+  );
   // SessionDetailDrawer looks up both patient_id and therapist_id names
   // from one map -- this patient's own row plus every therapist on their
   // appointments covers every id ProfileSessionList/SessionDetailDrawer
@@ -265,7 +320,18 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     .map((a) => {
       const therapist = therapistMap.get(a.therapist_id as string)!;
       const paidPaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
-      const payoutPaise = Math.round((paidPaise * (therapist.revenue_share_percent as number)) / 100);
+      // Through the one module that owns this, not a local multiplication.
+      // The inline version here was `paid * revenue_share_percent` with no
+      // home-visit branch and no travel fee -- the same two holes the
+      // therapist's own profile had and had fixed, surviving on this screen
+      // because the arithmetic lived in two places. A home visit's profit was
+      // overstated by exactly the travel fee the clinic passes straight
+      // through, on the chart an admin reads to judge a patient's value.
+      const payoutPaise = sessionTherapistCutPaise(
+        a as unknown as PayoutAppointment,
+        therapist.revenue_share_percent as number,
+        therapist.home_visit_revenue_share_percent ?? null
+      );
       return {
         id: a.id,
         label: a.paid_at
@@ -430,9 +496,15 @@ export default async function PatientDetailContent({ id }: { id: string }) {
             )}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+            {/*
+              A credential the clinic issued stops being shown once it has
+              aged out -- see src/lib/tempPassword.ts. It had no end date, so
+              one nobody collected sat readable indefinitely while having no
+              support value left.
+            */}
             <ResetPatientPasswordButton
               patientId={patient.id}
-              currentPassword={note?.temp_password}
+              currentPassword={readableTempPassword(note, nowTimestamp()).password}
               currentPasswordSetAt={note?.temp_password_set_at}
             />
             {/* Master Admin only, and the route checks it again -- deleting
@@ -491,6 +563,17 @@ export default async function PatientDetailContent({ id }: { id: string }) {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Above the history rather than below it: the history says what
+          happened, and this says who can still read it -- which is the
+          question somebody arrives with when a patient asks, or when an
+          admin is deciding whether an account should keep its access. */}
+      <div className="mb-6">
+        <ClinicalAccessPanel
+          holders={accessHolders}
+          nameFor={(tid) => therapistMap.get(tid)?.full_name ?? "Unknown therapist"}
+        />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">

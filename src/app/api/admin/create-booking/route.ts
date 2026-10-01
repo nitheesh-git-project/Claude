@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import {
+  claimTherapistSlot,
+  describeClaimFailure,
+} from "@/lib/claimTherapistSlot";
 import {
   leadTimeMsFromHours,
   isWholeHourSlot,
@@ -99,6 +102,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "That treatment category doesn't exist." }, { status: 404 });
   }
 
+  // `active` was selected here and never read, so an admin could book
+  // against a condition the clinic had switched off -- the row is gone from
+  // the public pages and the patient's own booking screen, so the only way
+  // to reach it is this form's own list, which is exactly where a stale
+  // browser tab keeps offering it. The session that results is priced and
+  // staffed from a row nobody intends to sell any more.
+  //
+  // Stated rather than silently dropped: an admin picking it from a list
+  // that still showed it needs to know why it was refused, and switching
+  // the condition back on is a real answer.
+  if (category.active === false) {
+    return NextResponse.json(
+      {
+        error: `"${category.title}" is switched off, so it can't be booked. Turn it back on under Catalog to use it.`,
+      },
+      { status: 409 }
+    );
+  }
+
   const durationMinutes = category.duration_minutes ?? BASE_DURATION_MINUTES;
 
   const { data: settingsRow } = await admin
@@ -136,35 +158,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "That therapist is suspended." }, { status: 409 });
     }
 
-    // Online sessions pass no travel buffer, matching every other online
-    // booking path -- see findTherapistConflict's own comment for why the
-    // buffer is a home-visit-only concern.
-    const conflict = await findTherapistConflict(admin, therapistId, slotTime, durationMinutes);
-    if (conflict) {
-      return NextResponse.json(
-        { error: "That therapist already has something in that slot." },
-        { status: 409 }
-      );
-    }
+    // The overlap test that used to sit here has moved into the atomic
+    // claim below -- checking before the insert and then inserting with the
+    // therapist already on the row is the read-then-write this codebase has
+    // removed everywhere else. It is kept out of this block entirely rather
+    // than duplicated, so there is exactly one place that decides whether a
+    // therapist is free.
   }
 
-  // A booking an admin makes is confirmed the moment a therapist is on it --
-  // there is nobody left to approve it, the admin *is* the approver. Without
-  // a therapist it lands in the same 'requested' queue a patient's own
-  // booking does.
-  const status = therapistId ? "confirmed" : "requested";
-
+  // Inserted UNASSIGNED, then the therapist reserved through the one
+  // atomic claim -- the insert needs to have happened for there to be an
+  // appointment id to lock against. A booking an admin makes is confirmed
+  // the moment a therapist is on it (the admin *is* the approver), so the
+  // claim below carries the confirmation in the same statement. Without a
+  // therapist it lands in the same 'requested' queue a patient's own
+  // booking does, which is also where it lands if the slot turns out to be
+  // taken.
   const { data: created, error } = await admin
     .from("appointments")
     .insert({
       patient_id: patientId,
-      therapist_id: therapistId,
+      therapist_id: null,
       category_id: categoryId,
       concern: category.title,
       slot_time: slotTime,
       timezone: body.timezone || "Asia/Kolkata",
       duration_minutes: durationMinutes,
-      status,
+      status: "requested",
       visit_mode: "online",
       // Money is never invented here. 'unpaid' is the honest default: the
       // patient still owes for this session. 'paid_offline' records that it
@@ -179,23 +199,62 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error || !created) {
-    // 23505 is the appointments_one_therapist_per_slot unique index (see
-    // schema.sql). The conflict check above is not atomic -- two requests
-    // can both pass it before either row lands, which a double-clicked form
-    // reliably produces -- so the database is what actually guarantees one
-    // therapist per slot, and this turns its error into the same message the
-    // pre-check gives.
-    if (error?.code === "23505") {
-      return NextResponse.json(
-        { error: "That therapist already has something in that slot." },
-        { status: 409 }
-      );
-    }
     return NextResponse.json(
       { error: error?.message ?? "Could not create the booking." },
       { status: 500 }
     );
   }
+
+  // Reserve the therapist, atomically, now there is an appointment id to
+  // lock against. The overlap test, the compare-and-set and the write all
+  // happen together, so the read-then-insert that used to sit above -- and
+  // which a double-clicked form reliably beat -- is gone.
+  //
+  // `appointments_one_therapist_per_slot` still backs this up at the
+  // database: it binds (therapist_id, slot_time) for assigned, live rows,
+  // so the claim's own UPDATE trips it for an exact duplicate. The lock
+  // should mean nothing ever reaches it, which is the right relationship
+  // between the two -- the index catches identical start times, and the
+  // claim catches the overlapping ones a unique index cannot express.
+  if (therapistId) {
+    const claim = await claimTherapistSlot(admin, {
+      appointmentId: created.id,
+      therapistId,
+      expectUnassigned: true,
+      // A booking an admin makes is confirmed the moment a therapist is on
+      // it -- there is nobody left to approve it, the admin is the approver.
+      confirm: true,
+    });
+    if (!claim.ok) {
+      // The session exists and is paid for (or owed for); only the
+      // assignment failed. Cancelling it would be worse than leaving it in
+      // the queue an unassigned booking already belongs in -- so it is
+      // reported, with the session kept, and the admin assigns from the
+      // Sessions screen where they can see who is free.
+      const { error: claimErrorMessage } = describeClaimFailure(claim);
+      return NextResponse.json(
+        {
+          error: `${claimErrorMessage} The session has been created without a therapist - assign one from Sessions.`,
+          appointmentId: created.id,
+          assigned: false,
+        },
+        { status: 409 }
+      );
+    }
+  }
+
+  // What this booking actually ended up as. The row is inserted `requested`
+  // and `claimTherapistSlot(..., confirm: true)` moves it to `confirmed`, so
+  // reaching here with a therapist means confirmed and without one means
+  // requested -- a claim that failed has already returned 409 above.
+  //
+  // This was **missing**, and it broke the screen's happy path: the audit
+  // call and the response below both read a bare `status`, which no longer
+  // existed once the atomic claim replaced the old read-then-insert, so every
+  // successful admin booking threw `ReferenceError: status is not defined`
+  // and answered 500 -- *after* the appointment had been created. The admin
+  // was told it failed, and booked again.
+  const status = therapistId ? "confirmed" : "requested";
 
   // Sync never blocks a booking -- a Calendar/Meet failure is recorded on the
   // appointment and retried from Settings → System health. Same rule as

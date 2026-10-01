@@ -4,6 +4,7 @@ import { getAdminContextResult } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 function generatePassword() {
   return crypto.randomBytes(9).toString("base64url");
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
   const password = generatePassword();
   const { error } = await admin.auth.admin.updateUserById(adminId, { password });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/reset-admin-password", error);
   }
 
   // Kept readable here rather than shown once, the same rule the other three

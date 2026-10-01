@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { serverError } from "@/lib/apiError";
 
 const MAX_REASON_LENGTH = 500;
 
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("patient/decline-care-plan", error);
   }
   if (!declined) {
     // Success-shaped: the patient asked for this and it is already true,

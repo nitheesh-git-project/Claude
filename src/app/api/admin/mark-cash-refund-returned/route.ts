@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 // Admin confirming that money owed back to a patient has actually been handed
 // over. Two things reach `refund_status: 'manual_pending'` and this route
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/mark-cash-refund-returned", error);
   }
   if (!claimed) {
     return NextResponse.json(

@@ -9,6 +9,9 @@ import {
 } from "@/lib/conditionIntake";
 import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
+import { findMissingRequiredKeys } from "@/lib/conditionIntake";
+import { loadMergedIntakeQuestions } from "@/lib/conditionProfileServer";
 
 // Admin edits a patient's Patient Care Intake directly. No review queue:
 // admin is the approver of everyone else's edits, so a self-review step
@@ -46,6 +49,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Submission contains unknown fields." }, { status: 400 });
   }
 
+  // The same required-field check the patient's own submit path runs.
+  //
+  // It was missing here, and the reason it matters is the line further down
+  // that writes `status: "active"`. That status is what unlocks the patient's
+  // view of their own record and what every summary figure, snapshot strip
+  // and progress line reads as "this is filled in" -- so an admin saving a
+  // half-finished edit made the record assert a completeness it did not have,
+  // on the patient's own screen, with the patient's name on it.
+  //
+  // Re-checked against the live question bank rather than trusting anything
+  // the browser sent, same posture as the patient and therapist paths. An
+  // admin who genuinely only has part of the answer is not blocked from
+  // helping -- the honest route for that is the patient or their therapist
+  // filling it, which is what this record is.
+  const questions = await loadMergedIntakeQuestions(admin, profile.specialty);
+  const missingKeys = findMissingRequiredKeys(questions, answers as Record<string, string>);
+  if (missingKeys.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Every required question has to be answered - this saves the record as complete, which is what the patient sees.",
+        missingKeys,
+      },
+      { status: 400 }
+    );
+  }
+
   // A pending submission (patient's own or a therapist's on-behalf edit) is
   // sitting in the review queue for this patient -- overwriting `data` here
   // would be silently discarded the moment that submission is later
@@ -77,7 +107,7 @@ export async function POST(request: NextRequest) {
     { onConflict: "patient_id" }
   );
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/condition-requests/direct-edit", error);
   }
 
   // Direct edits skip the review queue, but not the audit trail -- insert

@@ -104,6 +104,16 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   "pay_later_payments",
   // Detector thresholds, edited on the Risk tab itself.
   "risk_rules",
+  // The settlement record, on the long cooldown for the reason
+  // `admin_activity_log` is: it is written by the same request that completes
+  // a session, and that request already writes `appointments`, which is on
+  // the operational channel. On the short one, one completion would rebuild
+  // the whole dashboard twice -- once for the session and once for the row
+  // describing it -- which is exactly the double rebuild that moved the audit
+  // log off that channel. Nothing reads these rows yet either, so the only
+  // thing a live feed would buy is a second admin's System Health count
+  // catching up 30 seconds sooner.
+  "session_settlements",
   // The signals themselves, moved off the operational channel: they are
   // written by the lazy detector sweep that runs after this very page's
   // render, so on a 2s cooldown the page's own sweep rebuilt the page. The

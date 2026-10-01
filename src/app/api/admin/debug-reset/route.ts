@@ -3,6 +3,7 @@ import { getAdminContext } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 // Wipes the database back to "a fresh install with your admin accounts".
 //
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await admin.rpc("debug_reset_all_data");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/debug-reset", error);
   }
 
   // Written *after* the wipe on purpose: the reset truncates

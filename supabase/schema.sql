@@ -4757,11 +4757,16 @@ begin
 
     insert into payments (
       patient_id, purpose, razorpay_order_id, razorpay_payment_id, amount_paise,
+      captured_amount_paise,
       status, target_appointment_id, target_package_purchase_id,
       target_home_visit_purchase_id, captured_at, raw
     ) values (
       v_patient_id, v_purpose, p_order_id, p_payment_id,
       greatest(coalesce(p_amount_paise, v_amount, 0), 1),
+      -- Recorded explicitly as well as folded into amount_paise above, so a
+      -- later reconciliation can tell "this is what the gateway said" from
+      -- "this is what we asked for" even on a row created by the capture.
+      p_amount_paise,
       'captured', v_appointment_id, v_package_id, v_home_visit_id, now(), p_raw
     )
     returning * into v_payment;
@@ -4786,7 +4791,12 @@ begin
           status = 'captured',
           captured_at = now(),
           raw = coalesce(p_raw, raw),
-          amount_paise = greatest(coalesce(p_amount_paise, amount_paise), 1),
+          -- `amount_paise` is what the order was created for and is left
+          -- alone. It used to be overwritten with the gateway's figure,
+          -- which meant a capture for a different amount silently rewrote
+          -- the local record to agree with it and erased the only evidence
+          -- that the two had ever differed.
+          captured_amount_paise = coalesce(p_amount_paise, captured_amount_paise),
           updated_at = now()
       where id = v_payment.id
       returning * into v_payment;
@@ -10171,6 +10181,12 @@ begin
   end if;
 
   truncate table
+    -- Added in place rather than by re-declaring this function an eleventh
+    -- time: `create or replace` is idempotent, so editing the newest
+    -- declaration re-applies identically, and another copy of a 60-table
+    -- list is the bloat this file already carries too much of.
+    refund_attempts,
+    session_settlements,
     pay_later_payments,
     session_credit_ledger,
     session_entitlements,
@@ -10212,8 +10228,6 @@ begin
     home_visit_waitlist,
     home_visit_areas,
     home_visit_packages,
-    testimonials,
-    faqs,
     intake_question_templates,
     pain_map_question_templates,
     care_plan_versions,
@@ -10227,13 +10241,17 @@ begin
     -- rather than left to CASCADE reach it: a campaign pointing at a code
     -- that no longer exists could not say what it was attributed by.
     patient_invites,
-    promo_codes,
-    -- The promises and the limits. Truncated rather than left alone, and the
-    -- pages then fall back to the arrays in src/lib/mission.ts -- so a reset
-    -- restores the shipped wording instead of leaving one clinic's edits on a
-    -- database that has had everything else cleared out from under them.
-    mission_principles
+    promo_codes
   cascade;
+  -- NOT truncated, and all three for one reason: `faqs`, `testimonials` and
+  -- `mission_principles` are the website's own content, written by a person on
+  -- Settings -> Public Site. `mission_principles` used to be cleared here on
+  -- the argument that the pages then fall back to the shipped wording in
+  -- `src/lib/mission.ts` -- which is true, and is exactly the argument an owner
+  -- rejects the first time a reset replaces their promises with ours. Nothing
+  -- in these three is produced by testing and every row has to be retyped by
+  -- hand, so they follow `treatment_categories`: kept, one table at a time,
+  -- each with its own reason.
 
   with removed as (
     delete from auth.users
@@ -10242,78 +10260,30 @@ begin
   )
   select count(*) into deleted_accounts from removed;
 
-  update risk_rules set
-    enabled = default,
-    config = default,
-    updated_at = now()
-  where rule_key is not null;
-
-  update site_settings set
-    site_name = default,
-    site_tagline = default,
-    site_description = default,
-    contact_email = default,
-    whatsapp_number = default,
-    contact_phone = default,
-    footer_copyright_text = default,
-    home_visit_page_heading = null,
-    home_visit_page_subheading = null,
-    mission_statement = null,
-    vision_statement = null,
-    ratings_visible_publicly = default,
-    session_timeout_minutes = default,
-    google_meet_enabled = default,
-    join_window_minutes = default,
-    join_window_after_minutes = default,
-    session_completed_after_minutes = default,
-    booking_languages = default,
-    package_default_validity_days = default,
-    package_therapist_lock_enabled = default,
-    package_bulk_schedule_max = default,
-    package_expiry_reminder_days = default,
-    home_visit_enabled = default,
-    home_visit_cash_enabled = default,
-    home_visit_lead_time_hours = default,
-    home_visit_cancellation_refund_hours = default,
-    home_visit_default_validity_days = default,
-    home_visit_bulk_schedule_max = default,
-    home_visit_travel_buffer_minutes = default,
-    online_booking_lead_time_hours = default,
-    online_cancellation_refund_hours = default,
-    payment_gateway_fee_percent = default,
-    farewell_banner_seconds = default,
-    journey_step_seconds = default,
-    splash_enabled = default,
-    splash_brand_line = default,
-    splash_phrase = default,
-    splash_hold_seconds = default,
-    splash_revisit_minutes = default,
-    enabled_intake_specialties = default,
-    entitlement_ledger_authoritative = default,
-    care_plan_default_expiry_days = default,
-    care_plan_max_frequency_per_week = default,
-    contact_scan_mode = default,
-    contact_masking_enabled = default,
-    risk_signals_enabled = default,
-    therapist_suggestions_enabled = default,
-    auto_assign_therapist_enabled = default,
-    care_plan_requires_approval = default,
-    first_session_offer_enabled = default,
-    first_session_offer_type = default,
-    first_session_offer_value = default,
-    promo_codes_enabled = default,
-    invite_rewards_enabled = default,
-    invite_reward_paise = default,
-    invite_welcome_paise = default,
-    invite_max_rewards_per_patient = default,
-    finance_cogs_therapist_share = default,
-    finance_cogs_partner_share = default,
-    finance_cogs_payment_fees = default,
-    finance_include_app_balances = default,
-    finance_break_even_price_paise = null,
-    finance_break_even_variable_cost_paise = null,
-    finance_run_rate_basis = default
-  where id;
+  -- **`site_settings` and `risk_rules` are deliberately not touched.**
+  --
+  -- This used to put every one of ~60 settings columns back to its default, on
+  -- the reading that a reset restores a clean baseline. That reading is wrong
+  -- in the one direction that costs an owner something: **this is a data
+  -- reset, and none of that is data.** Every column in `site_settings` is
+  -- configuration a person chose -- the clinic's name, its tagline and
+  -- description, the email and phone patients contact it on, the footer, the
+  -- mission and vision, the splash wording, and every window, lead time and
+  -- switch an admin set deliberately. Testing generates none of it, and a
+  -- reset that cleared it handed back a site calling itself something else
+  -- with somebody else's contact details on it.
+  --
+  -- The asymmetry decides it. Keeping them costs a tester who wanted a clean
+  -- config baseline a few fields, each with its own control on its own screen.
+  -- Clearing them costs an owner their clinic's identity -- and the mission
+  -- and vision have no "what was it before" anywhere. `risk_rules` goes the
+  -- same way for the same reason: the thresholds are an admin's tuning on
+  -- Today -> Risk, while the signals they produced are rows and are truncated
+  -- above.
+  --
+  -- Anything added here later still needs a real WHERE clause -- see the
+  -- pg-safeupdate note in AGENTS.md, which is why the two statements that used
+  -- to live here carried `where rule_key is not null` and `where id`.
 
   return jsonb_build_object(
     'ok', true,
@@ -11827,11 +11797,16 @@ begin
 
     insert into payments (
       patient_id, purpose, razorpay_order_id, razorpay_payment_id, amount_paise,
+      captured_amount_paise,
       status, target_appointment_id, target_package_purchase_id,
       target_home_visit_purchase_id, target_pay_later_payment_id, captured_at, raw
     ) values (
       v_patient_id, v_purpose, p_order_id, p_payment_id,
       greatest(coalesce(p_amount_paise, v_amount, 0), 1),
+      -- Recorded explicitly as well as folded into amount_paise above, so a
+      -- later reconciliation can tell "this is what the gateway said" from
+      -- "this is what we asked for" even on a row created by the capture.
+      p_amount_paise,
       'captured', v_appointment_id, v_package_id, v_home_visit_id, v_pay_later_id,
       now(), p_raw
     )
@@ -11858,7 +11833,12 @@ begin
           status = 'captured',
           captured_at = now(),
           raw = coalesce(p_raw, raw),
-          amount_paise = greatest(coalesce(p_amount_paise, amount_paise), 1),
+          -- `amount_paise` is what the order was created for and is left
+          -- alone. It used to be overwritten with the gateway's figure,
+          -- which meant a capture for a different amount silently rewrote
+          -- the local record to agree with it and erased the only evidence
+          -- that the two had ever differed.
+          captured_amount_paise = coalesce(p_amount_paise, captured_amount_paise),
           updated_at = now()
       where id = v_payment.id
       returning * into v_payment;
@@ -12573,3 +12553,1414 @@ update site_settings set site_name = 'MoveRestore Physiotherapy'
   where site_name in ('Dr. Pooja''s Physio', 'MoveRestore');
 update site_settings set footer_copyright_text = 'MoveRestore Physiotherapy. All rights reserved.'
   where footer_copyright_text in ('Dr. Pooja''s Physio. All rights reserved.', 'MoveRestore. All rights reserved.');
+
+-- =============================================================================
+-- Audit fixes: a partner hospital files a referral through a route.
+-- =============================================================================
+-- `patient_referrals_insert_own` checked `auth.uid() = hospital_id` and
+-- nothing else. That is an ownership test, not a lifecycle one, so a
+-- suspended partner -- or one whose account was never approved -- could keep
+-- inserting referrals straight from the browser, and the rows reached the
+-- admin's queue indistinguishable from a live partner's. Every other rule
+-- (the phone, the pincode, the home-visit master switch, the visit mode) was
+-- enforced in the form's own JavaScript, which a session cookie and a direct
+-- POST go straight past, and there was no server-side door to rate limit.
+--
+-- /api/hospital/submit-referral is that door: it re-derives the hospital from
+-- the session, checks role + active + approved, validates every field, and
+-- counts against its own limit. The insert grant goes with the policy, the
+-- same move `appointments_insert_own` and the b2b_leads public insert got --
+-- leaving either behind would keep the old path open beside the new one.
+--
+-- Select stays exactly as it was: a hospital still reads its own referrals.
+drop policy if exists "patient_referrals_insert_own" on patient_referrals;
+revoke insert on patient_referrals from authenticated;
+
+-- =============================================================================
+-- Audit fixes: declining a referral says why.
+-- =============================================================================
+-- `referral.decline` moved a status word and recorded nothing else, so the
+-- partner who sent the patient read "Declined" and learned nothing -- not
+-- whether it was the wrong specialty, outside the catchment, or a capacity
+-- problem that will pass. That is the one outcome in this flow that takes
+-- something away from somebody, and the rule this codebase already holds for
+-- the care-plan review is that exactly those outcomes carry a reason: an
+-- approval is one tap, a refusal is a sentence the other side can act on.
+--
+-- Ten characters is the same floor `admin_adjust`, the impersonation record
+-- and the care-plan rejection use, and it is a CHECK rather than only a route
+-- check so it holds for any caller -- including a hand-run UPDATE in the SQL
+-- editor, which is where a status gets flipped when somebody is in a hurry.
+-- It is conditional on the status so the constraint is vacuous for every
+-- referral that is not declined, including every row that predates it.
+alter table patient_referrals add column if not exists decline_reason text;
+alter table patient_referrals add column if not exists declined_at timestamptz;
+alter table patient_referrals add column if not exists declined_by uuid references profiles(id);
+
+alter table patient_referrals drop constraint if exists patient_referrals_decline_needs_reason;
+alter table patient_referrals add constraint patient_referrals_decline_needs_reason
+  check (
+    status <> 'declined'
+    -- Existing declined rows carry no reason and must stay valid: the
+    -- constraint asks only that a reason, once given, is a real one. A
+    -- backfilled sentence invented now would be a fabricated record of why
+    -- a real clinic turned a real patient away.
+    or decline_reason is null
+    or length(btrim(decline_reason)) >= 10
+  );
+
+-- =============================================================================
+-- Audit fixes: one atomic therapist-slot claim, for every booking path.
+-- =============================================================================
+-- Six assignment paths each reserved a therapist their own way, and every one
+-- of them was a read, then a write, then (in the best case) a re-read and a
+-- hand-rolled rollback:
+--
+--   /api/admin/assign-appointment      check -> write -> re-check -> revert
+--   /api/admin/assign-referral         the same, plus a created_at tiebreak
+--   /api/admin/update-appointment      check -> write
+--   autoAssignTherapist (both verify   check -> write
+--     and webhook payment paths)
+--   bookPackageSession                 check -> write
+--   bookHomeVisitSession               check -> write
+--
+-- None of that is atomic, and the failure it leaves is the expensive kind:
+-- two requests both pass the check before either write commits, and the
+-- clinic ends up with one therapist owing two patients the same hour. The
+-- post-write re-check narrows the window; it does not close it, and it
+-- introduces a worse bug of its own -- `assign-appointment`'s rollback wrote
+-- `therapist_id = <what we read>` with **no compare-and-set**, so a third
+-- admin's assignment landing in between was silently overwritten by a
+-- rollback belonging to a request that had already lost.
+--
+-- This is that reservation done once, in one place, under a real lock:
+--
+--   1. `select ... for update` on the therapist's own profiles row. Every
+--      claim for one therapist serialises behind it; claims for different
+--      therapists do not contend at all, which is why it is that row rather
+--      than a table-wide lock. It is the same mechanism
+--      `reserve_session_credit` and `claim_promo_code` already use, and for
+--      the same reason: a cap or a slot means nothing unless the check and
+--      the write happen without anybody slipping between them.
+--   2. The overlap test runs INSIDE that lock, against both
+--      `appointments` and the `invite_sent` referrals that hold a slot
+--      without having an appointment row yet -- the same two halves
+--      `findTherapistConflict` checks in TypeScript, with the same buffer
+--      semantics (padding the NEW window on both sides only, never each
+--      existing one, or a 45-minute travel buffer would read as 90).
+--   3. The write applies its own compare-and-set on the therapist the caller
+--      believed was on the session, so a concurrent *reassignment* is still
+--      refused rather than clobbered.
+--
+-- Because all three happen in one transaction, there is nothing to roll back
+-- and no window to roll back from. The callers lose their revert branches
+-- entirely, which is how the rollback bug stops existing rather than getting
+-- a guard bolted onto it.
+--
+-- It returns a jsonb verdict rather than raising, because the callers need to
+-- tell the outcomes apart to say something useful: "someone else took this
+-- slot" and "someone else reassigned this session" send an admin to two
+-- different places.
+-- `create or replace` cannot replace a function whose argument list has
+-- grown: the new signature is a second, overloaded function and the old one
+-- survives, which then makes every call ambiguous. The reschedule arguments
+-- were added after the first version of this shipped, so the earlier
+-- seven-argument signature is dropped explicitly. Re-runnable: dropping a
+-- function that is not there is a no-op under `if exists`.
+drop function if exists claim_therapist_slot(uuid, uuid, uuid, boolean, integer, boolean, uuid);
+
+create or replace function claim_therapist_slot(
+  p_appointment_id uuid,
+  p_therapist_id uuid,
+  -- The therapist the caller read on the row. NULL means "the caller
+  -- believes this session is unassigned", which is a different assertion
+  -- from "the caller does not care" -- hence the explicit flag below rather
+  -- than overloading NULL to mean both.
+  p_expected_therapist_id uuid default null,
+  p_expect_unassigned boolean default false,
+  p_buffer_minutes integer default 0,
+  p_confirm boolean default false,
+  -- Referral rows can hold a slot before an appointment exists for them, so
+  -- a caller converting one needs to exclude its own referral from the
+  -- overlap test.
+  p_exclude_referral_id uuid default null,
+  -- A reschedule moves the slot and reserves the therapist in one act, so
+  -- the new time has to be tested and written inside the same lock. Passing
+  -- these makes the overlap test judge the slot being moved TO rather than
+  -- the one the row currently holds -- without that, a reschedule had to
+  -- write first and re-check afterwards, which is the sequence this
+  -- function exists to remove. NULL leaves each field exactly as it is.
+  p_new_slot_time timestamptz default null,
+  p_new_duration_minutes integer default null,
+  p_new_category_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_appt record;
+  v_duration integer;
+  v_buffer_ms bigint;
+  v_slot timestamptz;
+  v_start timestamptz;
+  v_end timestamptz;
+  v_conflict_id uuid;
+  v_updated uuid;
+begin
+  if p_appointment_id is null or p_therapist_id is null then
+    return jsonb_build_object('ok', false, 'reason', 'bad_request');
+  end if;
+
+  -- (1) Serialise every claim against this one therapist. Taken before the
+  -- appointment is read, so two callers cannot both read a clean slate.
+  perform 1 from profiles where id = p_therapist_id for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'no_therapist');
+  end if;
+
+  select id, therapist_id, slot_time, duration_minutes, status, category_id
+    into v_appt
+    from appointments
+   where id = p_appointment_id
+   for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'no_appointment');
+  end if;
+
+  -- (3a) The compare-and-set, evaluated inside the lock rather than as a
+  -- predicate on the UPDATE, so the reason can be reported precisely.
+  if p_expect_unassigned then
+    if v_appt.therapist_id is not null then
+      return jsonb_build_object(
+        'ok', false, 'reason', 'reassigned',
+        'current_therapist_id', v_appt.therapist_id
+      );
+    end if;
+  elsif p_expected_therapist_id is not null then
+    if v_appt.therapist_id is distinct from p_expected_therapist_id then
+      return jsonb_build_object(
+        'ok', false, 'reason', 'reassigned',
+        'current_therapist_id', v_appt.therapist_id
+      );
+    end if;
+  end if;
+
+  -- The slot and length this claim is actually for: the ones being moved
+  -- to when this is a reschedule, otherwise the ones already on the row.
+  v_slot := coalesce(p_new_slot_time, v_appt.slot_time);
+  v_duration := coalesce(p_new_duration_minutes, v_appt.duration_minutes, 60);
+
+  -- (2) The overlap test. A session with no agreed slot cannot clash with
+  -- anything, so it skips straight to the write -- that is a real case
+  -- (an admin assigning a therapist before a time is settled) and not an
+  -- oversight.
+  if v_slot is not null then
+    v_buffer_ms := greatest(0, coalesce(p_buffer_minutes, 0)) * 60000;
+    v_start := v_slot - make_interval(secs => v_buffer_ms / 1000.0);
+    v_end := v_slot
+             + make_interval(mins => v_duration)
+             + make_interval(secs => v_buffer_ms / 1000.0);
+
+    select a.id into v_conflict_id
+      from appointments a
+     where a.therapist_id = p_therapist_id
+       and a.id <> p_appointment_id
+       and a.status <> 'cancelled'
+       and a.slot_time is not null
+       -- Half-open on both sides, matching `overlaps()` in
+       -- checkTherapistConflict.ts: two sessions that merely touch (one
+       -- ends exactly as the next begins) do not clash.
+       and a.slot_time < v_end
+       and (a.slot_time + make_interval(mins => coalesce(a.duration_minutes, 60))) > v_start
+     limit 1;
+
+    if v_conflict_id is not null then
+      return jsonb_build_object(
+        'ok', false, 'reason', 'conflict', 'conflict_appointment_id', v_conflict_id
+      );
+    end if;
+
+    -- A referral that has had an invite sent holds its slot even though no
+    -- appointments row exists for it yet. Without this half, two referrals
+    -- could each be assigned the same therapist and hour, and neither would
+    -- surface as a clash until whichever registered first converted.
+    -- Referrals carry no category, so the flat base duration, exactly as the
+    -- TypeScript half does.
+    select r.id into v_conflict_id
+      from patient_referrals r
+     where r.assigned_therapist_id = p_therapist_id
+       and r.status = 'invite_sent'
+       and r.assigned_slot_time is not null
+       and (p_exclude_referral_id is null or r.id <> p_exclude_referral_id)
+       and r.assigned_slot_time < v_end
+       and (r.assigned_slot_time + make_interval(mins => 60)) > v_start
+     limit 1;
+
+    if v_conflict_id is not null then
+      return jsonb_build_object(
+        'ok', false, 'reason', 'conflict', 'conflict_referral_id', v_conflict_id
+      );
+    end if;
+  end if;
+
+  -- (3b) The write. Still carries its own predicate: belt and braces costs
+  -- nothing here, and it means the statement is correct even if somebody
+  -- later calls this function outside a transaction that holds the lock.
+  update appointments
+     set therapist_id = p_therapist_id,
+         status = case when p_confirm then 'confirmed' else status end,
+         -- coalesce, so a caller that is only assigning leaves the slot,
+         -- the length and the category exactly as they were.
+         slot_time = coalesce(p_new_slot_time, slot_time),
+         duration_minutes = coalesce(p_new_duration_minutes, duration_minutes),
+         category_id = coalesce(p_new_category_id, category_id)
+   where id = p_appointment_id
+     and therapist_id is not distinct from v_appt.therapist_id
+  returning id into v_updated;
+
+  if v_updated is null then
+    return jsonb_build_object('ok', false, 'reason', 'reassigned');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'previous_therapist_id', v_appt.therapist_id,
+    'previous_status', v_appt.status,
+    'previous_slot_time', v_appt.slot_time
+  );
+end;
+$$;
+
+revoke all on function public.claim_therapist_slot(uuid, uuid, uuid, boolean, integer, boolean, uuid, timestamptz, integer, uuid) from public;
+revoke all on function public.claim_therapist_slot(uuid, uuid, uuid, boolean, integer, boolean, uuid, timestamptz, integer, uuid) from anon;
+revoke all on function public.claim_therapist_slot(uuid, uuid, uuid, boolean, integer, boolean, uuid, timestamptz, integer, uuid) from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The same atomic reservation, for a referral that holds a slot.
+-- ---------------------------------------------------------------------------
+-- A hospital referral reserves a therapist and an hour before any
+-- appointment row exists for it: the patient has not registered yet, so the
+-- slot is held on `patient_referrals` until the invite is taken up. That gave
+-- `/api/admin/assign-referral` the same read-then-write problem as the
+-- appointment paths, and one extra wrinkle -- two referrals assigned to the
+-- same therapist and hour at once both wrote, then both saw the other on the
+-- re-check, so a plain re-check rolled BOTH back and neither admin got an
+-- assignment. The workaround was a deterministic tiebreak (earliest
+-- created_at wins, ties broken by id) applied from both sides so exactly one
+-- would keep its write.
+--
+-- That tiebreak exists only because the two writes were never serialised.
+-- Under a real lock the second request simply finds the first's committed row
+-- and is refused, which is the answer the tiebreak was reconstructing -- so
+-- it goes, along with the un-compare-and-set rollback beside it that could
+-- restore four columns over a third admin's assignment.
+create or replace function claim_therapist_referral_slot(
+  p_referral_id uuid,
+  p_therapist_id uuid,
+  p_slot_time timestamptz,
+  p_invite_token uuid,
+  p_buffer_minutes integer default 0,
+  -- Referrals carry no treatment category, so the flat base duration --
+  -- passed in rather than hard-coded so the two halves of this rule cannot
+  -- drift from BASE_DURATION_MINUTES in pricing.ts.
+  p_duration_minutes integer default 60,
+  -- The statuses the caller believes this referral may still be in. The
+  -- compare-and-set: an admin who read a pending referral must not overwrite
+  -- an invite somebody else has already sent.
+  p_expected_statuses text[] default array['pending_review', 'therapist_assigned']
+)
+returns jsonb
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_ref record;
+  v_buffer_ms bigint;
+  v_start timestamptz;
+  v_end timestamptz;
+  v_conflict_id uuid;
+  v_updated uuid;
+begin
+  if p_referral_id is null or p_therapist_id is null or p_slot_time is null then
+    return jsonb_build_object('ok', false, 'reason', 'bad_request');
+  end if;
+
+  perform 1 from profiles where id = p_therapist_id for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'no_therapist');
+  end if;
+
+  select id, status, assigned_therapist_id, assigned_slot_time
+    into v_ref
+    from patient_referrals
+   where id = p_referral_id
+   for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'no_referral');
+  end if;
+
+  if not (v_ref.status = any(p_expected_statuses)) then
+    return jsonb_build_object('ok', false, 'reason', 'already_moved', 'current_status', v_ref.status);
+  end if;
+
+  v_buffer_ms := greatest(0, coalesce(p_buffer_minutes, 0)) * 60000;
+  v_start := p_slot_time - make_interval(secs => v_buffer_ms / 1000.0);
+  v_end := p_slot_time
+           + make_interval(mins => coalesce(p_duration_minutes, 60))
+           + make_interval(secs => v_buffer_ms / 1000.0);
+
+  select a.id into v_conflict_id
+    from appointments a
+   where a.therapist_id = p_therapist_id
+     and a.status <> 'cancelled'
+     and a.slot_time is not null
+     and a.slot_time < v_end
+     and (a.slot_time + make_interval(mins => coalesce(a.duration_minutes, 60))) > v_start
+   limit 1;
+
+  if v_conflict_id is not null then
+    return jsonb_build_object('ok', false, 'reason', 'conflict', 'conflict_appointment_id', v_conflict_id);
+  end if;
+
+  select r.id into v_conflict_id
+    from patient_referrals r
+   where r.assigned_therapist_id = p_therapist_id
+     and r.status = 'invite_sent'
+     and r.assigned_slot_time is not null
+     and r.id <> p_referral_id
+     and r.assigned_slot_time < v_end
+     and (r.assigned_slot_time + make_interval(mins => 60)) > v_start
+   limit 1;
+
+  if v_conflict_id is not null then
+    return jsonb_build_object('ok', false, 'reason', 'conflict', 'conflict_referral_id', v_conflict_id);
+  end if;
+
+  update patient_referrals
+     set assigned_therapist_id = p_therapist_id,
+         assigned_slot_time = p_slot_time,
+         invite_token = p_invite_token,
+         status = 'invite_sent'
+   where id = p_referral_id
+     and status = any(p_expected_statuses)
+  returning id into v_updated;
+
+  if v_updated is null then
+    return jsonb_build_object('ok', false, 'reason', 'already_moved');
+  end if;
+
+  return jsonb_build_object('ok', true, 'previous_status', v_ref.status);
+end;
+$$;
+
+revoke all on function public.claim_therapist_referral_slot(uuid, uuid, timestamptz, uuid, integer, integer, text[]) from public;
+revoke all on function public.claim_therapist_referral_slot(uuid, uuid, timestamptz, uuid, integer, integer, text[]) from anon;
+revoke all on function public.claim_therapist_referral_slot(uuid, uuid, timestamptz, uuid, integer, integer, text[]) from authenticated;
+
+-- =============================================================================
+-- Audit fixes: the revenue split is frozen when the session is delivered.
+-- =============================================================================
+-- Every money figure that splits a session -- the therapist's cut, a partner
+-- hospital's commission, the clinic's own share -- was computed from the
+-- percentages on `profiles` **as they stand today**. So editing a therapist's
+-- revenue share, or renegotiating a hospital's commission, silently rewrote
+-- every historical figure those two people had already been paid and invoiced
+-- on. A partner reading their own Earnings screen after a renegotiation saw a
+-- different number against sessions delivered months earlier, and nothing on
+-- the screen said why.
+--
+-- This is the same freeze `package_snapshot` and pay later's
+-- `amount_due_paise` already have, applied to the rates: a rate is a term of
+-- the agreement that was in force on the day the work was done, so it is
+-- recorded on the day the work is done.
+--
+-- Stamped at **completion**, deliberately, and not at booking: completion is
+-- what makes a therapist's share payable and a partner's commission earned,
+-- and it is the one event this codebase already treats as the moment the
+-- money becomes real (see complete-session, and pay later's "nothing is owed
+-- until the work is done").
+--
+-- Nullable and never backfilled. A session completed before these existed has
+-- no recorded rate, and inventing one from today's percentage would be the
+-- exact fabrication this column exists to prevent -- so the readers fall back
+-- to the live percentage for those rows and the figure is no worse than it
+-- was. `formatDateTime`'s refusal to backfill `refunded_at` is the same call.
+alter table appointments add column if not exists therapist_share_percent_at_completion numeric(5,2);
+alter table appointments add column if not exists hospital_share_percent_at_completion numeric(5,2);
+-- Which partner earned it. `profiles.referred_by_hospital_id` can be changed
+-- or cleared afterwards, and a commission belongs to whoever the patient was
+-- referred by at the time the session happened.
+alter table appointments add column if not exists hospital_id_at_completion uuid references profiles(id);
+
+-- The rates are percentages, and a rate outside 0-100 is a data error rather
+-- than an unusual agreement. Conditional so every row predating the columns
+-- stays valid.
+alter table appointments drop constraint if exists appointments_completion_shares_sane;
+alter table appointments add constraint appointments_completion_shares_sane
+  check (
+    (therapist_share_percent_at_completion is null
+      or (therapist_share_percent_at_completion >= 0 and therapist_share_percent_at_completion <= 100))
+    and
+    (hospital_share_percent_at_completion is null
+      or (hospital_share_percent_at_completion >= 0 and hospital_share_percent_at_completion <= 100))
+  );
+
+-- =============================================================================
+-- Audit fixes: the medical-document cap is enforced by the database.
+-- =============================================================================
+-- The upload route counted the patient's existing rows and refused at the
+-- cap. That is a select-then-insert with a real window: several uploads
+-- fired together all read the same count, all pass, and all insert -- which
+-- is exactly what a multi-file picker produces. The cap is the only thing
+-- bounding this bucket's growth (there is no sweep in this deployment), so
+-- "mostly enforced" is not enforced.
+--
+-- A trigger rather than a partial unique index, because "at most N rows per
+-- patient" is not something a unique index can express. It counts inside the
+-- inserting transaction, so two concurrent inserts serialise on the row lock
+-- the count takes and the second sees the first.
+--
+-- The number is duplicated here from MAX_DOCUMENTS_PER_PATIENT in
+-- src/lib/medicalDocuments.ts on purpose: the route keeps its own check so
+-- the patient gets a sentence they can act on rather than a constraint
+-- error, and this is the backstop for the race and for any future writer.
+-- If one moves, move both -- the route's message is what a person reads and
+-- this is what makes it true.
+create or replace function public.patient_medical_documents_enforce_cap()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_count integer;
+begin
+  -- Serialise on the patient's own row before counting. `for update` cannot
+  -- be combined with an aggregate, so the lock is taken separately -- and it
+  -- has to be a lock on something, because a bare count lets two concurrent
+  -- uploads read the same number and both pass. Same mechanism as
+  -- `claim_therapist_slot`, for the same reason: a cap means nothing unless
+  -- the count and the insert happen without anybody slipping between them.
+  perform 1 from profiles where id = new.patient_id for update;
+
+  select count(*) into v_count
+    from patient_medical_documents
+   where patient_id = new.patient_id;
+
+  if v_count >= 20 then
+    raise exception
+      'patient_medical_documents: at most 20 reports per patient'
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_patient_medical_documents_cap on patient_medical_documents;
+create trigger trg_patient_medical_documents_cap
+  before insert on patient_medical_documents
+  for each row execute function public.patient_medical_documents_enforce_cap();
+
+-- =============================================================================
+-- Audit fixes: a capture is reconciled against the order, not merged into it.
+-- =============================================================================
+-- `record_payment_capture` wrote
+--   amount_paise = greatest(coalesce(p_amount_paise, amount_paise), 1)
+-- so the amount Razorpay reported **overwrote** the amount the clinic had
+-- created the order for. If the two ever differed -- a partial capture, a
+-- gateway-side adjustment, an order re-used against a different booking --
+-- the local record silently became whatever the gateway said, and the
+-- discrepancy erased the only evidence that there had been one. `payments`
+-- exists to be the record that money moved; a column that rewrites itself to
+-- agree with the counterparty cannot do that job.
+--
+-- The ordered figure stays put and the captured figure is recorded beside it.
+-- Nothing is refused on a mismatch -- the money has already moved, and
+-- refusing to record a capture that really happened would be worse than
+-- recording an odd one -- but it is now visible, which is the whole ask.
+alter table payments add column if not exists captured_amount_paise integer;
+
+-- Null until a capture lands, and null for every row captured before this
+-- column existed. Never backfilled from `amount_paise`: that would assert
+-- the two agreed, which is exactly the thing that was never checked.
+comment on column payments.captured_amount_paise is
+  'What the gateway reported capturing. Compared against amount_paise (what the order was created for); a difference is a reconciliation item, not an error.';
+
+-- =============================================================================
+-- Audit fixes: an issued credential does not sit on disk for ever.
+-- =============================================================================
+-- The four `*_admin_notes` tables hold the plaintext of a password this app
+-- generated, so an admin taking an "it won't let me in" call can read it back
+-- rather than resetting a working one. They carry no RLS policies, only the
+-- service role reads them, and the value is cleared when the account sets its
+-- own password.
+--
+-- What was missing is an end date. A credential nobody collected sat there
+-- indefinitely, and after a couple of weeks it has no support value left --
+-- the person has either signed in or rung again -- while staying a real
+-- liability: one service-role key leak exposes every password the clinic has
+-- ever issued, including for accounts handed over months ago.
+--
+-- The app stops *showing* one past the window (see src/lib/tempPassword.ts,
+-- which expires on read, the same pattern every other time-based rule here
+-- follows because there is no worker to sweep). This is the other half: not
+-- keeping it. Called from the admin dashboard's existing lazy sweep, so it
+-- needs no cron.
+--
+-- Deliberately clears the value and keeps the row: `temp_password_set_at`
+-- records that a credential WAS issued and when, which is audit information
+-- the clinic should keep, and the other columns on these tables are ordinary
+-- admin notes that have nothing to do with passwords.
+create or replace function purge_expired_temp_passwords(p_older_than_days integer default 14)
+returns integer
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_cutoff timestamptz := now() - make_interval(days => greatest(1, coalesce(p_older_than_days, 14)));
+  v_total integer := 0;
+  v_n integer;
+begin
+  -- Every UPDATE carries a real WHERE clause, per the pg-safeupdate note
+  -- elsewhere in this file: Supabase preloads that library for the role
+  -- PostgREST connects as, and it refuses an unqualified UPDATE outright.
+  update patient_admin_notes set temp_password = null
+   where temp_password is not null
+     and (temp_password_set_at is null or temp_password_set_at < v_cutoff);
+  get diagnostics v_n = row_count; v_total := v_total + v_n;
+
+  update therapist_admin_notes set temp_password = null
+   where temp_password is not null
+     and (temp_password_set_at is null or temp_password_set_at < v_cutoff);
+  get diagnostics v_n = row_count; v_total := v_total + v_n;
+
+  update hospital_admin_notes set temp_password = null
+   where temp_password is not null
+     and (temp_password_set_at is null or temp_password_set_at < v_cutoff);
+  get diagnostics v_n = row_count; v_total := v_total + v_n;
+
+  update admin_account_notes set temp_password = null
+   where temp_password is not null
+     and (temp_password_set_at is null or temp_password_set_at < v_cutoff);
+  get diagnostics v_n = row_count; v_total := v_total + v_n;
+
+  return v_total;
+end;
+$$;
+
+revoke all on function public.purge_expired_temp_passwords(integer) from public;
+revoke all on function public.purge_expired_temp_passwords(integer) from anon;
+revoke all on function public.purge_expired_temp_passwords(integer) from authenticated;
+
+-- =============================================================================
+-- Audit fixes: indexes for the queries the audit pass introduced.
+-- =============================================================================
+-- Added for specific readers rather than speculatively -- the appointments
+-- side of this was already covered, and pleasingly so: the conflict test
+-- inside `claim_therapist_slot` filters on exactly
+-- `(therapist_id, slot_time) where status <> 'cancelled'`, which is what
+-- `appointments_one_therapist_per_slot` already is. The two gaps below are
+-- both on `patient_referrals`, which had indexes on `hospital_id` and
+-- `status` and nothing on either column these queries filter by.
+
+-- `claim_therapist_slot` and `claim_therapist_referral_slot` both check
+-- whether a referral is already holding this therapist's hour. Partial,
+-- because only `invite_sent` referrals hold a slot at all -- every other
+-- status is dead weight in the index.
+create index if not exists patient_referrals_held_slot_idx
+  on patient_referrals (assigned_therapist_id, assigned_slot_time)
+  where status = 'invite_sent'
+    and assigned_therapist_id is not null
+    and assigned_slot_time is not null;
+
+-- `readReferralAttributionHealth` compares a converted referral against the
+-- patient it became, to find partners who would silently earn nothing.
+create index if not exists patient_referrals_converted_patient_idx
+  on patient_referrals (converted_patient_id)
+  where converted_patient_id is not null;
+
+-- =============================================================================
+-- Audit fixes: the invite reward cap holds under concurrent claims.
+-- =============================================================================
+-- Re-declared in full rather than patched in place, per this file's
+-- append-only convention. The only change is the row lock on the inviter
+-- before their reward count is read -- see the comment inside. Everything
+-- else, including the "committed rather than paid" eligibility test that
+-- pay-later required, is exactly as it was.
+create or replace function public.claim_invite(
+  p_code text,
+  p_invitee_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_settings site_settings%rowtype;
+  v_inviter_id uuid;
+  v_paid_before integer;
+  v_rewards_earned integer;
+begin
+  select * into v_settings from site_settings where id limit 1;
+  if not found or not coalesce(v_settings.invite_rewards_enabled, false) then
+    return jsonb_build_object('ok', false, 'reason', 'disabled');
+  end if;
+
+  select id into v_inviter_id from profiles
+    where invite_code = upper(btrim(replace(replace(p_code, '-', ''), ' ', '')))
+      and role = 'patient';
+  if v_inviter_id is null then
+    return jsonb_build_object('ok', false, 'reason', 'unknown_code');
+  end if;
+  if v_inviter_id = p_invitee_id then
+    return jsonb_build_object('ok', false, 'reason', 'self');
+  end if;
+
+  -- Serialise every claim against this inviter before their reward count is
+  -- read. The cap was a `count(*)` followed by an insert with nothing
+  -- between them, so two friends redeeming the same code at once both read
+  -- the same total, both passed, and both inserted -- which is the exact
+  -- failure a cap exists to prevent, and it is the one this function is
+  -- otherwise careful about everywhere else (the self-invite, the
+  -- one-invite-per-patient unique index, the not-new test).
+  --
+  -- A row lock on the inviter, the same mechanism `claim_promo_code` and
+  -- `claim_therapist_slot` use. Locking the *inviter* rather than the table
+  -- means two different inviters' claims do not contend at all.
+  perform 1 from profiles where id = v_inviter_id for update;
+
+  select count(*) into v_paid_before from appointments
+    where patient_id = p_invitee_id
+      and (payment_status = 'paid'
+           or (payment_terms = 'pay_later'
+               and payment_status <> 'paid'
+               and status <> 'cancelled'));
+  if v_paid_before > 0 then
+    return jsonb_build_object('ok', false, 'reason', 'not_new');
+  end if;
+
+  select count(*) into v_rewards_earned from patient_invites
+    where inviter_id = v_inviter_id and qualified_at is not null;
+  if v_rewards_earned >= coalesce(v_settings.invite_max_rewards_per_patient, 0) then
+    return jsonb_build_object('ok', false, 'reason', 'inviter_capped');
+  end if;
+
+  begin
+    insert into patient_invites (
+      inviter_id, invitee_id, code_used, reward_paise, welcome_paise
+    ) values (
+      v_inviter_id,
+      p_invitee_id,
+      upper(btrim(replace(replace(p_code, '-', ''), ' ', ''))),
+      coalesce(v_settings.invite_reward_paise, 0),
+      coalesce(v_settings.invite_welcome_paise, 0)
+    );
+  exception when unique_violation then
+    return jsonb_build_object('ok', false, 'reason', 'already_claimed');
+  end;
+
+  return jsonb_build_object(
+    'ok', true,
+    'welcome_paise', coalesce(v_settings.invite_welcome_paise, 0),
+    'reward_paise', coalesce(v_settings.invite_reward_paise, 0)
+  );
+end;
+$$;
+
+revoke all on function public.claim_invite(text, uuid) from public;
+revoke all on function public.claim_invite(text, uuid) from anon;
+revoke all on function public.claim_invite(text, uuid) from authenticated;
+
+-- ===========================================================================
+-- Refund attempts: the record exists before the money moves
+-- ===========================================================================
+-- Every gateway refund in this app is a two-step sequence -- claim the local
+-- row, then call Razorpay -- and the ordering was chosen deliberately: a
+-- refusal from Razorpay must leave no trace claiming money went back. What
+-- that ordering cannot cover is the other direction. Razorpay accepts the
+-- refund, and the write that records what came back fails: the money is gone
+-- and `refund_id` is null, which is indistinguishable on every screen from a
+-- refund that was claimed and never sent. Four routes have that window --
+-- `refund-session-partial`, `refund-package`, `refund-home-visit-package`
+-- and `cancelAppointmentAndRefund` -- and in all four the only thing that
+-- noticed was a `console.error`, which is not a place a clinic owner looks.
+--
+-- So the intent is recorded before the call rather than the outcome after
+-- it. A row lands here as `processing`, the gateway is called, and the row is
+-- resolved to `succeeded` (with the refund id) or `failed`. Every outcome is
+-- then either a resolved row or a row stuck at `processing`, and the second
+-- is exactly the state a person has to look at -- surfaced on
+-- Settings -> System Health -> Refunds, reported and never repaired, the
+-- same posture `verify_entitlement_balances()` takes.
+--
+-- It is a record of attempts and not a second refund ledger: what a session
+-- or a purchase was refunded stays on its own row, which is what every money
+-- figure already reads. This table answers "did what we asked for actually
+-- happen", which nothing could answer before.
+create table if not exists refund_attempts (
+  id uuid primary key default gen_random_uuid(),
+  -- Which kind of thing is being refunded. The three ids below are nullable
+  -- and exactly one is set; a check keeps them in step with the purpose, so
+  -- a row can never describe two subjects or none.
+  purpose text not null check (purpose in ('appointment', 'package_purchase', 'home_visit_purchase')),
+  -- `restrict`, deliberately, and neither of the two obvious alternatives.
+  -- `set null` performs an UPDATE on this table, which the append-only
+  -- trigger below refuses and the one-subject check would fail anyway -- so
+  -- an appointment carrying a refund attempt could never be deleted at all,
+  -- and the refusal would name a trigger rather than the reason. `cascade`
+  -- would silently destroy the record of money moving, which is the one
+  -- thing this table exists not to allow. `restrict` is counted by
+  -- `account_blocking_references()` like every other blocking key, so a
+  -- delete is refused with this table named and suspension offered instead.
+  -- The debug reset truncates it by name.
+  appointment_id uuid references appointments(id) on delete restrict,
+  package_purchase_id uuid references patient_package_purchases(id) on delete restrict,
+  home_visit_purchase_id uuid references home_visit_package_purchases(id) on delete restrict,
+  razorpay_payment_id text not null,
+  amount_paise integer not null check (amount_paise > 0),
+  status text not null default 'processing'
+    check (status in ('processing', 'succeeded', 'failed')),
+  razorpay_refund_id text,
+  reason text,
+  -- Who asked for it. Null for a patient-initiated cancellation, where the
+  -- appointment's own `cancelled_by` is the answer. `restrict` for the same
+  -- reason as the three above and not merely for symmetry: `set null` is an
+  -- UPDATE on this table, which the append-only trigger refuses outright --
+  -- so deleting the admin would fail naming a trigger rather than naming the
+  -- record standing in the way.
+  requested_by uuid references profiles(id) on delete restrict,
+  failure_detail text,
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  constraint refund_attempts_one_subject check (
+    (purpose = 'appointment' and appointment_id is not null
+       and package_purchase_id is null and home_visit_purchase_id is null)
+    or (purpose = 'package_purchase' and package_purchase_id is not null
+       and appointment_id is null and home_visit_purchase_id is null)
+    or (purpose = 'home_visit_purchase' and home_visit_purchase_id is not null
+       and appointment_id is null and package_purchase_id is null)
+  ),
+  -- A resolved row says when, and a succeeded one names the gateway refund.
+  constraint refund_attempts_resolution_complete check (
+    (status = 'processing' and resolved_at is null and razorpay_refund_id is null)
+    or (status = 'succeeded' and resolved_at is not null and razorpay_refund_id is not null)
+    or (status = 'failed' and resolved_at is not null)
+  )
+);
+
+-- The queries the health check runs: rows still in flight, oldest first, and
+-- a lookup by subject for the drill-down.
+create index if not exists refund_attempts_processing_idx
+  on refund_attempts (created_at)
+  where status = 'processing';
+create index if not exists refund_attempts_appointment_idx
+  on refund_attempts (appointment_id) where appointment_id is not null;
+create index if not exists refund_attempts_package_idx
+  on refund_attempts (package_purchase_id) where package_purchase_id is not null;
+create index if not exists refund_attempts_home_visit_idx
+  on refund_attempts (home_visit_purchase_id) where home_visit_purchase_id is not null;
+
+alter table refund_attempts enable row level security;
+
+drop policy if exists refund_attempts_select_admin on refund_attempts;
+create policy refund_attempts_select_admin on refund_attempts
+  for select using (is_admin());
+
+-- Append-only by trigger, not only by RLS: every route here writes with the
+-- service-role client, which bypasses RLS entirely, so for a table whose
+-- whole value is that it records what was attempted before the attempt was
+-- made, "no route rewrites it" is not the same guarantee as "a rewrite
+-- raises". Same reasoning as `payments` and `admin_activity_log`.
+--
+-- It permits exactly one transition -- `processing` to `succeeded` or
+-- `failed`, once -- plus the two columns that resolution fills in. Nothing
+-- is ever deletable: a row that cannot be removed is the only reason the
+-- stuck-at-processing state means anything.
+create or replace function refund_attempts_append_only()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'refund_attempts is append-only: a refund attempt cannot be deleted';
+  end if;
+
+  if old.status <> 'processing' then
+    raise exception 'refund attempt % is already resolved as %', old.id, old.status;
+  end if;
+  if new.status = 'processing' then
+    raise exception 'a refund attempt may only be updated to resolve it';
+  end if;
+
+  if new.purpose <> old.purpose
+     or new.appointment_id is distinct from old.appointment_id
+     or new.package_purchase_id is distinct from old.package_purchase_id
+     or new.home_visit_purchase_id is distinct from old.home_visit_purchase_id
+     or new.razorpay_payment_id <> old.razorpay_payment_id
+     or new.amount_paise <> old.amount_paise
+     or new.reason is distinct from old.reason
+     or new.requested_by is distinct from old.requested_by
+     or new.created_at <> old.created_at then
+    raise exception 'only the resolution of a refund attempt may be written';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists refund_attempts_append_only_trg on refund_attempts;
+create trigger refund_attempts_append_only_trg
+  before update or delete on refund_attempts
+  for each row execute function refund_attempts_append_only();
+
+-- What System Health reads. Two disagreements, and they are different
+-- questions: a refund sent to the gateway whose answer we never recorded,
+-- and a refund the gateway accepted that its own subject row does not carry
+-- an id for. The first is money whose fate is unknown; the second is money
+-- that went back and is not on the screen it should be on.
+--
+-- `p_stuck_after_minutes` exists because a row is legitimately `processing`
+-- for the length of one gateway call, so counting every one of them would
+-- put an amber light on a working clinic.
+create or replace function refund_attempt_health(p_stuck_after_minutes integer default 10)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_cutoff timestamptz := now() - make_interval(mins => greatest(1, coalesce(p_stuck_after_minutes, 10)));
+  v_stuck integer;
+  v_unrecorded integer;
+  v_oldest timestamptz;
+begin
+  select count(*), min(created_at) into v_stuck, v_oldest
+    from refund_attempts
+    where status = 'processing' and created_at < v_cutoff;
+
+  select count(*) into v_unrecorded
+    from refund_attempts ra
+    where ra.status = 'succeeded'
+      and (
+        (ra.purpose = 'appointment' and exists (
+           select 1 from appointments a
+             where a.id = ra.appointment_id and a.refund_id is null))
+        or (ra.purpose = 'package_purchase' and exists (
+           select 1 from patient_package_purchases p
+             where p.id = ra.package_purchase_id and p.refund_id is null))
+        or (ra.purpose = 'home_visit_purchase' and exists (
+           select 1 from home_visit_package_purchases h
+             where h.id = ra.home_visit_purchase_id and h.refund_id is null))
+      );
+
+  return jsonb_build_object(
+    'stuck_count', coalesce(v_stuck, 0),
+    'oldest_stuck_at', v_oldest,
+    'unrecorded_count', coalesce(v_unrecorded, 0)
+  );
+end;
+$$;
+
+revoke all on function public.refund_attempt_health(integer) from public;
+revoke all on function public.refund_attempt_health(integer) from anon;
+revoke all on function public.refund_attempt_health(integer) from authenticated;
+
+-- ===========================================================================
+-- Pay later: an optional ceiling on what one patient may owe at once
+-- ===========================================================================
+-- The feature shipped with **no ceiling on purpose**, and that stays the
+-- default: the population is tiny and hand-picked, refusing a long-standing
+-- patient at the counter is a real product decision rather than a safety
+-- rail, and the two figures on Money -> Owed by Patients (the total, and the
+-- age of the oldest unsettled session) are the intended early warning.
+--
+-- This column exists because a clinic that wants a limit should not have to
+-- choose between having one and having the feature, and because the honest
+-- way to hold an opinion the clinic may not share is a setting rather than a
+-- constant. Null -- the default, and what every existing database reads --
+-- means no ceiling and behaviour identical to before it existed.
+--
+-- There is deliberately no zero, for the same reason `pay_later_aged_after_days`
+-- refuses one: a clinic that types 0 has almost certainly cleared the box, and
+-- reading it as "refuse every booking" would switch the feature off by accident
+-- through a field that says nothing about switching it off. Off is
+-- `pay_later_enabled`. The upper bound is 10,00,00,000 paise (₹10,00,000) so a
+-- mistyped figure is refused rather than silently meaning no limit at all.
+alter table site_settings add column if not exists pay_later_max_owed_paise integer;
+do $$
+begin
+  alter table site_settings add constraint site_settings_pay_later_max_owed_check
+    check (pay_later_max_owed_paise is null
+           or (pay_later_max_owed_paise >= 1 and pay_later_max_owed_paise <= 100000000));
+exception when duplicate_object then null;
+end $$;
+
+-- ===========================================================================
+-- Clinical reads: a suspended therapist stops reading, at the database
+-- ===========================================================================
+-- Four policies decide whether a therapist may read a patient's clinical
+-- record -- the health profile, the Pain Map exams, the uploaded reports and
+-- the session notes -- and all four asked one question: has this therapist
+-- ever had an appointment with this patient. They never asked whether the
+-- therapist is still **allowed to be a therapist here**.
+--
+-- The difference matters more here than anywhere else that shape appears. A
+-- suspended *patient* whose live token still reads their own rows is bounded
+-- to their own data for at most one token lifetime. A suspended *therapist*
+-- was reading other people's medical records on the same terms -- which is
+-- what suspension is supposed to stop, and what `revoke_user_sessions` was
+-- added to end. Stopping renewal bounds it to one JWT lifetime; this closes
+-- it at the row.
+--
+-- `is_active_therapist()` is the counterpart of `is_admin()`, and it is one
+-- function for the same reason: eighteen admin policies once carried
+-- hand-written copies of that check, and the moment the function learned to
+-- refuse a suspended admin the eighteen did not. A new clinical read policy
+-- calls this rather than inlining it.
+--
+-- It checks `approved` as well as `active`, unlike `is_admin()`. An admin is
+-- promoted by hand so gating on approval would lock out the people it
+-- protects; a therapist goes through the signup queue, and one waiting on
+-- approval has no business reading a patient's chart.
+create or replace function is_active_therapist()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from profiles
+    where id = auth.uid()
+      and role = 'therapist'
+      and approved = true
+      and active = true
+  );
+$$;
+
+-- Deliberately NOT revoked from `authenticated`: like `is_admin()`, RLS
+-- policies invoke it as the querying role, so revoking it would break every
+-- policy below. It is the same exception, for the same reason, and it
+-- discloses nothing -- a caller can only learn about their own account.
+grant execute on function public.is_active_therapist() to authenticated;
+
+-- The retention rule itself is unchanged and is a decision rather than an
+-- omission: **access follows delivered care**. It is keyed on the
+-- appointment, and a completed session keeps whoever ran it -- neither
+-- `update-appointment` nor `reassign-package-therapist` will move one -- so
+-- a clinician who has actually treated somebody keeps access after the
+-- patient moves to a colleague. In a clinic this size the person who gave
+-- the care has to be able to answer for it, and a cut-off creates the worse
+-- failure. The mirror is what keeps it honest: a therapist whose only link
+-- was a *future* session that was reassigned away reads nothing, because
+-- they never treated this patient. What was missing was never the rule; it
+-- was that no screen said who it reaches. See `src/lib/clinicalAccess.ts`,
+-- and `scripts/authorization-checks.mjs` section 7, which asserts both
+-- halves against a live database.
+
+drop policy if exists "condition_profiles_select_assigned_therapist" on patient_condition_profiles;
+create policy "condition_profiles_select_assigned_therapist" on patient_condition_profiles
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_condition_profiles.patient_id
+          and a.therapist_id = auth.uid()
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_condition_profiles.patient_id
+          and pp.locked_therapist_id = auth.uid()
+      )
+    )
+  );
+
+drop policy if exists "pain_assessments_select_assigned_therapist" on pain_assessments;
+create policy "pain_assessments_select_assigned_therapist" on pain_assessments
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = pain_assessments.patient_id
+          and a.therapist_id = auth.uid()
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = pain_assessments.patient_id
+          and pp.locked_therapist_id = auth.uid()
+      )
+    )
+  );
+
+drop policy if exists "patient_medical_documents_select_assigned_therapist" on patient_medical_documents;
+create policy "patient_medical_documents_select_assigned_therapist" on patient_medical_documents
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_medical_documents.patient_id
+          and a.therapist_id = auth.uid()
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_medical_documents.patient_id
+          and pp.locked_therapist_id = auth.uid()
+      )
+    )
+  );
+
+-- Session notes, the fourth. It also carried a **hand-written copy of
+-- `is_admin()`** rather than the call -- the exact drift the eighteen-policy
+-- sweep corrected everywhere else, still sitting on the clinical table an
+-- admin is least likely to notice: the copy does not check `active`, so a
+-- suspended admin went on reading session notes after every other admin
+-- policy had started refusing them. Both halves are fixed here.
+drop policy if exists "session_notes_select_clinician" on session_notes;
+create policy "session_notes_select_clinician" on session_notes
+  for select using (
+    (
+      is_active_therapist()
+      and (
+        exists (
+          select 1 from appointments a
+          where a.patient_id = session_notes.patient_id
+            and a.therapist_id = auth.uid()
+        )
+        or exists (
+          select 1 from patient_package_purchases pp
+          where pp.patient_id = session_notes.patient_id
+            and pp.locked_therapist_id = auth.uid()
+        )
+      )
+    )
+    or is_admin()
+  );
+
+-- ===========================================================================
+-- One purchase cannot hold two sessions at the same instant (audit item 27).
+--
+-- `/api/home-visit/verify` records the capture, ensures the entitlement and
+-- then books visit 1. `record_payment_capture` is idempotent by construction,
+-- but the booking below it was not: a retried verify -- a double-tapped Pay,
+-- a browser that resent the callback, Razorpay's own at-least-once delivery
+-- racing the webhook -- booked a **second** appointment at the same slot and
+-- spent a second credit against the same purchase. The patient ends up with
+-- two visits they did not ask for and a balance one short, and nothing in the
+-- app says why.
+--
+-- It is a partial unique index rather than a check in the route, for the
+-- reason `session_suggestions` already has one: a double tap defeats
+-- SELECT-then-INSERT, and both routes here write with the service-role client
+-- so RLS is not the guarantee either. The natural key is the purchase and the
+-- instant, because two visits from one purchase at two different times is
+-- ordinary and two at the *same* time is a person booked against themselves.
+--
+-- Cancelled rows are excluded: cancelling a visit and rebooking the same slot
+-- is a thing patients legitimately do, and an index that refused it would
+-- turn an idempotency guard into a scheduling rule nobody asked for.
+create unique index if not exists appointments_one_per_home_visit_purchase_slot
+  on appointments (home_visit_purchase_id, slot_time)
+  where home_visit_purchase_id is not null
+    and slot_time is not null
+    and status <> 'cancelled';
+
+-- The same shape for a session programme. `bookPackageSession` is reached by
+-- the bulk scheduler and by a patient accepting a therapist's suggestion, and
+-- both can be submitted twice -- the suggestion control guards with a
+-- synchronous ref, which is the right thing in the browser and not a
+-- guarantee at the row.
+create unique index if not exists appointments_one_per_package_purchase_slot
+  on appointments (package_purchase_id, slot_time)
+  where package_purchase_id is not null
+    and slot_time is not null
+    and status <> 'cancelled';
+
+-- ===========================================================================
+-- A payout settles all of its sessions or none of them (audit item 8).
+--
+-- `settle-therapist-payout` claimed each appointment with its own UPDATE
+-- inside a `Promise.all`. Every one of those is its own transaction, so a
+-- failure part-way through left **some** sessions marked settled against the
+-- batch and some not, and the route then answered 500 -- so the admin who had
+-- just been told how much cash to hand over did not know whether any of it had
+-- been recorded, the therapist's Earnings showed a partial batch, and a retry
+-- would settle the remainder under a *second* batch id. This is the largest
+-- money-moving action in the app and it was the least atomic.
+--
+-- The function is deliberately a **writer, not a rule**: the per-session
+-- amounts are computed by `sessionTherapistCutPaise()` in TypeScript and
+-- passed in, because that arithmetic already had two divergent copies (item
+-- 126) and a third one written in SQL would be the same mistake with a longer
+-- fuse. Nothing here decides what anybody is owed; it decides that the writes
+-- land together.
+--
+-- It keeps the compare-and-swap that made the old loop safe against two admins
+-- settling at once: only rows still `therapist_payout_paid_at is null` are
+-- claimed, and the ids actually claimed come back, so the response still
+-- reflects what this request won rather than a phantom total.
+--
+-- The cash remittance rides in the same transaction for the reason it exists
+-- at all: deducting the cash *is* the remittance, and a settlement that
+-- recorded the deduction without closing the collections let the next run net
+-- the same rupees off again.
+create or replace function public.settle_therapist_payout_batch(
+  p_batch_id uuid,
+  p_paid_at timestamptz,
+  p_method text,
+  p_note text,
+  p_settlements jsonb,
+  p_cash_remitted_ids uuid[] default null
+) returns table (settled_id uuid)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row record;
+begin
+  if p_batch_id is null then
+    raise exception 'settle_therapist_payout_batch needs a batch';
+  end if;
+  if p_settlements is null or jsonb_typeof(p_settlements) <> 'array' then
+    raise exception 'settle_therapist_payout_batch needs an array of settlements';
+  end if;
+
+  create temporary table if not exists _settled_ids (id uuid) on commit drop;
+  delete from _settled_ids where id is not null;
+
+  for v_row in
+    select (e ->> 'appointment_id')::uuid as appointment_id,
+           (e ->> 'payout_paise')::integer as payout_paise
+    from jsonb_array_elements(p_settlements) e
+  loop
+    if v_row.appointment_id is null or v_row.payout_paise is null then
+      raise exception 'each settlement needs an appointment_id and a payout_paise';
+    end if;
+    -- The same compare-and-swap the loop had: a losing claim settles nothing.
+    -- Because every iteration is inside this one function, a failure on any of
+    -- them takes the whole statement with it.
+    insert into _settled_ids (id)
+    select a.id
+    from appointments a
+    where a.id = v_row.appointment_id
+      and a.therapist_payout_paid_at is null
+    for update;
+
+    update appointments
+       set therapist_payout_paid_at = p_paid_at,
+           therapist_payout_amount_paise = v_row.payout_paise,
+           therapist_payout_method = p_method,
+           therapist_payout_note = p_note,
+           therapist_payout_batch_id = p_batch_id
+     where id = v_row.appointment_id
+       and therapist_payout_paid_at is null;
+  end loop;
+
+  -- Same CAS as mark-cash-remitted: a concurrent remittance wins and this one
+  -- no-ops rather than overwriting somebody else's timestamp.
+  if p_cash_remitted_ids is not null and array_length(p_cash_remitted_ids, 1) > 0 then
+    update appointments
+       set cash_remitted_at = p_paid_at
+     where id = any (p_cash_remitted_ids)
+       and cash_remitted_at is null;
+  end if;
+
+  return query select id from _settled_ids where id is not null;
+end $$;
+
+revoke all on function public.settle_therapist_payout_batch(uuid, timestamptz, text, text, jsonb, uuid[]) from public;
+revoke all on function public.settle_therapist_payout_batch(uuid, timestamptz, text, text, jsonb, uuid[]) from anon;
+revoke all on function public.settle_therapist_payout_batch(uuid, timestamptz, text, text, jsonb, uuid[]) from authenticated;
+
+-- ===========================================================================
+-- The canonical settlement record (audit items 10, 32, 33, 35, 36, 129-131).
+--
+-- Every money figure in this app is a **derivation**: `adminMetrics.ts` reads
+-- `appointments` plus the rates frozen on each row and divides it up. Two
+-- invariants hold and are asserted in tests, so the arithmetic is right -- but
+-- a settlement cannot be *queried*, there is no per-session record of when a
+-- split was computed, and a payout batch references appointments rather than
+-- settlements.
+--
+-- `session_settlements` is that record: one immutable row per delivered
+-- session, written in the same request that makes it payable, carrying the
+-- **amounts** rather than the rates.
+--
+-- **It is written alongside the derivation and does not yet replace it**,
+-- which is the same playbook `session_credit_ledger` follows and it is the
+-- whole reason this is safe to land in one change. Nothing reads these rows
+-- to decide what anybody is paid. Historical sessions have no row and need no
+-- backfill -- the one thing §4 of docs/MONEY-MODEL.md said made this risky,
+-- since rows that predate the frozen rates cannot be reconstructed. A
+-- reconciliation (`verify_settlement_agreement`) reports where a row and the
+-- derivation disagree, and until that is green on real data nothing should
+-- read from here.
+--
+-- Three columns answer audit items 129-131 directly:
+--   * `settlement_event_id` -- an immutable id for the event itself, distinct
+--     from the row's own primary key, so an external system can reference the
+--     settlement without depending on our storage.
+--   * `source` / `source_id` -- what caused it, in the uniform shape those
+--     items ask for. Today there is one source; naming it is what stops the
+--     second one being bolted on as a nullable column.
+--   * `external_reference` -- what a gateway or a bank called it, kept apart
+--     from what we asked for, the same split item 15 made on `payments`.
+create table if not exists session_settlements (
+  id uuid primary key default gen_random_uuid(),
+  settlement_event_id uuid not null unique default gen_random_uuid(),
+  source text not null check (source in ('session_completion')),
+  source_id uuid not null,
+  appointment_id uuid not null unique references appointments(id) on delete restrict,
+  therapist_id uuid references profiles(id) on delete restrict,
+  hospital_id uuid references profiles(id) on delete restrict,
+  -- The amounts, frozen. Not the rates: a rate is what a figure would be
+  -- computed from, and this table exists so nothing has to compute it again.
+  gross_paise integer not null,
+  travel_paise integer not null default 0,
+  therapist_share_paise integer not null default 0,
+  partner_share_paise integer not null default 0,
+  clinic_share_paise integer not null default 0,
+  -- Carried for explanation rather than for arithmetic: an admin asking "why
+  -- is this figure what it is" needs the percentages that produced it.
+  therapist_share_percent numeric,
+  hospital_share_percent numeric,
+  external_reference text,
+  recognised_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists session_settlements_therapist_idx
+  on session_settlements (therapist_id);
+create index if not exists session_settlements_hospital_idx
+  on session_settlements (hospital_id);
+create index if not exists session_settlements_recognised_idx
+  on session_settlements (recognised_at);
+
+alter table session_settlements enable row level security;
+
+drop policy if exists session_settlements_select_admin on session_settlements;
+create policy session_settlements_select_admin on session_settlements
+  for select using (is_admin());
+
+-- Append-only by trigger, not by RLS: every writer here holds the
+-- service-role client, which bypasses RLS entirely, so for a table whose whole
+-- value is that it records what a session was worth on the day it was
+-- delivered, "no route rewrites it" is not the guarantee. Only
+-- `external_reference` may be filled in afterwards -- that is the one fact
+-- that genuinely arrives later, from outside.
+create or replace function public.session_settlements_append_only()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'session_settlements is append-only: a settlement cannot be deleted';
+  end if;
+  if tg_op = 'UPDATE' then
+    if new.id is distinct from old.id
+      or new.settlement_event_id is distinct from old.settlement_event_id
+      or new.source is distinct from old.source
+      or new.source_id is distinct from old.source_id
+      or new.appointment_id is distinct from old.appointment_id
+      or new.therapist_id is distinct from old.therapist_id
+      or new.hospital_id is distinct from old.hospital_id
+      or new.gross_paise is distinct from old.gross_paise
+      or new.travel_paise is distinct from old.travel_paise
+      or new.therapist_share_paise is distinct from old.therapist_share_paise
+      or new.partner_share_paise is distinct from old.partner_share_paise
+      or new.clinic_share_paise is distinct from old.clinic_share_paise
+      or new.therapist_share_percent is distinct from old.therapist_share_percent
+      or new.hospital_share_percent is distinct from old.hospital_share_percent
+      or new.recognised_at is distinct from old.recognised_at
+      or new.created_at is distinct from old.created_at
+    then
+      raise exception 'session_settlements is append-only: only external_reference may be set';
+    end if;
+    -- And once, one way: an external reference that can be rewritten is not a
+    -- reconciliation, it is a notes field.
+    if old.external_reference is not null
+       and new.external_reference is distinct from old.external_reference then
+      raise exception 'session_settlements.external_reference is already set';
+    end if;
+    return new;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists session_settlements_append_only_trg on session_settlements;
+create trigger session_settlements_append_only_trg
+  before update or delete on session_settlements
+  for each row execute function public.session_settlements_append_only();
+
+-- Where a settlement row and the derivation disagree. Reports, never repairs
+-- -- the rule every other reconciliation on System Health follows, and the
+-- reason this table can be written now and read later.
+create or replace function public.verify_settlement_agreement()
+returns table (
+  appointment_id uuid,
+  problem text,
+  settlement_paise integer,
+  derived_paise integer
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select s.appointment_id,
+         'gross_disagrees_with_appointment' as problem,
+         s.gross_paise,
+         coalesce(a.amount_paid_paise, a.amount_due_paise, 0) as derived_paise
+    from session_settlements s
+    join appointments a on a.id = s.appointment_id
+   where s.gross_paise is distinct from coalesce(a.amount_paid_paise, a.amount_due_paise, 0)
+  union all
+  select s.appointment_id,
+         'shares_do_not_sum_to_gross',
+         s.gross_paise,
+         s.therapist_share_paise + s.partner_share_paise + s.clinic_share_paise
+    from session_settlements s
+   where s.therapist_share_paise + s.partner_share_paise + s.clinic_share_paise
+         is distinct from s.gross_paise
+  union all
+  -- A delivered session with no settlement row at all. Only ones completed
+  -- *after* this table existed: everything older is derived by design and
+  -- listing it would report the whole history as broken.
+  select a.id,
+         'completed_session_has_no_settlement',
+         coalesce(a.amount_paid_paise, a.amount_due_paise, 0),
+         null::integer
+    from appointments a
+    left join session_settlements s on s.appointment_id = a.id
+   where a.status = 'completed'
+     and s.id is null
+     and a.completed_at is not null
+     and a.completed_at >= (
+       select coalesce(min(recognised_at), now()) from session_settlements
+     );
+$$;
+
+revoke all on function public.verify_settlement_agreement() from public;
+revoke all on function public.verify_settlement_agreement() from anon;
+revoke all on function public.verify_settlement_agreement() from authenticated;
+
+-- Plain rather than `execute '...'`: check-realtime-coverage.mjs reads this
+-- file for the literal statement, and a quoted one is invisible to it -- so
+-- the table would be subscribed in the UI with nothing publishing it, which
+-- is the exact failure that check exists to catch and has no runtime symptom.
+do $$
+begin
+  alter publication supabase_realtime add table session_settlements;
+exception when duplicate_object then null;
+end $$;

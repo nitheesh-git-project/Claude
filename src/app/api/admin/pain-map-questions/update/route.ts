@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isPainMapRegion, getDefaultQuestionsForRegion } from "@/lib/painMap";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 // Admin overrides one Pain Map question's wording for a region. Only
 // question_text is editable - input type and display order stay
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
     { onConflict: "region,question_key" }
   );
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/pain-map-questions/update", error);
   }
 
   // Who changed this, and to what. Best-effort and after the write,

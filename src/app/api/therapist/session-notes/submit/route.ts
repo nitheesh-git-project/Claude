@@ -9,6 +9,7 @@ import {
   missingRequiredNoteFields,
   type SessionNoteData,
 } from "@/lib/sessionNotes";
+import { serverError } from "@/lib/apiError";
 
 /**
  * A therapist records what they did in one of their own sessions.
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
       .update({ data, free_text: freeText, updated_at: new Date().toISOString() })
       .eq("id", existing.id);
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return serverError("therapist/session-notes/submit", error);
     }
     return NextResponse.json({ success: true, updated: true });
   }
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
     free_text: freeText,
   });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("therapist/session-notes/submit", error);
   }
 
   return NextResponse.json({ success: true, updated: false });

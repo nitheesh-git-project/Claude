@@ -10,6 +10,7 @@ import {
   validateHomeVisitPackagePayload,
   type HomeVisitPackagePayload,
 } from "@/lib/validateHomeVisitPackagePayload";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -56,12 +57,16 @@ export async function POST(request: NextRequest) {
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-home-visit-package", error);
   }
 
   // Its own call, per the migration-dependent-column rule: a database
   // without these columns loses the cover position, never the whole save.
-  await writeCatalogFocal(admin, "home_visit_packages", id, body.imageFocalX, body.imageFocalY);
+  // Its own isolated write, so a database one migration behind loses the
+  // position rather than refusing the whole edit -- and reported rather than
+  // swallowed, because an admin who drags a focal point and is told the save
+  // worked will not look again.
+  const focalSaved = await writeCatalogFocal(admin, "home_visit_packages", id, body.imageFocalX, body.imageFocalY);
   await writeCatalogFeatured(admin, "home_visit_packages", id, body.featured);
 
   // After the isolated writes, not before them. /home-visit is ISR-cached,
@@ -81,5 +86,13 @@ export async function POST(request: NextRequest) {
     targetLabel: "Home-visit package",
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    ...(focalSaved
+      ? {}
+      : {
+          warning:
+            "Saved, but the cover's position could not be written - it is still centred.",
+        }),
+  });
 }

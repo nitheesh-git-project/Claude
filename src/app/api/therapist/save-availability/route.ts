@@ -8,6 +8,11 @@ import {
   parseWeeklyScheduleBody,
 } from "@/lib/availabilityRequest";
 import { saveWeeklySchedule } from "@/lib/saveWeeklySchedule";
+import {
+  describeProfileStanding,
+  getProfileStanding,
+} from "@/lib/supabase/requireActiveProfile";
+import { serverError } from "@/lib/apiError";
 
 /**
  * A therapist replaces their own weekly working hours.
@@ -54,16 +59,18 @@ export async function POST(request: NextRequest) {
 
 
   const admin = createAdminClient();
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role, active")
-    .eq("id", user.id)
-    .single();
-  if (profile?.role !== "therapist") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  if (profile.active === false) {
-    return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
+  // Role + active + **approved**. The approval half was missing, and the
+  // roster is precisely where that matters: a therapist whose application
+  // has not been approved could publish a working week and book leave, and
+  // the roster is the clinic's planning record of who can be offered a
+  // session -- so an account no admin has vetted was shaping who gets
+  // offered patients. `approved` is a lifecycle fact about the account,
+  // which is why it now goes through the shared helper rather than a fourth
+  // hand-written copy of this block.
+  const standing = await getProfileStanding(user.id, "therapist");
+  if (!standing.ok) {
+    const { status, error } = describeProfileStanding(standing.reason);
+    return NextResponse.json({ error }, { status });
   }
 
   // Scoped to this therapist's own id only, never a client-supplied one --
@@ -77,7 +84,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (result.status === "error") {
-    return NextResponse.json({ error: result.message }, { status: 500 });
+    return serverError("therapist/save-availability", result);
   }
   if (result.status === "conflict") {
     return NextResponse.json(

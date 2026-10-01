@@ -50,6 +50,12 @@ test("NAV-003: a count's filter preset survives the switch", async ({ page, cont
   // the assertion that the two still meet. Without it a count would link to
   // the rows it counted and open the whole table, which is the failure
   // `?view=` exists to prevent.
+  //
+  // Two full admin dashboards -- the Today load and the screen it switches
+  // to -- are ~49 queries each here, so the suite's 30s default is a
+  // stopwatch on the dev server rather than on this rule. The same reason
+  // every other admin case in the suite sets its own.
+  test.setTimeout(180_000);
   await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   await page.goto(`${BASE}/admin/dashboard?section=today&tab=overview`);
   await page.waitForLoadState("networkidle");
@@ -64,11 +70,39 @@ test("NAV-003: a count's filter preset survives the switch", async ({ page, cont
     timeout: 10000,
   });
 
+  // Read off DateField's trigger, not off a native date input. There is no
+  // `input[type="date"]` anywhere in this app any more -- DateField replaced
+  // all twenty-eight and `nativeDateInput.test.ts` fails the build on a new
+  // one -- so the old locator could never match. It never failed either,
+  // because the skip above fires whenever nothing is booked for today; a
+  // whole-suite run with a populated database is what finally executed this
+  // line, three product changes after it stopped being true.
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-  const dates = await page
-    .locator('input[type="date"]:visible')
-    .evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
-  expect(dates).toContain(today);
+  // Formatted in the page rather than in Node. DateField prints its value
+  // with `toLocaleDateString(undefined, ...)`, so the string on screen is in
+  // the *browser's* locale -- "Oct 1, 2026" here -- and a copy of that
+  // formatting run in the test process answers in whatever locale Node was
+  // started with. Asking the page is the only way the two agree.
+  const shownToday = await page.evaluate((key: string) => {
+    const [y, m, d] = key.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }, today);
+  // By text rather than by role+name: DateField's trigger carries its own
+  // `aria-label` ("From date"), and an aria-label *replaces* the element's
+  // text as its accessible name -- so a role query for the date finds
+  // nothing while the date is plainly on screen.
+  // Filtered to what is on screen. This dashboard mounts all 34 screens at
+  // once behind `hidden`, so several of them carry a date field holding
+  // today and a bare `.first()` resolves to one nobody is looking at -- the
+  // same locator rule the rest of the suite follows, and the reason this
+  // assertion reads as "not visible" rather than "not found".
+  await expect(
+    page.locator("main").getByText(shownToday, { exact: false }).filter({ visible: true }).first()
+  ).toBeVisible({ timeout: 20_000 });
 });
 
 test("NAV-002: a real navigation draws the bar while it is in flight", async ({

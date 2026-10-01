@@ -1,6 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import {
+  calendarSyncNeedsPerson,
+  describeCalendarSyncLabel,
+  type CalendarSyncState,
+} from "@/lib/meetSyncState";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import SystemHealthCard from "@/components/admin/SystemHealthCard";
@@ -37,6 +42,11 @@ export type GoogleMeetSyncIssue = {
   // already tried this one, and whether it has hit its cap and stopped.
   autoRetryAttempts: number;
   autoRetryExhausted: boolean;
+  // The same four facts read as one word (src/lib/meetSyncState.ts). It is a
+  // derivation rather than a stored column on purpose -- see that module.
+  // Optional so a caller that has not been updated still renders exactly as
+  // it did, rather than showing a state it never computed.
+  syncState?: CalendarSyncState;
 };
 
 function formatInr(paise: number) {
@@ -309,7 +319,21 @@ function IssueRow({
             given up and this needs a person". Without it every row looks
             equally like something that might still fix itself, and the
             genuinely stuck ones never get looked at. */}
-        {issue.autoRetryExhausted ? (
+        {issue.syncState && issue.syncState !== "synced" ? (
+          <p
+            className={`mt-1 text-[11px] ${
+              calendarSyncNeedsPerson(issue.syncState)
+                ? "font-semibold text-amber-700"
+                : "text-slate-500"
+            }`}
+          >
+            {describeCalendarSyncLabel(issue.syncState)}
+            {issue.autoRetryAttempts > 0 &&
+              ` · tried ${issue.autoRetryAttempts} ${
+                issue.autoRetryAttempts === 1 ? "time" : "times"
+              }`}
+          </p>
+        ) : issue.autoRetryExhausted ? (
           <p className="mt-1 text-[11px] font-semibold text-amber-700">
             Stopped retrying after {issue.autoRetryAttempts} tries - this one needs you
           </p>

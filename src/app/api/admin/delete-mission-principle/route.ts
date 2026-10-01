@@ -4,6 +4,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 /**
  * Removes one promise or limit.
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
     .eq("id", id)
     .select("id");
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/delete-mission-principle", error);
   }
   if (!removed || removed.length === 0) {
     return NextResponse.json({ error: "That one no longer exists." }, { status: 404 });

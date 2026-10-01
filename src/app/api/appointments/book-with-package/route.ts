@@ -6,6 +6,7 @@ import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
 import { bookPackageSession } from "@/lib/bookPackageSession";
+import { readPackageTerms } from "@/lib/packageTerms";
 
 const MAX_NOTES_LENGTH = 1000;
 
@@ -90,13 +91,11 @@ export async function POST(request: NextRequest) {
 
   // The package row's own session_duration_minutes override (if any) --
   // read separately from the purchase, same isolated-query convention as
-  // everywhere else a migration-dependent column is read, so a package
-  // missing this column doesn't blank the whole lookup.
-  const { data: packageRow } = await admin
-    .from("treatment_category_packages")
-    .select("session_duration_minutes")
-    .eq("id", purchase.package_id ?? "")
-    .maybeSingle();
+  // The session length this patient BOUGHT, not the one on sale today -- the
+  // same correction the other three package booking paths got. Reading the
+  // live row meant an admin editing a programme changed the length of
+  // sessions somebody had already paid for, mid-programme.
+  const packageTerms = await readPackageTerms(admin, purchase.id, purchase.package_id);
 
   const result = await bookPackageSession(admin, {
     purchase,
@@ -104,7 +103,7 @@ export async function POST(request: NextRequest) {
     timezone,
     notes,
     actorId: user.id,
-    sessionDurationMinutesOverride: packageRow?.session_duration_minutes ?? null,
+    sessionDurationMinutesOverride: packageTerms.sessionDurationMinutes,
   });
 
   if (!result.success) {

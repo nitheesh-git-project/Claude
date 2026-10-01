@@ -6,6 +6,7 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { writeCatalogFocal } from "@/lib/catalogImageServer";
 import { writeCatalogFeatured } from "@/lib/catalogFeaturedServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -71,27 +72,46 @@ export async function POST(request: NextRequest) {
     : [];
 
   const admin = createAdminClient();
+
+  // `active` is written only when the request actually carries it.
+  //
+  // It used to default to `true` whenever the field was absent, which meant
+  // any unrelated edit -- a new price, a corrected title, a photograph --
+  // silently switched a disabled condition back on and put it back on the
+  // public pages and in the booking picker. Nothing on screen said so: the
+  // admin had come to change a price, the save succeeded, and the condition
+  // they had retired was on sale again. Switching one on is a deliberate
+  // act with its own control, so absence has to mean "leave it alone",
+  // never "turn it on".
+  const patch: Record<string, unknown> = {
+    title,
+    description: description || null,
+    image_url: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
+    points: pointsList,
+    price_paise: Math.round(price * 100),
+    duration_minutes: Math.round(duration),
+    cta_label: ctaLabel || "Book Assessment",
+    display_order: Math.round(order),
+  };
+  if (active !== undefined) {
+    patch.active = Boolean(active);
+  }
+
   const { error } = await admin
     .from("treatment_categories")
-    .update({
-      title,
-      description: description || null,
-      image_url: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
-      points: pointsList,
-      price_paise: Math.round(price * 100),
-      duration_minutes: Math.round(duration),
-      cta_label: ctaLabel || "Book Assessment",
-      display_order: Math.round(order),
-      active: active === undefined ? true : Boolean(active),
-    })
+    .update(patch)
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-treatment-category", error);
   }
 
   await writeSpecialty(admin, id, specialty);
-  await writeCatalogFocal(admin, "treatment_categories", id, imageFocalX, imageFocalY);
+  // Its own isolated write, so a database one migration behind loses the
+  // position rather than refusing the whole edit -- and reported rather than
+  // swallowed, because an admin who drags a focal point and is told the save
+  // worked will not look again.
+  const focalSaved = await writeCatalogFocal(admin, "treatment_categories", id, imageFocalX, imageFocalY);
   await writeCatalogFeatured(admin, "treatment_categories", id, featured);
 
   // Catalog rows decide what is sold and at what price, so every
@@ -111,7 +131,15 @@ export async function POST(request: NextRequest) {
   revalidatePath("/conditions");
   revalidatePath("/book");
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    ...(focalSaved
+      ? {}
+      : {
+          warning:
+            "Saved, but the cover's position could not be written - it is still centred.",
+        }),
+  });
 }
 
 /**

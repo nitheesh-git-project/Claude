@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { isMissionPrincipleKind } from "@/lib/mission";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 /**
  * Saves the order of one band, as the whole band.
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
     .select("id")
     .eq("kind", kind);
   if (readError) {
-    return NextResponse.json({ error: readError.message }, { status: 500 });
+    return serverError("admin/reorder-mission-principles", readError);
   }
 
   const given = new Set(ids as string[]);
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
     ordered_ids: ids,
   });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/reorder-mission-principles", error);
   }
 
   await recordAdminActivity(admin, adminUser.id, {

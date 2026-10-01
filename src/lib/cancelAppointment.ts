@@ -4,6 +4,11 @@ import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { mirrorRelease, mirrorConsume } from "@/lib/sessionCreditMirror";
+import {
+  openRefundAttempt,
+  succeedRefundAttempt,
+  failRefundAttempt,
+} from "@/lib/refundAttempt";
 
 type CancelResult =
   | { error: string; status: number; payoutSettled?: boolean }
@@ -288,21 +293,45 @@ export async function cancelAppointmentAndRefund(
   let refundFailed = false;
 
   if (willRefund) {
-    try {
-      const razorpay = new Razorpay({
-        key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-        key_secret: process.env.RAZORPAY_KEY_SECRET!,
-      });
-      const refund = await razorpay.payments.refund(appointment.razorpay_payment_id!, {
-        amount: refundablePaise ?? undefined,
-      });
-      refundId = refund.id;
-    } catch (err) {
-      // The cancellation itself is already committed (claimed above) - a
-      // refund failure here doesn't roll that back, since the slot is
-      // legitimately freed either way. It just needs manual follow-up.
-      console.error("Refund failed for appointment", appointmentId, err);
+    // Recorded before the gateway is called, so a refund that went through
+    // and could not be written back is a row somebody can find rather than a
+    // console line -- see src/lib/refundAttempt.ts. Where the other three
+    // refund writers refuse outright when the record cannot be written, this
+    // one cannot: the cancellation is already committed and the slot is
+    // legitimately freed either way. So the refund is *not attempted* and the
+    // session is recorded as a failed refund, which is already a counted item
+    // on Money's alert strip and a pinned item on the patient's own feed --
+    // the one refund state nothing in the clinic's screens moves without a
+    // person, which is exactly what this outcome needs.
+    const attemptId = await openRefundAttempt(admin, {
+      purpose: "appointment",
+      subjectId: appointmentId,
+      razorpayPaymentId: appointment.razorpay_payment_id!,
+      amountPaise: refundablePaise ?? 0,
+      reason: reason?.trim() || null,
+      requestedBy: cancelledBy,
+    });
+    if (!attemptId) {
       refundFailed = true;
+    } else {
+      try {
+        const razorpay = new Razorpay({
+          key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+          key_secret: process.env.RAZORPAY_KEY_SECRET!,
+        });
+        const refund = await razorpay.payments.refund(appointment.razorpay_payment_id!, {
+          amount: refundablePaise ?? undefined,
+        });
+        refundId = refund.id;
+        await succeedRefundAttempt(admin, attemptId, refund.id);
+      } catch (err) {
+        // The cancellation itself is already committed (claimed above) - a
+        // refund failure here doesn't roll that back, since the slot is
+        // legitimately freed either way. It just needs manual follow-up.
+        console.error("Refund failed for appointment", appointmentId, err);
+        await failRefundAttempt(admin, attemptId, err);
+        refundFailed = true;
+      }
     }
   }
 

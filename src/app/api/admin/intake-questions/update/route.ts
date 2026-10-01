@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { questionKeysForSpecialty } from "@/lib/conditionIntake";
 import { isConditionSpecialty } from "@/lib/conditionSpecialty";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 // Admin overrides one Patient Care Intake question's wording and/or
 // required-ness. Both are saved together per question (one editor row =
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
     { onConflict: "specialty,question_key" }
   );
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/intake-questions/update", error);
   }
 
   // Who changed this, and to what. Best-effort and after the write,

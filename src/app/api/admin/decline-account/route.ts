@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 // Declines a pending self-serve signup -- therapist application or patient
 // registration. Same role filter as approve-account: only an account that is
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
   // approved-then-suspended account.
   const { error } = await admin.auth.admin.deleteUser(userId);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/decline-account", error);
   }
 
   // No /team invalidation here, unlike approve: a declined account is by

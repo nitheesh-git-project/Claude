@@ -10,6 +10,7 @@ import {
   isAllowedDocumentMimeType,
   isMedicalDocumentType,
 } from "@/lib/medicalDocuments";
+import { serverError } from "@/lib/apiError";
 
 // A patient uploads a test report or scan to their own health profile.
 // The file goes to the private medical-reports bucket and only its
@@ -79,9 +80,12 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // The count cap is checked here rather than in a policy because RLS has
-  // no good way to say "at most N rows" without a trigger, and this is the
-  // only writer.
+  // Checked here so the patient gets a sentence they can act on, and
+  // enforced again by a trigger on the table so the check is actually true.
+  // This pair is a select-then-insert with a real window -- several uploads
+  // fired together from a multi-file picker all read the same count, all
+  // pass, and all insert -- and the cap is the only thing bounding this
+  // bucket's growth, since nothing in this deployment sweeps it.
   const { count, error: countError } = await admin
     .from("patient_medical_documents")
     .select("id", { count: "exact", head: true })
@@ -124,7 +128,22 @@ export async function POST(request: NextRequest) {
     // Don't leave a file nothing points at -- that is exactly the storage
     // growth this feature is supposed to avoid.
     await admin.storage.from("medical-reports").remove([storagePath]);
-    return NextResponse.json({ error: "Could not save that report. Please try again." }, { status: 500 });
+
+    // The trigger refuses at the cap with a check_violation. That is not a
+    // server fault and must not read as one: this is the race the count
+    // above cannot close, so the patient is told the same thing they would
+    // have been told a moment earlier.
+    if (insertError?.code === "23514") {
+      return NextResponse.json(
+        {
+          error: `You can keep ${MAX_DOCUMENTS_PER_PATIENT} reports on file. Delete one you no longer need to add another.`,
+        },
+        { status: 400 }
+      );
+    }
+    return serverError("patient/medical-documents/upload", insertError, {
+      message: "Could not save that report. Please try again.",
+    });
   }
 
   return NextResponse.json({ document: row });

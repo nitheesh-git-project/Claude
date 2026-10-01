@@ -31,7 +31,13 @@ function loadEnvLocal() {
     const text = readFileSync(path.join(rootDir, ".env.local"), "utf8");
     for (const line of text.split("\n")) {
       const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
-      if (match && !process.env[match[1]]) {
+      // .env.local wins over an ambient variable of the same name. A
+      // sandbox or a developer's shell can carry a SUPABASE_ACCESS_TOKEN
+      // for some other project, and this script then applies the schema to
+      // whichever one that token reaches -- or, as happened here, answers a
+      // flat 401 that reads as a bad token in the file. In CI there is no
+      // .env.local, so the repo secrets are still what is used.
+      if (match) {
         process.env[match[1]] = match[2];
       }
     }

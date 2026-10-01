@@ -6,6 +6,7 @@ import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { updateMeetEventForAppointment } from "@/lib/googleCalendarSync";
 import { formatAddressOneLine } from "@/lib/formatAddress";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 const MAX_LINE_LENGTH = 300;
 const MAX_NOTES_LENGTH = 1000;
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
     .eq("id", appointmentId);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-home-visit-address", error);
   }
 
   // Push the new address to the calendar invite both parties already hold.

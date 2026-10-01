@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 
 // Tuning a detector.
 //
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
 
   const { error } = await admin.from("risk_rules").update(update).eq("rule_key", ruleKey);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("admin/update-risk-rule", error);
   }
 
   await recordAdminActivity(admin, adminUser.id, {

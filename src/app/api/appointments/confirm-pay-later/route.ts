@@ -100,10 +100,25 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
+  // Resolved without claiming first, purely so the eligibility check below
+  // has a figure: a ceiling on what a patient may owe has to be applied to
+  // what this booking would actually add rather than to its list price. It
+  // has to happen **before** the claiming resolution further down -- a
+  // refusal after a claim would spend a promo code on a booking that never
+  // happened, which is the exact failure the cap on that code exists to
+  // prevent. Being a moment stale costs nothing here: the authoritative
+  // figure is the one frozen inside the claim.
+  const preview = await resolveCheckoutQuote(admin, {
+    appointment,
+    promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
+    claim: false,
+  });
+
   const eligibility = await readPayLaterBookingEligibility(admin, {
     patientId: user.id,
     visitMode: appointment.visit_mode,
     hasProgramme: !!appointment.package_purchase_id,
+    bookingAmountPaise: preview.payablePaise,
   });
   if (!eligibility.allowed) {
     return NextResponse.json(

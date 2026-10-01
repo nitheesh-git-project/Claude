@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { GATED_PROFILE_FIELDS } from "@/lib/gatedProfileFields";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
     .update(changes)
     .eq("id", changeRequest.user_id);
   if (applyError) {
-    return NextResponse.json({ error: applyError.message }, { status: 500 });
+    return serverError("admin/approve-profile-change", applyError);
   }
 
   const { error: reviewError } = await admin
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
     })
     .eq("id", requestId);
   if (reviewError) {
-    return NextResponse.json({ error: reviewError.message }, { status: 500 });
+    return serverError("admin/approve-profile-change", reviewError);
   }
 
   await recordAdminActivity(admin, adminUser.id, {

@@ -6,6 +6,11 @@ import { hasApprovedConditionAccess, isTherapistAssignedToPatient } from "@/lib/
 import { questionKeysForSpecialty } from "@/lib/conditionIntake";
 import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
 import { isConditionSpecialty } from "@/lib/conditionSpecialty";
+import {
+  describeProfileStanding,
+  getProfileStanding,
+} from "@/lib/supabase/requireActiveProfile";
+import { serverError } from "@/lib/apiError";
 
 // Same silent autosave as the patient's own version. The gate mirrors the
 // two therapist write paths rather than picking one: a first fill (no
@@ -46,9 +51,16 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { data: profile } = await admin.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "therapist") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // Role alone was the whole check here, so an unapproved or suspended
+  // therapist could keep writing into a patient's clinical draft. The
+  // access-grant test below answers a different question -- whether this
+  // therapist may touch *this* patient -- and a grant approved while the
+  // account was in good standing outlives the account being suspended, so
+  // it cannot stand in for a lifecycle check.
+  const standing = await getProfileStanding(user.id, "therapist");
+  if (!standing.ok) {
+    const { status, error } = describeProfileStanding(standing.reason);
+    return NextResponse.json({ error }, { status });
   }
 
   const existing = await loadConditionProfileCore(admin, patientId);
@@ -94,7 +106,7 @@ export async function POST(request: NextRequest) {
     { onConflict: "patient_id" }
   );
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError("therapist/condition-profile/save-draft", error);
   }
 
   return NextResponse.json({ success: true });

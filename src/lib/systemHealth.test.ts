@@ -36,6 +36,11 @@ const ALL_WELL: SystemHealthInput = {
     patientsOwingAged: 0,
     unclosedSessions: 0,
   },
+  referralAttribution: { orphanedCount: 0, withCompletedSessions: 0 },
+  refunds: { stuckCount: 0, unrecordedCount: 0, oldestStuckHours: null },
+  settlementDisagreements: 0,
+  settlementsRecorded: 3,
+  storage: { filesWithNoRow: 0, rowsWithNoFile: 0, truncated: false },
 };
 
 describe("buildSystemHealth", () => {
@@ -95,7 +100,7 @@ describe("buildSystemHealth", () => {
 
   it("reports every check healthy when nothing is wrong", () => {
     const checks = buildSystemHealth(ALL_WELL);
-    expect(checks).toHaveLength(7);
+    expect(checks).toHaveLength(11);
     expect(checks.every((c) => c.status === "healthy")).toBe(true);
     // A healthy check must not ask the reader to do anything.
     expect(checks.every((c) => c.fix.length === 0)).toBe(true);
@@ -343,12 +348,164 @@ describe("buildSystemHealth", () => {
     });
   });
 
+describe("refunds", () => {
+  const refunds = (input: SystemHealthInput) =>
+    buildSystemHealth(input).find((c) => c.id === "refunds")!;
+
+  // A database that has not had `refund_attempts` applied cannot answer the
+  // question, and the rule this file holds everywhere is that a read which
+  // could not be run is not a read that came back clean.
+  it("says it cannot be checked rather than healthy when the table is absent", () => {
+    const check = refunds({ ...ALL_WELL, refunds: null });
+    expect(check.status).toBe("unknown");
+    expect(check.fix.length).toBeGreaterThan(0);
+  });
+
+  // Money sent to Razorpay whose answer was never recorded is the worst
+  // outcome this table exists to surface: nothing automatic will resolve it
+  // and the patient may or may not have their money.
+  it("is red when a refund was sent and never resolved", () => {
+    const check = refunds({
+      ...ALL_WELL,
+      refunds: { stuckCount: 2, unrecordedCount: 0, oldestStuckHours: 5 },
+    });
+    expect(check.status).toBe("broken");
+    expect(check.count).toBe(2);
+    expect(check.evidence.some((e) => e.includes("5 hours"))).toBe(true);
+  });
+
+  // A refund the gateway accepted whose session carries no id is money that
+  // went back and is not on the screen it belongs on -- every figure reading
+  // that row is wrong until somebody records it.
+  it("is red when a succeeded refund is not recorded on its subject", () => {
+    const check = refunds({
+      ...ALL_WELL,
+      refunds: { stuckCount: 0, unrecordedCount: 1, oldestStuckHours: null },
+    });
+    expect(check.status).toBe("broken");
+    expect(check.count).toBe(1);
+  });
+
+  // The count is the rows it counted, the same rule every other count on
+  // this dashboard follows.
+  it("counts both disagreements together", () => {
+    const check = refunds({
+      ...ALL_WELL,
+      refunds: { stuckCount: 3, unrecordedCount: 2, oldestStuckHours: 1 },
+    });
+    expect(check.count).toBe(5);
+  });
+
+  // A refund is legitimately in flight for the length of one gateway call,
+  // and the reader must not be told the age of something that has none.
+  it("says nothing about an age it was not given", () => {
+    const check = refunds({
+      ...ALL_WELL,
+      refunds: { stuckCount: 1, unrecordedCount: 0, oldestStuckHours: null },
+    });
+    expect(check.evidence.some((e) => e.includes("Oldest"))).toBe(false);
+  });
+});
+
+describe("patient files", () => {
+  const files = (input: SystemHealthInput) =>
+    buildSystemHealth(input).find((c) => c.id === "patient_files")!;
+
+  // The worse half, and the one the patient meets: the document is on their
+  // own health profile and the view route mints a signed URL for something
+  // that is not there.
+  it("is red when a record points at a file that is gone", () => {
+    const check = files({
+      ...ALL_WELL,
+      storage: { filesWithNoRow: 0, rowsWithNoFile: 2, truncated: false },
+    });
+    expect(check.status).toBe("broken");
+    expect(check.count).toBe(2);
+  });
+
+  // Nothing is broken for anybody -- but a scan report a patient believes
+  // they deleted is still in a bucket, which is worth a look rather than a
+  // red light.
+  it("is amber when a file has nothing pointing at it", () => {
+    const check = files({
+      ...ALL_WELL,
+      storage: { filesWithNoRow: 3, rowsWithNoFile: 0, truncated: false },
+    });
+    expect(check.status).toBe("attention");
+    expect(check.count).toBe(3);
+  });
+
+  // A partial clean result is not a clean result, and this is the sentence
+  // that stops it being read as one.
+  it("does not report a clean bucket it only partly looked at", () => {
+    const check = files({
+      ...ALL_WELL,
+      storage: { filesWithNoRow: 0, rowsWithNoFile: 0, truncated: true },
+    });
+    expect(check.status).toBe("unknown");
+    expect(check.evidence.some((e) => e.includes("part of the file store"))).toBe(true);
+  });
+
+  it("says it could not be checked rather than healthy when the store is unreadable", () => {
+    expect(files({ ...ALL_WELL, storage: null }).status).toBe("unknown");
+  });
+
+  // Nothing here is deleted automatically, and the steps have to say so --
+  // a file removed because a record could not be found is a patient's scan.
+  it("never tells an owner to delete a file", () => {
+    const check = files({
+      ...ALL_WELL,
+      storage: { filesWithNoRow: 1, rowsWithNoFile: 1, truncated: false },
+    });
+    expect(check.fix.join(" ")).toContain("nothing should be");
+  });
+});
+
+describe("the settlement record check", () => {
+  it("does not read an empty table as agreement", () => {
+    // The blind spot this closes: the reconciliation only compares sessions
+    // completed since the first settlement row, so with none at all it
+    // compares nothing and found nothing -- and a write-only table whose
+    // writer is broken has no other symptom anywhere.
+    const checks = buildSystemHealth({
+      ...ALL_WELL,
+      settlementDisagreements: 0,
+      settlementsRecorded: 0,
+    });
+    const settlement = checks.find((c) => c.id === "settlements")!;
+    expect(settlement.status).toBe("unknown");
+    expect(settlement.headline).toMatch(/nothing has been recorded/i);
+    // And it says what to do about it, like every other unhealthy check.
+    expect(settlement.fix.length).toBeGreaterThan(0);
+  });
+
+  it("is healthy only once something has actually been compared", () => {
+    const checks = buildSystemHealth({
+      ...ALL_WELL,
+      settlementDisagreements: 0,
+      settlementsRecorded: 5,
+    });
+    expect(checks.find((c) => c.id === "settlements")!.status).toBe("healthy");
+  });
+
+  it("reports a disagreement as needing a person", () => {
+    const checks = buildSystemHealth({
+      ...ALL_WELL,
+      settlementDisagreements: 2,
+      settlementsRecorded: 5,
+    });
+    const settlement = checks.find((c) => c.id === "settlements")!;
+    expect(settlement.status).toBe("broken");
+    expect(settlement.count).toBe(2);
+  });
+});
+
 describe("summarizeHealth", () => {
   it("says all clear when every check is healthy", () => {
     const summary = summarizeHealth(buildSystemHealth(ALL_WELL));
     expect(summary.needsPerson).toBe(0);
     expect(summary.worst).toBe("healthy");
-    expect(summary.headline).toBe("All 7 checks healthy");
+    expect(summary.headline).toBe("All 11 checks healthy");
     expect(summary.attention).toHaveLength(0);
   });
 
@@ -544,5 +701,56 @@ describe("pay later: settlement", () => {
   it("stays off when nobody is on terms and the switch is off", () => {
     const c = check(payLater({ featureEnabled: false, patientsOnTerms: 0, settlementsWaiting: 0 }));
     expect(c.status).toBe("off");
+  });
+});
+
+
+/**
+ * Partner attribution.
+ *
+ * A referral that converts writes `profiles.referred_by_hospital_id` on the
+ * new patient, and that is what every commission figure reads. The write was
+ * best-effort behind a console.error, so a failure meant the partner earned
+ * nothing on that patient -- ever -- and nothing in the product noticed.
+ */
+describe("the partner attribution check", () => {
+  const withAttribution = (
+    over: Partial<NonNullable<SystemHealthInput["referralAttribution"]>> | null
+  ): SystemHealthInput => ({
+    ...ALL_WELL,
+    referralAttribution: over === null ? null : { orphanedCount: 0, withCompletedSessions: 0, ...over },
+  });
+
+  const check = (input: SystemHealthInput) =>
+    buildSystemHealth(input).find((c) => c.id === "referral_attribution")!;
+
+  it("is healthy when every referred patient names their partner", () => {
+    expect(check(withAttribution({})).status).toBe("healthy");
+  });
+
+  it("is amber when a link is missing but nothing has been delivered", () => {
+    // No money has been mis-split yet, and putting the partner back is one
+    // edit -- so this asks for somebody without claiming the books are wrong.
+    const c = check(withAttribution({ orphanedCount: 2, withCompletedSessions: 0 }));
+    expect(c.status).toBe("attention");
+    expect(c.count).toBe(2);
+  });
+
+  it("is red once a session has been delivered without the partner", () => {
+    // At that point a commission has genuinely been worked out without them.
+    expect(
+      check(withAttribution({ orphanedCount: 2, withCompletedSessions: 1 })).status
+    ).toBe("broken");
+  });
+
+  it("reads as 'could not be checked', never as agreement, when the read failed", () => {
+    // The rule this codebase holds everywhere: a read that failed is not a
+    // read that came back empty.
+    expect(check(withAttribution(null)).status).toBe("unknown");
+  });
+
+  it("gives an owner steps they can follow alone whenever it is not healthy", () => {
+    expect(check(withAttribution({ orphanedCount: 1 })).fix.length).toBeGreaterThan(0);
+    expect(check(withAttribution(null)).fix.length).toBeGreaterThan(0);
   });
 });
