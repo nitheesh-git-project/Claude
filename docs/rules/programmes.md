@@ -123,6 +123,16 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   their own transport - both were missing while a programme could still be
   bought the old way, and neither is optional now that it cannot.
 
+- **A referral is checked by the server the way a booking is.** Over-long
+  text is refused with a sentence, never cut (`REFERRAL_LIMITS` in
+  `src/lib/referralLimits.ts`, which the form also applies as `maxLength`);
+  the route used to slice the medical history silently. The preferred
+  language must be one the clinic books in (the form is a picker). A home
+  visit needs a real address and a pincode the clinic serves
+  (`lookupServiceArea`) - a pincode alone used to be enough, and
+  conversion then booked a visit at "Address on file with referring
+  hospital". And one partner cannot hold two open referrals
+  (`OPEN_REFERRAL_STATUSES`) for the same phone number.
 - **A referral carries a phone number, because the clinic rings before it
   links.** `patient_referrals.patient_phone` is collected on the hospital's
   own form (required, validated through `PhoneNumberField` /

@@ -19,7 +19,10 @@ export default async function Page() {
           icon="fa-user-plus"
           subtitle="Send a patient across and the clinic takes it from there."
         >
-          <SubmitReferralForm homeVisitEnabled={d.adminSettings.homeVisitEnabled} />
+          <SubmitReferralForm
+            homeVisitEnabled={d.adminSettings.homeVisitEnabled}
+            languages={d.adminSettings.bookingLanguages}
+          />
         </SurfaceCard>
     </HospitalDashboardShell>
   );
