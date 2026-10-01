@@ -43,6 +43,14 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   `webhookRetryVerdict` (`src/lib/webhookRetry.ts`) then answers a repeat
   delivery as `retry` (reprocess on the same row), `in_flight` (409, a
   live attempt under two minutes old), or `duplicate` (200).
+  **A paid purchase is fulfilled by `fulfilPaidPurchase`, on both paths.**
+  `record_payment_capture` only marks a package purchase paid; its expiry,
+  its credits (`ensure_entitlement_for_purchase`) and, for a care-plan
+  purchase, the plan's acceptance were done inline by the verify route
+  alone, so a patient who paid and closed the tab had a paid purchase with
+  no credits and an open plan. The webhook now runs the same idempotent
+  helper for every purchase capture, and a failed step is a retryable
+  outcome rather than a 200.
   **`payment.captured` is the only event that applies anything, and
   `payment.authorized` is not a capture.** An authorization is a hold, not
   money taken: Razorpay voids one that is never captured and auto-refunds

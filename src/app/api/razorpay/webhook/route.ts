@@ -9,6 +9,7 @@ import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
+import { fulfilPaidPurchase } from "@/lib/fulfilPaidPurchase";
 import { WEBHOOK_RETRYABLE_PREFIX, webhookRetryVerdict } from "@/lib/webhookRetry";
 
 // Razorpay's server-to-server notification that a payment happened.
@@ -215,6 +216,25 @@ export async function POST(request: NextRequest) {
     // duplicate. See webhookRetryVerdict.
     await markProcessed(`${WEBHOOK_RETRYABLE_PREFIX}record_payment_capture failed`);
     return NextResponse.json({ error: "Could not apply capture" }, { status: 500 });
+  }
+
+  // A package purchase needs more than `payment_status = 'paid'`: its
+  // expiry, its credits, and (from a care plan) the plan accepted. The
+  // verify routes do this in the browser callback; a patient who paid and
+  // closed the tab never reaches them, so the webhook runs the same
+  // idempotent steps. Run on every capture of a purchase, applied or not,
+  // so a retried delivery repairs one that half-finished.
+  if (result.targetPackagePurchaseId || result.targetHomeVisitPurchaseId) {
+    const fulfilled = await fulfilPaidPurchase(
+      admin,
+      result.targetPackagePurchaseId
+        ? { kind: "session_package", purchaseId: result.targetPackagePurchaseId }
+        : { kind: "home_visit_package", purchaseId: result.targetHomeVisitPurchaseId as string }
+    );
+    if (!fulfilled.ok) {
+      await markProcessed(`${WEBHOOK_RETRYABLE_PREFIX}purchase fulfilment incomplete`);
+      return NextResponse.json({ error: "Could not fulfil purchase" }, { status: 500 });
+    }
   }
 
   // Same invite settlement the browser callback applies, for the case the
