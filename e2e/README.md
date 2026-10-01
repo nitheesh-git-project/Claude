@@ -5,7 +5,7 @@
 
 This file is the **inventory** - what exists and what each file is for. The
 *rules* behind the suite (the two gears, what must not be tested where, and
-why a red run is usually the sandbox) live in `AGENTS.md`; read that before
+why a red run is usually the sandbox) live in `docs/rules/testing.md`; read it before
 changing how a spec works. `ROSTER-TEST-PLAN.md` beside this file is the one
 worked example of choosing a layer per property.
 
@@ -108,7 +108,7 @@ total, which moves with every spec added.
 | `splash-screen` | 8 | the brand splash's cold-open, reload and long-absence rules |
 | `journey-pace` | 16 | the home walkthrough's admin-configured rotation pace |
 | `session-completed-cutoff` | 11 | the cutoff on every surface that lists a session |
-| `admin-login` | 4 | the real login form. Needs the relay (see `AGENTS.md`); skips itself otherwise |
+| `admin-login` | 4 | the real login form. Needs the relay (see `docs/rules/testing.md`); skips itself otherwise |
 
 ### Clinical, roster and catalogue
 

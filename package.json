@@ -18,7 +18,8 @@
     "start:cluster": "node scripts/start-cluster.mjs",
     "check:concurrency": "node scripts/concurrency-checks.mjs",
     "check:authorization": "node scripts/authorization-checks.mjs",
-    "check:search-path": "node scripts/check-search-path.mjs"
+    "check:search-path": "node scripts/check-search-path.mjs",
+    "build:rules-index": "node scripts/build-rules-index.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.3.1",

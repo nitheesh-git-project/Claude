@@ -31,7 +31,7 @@ import { rowActivationProps } from "@/lib/rowActivation";
 // drift apart are not.
 //
 // A home visit is a row here with mode = Home visit, not a separate world
-// (AGENTS.md: "Home Visit is a delivery mode, not a parallel booking
+// (docs/rules/home-visit.md: "Home Visit is a delivery mode, not a parallel booking
 // system"). Everything specific to a visit -- address, travel fee, cash --
 // lives in the shared session drawer, behind the same click as everything
 // else about that session.

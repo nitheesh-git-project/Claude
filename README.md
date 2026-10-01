@@ -2752,6 +2752,11 @@ e2e/                     The Playwright suite. e2e/README.md is its
                          inventory - all 54 spec files, what each covers,
                          how to run them, and the nine cases that cannot
                          pass without browser egress to Supabase
+docs/rules/              The working rules for editing this codebase, split
+                         by what you are touching, so an agent loads what the
+                         task needs instead of all of it. CLAUDE.md is the
+                         routing table; 00-index.md is generated and lists
+                         every rule by its own sentence for grepping
 docs/                    MONEY-MODEL.md (the money vocabulary),
                          LIFECYCLE-STATES.md (every state machine),
                          DATA-POLICY.md (migrations, backup, retention,

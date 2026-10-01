@@ -323,7 +323,8 @@ async function seed() {
       const { data, error } = await admin.auth.admin.createUser({
         email: account.email,
         password: PASSWORD,
-        // Confirm email is off on this project by design (see AGENTS.md), and
+        // Confirm email is off on this project by design (see
+        // docs/rules/ops-security.md), and
         // an unconfirmed address cannot sign in even so -- this keeps the
         // seeded accounts usable whatever that setting is doing today.
         email_confirm: true,
