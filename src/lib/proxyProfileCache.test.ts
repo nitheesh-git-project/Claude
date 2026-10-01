@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  PROFILE_CACHE_TTL_SECONDS,
+  DEFAULT_PROFILE_CACHE_TTL_SECONDS,
+  MAX_PROFILE_CACHE_TTL_SECONDS,
+  MIN_PROFILE_CACHE_TTL_SECONDS,
   issueProfileCookie,
+  profileCacheTtlSeconds,
   readProfileCookie,
   type CachedProfile,
 } from "./proxyProfileCache";
@@ -20,15 +23,20 @@ const PATIENT: CachedProfile = { role: "patient", approved: true, active: true }
 const NOW = 1_700_000_000_000;
 
 let previousSecret: string | undefined;
+let previousTtl: string | undefined;
 
 beforeEach(() => {
   previousSecret = process.env.PROXY_PROFILE_CACHE_SECRET;
+  previousTtl = process.env.PROXY_PROFILE_CACHE_TTL_SECONDS;
   process.env.PROXY_PROFILE_CACHE_SECRET = "test-secret-not-a-real-one";
+  delete process.env.PROXY_PROFILE_CACHE_TTL_SECONDS;
 });
 
 afterEach(() => {
   if (previousSecret === undefined) delete process.env.PROXY_PROFILE_CACHE_SECRET;
   else process.env.PROXY_PROFILE_CACHE_SECRET = previousSecret;
+  if (previousTtl === undefined) delete process.env.PROXY_PROFILE_CACHE_TTL_SECONDS;
+  else process.env.PROXY_PROFILE_CACHE_TTL_SECONDS = previousTtl;
 });
 
 describe("round trip", () => {
@@ -79,7 +87,7 @@ describe("refusals", () => {
 
   it("expires exactly at the TTL, not after it", async () => {
     const cookie = await issueProfileCookie(USER, ADMIN, NOW);
-    const ttlMs = PROFILE_CACHE_TTL_SECONDS * 1000;
+    const ttlMs = DEFAULT_PROFILE_CACHE_TTL_SECONDS * 1000;
     expect(await readProfileCookie(cookie!, USER, NOW + ttlMs - 1)).toEqual(ADMIN);
     expect(await readProfileCookie(cookie!, USER, NOW + ttlMs)).toBeNull();
     expect(await readProfileCookie(cookie!, USER, NOW + ttlMs + 1)).toBeNull();
@@ -111,5 +119,47 @@ describe("without a configured secret", () => {
     const cookie = await issueProfileCookie(USER, ADMIN, NOW);
     delete process.env.PROXY_PROFILE_CACHE_SECRET;
     expect(await readProfileCookie(cookie!, USER, NOW)).toBeNull();
+  });
+});
+
+describe("the configurable window", () => {
+  // This value decides how long a suspension can go unnoticed by a tab that
+  // is already open, so it is a security setting as much as a speed one.
+  // These tests are about the ways a bad value must not be honoured.
+  it("defaults to 60 when unset", () => {
+    expect(profileCacheTtlSeconds()).toBe(DEFAULT_PROFILE_CACHE_TTL_SECONDS);
+  });
+
+  it("uses a sensible configured value as given", () => {
+    process.env.PROXY_PROFILE_CACHE_TTL_SECONDS = "15";
+    expect(profileCacheTtlSeconds()).toBe(15);
+  });
+
+  it("actually shortens the cookie's life", async () => {
+    process.env.PROXY_PROFILE_CACHE_TTL_SECONDS = "15";
+    const cookie = await issueProfileCookie(USER, ADMIN, NOW);
+    expect(await readProfileCookie(cookie!, USER, NOW + 14_000)).toEqual(ADMIN);
+    expect(await readProfileCookie(cookie!, USER, NOW + 15_000)).toBeNull();
+  });
+
+  it("refuses to be raised past the cap", () => {
+    // A mistyped 86400 would hold a revoked admin's access open for a day,
+    // and nothing on screen would look wrong.
+    process.env.PROXY_PROFILE_CACHE_TTL_SECONDS = "86400";
+    expect(profileCacheTtlSeconds()).toBe(MAX_PROFILE_CACHE_TTL_SECONDS);
+  });
+
+  it("refuses to be dropped below the floor", () => {
+    process.env.PROXY_PROFILE_CACHE_TTL_SECONDS = "1";
+    expect(profileCacheTtlSeconds()).toBe(MIN_PROFILE_CACHE_TTL_SECONDS);
+  });
+
+  it("falls back to the default for anything unusable", () => {
+    // "" is the one that matters: Number("") is 0, which would otherwise
+    // read as "expire immediately" from a variable merely left blank.
+    for (const value of ["", "   ", "abc", "-30", "0", "NaN"]) {
+      process.env.PROXY_PROFILE_CACHE_TTL_SECONDS = value;
+      expect(profileCacheTtlSeconds()).toBe(DEFAULT_PROFILE_CACHE_TTL_SECONDS);
+    }
   });
 });

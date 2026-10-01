@@ -851,8 +851,25 @@ seconds a session that is *already open* keeps the role and flags it had when
 the cookie was written. Suspending an account, demoting an admin or revoking
 an approval therefore takes up to a minute to lock out a tab already sitting
 on a dashboard. New sign-ins are unaffected. Sixty seconds is the longest
-window that is still shorter than a person noticing and acting; it is
-deliberately not minutes.
+window that is still shorter than a person noticing and acting.
+
+`PROXY_PROFILE_CACHE_TTL_SECONDS` sizes that window, and it is **clamped to
+5-300**. Treat it as a security setting rather than a tuning knob: it is the
+length of time a revoked admin keeps working, and a mistyped `86400` would
+make that a day with nothing on screen looking wrong. The clamp is what makes
+it safe to expose as an environment variable at all. Anything unusable --
+blank, non-numeric, zero, negative -- falls back to 60 rather than being
+coerced, because `Number("")` is `0` and a variable someone left empty must
+not read as "expire immediately".
+
+Wanting longer than five minutes means changing
+`MAX_PROFILE_CACHE_TTL_SECONDS` in `src/lib/proxyProfileCache.ts` -- a
+reviewed commit, which is the right amount of friction for that decision.
+
+**Not an admin setting, deliberately.** Everything admin-configurable in this
+app goes through `src/lib/adminSettings.ts`, and this one does not: reading
+it would mean a database call on every request, which is precisely the call
+this feature exists to remove.
 
 The cookie is `httpOnly`, so the client-side sign-out buttons cannot clear
 it — and do not need to. A signed-out browser has no user for the id to

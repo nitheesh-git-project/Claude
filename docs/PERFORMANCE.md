@@ -92,9 +92,11 @@ easy to miss in an FK audit.
 `auth.getUser()` plus a `profiles` read, serially, on every request under
 the four dashboard trees. `getUser()` stays — it refreshes the token and
 its cookie writes are load-bearing. The `profiles` read is now a signed
-60-second cookie. Full reasoning, the two guarantees that make trusting a
-cookie safe here, and the freshness trade-off: `docs/rules/ops-security.md`
-and `src/lib/proxyProfileCache.ts`.
+cookie, 60 seconds by default and sized by
+`PROXY_PROFILE_CACHE_TTL_SECONDS` (clamped to 5–300, because the number is
+how long a revoked admin keeps working). Full reasoning, the two guarantees
+that make trusting a cookie safe here, and the freshness trade-off:
+`docs/rules/ops-security.md` and `src/lib/proxyProfileCache.ts`.
 
 ### 5. Client weight
 

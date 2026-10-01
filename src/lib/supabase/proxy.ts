@@ -9,7 +9,7 @@ import {
 import { resilientSupabaseFetch } from "./resilientFetch";
 import {
   PROFILE_CACHE_COOKIE,
-  PROFILE_CACHE_TTL_SECONDS,
+  profileCacheTtlSeconds,
   issueProfileCookie,
   readProfileCookie,
   type CachedProfile,
@@ -157,7 +157,7 @@ export async function updateSession(request: NextRequest) {
             sameSite: "lax",
             secure: process.env.NODE_ENV === "production",
             path: "/",
-            maxAge: PROFILE_CACHE_TTL_SECONDS,
+            maxAge: profileCacheTtlSeconds(),
           });
         }
       }

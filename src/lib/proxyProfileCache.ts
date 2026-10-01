@@ -31,7 +31,8 @@
  *
  * ## The trade-off, stated plainly
  *
- * For up to {@link PROFILE_CACHE_TTL_SECONDS} seconds, a session that is
+ * For up to {@link profileCacheTtlSeconds} seconds (60 by default,
+ * configurable through `PROXY_PROFILE_CACHE_TTL_SECONDS`), a session that is
  * **already open** keeps the role, approval and active flag it had when the
  * cookie was written. Suspending an account, demoting an admin or revoking
  * an approval therefore takes up to that long to lock out a tab that is
@@ -39,8 +40,10 @@
  * that signs the user out -- including the impersonation window expiring --
  * clears the cookie immediately, so the paths that need to be instant are.
  *
- * Sixty seconds was chosen as the longest window that is still shorter than
- * a person noticing and acting. It is deliberately not minutes.
+ * Sixty seconds is the default because it is the longest window still
+ * shorter than a person noticing and acting. Lower it where that matters
+ * more than the speed; the clamp below is what stops it being raised to
+ * somewhere dangerous.
  *
  * ## Degradation
  *
@@ -50,8 +53,51 @@
  * slower, never wrong, and never open.
  */
 
-/** How long an issued cookie is trusted. See the trade-off note above. */
-export const PROFILE_CACHE_TTL_SECONDS = 60;
+/** Used when `PROXY_PROFILE_CACHE_TTL_SECONDS` is unset or unusable. */
+export const DEFAULT_PROFILE_CACHE_TTL_SECONDS = 60;
+
+/**
+ * The window is clamped, and the clamp is the point.
+ *
+ * This value is how long a suspension can go unnoticed by a tab that is
+ * already open, so it is a security setting wearing a performance setting's
+ * clothes. A typo that reads as `86400` would hold a revoked admin's access
+ * open for a day, and nothing would look wrong. Five minutes is as far as
+ * this is allowed to go; a clinic wanting longer should be changing this
+ * constant in a reviewed commit, not a text box.
+ *
+ * The lower bound exists so a value of `0` or `1` cannot quietly turn the
+ * cache into a per-request database read plus the cost of signing a cookie
+ * nobody reuses -- slower than having no cache at all, while looking
+ * configured.
+ */
+export const MIN_PROFILE_CACHE_TTL_SECONDS = 5;
+export const MAX_PROFILE_CACHE_TTL_SECONDS = 300;
+
+/**
+ * How long an issued cookie is trusted, from
+ * `PROXY_PROFILE_CACHE_TTL_SECONDS`. See the trade-off note above for what
+ * raising it costs and lowering it buys.
+ *
+ * Anything unusable -- unset, blank, not a number, negative, fractional
+ * nonsense -- falls back to the default rather than being coerced into
+ * something surprising. `Number("")` is 0, which would otherwise read as
+ * "expire immediately" from a variable that was simply left empty.
+ */
+export function profileCacheTtlSeconds(): number {
+  const raw = process.env.PROXY_PROFILE_CACHE_TTL_SECONDS;
+  if (raw === undefined || raw.trim() === "") {
+    return DEFAULT_PROFILE_CACHE_TTL_SECONDS;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_PROFILE_CACHE_TTL_SECONDS;
+  }
+  return Math.min(
+    MAX_PROFILE_CACHE_TTL_SECONDS,
+    Math.max(MIN_PROFILE_CACHE_TTL_SECONDS, Math.round(parsed))
+  );
+}
 
 export const PROFILE_CACHE_COOKIE = "mr_profile_cache";
 
@@ -140,7 +186,7 @@ export async function issueProfileCookie(
   const payload = encodePayload(
     userId,
     profile,
-    nowMs + PROFILE_CACHE_TTL_SECONDS * 1000
+    nowMs + profileCacheTtlSeconds() * 1000
   );
   return `${payload}.${await sign(payload, key)}`;
 }
