@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActive, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { serverError } from "@/lib/apiError";
 
@@ -51,7 +51,9 @@ export async function POST(request: NextRequest) {
   }>(request);
   if (parseError) return parseError;
 
-  if (!(await isProfileActive(user.id))) {
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
 

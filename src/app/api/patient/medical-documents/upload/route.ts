@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActive, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import {
   MAX_DOCUMENT_BYTES,
   MAX_DOCUMENTS_PER_PATIENT,
@@ -32,7 +32,9 @@ export async function POST(request: NextRequest) {
   // isProfileActive, not isProfileActiveAndApproved: a patient who paid
   // and is waiting on approval still has a session next week and a report
   // to bring to it.
-  if (!(await isProfileActive(user.id))) {
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
     return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }
 

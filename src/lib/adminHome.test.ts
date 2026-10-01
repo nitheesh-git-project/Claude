@@ -143,13 +143,12 @@ describe("buildAdminHome", () => {
     expect(note?.withheld).toEqual(["Money", "Catalog", "Logs", "Settings"]);
   });
 
-  it("reads an unknown scope as full rather than blank", () => {
-    // parseAdminScope already defaults an unknown column value to 'full';
-    // this is the same guarantee one layer up, so a row written before the
-    // column existed still lands on a working dashboard.
+  it("gives an unknown scope no actions rather than Master Admin's", () => {
+    // The guard refuses an unrecognised scope before this ever runs
+    // (resolveAdminScope). If one got here anyway, it must reach nothing:
+    // reading it as 'full' is how a failed read became a promotion.
     const home = buildAdminHome("weekend-cover" as AdminScope, BUSY);
-    expect(home.greeting).toBe("The clinic today");
-    expect(home.actions.length).toBeGreaterThan(0);
+    expect(home.actions).toHaveLength(0);
   });
 });
 

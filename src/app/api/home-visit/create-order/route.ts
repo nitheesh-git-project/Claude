@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { computeHomeVisitTotal } from "@/lib/homeVisitPricing";
-import { isProfileActive, isPatientProfile } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import {
   isDirectlyPurchasable,
   PROGRAMME_NEEDS_RECOMMENDATION,
@@ -92,7 +92,9 @@ export async function POST(request: NextRequest) {
   // back in, and nothing else is relaxed -- the RLS clamp still keeps every
   // home-visit appointment insert server-side, and bookHomeVisitSession()
   // still never auto-confirms without a genuinely free locked therapist.
-  if (!(await isProfileActive(user.id))) {
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
     return NextResponse.json(
       { error: "Your account has been suspended." },
       { status: 403 }
@@ -102,7 +104,9 @@ export async function POST(request: NextRequest) {
   // Sessions are delivered to patients, and one account carries one role --
   // see isPatientProfile. The wizard says so; this is the same check for a
   // session cookie calling the route directly.
-  if (!(await isPatientProfile(user.id))) {
+  const isPatient = await isPatientProfile(user.id);
+  if (isPatient === null) return profileCheckUnavailable();
+  if (!isPatient) {
     return NextResponse.json(
       { error: "This account can't book sessions. Sessions are booked under a patient account." },
       { status: 403 }

@@ -80,7 +80,12 @@ import {
 } from "@/lib/ledgerBalances";
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
 import ContactControlsForm from "@/components/admin/ContactControlsForm";
-import { adminScreenHref, type InboxGroup } from "@/lib/adminNav";
+import {
+  adminScreenHref,
+  pickScreens,
+  visibleScreenKeys,
+  type InboxGroup,
+} from "@/lib/adminNav";
 import {
   buildAdminHome,
   orderQueueGroups,
@@ -4944,6 +4949,12 @@ export default async function AdminDashboardPage({
     "settings:health": summarizeHealth(systemHealthChecks).needsPerson,
   };
 
+  // Only the screens this scope reaches leave the server. AdminShell hides
+  // the rest, but hiding is presentation: anything in these props is in the
+  // response, and a limited admin could read a Money or Settings screen's
+  // data out of it without ever opening the section.
+  const reachableScreens = visibleScreenKeys(allowedSections, workableSections, viewerScope !== "full");
+
   return (
     <JoinWindowProvider
       beforeMinutes={adminSettings.joinWindowMinutes}
@@ -4953,8 +4964,8 @@ export default async function AdminDashboardPage({
       <AdminShell
         initialSection={sectionParam ?? null}
         initialTab={tabParam ?? null}
-        screens={screens}
-        badges={badges}
+        screens={pickScreens(screens, reachableScreens)}
+        badges={pickScreens(badges, reachableScreens)}
         searchEntities={searchEntities}
         allowedSections={allowedSections}
         manageSections={workableSections}

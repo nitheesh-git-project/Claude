@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActive, isPatientProfile } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { readAppointmentServicePrice } from "@/lib/appointmentPriceServer";
 import { previewPromoCode } from "@/lib/promoCodesServer";
 import { readPromoCodesEnabled } from "@/lib/acquisitionSettings";
@@ -52,12 +52,16 @@ export async function POST(request: NextRequest) {
   // count against. The **claim** at checkout re-asks every rule against the
   // real account and refuses rather than charging a different figure.
   if (user) {
-    if (!(await isProfileActive(user.id))) {
+    const activeStanding = await isProfileActive(user.id);
+    if (activeStanding === null) return profileCheckUnavailable();
+    if (!activeStanding) {
       return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
     }
     // Same rule as the four purchase routes: one account carries one role,
     // and a session is delivered to a patient.
-    if (!(await isPatientProfile(user.id))) {
+    const isPatient = await isPatientProfile(user.id);
+    if (isPatient === null) return profileCheckUnavailable();
+    if (!isPatient) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }

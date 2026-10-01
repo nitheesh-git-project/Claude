@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { serverError } from "@/lib/apiError";
 
@@ -23,7 +23,9 @@ export async function POST(request: NextRequest) {
   // stay: src/proxy.ts for dashboard navigation, and here, because a valid
   // session cookie reaches this route without passing the proxy at all.
   // This route had only the first.
-  if (!(await isProfileActiveAndApproved(user.id))) {
+  const standing = await isProfileActiveAndApproved(user.id);
+  if (standing === null) return profileCheckUnavailable();
+  if (!standing) {
     return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }
 

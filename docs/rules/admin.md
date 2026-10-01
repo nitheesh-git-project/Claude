@@ -23,6 +23,17 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
+- **A scope that could not be read is refused, never promoted, and a
+  screen outside the scope never leaves the server.** `resolveAdminScope`
+  answers the guard: a real value passes, a failed read or an unknown value
+  is `unavailable` (the retry page, a 403 from `requireAdminScope`), and the
+  one exception is an unknown-column error, because on a database without
+  `admin_scope` no limited admin can exist. `parseAdminScope` (unknown reads
+  as `full`) is for *displaying* another admin's row only. The dashboard
+  page then filters its `screens` and `badges` maps through
+  `visibleScreenKeys` before handing them to `AdminShell`: hiding a screen
+  in the client is presentation, and everything passed as a prop is in the
+  RSC payload a Finance desk can read.
 - **A password this clinic issued is stored; a password the user chose is
   not, and cannot be.** Supabase keeps a bcrypt hash, so there is no
   mechanism by which any screen can display a password somebody set

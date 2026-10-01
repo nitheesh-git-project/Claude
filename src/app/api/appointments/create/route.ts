@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isPatientProfile, isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { isPatientProfile, isProfileActive, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import {
@@ -81,7 +81,9 @@ export async function POST(request: NextRequest) {
   // vets them (see approvePatientForGenuinePaymentAttempt). The row this
   // creates is always unpaid, unassigned and 'requested', so it grants
   // nothing on its own. Suspension is still enforced.
-  if (!(await isProfileActive(user.id))) {
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
 
@@ -94,7 +96,9 @@ export async function POST(request: NextRequest) {
   // which is the bug the RLS clause was added for, after money had moved
   // for one. The wizards say so in the UI and the purchase routes check it
   // too; this is the same check for a session cookie calling directly.
-  if (!(await isPatientProfile(user.id))) {
+  const isPatient = await isPatientProfile(user.id);
+  if (isPatient === null) return profileCheckUnavailable();
+  if (!isPatient) {
     return NextResponse.json(
       { error: "This account can't book sessions. Sessions are booked under a patient account." },
       { status: 403 }

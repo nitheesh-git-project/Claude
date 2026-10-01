@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
-import { isProfileActive, isPatientProfile } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
@@ -90,14 +90,18 @@ export async function POST(request: NextRequest) {
   // -- see that route's comment. Nothing here is any less true for a cash
   // booking: the address and the admin's later assignment are still the
   // real vetting, and requiring approval first would just lose the patient.
-  if (!(await isProfileActive(user.id))) {
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
 
   // Sessions are delivered to patients, and one account carries one role --
   // see isPatientProfile. The wizard says so; this is the same check for a
   // session cookie calling the route directly.
-  if (!(await isPatientProfile(user.id))) {
+  const isPatient = await isPatientProfile(user.id);
+  if (isPatient === null) return profileCheckUnavailable();
+  if (!isPatient) {
     return NextResponse.json(
       { error: "This account can't book sessions. Sessions are booked under a patient account." },
       { status: 403 }

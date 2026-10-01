@@ -461,6 +461,39 @@ export function visibleTabs(
   });
 }
 
+/**
+ * Every "<section>:<tab>" key this admin may be sent, and nothing else.
+ *
+ * The shell only *shows* the screens a scope reaches, but whatever the page
+ * hands it is serialized into the response whether it is shown or not -- a
+ * restricted admin could read a hidden Money or Settings screen's props out
+ * of the RSC payload. The page filters its screen map through this before
+ * passing it on, so a screen outside the scope never leaves the server.
+ */
+export function visibleScreenKeys(
+  allowed: AdminSectionKey[],
+  manageable: AdminSectionKey[],
+  limitedScope: boolean
+): Set<string> {
+  const keys = new Set<string>();
+  for (const section of ADMIN_SECTIONS) {
+    if (!allowed.includes(section.key)) continue;
+    for (const tab of visibleTabs(section, manageable.includes(section.key), limitedScope)) {
+      keys.add(`${section.key}:${tab.key}`);
+    }
+  }
+  return keys;
+}
+
+/** A screen or badge map with every key outside `keys` removed. */
+export function pickScreens<T>(map: Record<string, T>, keys: Set<string>): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [key, value] of Object.entries(map)) {
+    if (keys.has(key)) out[key] = value;
+  }
+  return out;
+}
+
 // Builds the href an in-page link uses to send an admin to another screen --
 // e.g. the Today inbox linking each row to where that work is done. A plain
 // href (not a router push) so it behaves like any other link: middle-click

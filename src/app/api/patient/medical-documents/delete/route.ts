@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActive, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 
 // A patient removes one of their own reports. The row goes first and the
 // object second: if the object delete fails, the file is orphaned but
@@ -26,7 +26,9 @@ export async function POST(request: NextRequest) {
   // stay: src/proxy.ts for dashboard navigation, and here, because a valid
   // session cookie reaches this route without passing the proxy at all.
   // This route had only the first.
-  if (!(await isProfileActive(user.id))) {
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
     return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }
 

@@ -7,6 +7,7 @@ import {
   ADMIN_SCOPE_BLURBS,
   ADMIN_SCOPE_LABELS,
   parseAdminScope,
+  resolveAdminScope,
   scopeCanManage,
   scopeCanOpen,
   scopeHasCapability,
@@ -152,5 +153,32 @@ describe("names", () => {
     expect(parseAdminScope(null)).toBe("full");
     expect(parseAdminScope("bookkeeper")).toBe("full");
     expect(parseAdminScope("finance")).toBe("finance");
+  });
+});
+
+describe("resolveAdminScope (the guard's own read)", () => {
+  it("passes a real scope through", () => {
+    expect(resolveAdminScope("finance", null)).toBe("finance");
+    expect(resolveAdminScope("full", null)).toBe("full");
+  });
+
+  it("refuses rather than promotes when the read failed", () => {
+    expect(resolveAdminScope(undefined, { code: "PGRST301" })).toBeNull();
+    expect(resolveAdminScope(undefined, { code: "57014" })).toBeNull();
+  });
+
+  it("refuses a missing or unknown value instead of reading it as Master Admin", () => {
+    expect(resolveAdminScope(undefined, null)).toBeNull();
+    expect(resolveAdminScope(null, null)).toBeNull();
+    expect(resolveAdminScope("bookkeeper", null)).toBeNull();
+  });
+
+  it("reads a database that predates the column as full -- no limited admin can exist there", () => {
+    expect(resolveAdminScope(undefined, { code: "42703" })).toBe("full");
+  });
+
+  it("gives an unrecognised scope no sections at all", () => {
+    expect(sectionsForScope("bogus" as never)).toEqual([]);
+    expect(sectionAccess("bogus" as never, "money")).toBe("none");
   });
 });

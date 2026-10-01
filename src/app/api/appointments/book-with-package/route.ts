@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { bookPackageSession } from "@/lib/bookPackageSession";
 import { readPackageTerms } from "@/lib/packageTerms";
 
@@ -53,7 +53,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "The slot must be in the future" }, { status: 400 });
   }
 
-  if (!(await isProfileActiveAndApproved(user.id))) {
+  const standing = await isProfileActiveAndApproved(user.id);
+  if (standing === null) return profileCheckUnavailable();
+  if (!standing) {
     return NextResponse.json({ error: "Your account is not active - it is either awaiting admin approval or has been suspended." }, { status: 403 });
   }
 

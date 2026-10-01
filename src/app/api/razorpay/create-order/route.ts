@@ -8,6 +8,7 @@ import {
   isProfileActive,
   isPatientProfile,
   approvePatientForGenuinePaymentAttempt,
+  profileCheckUnavailable,
 } from "@/lib/supabase/requireActiveProfile";
 import { confirmPaidAppointment } from "@/lib/confirmPaidAppointment";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
@@ -65,14 +66,18 @@ export async function POST(request: NextRequest) {
   // on approval would mean that attempt can never happen. See
   // approvePatientForGenuinePaymentAttempt for why the vetting fires here,
   // on the attempt, rather than waiting on a completed payment.
-  if (!(await isProfileActive(user.id))) {
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
 
   // Sessions are delivered to patients, and one account carries one role --
   // see isPatientProfile. The wizard says so; this is the same check for a
   // session cookie calling the route directly.
-  if (!(await isPatientProfile(user.id))) {
+  const isPatient = await isPatientProfile(user.id);
+  if (isPatient === null) return profileCheckUnavailable();
+  if (!isPatient) {
     return NextResponse.json(
       { error: "This account can't book sessions. Sessions are booked under a patient account." },
       { status: 403 }

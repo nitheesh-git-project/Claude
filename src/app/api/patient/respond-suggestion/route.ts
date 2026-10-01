@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { bookPackageSession } from "@/lib/bookPackageSession";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
@@ -47,7 +47,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Answer must be accept or decline." }, { status: 400 });
   }
 
-  if (!(await isProfileActiveAndApproved(user.id))) {
+  const standing = await isProfileActiveAndApproved(user.id);
+  if (standing === null) return profileCheckUnavailable();
+  if (!standing) {
     return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }
 
