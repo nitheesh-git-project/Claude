@@ -19,6 +19,7 @@ const COLUMNS = [
   "social_youtube_url",
   "social_whatsapp_url",
   "whatsapp_number",
+  "contact_phone",
 ] as const;
 
 let original: Record<string, string | null> = {};
@@ -93,6 +94,7 @@ test("SOC-002: the footer draws only the filled-in links, and each opens in a ne
     social_youtube_url: "https://www.youtube.com/@moverestore",
     social_whatsapp_url: null,
     whatsapp_number: "+91 98765 43210",
+    contact_phone: "+91 98765 43211",
   });
 
   await page.goto(`${BASE}/`);
@@ -115,7 +117,9 @@ test("SOC-002: the footer draws only the filled-in links, and each opens in a ne
   await expect(whatsapp).toHaveAttribute("target", "_blank");
   await expect(whatsapp).toHaveAttribute("rel", /noopener/);
   // Email and phone hand off to an app, so they stay in the same tab.
-  await expect(footer.locator('a[href^="tel:"]')).not.toHaveAttribute("target", "_blank");
+  // (Both numbers are set above: the shipped placeholder draws no link.)
+  await expect(footer.locator('a[href^="tel:"]')).toHaveCount(1);
+  await expect(footer.locator('a[href^="tel:"][target]')).toHaveCount(0);
 
   // A real click leaves the site in a new tab and this one where it was.
   const [popup] = await Promise.all([
