@@ -16,6 +16,7 @@ export default function Footer({
   contactPhone,
   footerCopyrightText,
   homeVisitEnabled = false,
+  devCreditEnabled = true,
 }: {
   siteName: string;
   siteDescription: string;
@@ -24,6 +25,9 @@ export default function Footer({
   contactPhone: string;
   footerCopyrightText: string;
   homeVisitEnabled?: boolean;
+  /** Whether the developer credit line shows. Off when an admin switches the
+   *  /developer pages off, so the line never links to a page that 404s. */
+  devCreditEnabled?: boolean;
 }) {
   const pathname = usePathname();
   // Same list the header and the connector grids read, minus Home (the
@@ -102,7 +106,23 @@ export default function Footer({
         </div>
       </div>
       <div className="border-t border-slate-800 py-4 text-center text-[11px] text-slate-400">
-        © {new Date().getFullYear()} {footerCopyrightText}
+        <p>
+          © {new Date().getFullYear()} {footerCopyrightText}
+        </p>
+        {devCreditEnabled && (
+          <p className="mt-1 px-4">
+            Researched, designed and hand-built to make care easier for patients and therapists — by{" "}
+            <span className="font-semibold text-slate-300">Nitheesh M</span> ·{" "}
+            {/* py-1 keeps the target at 24px tall on a phone, the same as the
+                footer's other links. */}
+            <Link
+              href="/developer"
+              className="inline-block py-1 font-semibold text-slate-300 underline-offset-2 hover:text-teal-400 hover:underline transition"
+            >
+              Contact me
+            </Link>
+          </p>
+        )}
       </div>
     </footer>
   );

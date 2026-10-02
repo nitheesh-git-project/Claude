@@ -9,6 +9,7 @@ import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
 import { SectionNavProvider } from "@/components/SectionNavContext";
 import { getLayoutSettings } from "@/lib/siteSettingsCache";
+import { devContactFromRow } from "@/lib/devReachout";
 import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
@@ -76,14 +77,22 @@ export default async function RootLayout({
   // degrades to the old hardcoded strings as defaults if the migration
   // adding these columns hasn't run yet.
   //
-  // All four groups below are still four separate selects -- see
+  // All five groups below are still five separate selects -- see
   // siteSettingsCache.ts for why a newer column must not be able to blank
   // the site name -- but they now run concurrently and the whole set is
   // cached under the `site-settings` tag. This layout wraps every page in
   // the app, so what used to be four serial Supabase round-trips before
   // first byte, on every single page load, is now usually none.
-  const { brand: settingsRow, homeVisit: homeVisitRow, farewell: farewellRow, splash: splashRow } =
-    await getLayoutSettings();
+  const {
+    brand: settingsRow,
+    homeVisit: homeVisitRow,
+    farewell: farewellRow,
+    splash: splashRow,
+    devContact: devContactRow,
+  } = await getLayoutSettings();
+  // The developer credit under the footer's copyright. On unless an admin
+  // switched it off -- and an unreadable row is "could not check", not "off".
+  const devCreditEnabled = devContactFromRow(devContactRow).enabled;
   const brand = parseAdminSettings(settingsRow);
 
   // Whether the Navbar shows its Home Visit link. Defaults to hidden when
@@ -203,6 +212,7 @@ export default async function RootLayout({
             contactPhone={brand.contactPhone}
             footerCopyrightText={brand.footerCopyrightText}
             homeVisitEnabled={homeVisitEnabled}
+            devCreditEnabled={devCreditEnabled}
           />
           <ScrollHint />
         </SectionNavProvider>
