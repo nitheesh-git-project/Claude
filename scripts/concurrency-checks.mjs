@@ -81,10 +81,19 @@ let failures = 0;
 function assert(ok, msg) { console.log(`${ok ? "  PASS" : "  FAIL"}  ${msg}`); if (!ok) failures++; }
 
 // ---------- fixtures, created directly and torn down at the end ----------
+// A run that crashed part-way never reached the teardown, and its rows would
+// make every later run fail on a duplicate email. Clear this script's own
+// tagged rows first.
+await sql(`
+  delete from appointments where concern = '${TAG}';
+  delete from profiles where email like '${TAG.toLowerCase()}%@example.test';
+  delete from auth.users where email like '${TAG.toLowerCase()}%@example.test';
+`);
 const ids = await sql(`
   with u as (
     insert into auth.users (id, email) values
       (gen_random_uuid(), '${TAG.toLowerCase()}.p@example.test'),
+      (gen_random_uuid(), '${TAG.toLowerCase()}.p2@example.test'),
       (gen_random_uuid(), '${TAG.toLowerCase()}.t@example.test')
     returning id, email
   )
@@ -92,11 +101,18 @@ const ids = await sql(`
 `);
 const rows = ids[0].rows;
 const patient = rows.find(r => r.email.includes(".p@")).id;
+// A second patient: the schema refuses one patient two overlapping sessions
+// (appointments_patient_no_overlap), so a test of two sessions clashing on one
+// THERAPIST needs two patients to book them.
+const patient2 = rows.find(r => r.email.includes(".p2@")).id;
 const therapist = rows.find(r => r.email.includes(".t@")).id;
 
 await sql(`
   insert into profiles (id, role, full_name, approved, active, email)
     values ('${patient}', 'patient', '${TAG} patient', true, true, '${TAG.toLowerCase()}.p@example.test')
+    on conflict (id) do update set role='patient', approved=true, active=true;
+  insert into profiles (id, role, full_name, approved, active, email)
+    values ('${patient2}', 'patient', '${TAG} patient 2', true, true, '${TAG.toLowerCase()}.p2@example.test')
     on conflict (id) do update set role='patient', approved=true, active=true;
   insert into profiles (id, role, full_name, approved, active, email)
     values ('${therapist}', 'therapist', '${TAG} therapist', true, true, '${TAG.toLowerCase()}.t@example.test')
@@ -137,7 +153,7 @@ console.log("\n2. Two concurrent claims on overlapping slots, same therapist");
   const a = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
     values ('${patient}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
   const b = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
-    values ('${patient}', ${base} + interval '30 minutes', 60, 'requested', '${TAG}') returning id;`))[0].id;
+    values ('${patient2}', ${base} + interval '30 minutes', 60, 'requested', '${TAG}') returning id;`))[0].id;
 
   const [ra, rb] = await Promise.all([
     rpc("claim_therapist_slot", { p_appointment_id: a, p_therapist_id: therapist, p_expect_unassigned: true }),
@@ -171,7 +187,7 @@ console.log("\n3. Concurrent claims for the SAME slot on different therapists do
   const a = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
     values ('${patient}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
   const b = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
-    values ('${patient}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
+    values ('${patient2}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
 
   const [ra, rb] = await Promise.all([
     rpc("claim_therapist_slot", { p_appointment_id: a, p_therapist_id: therapist, p_expect_unassigned: true }),
