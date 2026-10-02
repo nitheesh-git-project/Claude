@@ -259,7 +259,8 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## Verifying a change
 
-`docs/rules/testing.md` -- 2 rules
+`docs/rules/testing.md` -- 3 rules
 
+- The QA accounts are never empty, so a spec that seeds a row and looks for it must not assume the row is on page one, or in a free slot
 - A spec that needs the *browser* to reach Supabase cannot pass here
 - Three specs guard this batch, and all three are screen-driven for the same reason

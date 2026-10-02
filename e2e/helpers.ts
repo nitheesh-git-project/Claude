@@ -2,7 +2,7 @@
 // the app's own HTTP API directly (via Node/Playwright's request context,
 // never a browser page) -- this suite is scoped to money-moving server
 // logic, not UI rendering, per the QA plan's "lightweight" scope decision.
-import { test, type Page } from "@playwright/test";
+import { test, type Locator, type Page } from "@playwright/test";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 
@@ -299,4 +299,60 @@ export async function deleteReferralFixtures(
   if (ids.length === 0) return;
   await warnOnFailure("appointments", admin.from("appointments").delete().in("referral_id", ids));
   await warnOnFailure("patient_referrals", admin.from("patient_referrals").delete().in("id", ids));
+}
+
+// ---------------------------------------------------------------- paging
+
+/**
+ * Walks a list's pager (`ListPager`, "Next page of <noun>") until `target`
+ * is on screen, and says whether it got there.
+ *
+ * A spec that seeds one row and then looks for it on the first page is
+ * really asserting how many rows every *other* spec has left on that
+ * account. The QA patients carry hundreds of sessions between runs, so a
+ * fresh row lands on page two and the case fails on working code --
+ * session-completed-cutoff asked for 200 per page and broke when patient A
+ * crossed 215; unscheduled-purchases never widened its page and broke at
+ * 11 rows. Following the pager is the only answer that does not move with
+ * the residue.
+ *
+ * Polls until `timeout` on the last page rather than giving up at once, so
+ * a list still loading reads as "not yet" rather than "not there".
+ */
+export async function pageUntilVisible(
+  page: Page,
+  nounPlural: string,
+  target: Locator,
+  { timeout = 30_000 }: { timeout?: number } = {}
+): Promise<boolean> {
+  const next = page.getByRole("button", { name: `Next page of ${nounPlural}` }).first();
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    if (await target.first().isVisible().catch(() => false)) return true;
+    if ((await next.count()) > 0 && (await next.isEnabled().catch(() => false))) {
+      await next.click();
+      continue;
+    }
+    if (Date.now() > deadline) return false;
+    await page.waitForTimeout(500);
+  }
+}
+
+/**
+ * How many times `target` appears across every page of a list, from the
+ * first page to the last. For the absence half of a filter assertion: a row
+ * missing from page one may only be on page two.
+ */
+export async function countAcrossPages(page: Page, nounPlural: string, target: Locator): Promise<number> {
+  const previous = page.getByRole("button", { name: `Previous page of ${nounPlural}` }).first();
+  const next = page.getByRole("button", { name: `Next page of ${nounPlural}` }).first();
+  while ((await previous.count()) > 0 && (await previous.isEnabled().catch(() => false))) {
+    await previous.click();
+  }
+  let total = await target.count();
+  while ((await next.count()) > 0 && (await next.isEnabled().catch(() => false))) {
+    await next.click();
+    total += await target.count();
+  }
+  return total;
 }
