@@ -175,6 +175,9 @@ that its six known no-egress failures are scrolled past is a suite nobody is
 reading, which is the same failure mode as a badge that is always on. Two
 gears:
 
+0. **Two Playwright projects.** `desktop` is the suite as it always ran;
+   `mobile` runs `e2e/mobile-*.spec.ts` on an emulated Pixel 7. Choose with
+   `--project=desktop|mobile`; a plain `npm run test:e2e` runs both.
 1. **Per change -- a quick retest and a regression.** `npm run verify`
    (lint + unit tests + build, which is what `verify` is for) plus **the
    specs that cover what moved**, by file:
