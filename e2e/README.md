@@ -1,6 +1,6 @@
 # The end-to-end suite
 
-55 spec files, ~390 cases, one worker. `npm run test:e2e` runs all of them;
+56 spec files, ~390 cases, one worker. `npm run test:e2e` runs all of them;
 `npx playwright test e2e/<name>.spec.ts` runs one.
 
 This file is the **inventory** - what exists and what each file is for. The
@@ -93,6 +93,7 @@ total, which moves with every spec added.
 
 | Spec | Cases | Covers |
 | --- | --- | --- |
+| `footer-social-links` | 3 | the footer's social icons: only filled-in links drawn, each opening in a new tab, the WhatsApp number too; the save route refusing a non-https or wrong-network link |
 | `admin-dashboard-ui` | 11 | the dashboard in a real browser |
 | `admin-refresh-badge` | 4 | the badge counting other people's changes, not the admin's own taps |
 | `admin-detail-overlay` | 4 | the overlay and the real route behind it rendering identically |

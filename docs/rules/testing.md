@@ -72,7 +72,7 @@ summary names them. The old script collapsed all of it into a row count: it
 passed on `admin_activity_log` because that table had rows and failed on
 `appointments` because it had none, so its verdict moved with how much data
 happened to be lying around -- a false alarm on a database whose policies
-were perfect, which is exactly how a red line stops being read. **`e2e/README.md` is the inventory** -- all 55 spec files, what each covers,
+were perfect, which is exactly how a red line stops being read. **`e2e/README.md` is the inventory** -- all 56 spec files, what each covers,
 how to run them, and the nine cases that cannot pass without browser egress.
 Read it to find a spec; read this section for the rules behind it. A new spec
 adds its row there in the same commit.

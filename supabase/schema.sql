@@ -14928,3 +14928,33 @@ update patient_admin_notes set temp_password = null where temp_password is not n
 update therapist_admin_notes set temp_password = null where temp_password is not null;
 update hospital_admin_notes set temp_password = null where temp_password is not null;
 update admin_account_notes set temp_password = null where temp_password is not null;
+
+-- The clinic's social profiles, shown as icons in the website footer.
+--
+-- One optional column per network, edited on Settings -> Brand & Contact
+-- through /api/admin/update-setting. Null means the clinic has no profile
+-- there and the footer draws no icon for it -- there is no default to fall
+-- back to, which is the point. src/lib/socialLinks.ts is the rule (https
+-- only, on that network's own domain) and the route refuses anything else
+-- with a sentence; the CHECK here is the floor under it, so a value written
+-- straight into the table still cannot put a `javascript:` URL into an
+-- `href` on every public page. The length matches MAX_SOCIAL_URL_LENGTH.
+--
+-- Read by the root layout and the admin dashboard in their own call, never
+-- folded into a shared select, so a database that has not run this block
+-- yet loses the icons and nothing else. `debug_reset_all_data()` leaves
+-- site_settings alone, so these survive a reset like the rest of the brand.
+alter table site_settings add column if not exists social_instagram_url text;
+alter table site_settings add column if not exists social_facebook_url text;
+alter table site_settings add column if not exists social_linkedin_url text;
+alter table site_settings add column if not exists social_youtube_url text;
+alter table site_settings add column if not exists social_whatsapp_url text;
+
+alter table site_settings drop constraint if exists site_settings_social_urls_https_check;
+alter table site_settings add constraint site_settings_social_urls_https_check check (
+  (social_instagram_url is null or (social_instagram_url like 'https://%' and char_length(social_instagram_url) <= 300))
+  and (social_facebook_url is null or (social_facebook_url like 'https://%' and char_length(social_facebook_url) <= 300))
+  and (social_linkedin_url is null or (social_linkedin_url like 'https://%' and char_length(social_linkedin_url) <= 300))
+  and (social_youtube_url is null or (social_youtube_url like 'https://%' and char_length(social_youtube_url) <= 300))
+  and (social_whatsapp_url is null or (social_whatsapp_url like 'https://%' and char_length(social_whatsapp_url) <= 300))
+);

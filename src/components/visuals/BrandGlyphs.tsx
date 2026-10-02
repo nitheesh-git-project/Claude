@@ -35,11 +35,12 @@ function Glyph({
   className,
   title,
   path,
-}: GlyphProps & { path: string }) {
+  viewBox = "0 0 448 512",
+}: GlyphProps & { path: string; viewBox?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 448 512"
+      viewBox={viewBox}
       className={className}
       // Matches the 1em box a Font Awesome <i> occupies, so these drop into
       // the existing layouts without shifting anything.
@@ -73,4 +74,37 @@ export function WhatsAppGlyph(props: GlyphProps) {
  *  to `fa-solid fa-calendar`. */
 export function CalendarOutlineGlyph(props: GlyphProps) {
   return <Glyph {...props} path={CALENDAR_PATH} />;
+}
+
+// The footer's social links (src/lib/socialLinks.ts). Same source and the
+// same reasoning as WhatsApp above: four brand icons are not worth the
+// 113 KB fa-brands webfont. Each keeps its own viewBox from the source file,
+// so the shapes are not stretched into the 448-wide box the others share.
+const INSTAGRAM_PATH =
+  "M224.3 141a115 115 0 1 0 -.6 230 115 115 0 1 0 .6-230zm-.6 40.4a74.6 74.6 0 1 1 .6 149.2 74.6 74.6 0 1 1 -.6-149.2zm93.4-45.1a26.8 26.8 0 1 1 53.6 0 26.8 26.8 0 1 1 -53.6 0zm129.7 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM399 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z";
+const FACEBOOK_PATH =
+  "M80 299.3l0 212.7 116 0 0-212.7 86.5 0 18-97.8-104.5 0 0-34.6c0-51.7 20.3-71.5 72.7-71.5 16.3 0 29.4 .4 37 1.2l0-88.7C291.4 4 256.4 0 236.2 0 129.3 0 80 50.5 80 159.4l0 42.1-66 0 0 97.8 66 0z";
+const LINKEDIN_PATH =
+  "M100.3 448l-92.9 0 0-299.1 92.9 0 0 299.1zM53.8 108.1C24.1 108.1 0 83.5 0 53.8 0 39.5 5.7 25.9 15.8 15.8s23.8-15.8 38-15.8 27.9 5.7 38 15.8 15.8 23.8 15.8 38c0 29.7-24.1 54.3-53.8 54.3zM447.9 448l-92.7 0 0-145.6c0-34.7-.7-79.2-48.3-79.2-48.3 0-55.7 37.7-55.7 76.7l0 148.1-92.8 0 0-299.1 89.1 0 0 40.8 1.3 0c12.4-23.5 42.7-48.3 87.9-48.3 94 0 111.3 61.9 111.3 142.3l0 164.3-.1 0z";
+const YOUTUBE_PATH =
+  "M549.7 124.1C543.5 100.4 524.9 81.8 501.4 75.5 458.9 64 288.1 64 288.1 64S117.3 64 74.7 75.5C51.2 81.8 32.7 100.4 26.4 124.1 15 167 15 256.4 15 256.4s0 89.4 11.4 132.3c6.3 23.6 24.8 41.5 48.3 47.8 42.6 11.5 213.4 11.5 213.4 11.5s170.8 0 213.4-11.5c23.5-6.3 42-24.2 48.3-47.8 11.4-42.9 11.4-132.3 11.4-132.3s0-89.4-11.4-132.3zM232.2 337.6l0-162.4 142.7 81.2-142.7 81.2z";
+
+/** `fa-brands fa-instagram`, inlined. */
+export function InstagramGlyph(props: GlyphProps) {
+  return <Glyph {...props} viewBox="0 0 448 512" path={INSTAGRAM_PATH} />;
+}
+
+/** `fa-brands fa-facebook-f`, inlined. */
+export function FacebookGlyph(props: GlyphProps) {
+  return <Glyph {...props} viewBox="0 0 320 512" path={FACEBOOK_PATH} />;
+}
+
+/** `fa-brands fa-linkedin-in`, inlined. */
+export function LinkedInGlyph(props: GlyphProps) {
+  return <Glyph {...props} viewBox="0 0 448 512" path={LINKEDIN_PATH} />;
+}
+
+/** `fa-brands fa-youtube`, inlined. */
+export function YouTubeGlyph(props: GlyphProps) {
+  return <Glyph {...props} viewBox="0 0 576 512" path={YOUTUBE_PATH} />;
 }

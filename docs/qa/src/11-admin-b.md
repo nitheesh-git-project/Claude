@@ -10,7 +10,7 @@ Every setting below is read through one shared settings module with defaults. **
 
 #### `ADM-SET-001` - Brand & Contact Details · P1
 
-**What it controls.** `site_name`, `site_tagline`, `site_description`, `contact_email`, `whatsapp_number`, `contact_phone`, `footer_copyright_text`.
+**What it controls.** `site_name`, `site_tagline`, `site_description`, `contact_email`, `whatsapp_number`, `contact_phone`, `footer_copyright_text`. The social links on the same screen are `ADM-SET-001b`.
 **What depends on it.** The **root layout** is the one place these are read (through a public/anon client, so ISR-cached pages under it are not forced dynamic) and it passes them into `Navbar` and `Footer` **as props**. Those two components must never fetch their own copy or hardcode a string.
 
 **Steps**
@@ -24,6 +24,21 @@ Every setting below is read through one shared settings module with defaults. **
 
 **Expected Result.** Step 4: the navbar and the page title/description show `QA Physio Clinic`. Step 5: the footer shows the new line. Step 6: refused with a validation message (`Enter a valid email address.`). Step 3 and every reload: values persist. Existing records are unaffected - this is presentation only.
 **Interaction worth checking:** the **splash** brand line is **blank by default and falls back to the site name**, so changing the site name also changes the splash greeting until an admin deliberately parts them.
+
+#### `ADM-SET-001b` - Social media links · P2
+
+**What it controls.** `social_instagram_url`, `social_facebook_url`, `social_linkedin_url`, `social_youtube_url`, `social_whatsapp_url` - the icon row under the clinic's name in the website footer.
+
+**Steps**
+1. Open **Settings → Brand & Contact → Social Media Links**. With nothing set, each row reads *Not set - no icon in the footer*, and `/` shows **no** icon row in the footer.
+2. Set **Instagram** to `instagram.com/yourclinic` (no `https://`). Save.
+3. Set **Facebook** to `https://www.youtube.com/@clinic`. Save.
+4. Set **YouTube** to `javascript:alert(1)`. Save.
+5. Open `/` and scroll to the footer. Click the Instagram icon.
+6. Back on Settings, edit **Instagram**, clear the box, Save. Reload `/`.
+7. In the footer's **Contact** column, click the WhatsApp number (needs a real number set above).
+
+**Expected Result.** Step 2: saved, and the row shows `https://instagram.com/yourclinic`. Step 3: refused - *That link isn't on Facebook (facebook.com).* Step 4: refused - *Enter a web link starting with https://*. Step 5: only the Instagram icon shows; it opens the profile **in a new tab** and the site stays open in the original one. Step 6: the toast says the icon is removed, and the footer has no icon row. Step 7: WhatsApp opens **in a new tab**; the website page is not replaced.
 
 ---
 

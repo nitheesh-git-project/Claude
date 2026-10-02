@@ -563,7 +563,10 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   lead time, cancellation refund window, default validity, bulk-scheduler
   limit, travel buffer minutes, and the public page's heading/subheading -
   and Brand & Contact Details - site name, tagline, description, contact
-  email, WhatsApp number, contact phone, footer copyright text - and the
+  email, WhatsApp number, contact phone, footer copyright text, and the five
+  optional social links (`social_*_url`, see `src/lib/socialLinks.ts`, where
+  blank means "no icon" rather than a default, and which are read in their
+  own guarded call, never through `SITE_SETTINGS_SELECT`) - and the
   Home page walkthrough's per-step rotation seconds, where 0 means "don't
   rotate" - and the mission and vision lines on Settings -> Public Site, where
   blank means "use the wording in `src/lib/mission.ts`", and the promises and

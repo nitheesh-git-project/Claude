@@ -122,6 +122,7 @@ import MissionPrincipleManager, {
   type MissionPrincipleRecord,
 } from "@/components/admin/MissionPrincipleManager";
 import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm";
+import { SOCIAL_LINKS_SELECT, SOCIAL_LINK_COLUMNS } from "@/lib/socialLinks";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import PagedList from "@/components/dashboard/PagedList";
@@ -873,6 +874,7 @@ export default async function AdminDashboardPage({
     appointmentPromoRows,
     financeSettings,
     missionCopyRow,
+    socialLinksRow,
     missionPrincipleRows,
     payLaterAgeSetting,
     payLaterFeatureEnabled,
@@ -1087,6 +1089,15 @@ export default async function AdminDashboardPage({
             .maybeSingle()
         ).data,
       null as { mission_statement: string | null; vision_statement: string | null } | null
+    ),
+    // The footer's social links (Settings -> Brand & Contact). Newest
+    // columns on site_settings, so their own guarded read: a database that
+    // has not run that part of schema.sql shows them blank, nothing else.
+    guard(
+      async () =>
+        (await supabase.from("site_settings").select(SOCIAL_LINKS_SELECT).maybeSingle())
+          .data as Record<string, string | null> | null,
+      null as Record<string, string | null> | null
     ),
     // The promises and the limits. Read with the admin client rather than the
     // page's own, because the public policy shows active rows only and an
@@ -3302,6 +3313,9 @@ export default async function AdminDashboardPage({
           whatsappNumber: adminSettings.whatsappNumber,
           contactPhone: adminSettings.contactPhone,
           footerCopyrightText: adminSettings.footerCopyrightText,
+          socialLinks: Object.fromEntries(
+            SOCIAL_LINK_COLUMNS.map((column) => [column, socialLinksRow?.[column] ?? ""])
+          ),
         }}
       />
     </div>

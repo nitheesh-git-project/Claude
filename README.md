@@ -158,7 +158,7 @@ Three more checks need a real database and are run by hand, never in lint:
 
 ### End-to-end regression suite
 
-`npm run test:e2e` runs the Playwright suite under `e2e/` - **55 spec
+`npm run test:e2e` runs the Playwright suite under `e2e/` - **56 spec
 files**, around 390 cases, listed one by one in **`e2e/README.md`** - against a running `npm run dev` (started
 automatically if one isn't already up). It needs real credentials for a
 **test/staging** Supabase project and Razorpay **test-mode** keys in the
@@ -1967,6 +1967,16 @@ many minutes a tab must sit in the background before returning to it earns
 a second greeting. See [The opening splash](#the-opening-splash) for the
 columns, the bounds and what 0 minutes means.
 
+The same screen carries **Social Media Links** - Instagram, Facebook,
+LinkedIn, YouTube and WhatsApp (`social_instagram_url`, `social_facebook_url`,
+`social_linkedin_url`, `social_youtube_url`, `social_whatsapp_url`). Each is
+optional: the footer draws an icon only for the ones filled in, and every
+icon opens in a new tab. A link must be `https` and on that network's own
+domain (`src/lib/socialLinks.ts`, enforced by the save route and a CHECK on
+the columns); a bare `instagram.com/clinic` gets `https://` added, and
+saving an empty box removes the icon. The footer's WhatsApp contact number
+also opens in a new tab now, rather than replacing the page.
+
 Brand & Contact Details fields save individually (click Edit on a field,
 change it, Save) via `/api/admin/update-setting`, same as every other
 `site_settings` column; the root layout reads them on every request to pass
@@ -2751,7 +2761,7 @@ scripts/                 One-off tooling (Google refresh-token helper,
                          and seed-qa-accounts.mjs, which recreates its
                          fixture accounts after a data reset)
 e2e/                     The Playwright suite. e2e/README.md is its
-                         inventory - all 55 spec files, what each covers,
+                         inventory - all 56 spec files, what each covers,
                          how to run them, and the nine cases that cannot
                          pass without browser egress to Supabase
 docs/rules/              The working rules for editing this codebase, split

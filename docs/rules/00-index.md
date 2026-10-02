@@ -104,7 +104,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## Writing the UI
 
-`docs/rules/frontend.md` -- 21 rules
+`docs/rules/frontend.md` -- 22 rules
 
 - Copy that two roles read needs a `voice`, not a compromise
 - Never tell someone they did something they did not do
@@ -161,7 +161,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## Roles, security and operations
 
-`docs/rules/ops-security.md` -- 19 rules
+`docs/rules/ops-security.md` -- 20 rules
 
 - Rate limiting is Postgres, not Redis, and it fails open
 - A flag is never an accusation, and never carries a penalty
@@ -215,7 +215,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## The public site
 
-`docs/rules/public-site.md` -- 26 rules
+`docs/rules/public-site.md` -- 27 rules
 
 - The splash greets a cold open, and nothing else
 - The eight public pages are one template, not eight layouts
@@ -243,6 +243,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - The promises and the limits are rows, and an empty table is not an empty band
 - Testimonials are the one place the site quotes a person, so treat them as evidence
 - A public catalog card opens a dialog; booking is its own button
+- The footer's social icons are only the ones an admin filled in, and each opens in a new tab
 
 ## Therapists: roster, readiness and assignment
 

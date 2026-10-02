@@ -515,3 +515,16 @@ Eight pages from one design system, the word budgets, why every photograph carri
   dots, savings meter, stat tiles) live in
   `src/components/catalog/CatalogVisuals.tsx` and are fed already-computed
   numbers, since the arithmetic belongs in `src/lib/`.
+- **The footer's social icons are only the ones an admin filled in, and each
+  opens in a new tab.** Five optional `site_settings` columns
+  (Settings -> Brand & Contact -> Social Media Links); blank hides that icon,
+  and none filled in draws no row at all - an icon leading nowhere is worse
+  than no icon, the same reading the footer gives a placeholder phone
+  number. `src/lib/socialLinks.ts` is the one rule (https only, on the
+  network's own domain) and the footer re-applies it to what it reads, so a
+  value written straight into the table is dropped rather than rendered as
+  an `href`. A link that leaves the site for another app - these and the
+  footer's WhatsApp number - carries `target="_blank"` with
+  `rel="noopener noreferrer"` and says "(opens in a new tab)" in its
+  accessible name; `mailto:` and `tel:` stay as they are. The icons are
+  inline SVG in `BrandGlyphs.tsx`, not the fa-brands webfont.

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
+import { SOCIAL_LINKS, normaliseSocialUrl, type SocialLinkDef } from "@/lib/socialLinks";
 
 /**
  * One row of the section below: label, current value, an Edit button that
@@ -17,12 +18,16 @@ function EditableField({
   value,
   type = "text",
   multiline = false,
+  social,
 }: {
   settingKey: string;
   label: string;
   value: string;
   type?: "text" | "email";
   multiline?: boolean;
+  /** A social link: blank is allowed (it hides the icon) and the value is
+   *  checked and cleaned by the same rule the save route applies. */
+  social?: SocialLinkDef;
 }) {
   const saveSetting = useSaveSetting();
   const [editing, setEditing] = useState(false);
@@ -39,16 +44,27 @@ function EditableField({
   }
 
   function handleSave() {
-    const trimmed = draft.trim();
-    if (!trimmed) {
+    let next: string | null = draft.trim();
+    if (social) {
+      // Checked here as well as on the server so the sentence arrives
+      // before a round trip, and so the row shows the cleaned link (with
+      // https:// added) rather than what was typed.
+      const result = normaliseSocialUrl(social.platform, next);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      next = result.value;
+    } else if (!next) {
       setError("This can't be blank.");
       return;
     }
+    const toSave = next;
     setError(null);
     startTransition(async () => {
       try {
-        await saveSetting(settingKey, trimmed);
-        setSavedValue(trimmed);
+        await saveSetting(settingKey, toSave);
+        setSavedValue(toSave ?? "");
         setEditing(false);
         // Navbar/Footer read this from the root layout, not from anything
         // on this page -- refresh so the layout's own data (and this admin
@@ -67,7 +83,11 @@ function EditableField({
       <div className="min-w-0 flex-1">
         {!editing ? (
           <div className="flex items-start justify-between gap-3">
-            <p className="min-w-0 break-words text-sm text-slate-600">{savedValue}</p>
+            {savedValue || !social ? (
+              <p className="min-w-0 break-words text-sm text-slate-600">{savedValue}</p>
+            ) : (
+              <p className="min-w-0 text-sm italic text-slate-500">Not set - no icon in the footer</p>
+            )}
             <button
               type="button"
               onClick={startEdit}
@@ -90,9 +110,17 @@ function EditableField({
               <input
                 type={type}
                 value={draft}
+                aria-label={label}
+                placeholder={social?.example}
+                inputMode={social ? "url" : undefined}
                 onChange={(e) => setDraft(e.target.value)}
                 className="w-full rounded-lg border border-slate-300 p-2 text-sm focus:border-teal-500 focus:outline-none"
               />
+            )}
+            {social && (
+              <p className="text-[11px] text-slate-500">
+                Paste the full link to your {social.label} page. Leave it empty and save to remove the icon.
+              </p>
             )}
             <div className="flex gap-2">
               <button
@@ -127,6 +155,8 @@ export type BrandContactDetails = {
   whatsappNumber: string;
   contactPhone: string;
   footerCopyrightText: string;
+  /** Keyed by column (social_instagram_url, ...); blank when not set. */
+  socialLinks: Record<string, string>;
 };
 
 /**
@@ -176,6 +206,23 @@ export default function BrandContactDetailsForm({ details }: { details: BrandCon
           label="Footer Copyright Text"
           value={details.footerCopyrightText}
         />
+      </div>
+
+      <h3 className="mt-8 font-display text-base font-bold text-slate-800 mb-1">Social Media Links</h3>
+      <p className="text-xs text-slate-500 mb-2">
+        Shown as icons in the website footer, opening in a new tab. Only the ones you fill in
+        appear - leave a network empty and it is hidden automatically.
+      </p>
+      <div>
+        {SOCIAL_LINKS.map((link) => (
+          <EditableField
+            key={link.column}
+            settingKey={link.column}
+            label={link.label}
+            value={details.socialLinks[link.column] ?? ""}
+            social={link}
+          />
+        ))}
       </div>
     </div>
   );
