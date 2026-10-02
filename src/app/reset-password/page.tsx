@@ -32,7 +32,15 @@ export default function ResetPasswordPage() {
       // setting.
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
-      if (code) {
+      // A one-time link an admin issued (src/lib/accessLink.ts) carries the
+      // recovery token itself; the patient-initiated "forgot password" email
+      // carries a PKCE code. Either opens the same session.
+      const tokenHash = url.searchParams.get("token_hash");
+      if (tokenHash) {
+        await supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash });
+        // The token is single-use; keep it out of history and screenshots.
+        window.history.replaceState(null, "", url.pathname);
+      } else if (code) {
         await supabase.auth.exchangeCodeForSession(code);
       }
       const {

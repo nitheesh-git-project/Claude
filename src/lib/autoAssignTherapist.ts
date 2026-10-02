@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AVAILABILITY_HOURS, computeDayAvailability } from "@/lib/therapistAvailability";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { toDateKey } from "@/lib/bookingSlots";
+import { clinicDateKey, clinicHour } from "@/lib/clinicWeek";
 import { canAutoAssignTo } from "@/lib/therapistReadiness";
 
 /**
@@ -127,12 +127,12 @@ export async function pickAutoAssignTherapist(
     const isHomeVisit = input.visitMode === "home_visit";
     const bufferMinutes = isHomeVisit ? Math.max(0, input.travelBufferMinutes ?? 0) : 0;
 
-    // The hour the roster is keyed by, read in the same local terms the
-    // roster itself uses -- see therapistAvailability.ts on why a date key
-    // needs no timezone conversion.
-    const slotDate = new Date(slotMs);
-    const dateKey = toDateKey(slotDate);
-    const hour = slotDate.getHours();
+    // The roster is the clinic's: its date and hour are clinic-local. They
+    // used to be read off the *server's* clock (getDate/getHours), so on a
+    // UTC host a 9:00 IST booking looked for a 3:00 slot -- which nobody
+    // works -- and every session stayed unassigned.
+    const dateKey = clinicDateKey(slotMs);
+    const hour = clinicHour(slotMs);
     if (!AVAILABILITY_HOURS.includes(hour)) return null;
 
     // Eligible at all: an approved, active therapist who is not on leave.

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isPatientProfile, isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { isPatientProfile, isProfileActive, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import {
@@ -81,7 +81,9 @@ export async function POST(request: NextRequest) {
   // vets them (see approvePatientForGenuinePaymentAttempt). The row this
   // creates is always unpaid, unassigned and 'requested', so it grants
   // nothing on its own. Suspension is still enforced.
-  if (!(await isProfileActive(user.id))) {
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
 
@@ -94,7 +96,9 @@ export async function POST(request: NextRequest) {
   // which is the bug the RLS clause was added for, after money had moved
   // for one. The wizards say so in the UI and the purchase routes check it
   // too; this is the same check for a session cookie calling directly.
-  if (!(await isPatientProfile(user.id))) {
+  const isPatient = await isPatientProfile(user.id);
+  if (isPatient === null) return profileCheckUnavailable();
+  if (!isPatient) {
     return NextResponse.json(
       { error: "This account can't book sessions. Sessions are booked under a patient account." },
       { status: 403 }
@@ -166,11 +170,17 @@ export async function POST(request: NextRequest) {
   // immediate feedback before the last step; this is the copy that actually
   // binds, since the wizard's is a browser check like any other.
   const newEndMs = slotMs + durationMinutes * 60_000;
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await admin
     .from("appointments")
     .select("slot_time, duration_minutes")
     .eq("patient_id", user.id)
     .in("status", ["requested", "confirmed"]);
+  if (existingError) {
+    return NextResponse.json(
+      { error: "We couldn't check your existing bookings just now. Please try again." },
+      { status: 503 }
+    );
+  }
   const overlaps = (existing ?? []).some((a) => {
     if (!a.slot_time) return false;
     const startMs = new Date(a.slot_time).getTime();
@@ -244,6 +254,19 @@ export async function POST(request: NextRequest) {
     .select("id")
     .single();
 
+  // The same overlap, caught where it binds: trg_appointments_patient_no_overlap
+  // refuses the insert under a per-patient lock, which is what closes the
+  // window between the check above and this write for two requests fired
+  // together.
+  if (error?.code === "23P01") {
+    return NextResponse.json(
+      {
+        error:
+          "You already have a session scheduled around this time. Please pick a different slot, or check your dashboard for existing bookings.",
+      },
+      { status: 409 }
+    );
+  }
   if (error || !created) {
     console.error("Failed to create booking for patient", user.id, error);
     return NextResponse.json(

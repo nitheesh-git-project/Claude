@@ -27,6 +27,35 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   which entries exist stays in the always-loaded core, or the nav would
   change shape as you move between screens. Anything rendered by more than one route
   (the session cards) is a real component, not a closure.
+- **A dashboard read that can pass 1,000 rows is paged, and the one every
+  screen is built from says when it failed.** The patient and therapist
+  loaders read each appointment column group with `readAllRowsAsData`
+  (`{ data, error }` shape, so the `Promise.all` destructuring is
+  unchanged) and the id-keyed lookups behind them with `readAllRowsByIds`.
+  These reads are merged by id, so a capped one lost Meet links, session
+  codes, refund lines and payment terms on whichever sessions fell off its
+  end - and a therapist's earnings were summed over the first page. A
+  failed main appointments read shows the load banner instead of "no
+  sessions" or "₹0".
+  The admin dashboard follows the same rule for every read over a table
+  that grows (appointments' supplementary column groups, profiles,
+  purchases, referrals, payout batches and requests, expenses - no more
+  `.limit(500)` on costs that feed profit), and the System Health
+  accounting check narrows its query to unbacked sessions and reads them in
+  full rather than filtering the newest 200.
+- **A partner sees what was delivered and what it earned them - never the
+  session.** The hospital loader reads referred patients' **completed**
+  sessions only, and never `meet_link`: a consultation is private to the
+  patient and their therapist, and the Earnings screen once rendered a live
+  Join button into it. Each session's commission comes from
+  `hospitalSessionLine` (`src/lib/hospitalEarnings.ts`), which calls
+  `partnerCutFor` - the same function the admin Money screens use - so the
+  two screens agree by construction, at the rate frozen at completion
+  (`hospital_share_percent_at_completion`) and on pay-later sessions from
+  delivery. A session whose completion snapshot names no partner or a
+  different one earns this partner nothing. Every read is paged
+  (`readAllRows` / `readAllRowsByIds`), and a failed read shows the load
+  banner instead of "no referrals" or "₹0".
 - **Every dashboard opens on the same Overview.** Patient, therapist,
   hospital and admin all render `DashboardOverview.tsx` - a strip of four
   figures (`StatStrip`), the notification feed (`ActivityFeed`), and a
@@ -100,6 +129,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   appears for a therapist with package patients. Booking is the deliberate
   exception: it is always shown, because that is how a patient gets their
   first of anything.
+- **A dropped live connection is said, and caught up on.** `RealtimeRefresh`
+  passes a status callback to `channel.subscribe`: `CHANNEL_ERROR`,
+  `TIMED_OUT` or an unexpected `CLOSED` shows a small "Live updates paused"
+  notice with a Refresh button, and the next `SUBSCRIBED` clears it and
+  refreshes once, since nothing that changed during the gap was delivered.
+  It used to subscribe with no callback, so a refused or dropped socket
+  stopped the dashboard updating with nothing on screen to say so.
 - **A dashboard refresh is expensive; debounce accordingly.**
   `RealtimeRefresh` turns a `postgres_changes` event into `router.refresh()`,
   which on the admin dashboard re-runs the whole Server Component - ~40

@@ -40,7 +40,8 @@ export default function MarkNoShowButton({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? "Could not update. Please try again.");
-        if (res.status === 409) {
+        // "Not late enough yet" changed nothing, so the card stays as it is.
+        if (res.status === 409 && !data.notYet) {
           // Someone else already changed this session (marked it done, or
           // the patient cancelled it) - refresh so this stops showing it as
           // still actionable.

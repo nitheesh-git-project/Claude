@@ -264,6 +264,14 @@ before.
   counter's compare-and-swap still wins the booking race, with the ledger's
   row lock beside it. Making the ledger the claiming mechanism means
   deleting the counter writes, which is its own change with its own risk.
+  **Giving a credit back is retried until it lands.** Every restore and
+  every failed-booking rollback goes through `decrementUsedCounter`
+  (`src/lib/purchaseCounter.ts`). Each used to make one compare-and-swap
+  attempt: losing a race against another cancellation returned no credit,
+  and a rollback that matched zero rows read as success because only the
+  error was checked. Each caller is already exactly-once (an appointment is
+  claimed cancelled once; a failed insert rolls back once), so retrying
+  cannot double-restore - it can only stop losing.
 
   **The ledger is written alongside the old counters, and does not yet
   replace them.** All eight statements in `src/` that mutate
@@ -461,7 +469,15 @@ before.
   are otherwise simply absent, which fails in ways that read as code bugs.
   STAGING.md holds the whole model.
 
-- **No cron or background worker exists in this deployment.** Anything that
+- **Time-based work runs lazily on render AND on a schedule, and never
+  depends on either alone.** `src/lib/maintenanceSweep.ts` gathers the
+  sweeps (programme and home-visit expiry, Meet sync retries, Meet waiting
+  rooms, the risk scan, the credential purge); the admin dashboard runs it
+  in `after()`, and `/api/cron/maintenance` (bearer `CRON_SECRET`) runs it
+  every 30 minutes from `.github/workflows/maintenance.yml` once a person
+  sets the `MAINTENANCE_URL` and `CRON_SECRET` repository secrets. Before
+  that, a failed Meet link waited for somebody to open the back office.
+  The original rule below still holds for how a sweep is written: anything that
   needs to happen "when time passes" (a package purchase's `status` moving
   from `active` to `expired` past `expires_at`) runs as a lazy, idempotent
   sweep at the top of a relevant page's render instead of on a schedule -

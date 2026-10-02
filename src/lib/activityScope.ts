@@ -168,6 +168,7 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "log.clear": "full_only",
   "impersonation.start": "full_only",
   "impersonation.end": "full_only",
+  "impersonation.action": "full_only",
 };
 
 export type ActivityViewer = {

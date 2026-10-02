@@ -3,6 +3,7 @@ import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { mirrorReserve } from "@/lib/sessionCreditMirror";
 import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
+import { decrementUsedCounter } from "@/lib/purchaseCounter";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -72,6 +73,7 @@ export async function bookPackageSession(
     actorId,
     sessionDurationMinutesOverride,
     preferredTherapistId,
+    assignTherapistId,
   }: {
     purchase: PurchaseForBooking;
     slotDateTime: string;
@@ -94,6 +96,12 @@ export async function bookPackageSession(
     // Never auto-assigns; auto-assignment only ever happens from an
     // existing lock, never from a preference.
     preferredTherapistId?: string | null;
+    // The therapist to reserve when the purchase has no lock -- the one who
+    // proposed this exact time in a session suggestion. Without it an
+    // accepted suggestion landed unassigned in the admin's queue, and the
+    // therapist who had offered the slot lost it. Ignored when a lock
+    // exists: the lock decides.
+    assignTherapistId?: string | null;
   }
 ): Promise<BookPackageSessionResult> {
   if (purchase.payment_status !== "paid") {
@@ -211,24 +219,26 @@ export async function bookPackageSession(
     // blindly overwriting with the pre-claim value, which could clobber a
     // concurrent cancellation/refund on this same package that landed in
     // between the claim above and this rollback.
-    const { data: current } = await admin
-      .from("patient_package_purchases")
-      .select("sessions_used")
-      .eq("id", purchase.id)
-      .single();
-    if (current && current.sessions_used > 0) {
-      const { error: revertError } = await admin
-        .from("patient_package_purchases")
-        .update({ sessions_used: current.sessions_used - 1 })
-        .eq("id", purchase.id)
-        .eq("sessions_used", current.sessions_used);
-      if (revertError) {
-        console.error(
-          "Failed to revert claimed package session for purchase",
-          purchase.id,
-          revertError
-        );
-      }
+    // Retried until it lands (decrementUsedCounter): a single attempt that
+    // lost a race, or matched no row, used to leave the credit consumed
+    // with no session to show for it -- only the error was ever checked.
+    const reverted = await decrementUsedCounter(
+      admin,
+      "patient_package_purchases",
+      "sessions_used",
+      purchase.id
+    );
+    if (!reverted.ok) {
+      console.error("Failed to revert claimed package session for purchase", purchase.id, reverted.error);
+    }
+    // trg_appointments_patient_no_overlap: the patient already has another
+    // session at this time. The credit has been given back above.
+    if ((insertError as { code?: string } | null)?.code === "23P01") {
+      return {
+        success: false,
+        status: 409,
+        error: "You already have a session around this time. Pick a different slot.",
+      };
     }
     if ((insertError as { code?: string } | null)?.code === "23505") {
       return {
@@ -250,10 +260,11 @@ export async function bookPackageSession(
   // lock on that therapist.
   let assignedTherapistId: string | null = null;
   let shouldAutoConfirm = false;
-  if (purchase.locked_therapist_id) {
+  const reserveTherapistId = purchase.locked_therapist_id ?? assignTherapistId ?? null;
+  if (reserveTherapistId) {
     const claim = await claimTherapistSlot(admin, {
       appointmentId: appointment.id,
-      therapistId: purchase.locked_therapist_id,
+      therapistId: reserveTherapistId,
       expectUnassigned: true,
       // Paid already, and a locked therapist who is free leaves nothing
       // for an admin to approve -- so the confirmation happens in the same
@@ -262,7 +273,7 @@ export async function bookPackageSession(
       confirm: true,
     });
     if (claim.ok) {
-      assignedTherapistId = purchase.locked_therapist_id;
+      assignedTherapistId = reserveTherapistId;
       shouldAutoConfirm = true;
       // The preference was only ever a fallback for an unassigned session.
       await admin

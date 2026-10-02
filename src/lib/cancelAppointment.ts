@@ -9,6 +9,7 @@ import {
   succeedRefundAttempt,
   failRefundAttempt,
 } from "@/lib/refundAttempt";
+import { decrementUsedCounter } from "@/lib/purchaseCounter";
 
 type CancelResult =
   | { error: string; status: number; payoutSettled?: boolean }
@@ -184,35 +185,24 @@ export async function cancelAppointmentAndRefund(
     googleEventId: appointment.google_event_id,
   });
 
-  // Give the package session back. Best-effort compare-and-swap on the
-  // purchase row - if it loses a race against another cancellation on the
-  // same package, the session simply doesn't get restored rather than
-  // risking a double-restore; the appointment's own cancellation above is
-  // already safely claimed regardless.
+  // Give the package session back. The appointment's own cancellation above
+  // is claimed exactly once, so this restore runs exactly once per
+  // cancellation -- and it is retried until it lands. It used to make one
+  // compare-and-swap attempt and give up on losing a race against another
+  // cancellation on the same package, so two cancellations at once returned
+  // one credit and the counter disagreed with the ledger for good.
   if (willRestorePackageSession && appointment.package_purchase_id) {
-    const { data: purchase } = await admin
-      .from("patient_package_purchases")
-      .select("id, sessions_used")
-      .eq("id", appointment.package_purchase_id)
-      .single();
-    if (purchase && purchase.sessions_used > 0) {
-      const { error: restoreError } = await admin
-        .from("patient_package_purchases")
-        .update({ sessions_used: purchase.sessions_used - 1 })
-        .eq("id", purchase.id)
-        .eq("sessions_used", purchase.sessions_used);
-      if (restoreError) {
-        console.error(
-          "Failed to restore package session for appointment",
-          appointmentId,
-          restoreError
-        );
-      }
+    const restored = await decrementUsedCounter(
+      admin,
+      "patient_package_purchases",
+      "sessions_used",
+      appointment.package_purchase_id
+    );
+    if (!restored.ok) {
+      console.error("Failed to restore package session for appointment", appointmentId, restored.error);
     }
-    // Dual-write the same restore into the ledger. Unlike the CAS above --
-    // which is best-effort and silently does nothing if it loses a race --
-    // the ledger release is keyed on the appointment, so a concurrent
-    // cancellation cannot make it release twice or skip it.
+    // Dual-write the same restore into the ledger, keyed on the appointment,
+    // so a concurrent cancellation cannot make it release twice or skip it.
     await mirrorRelease(admin, {
       appointmentId,
       actorId: cancelledBy,
@@ -222,28 +212,16 @@ export async function cancelAppointmentAndRefund(
   }
 
   // The home-visit twin of the package restore above, against its own
-  // purchases table. Same best-effort CAS reasoning: a losing race against
-  // another cancellation on the same purchase just doesn't restore, rather
-  // than risking a double-restore.
+  // purchases table, with the same retry-until-it-lands restore.
   if (willRestoreHomeVisit && appointment.home_visit_purchase_id) {
-    const { data: purchase } = await admin
-      .from("home_visit_package_purchases")
-      .select("id, visits_used")
-      .eq("id", appointment.home_visit_purchase_id)
-      .single();
-    if (purchase && purchase.visits_used > 0) {
-      const { error: restoreError } = await admin
-        .from("home_visit_package_purchases")
-        .update({ visits_used: purchase.visits_used - 1 })
-        .eq("id", purchase.id)
-        .eq("visits_used", purchase.visits_used);
-      if (restoreError) {
-        console.error(
-          "Failed to restore home visit for appointment",
-          appointmentId,
-          restoreError
-        );
-      }
+    const restored = await decrementUsedCounter(
+      admin,
+      "home_visit_package_purchases",
+      "visits_used",
+      appointment.home_visit_purchase_id
+    );
+    if (!restored.ok) {
+      console.error("Failed to restore home visit for appointment", appointmentId, restored.error);
     }
     await mirrorRelease(admin, {
       appointmentId,

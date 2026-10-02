@@ -377,52 +377,50 @@ The screen warns you to turn it on only once System Health has been clean.
 #### `ADM-SET-026` - Create the three scoped admins · P0
 **Steps.** Create `qa.admin.ops@example.test` (Operations), `qa.admin.finance@example.test` (Finance), `qa.admin.clinical@example.test` (Clinical).
 **The Account type picker is one control, not two.** It lists six entries in two groups - **Clinic**: Patient, Therapist · **Back office**: Master Admin, Operations, Finance, Clinical - using the same four names the dashboards call themselves. There is no separate **Access level** dropdown; picking a back-office desk shows that desk's one-line description under the picker. As a **non-`full`** admin, the whole Back office group is **absent** (only a Master Admin may mint an admin, and `create-account` enforces that with a full-only check, not a section gate - see §2).
-**Expected Result.** Each is created with a generated password that is shown on the panel **and kept on that admin's own row in Back office** until they set their own, and is **never logged** (`ADM-SET-026b`). Signing in as each shows only their allowed sections in the sidebar - Operations: Today, Sessions, People, Catalog. Finance: Today, **Sessions (read-only)**, People, Money. Clinical: Today, Sessions, People.
+**Expected Result.** Each is created with **no password anyone can read**: the panel shows a **one-time sign-in link** for them to set their own, which is never stored and never logged (`ADM-SET-026b`). Signing in as each shows only their allowed sections in the sidebar - Operations: Today, Sessions, People, Catalog. Finance: Today, **Sessions (read-only)**, People, Money. Clinical: Today, Sessions, People.
 
-#### `ADM-SET-026b` - The issued password survives, and the chosen one is never shown · P0
+#### `ADM-SET-026b` - No password is issued, stored or shown; a one-time link is · P0
 
-**Feature.** Every route in this app that generates a password now stores the plaintext on a service-role-only table, so a credential cannot be lost to a re-render. Create-account was the last one that did not: it held the password in React state alone, and the `profiles` row it had just inserted fired a realtime refresh that took it off the screen mid-sentence.
+**Feature.** Creating or resetting any account (patient, therapist, partner, back office) no longer generates a password. The account gets one nobody knows, and the admin is shown a **one-time sign-in link** (`/reset-password?token_hash=...`) to send them, with which they set their own. Nothing readable is written to the `*_admin_notes` tables, and the plaintext earlier versions stored there is cleared by `schema.sql`.
 
 **Steps**
-1. Create a back-office account. **Without touching anything**, wait for the dashboard to refresh (or have a second admin approve something so a realtime event fires).
-2. Reload the page entirely and open **Settings → User Access**.
-3. Press **Copy** on that row.
-4. Create a **patient** and a **therapist** the same way, then open each of their profiles under **People**.
-5. Sign in as the new admin and change the password through the forgot-password flow. Reopen User Access.
-6. Look for anywhere in the product that displays the password they just chose.
-7. **[SQL]** `select * from admin_account_notes;` as an authenticated non-service-role session.
-8. **[SQL]** Search `admin_activity_log` for any generated password.
+1. Create a back-office account. Copy the link from the panel.
+2. Open the link in a private window. Set a password.
+3. Open the same link again.
+4. Reload the admin page and open **Settings → User Access**, then a patient's and a partner's page under **People**.
+5. Press **Reset password (send sign-in link)** on another account's row and confirm.
+6. **[SQL]** `select temp_password from patient_admin_notes where temp_password is not null union all select temp_password from therapist_admin_notes where temp_password is not null union all select temp_password from hospital_admin_notes where temp_password is not null union all select temp_password from admin_account_notes where temp_password is not null;`
+7. **[SQL]** Search `admin_activity_log` for any link or token.
 
 **Expected Result**
-* Steps 1–2: the password is **still readable** on that admin's row - the panel going away does not lose it. The row reads *Still on the password we issued*, with the date it was issued.
-* Step 3 puts it on the clipboard.
-* Step 4: the same password appears on the patient's and the therapist's profile, in the existing **Current admin-set password** panel beside Reset Password.
-* Step 5: the row now reads **Signing in with their own password** and the password is gone - cleared by `/api/clear-temp-password`, so the screen never offers a credential that no longer works.
-* Step 6: **nowhere, by design.** A password somebody chose is stored by Supabase as a bcrypt hash and cannot be read back by this app or anyone else. The lane for a locked-out account is **Reset Password**, which issues a new one and puts the row back into the first state.
-* Step 7: **no rows** - the table carries no RLS policies at all, so only the service role reads it. A plain column on `profiles` would be handed straight back to the account owner by `profiles_select_own`, which is why these four tables exist.
-* Step 8: **no password anywhere in the log**, which every admin can read.
+* Step 2: the reset page signs them in from the link, takes the new password, and sends them to their role's login.
+* Step 3: the link is spent - the page says it could not verify the link.
+* Step 4: **no password anywhere** - no "Still on the password we issued", no "Current admin-set password" panel.
+* Step 5: the old password stops working at once, and a new one-time link is shown.
+* Step 6: **no rows**.
+* Step 7: no link or token anywhere in the log.
 
-#### `ADM-SET-026c` - Re-issuing a back-office password, and dismissing the panel · P1
+#### `ADM-SET-026c` - Re-issuing a back-office sign-in, and dismissing the panel · P1
 
-**Feature.** Patients, therapists and hospitals could all have a password re-issued from the back office; an admin who had locked themselves out needed somebody with Supabase access. **Reset password** on a Back office row is the fourth of those doors. The created-account panel also has a close button now, and its Copy button no longer reads "Copied" for ever after one click.
+**Feature.** Patients, therapists, hospitals and back-office accounts can all have their sign-in re-issued from the back office as a **one-time link** (`ADM-SET-026b`). The created-account panel has a close button, and its Copy button no longer reads "Copied" for ever.
 
 **Steps**
-1. Create a back-office account. On the panel that appears, press **Copy**, wait a few seconds, then read the button. Press the **×**.
-2. On another admin's row, press **Reset password** and read what comes up before anything happens.
-3. Confirm it. Read that admin's row.
-4. Sign in as that admin with the **old** password, then with the new one.
-5. Look for **Reset password** on **your own** row. Then POST `/api/admin/reset-admin-password` with your own id.
+1. Create a back-office account. On the panel, press **Copy link**. Press the **×**.
+2. On another admin's row, press **Reset password (send sign-in link)** and read what comes up before anything happens.
+3. Confirm it.
+4. Sign in as that admin with the **old** password. Then open the link and set a new one.
+5. Look for the reset button on **your own** row. Then POST `/api/admin/reset-admin-password` with your own id.
 6. Sign in as **Operations**, then **Finance**, then **Clinical**. Look for the button, then POST the route directly as each.
 7. Open **Logs → All Activity**.
 
 **Expected Result**
-* Step 1: Copy goes back to **Copy** after a moment rather than staying "Copied". The **×** dismisses the panel, and the password is **still on that admin's row** - dismissing a panel must not lose a credential (`ADM-SET-026b`).
-* Step 2: a **confirmation first**, saying the current password stops working immediately. Nothing has changed until it is confirmed - somebody who tapped it meaning to *read* the existing password has not locked anybody out.
-* Step 3: the new password is on that admin's **row**, in the same place the created one appeared - **not** in a second panel under the button. Two places showing one password means the stale one is the one somebody reads out.
-* Step 4: the old password is refused; the new one signs in.
+* Step 1: the link is copied. The **×** dismisses the panel; the link is gone, and that is fine - the row issues a new one.
+* Step 2: a **confirmation first**, saying the current password stops working straight away. Nothing changes until it is confirmed.
+* Step 3: a one-time link appears under the button, with a Copy link control.
+* Step 4: the old password is refused; the link sets a new one, which then signs in.
 * Step 5: **no button on your own row**, and the direct POST is refused. The lane for your own password is the emailed reset on **Settings → Sign-in & Security**.
-* Step 6: **no button** for any of the three, and the POST is **403** for all three - this is Master Admin's alone, even though every one of those desks can manage People.
-* Step 7: an entry naming who reset whose password, with `role: admin`, and **no password in it**.
+* Step 6: **no button** for any of the three, and the POST is **403** for all three.
+* Step 7: an entry naming who reset whose sign-in, with `role: admin`, and **no link or token in it**.
 
 #### `ADM-SET-025c` - Suspend and Create release the button, not the page · P1
 

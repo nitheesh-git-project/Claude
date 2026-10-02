@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readAllRows } from "@/lib/supabase/readAllRows";
 import { createClient } from "@/lib/supabase/server";
-import { isPatientProfile } from "@/lib/supabase/requireActiveProfile";
+import { isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { buildHealthProfilePdf, healthProfilePdfFilename } from "@/lib/healthProfilePdf";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
@@ -56,7 +57,9 @@ export async function GET(request: NextRequest) {
   // One account carries one role, and this is the sharpest case of it: a
   // therapist or hospital session got a typeset PDF of an empty health
   // record, named after them, rather than being told it was not theirs.
-  if (!(await isPatientProfile(user.id))) {
+  const isPatient = await isPatientProfile(user.id);
+  if (isPatient === null) return profileCheckUnavailable();
+  if (!isPatient) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -64,20 +67,28 @@ export async function GET(request: NextRequest) {
   // decides whether this export has a Pain Map section at all, and a
   // non-orthopaedic one must not query pain_assessments rather than
   // fetching rows it then discards.
-  const { data: specialtyRow } = await supabase
+  const { data: specialtyRow, error: specialtyError } = await supabase
     .from("patient_condition_profiles")
     .select("specialty")
     .eq("patient_id", user.id)
     .maybeSingle();
+  if (specialtyError) return exportUnavailable();
   const specialty = parseConditionSpecialty(specialtyRow?.specialty);
   const isOrtho = specialty === "ortho";
 
+  // Every read that carries part of the record is checked, and the lists
+  // are paged. An export is handed to another clinician as "the record", so
+  // a section silently missing because its read failed -- or cut off at
+  // PostgREST's 1,000 rows -- is a clinical loss presented as a complete
+  // document. A failure refuses the export rather than producing a partial
+  // one. (The question-template overrides only reword labels, so they and
+  // the site name keep falling back to the defaults.)
   const [
-    { data: profile },
-    { data: conditionProfile },
-    { data: changeRequests },
-    { data: assessments },
-    { data: documents },
+    { data: profile, error: profileError },
+    { data: conditionProfile, error: conditionError },
+    changeRequestsResult,
+    assessmentsResult,
+    documentsResult,
     { data: intakeOverrideRows },
     { data: painMapOverrideRows },
     { data: settingsRow },
@@ -88,23 +99,32 @@ export async function GET(request: NextRequest) {
       .select("data, schema_version, status, updated_at")
       .eq("patient_id", user.id)
       .maybeSingle(),
-    supabase
-      .from("condition_change_requests")
-      .select("submitted_by_role, proposed_data, status, admin_notes, created_at")
-      .eq("patient_id", user.id)
-      .order("created_at", { ascending: false }),
+    readAllRows<ChangeRequestExportRow>(() =>
+      supabase
+        .from("condition_change_requests")
+        .select("submitted_by_role, proposed_data, status, admin_notes, created_at")
+        .eq("patient_id", user.id)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
     isOrtho
-      ? supabase
-          .from("pain_assessments")
-          .select("region, side, pain_percent, submitted_by_role, answers, created_at")
-          .eq("patient_id", user.id)
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [] as PainExportRow[] }),
-    supabase
-      .from("patient_medical_documents")
-      .select("title, document_type, taken_on, created_at")
-      .eq("patient_id", user.id)
-      .order("created_at", { ascending: false }),
+      ? readAllRows<PainExportRow>(() =>
+          supabase
+            .from("pain_assessments")
+            .select("region, side, pain_percent, submitted_by_role, answers, created_at")
+            .eq("patient_id", user.id)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        )
+      : Promise.resolve({ rows: [] as PainExportRow[], error: null, truncated: false }),
+    readAllRows<DocumentExportRow>(() =>
+      supabase
+        .from("patient_medical_documents")
+        .select("title, document_type, taken_on, created_at")
+        .eq("patient_id", user.id)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
     supabase
       .from("intake_question_templates")
       .select("question_key, question_text, required, specialty"),
@@ -113,6 +133,22 @@ export async function GET(request: NextRequest) {
       : Promise.resolve({ data: [] as { region: string; question_key: string; question_text: string }[] }),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
   ]);
+
+  if (
+    profileError ||
+    conditionError ||
+    changeRequestsResult.error ||
+    changeRequestsResult.truncated ||
+    assessmentsResult.error ||
+    assessmentsResult.truncated ||
+    documentsResult.error ||
+    documentsResult.truncated
+  ) {
+    return exportUnavailable();
+  }
+  const changeRequests = changeRequestsResult.rows;
+  const assessments = assessmentsResult.rows;
+  const documents = documentsResult.rows;
 
   if (request.nextUrl.searchParams.get("format") === "json") {
     const payload = {
@@ -214,4 +250,29 @@ export async function GET(request: NextRequest) {
       "Cache-Control": "private, no-store",
     },
   });
+}
+
+type ChangeRequestExportRow = {
+  submitted_by_role: string;
+  proposed_data: unknown;
+  status: string;
+  admin_notes: string | null;
+  created_at: string;
+};
+
+type DocumentExportRow = {
+  title: string;
+  document_type: string;
+  taken_on: string | null;
+  created_at: string;
+};
+
+function exportUnavailable(): NextResponse {
+  return NextResponse.json(
+    {
+      error:
+        "We couldn't put your full health record together just now, so nothing was exported. Please try again in a moment.",
+    },
+    { status: 503 }
+  );
 }

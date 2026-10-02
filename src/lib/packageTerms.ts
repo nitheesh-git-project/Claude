@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { clinicWeekKey } from "@/lib/clinicWeek";
 
 /**
  * The terms a patient actually bought, rather than the ones on sale today.
@@ -166,4 +167,66 @@ export async function readHomeVisitPackageTerms(
     maxSessionsPerWeek: live.max_visits_per_week ?? null,
     source: "live",
   };
+}
+
+/**
+ * The spacing a programme's terms put on one more session: its minimum gap
+ * from the others on the same purchase, and its weekly cap.
+ *
+ * The bulk scheduler applied both; a patient accepting a therapist's
+ * suggested time, and the single-session booking route, went straight to
+ * `bookPackageSession` and applied neither -- so the rules the patient bought
+ * held for one door and not the others. One check, read by all three.
+ *
+ * `null` means the slot is within the terms. A failed read answers
+ * `unavailable` rather than waving the slot through.
+ */
+export type SpacingVerdict = { ok: true } | { ok: false; reason: "gap" | "week" | "unavailable"; error: string };
+
+export async function checkPackageSpacing(
+  admin: SupabaseClient,
+  args: { purchaseId: string; slotMs: number; terms: PackageTerms }
+): Promise<SpacingVerdict> {
+  const minGapMs = (args.terms.minGapHours ?? 0) * 3_600_000;
+  const maxPerWeek = args.terms.maxSessionsPerWeek ?? null;
+  if (minGapMs <= 0 && maxPerWeek === null) return { ok: true };
+
+  const { data, error } = await admin
+    .from("appointments")
+    .select("slot_time")
+    .eq("package_purchase_id", args.purchaseId)
+    .in("status", ["requested", "confirmed", "completed"]);
+  if (error) {
+    return { ok: false, reason: "unavailable", error: "We couldn't check this programme's schedule just now. Please try again." };
+  }
+  return spacingVerdict(
+    (data ?? []).map((a) => (a.slot_time ? Date.parse(a.slot_time) : NaN)).filter(Number.isFinite),
+    args.slotMs,
+    args.terms
+  );
+}
+
+/** The pure half of checkPackageSpacing, unit-tested. */
+export function spacingVerdict(existingMs: number[], slotMs: number, terms: PackageTerms): SpacingVerdict {
+  const minGapMs = (terms.minGapHours ?? 0) * 3_600_000;
+  const maxPerWeek = terms.maxSessionsPerWeek ?? null;
+  if (minGapMs > 0 && existingMs.some((t) => t !== slotMs && Math.abs(t - slotMs) < minGapMs)) {
+    return {
+      ok: false,
+      reason: "gap",
+      error: `That's too close to another session on this programme (it needs at least ${terms.minGapHours}h between sessions).`,
+    };
+  }
+  if (maxPerWeek !== null) {
+    const week = clinicWeekKey(slotMs);
+    const inWeek = existingMs.filter((t) => t !== slotMs && clinicWeekKey(t) === week).length;
+    if (inWeek >= maxPerWeek) {
+      return {
+        ok: false,
+        reason: "week",
+        error: `This programme allows at most ${maxPerWeek} session(s) a week, and that week is full.`,
+      };
+    }
+  }
+  return { ok: true };
 }

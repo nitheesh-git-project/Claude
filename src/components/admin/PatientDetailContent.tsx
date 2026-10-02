@@ -20,7 +20,11 @@ import PatientProfitChart from "@/components/admin/PatientProfitChart";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
 import ClinicalAccessPanel from "@/components/admin/ClinicalAccessPanel";
-import { clinicalAccessHolders } from "@/lib/clinicalAccess";
+import {
+  appointmentGrantsClinicalAccess,
+  clinicalAccessHolders,
+  programmeLockGrantsClinicalAccess,
+} from "@/lib/clinicalAccess";
 import PayLaterGrantCard from "@/components/admin/PayLaterGrantCard";
 import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawer";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
@@ -32,7 +36,6 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
-import { readableTempPassword } from "@/lib/tempPassword";
 import {
   sessionTherapistCutPaise,
   type PayoutAppointment,
@@ -136,7 +139,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
       .order("created_at", { ascending: false }),
     admin
       .from("patient_admin_notes")
-      .select("note, temp_password, temp_password_set_at")
+      .select("note")
       .eq("patient_id", id)
       .maybeSingle(),
     admin
@@ -235,7 +238,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     // answered from the appointments alone.
     admin
       .from("patient_package_purchases")
-      .select("locked_therapist_id")
+      .select("locked_therapist_id, payment_status, status, expires_at")
       .eq("patient_id", id)
       .not("locked_therapist_id", "is", null),
   ]);
@@ -246,13 +249,17 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   // see src/lib/clinicalAccess.ts for the decision it makes explicit.
   const accessHolders = clinicalAccessHolders(
     [
+      // The same rule the RLS policies apply: a cancelled session and a
+      // paid-off, lapsed or refunded programme grant nothing.
       ...(appointments ?? [])
-        .filter((a) => a.therapist_id)
+        .filter((a) => a.therapist_id && appointmentGrantsClinicalAccess(a.status))
         .map((a) => ({ therapistId: a.therapist_id as string, slotTime: a.slot_time })),
-      ...(lockedPurchases ?? []).map((p) => ({
-        therapistId: p.locked_therapist_id as string,
-        viaProgrammeLock: true,
-      })),
+      ...(lockedPurchases ?? [])
+        .filter((p) => programmeLockGrantsClinicalAccess(p, nowTimestamp()))
+        .map((p) => ({
+          therapistId: p.locked_therapist_id as string,
+          viaProgrammeLock: true,
+        })),
     ],
     new Map(
       (sessionTherapists ?? []).map((t) => [
@@ -497,15 +504,11 @@ export default async function PatientDetailContent({ id }: { id: string }) {
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
             {/*
-              A credential the clinic issued stops being shown once it has
-              aged out -- see src/lib/tempPassword.ts. It had no end date, so
-              one nobody collected sat readable indefinitely while having no
-              support value left.
+              No password is shown or stored: the button issues a one-time
+              link for them to set their own -- see src/lib/accessLink.ts.
             */}
             <ResetPatientPasswordButton
               patientId={patient.id}
-              currentPassword={readableTempPassword(note, nowTimestamp()).password}
-              currentPasswordSetAt={note?.temp_password_set_at}
             />
             {/* Master Admin only, and the route checks it again -- deleting
                 an account is irreversible, where every desk that manages

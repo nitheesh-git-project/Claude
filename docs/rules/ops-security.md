@@ -44,6 +44,20 @@ inline `profile.active === false` even when the route already loads the row
 (`reveal-contact` does, correctly, and is why the other eight were missed):
 a grep for the helper name is how the next audit finds the gap.
 
+A third layer now holds for the reads and writes a token can make
+directly against PostgREST and Storage. **A suspended account's live token
+reads and edits nothing of its own**: the patient's own-row select
+policies (appointments, health profile, Pain Map, report metadata) require
+the caller's `active` flag, read once per statement as an initplan, and
+`profiles_update_own` plus the avatar bucket policies do the same for the
+direct-save profile fields - so a suspended therapist or partner can no
+longer rewrite the bio and photo patients read. Approval is deliberately
+*not* required there: an applicant must be able to finish their profile.
+`scripts/authorization-checks.mjs` section 5 asserts the read half.
+The helpers in `requireActiveProfile.ts` answer `null` when the read
+itself failed; routes answer that with `profileCheckUnavailable()` (503,
+retry), never with "suspended".
+
 Admin routes go through `src/lib/supabase/requireAdmin.ts`. Never trust a
 role, an id, or an amount sent from the client - re-derive it server-side.
 
@@ -256,7 +270,11 @@ client is the only writer and the log is append-only from any session.
      request has turned a blip into a checkout outage, which is worse than
      the burst it would have stopped -- the direction `contact_scan_mode`
      fails, and the opposite of `contact_masking_enabled`, because the safe
-     answer differs by what is at stake. Logged, never silent. **No
+     answer differs by what is at stake. Logged, never silent. The limits
+     marked `onCheckFailure: "closed"` (the enumerable lookups) refuse
+     instead, and a **thrown** failure takes the same direction as a
+     returned error - it used to allow the request unconditionally, so a
+     dropped connection opened exactly the limits meant to stay shut. **No
      identifier is the same case**: with neither `x-real-ip` nor
      `x-forwarded-for` (local dev, or any host that does not set them) the
      request is allowed rather than filed under an invented key, which would
@@ -465,12 +483,17 @@ client is the only writer and the log is append-only from any session.
      names cannot rewrite it. **The row is written before the swap**, so a
      session with no record behind it cannot exist; a failed insert refuses
      the whole thing, the same posture as `/api/therapist/reveal-contact`.
-  3. **Everything done during the window is written as that user.** No column
-     on `appointments` -- or anywhere else -- can say an admin was at the
-     keyboard, so that row's `started_at`/`ended_at` window is the only thing
-     a later reader can intersect an action against. That is a real cost of
-     the swap, accepted deliberately: a read-only mirror cannot reproduce a
-     bug that only appears on submit.
+  3. **Everything done during the window is written as that user - and
+     recorded under the admin.** No column on `appointments` can say an
+     admin was at the keyboard, so the proxy now matches `/api/:path*` for
+     one purpose: a non-GET API call carrying the marker cookie is written
+     to `admin_activity_log` as `impersonation.action` under the **admin's**
+     id, with the method, path and session id (`src/lib/impersonationAudit.ts`,
+     off the response path via `waitUntil`, and only after checking the
+     cookie against the open `admin_impersonation_sessions` row). With no
+     marker an API request passes straight through. The swap itself is
+     still accepted deliberately: a read-only mirror cannot reproduce a bug
+     that only appears on submit.
   4. **It expires, and the proxy is what ends it.** The marker cookie and the
      Supabase session cookies are separate things, so letting the marker
      lapse on its own max-age would drop the banner while the swap ran on

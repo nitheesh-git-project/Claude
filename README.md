@@ -316,6 +316,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `NEXT_PUBLIC_RAZORPAY_KEY_ID` | Razorpay Key ID, sent to the browser to open checkout |
 | `RAZORPAY_KEY_SECRET` | Razorpay secret, server-only (order creation, signature verification, refunds) |
 | `RAZORPAY_WEBHOOK_SECRET` | Razorpay **webhook** signing secret, server-only - a different secret from the one above. Without it `/api/razorpay/webhook` answers 503 and payment confirmation falls back to the browser callback alone |
+| `CRON_SECRET` | Shared secret for `/api/cron/maintenance`, server-only. The scheduled housekeeping (`.github/workflows/maintenance.yml`, every 30 minutes) sends it as a bearer token; set the same value as the `CRON_SECRET` repository secret plus `MAINTENANCE_URL`. Unset, the route answers 503 and the sweep runs only when an admin opens the dashboard |
 | `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` | OAuth2 Web application credentials from Google Cloud Console |
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer, and the account whose Meet permission opens each meeting |

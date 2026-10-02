@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { createClient } from "@/lib/supabase/client";
 import { isEventCoveredByLocalRefresh } from "@/lib/refreshSignal";
@@ -66,6 +66,10 @@ export default function RealtimeRefresh({
   // oldest: a burst whose last event landed after this browser's own refresh
   // still holds something that refresh did not read.
   const lastEventAtRef = useRef<number | null>(null);
+  // Whether live updates are currently reaching this screen. A websocket that
+  // dropped or was refused used to stop updating the dashboard with nothing
+  // on screen to say so -- the figures simply went stale.
+  const [degraded, setDegraded] = useState(false);
 
   useEffect(() => {
     const list = tablesKey.split(",").filter(Boolean);
@@ -125,14 +129,51 @@ export default function RealtimeRefresh({
       channel.on("postgres_changes", { event: "*", schema: "public", table }, handleChange);
     }
 
-    channel.subscribe();
+    let hadProblem = false;
+    let disposed = false;
+    channel.subscribe((status) => {
+      // Removing the channel on unmount reports CLOSED; that is this screen
+      // leaving, not a fault.
+      if (disposed) return;
+      if (status === "SUBSCRIBED") {
+        if (hadProblem) {
+          // Back after a gap: whatever changed while the socket was down was
+          // never delivered, so catch up once.
+          hadProblem = false;
+          setDegraded(false);
+          fire();
+        }
+        return;
+      }
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        hadProblem = true;
+        setDegraded(true);
+      }
+    });
 
     return () => {
       if (trailingRef.current) clearTimeout(trailingRef.current);
       trailingRef.current = null;
+      disposed = true;
       supabase.removeChannel(channel);
     };
   }, [tablesKey, cooldownMs, router, mode, noteUpdate]);
 
-  return null;
+  if (!degraded) return null;
+  return (
+    <div
+      role="status"
+      className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-800 shadow-md print:hidden"
+    >
+      <i aria-hidden className="fa-solid fa-plug-circle-exclamation" />
+      Live updates paused - this screen may be out of date.
+      <button
+        type="button"
+        onClick={() => router.refresh()}
+        className="rounded-full bg-amber-600 px-3 py-1 text-white hover:bg-amber-700 transition"
+      >
+        Refresh
+      </button>
+    </div>
+  );
 }

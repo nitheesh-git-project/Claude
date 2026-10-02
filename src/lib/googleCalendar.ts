@@ -1,17 +1,18 @@
 import { google } from "googleapis";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { openMeetSpaceAccess } from "@/lib/googleMeetSpace";
+import { isValidTimeZone } from "@/lib/timeZone";
 
 const DEFAULT_TIMEZONE = "Asia/Kolkata";
 
-// Very small subset of IANA-looking strings -- good enough to catch stray
-// free-text values (e.g. "IST", "GMT+5:30") that Google's API would reject
-// outright, without needing a full timezone database bundled in.
+// Any real IANA zone, judged by the runtime's own timezone database
+// (isValidTimeZone). The old pattern accepted one "Region/City" segment, so
+// valid zones like America/Argentina/Buenos_Aires silently became
+// Asia/Kolkata -- a session created an hour or more away from the time the
+// patient chose. Free text ("IST", "GMT+5:30") is still refused and falls
+// back to the clinic's zone.
 function normalizeTimezone(timezone: string | null | undefined): string {
-  if (timezone && /^[A-Za-z_]+\/[A-Za-z_]+$/.test(timezone)) {
-    return timezone;
-  }
-  return DEFAULT_TIMEZONE;
+  return timezone && isValidTimeZone(timezone) ? timezone : DEFAULT_TIMEZONE;
 }
 
 /**

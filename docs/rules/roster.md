@@ -161,10 +161,14 @@ Availability as periods over hour rows, specialisation as a value, what readines
   ways (and an admin's neither, since a backfill or a correction is exactly
   what the override lane is for): nothing may be completed with no payment,
   no programme behind it and no cash recorded - a cash home visit collects
-  first, which is the right order anyway - and nothing may be completed
-  before the join window in which it could have been started. The route
-  previously refused neither, and a therapist could mark a session done
-  before its slot and be owed for it.
+  first, which is the right order anyway - and nothing may be closed
+  before it could have happened: **Done** opens at the scheduled start,
+  and **No-show** only once the patient is past the late-arrival grace
+  (`join_window_after_minutes`; `src/lib/sessionCompletion.ts`). Both used
+  to open at "slot minus join window", so a no-show could forfeit a
+  patient's programme credit and create earnings before the patient could
+  possibly have been late. A "not yet" refusal answers 409 with
+  `notYet: true`, which the buttons show without refreshing the card.
   **The admin half of it is a Sessions write, and asks for `manage`.** This
   is the one route shared between a therapist and an admin, so it cannot
   call `requireAdminScope("sessions")` outright -- it has to tell "an admin
@@ -193,7 +197,10 @@ Availability as periods over hour rows, specialisation as a value, what readines
   removes. `decideAutoAssignment()` is that rule with the database taken
   out, so the judgement is unit-tested rather than only integration-tested.
   It never throws: this runs inside payment confirmation and a booking must
-  never fail for it. Gated by `site_settings.auto_assign_therapist_enabled`,
+  never fail for it. The roster's date and hour are **clinic-local**
+  (`clinicDateKey` / `clinicHour`) - they were read off the server's clock,
+  so on a UTC host a 9:00 IST booking looked for a 03:00 slot and every
+  session stayed unassigned. Gated by `site_settings.auto_assign_therapist_enabled`,
   read in its own call and failing **closed**.
   **This is not the roster filtering the patient's picker** -- that
   separation stays, and `e2e/therapist-roster.spec.ts` R-B02 still guards

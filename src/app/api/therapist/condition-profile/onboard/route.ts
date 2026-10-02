@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import {
   findMissingRequiredKeys,
@@ -79,7 +79,9 @@ export async function POST(request: NextRequest) {
   }
   const specialty = body.specialty;
 
-  if (!(await isProfileActiveAndApproved(user.id))) {
+  const standing = await isProfileActiveAndApproved(user.id);
+  if (standing === null) return profileCheckUnavailable();
+  if (!standing) {
     return NextResponse.json(
       { error: "Your account is not active - it is either awaiting admin approval or has been suspended." },
       { status: 403 }

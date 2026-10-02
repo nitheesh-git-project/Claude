@@ -43,7 +43,7 @@ rule under "Supabase clients"), `npm run lint`,
 per fix; see the two gears under the e2e section below),
 `npm run seed:qa` (recreate the QA fixture accounts after a data reset),
 `npm run clean:e2e` (delete the fixture rows earlier e2e runs left behind),
-and `npm run verify` (lint + test + build, the one to run before pushing --
+and `npm run verify` (lint + test + build, which `.github/workflows/ci.yml` also runs on every pull request and push to `staging`/`main`; the one to run before pushing --
 and, for a change a browser can see, alongside the two or three specs
 covering what moved rather than the whole suite).
 `npm run test` is Vitest over `src/**/*.test.ts` - the dependency-free
@@ -175,6 +175,9 @@ that its six known no-egress failures are scrolled past is a suite nobody is
 reading, which is the same failure mode as a badge that is always on. Two
 gears:
 
+0. **Two Playwright projects.** `desktop` is the suite as it always ran;
+   `mobile` runs `e2e/mobile-*.spec.ts` on an emulated Pixel 7. Choose with
+   `--project=desktop|mobile`; a plain `npm run test:e2e` runs both.
 1. **Per change -- a quick retest and a regression.** `npm run verify`
    (lint + unit tests + build, which is what `verify` is for) plus **the
    specs that cover what moved**, by file:

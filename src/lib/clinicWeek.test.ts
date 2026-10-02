@@ -4,6 +4,7 @@ import {
   clinicWeekKey,
   isSameClinicDay,
   isSameClinicWeek,
+  clinicHour,
 } from "./clinicWeek";
 
 // Every case here is stated as a UTC instant and asserted against what the
@@ -75,5 +76,15 @@ describe("isSameClinicDay / isSameClinicWeek", () => {
     expect(isSameClinicWeek("2026-03-02T04:30:00Z", "2026-03-05T04:30:00Z")).toBe(
       true
     );
+  });
+});
+
+describe("clinicHour", () => {
+  it("reads the hour in the clinic's zone, whatever the server's is", () => {
+    // 03:30 UTC is 09:00 IST.
+    expect(clinicHour("2026-10-05T03:30:00Z")).toBe(9);
+    // 18:30 UTC is midnight IST the next day.
+    expect(clinicHour("2026-10-05T18:30:00Z")).toBe(0);
+    expect(clinicDateKey("2026-10-05T18:30:00Z")).toBe("2026-10-06");
   });
 });

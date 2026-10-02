@@ -193,28 +193,7 @@ export async function enforceRateLimit(
       // clinic a real booking; closed where the cap is the only thing
       // bounding an enumerable lookup, because failing open there does not
       // degrade the protection, it removes it, and nothing says so.
-      // Read through the shared type rather than the narrowed literal: the
-      // RATE_LIMITS object is `as const`, so only the members that set this
-      // field carry it in the union.
-      if ((rule as RateLimit).onCheckFailure === "closed") {
-        console.error(
-          "Rate limit check failed, refusing request (this limit fails closed)",
-          rule.scope,
-          error.message
-        );
-        const retryAfter = retryAfterSeconds(undefined, rule.windowSeconds);
-        return NextResponse.json(
-          {
-            // Deliberately not `rule.message`, which describes having done
-            // something too often. Nobody has -- we could not check.
-            error: "We couldn't check that just now. Please try again in a moment.",
-            retryAfterSeconds: retryAfter,
-          },
-          { status: 503, headers: { "Retry-After": String(retryAfter) } }
-        );
-      }
-      console.error("Rate limit check failed, allowing request", rule.scope, error.message);
-      return null;
+      return checkFailed(rule as RateLimit, error.message);
     }
 
     const verdict = data as { allowed?: boolean; retry_after_seconds?: number } | null;
@@ -226,11 +205,30 @@ export async function enforceRateLimit(
       { status: 429, headers: { "Retry-After": String(retryAfter) } }
     );
   } catch (err) {
-    console.error(
-      "Rate limit check threw, allowing request",
-      rule.scope,
-      err instanceof Error ? err.message : err
-    );
-    return null;
+    // A thrown failure (a dropped connection, a client that could not be
+    // built) is the same "could not check" as a returned error, and takes
+    // the same direction. It used to allow the request unconditionally, so
+    // the two enumerable lookups that fail closed failed open exactly when
+    // the database was least reachable.
+    return checkFailed(rule as RateLimit, err instanceof Error ? err.message : String(err));
   }
+}
+
+/** The answer when the limit could not be checked: the limit's own direction. */
+function checkFailed(rule: RateLimit, detail: string): NextResponse | null {
+  if (rule.onCheckFailure === "closed") {
+    console.error("Rate limit check failed, refusing request (this limit fails closed)", rule.scope, detail);
+    const retryAfter = retryAfterSeconds(undefined, rule.windowSeconds);
+    return NextResponse.json(
+      {
+        // Deliberately not `rule.message`, which describes having done
+        // something too often. Nobody has -- we could not check.
+        error: "We couldn't check that just now. Please try again in a moment.",
+        retryAfterSeconds: retryAfter,
+      },
+      { status: 503, headers: { "Retry-After": String(retryAfter) } }
+    );
+  }
+  console.error("Rate limit check failed, allowing request", rule.scope, detail);
+  return null;
 }

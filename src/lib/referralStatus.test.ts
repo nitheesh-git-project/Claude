@@ -39,11 +39,18 @@ describe("referral statuses", () => {
     expect(isReferralAccepted("declined")).toBe(false);
   });
 
-  it("closes on registration or a decline, and nothing else", () => {
+  it("closes on registration, a decline or a withdrawal, and nothing else", () => {
     expect(REFERRAL_STATUSES.filter(isReferralClosed)).toEqual([
       "converted",
       "declined",
+      "withdrawn",
     ]);
+  });
+
+  it("keeps a partner's withdrawal apart from the clinic's decline", () => {
+    expect(isReferralWithdrawable("withdrawn")).toBe(false);
+    expect(isReferralAccepted("withdrawn")).toBe(false);
+    expect(isReferralWithClinic("withdrawn")).toBe(false);
   });
 
   it("allows withdrawal only before a link has gone out", () => {

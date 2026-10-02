@@ -3,8 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
-import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
-import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
+import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
+import { hasStartedSessionWithPatient, isTherapistAssignedToPatient } from "@/lib/conditionAccess";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
   isPainMapRegion,
   regionRequiresSide,
@@ -71,7 +72,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing answers" }, { status: 400 });
   }
 
-  if (!(await isProfileActiveAndApproved(user.id))) {
+  const standing = await isProfileActiveAndApproved(user.id);
+  if (standing === null) return profileCheckUnavailable();
+  if (!standing) {
     return NextResponse.json(
       { error: "Your account is not active - it is either awaiting admin approval or has been suspended." },
       { status: 403 }
@@ -84,7 +87,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (!(await isTherapistAssignedToPatient(admin, user.id, patientId))) {
+  const assigned = await isTherapistAssignedToPatient(admin, user.id, patientId);
+  if (assigned === null) return profileCheckUnavailable();
+  if (!assigned) {
     return NextResponse.json(
       { error: "You can only record findings for a patient you've been assigned to." },
       { status: 403 }
@@ -105,6 +110,28 @@ export async function POST(request: NextRequest) {
           "The Pain Map applies to orthopaedic profiles. This patient is recorded under a different condition type.",
       },
       { status: 400 }
+    );
+  }
+
+  // An exam is an observation from a session this therapist ran -- so one
+  // has to have started (confirmed and inside its join window) or been
+  // delivered. Assigned alone let findings be recorded before any treatment,
+  // or against a session that was later cancelled.
+  const { data: settingsRow } = await admin.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle();
+  const started = await hasStartedSessionWithPatient(
+    admin,
+    user.id,
+    patientId,
+    parseAdminSettings(settingsRow).joinWindowMinutes
+  );
+  if (started === null) return profileCheckUnavailable();
+  if (!started) {
+    return NextResponse.json(
+      {
+        error:
+          "Findings are recorded from a session you've started with this patient. Open this once your session with them begins.",
+      },
+      { status: 409 }
     );
   }
 

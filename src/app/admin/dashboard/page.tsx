@@ -80,7 +80,12 @@ import {
 } from "@/lib/ledgerBalances";
 import HomeVisitSettingsForm from "@/components/admin/HomeVisitSettingsForm";
 import ContactControlsForm from "@/components/admin/ContactControlsForm";
-import { adminScreenHref, type InboxGroup } from "@/lib/adminNav";
+import {
+  adminScreenHref,
+  pickScreens,
+  visibleScreenKeys,
+  type InboxGroup,
+} from "@/lib/adminNav";
 import {
   buildAdminHome,
   orderQueueGroups,
@@ -141,16 +146,14 @@ import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import {
-  retryDueMeetSyncs,
-  retryDueMeetAccess,
   MAX_MEET_SYNC_AUTO_ATTEMPTS,
   MAX_MEET_ACCESS_AUTO_ATTEMPTS,
   MEET_SYNC_CLAIM_STALE_MS,
 } from "@/lib/retryDueMeetSyncs";
 import { checkGoogleConnection } from "@/lib/googleConnectionHealth";
 import { describeCalendarSync, sessionNeedsCalendarSync } from "@/lib/meetSyncState";
-import { readAllRows } from "@/lib/supabase/readAllRows";
-import { runRiskSweep } from "@/lib/riskDetectors";
+import { readAllRows, readAllRowsAsData } from "@/lib/supabase/readAllRows";
+import { runMaintenanceSweep } from "@/lib/maintenanceSweep";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import AdminCarePlansTab from "@/components/admin/AdminCarePlansTab";
@@ -185,10 +188,6 @@ import { summariseFindings, type LeakFinding } from "@/lib/contactLeakScan";
 import type { RiskSeverity, RiskStatus, RiskSubjectKind } from "@/lib/riskSignals";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
-import {
-  readableTempPassword,
-  TEMP_PASSWORD_VISIBLE_DAYS,
-} from "@/lib/tempPassword";
 import { readReferralAttributionHealth } from "@/lib/referralAttribution";
 import { readRefundHealth } from "@/lib/refundHealthServer";
 import { readStorageReconciliation } from "@/lib/storageReconciliation";
@@ -282,38 +281,7 @@ export default async function AdminDashboardPage({
   // there, so one more render makes no difference, while a blocked page is
   // felt on every single admin request.
   after(async () => {
-    await retryDueMeetSyncs(admin);
-    // The waiting-room pass, after the event pass and bounded the same way.
-    // A session whose Meet space is still TRUSTED works -- it just makes
-    // both parties wait to be admitted -- so it is the lower priority of the
-    // two, and it must run second for a plainer reason: a session the first
-    // pass has only just given an event to has already had its access set
-    // by the same call.
-    await retryDueMeetAccess(admin);
-    // The detector sweep, after the response for the same reason: it makes
-    // no outbound calls but it does run several aggregate queries, and a
-    // finding that appears one render later costs nothing -- the queue
-    // exists for patterns that have been building for days. Its own
-    // interval guard means most renders skip it entirely.
-    await runRiskSweep(admin);
-    // Not keeping a credential the clinic issued and nobody collected.
-    //
-    // The screens already stop *showing* one past its window (see
-    // src/lib/tempPassword.ts); this is the other half, so the plaintext is
-    // not left on disk indefinitely. In after() with the other sweeps
-    // because there is no worker in this deployment, and it is cheap, bounded
-    // and idempotent -- four qualified UPDATEs that match nothing on almost
-    // every render.
-    //
-    // A failure is swallowed deliberately: this is housekeeping, and it must
-    // never be the thing that takes the dashboard down.
-    try {
-      await admin.rpc("purge_expired_temp_passwords", {
-        p_older_than_days: TEMP_PASSWORD_VISIBLE_DAYS,
-      });
-    } catch (err) {
-      console.error("Could not purge expired temporary passwords", err);
-    }
+    await runMaintenanceSweep(admin);
   });
 
   // All of these are independent reads -- none needs another query's data,
@@ -322,9 +290,7 @@ export default async function AdminDashboardPage({
   // used to matter on every single admin button click, not just page load:
   // router.refresh() re-runs this entire Server Component, so every prior
   // query's latency was paid again before the next one even started.
-  // hospitalNotes further down is the one real exception (it needs
-  // allProfiles' hospital ids first) and stays a separate awaited call
-  // after this batch resolves. Comments on each query explain the
+  // Comments on each query explain the
   // isolation/migration-dependent reasoning for that particular fetch, same
   // as before this was parallelized.
 
@@ -409,16 +375,19 @@ export default async function AdminDashboardPage({
     // patient registrations together, newest first. Hospital-referred
     // patients never show up here: that route creates them already approved
     // (the admin vetted them when issuing the invite).
-    admin
-      .from("profiles")
-      // specialization comes along because an application now carries one:
-      // "who is this person for?" is half of the credentials check this
-      // queue exists to make, and it was answerable only by approving them
-      // first and opening their profile.
-      .select("id, role, full_name, email, phone, credentials, specialization, avatar_url, created_at")
-      .in("role", ["therapist", "patient"])
-      .eq("approved", false)
-      .order("created_at", { ascending: false }),
+    readAllRowsAsData(() =>
+      admin
+        .from("profiles")
+        // specialization comes along because an application now carries one:
+        // "who is this person for?" is half of the credentials check this
+        // queue exists to make, and it was answerable only by approving them
+        // first and opening their profile.
+        .select("id, role, full_name, email, phone, credentials, specialization, avatar_url, created_at")
+        .in("role", ["therapist", "patient"])
+        .eq("approved", false)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
     admin
       .from("profile_change_requests")
@@ -434,15 +403,18 @@ export default async function AdminDashboardPage({
     // pickers (AssignTherapistForm/AssignReferralForm below) filter this down
     // to active-only themselves, since they have no existing assignment to
     // preserve.
-    admin
-      .from("profiles")
-      // specialization rides along so every picker built from this list can
-      // say what each therapist takes -- a dropdown of eight names is not
-      // enough to choose between them for a stroke patient.
-      .select("id, full_name, active, specialization")
-      .eq("role", "therapist")
-      .eq("approved", true)
-      .order("full_name"),
+    readAllRowsAsData(() =>
+      admin
+        .from("profiles")
+        // specialization rides along so every picker built from this list can
+        // say what each therapist takes -- a dropdown of eight names is not
+        // enough to choose between them for a stroke patient.
+        .select("id, full_name, active, specialization")
+        .eq("role", "therapist")
+        .eq("approved", true)
+        .order("full_name")
+        .order("id", { ascending: true })
+    ),
 
     // Read in pages, because PostgREST caps a response at `max_rows` (1,000
     // on this project) and answers 200 with no error when it truncates. This
@@ -463,26 +435,35 @@ export default async function AdminDashboardPage({
     // is its own real payment event (own razorpay_payment_id), separate from
     // any individual session, so it needs its own fetch rather than being
     // inferred from appointments.
-    admin
-      .from("patient_package_purchases")
-      .select("id, patient_id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
-      .order("paid_at", { ascending: false }),
+    readAllRowsAsData(() =>
+      admin
+        .from("patient_package_purchases")
+        .select("id, patient_id, category_id, session_count, payment_status, amount_paid_paise, paid_at, razorpay_payment_id")
+        .order("paid_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
     // Feeds the Payment History tab's new Receipts section. Both isolated
     // from the queries above for the same reason as the roster tables --
     // new, migration-dependent, and a missing migration should only empty
     // out the Receipts section rather than take down the rest of this page.
-    admin
-      .from("payment_failure_log")
-      .select(
-        "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
-      )
-      .order("created_at", { ascending: false }),
+    readAllRowsAsData(() =>
+      admin
+        .from("payment_failure_log")
+        .select(
+          "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
+        )
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
-    admin
-      .from("therapist_payout_batches")
-      .select("id, therapist_id, amount_paise, method, note, created_at")
-      .order("created_at", { ascending: false }),
+    readAllRowsAsData(() =>
+      admin
+        .from("therapist_payout_batches")
+        .select("id, therapist_id, amount_paise, method, note, created_at")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
     // Four columns that live on appointments but are kept out of the big
     // shared select above: that select feeds Overview, Calendar, Session
@@ -498,9 +479,12 @@ export default async function AdminDashboardPage({
     // they would all be missing together anyway. A genuinely new column still
     // gets its own call (see google_calendar_sync_attempts below) until it
     // has settled.
-    admin
-      .from("appointments")
-      .select("id, therapist_payout_batch_id, session_code, meet_link, google_calendar_sync_error"),
+    readAllRowsAsData(() =>
+      admin
+        .from("appointments")
+        .select("id, therapist_payout_batch_id, session_code, meet_link, google_calendar_sync_error")
+        .order("id", { ascending: true })
+    ),
 
     // Feature Control tab (Feature 16) -- these site_settings columns are
     // also new/migration-dependent, same isolation reasoning as the queries
@@ -516,23 +500,32 @@ export default async function AdminDashboardPage({
     // that hasn't had this migration applied yet would otherwise fail that
     // query too and blank the whole Sync Health panel, instead of just
     // losing the "gave up" flag. Same convention as the settled columns above.
-    admin
-      .from("appointments")
-      .select("id, google_calendar_sync_attempts, google_calendar_sync_claimed_at"),
+    readAllRowsAsData(() =>
+      admin
+        .from("appointments")
+        .select("id, google_calendar_sync_attempts, google_calendar_sync_claimed_at")
+        .order("id", { ascending: true })
+    ),
 
     // The Meet waiting-room columns, newest of all and isolated for the same
     // reason: a database this migration has not reached loses the Waiting
     // Room panel and nothing else.
-    admin.from("appointments").select("id, meet_access_open, meet_access_error, meet_access_attempts"),
+    readAllRowsAsData(() =>
+      admin.from("appointments").select("id, meet_access_open, meet_access_error, meet_access_attempts")
+        .order("id", { ascending: true })
+    ),
 
     // Feeds the Manage Roster tab. Both queries can legitimately return
     // nothing (or error, if the migration hasn't been applied to this
     // database yet) -- the tab renders an empty-but-correct grid either way,
     // it never crashes the rest of the dashboard over this.
     admin.from("therapist_availability_template").select("therapist_id, day_of_week, hour"),
-    admin
-      .from("therapist_availability_override")
-      .select("therapist_id, date, hour, available, note"),
+    readAllRowsAsData(() =>
+      admin
+        .from("therapist_availability_override")
+        .select("therapist_id, date, hour, available, note")
+        .order("therapist_id", { ascending: true })
+    ),
 
     // The version each therapist's schedule is at, so an editor opened on
     // this screen can be rejected rather than silently overwrite an edit
@@ -546,54 +539,78 @@ export default async function AdminDashboardPage({
     // tables above, and allProfiles feeds nearly every other tab on this page.
     // An unknown-column error on one shared query would take all of them down;
     // keeping it isolated means only the roster tab's on_leave badges degrade.
-    admin.from("profiles").select("id, on_leave"),
+    readAllRowsAsData(() =>
+      admin.from("profiles").select("id, on_leave")
+        .order("id", { ascending: true })
+    ),
 
     // Leave dates and reason -- newer than on_leave itself and isolated for
     // the same reason. They annotate the flag; nothing computes
     // availability from them.
-    admin.from("profiles").select("id, on_leave_from, on_leave_to, on_leave_reason"),
+    readAllRowsAsData(() =>
+      admin.from("profiles").select("id, on_leave_from, on_leave_to, on_leave_reason")
+        .order("id", { ascending: true })
+    ),
 
-    admin
-      .from("appointment_reassignment_log")
-      .select(
-        "id, appointment_id, changed_at, changed_by, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
-      )
-      .order("changed_at", { ascending: false }),
+    readAllRowsAsData(() =>
+      admin
+        .from("appointment_reassignment_log")
+        .select(
+          "id, appointment_id, changed_at, changed_by, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
+        )
+        .order("changed_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
     admin
       .from("b2b_leads")
       .select("id, name, phone, email, source, org_details, status, created_at")
       .order("created_at", { ascending: false }),
 
-    admin
-      .from("patient_referrals")
-      .select(
-        "id, hospital_id, patient_name, preferred_language, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at, visit_mode, pincode"
-      )
-      .order("created_at", { ascending: false }),
+    readAllRowsAsData(() =>
+      admin
+        .from("patient_referrals")
+        .select(
+          "id, hospital_id, patient_name, preferred_language, medical_issue, treatment_needed, status, assigned_therapist_id, assigned_slot_time, invite_token, created_at, visit_mode, pincode"
+        )
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
     // capacity_note is new/migration-dependent -- kept isolated (same
     // reasoning as roleCodeRows/sessionCodeLinks elsewhere on this page) so a
     // missing migration only blanks this one note, not the whole referrals list.
-    admin.from("patient_referrals").select("id, capacity_note"),
+    readAllRowsAsData(() =>
+      admin.from("patient_referrals").select("id, capacity_note")
+        .order("id", { ascending: true })
+    ),
 
     // patient_phone is newer still (end of schema.sql) and gets its own call
     // for the same reason: an unknown-column error must cost the admin the
     // phone number on the card, not the capacity note beside it and not the
     // referral list itself.
-    admin.from("patient_referrals").select("id, patient_phone"),
+    readAllRowsAsData(() =>
+      admin.from("patient_referrals").select("id, patient_phone")
+        .order("id", { ascending: true })
+    ),
 
-    admin
-      .from("profiles")
-      .select(
-        "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience, active, phone, created_at, approved, timezone"
-      ),
+    readAllRowsAsData(() =>
+      admin
+        .from("profiles")
+        .select(
+          "id, full_name, email, role, organization_name, referral_code, revenue_share_percent, referred_by_hospital_id, avatar_url, date_of_birth, gender, credentials, specialization, years_experience, active, phone, created_at, approved, timezone"
+        )
+        .order("id", { ascending: true })
+    ),
 
     // patient_code/therapist_code/hospital_code are new/migration-dependent --
     // kept isolated for the same reason as onLeaveRows above (allProfiles
     // feeds nearly every tab on this page; an unknown-column error here should
     // only degrade these ID badges, not take down the rest of the dashboard).
-    admin.from("profiles").select("id, patient_code, therapist_code, hospital_code"),
+    readAllRowsAsData(() =>
+      admin.from("profiles").select("id, patient_code, therapist_code, hospital_code")
+        .order("id", { ascending: true })
+    ),
 
     admin
       .from("treatment_categories")
@@ -618,12 +635,15 @@ export default async function AdminDashboardPage({
     // allProfiles/roleCodeMap lookups this page already has, same
     // avoid-a-blocked-RLS-join reasoning as the view's own comment in
     // schema.sql.
-    admin
-      .from("package_purchase_summary")
-      .select(
-        "id, purchase_code, patient_id, package_id, category_id, session_count, sessions_used, amount_paid_paise, payment_status, status, locked_therapist_id, expires_at, paid_at, created_at, completed_count, scheduled_count, pending_count"
-      )
-      .order("created_at", { ascending: false }),
+    readAllRowsAsData(() =>
+      admin
+        .from("package_purchase_summary")
+        .select(
+          "id, purchase_code, patient_id, package_id, category_id, session_count, sessions_used, amount_paid_paise, payment_status, status, locked_therapist_id, expires_at, paid_at, created_at, completed_count, scheduled_count, pending_count"
+        )
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
     admin
       .from("testimonials")
@@ -643,16 +663,22 @@ export default async function AdminDashboardPage({
     // (it's its own brand-new table, so this is inherently its own query
     // already) so an unknown-table error here only empties this one tab, not
     // the rest of the dashboard.
-    admin
-      .from("therapist_payout_requests")
-      .select("id, therapist_id, requested_amount_paise, status, requested_at, completed_at")
-      .order("requested_at", { ascending: false }),
+    readAllRowsAsData(() =>
+      admin
+        .from("therapist_payout_requests")
+        .select("id, therapist_id, requested_amount_paise, status, requested_at, completed_at")
+        .order("requested_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
     // Patient Care Intake / Pain Map -- new/migration-dependent tables,
     // same isolation reasoning as therapist_payout_requests above: an
     // unknown-table error here only empties the Patient Conditions tab and
     // its badge, not the rest of the dashboard.
-    admin.from("patient_condition_profiles").select("patient_id, status, updated_at, data"),
+    readAllRowsAsData(() =>
+      admin.from("patient_condition_profiles").select("patient_id, status, updated_at, data")
+        .order("patient_id", { ascending: true })
+    ),
     admin
       .from("condition_change_requests")
       .select("id", { count: "exact", head: true })
@@ -678,34 +704,46 @@ export default async function AdminDashboardPage({
       .select("id, city, area_name, pincode, travel_fee_paise, notes, active")
       .order("city", { ascending: true })
       .order("pincode", { ascending: true }),
-    admin
-      .from("home_visit_waitlist")
-      .select("id, name, phone, email, pincode, city, note, status, created_at")
-      .order("created_at", { ascending: false }),
+    readAllRowsAsData(() =>
+      admin
+        .from("home_visit_waitlist")
+        .select("id, name, phone, email, pincode, city, note, status, created_at")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
     // Which areas are actually referenced by a booked visit. Drives whether
     // the Service Areas row offers Delete at all -- deleting an area that a
     // past visit points at would strip the fee context off that visit, so
     // the UI offers Deactivate instead. The route enforces this too (on the
     // foreign key); this is only so the button isn't shown to be refused.
-    admin.from("appointments").select("visit_area_id").not("visit_area_id", "is", null),
+    readAllRowsAsData(() =>
+      admin.from("appointments").select("visit_area_id").not("visit_area_id", "is", null)
+        .order("id", { ascending: true })
+    ),
 
     // The Visits queue. Its own query rather than a filter over the page's
     // main appointments read: that select predates the visit_ columns, and
     // adding them there would let one unknown column blank every session
     // list on this dashboard.
-    admin
-      .from("appointments")
-      .select(
-        "id, session_code, slot_time, timezone, concern, status, duration_minutes, patient_id, therapist_id, payment_status, amount_paid_paise, travel_fee_paise, no_show, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_contact_phone, visit_access_notes, cash_collected_at, cash_collected_amount_paise, cash_remitted_at, payment_method, home_visit_purchase_id, refund_status, refund_amount_paise"
-      )
-      .eq("visit_mode", "home_visit")
-      .order("slot_time", { ascending: true }),
+    readAllRowsAsData(() =>
+      admin
+        .from("appointments")
+        .select(
+          "id, session_code, slot_time, timezone, concern, status, duration_minutes, patient_id, therapist_id, payment_status, amount_paid_paise, travel_fee_paise, no_show, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_contact_phone, visit_access_notes, cash_collected_at, cash_collected_amount_paise, cash_remitted_at, payment_method, home_visit_purchase_id, refund_status, refund_amount_paise"
+        )
+        .eq("visit_mode", "home_visit")
+        .order("slot_time", { ascending: true })
+        .order("id", { ascending: true })
+    ),
 
     // The Payouts tab needs each therapist's home-visit-specific rate. Its
     // own isolated query, same reasoning as roleCodeRows -- this column
     // postdates the big shared profiles select, and an unknown-column error
     // there would blank the whole page, not just this one figure.
-    admin.from("profiles").select("id, home_visit_revenue_share_percent").eq("role", "therapist"),
+    readAllRowsAsData(() =>
+      admin.from("profiles").select("id, home_visit_revenue_share_percent").eq("role", "therapist")
+        .order("id", { ascending: true })
+    ),
 
     // The Programmes sub-tab -- every home-visit purchase, not just the
     // current admin's session. No completed_count/scheduled_count view
@@ -713,19 +751,25 @@ export default async function AdminDashboardPage({
     // online side, so those are derived below from homeVisitAppointments
     // (already loaded, one purchase's visits are a handful of rows at
     // most) rather than adding a schema-level view for it.
-    admin
-      .from("home_visit_package_purchases")
-      .select(
-        "id, purchase_code, patient_id, package_id, visit_count, visits_used, amount_paid_paise, payment_mode, payment_status, status, locked_therapist_id, expires_at, created_at"
-      )
-      .order("created_at", { ascending: false }),
+    readAllRowsAsData(() =>
+      admin
+        .from("home_visit_package_purchases")
+        .select(
+          "id, purchase_code, patient_id, package_id, visit_count, visits_used, amount_paid_paise, payment_mode, payment_status, status, locked_therapist_id, expires_at, created_at"
+        )
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
     // Team & access. admin_scope is new/migration-dependent, so it's its own
     // query rather than a column on the big allProfiles select -- an
     // unknown-column error there would blank every tab on this page, and
     // parseAdminScope() treats a missing value as 'full', which is exactly
     // how every admin behaved before scopes existed.
-    admin.from("profiles").select("id, admin_scope").eq("role", "admin"),
+    readAllRowsAsData(() =>
+      admin.from("profiles").select("id, admin_scope").eq("role", "admin")
+        .order("id", { ascending: true })
+    ),
 
     // Activity log -- brand-new table, so an unknown-table error here empties
     // only this one screen. Capped rather than unbounded: this table grows
@@ -746,11 +790,13 @@ export default async function AdminDashboardPage({
     // unknown-table error here must cost the Money screens their cost lines
     // and nothing else, the same convention session_notes and session_code
     // already follow.
-    admin
-      .from("business_expenses")
-      .select("id, incurred_on, category, description, amount_paise")
-      .order("incurred_on", { ascending: false })
-      .limit(500),
+    readAllRowsAsData(() =>
+      admin
+        .from("business_expenses")
+        .select("id, incurred_on, category, description, amount_paise")
+        .order("incurred_on", { ascending: false })
+        .order("id", { ascending: true })
+    ),
   ]);
 
   // Resolved here rather than beside the admin-team list further down,
@@ -803,10 +849,6 @@ export default async function AdminDashboardPage({
   const guard = <T,>(run: () => Promise<T>, fallback: T): Promise<T> =>
     run().catch(() => fallback);
 
-  const hospitalIds = (allProfiles ?? [])
-    .filter((p) => p.role === "hospital")
-    .map((h) => h.id);
-
   const [
     accountingHealth,
     suggestionsToggleRow,
@@ -821,9 +863,7 @@ export default async function AdminDashboardPage({
     categoryFeaturedRows,
     homeVisitFeaturedRows,
     testimonialAvatarRows,
-    hospitalNotes,
     refundDetailRows,
-    adminAccountNotes,
     googleConnection,
     syncModeRows,
     expenseClassRows,
@@ -868,12 +908,13 @@ export default async function AdminDashboardPage({
     readCarePlanRequiresApproval(admin),
     guard(
       async () =>
-        (
-          await admin
+        (await readAllRowsAsData(() =>
+            admin
             .from("appointments")
             .select("id, list_price_paise, discount_paise, discount_source, discount_reason")
             .gt("discount_paise", 0)
-        ).data,
+              .order("id", { ascending: true })
+          )).data,
       null as Record<string, unknown>[] | null
     ),
     guard(
@@ -928,16 +969,6 @@ export default async function AdminDashboardPage({
       async () => (await admin.from("testimonials").select("id, avatar_url")).data,
       null as { id: string; avatar_url: string | null }[] | null
     ),
-    guard(
-      async () =>
-        (
-          await admin
-            .from("hospital_admin_notes")
-            .select("hospital_id, temp_password, temp_password_set_at")
-            .in("hospital_id", hospitalIds)
-        ).data,
-      null as { hospital_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
-    ),
     // The refund detail the session drawer shows -- when it went back, why,
     // and the gateway's own reference. Isolated because `refunded_at` and
     // `refunded_by` are the newest columns on `appointments`: on a database
@@ -945,32 +976,19 @@ export default async function AdminDashboardPage({
     // chip rather than blanking every session on the page.
     guard(
       async () =>
-        (
-          await admin
+        (await readAllRowsAsData(() =>
+            admin
             .from("appointments")
             .select("id, refunded_at, refund_reason, refund_id")
             .not("refund_status", "is", null)
-        ).data,
+              .order("id", { ascending: true })
+          )).data,
       null as {
         id: string;
         refunded_at: string | null;
         refund_reason: string | null;
         refund_id: string | null;
       }[] | null
-    ),
-    // The password this clinic issued to each back-office account, still
-    // outstanding. In this batch rather than the main one because
-    // admin_account_notes is the newest table in the file: a database that
-    // has not applied it yet loses one column of the directory rather than
-    // every screen on this page.
-    guard(
-      async () =>
-        (
-          await admin
-            .from("admin_account_notes")
-            .select("admin_id, temp_password, temp_password_set_at")
-        ).data,
-      null as { admin_id: string; temp_password: string | null; temp_password_set_at: string | null }[] | null
     ),
     // One outbound call to Google, memoized for ten minutes, so the System
     // Health screen can say whether the account is still connected rather
@@ -984,7 +1002,10 @@ export default async function AdminDashboardPage({
     // these the panel falls back to its old meet_link-only test rather than
     // the whole dashboard failing.
     guard(
-      async () => (await admin.from("appointments").select("id, visit_mode, google_event_id")).data,
+      async () => (await readAllRowsAsData(() =>
+            admin.from("appointments").select("id, visit_mode, google_event_id")
+              .order("id", { ascending: true })
+          )).data,
       null as { id: string; visit_mode: string | null; google_event_id: string | null }[] | null
     ),
     // Business Health's own reads, every one of them in this batch for the
@@ -997,7 +1018,10 @@ export default async function AdminDashboardPage({
     // database missing the column still lists every cost -- merged back in
     // below, the same two-query shape `sessionCode.ts` uses.
     guard(
-      async () => (await admin.from("business_expenses").select("id, cost_class")).data,
+      async () => (await readAllRowsAsData(() =>
+            admin.from("business_expenses").select("id, cost_class")
+              .order("id", { ascending: true })
+          )).data,
       null as { id: string; cost_class: string | null }[] | null
     ),
     guard(
@@ -1040,12 +1064,13 @@ export default async function AdminDashboardPage({
     // other booking contributes nothing to it.
     guard(
       async () =>
-        (
-          await admin
+        (await readAllRowsAsData(() =>
+            admin
             .from("appointments")
             .select("id, promo_code_id")
             .not("promo_code_id", "is", null)
-        ).data,
+              .order("id", { ascending: true })
+          )).data,
       null as { id: string; promo_code_id: string | null }[] | null
     ),
     readFinanceSettings(admin),
@@ -1089,13 +1114,14 @@ export default async function AdminDashboardPage({
     // appointment row at all.
     guard(
       async () =>
-        (
-          await admin
+        (await readAllRowsAsData(() =>
+            admin
             .from("profiles")
             .select("id")
             .eq("role", "patient")
             .eq("pay_later_enabled", true)
-        ).data,
+              .order("id", { ascending: true })
+          )).data,
       null as { id: string }[] | null
     ),
     // The pay-later columns on the appointment. Their own read, and merged
@@ -1106,11 +1132,12 @@ export default async function AdminDashboardPage({
     // which is what they all were before the column existed.
     guard(
       async () =>
-        (
-          await admin
+        (await readAllRowsAsData(() =>
+            admin
             .from("appointments")
             .select("id, payment_terms, amount_due_paise, pay_later_outcome")
-        ).data,
+              .order("id", { ascending: true })
+          )).data,
       null as
         | {
             id: string;
@@ -1128,14 +1155,15 @@ export default async function AdminDashboardPage({
     // percentage, which is exactly how all of them behaved before.
     guard(
       async () =>
-        (
-          await admin
+        (await readAllRowsAsData(() =>
+            admin
             .from("appointments")
             .select(
               "id, therapist_share_percent_at_completion, hospital_share_percent_at_completion, hospital_id_at_completion"
             )
             .eq("status", "completed")
-        ).data,
+              .order("id", { ascending: true })
+          )).data,
       null as
         | {
             id: string;
@@ -1648,9 +1676,6 @@ export default async function AdminDashboardPage({
     }));
 
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
-  const hospitalNoteMap = new Map(
-    (hospitalNotes ?? []).map((n) => [n.hospital_id, n])
-  );
   const patients = (allProfiles ?? [])
     .filter((p) => p.role === "patient")
     .sort(
@@ -2144,15 +2169,7 @@ export default async function AdminDashboardPage({
                         userName={h.full_name ?? "this hospital"}
                       />
                     )}
-                    <ResetHospitalPasswordButton
-                      hospitalId={h.id}
-                      currentPassword={
-                        readableTempPassword(hospitalNoteMap.get(h.id), nowTimestamp()).password
-                      }
-                      currentPasswordSetAt={
-                        hospitalNoteMap.get(h.id)?.temp_password_set_at
-                      }
-                    />
+                    <ResetHospitalPasswordButton hospitalId={h.id} />
                     {/* Same rule as the button above: Master Admin only,
                         re-checked by the route. A partner with referrals on
                         file is refused and offered the suspend toggle
@@ -3514,8 +3531,6 @@ export default async function AdminDashboardPage({
     />
   );
 
-  const adminNoteMap = new Map((adminAccountNotes ?? []).map((n) => [n.admin_id, n]));
-
   const adminRows: AdminRow[] = (allProfiles ?? [])
     .filter((p) => p.role === "admin")
     .map((p) => ({
@@ -3529,13 +3544,6 @@ export default async function AdminDashboardPage({
       // role's screens give it.
       active: p.active !== false,
       isSelf: p.id === user.id,
-      // The password this clinic issued them, while it is still the one they
-      // sign in with. Null once they have set their own -- a password a
-      // person chose is a bcrypt hash and can never be read back, so the
-      // directory says which of the two states an account is in rather than
-      // pretending to know a secret it does not have.
-      tempPassword: readableTempPassword(adminNoteMap.get(p.id), nowTimestamp()).password,
-      tempPasswordSetAt: adminNoteMap.get(p.id)?.temp_password_set_at ?? null,
     }))
     // By name, because a directory of people with no stated order has one
     // anyway -- whatever Postgres hands back, which can differ between two
@@ -4944,6 +4952,12 @@ export default async function AdminDashboardPage({
     "settings:health": summarizeHealth(systemHealthChecks).needsPerson,
   };
 
+  // Only the screens this scope reaches leave the server. AdminShell hides
+  // the rest, but hiding is presentation: anything in these props is in the
+  // response, and a limited admin could read a Money or Settings screen's
+  // data out of it without ever opening the section.
+  const reachableScreens = visibleScreenKeys(allowedSections, workableSections, viewerScope !== "full");
+
   return (
     <JoinWindowProvider
       beforeMinutes={adminSettings.joinWindowMinutes}
@@ -4953,8 +4967,8 @@ export default async function AdminDashboardPage({
       <AdminShell
         initialSection={sectionParam ?? null}
         initialTab={tabParam ?? null}
-        screens={screens}
-        badges={badges}
+        screens={pickScreens(screens, reachableScreens)}
+        badges={pickScreens(badges, reachableScreens)}
         searchEntities={searchEntities}
         allowedSections={allowedSections}
         manageSections={workableSections}

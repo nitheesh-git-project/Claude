@@ -102,7 +102,11 @@ The four acquisition discounts, promo codes, patient invites, and the one module
        `grant_invite_reward()` fires from both capture paths (idempotent, so
        the browser callback and the webhook racing produce one reward). A
        reward that pays out on signups is a reward for creating accounts,
-       and somebody will.
+       and somebody will. `settleInvitesOnCapture` checks the RPCs' returned
+       `error` (it used to catch only a throw, so a failed settlement read
+       as done) and reports whether it finished; the webhook runs it on
+       every appointment capture, applied or not, and answers a failure as
+       retryable so Razorpay's next delivery is the repair.
      - **A patient is new exactly once**, the same test the first-session
        offer uses - and that phrase was a comment in `claim_invite()` while
        the two had silently parted: an invite is claimable only before that

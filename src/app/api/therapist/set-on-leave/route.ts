@@ -70,5 +70,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, onLeave: body.onLeave });
+  return NextResponse.json({
+    success: true,
+    onLeave: body.onLeave,
+    // The leave was recorded but the dates and reason could not be (a
+    // database without those columns). Said, never swallowed.
+    ...(result && "datesNotSaved" in result && result.datesNotSaved
+      ? { warning: "Your leave is recorded, but the dates and reason couldn't be saved yet." }
+      : {}),
+  });
 }

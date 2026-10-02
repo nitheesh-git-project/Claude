@@ -14534,3 +14534,397 @@ create index if not exists session_entitlements_legacy_home_visit_idx
 create index if not exists session_entitlements_locked_therapist_idx
   on session_entitlements (locked_therapist_id)
   where locked_therapist_id is not null;
+
+-- ===========================================================================
+-- Audit remediation, October 2026
+--
+-- Appended in the file's own re-runnable style. Each block names the finding
+-- it closes; the reasoning lives in docs/rules/ beside the rule it enforces.
+-- ===========================================================================
+
+-- A payout request is answered by a payout. `completed` used to be a status
+-- an admin could set with nothing behind it -- no batch, no settled
+-- sessions -- and the therapist was then told they had been paid. The
+-- request now records the batch that answered it, and the routes refuse to
+-- complete one without it (settle-therapist-payout links it automatically).
+alter table therapist_payout_requests
+  add column if not exists payout_batch_id uuid references therapist_payout_batches(id);
+create index if not exists therapist_payout_requests_batch_idx
+  on therapist_payout_requests (payout_batch_id)
+  where payout_batch_id is not null;
+
+-- One patient, one session at a time -- enforced where two requests meet.
+--
+-- /api/appointments/create checked for an overlapping session and then
+-- inserted, two statements apart: two requests fired together (a double-tap,
+-- two tabs) both passed the check and both inserted, and the patient held two
+-- sessions at the same hour. The check now lives in the insert itself, under
+-- a per-patient advisory lock, so a second request waits for the first to
+-- commit and then sees its row. Insert only: a reschedule is its own flow
+-- with its own checks, and widening this to updates would make a live row
+-- that already overlaps (the finding, if one exists) refuse every edit.
+-- Raised as exclusion_violation (23P01) so callers can tell it apart.
+create or replace function public.appointments_patient_no_overlap()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_new_start timestamptz;
+  v_new_end timestamptz;
+begin
+  if new.patient_id is null
+     or new.slot_time is null
+     or new.status not in ('requested', 'confirmed') then
+    return new;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('appointments_patient_overlap:' || new.patient_id::text));
+
+  v_new_start := new.slot_time;
+  v_new_end := new.slot_time + make_interval(mins => coalesce(new.duration_minutes, 60));
+
+  if exists (
+    select 1
+      from appointments a
+     where a.patient_id = new.patient_id
+       and a.id is distinct from new.id
+       and a.status in ('requested', 'confirmed')
+       and a.slot_time is not null
+       and a.slot_time < v_new_end
+       and v_new_start < a.slot_time + make_interval(mins => coalesce(a.duration_minutes, 60))
+       -- The same purchase at the same instant is a retried booking (a
+       -- replayed verify, a double-tapped Pay), not a second session. Left
+       -- to the unique indexes, whose 23505 the booking helpers already
+       -- answer as "that visit exists" rather than as a failure.
+       and not (
+         a.slot_time = new.slot_time
+         and (
+           (new.home_visit_purchase_id is not null and a.home_visit_purchase_id = new.home_visit_purchase_id)
+           or (new.package_purchase_id is not null and a.package_purchase_id = new.package_purchase_id)
+         )
+       )
+  ) then
+    raise exception 'patient already has a session overlapping this time'
+      using errcode = '23P01';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_appointments_patient_no_overlap on appointments;
+create trigger trg_appointments_patient_no_overlap
+  before insert on appointments
+  for each row execute function public.appointments_patient_no_overlap();
+
+revoke all on function public.appointments_patient_no_overlap() from public, anon, authenticated;
+
+-- Clinical access follows care that is live or delivered -- never a
+-- cancelled session, and never a programme that is unpaid, refunded,
+-- cancelled or past its expiry.
+--
+-- "Assigned" used to mean *any* appointment row naming the therapist, of any
+-- status, or any package lock. A therapist attached only to a session that
+-- was cancelled before it happened kept reading the patient's documents,
+-- health profile, Pain Map exams and other clinicians' session notes for
+-- good. The retention rule in the comment above is unchanged -- a completed
+-- session keeps whoever ran it -- and it is now what the policies actually
+-- say. src/lib/clinicalAccess.ts (CLINICAL_ACCESS_APPOINTMENT_STATUSES,
+-- programmeLockGrantsClinicalAccess) and src/lib/conditionAccess.ts hold the
+-- same rule for the routes and the admin's "who can see this" panel.
+
+drop policy if exists "condition_profiles_select_assigned_therapist" on patient_condition_profiles;
+create policy "condition_profiles_select_assigned_therapist" on patient_condition_profiles
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_condition_profiles.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_condition_profiles.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "pain_assessments_select_assigned_therapist" on pain_assessments;
+create policy "pain_assessments_select_assigned_therapist" on pain_assessments
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = pain_assessments.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = pain_assessments.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "patient_medical_documents_select_assigned_therapist" on patient_medical_documents;
+create policy "patient_medical_documents_select_assigned_therapist" on patient_medical_documents
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_medical_documents.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_medical_documents.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "patient_addresses_select_assigned_therapist" on patient_addresses;
+create policy "patient_addresses_select_assigned_therapist" on patient_addresses
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_addresses.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_addresses.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "session_notes_select_clinician" on session_notes;
+create policy "session_notes_select_clinician" on session_notes
+  for select using (
+    (
+      is_active_therapist()
+      and (
+      exists (
+          select 1 from appointments a
+          where a.patient_id = session_notes.patient_id
+            and a.therapist_id = (select auth.uid())
+            and a.status in ('requested', 'confirmed', 'completed')
+        )
+        or exists (
+          select 1 from patient_package_purchases pp
+          where pp.patient_id = session_notes.patient_id
+            and pp.locked_therapist_id = (select auth.uid())
+            and pp.payment_status = 'paid'
+            and pp.status = 'active'
+            and (pp.expires_at is null or pp.expires_at > now())
+        )
+      )
+    )
+    or is_admin()
+  );
+
+-- A Pain Map exam records what the therapist observed in a session they
+-- ran, so the insert is tied to one: a confirmed session that has started,
+-- or a completed one -- never a requested, cancelled or future session.
+drop policy if exists "pain_assessments_insert_assigned_therapist" on pain_assessments;
+create policy "pain_assessments_insert_assigned_therapist" on pain_assessments
+  for insert with check (
+    (select auth.uid()) = submitted_by and submitted_by_role = 'therapist'
+    and is_active_therapist()
+    and exists (
+      select 1 from appointments a
+      where a.patient_id = pain_assessments.patient_id
+        and a.therapist_id = (select auth.uid())
+        and (
+          a.status = 'completed'
+          or (a.status = 'confirmed' and a.slot_time <= now() + interval '15 minutes')
+        )
+    )
+  );
+
+-- Publishing a care plan version is one transaction.
+--
+-- authorCarePlanVersion used to retire the current version, then insert the
+-- new one, then move the plan's pointer -- three statements. An insert that
+-- failed left the plan with no current version at all; a pointer update that
+-- failed was logged and the route still answered success, pointing the
+-- patient at a version the plan did not reference. The new version is now
+-- inserted with is_current = false (so nothing is retired yet), and this
+-- function moves both flags and the pointer together under a lock on the
+-- plan. If it fails, the old version is still current and still pointed at.
+create or replace function public.publish_care_plan_version(
+  p_care_plan_id uuid,
+  p_version_id uuid,
+  p_lands_approved boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform 1 from care_plans where id = p_care_plan_id for update;
+  if not found then
+    raise exception 'care plan % not found', p_care_plan_id;
+  end if;
+
+  update care_plan_versions
+     set is_current = false
+   where care_plan_id = p_care_plan_id
+     and is_current
+     and id <> p_version_id;
+
+  update care_plan_versions
+     set is_current = true
+   where id = p_version_id
+     and care_plan_id = p_care_plan_id;
+  if not found then
+    raise exception 'version % does not belong to care plan %', p_version_id, p_care_plan_id;
+  end if;
+
+  update care_plans
+     set current_version_id = p_version_id,
+         status = case when p_lands_approved then 'active' else 'pending_review' end,
+         submitted_at = now(),
+         updated_at = now()
+   where id = p_care_plan_id;
+end;
+$$;
+
+revoke all on function public.publish_care_plan_version(uuid, uuid, boolean) from public, anon, authenticated;
+
+-- A suspended account cannot edit its own profile or avatar.
+--
+-- The direct-save fields (bio, languages, avatar_url and the rest of the
+-- column grant above) and the avatars bucket checked ownership and nothing
+-- else, so a suspended therapist or partner -- locked out of their dashboard
+-- by the proxy -- could still change what patients read about them with the
+-- token they already held. Suspension is `active = false`; approval is not
+-- required here, because an applicant awaiting approval still has to be able
+-- to complete their own profile.
+drop policy if exists "profiles_update_own" on profiles;
+create policy "profiles_update_own" on profiles
+  for update
+  using ((select auth.uid()) = id and active = true)
+  with check ((select auth.uid()) = id and active = true);
+
+drop policy if exists "avatar_insert_own" on storage.objects;
+create policy "avatar_insert_own" on storage.objects
+  for insert with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and exists (
+      select 1 from public.profiles p
+      where p.id = (select auth.uid()) and p.active = true
+    )
+  );
+
+drop policy if exists "avatar_update_own" on storage.objects;
+create policy "avatar_update_own" on storage.objects
+  for update using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and exists (
+      select 1 from public.profiles p
+      where p.id = (select auth.uid()) and p.active = true
+    )
+  );
+
+drop policy if exists "avatar_delete_own" on storage.objects;
+create policy "avatar_delete_own" on storage.objects
+  for delete using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and exists (
+      select 1 from public.profiles p
+      where p.id = (select auth.uid()) and p.active = true
+    )
+  );
+
+-- Suspension reaches the token already issued, for a patient's own record.
+--
+-- A patient's own-row policies keyed on auth.uid() alone, so a suspended
+-- patient's still-valid token kept reading their appointments, health
+-- profile, Pain Map exams and report metadata straight from PostgREST until
+-- it expired -- and, through the report rows, kept minting signed links.
+-- (scripts/authorization-checks.mjs section 5 now asserts this rather than
+-- noting it.) The account's own `active` flag is read once per statement:
+-- the subquery is an initplan, not a per-row lookup.
+drop policy if exists "appointments_select_own" on appointments;
+create policy "appointments_select_own" on appointments
+  for select using (
+    ((select auth.uid()) = patient_id or (select auth.uid()) = therapist_id)
+    and coalesce((select p.active from public.profiles p where p.id = (select auth.uid())), false)
+  );
+
+drop policy if exists "patient_medical_documents_select_own" on patient_medical_documents;
+create policy "patient_medical_documents_select_own" on patient_medical_documents
+  for select using (
+    (select auth.uid()) = patient_id
+    and coalesce((select p.active from public.profiles p where p.id = (select auth.uid())), false)
+  );
+
+drop policy if exists "condition_profiles_select_own" on patient_condition_profiles;
+create policy "condition_profiles_select_own" on patient_condition_profiles
+  for select using (
+    (select auth.uid()) = patient_id
+    and coalesce((select p.active from public.profiles p where p.id = (select auth.uid())), false)
+  );
+
+drop policy if exists "pain_assessments_select_own" on pain_assessments;
+create policy "pain_assessments_select_own" on pain_assessments
+  for select using (
+    (select auth.uid()) = patient_id
+    and coalesce((select p.active from public.profiles p where p.id = (select auth.uid())), false)
+  );
+
+-- A partner withdrawing a referral is not the clinic declining it.
+--
+-- /api/hospital/withdraw-referral wrote status = 'declined' with no reason,
+-- actor or time, so neither the partner nor an admin could tell "we took it
+-- back" from "the clinic turned this patient away" -- and the hospital's own
+-- Withdrawn filter could never match anything, because no such status
+-- existed. It is its own state now, with who and when beside it.
+alter table patient_referrals add column if not exists withdrawn_at timestamptz;
+alter table patient_referrals add column if not exists withdrawn_by uuid references profiles(id);
+
+alter table patient_referrals drop constraint if exists patient_referrals_status_check;
+alter table patient_referrals add constraint patient_referrals_status_check
+  check (status in ('pending_review', 'therapist_assigned', 'invite_sent', 'converted', 'declined', 'withdrawn'));
+
+-- No password the clinic issued is kept in plaintext.
+--
+-- Accounts an admin creates or resets now get a one-time Supabase recovery
+-- link to set their own password (src/lib/accessLink.ts); nothing readable
+-- is written to the *_admin_notes tables. This clears what earlier versions
+-- left there -- each is a working credential for an account that may not
+-- have changed it. The columns stay (temp_password_set_at is the record that
+-- one was issued) and purge_expired_temp_passwords() keeps running harmlessly.
+update patient_admin_notes set temp_password = null where temp_password is not null;
+update therapist_admin_notes set temp_password = null where temp_password is not null;
+update hospital_admin_notes set temp_password = null where temp_password is not null;
+update admin_account_notes set temp_password = null where temp_password is not null;

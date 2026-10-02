@@ -230,16 +230,14 @@ try {
 
     await sql(`update profiles set active = false where id = '${patientA.id}';`);
     const after = await readAs(tokPatA, `appointments?select=id&id=eq.${apptA}`);
-    // The row-level policies for a patient key on auth.uid() rather than on
-    // `active`, so this documents what suspension does and does not reach:
-    // the app refuses them at the proxy and in every route, and the token
-    // itself stays valid until it expires. Reported rather than asserted
-    // either way, because the honest answer is "the app is the gate here"
-    // and a test claiming otherwise would be wrong.
-    console.log(
-      `  NOTE  a suspended patient's existing token still reads ${after.rows?.length} row(s) at the policy layer - ` +
-        `the proxy and requireActiveProfile are what refuse them, and revoke_user_sessions stops renewal`
+    // The patient's own-row policies now require `active`, so suspension
+    // reaches the token already issued -- not only the proxy and the routes.
+    assert(
+      after.rows?.length === 0,
+      `a suspended patient's existing token reads nothing at the policy layer (got ${after.rows?.length})`
     );
+    const docs = await readAs(tokPatA, `patient_medical_documents?select=id&limit=1`);
+    assert(docs.rows?.length === 0, "a suspended patient reads no report metadata");
     await sql(`update profiles set active = true where id = '${patientA.id}';`);
   }
 

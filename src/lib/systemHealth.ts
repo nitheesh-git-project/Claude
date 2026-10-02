@@ -213,6 +213,10 @@ export type ReferralAttributionHealth = {
   orphanedCount: number;
   /** ...of which this many have already had a session completed. */
   withCompletedSessions: number;
+  /** Referrals marked converted with no patient linked at all -- invisible
+   *  to the comparison above, so counted on their own. Optional so a
+   *  caller predating it reads as zero. */
+  unlinkedCount?: number;
 };
 
 const STATUS_RANK: Record<HealthStatus, number> = {
@@ -734,6 +738,21 @@ function referralAttributionCheck(
     };
   }
 
+  const unlinked = health.unlinkedCount ?? 0;
+  if (health.orphanedCount === 0 && unlinked > 0) {
+    return {
+      ...base,
+      status: "attention",
+      headline: `${plural(unlinked, "referral is", "referrals are")} marked registered with no patient linked to ${unlinked === 1 ? "it" : "them"}, so nobody can tell which account the partner should be credited on.`,
+      fix: [
+        "Open People -> Partners -> Patient Referrals and find the referral marked Registered.",
+        "Find the patient it converted to (same name and phone) and set the referring partner on their profile.",
+      ],
+      count: unlinked,
+      evidence: [`${plural(unlinked, "registered referral", "registered referrals")} with no patient linked`],
+    };
+  }
+
   if (health.orphanedCount === 0) {
     return {
       ...base,
@@ -758,9 +777,12 @@ function referralAttributionCheck(
       "Open the patient it converted to, and set the partner that referred them on their profile.",
       "Their commission then applies to sessions from that point. Sessions already delivered keep the split that was recorded on the day.",
     ],
-    count: health.orphanedCount,
+    count: health.orphanedCount + unlinked,
     evidence: [
       `${plural(health.orphanedCount, "patient", "patients")} with no partner recorded`,
+      ...(unlinked > 0
+        ? [`${plural(unlinked, "registered referral", "registered referrals")} with no patient linked`]
+        : []),
       delivered > 0
         ? `${plural(delivered, "patient", "patients")} already have a delivered session`
         : "None have had a session delivered yet",

@@ -139,11 +139,13 @@ const SECTION_ACCESS: Record<AdminScope, Record<AdminSectionKey, AccessLevel>> =
 };
 
 export function sectionAccess(scope: AdminScope, section: AdminSectionKey): AccessLevel {
-  return SECTION_ACCESS[scope]?.[section] ?? SECTION_ACCESS.full[section] ?? "none";
+  // An unrecognised scope reaches nothing -- never the Master Admin grid.
+  return SECTION_ACCESS[scope]?.[section] ?? "none";
 }
 
 export function sectionsForScope(scope: AdminScope): AdminSectionKey[] {
-  const grid = SECTION_ACCESS[scope] ?? SECTION_ACCESS.full;
+  const grid = SECTION_ACCESS[scope];
+  if (!grid) return [];
   return (Object.keys(grid) as AdminSectionKey[]).filter((s) => grid[s] !== "none");
 }
 
@@ -267,10 +269,32 @@ export function scopeHasCapability(scope: AdminScope, capability: AdminCapabilit
   return capability.writes ? level === "manage" : level !== "none";
 }
 
-// Anything not written by a person's own hand -- an unknown value from an
-// older row, a null before the column existed -- reads as 'full', matching
-// the pre-scope behaviour of every existing admin. A migration must never
-// silently lock the only admin out of their own dashboard.
+// For *displaying* another admin's row (the team list, the activity feed).
+// Never use this to decide what the caller may do -- that is
+// `resolveAdminScope` below, which refuses rather than guesses.
 export function parseAdminScope(value: unknown): AdminScope {
   return ADMIN_SCOPES.includes(value as AdminScope) ? (value as AdminScope) : "full";
+}
+
+// Postgres "undefined_column": the database predates admin_scope entirely.
+const UNDEFINED_COLUMN = "42703";
+
+/**
+ * The caller's own scope, for an authorization decision. Null means "we
+ * could not establish it", which the guard answers as unavailable.
+ *
+ * It must never fail open. The column is `not null` with a check
+ * constraint, so on a migrated database a missing or unknown value can only
+ * come from a read that failed -- and reading that as Master Admin would
+ * hand a Finance desk every section during a database blip. The one case
+ * that still reads as 'full' is a database where the column does not exist
+ * yet: no limited admin can exist there, so every admin genuinely is full,
+ * and refusing would lock the only admin out of their own dashboard.
+ */
+export function resolveAdminScope(
+  value: unknown,
+  error: { code?: string } | null | undefined
+): AdminScope | null {
+  if (error) return error.code === UNDEFINED_COLUMN ? "full" : null;
+  return ADMIN_SCOPES.includes(value as AdminScope) ? (value as AdminScope) : null;
 }

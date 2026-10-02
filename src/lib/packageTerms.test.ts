@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { termsFromSnapshot } from "./packageTerms";
+import { spacingVerdict, termsFromSnapshot } from "./packageTerms";
 
 describe("termsFromSnapshot", () => {
   it("reads a session package's frozen terms", () => {
@@ -68,5 +68,33 @@ describe("termsFromSnapshot", () => {
 
   it("reads a numeric string, which is how jsonb renders a numeric column", () => {
     expect(termsFromSnapshot({ min_gap_hours: "48" }).minGapHours).toBe(48);
+  });
+});
+
+describe("spacingVerdict", () => {
+  const terms = (gap: number | null, week: number | null) => ({
+    sessionDurationMinutes: 60,
+    minGapHours: gap,
+    maxSessionsPerWeek: week,
+    source: "snapshot" as const,
+  });
+  const MON = Date.parse("2026-10-05T04:30:00Z"); // 10:00 IST, a Monday
+  const H = 3_600_000;
+
+  it("refuses a slot closer than the minimum gap", () => {
+    expect(spacingVerdict([MON], MON + 24 * H, terms(48, null))).toMatchObject({ ok: false, reason: "gap" });
+    expect(spacingVerdict([MON], MON + 48 * H, terms(48, null))).toEqual({ ok: true });
+  });
+
+  it("refuses a slot in a week that is already full", () => {
+    expect(spacingVerdict([MON, MON + 24 * H], MON + 72 * H, terms(null, 2))).toMatchObject({
+      ok: false,
+      reason: "week",
+    });
+    expect(spacingVerdict([MON], MON + 72 * H, terms(null, 2))).toEqual({ ok: true });
+  });
+
+  it("allows anything when the programme sets no spacing", () => {
+    expect(spacingVerdict([MON], MON + H, terms(null, null))).toEqual({ ok: true });
   });
 });

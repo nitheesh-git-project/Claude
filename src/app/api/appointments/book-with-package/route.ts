@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
-import { leadTimeMsFromHours } from "@/lib/bookingSlots";
+import { isWholeHourSlot, leadTimeMsFromHours, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { bookPackageSession } from "@/lib/bookPackageSession";
-import { readPackageTerms } from "@/lib/packageTerms";
+import { checkPackageSpacing, readPackageTerms } from "@/lib/packageTerms";
 
 const MAX_NOTES_LENGTH = 1000;
 
@@ -52,8 +52,16 @@ export async function POST(request: NextRequest) {
   if (slotTimestamp <= Date.now()) {
     return NextResponse.json({ error: "The slot must be in the future" }, { status: 400 });
   }
+  // Sessions start on the hour, everywhere -- the same rule the direct and
+  // bulk booking routes already enforced; this one was the gap a crafted
+  // request could book an off-schedule session through.
+  if (!isWholeHourSlot(new Date(slotTimestamp).toISOString(), timezone)) {
+    return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
+  }
 
-  if (!(await isProfileActiveAndApproved(user.id))) {
+  const standing = await isProfileActiveAndApproved(user.id);
+  if (standing === null) return profileCheckUnavailable();
+  if (!standing) {
     return NextResponse.json({ error: "Your account is not active - it is either awaiting admin approval or has been suspended." }, { status: 403 });
   }
 
@@ -96,6 +104,20 @@ export async function POST(request: NextRequest) {
   // live row meant an admin editing a programme changed the length of
   // sessions somebody had already paid for, mid-programme.
   const packageTerms = await readPackageTerms(admin, purchase.id, purchase.package_id);
+
+  // The programme's minimum gap and weekly cap, which the bulk scheduler
+  // applied and this single-session door did not.
+  const spacing = await checkPackageSpacing(admin, {
+    purchaseId: purchase.id,
+    slotMs: slotTimestamp,
+    terms: packageTerms,
+  });
+  if (!spacing.ok) {
+    return NextResponse.json(
+      { error: spacing.error },
+      { status: spacing.reason === "unavailable" ? 503 : 409 }
+    );
+  }
 
   const result = await bookPackageSession(admin, {
     purchase,

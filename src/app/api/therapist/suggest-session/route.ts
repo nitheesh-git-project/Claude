@@ -12,6 +12,8 @@ import {
 import { sessionsRemaining } from "@/lib/sessionSuggestions";
 import { guardCommunication } from "@/lib/communicationFlags";
 import { serverError } from "@/lib/apiError";
+import { checkPackageSpacing, readPackageTerms } from "@/lib/packageTerms";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 
 const MAX_NOTE_LENGTH = 500;
 
@@ -119,7 +121,7 @@ export async function POST(request: NextRequest) {
   const { data: purchase } = await admin
     .from("patient_package_purchases")
     .select(
-      "id, patient_id, locked_therapist_id, session_count, sessions_used, status, expires_at, payment_status"
+      "id, patient_id, package_id, category_id, locked_therapist_id, session_count, sessions_used, status, expires_at, payment_status"
     )
     .eq("id", purchaseId)
     .maybeSingle();
@@ -150,6 +152,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // The session's real length, from the terms the patient bought -- this
+  // assumed every session was 60 minutes, so a 90-minute programme could be
+  // proposed over the tail of an existing booking, and the acceptance (which
+  // books the real length) then failed to reserve the therapist and left the
+  // session unassigned in the admin's queue.
+  const terms = await readPackageTerms(admin, purchase.id, purchase.package_id);
+  let durationMinutes = terms.sessionDurationMinutes;
+  if (!durationMinutes && purchase.category_id) {
+    const { data: category } = await admin
+      .from("treatment_categories")
+      .select("duration_minutes")
+      .eq("id", purchase.category_id)
+      .maybeSingle();
+    durationMinutes = category?.duration_minutes ?? null;
+  }
+
+  // The programme's own spacing, checked now rather than only when the
+  // patient accepts -- a suggestion they cannot accept wastes their answer.
+  const spacing = await checkPackageSpacing(admin, { purchaseId: purchase.id, slotMs, terms });
+  if (!spacing.ok) {
+    return NextResponse.json(
+      { error: spacing.error },
+      { status: spacing.reason === "unavailable" ? 503 : 409 }
+    );
+  }
+
   // Advisory: acceptance re-checks this against the therapist's calendar as
   // it stands then. Suggesting a slot they are already busy for would just
   // waste the patient's answer.
@@ -157,7 +185,7 @@ export async function POST(request: NextRequest) {
     admin,
     user.id,
     new Date(slotMs).toISOString(),
-    60
+    durationMinutes ?? BASE_DURATION_MINUTES
   );
   if (conflict) {
     return NextResponse.json(

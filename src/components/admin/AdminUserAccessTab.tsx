@@ -8,7 +8,6 @@ import { THERAPIST_SPECIALTIES } from "@/lib/therapistSpecialties";
 import { MAX_YEARS_EXPERIENCE } from "@/lib/therapistExperience";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import Spinner from "@/components/system/Spinner";
-import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { useToast } from "@/lib/toast";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import {
@@ -23,6 +22,7 @@ import {
   type AdminScope,
 } from "@/lib/adminScope";
 import ResetAdminPasswordButton from "@/components/admin/ResetAdminPasswordButton";
+import SignInLinkResult from "@/components/admin/SignInLinkResult";
 
 /**
  * Who can get into this dashboard, what each of them reaches, and who is
@@ -55,13 +55,6 @@ export type AdminRow = {
   scope: AdminScope;
   active: boolean;
   isSelf: boolean;
-  /** The password this clinic issued, while it is still the one they sign in
-   *  with. Null once they have set their own: a password a person chose is
-   *  stored as a bcrypt hash and can never be read back, so the two states
-   *  this pair can be in are "still on ours" and "theirs now" -- never "here
-   *  is the one they picked". */
-  tempPassword?: string | null;
-  tempPasswordSetAt?: string | null;
 };
 
 // Where the waiting belongs.
@@ -345,33 +338,26 @@ function AccessMatrix() {
   );
 }
 
-// What was just created, and where to find the password again.
+// What was just created, and how the person gets in.
 //
-// The last line is the point of it: an admin who closes this needs to know
-// the credential is not gone, and where it went depends on the role they
-// picked -- a back-office account carries it on its own row in the directory
-// above, a patient or therapist on their profile page under People.
+// No password: the clinic hands over a one-time link with which they set
+// their own (src/lib/accessLink.ts), and keeps no copy. Losing this panel
+// loses nothing -- the person's own page (or row, for the back office)
+// issues a fresh link.
 function CreatedAccountPanel({
   created,
   onClose,
 }: {
-  created: { email: string; password: string; role: string };
+  created: { email: string; linkPath: string | null; warning?: string | null; role: string };
   onClose: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
-  const whereItLives =
+  const whereToReissue =
     created.role === "admin"
-      ? "It stays on their row in Back office above until they set their own."
-      : "It stays on their profile under People until they set their own.";
+      ? "If it's lost, issue a new one from their row in Back office above."
+      : "If it's lost, issue a new one from their profile under People.";
 
   return (
-    <div className="relative rounded-lg border border-teal-200 bg-teal-50 p-3 pr-9 text-xs text-teal-900">
-      {/* Dismissible, because otherwise the only way this panel leaves the
-          screen is creating another account -- so a live credential sat above
-          the Create button indefinitely, pushing it down the page. Closing is
-          safe precisely because the password is not only here: it is on the
-          account's own row until they set their own, which the line below
-          says. */}
+    <div className="relative rounded-lg border border-teal-200 bg-teal-50 p-3 pr-9 text-xs text-teal-900 space-y-2">
       <button
         type="button"
         onClick={onClose}
@@ -380,76 +366,16 @@ function CreatedAccountPanel({
       >
         <i className="fa-solid fa-xmark" aria-hidden="true"></i>
       </button>
-      <p className="font-bold">Account created.</p>
-      <p className="mt-1 flex flex-wrap items-center gap-2">
-        {created.email} · temporary password{" "}
-        <span className="font-mono font-bold">{created.password}</span>
-        <button
-          type="button"
-          onClick={() => {
-            navigator.clipboard.writeText(created.password);
-            setCopied(true);
-            // Back to "Copy" after a beat. It never reset, so one tap left the
-            // button reading "Copied" for the rest of the session -- which
-            // says nothing about whether the *next* tap worked.
-            window.setTimeout(() => setCopied(false), 2000);
-          }}
-          className="rounded-lg border border-teal-300 bg-white px-2 py-1 font-semibold text-teal-800 transition hover:bg-teal-100"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
-      </p>
-      <p className="mt-1 text-teal-700">
-        This platform sends no email, so read it out to them. {whereItLives}
+      <p className="font-bold">Account created for {created.email}.</p>
+      {created.linkPath ? (
+        <SignInLinkResult linkPath={created.linkPath} />
+      ) : (
+        <p className="text-amber-800">{created.warning ?? "A sign-in link could not be made."}</p>
+      )}
+      <p className="text-teal-700">
+        This platform sends no email, so send them the link yourself. {whereToReissue}
       </p>
     </div>
-  );
-}
-
-// Which password a back-office account is signing in with.
-//
-// Two states, and the screen says which -- it never claims a third. While
-// the clinic's own issued password is still in use it is readable here, so
-// an admin taking a call about "it won't let me in" can read it back
-// instead of resetting a working credential; once that person sets their
-// own, the row is cleared by /api/clear-temp-password and this says so. A
-// password somebody chose themselves is a bcrypt hash in Supabase's own
-// table and cannot be displayed by anyone, this app included -- the lane for
-// an account in that state is a reset, which issues a new one and puts the
-// row back into the first state.
-function IssuedPassword({ row }: { row: AdminRow }) {
-  const [copied, setCopied] = useState(false);
-
-  if (!row.tempPassword) {
-    return (
-      <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-slate-500">
-        <i aria-hidden className="fa-solid fa-lock text-[9px]" />
-        Signing in with their own password
-      </p>
-    );
-  }
-
-  return (
-    <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-      <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-amber-900">
-        <i aria-hidden className="fa-solid fa-key text-[9px]" />
-        Still on the password we issued:{" "}
-        <strong className="font-mono font-bold">{row.tempPassword}</strong>
-      </span>
-      <button
-        type="button"
-        onClick={() => {
-          navigator.clipboard.writeText(row.tempPassword ?? "");
-          setCopied(true);
-        }}
-        className="rounded-lg border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-600 transition hover:bg-slate-50"
-      >
-        {copied ? "Copied" : "Copy"}
-      </button>
-      {row.tempPasswordSetAt && (
-        <span className="text-slate-500">Issued {formatClinicDateTimeWithZone(row.tempPasswordSetAt)}</span>
-      )}
-    </p>
   );
 }
 
@@ -464,7 +390,7 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
   const [yearsExperience, setYearsExperience] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<
-    { email: string; password: string; role: string } | null
+    { email: string; linkPath: string | null; warning?: string | null; role: string } | null
   >(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -515,15 +441,10 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
         setError(data.error ?? "Could not create the account.");
         return;
       }
-      // The password is stored as well as shown now, so this panel going
-      // away no longer loses it -- a back-office account keeps it on its own
-      // row in the directory above, and a patient or therapist on their
-      // profile page, until they set their own. It used to live here and
-      // nowhere else, which made losing it a matter of timing: this request
-      // inserts a `profiles` row, that table is one the dashboard subscribes
-      // to, and the realtime refresh it triggers arrives while the admin is
-      // still reading the password out.
-      setCreated({ email, password: data.password, role });
+      // The person sets their own password with the one-time link this
+      // returns; nothing is stored, and a lost link is replaced from their
+      // own page.
+      setCreated({ email, linkPath: data.linkPath ?? null, warning: data.warning ?? null, role });
       // Every field the form collects, not only the ones somebody remembered
       // -- a specialisation left behind from the last therapist is the next
       // account created with a fact about somebody else on it.
@@ -683,9 +604,9 @@ function CreateAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
         </div>
       )}
       <p className="text-[11px] text-slate-500">
-        The account is created already approved - you vetted it by creating it - and a
-        temporary password is generated. It stays readable until they set their own, so
-        closing this does not lose it.
+        The account is created already approved - you vetted it by creating it - and you
+        get a one-time link for them to set their own password. No password is kept, and a
+        lost link can be replaced from their page.
       </p>
 
       {error && (
@@ -819,19 +740,14 @@ export default function AdminUserAccessTab({
                       </span>
                     </p>
                     <p className="text-slate-500">{a.email}</p>
-                    <IssuedPassword row={a} />
                     <p className="mt-1 text-[11px] text-slate-500">{ADMIN_SCOPE_BLURBS[a.scope]}</p>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-3">
                     <StatusToggle row={a} canManage={canManage} />
-                    {/* The lane `IssuedPassword` above names for an account
-                        signing in with its own password. It existed for
-                        patients, therapists and hospitals and not for the back
-                        office, so closing the door on a colleague who had
-                        locked themselves out needed database access. Full
-                        scope only, and never your own row -- the honest answer
-                        for that is the emailed reset on Sign-in & Security,
-                        which the route says too. */}
+                    {/* A one-time sign-in link for a colleague who is locked
+                        out. Full scope only, and never your own row -- the
+                        honest answer for that is the emailed reset on
+                        Sign-in & Security, which the route says too. */}
                     {canManage && (
                       <ResetAdminPasswordButton
                         adminId={a.id}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { serverError } from "@/lib/apiError";
 
@@ -23,7 +23,9 @@ export async function POST(request: NextRequest) {
   // stay: src/proxy.ts for dashboard navigation, and here, because a valid
   // session cookie reaches this route without passing the proxy at all.
   // This route had only the first.
-  if (!(await isProfileActiveAndApproved(user.id))) {
+  const standing = await isProfileActiveAndApproved(user.id);
+  if (standing === null) return profileCheckUnavailable();
+  if (!standing) {
     return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }
 
@@ -47,11 +49,12 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  const { data: referral } = await admin
+  const { data: referral, error: readError } = await admin
     .from("patient_referrals")
     .select("status, hospital_id")
     .eq("id", referralId)
-    .single();
+    .maybeSingle();
+  if (readError) return serverError("hospital/withdraw-referral", readError);
 
   if (!referral || referral.hospital_id !== user.id) {
     return NextResponse.json({ error: "Referral not found" }, { status: 404 });
@@ -63,14 +66,36 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: updated, error } = await admin
+  // Its own status, with who and when -- not `declined`, which is the
+  // clinic's decision and reads as a refusal of the patient.
+  const withdrawnAt = new Date().toISOString();
+  let { data: updated, error } = await admin
     .from("patient_referrals")
-    .update({ status: "declined" })
+    .update({ status: "withdrawn", withdrawn_at: withdrawnAt, withdrawn_by: user.id })
     .eq("id", referralId)
     .eq("hospital_id", user.id)
     .in("status", ["pending_review", "therapist_assigned"])
     .select("id")
     .maybeSingle();
+
+  // A database that has not taken the `withdrawn` status yet (check
+  // violation, or the new columns missing) records it the old way -- but
+  // says so in the reason, so it can still be told apart from a decline.
+  if (error && (error.code === "23514" || error.code === "42703")) {
+    ({ data: updated, error } = await admin
+      .from("patient_referrals")
+      .update({
+        status: "declined",
+        decline_reason: "Withdrawn by the referring partner.",
+        declined_at: withdrawnAt,
+        declined_by: user.id,
+      })
+      .eq("id", referralId)
+      .eq("hospital_id", user.id)
+      .in("status", ["pending_review", "therapist_assigned"])
+      .select("id")
+      .maybeSingle());
+  }
 
   if (error) {
     return serverError("hospital/withdraw-referral", error);

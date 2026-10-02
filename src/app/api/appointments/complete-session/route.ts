@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
 import { scopeCanManage } from "@/lib/adminScope";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActiveAndApproved } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
+import { completionOpensAtMs, completionRefusal } from "@/lib/sessionCompletion";
 import { mirrorConsume } from "@/lib/sessionCreditMirror";
 import { allocatePayLaterPayments } from "@/lib/payLaterSettlementServer";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
@@ -93,8 +94,12 @@ export async function POST(request: NextRequest) {
   }
   // Only gate the therapist's own path -- an admin correcting the record is
   // never subject to the patient/therapist suspension flag.
-  if (!adminUser && !(await isProfileActiveAndApproved(user.id))) {
-    return NextResponse.json({ error: "Your account is not active - it is either awaiting admin approval or has been suspended." }, { status: 403 });
+  if (!adminUser) {
+    const standing = await isProfileActiveAndApproved(user.id);
+    if (standing === null) return profileCheckUnavailable();
+    if (!standing) {
+      return NextResponse.json({ error: "Your account is not active - it is either awaiting admin approval or has been suspended." }, { status: 403 });
+    }
   }
 
   if (appointment.status !== "confirmed") {
@@ -102,6 +107,31 @@ export async function POST(request: NextRequest) {
       { error: "Only confirmed sessions can be marked completed." },
       { status: 400 }
     );
+  }
+
+  // A session on a programme that has been refunded is not deliverable. The
+  // refund claims the purchase before it counts what was delivered, and this
+  // is the other half of that: without it, a session completed while the
+  // refund was in flight was both refunded and paid out. Applies to an admin
+  // too -- completing it would book revenue against money already returned.
+  if (appointment.package_purchase_id || appointment.home_visit_purchase_id) {
+    const { data: programme, error: programmeError } = await admin
+      .from(appointment.package_purchase_id ? "patient_package_purchases" : "home_visit_package_purchases")
+      .select("status")
+      .eq("id", (appointment.package_purchase_id ?? appointment.home_visit_purchase_id) as string)
+      .maybeSingle();
+    if (programmeError) {
+      return NextResponse.json(
+        { error: "We couldn't check this session's programme just now. Please try again." },
+        { status: 503 }
+      );
+    }
+    if (programme?.status === "refunded") {
+      return NextResponse.json(
+        { error: "This programme has been refunded, so its sessions can't be marked delivered." },
+        { status: 409 }
+      );
+    }
   }
 
   if (!adminUser) {
@@ -130,21 +160,26 @@ export async function POST(request: NextRequest) {
     // the column behaves as the settings page says it should.
     const { data: windowRow } = await admin
       .from("site_settings")
-      .select("join_window_minutes")
+      .select("join_window_after_minutes")
       .maybeSingle();
-    const joinWindowMinutes =
-      typeof windowRow?.join_window_minutes === "number"
-        ? windowRow.join_window_minutes
-        : DEFAULT_ADMIN_SETTINGS.joinWindowMinutes;
+    const lateGraceMinutes =
+      typeof windowRow?.join_window_after_minutes === "number"
+        ? windowRow.join_window_after_minutes
+        : DEFAULT_ADMIN_SETTINGS.joinWindowAfterMinutes;
 
-    const opensAt =
-      new Date(appointment.slot_time).getTime() - joinWindowMinutes * 60_000;
+    // Done once the session has started; a no-show once the patient is past
+    // the late-arrival grace. It used to open both at "slot minus join
+    // window", so a no-show could forfeit a patient's credit before they
+    // could possibly have been late. See sessionCompletion.ts.
+    const kind = noShow ? "no_show" : "done";
+    const opensAt = completionOpensAtMs(
+      new Date(appointment.slot_time).getTime(),
+      kind,
+      lateGraceMinutes
+    );
     if (Date.now() < opensAt) {
       return NextResponse.json(
-        {
-          error:
-            "This session hasn't started yet. You can mark it done once it's under way.",
-        },
+        { error: completionRefusal(kind, lateGraceMinutes), notYet: true },
         { status: 409 }
       );
     }

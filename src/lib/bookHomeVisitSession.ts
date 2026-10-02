@@ -5,6 +5,7 @@ import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
 import { formatAddressOneLine, type VisitAddress } from "@/lib/formatAddress";
 import { mirrorReserve } from "@/lib/sessionCreditMirror";
 import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
+import { decrementUsedCounter } from "@/lib/purchaseCounter";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -255,24 +256,16 @@ export async function bookHomeVisitSession(
     // it. Re-read and CAS-decrement rather than blindly restoring the
     // pre-claim value, which could clobber a concurrent cancellation or
     // refund on this same purchase that landed in between.
-    const { data: current } = await admin
-      .from("home_visit_package_purchases")
-      .select("visits_used")
-      .eq("id", purchase.id)
-      .single();
-    if (current && current.visits_used > 0) {
-      const { error: revertError } = await admin
-        .from("home_visit_package_purchases")
-        .update({ visits_used: current.visits_used - 1 })
-        .eq("id", purchase.id)
-        .eq("visits_used", current.visits_used);
-      if (revertError) {
-        console.error(
-          "Failed to revert claimed home visit for purchase",
-          purchase.id,
-          revertError
-        );
-      }
+    // Retried until it lands (decrementUsedCounter): a single attempt that
+    // lost a race, or matched no row, used to leave the credit consumed.
+    const reverted = await decrementUsedCounter(
+      admin,
+      "home_visit_package_purchases",
+      "visits_used",
+      purchase.id
+    );
+    if (!reverted.ok) {
+      console.error("Failed to revert claimed home visit for purchase", purchase.id, reverted.error);
     }
     // A unique violation here is the one "failure" that is not one: the
     // partial index `appointments_one_per_home_visit_purchase_slot` refuses a
@@ -282,6 +275,15 @@ export async function bookHomeVisitSession(
     // the balance is right either way. Saying "could not book" here would
     // report a working booking as a failure -- the one thing this route must
     // not do after money has moved.
+    // trg_appointments_patient_no_overlap: the patient already has another
+    // session at this time. The credit has been given back above.
+    if ((insertError as { code?: string } | null)?.code === "23P01") {
+      return {
+        success: false,
+        status: 409,
+        error: "You already have a session around this time. Pick a different slot.",
+      };
+    }
     if ((insertError as { code?: string } | null)?.code === "23505") {
       return { success: false, duplicate: true, status: 409, error: DUPLICATE_SLOT_ERROR };
     }

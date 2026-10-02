@@ -152,12 +152,15 @@ test.beforeAll(async () => {
   ]);
 
   // Assignment is what /onboard gates on: one past appointment is enough.
+  // A *completed* one -- a cancelled session grants no clinical access, and a
+  // Pain Map exam needs a session that has actually happened.
   for (const tid of [therapistId]) {
     const { count } = await admin
       .from("appointments")
       .select("id", { count: "exact", head: true })
       .eq("patient_id", patientId)
-      .eq("therapist_id", tid);
+      .eq("therapist_id", tid)
+      .eq("status", "completed");
     if (!count) {
       await admin.from("appointments").insert({
         patient_id: patientId,
@@ -715,6 +718,56 @@ test("INT-001/008: an interrupted fill survives the wizard closing", async ({ re
   expect((row?.draft_data as Record<string, string>).worsens).toBe("Stairs");
   // And it is attributed, so it is offered back to the right person.
   expect(row?.draft_saved_by_role).toBe("patient");
+});
+
+test("SEC-007: a cancelled session grants no access, and a future one allows no Pain Map exam", async ({
+  request,
+}) => {
+  await seedProfile("ortho", ORTHO_ANSWERS);
+  const otherCookie = await cookieHeaderFor(OTHER_THERAPIST);
+  const { data: appt } = await admin
+    .from("appointments")
+    .insert({
+      patient_id: patientId,
+      therapist_id: otherTherapistId,
+      slot_time: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+      status: "cancelled",
+      payment_status: "unpaid",
+      visit_mode: "online",
+    })
+    .select("id")
+    .single();
+  try {
+    // Only a cancelled session links them: no clinical access at all.
+    const cancelled = await post(request, "/api/therapist/pain-assessments/submit", otherCookie, {
+      patientId,
+      region: "knee",
+      side: "right",
+      answers: [],
+      painPercent: 40,
+    });
+    expect(cancelled.status()).toBe(403);
+
+    // Confirmed but days away: assigned, yet nothing has been observed yet.
+    await admin.from("appointments").update({ status: "confirmed" }).eq("id", appt!.id);
+    const early = await post(request, "/api/therapist/pain-assessments/submit", otherCookie, {
+      patientId,
+      region: "knee",
+      side: "right",
+      answers: [],
+      painPercent: 40,
+    });
+    expect(early.status()).toBe(409);
+
+    const { count } = await admin
+      .from("pain_assessments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", patientId)
+      .eq("submitted_by", otherTherapistId);
+    expect(count).toBe(0);
+  } finally {
+    await admin.from("appointments").delete().eq("id", appt!.id);
+  }
 });
 
 test("INT-005: two therapists onboarding at once leave one coherent record", async ({

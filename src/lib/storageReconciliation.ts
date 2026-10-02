@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StorageHealth } from "@/lib/systemHealth";
+import { readAllRows } from "@/lib/supabase/readAllRows";
 
 /**
  * Patient files against the rows that describe them.
@@ -46,10 +47,20 @@ export async function readStorageReconciliation(
   admin: SupabaseClient
 ): Promise<StorageHealth | null> {
   try {
-    const { data: rows, error } = await admin
-      .from("patient_medical_documents")
-      .select("id, patient_id, storage_path");
-    if (error) return null;
+    // Paged: a plain select stops at PostgREST's max_rows (1,000), and every
+    // row past it would read as "file with no row" -- a false fault -- while
+    // every missing file past it went unreported.
+    const { rows, error, truncated: rowsTruncated } = await readAllRows<{
+      id: string;
+      patient_id: string;
+      storage_path: string | null;
+    }>(() =>
+      admin
+        .from("patient_medical_documents")
+        .select("id, patient_id, storage_path")
+        .order("id", { ascending: true })
+    );
+    if (error || rowsTruncated) return null;
 
     const recorded = new Set(
       (rows ?? [])

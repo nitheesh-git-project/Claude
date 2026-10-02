@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isProfileActive, isPatientProfile } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
 import { isGatewayPayable } from "@/lib/discounts";
 import { confirmPayLaterAppointment } from "@/lib/confirmPaidAppointment";
@@ -60,10 +60,14 @@ export async function POST(request: NextRequest) {
   const limited = await enforceRateLimit(request, "checkout", { identifier: user.id });
   if (limited) return limited;
 
-  if (!(await isProfileActive(user.id))) {
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
-  if (!(await isPatientProfile(user.id))) {
+  const isPatient = await isPatientProfile(user.id);
+  if (isPatient === null) return profileCheckUnavailable();
+  if (!isPatient) {
     return NextResponse.json(
       { error: "This account can't book sessions. Sessions are booked under a patient account." },
       { status: 403 }
@@ -149,6 +153,27 @@ export async function POST(request: NextRequest) {
       { error: "There's nothing to pay for this booking.", free: true },
       { status: 409 }
     );
+  }
+
+  // The ceiling again, against the figure actually being written. The check
+  // above ran on an unclaimed preview, and claiming can raise the price (a
+  // code at its cap, an invite half another checkout holds) -- and the
+  // balance can move between the two reads. Whatever was claimed stays
+  // attached to this appointment, which is where the pay-now path picks it
+  // up if the patient chooses to pay instead.
+  if (quote.totalPaise > preview.totalPaise) {
+    const recheck = await readPayLaterBookingEligibility(admin, {
+      patientId: user.id,
+      visitMode: appointment.visit_mode,
+      hasProgramme: !!appointment.package_purchase_id,
+      bookingAmountPaise: quote.totalPaise,
+    });
+    if (!recheck.allowed) {
+      return NextResponse.json(
+        { error: payLaterRefusalMessage(recheck.reason) },
+        { status: 409 }
+      );
+    }
   }
 
   const outcome = await confirmPayLaterAppointment(admin, {

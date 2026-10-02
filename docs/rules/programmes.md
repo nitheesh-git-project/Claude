@@ -28,7 +28,13 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
      It is strictly a **proposal**: every slot still goes through
      `/api/appointments/book-package-sessions`, which re-checks all of it
      server-side, so this module being wrong can only produce a worse
-     suggestion and never a booking that should not exist. Two rules inside
+     suggestion and never a booking that should not exist. The gap and
+     weekly cap are checked by one function, `checkPackageSpacing`
+     (`src/lib/packageTerms.ts`), at **every** door that adds a session to
+     a programme: the bulk scheduler, `book-with-package`, a therapist's
+     suggestion (when it is made) and its acceptance. The last two used to
+     skip both, and the suggestion's clash check assumed every session was
+     60 minutes rather than the length the patient bought. Two rules inside
      it are load-bearing. A day that cannot take the run's hour is
      **skipped rather than substituted** -- someone who asked for five
      o'clock and was handed nine in the evening because it was the only
@@ -117,6 +123,38 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   their own transport - both were missing while a programme could still be
   bought the old way, and neither is optional now that it cannot.
 
+- **A referral is checked by the server the way a booking is.** Over-long
+  text is refused with a sentence, never cut (`REFERRAL_LIMITS` in
+  `src/lib/referralLimits.ts`, which the form also applies as `maxLength`);
+  the route used to slice the medical history silently. The preferred
+  language must be one the clinic books in (the form is a picker). A home
+  visit needs a real address and a pincode the clinic serves
+  (`lookupServiceArea`) - a pincode alone used to be enough, and
+  conversion then booked a visit at "Address on file with referring
+  hospital". And one partner cannot hold two open referrals
+  (`OPEN_REFERRAL_STATUSES`) for the same phone number.
+- **Converting a referral either completes or leaves nothing behind.**
+  `/api/patient/register-via-referral` checks everything that can refuse
+  it (a home visit's address and a served area) *before* writing
+  anything, then claims the referral, creates the account, links
+  `converted_patient_id`, sets `referred_by_hospital_id` and books the
+  session. If any of the last three fails, the new account is deleted and
+  the referral released, so the patient's link works again. It used to
+  mark the referral converted first and treat the rest as best-effort: a
+  failed booking left the referral converted with no session and the link
+  burned; a failed attribution earned the partner nothing; an
+  unserviceable pincode booked a visit with no travel fee. The System
+  Health attribution check now also counts converted referrals with **no**
+  patient linked, which it could not see before.
+- **A partner withdrawing a referral is `withdrawn`, not `declined`.**
+  `declined` is the clinic's decision and carries the clinic's reason;
+  the withdraw route used to write it with no reason, actor or time, and
+  the partner's own Withdrawn filter matched nothing. The status now has
+  `withdrawn_at` / `withdrawn_by` beside it (schema.sql, appended), counts
+  as closed (`isReferralClosed`), and on a database without it the route
+  falls back to `declined` with the reason "Withdrawn by the referring
+  partner." The partner's filters list every real status, including
+  Registration link sent.
 - **A referral carries a phone number, because the clinic rings before it
   links.** `patient_referrals.patient_phone` is collected on the hospital's
   own form (required, validated through `PhoneNumberField` /

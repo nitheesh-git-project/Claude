@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient } from "@/lib/supabase/public";
-import {
-  normalizePincode,
-  isValidPincodeShape,
-  findAreaForPincode,
-  type ServiceArea,
-} from "@/lib/homeVisitAreas";
+import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
+import { lookupServiceArea } from "@/lib/serviceAreaServer";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
 
 // Deliberately public and unauthenticated. Someone who has never used the
@@ -77,13 +73,17 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { data: areas } = await supabase
-    .from("home_visit_areas")
-    .select("id, city, area_name, pincode, travel_fee_paise, active")
-    .eq("active", true)
-    .eq("pincode", pincode);
-
-  const area = findAreaForPincode((areas ?? []) as ServiceArea[], pincode);
+  // A failed read is "we couldn't check", never "not serviceable" -- the
+  // latter sends a patient to the waitlist for an area the clinic serves.
+  const lookup = await lookupServiceArea(supabase, pincode);
+  if (!lookup.ok) {
+    console.error("check-area: could not read home_visit_areas", lookup.error);
+    return NextResponse.json(
+      { error: "We couldn't check that pincode just now." },
+      { status: 503 }
+    );
+  }
+  const area = lookup.area;
 
   if (!area) {
     return NextResponse.json({ serviceable: false, pincode });

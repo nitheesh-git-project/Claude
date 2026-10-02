@@ -1,0 +1,52 @@
+# The checks a contributor runs locally (`npm run verify`), run for every
+# pull request and every push to the two long-lived branches.
+#
+# Before this, nothing ran lint, the unit tests or the production build on a
+# change -- a red build could merge to staging and be found by the next
+# person to pull. It needs no secrets: lint and the unit tests are
+# dependency-free, and the build is pointed at scripts/ci-stub-supabase.mjs,
+# a loopback server that answers every request with an empty result, because
+# the build prerenders pages that read Supabase. Never a real project. The Playwright
+# suite and the authorization/concurrency scripts are deliberately NOT here:
+# they need a real test database and must never be pointed at one holding
+# patients (see CLAUDE.md, "Destructive tooling").
+name: CI
+
+on:
+  pull_request:
+    branches: [staging, main]
+  push:
+    branches: [staging, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Lint (schema checks + eslint)
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Production build (against a stub Supabase)
+        run: |
+          node scripts/ci-stub-supabase.mjs 54321 &
+          npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-key
+          NEXT_PUBLIC_RAZORPAY_KEY_ID: rzp_test_placeholder

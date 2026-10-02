@@ -31,13 +31,19 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin
+  const { data: updated, error } = await admin
     .from("home_visit_waitlist")
     .update({ status })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return serverError("admin/update-home-visit-waitlist-status", error);
+  }
+  // Nothing matched: not a success, and not something to log.
+  if (!updated) {
+    return NextResponse.json({ error: "That waitlist entry no longer exists. Refresh to see the list." }, { status: 404 });
   }
 
   // Who changed this, and to what. Best-effort and after the write,

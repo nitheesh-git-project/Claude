@@ -23,62 +23,35 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
-- **A password this clinic issued is stored; a password the user chose is
-  not, and cannot be.** Supabase keeps a bcrypt hash, so there is no
-  mechanism by which any screen can display a password somebody set
-  themselves -- asking for one is asking for something the database does not
-  contain. What the app does instead is keep the **plaintext it generated**,
-  on four zero-policy tables the service role alone reads
-  (`patient_admin_notes`, `therapist_admin_notes`, `hospital_admin_notes`,
-  `admin_account_notes`), so an admin taking a "it won't let me in" call can
-  read the credential back rather than resetting a working one. Four rules:
-  1. **Every route that generates a password persists it**, the four
-     `reset-*-password` routes, `/api/admin/create-account` and
-     `/api/admin/onboard-hospital` alike.
-     Create-account was the one that did not: it returned the password and
-     held it in React state on the User Access screen, so the `profiles`
-     insert it had just made fired a realtime refresh and took the password
-     off the screen mid-sentence. `hospital_admin_notes` exists because the
-     hospital reset button had the identical bug one role earlier -- the
-     shape is known, and a new credential-issuing control must not
-     reintroduce it.
-     **`onboard-hospital` reintroduced it anyway**, which is what the shape
-     being known is worth: it generated the password, returned it, wrote
-     `hospital_admin_notes` never, and its own banner said "they won't be shown
-     again" -- true, and the defect. It upserts that row now, best-effort and
-     logged, never blocking the onboarding it describes and never in the audit
-     row. The Partners card needed **no** change: the dashboard already read
-     that table into `hospitalNoteMap` and already passed it to
-     `ResetHospitalPasswordButton` as `currentPassword`, which already renders
-     the "visible here until the hospital sets their own" panel on page load.
-     Persisting was the whole fix.
-     **And `reset-admin-password` is the fourth door, which did not exist.**
-     Patients, therapists and hospitals could all have a password re-issued from
-     the back office; an admin who had locked themselves out needed somebody with
-     Supabase access. It is `full` scope only (checked directly, not through
-     `requireAdminScope("people")` -- every desk that manages People could
-     otherwise re-issue a Master Admin's credential), refuses your own id (the
-     honest lane for that is the emailed reset on Settings -> Sign-in &
-     Security), and confirms before it fires, since the current password stops
-     working the instant it succeeds. It renders **no panel of its own**: the row
-     beside it already displays the credential from `admin_account_notes`, and
-     two places showing one password means the stale one is the one somebody
-     reads out.
-  2. **It is cleared when they set their own** (`/api/clear-temp-password`,
-     which acts on the caller's own id from their session and never a
-     client-supplied one). That is what makes "still on the password we
-     issued" true rather than stale, and it is why the directory can state
-     which of two states an account is in without ever claiming a third.
-  3. **It never reaches the account owner, and never reaches the log.** The
-     tables carry no RLS policies at all, so a plain column on `profiles`
-     (which `profiles_select_own` would hand straight back) is not an
-     option; and a generated password stays out of `admin_activity_log`,
-     which every admin reads.
-  4. **`admin_account_notes` is deliberately outside the reset's TRUNCATE
-     list**, alone among the four. Notes follow their accounts: the reset
-     deletes every patient, therapist and hospital, and keeps every admin --
-     so emptying this one would strip a working credential off an account
-     the reset had just decided to keep.
+- **A scope that could not be read is refused, never promoted, and a
+  screen outside the scope never leaves the server.** `resolveAdminScope`
+  answers the guard: a real value passes, a failed read or an unknown value
+  is `unavailable` (the retry page, a 403 from `requireAdminScope`), and the
+  one exception is an unknown-column error, because on a database without
+  `admin_scope` no limited admin can exist. `parseAdminScope` (unknown reads
+  as `full`) is for *displaying* another admin's row only. The dashboard
+  page then filters its `screens` and `badges` maps through
+  `visibleScreenKeys` before handing them to `AdminShell`: hiding a screen
+  in the client is presentation, and everything passed as a prop is in the
+  RSC payload a Finance desk can read.
+- **No password is issued, stored or shown - an admin hands over a
+  one-time link.** Creating or resetting any account (the four
+  `reset-*-password` routes, `/api/admin/create-account`,
+  `/api/admin/onboard-hospital`) gives the account a password nobody knows
+  (`unknowablePassword`) and returns a one-time Supabase recovery link
+  (`issueSetPasswordLink`, `src/lib/accessLink.ts`) as a path to
+  `/reset-password?token_hash=...`, which that page verifies with
+  `verifyOtp`. The admin copies it from `SignInLinkResult` and sends it;
+  the person sets their own password. Nothing readable is written to the
+  `*_admin_notes` tables (the plaintext earlier versions kept there is
+  cleared by `schema.sql`), so a lost link costs nothing - the person's
+  page or row issues another, and a reset still locks out the old password
+  at once. This replaced keeping the generated plaintext for up to 14 days
+  so it could be read back: a working credential for every recent account,
+  one service-role leak - or one look at the screen - away. The link is
+  never written to the activity log. Its lifetime is Supabase's email OTP
+  expiry (Authentication settings); raise it there if a day is needed.
+  A password a person chose is a bcrypt hash and can never be shown.
 - **User Access is where the access model is read, and it is derived.**
   Settings → User Access is one screen doing what two half-screens did: the
   back-office directory (who can sign in, at what level, and whether they
@@ -450,8 +423,12 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   out of the admin dashboard's client bundle - that page already ships
   every screen at once. That route reads nothing: the caller sends the
   exact filtered rows it rendered, which is what guarantees the two
-  formats agree, and it means there is nothing there to scope-check
-  beyond being an admin at all. Give every export a `subtitle` naming
+  formats agree. Because the rows are the caller's, the route is **scoped
+  to the section they came from**: `DataExportButtons` sends the shell's
+  current `?section=`, and the route refuses one the caller's scope cannot
+  open - any admin used to be able to print a clinic-branded document of
+  anything. Every PDF also prints who exported it and a line saying it
+  reproduces the screen and is not a statement of account. Give every export a `subtitle` naming
   what the rows are scoped to - a printed table nobody can date is
   worthless. Nothing in the admin dashboard exports JSON, and nothing
   should.
@@ -517,6 +494,13 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   entry now on screen would open a different record's history. An entry
   opened from the table clears it, so no back button points at a timeline
   nobody came from.
+- **An audit write is tried twice.** `recordAdminActivity` stays
+  best-effort - the action it records has already happened - but a single
+  dropped insert used to be the whole of that effort; it now retries once
+  and still reports `false` so a money route can return
+  `ACTIVITY_LOG_WARNING`. Changes made while impersonating are recorded under
+  the admin as `impersonation.action` (see the impersonation rule in
+  `ops-security.md`).
 - **An audit entry is read months later, so it says what changed from what.**
   Tapping a row in the Logs section -- or on a limited desk's
   Today -> Activity -- opens the whole entry
@@ -544,6 +528,22 @@ The seven sections, scopes and levels, User Access, the Settings information arc
      readable by every admin and a note about one patient must not be
      reproduced across the back office. A generated password still never
      goes in `details` at all.
+- **A profile change is checked by value, and approving it is claimed
+  before it is applied.** A request is written by the person it describes,
+  through their own token, so `changes` holds whatever they sent; the route
+  used to check field names only. `validateProfileChanges`
+  (`src/lib/profileChangeValidation.ts`) bounds every gated field - names
+  and organisation non-empty and capped, a phone that parses, experience a
+  whole number 0-60, a specialty the clinic offers, a real past date of
+  birth, a listed gender - and the profile form runs the same check before
+  sending. Approval then claims the request (`pending` -> `approved`) first
+  and applies it second, releasing the claim if the apply fails; the old
+  order left a change live while its request still sat in the queue.
+  A partner's **email** is a gated field too, because it is also their
+  sign-in: approving it moves the auth login first
+  (`auth.admin.updateUserById`), then the profile, and moves the login back
+  if the profile write fails - an address already used by another account
+  is refused with a 409.
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.

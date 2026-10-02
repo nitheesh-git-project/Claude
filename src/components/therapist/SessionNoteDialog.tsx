@@ -115,7 +115,14 @@ export default function SessionNoteDialog({
       const res = await fetch("/api/therapist/session-notes/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appointmentId, data: values, freeText }),
+        body: JSON.stringify({
+          appointmentId,
+          data: values,
+          freeText,
+          // The version this editor opened, so a save over a newer edit
+          // from another window is refused rather than silently erasing it.
+          baseUpdatedAt: existing ? existing.updated_at ?? existing.created_at : null,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

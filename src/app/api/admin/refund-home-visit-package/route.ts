@@ -5,7 +5,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { mirrorVoid } from "@/lib/sessionCreditMirror";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
+import {
+  closeRefundedPurchaseSessions,
+  countDeliveredSessions,
+  refundCloseoutWarning,
+} from "@/lib/packageRefundServer";
 import { serverError } from "@/lib/apiError";
 import {
   openRefundAttempt,
@@ -83,20 +87,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This package was never paid for." }, { status: 400 });
   }
 
-  const { count: completedCount } = await admin
-    .from("appointments")
-    .select("id", { count: "exact", head: true })
-    .eq("home_visit_purchase_id", purchaseId)
-    .eq("status", "completed");
-
-  const refundableCount = purchase.visit_count - (completedCount ?? 0);
-  if (refundableCount <= 0) {
-    return NextResponse.json(
-      { error: "Every visit on this package has already been completed - nothing to refund." },
-      { status: 400 }
-    );
-  }
-
   const razorpay = new Razorpay({
     key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
     key_secret: process.env.RAZORPAY_KEY_SECRET!,
@@ -120,24 +110,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const perVisitPaise = Math.round(totalPaidPaise / purchase.visit_count);
-  const refundAmountPaise = Math.min(perVisitPaise * refundableCount, totalPaidPaise);
-  if (refundAmountPaise <= 0) {
-    return NextResponse.json({ error: "Nothing to refund on this package." }, { status: 400 });
-  }
-
-  // CAS claim BEFORE calling Razorpay, not after -- two concurrent refund
-  // requests (double-click, two open tabs) would otherwise both pass the
-  // status === "active" read-check above and both issue a real Razorpay
-  // refund before either write landed. Only the request that wins this
-  // claim is allowed anywhere near razorpay.payments.refund; the loser
-  // exits here having moved no money. Tentatively marks the purchase
-  // refunded (refund_id filled in once Razorpay actually confirms it) and
-  // reverted back to "active" below if the Razorpay call fails, so a
-  // failure still leaves the purchase refundable again on retry.
+  // CAS claim BEFORE counting and BEFORE calling Razorpay. Claiming first is
+  // what makes the delivered count final: once the purchase reads
+  // `refunded`, complete-session refuses its visits, so none can be
+  // delivered between the count and the money moving. Two concurrent
+  // refunds cannot both pass, and the loser exits having moved no money.
   const { data: claimed, error: claimError } = await admin
     .from("home_visit_package_purchases")
-    .update({ status: "refunded", refund_amount_paise: refundAmountPaise, refunded_at: new Date().toISOString() })
+    .update({ status: "refunded", refunded_at: new Date().toISOString() })
     .eq("id", purchaseId)
     .eq("status", "active")
     .select("id")
@@ -150,6 +130,47 @@ export async function POST(request: NextRequest) {
       { error: "This package was already refunded or changed concurrently - please refresh." },
       { status: 409 }
     );
+  }
+  const releaseClaim = () =>
+    admin
+      .from("home_visit_package_purchases")
+      .update({ status: "active", refund_amount_paise: null, refunded_at: null })
+      .eq("id", purchaseId)
+      .eq("status", "refunded");
+
+  // A count that failed is not zero delivered -- that would refund visits
+  // already made.
+  const completedCount = await countDeliveredSessions(admin, "home_visit_purchase_id", purchaseId);
+  if (completedCount === null) {
+    await releaseClaim();
+    return NextResponse.json(
+      { error: "We couldn't count the visits already delivered, so nothing was refunded. Please retry." },
+      { status: 503 }
+    );
+  }
+  const refundableCount = purchase.visit_count - completedCount;
+  if (refundableCount <= 0) {
+    await releaseClaim();
+    return NextResponse.json(
+      { error: "Every visit on this package has already been completed - nothing to refund." },
+      { status: 400 }
+    );
+  }
+
+  const perVisitPaise = Math.round(totalPaidPaise / purchase.visit_count);
+  const refundAmountPaise = Math.min(perVisitPaise * refundableCount, totalPaidPaise);
+  if (refundAmountPaise <= 0) {
+    await releaseClaim();
+    return NextResponse.json({ error: "Nothing to refund on this package." }, { status: 400 });
+  }
+  const { error: amountError } = await admin
+    .from("home_visit_package_purchases")
+    .update({ refund_amount_paise: refundAmountPaise })
+    .eq("id", purchaseId)
+    .eq("status", "refunded");
+  if (amountError) {
+    await releaseClaim();
+    return serverError("admin/refund-home-visit-package", amountError);
   }
 
   // Recorded before the gateway call, so a refund that went through and
@@ -165,11 +186,7 @@ export async function POST(request: NextRequest) {
     requestedBy: adminUser.id,
   });
   if (!attemptId) {
-    await admin
-      .from("home_visit_package_purchases")
-      .update({ status: "active", refund_amount_paise: null, refunded_at: null })
-      .eq("id", purchaseId)
-      .eq("status", "refunded");
+    await releaseClaim();
     return NextResponse.json(
       {
         error:
@@ -189,11 +206,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error("Home visit package refund failed for purchase", purchaseId, err);
     await failRefundAttempt(admin, attemptId, err);
-    const { error: revertError } = await admin
-      .from("home_visit_package_purchases")
-      .update({ status: "active", refund_amount_paise: null, refunded_at: null })
-      .eq("id", purchaseId)
-      .eq("status", "refunded");
+    const { error: revertError } = await releaseClaim();
     if (revertError) {
       console.error(
         "Failed to revert home visit purchase claim after Razorpay refund failure",
@@ -207,27 +220,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: futureAppointments } = await admin
-    .from("appointments")
-    .select("id, google_event_id")
-    .eq("home_visit_purchase_id", purchaseId)
-    .in("status", ["requested", "confirmed"]);
-
-  for (const appointment of futureAppointments ?? []) {
-    await deleteMeetEventForAppointment(admin, {
-      appointmentId: appointment.id,
-      googleEventId: appointment.google_event_id,
-    });
-    await admin
-      .from("appointments")
-      .update({
-        status: "cancelled",
-        cancelled_at: new Date().toISOString(),
-        cancelled_by: adminUser.id,
-        cancellation_reason: "Home visit package refunded by admin",
-      })
-      .eq("id", appointment.id)
-      .in("status", ["requested", "confirmed"]);
+  // Refund succeeded - close out the purchase's live visits, checking every
+  // write (see closeRefundedPurchaseSessions).
+  const closeout = await closeRefundedPurchaseSessions(admin, {
+    column: "home_visit_purchase_id",
+    purchaseId,
+    adminId: adminUser.id,
+  });
+  const closeoutWarning = refundCloseoutWarning(closeout);
+  if (closeoutWarning) {
+    console.error("refund-home-visit-package: visits not all closed", purchaseId, closeout);
   }
 
   // status/refund_amount_paise/refunded_at were already written by the CAS
@@ -261,7 +263,8 @@ export async function POST(request: NextRequest) {
       refundAmountPaise,
       refundableCount,
       reason: reason?.trim() || null,
-      cancelledAppointmentIds: (futureAppointments ?? []).map((a) => a.id),
+      cancelledAppointmentIds: closeout.cancelledIds,
+      appointmentsNotCancelled: closeout.failedIds,
     },
   });
   if (eventError) {
@@ -286,5 +289,9 @@ export async function POST(request: NextRequest) {
     targetId: purchaseId, amountPaise: refundAmountPaise,
   });
 
-  return NextResponse.json({ success: true, refundAmountPaise });
+  return NextResponse.json({
+    success: true,
+    refundAmountPaise,
+    ...(closeoutWarning ? { warning: closeoutWarning } : {}),
+  });
 }
