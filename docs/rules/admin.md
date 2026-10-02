@@ -173,12 +173,12 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   level, manage never outruns open, every section has a capability group, and
   every group has at least one read-only row, without which a group cannot
   show the difference between `view` and `none`.
-- **Settings is ten screens under four captions, and the captions are part
+- **Settings is eleven screens under four captions, and the captions are part
   of the definition.** `AdminTabDef.group` (`src/lib/adminNav.ts`) names the
   caption a screen sits under, and `AdminShell` draws one whenever the group
   changes -- so screens sharing a caption must be **adjacent** in that array
   or the caption is drawn twice. Four: *Your website*, *How the clinic runs*,
-  *Who gets in*, *Technical*. A flat list of ten labels is one nobody reads
+  *Who gets in*, *Technical*. A flat list of eleven labels is one nobody reads
   top to bottom, which is the same failure the per-screen blurb fixes one
   level down. Sections with a short screen list name no groups and render
   exactly as before.
@@ -194,6 +194,29 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   than what it sells -- the test the ledger switch fails on both counts
   elsewhere, since its own help text sends the reader to System Health.
   Settings is `full` scope only, so Advanced needs no further gate.
+  **Dev Reachouts is the one screen under Settings that is not about the
+  clinic.** It is the developer's own inbox -- messages left through the
+  "Contact me" link in the footer's credit line (`/developer/lets-talk` ->
+  `/api/developer/reachout` -> `dev_reachouts`) -- plus the two switches that
+  publish that page. It sits after Advanced so *Technical* stays one adjacent
+  run, and it is `settings` scope on every layer, deliberately **not** the
+  `people` scope the clinic's own lead pipelines use: a scoped admin must not
+  receive a stranger's name, email and number, so the dashboard reads the
+  table only when `scopeCanOpen(viewerScope, "settings")` and
+  `/api/admin/update-dev-reachout` is `requireAdminScope("settings")`. Three
+  rules are easy to undo. **The credit switch asks on BOTH directions** and
+  saves nothing until the dialog is confirmed -- cancelling leaves the switch
+  where it was -- because turning it off closes `/developer` for every
+  visitor and turning it on opens it; the dialog is awaited *before* the
+  transition, never inside it. **The published email defaults to blank and
+  nothing is committed**: the owner types it into the card, and while it is
+  blank the "Prefer email?" row is hidden and the form still works (blank is
+  the one email value `update-setting` accepts, since it is how an address is
+  taken back down). And **the audit log never carries the note's text** --
+  `dev_reachout.update_note` records only `noteLength`; the note is free text
+  about a person. `dev_reachouts` is in `ADMIN_REALTIME_TABLES`, so a new
+  message arrives without a reload. The table and both `dev_contact_*`
+  settings survive the debug data reset (see `ops-security.md`).
   **A settings screen taller than a couple of screens carries a map of
   itself.** `SettingsJumpNav` + `SettingsSection`
   (`src/components/admin/SettingsJumpNav.tsx`) put a sticky strip of anchors

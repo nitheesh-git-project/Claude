@@ -242,6 +242,15 @@ export const E2E_MARKERS = {
    * a mystery session.
    */
   refundAttemptNote: "e2e-refund-attempt",
+  /**
+   * The name `dev-reachout.spec.ts` gives every `dev_reachouts` row it makes,
+   * public form and direct insert alike, and the one it deletes by. Nothing
+   * else references the table (its one foreign key is `on delete set null`),
+   * so a row left by a crashed run is only clutter on a Master Admin's
+   * screen -- but it is the developer's own inbox, which is the one place a
+   * fixture must not linger.
+   */
+  devReachoutName: "E2E Dev Reachout",
 } as const;
 
 /**

@@ -101,13 +101,13 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 
 #### `ADM-SET-009` - Every Settings screen says what it is · P2
 
-**Steps.** Open each of the ten Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Advanced. Then open both Logs screens: All Activity and Archive & Clear.
+**Steps.** Open each of the eleven Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Advanced, Dev Reachouts. Then open both Logs screens: All Activity and Archive & Clear.
 
 **Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen - none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
 
 **Spot checks.** The sidebar draws the four captions above their screens, and each caption appears exactly once. Offers & Discounts ends with a **"Looking for promo codes?"** note pointing at **Money → Costs**, and saying a goodwill discount is applied to a session rather than set up here. Booking Rules holds **only** the single-session rules and the Google Meet block - no discount, no package, no home-visit settings, and **no sign-out settings**: the inactivity timeout and the sign-out message moved to Sign-in & Security, since neither is a booking rule. Programmes & Home Visits no longer carries the session-balance switch; it is on **Advanced**. Public Site and Programmes & Home Visits each open with a **jump strip** of that screen's own sections, which sticks to the top as you scroll.
 
-**Critical check:** these are the same ten screens the sidebar lists and the same ten `?tab=` values. A screen reachable from the sidebar with no sentence under its heading, or a sentence on a screen that is not in the sidebar, means `adminNav.ts` and the shell have drifted.
+**Critical check:** these are the same eleven screens the sidebar lists and the same eleven `?tab=` values. A screen reachable from the sidebar with no sentence under its heading, or a sentence on a screen that is not in the sidebar, means `adminNav.ts` and the shell have drifted.
 
 #### `ADM-SET-010` - Online Booking Lead Time → the booking wizard · P0
 
@@ -634,8 +634,27 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 **Expected Result**
 * Step 1: **no Logs section** for any of the three.
 * Step 2: each lands on a screen their scope can open - never a heading over nothing, and never the log.
-* Step 3: Settings has **ten** screens under four captions, and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
+* Step 3: Settings has **eleven** screens under four captions, and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
 * Step 4: the matrix carries a **Logs** group with a read row and a clear row, ticked for Master Admin and blank for the other three - derived from the same module the routes enforce with, so it cannot claim access nobody has.
+
+#### `ADM-SET-038` - Dev Reachouts · P1
+**Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Dev Reachouts**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.
+
+**Steps**
+1. Complete `PUB-DEV-001` so there is at least one message, then sign in as the Master Admin and open **Settings → Dev Reachouts** (`?section=settings&tab=reachouts`). Check the sidebar badge counts the **new** messages.
+2. On the message, confirm the name, a `mailto:` email link, a `tel:` number link (when one was given), the message with its line breaks kept, and the received time **in the clinic's zone**.
+3. Type a note and tap **Save note**. Then tap **Mark as contacted**. Then tap **Move back to new**.
+4. In **Show the developer credit and contact page**, tap the switch. Read the dialog, tap **No**. Tap it again and tap **Yes**. Open `/developer`, then switch it back on the same way (dialog again, **No**, then **Yes**).
+5. In **Email shown on the Let's talk page**, type `not an email` and tap **Save**. Then enter a real address and **Save**. Open `/developer/lets-talk`. Clear the box, **Save**, and open it again.
+6. Sign in as each of the three scoped admins and try `?section=settings&tab=reachouts`.
+
+**Expected Result**
+* Step 1: the badge shows the number of **new** messages and the filter chips read New / Contacted / All. A new message appears without a reload.
+* Step 3: the toast reads `Note saved for <name>`; the status pill reads **Contacted** with the date and time, then returns to **New**. Moving back clears who and when. Each action appears in Logs → All Activity as *Saved a note on a developer reachout* / *Moved a developer reachout*, and **the note's text is never in the log** - only that one was saved.
+* Step 4: **both** directions open a confirm dialog before anything is saved; **No** leaves the switch exactly where it was and writes nothing. After **Yes** the toast names the new state (`Developer credit is now hidden` / `shown`), the switch reads **Saving…** while in flight, the footer's credit line disappears or returns on a public page, and `/developer` and `/developer/lets-talk` are **404** while it is off. Messages already received are still listed.
+* Step 5: an invalid address is refused with a sentence and nothing is saved. A saved address shows as a `mailto:` link under **Prefer email?**; a blank one **hides that line entirely** while the form still works. No address ships in the code - a fresh database shows the box empty.
+* Step 6: a scoped admin never gets the tab, the rows or the controls, and a direct call to `/api/admin/update-dev-reachout` answers **403**.
+**Negative:** the debug **Reset data** button must **not** remove these messages or change either setting - they are the developer's own leads, not test data.
 
 #### `ADM-SET-035` - Sign-in & Security · P2
 **Steps.** Open **Settings → Sign-in & Security** and change the admin's own password. Check the screen carries two headed blocks: *Your own sign-in* (the reset button) and *Everybody else's sign-in* (the inactivity timeout and the sign-out message).
@@ -687,6 +706,7 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 36 | Walkthrough seconds | Settings → Public Site | The home page walkthrough | Pace changes; 0 = static | `ADM-SET-005` |
 | 36a | Mission & Vision | Settings → Public Site | `/` and `/mission` | Both update at once; blank restores the shipped line | `ADM-SET-036` |
 | 36b | Promises and limits | Settings → Public Site | `/` chips and both `/mission` bands | Rows publish at once; empty band restores the shipped set; all-off drops the band and its rail entry | `ADM-SET-037` |
+| 36c | Developer credit switch + published email | Settings → Dev Reachouts | Footer credit line, `/developer`, `/developer/lets-talk`, `/api/developer/reachout` | Off ⇒ line hidden and all three 404; email blank ⇒ **Prefer email?** line hidden; **both directions confirm first** | `ADM-SET-038`, `PUB-DEV-001` |
 | 37 | Splash (5 settings) | Settings → Public Site | The opening splash | Each behaves as documented | `ADM-SET-006` |
 | 38 | Testimonials | Settings → Public Site | `/` and `/mission` bands | Both update from one component | `ADM-SET-007` |
 | 39 | FAQ | Settings → Public Site | `/faq` | Accordion updates | `ADM-SET-008` |

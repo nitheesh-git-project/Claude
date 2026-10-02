@@ -343,6 +343,22 @@ client is the only writer and the log is append-only from any session.
   `appointments_insert_own` got. Sign-up and sign-in are **not** covered here:
   both call Supabase Auth directly from the browser rather than a route of
   ours, so their limits are the ones set in the Supabase dashboard.
+  **The developer's "Say hello" form is the second public write door of this
+  kind.** `/api/developer/reachout` inserts into `dev_reachouts`, which has no
+  insert policy and no insert grant for `anon` or `authenticated` -- the
+  service-role client behind the route is the only writer, which is what makes
+  it limitable at all. It runs `parseJsonBody` -> `validateDevReachout`
+  (`src/lib/devReachout.ts`) -> `enforceRateLimit(request, "devReachout")` ->
+  the `dev_contact_enabled` read -> insert, in that order. Its scope
+  (`dev-reachout`, five an hour) is its own, for the one-scope-per-flow rule:
+  folded into `publicWrite` it would let somebody saying hello spend the
+  allowance a stranger needs to ask the clinic about a partnership, and its
+  message has no digits and no blame. The **honeypot** (`website`) is an
+  off-screen, `aria-hidden`, `tabIndex={-1}`, `autoComplete="off"` input; a
+  filled one is answered exactly like a success and writes nothing, so a script
+  learns nothing about what to change. A switch that is off answers **404**, but
+  a switch that could not be *read* falls back to the default (on) -- "we could
+  not check" is not "an admin turned it off".
 - **A flag is never an accusation, and never carries a penalty.** The
   detectors (`src/lib/riskDetectors.ts`, vocabulary in
   `src/lib/riskSignals.ts`) run as a bounded lazy sweep after the admin
@@ -626,6 +642,17 @@ them costs an owner their clinic's identity, and the mission and vision have no
 "what was it before" anywhere. `risk_rules` goes the same way -- the thresholds
 are an admin's tuning on Today -> Risk, while the signals they produced are
 rows and are still truncated.
+
+**`dev_reachouts` is kept too, and so are `dev_contact_enabled` and
+`dev_contact_email`.** They are the developer's own leads from the footer
+credit's Say hello form, and the two switches that publish it. Testing produces
+none of them -- the e2e spec deletes what it writes -- so a reset has nothing
+here to clear and a real message to lose. CASCADE cannot reach the table: its
+one foreign key, `contacted_by`, points at `profiles`, which is never truncated
+(and is `on delete set null` regardless). **Do not add it to the `TRUNCATE`
+list**; `src/lib/devReachoutResetGuard.test.ts` reads the *last*
+`debug_reset_all_data` body and fails if its list names `dev_reachouts` or any
+statement touches `dev_contact_`.
 
 **`faqs`, `testimonials` and `mission_principles` are kept for the same
 reason**, one table at a time with its own reason, as

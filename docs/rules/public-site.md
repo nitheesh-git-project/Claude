@@ -48,6 +48,22 @@ Eight pages from one design system, the word budgets, why every photograph carri
   admin should be able to desynchronise.
   `e2e/splash-screen.spec.ts` holds these rules.
 
+- **The developer pages are deliberately outside `MARKETING_PAGES`.**
+  `/developer` ("Say hello!") and `/developer/lets-talk` are not marketing
+  pages: they are a credit for whoever built the app, reached only by the
+  "Contact me" link in the footer's second line, so they are not in
+  `src/lib/marketingNav.ts` and nothing -- the navbar, the Explore connector
+  grid, a "where next" band, the closing CTA -- advertises them. They carry no
+  `PageHero`, no photograph and none of the word budgets below; they are a
+  white card on a slate-50 band (a line-art SVG with `aria-hidden`, a heading,
+  one sentence, a pill button), and that is the whole of the design. Because
+  their existence is a switch (`site_settings.dev_contact_enabled`, Settings ->
+  Dev Reachouts) they render per request with `dynamic = "force-dynamic"` and
+  `notFound()` while it is off, for the reason `/book-home-visit` does, and the
+  footer line is hidden by the same flag so it never links to a 404. The
+  published email is `dev_contact_email`, **blank by default** -- no address is
+  committed -- and the "Prefer email?" row is hidden while it is blank. The
+  form's honeypot is off-screen rather than visible; see `ops-security.md`.
 - **The eight public pages are one template, not eight layouts.** `/`,
   `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`
   and `/hospitals` all assemble from `src/components/marketing/`: a `PageHero`
