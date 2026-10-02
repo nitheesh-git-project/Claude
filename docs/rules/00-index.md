@@ -13,7 +13,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## The admin back office
 
-`docs/rules/admin.md` -- 17 rules
+`docs/rules/admin.md` -- 18 rules
 
 - The admin dashboard's information architecture lives in `src/lib/adminNav.ts`
 - A scope that could not be read is refused, never promoted, and a screen outside the scope never leaves the server
@@ -31,6 +31,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - An audit entry is read months later, so it says what changed from what
 - A profile change is checked by value, and approving it is claimed before it is applied
 - Approvals are a queue, not a person
+- Approving and declining a signup cannot both land
 - Admin-configurable behavior
 
 ## Booking a session

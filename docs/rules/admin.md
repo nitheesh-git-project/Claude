@@ -547,6 +547,15 @@ The seven sections, scopes and levels, User Access, the Settings information arc
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.
+- **Approving and declining a signup cannot both land.** Decline deletes the
+  account, so it must not read "still pending?" and delete in two steps: an
+  approval between them was erased. `decline_pending_account()` locks the
+  profile row, checks it is a pending therapist or patient under the lock,
+  and deletes the auth user in the same transaction; the route answers 409
+  when it was approved meanwhile and never falls back to the old two-step
+  path. Approve flips only `approved = false` rows, reports a repeat as
+  success, and a declined account as gone. `admin-multi-admin` H-021 races
+  the pair in both orders.
 - **Admin-configurable behavior** (Meet on/off, join window, the Session
   Completed cutoff - minutes after slot time at which every "Tap to Join"
   control reads "Session Completed" instead, admin's own included, since a

@@ -15056,3 +15056,49 @@ revoke all on function public.save_therapist_weekly_schedule(uuid, jsonb, bigint
 create unique index if not exists patient_referrals_one_open_per_phone
   on patient_referrals (hospital_id, patient_phone)
   where status in ('pending_review', 'therapist_assigned', 'invite_sent');
+
+-- Declining a pending signup is one statement against a locked row.
+--
+-- /api/admin/decline-account read "is this account still pending?" and then
+-- deleted the auth user in a separate call. An approve landing between the
+-- two was erased: another admin had just let this person in, and the
+-- decline deleted the account anyway.
+--
+-- Here the profile row is locked FOR UPDATE, its pending state is checked
+-- under that lock, and the auth user is deleted in the same transaction
+-- (profiles.id cascades from auth.users, exactly as the admin API's delete
+-- did). An approve racing it either commits first -- and this sees
+-- approved = true and refuses -- or blocks on the lock and then finds no
+-- row to approve. Never both.
+--
+-- Returns 'declined', 'not_pending' (it exists but is not a pending
+-- therapist or patient -- approved meanwhile, or an admin or hospital row),
+-- or 'not_found'.
+create or replace function public.decline_pending_account(p_user_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_role text;
+  v_approved boolean;
+begin
+  select role, approved into v_role, v_approved
+  from public.profiles
+  where id = p_user_id
+  for update;
+
+  if not found then
+    return 'not_found';
+  end if;
+  if v_approved or v_role not in ('therapist', 'patient') then
+    return 'not_pending';
+  end if;
+
+  delete from auth.users where id = p_user_id;
+  return 'declined';
+end;
+$$;
+
+revoke all on function public.decline_pending_account(uuid) from public, anon, authenticated;
