@@ -121,6 +121,7 @@ import MissionStatementForm from "@/components/admin/MissionStatementForm";
 import MissionPrincipleManager, {
   type MissionPrincipleRecord,
 } from "@/components/admin/MissionPrincipleManager";
+import { readLastRiskSweep } from "@/lib/riskDetectors";
 import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm";
 import { SOCIAL_LINKS_SELECT, SOCIAL_LINK_COLUMNS } from "@/lib/socialLinks";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
@@ -3730,21 +3731,42 @@ export default async function AdminDashboardPage({
   // the "isolated is not the same as sequential" rule, in the block where it
   // cost the most. Each one keeps its own guard and its own empty fallback,
   // so the isolation is unchanged and only the waiting is gone.
+  // Open signals are read in full and only the closed history is capped:
+  // one newest-200 read across every status hid an older open signal behind
+  // two hundred decided ones -- the queue said less was waiting than was.
+  // The two evidence trails keep their newest-200 window, and the screen
+  // says when it is showing a window rather than everything (see
+  // RiskSignalsTab). Every read's error is kept: a failed read is said,
+  // never drawn as an empty list.
+  const RISK_SIGNAL_COLUMNS =
+    "id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at";
+  const RISK_TRAIL_WINDOW = 200;
   const [
-    { data: riskSignalRows },
+    { data: openRiskSignalRows, error: openRiskSignalsError },
+    { data: closedRiskSignalRows, error: closedRiskSignalsError },
     { data: riskRuleRows },
-    { data: flagRows },
-    { data: revealRows },
+    { data: flagRows, error: flagRowsError },
+    { data: revealRows, error: revealRowsError },
+    lastRiskSweep,
   ] = await Promise.all([
+    viewerCanSeeRisk
+      ? readAllRowsAsData<RiskSignalQueryRow>(() =>
+          admin
+            .from("risk_signals")
+            .select(RISK_SIGNAL_COLUMNS)
+            .in("status", ["open", "reviewing"])
+            .order("detected_at", { ascending: false })
+            .order("id", { ascending: true })
+        )
+      : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
     viewerCanSeeRisk
       ? admin
           .from("risk_signals")
-          .select(
-            "id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at"
-          )
+          .select(RISK_SIGNAL_COLUMNS)
+          .in("status", ["dismissed", "actioned"])
           .order("detected_at", { ascending: false })
-          .limit(200)
-      : Promise.resolve({ data: [] as RiskSignalQueryRow[] }),
+          .limit(RISK_TRAIL_WINDOW)
+      : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
     viewerCanSeeRisk
       ? admin
           .from("risk_rules")
@@ -3761,16 +3783,23 @@ export default async function AdminDashboardPage({
             "id, surface, author_id, patient_id, tier, findings, blocked, content, created_at"
           )
           .order("created_at", { ascending: false })
-          .limit(200)
-      : Promise.resolve({ data: [] as CommunicationFlagQueryRow[] }),
+          .limit(RISK_TRAIL_WINDOW)
+      : Promise.resolve({ data: [] as CommunicationFlagQueryRow[], error: null }),
     viewerCanSeeRisk
       ? admin
           .from("contact_reveal_log")
           .select("id, therapist_id, patient_id, field, reason, created_at")
           .order("created_at", { ascending: false })
-          .limit(200)
-      : Promise.resolve({ data: [] as ContactRevealQueryRow[] }),
+          .limit(RISK_TRAIL_WINDOW)
+      : Promise.resolve({ data: [] as ContactRevealQueryRow[], error: null }),
+    viewerCanSeeRisk
+      ? readLastRiskSweep(admin)
+      : Promise.resolve({ report: null, readFailed: false }),
   ]);
+  const riskSignalRows: RiskSignalQueryRow[] = [
+    ...((openRiskSignalRows ?? []) as RiskSignalQueryRow[]),
+    ...((closedRiskSignalRows ?? []) as RiskSignalQueryRow[]),
+  ];
 
   // A signal names a subject by id and kind. Resolving that to something an
   // admin recognises needs the admin client, since a therapist's or a
@@ -3931,6 +3960,17 @@ export default async function AdminDashboardPage({
       flags={riskFlags}
       reveals={riskReveals}
       detectorsEnabled={adminSettings.riskSignalsEnabled}
+      sweep={lastRiskSweep}
+      readIssues={{
+        openSignals: !!openRiskSignalsError,
+        closedSignals: !!closedRiskSignalsError,
+        closedSignalsWindowed: (closedRiskSignalRows ?? []).length >= RISK_TRAIL_WINDOW,
+        flags: !!flagRowsError,
+        flagsWindowed: (flagRows ?? []).length >= RISK_TRAIL_WINDOW,
+        reveals: !!revealRowsError,
+        revealsWindowed: (revealRows ?? []).length >= RISK_TRAIL_WINDOW,
+        windowSize: RISK_TRAIL_WINDOW,
+      }}
       canReview
       canSeeTrails={canSeeRiskTrails}
       scopeNote={

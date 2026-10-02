@@ -15176,3 +15176,32 @@ end;
 $$;
 
 revoke all on function public.approve_care_plan(uuid, uuid, integer, text) from public, anon, authenticated;
+
+-- How the last risk sweep actually went.
+--
+-- runRiskSweep swallowed every failure: a detector whose read failed
+-- returned "no findings", a rule the time budget did not reach was skipped
+-- without a word, and a read that hit its row cap looked complete. The Risk
+-- screen then said "Nothing waiting" -- a clean bill of health from a scan
+-- that had not run. One row, overwritten by each sweep (it runs from the
+-- scheduled job and from the dashboard, on different server instances, so
+-- it cannot live in memory), read by the Risk screen to say whether its
+-- empty state can be trusted.
+--
+-- Written only by the service role inside runRiskSweep; readable by an
+-- admin, the same posture as risk_signals.
+create table if not exists risk_sweep_runs (
+  id smallint primary key default 1 check (id = 1),
+  finished_at timestamptz not null default now(),
+  complete boolean not null,
+  failed_rules text[] not null default '{}',
+  unreached_rules text[] not null default '{}',
+  truncated_rules text[] not null default '{}',
+  unrecorded_count integer not null default 0 check (unrecorded_count >= 0)
+);
+
+alter table risk_sweep_runs enable row level security;
+
+drop policy if exists "risk_sweep_runs_select_admin" on risk_sweep_runs;
+create policy "risk_sweep_runs_select_admin" on risk_sweep_runs
+  for select using (is_admin());

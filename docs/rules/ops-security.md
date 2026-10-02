@@ -353,6 +353,20 @@ client is the only writer and the log is append-only from any session.
   that action and doing it deliberately, with its own audit row. That
   separation is what makes a heuristic over clinical data safe to run at
   all, and the Risk tab deliberately carries no action buttons.
+  **"Nothing waiting" is said only after a complete sweep.** The sweep used
+  to swallow everything: a detector whose read failed returned "no
+  findings", rules the time budget did not reach were skipped, and a read
+  that hit its row cap looked complete. Every detector read now goes through
+  `checkRead()` (a failed read throws, so the rule counts as failed; a read
+  at its cap marks the rule truncated), and each sweep stores its outcome in
+  the one-row `risk_sweep_runs` (admin-readable, written by the service role)
+  -- failed, unreached and truncated rules and findings that could not be
+  written. The Risk tab reads it through `summariseRiskSweep()` and shows
+  the all-clear only when it was complete; otherwise it names the rules.
+  The budget is 8 seconds: the sweep runs in `after()` and the scheduled
+  job, not in the render, and at 2.5s a real sweep with every rule on left
+  three unreached. Open signals are read in full; only the closed history
+  and the two evidence trails show a newest-200 window, and say so.
   `risk_signals.evidence` stores the ids of the rows that fired a rule
   rather than a score, because an admin who can only see a verdict cannot
   disagree with it. A partial unique index gives at most one **open or
