@@ -14958,3 +14958,82 @@ alter table site_settings add constraint site_settings_social_urls_https_check c
   and (social_youtube_url is null or (social_youtube_url like 'https://%' and char_length(social_youtube_url) <= 300))
   and (social_whatsapp_url is null or (social_whatsapp_url like 'https://%' and char_length(social_whatsapp_url) <= 300))
 );
+
+-- A weekly save with no expected version is a first save, or it is refused.
+--
+-- `p_expected_version is null` meant "no compare-and-swap asked for", and
+-- that was correct for the case it was written for: a therapist with no
+-- therapist_schedule_state row has never saved, so there is nothing to
+-- compare against (see roster.md, rule 3). But null is also what a client
+-- sends when it never read the schedule at all -- a screen whose read
+-- failed and drew an empty week -- and that save went straight through and
+-- replaced the real roster with nothing.
+--
+-- So null is now a claim: "there is no state row yet". It holds only when
+-- that is true at the moment of the write. If the row already exists,
+-- somebody has saved (or written an exception) since, and null is treated
+-- exactly like a stale version: a no-op if the hours asked for are already
+-- what is stored, a conflict otherwise. A therapist who genuinely has no row
+-- is unaffected -- the lock creates it and the save goes through, as before.
+create or replace function public.save_therapist_weekly_schedule(
+  p_therapist_id uuid,
+  p_slots jsonb,
+  p_expected_version bigint,
+  p_actor uuid
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_existed boolean;
+  v_version bigint;
+  v_current jsonb;
+  v_incoming jsonb;
+begin
+  -- Read before the lock creates the row. Two first-ever saves racing each
+  -- other can both see "absent" -- both are first saves, and the second
+  -- wins, which is what the version check allowed before this.
+  select exists (
+    select 1 from therapist_schedule_state where therapist_id = p_therapist_id
+  ) into v_existed;
+
+  v_version := lock_therapist_schedule_state(p_therapist_id, p_actor);
+
+  select coalesce(jsonb_agg(k order by k), '[]'::jsonb) into v_current
+  from (
+    select day_of_week::text || '-' || hour::text as k
+    from therapist_availability_template
+    where therapist_id = p_therapist_id
+  ) c;
+
+  select coalesce(jsonb_agg(distinct k order by k), '[]'::jsonb) into v_incoming
+  from (
+    select (e->>'day_of_week') || '-' || (e->>'hour') as k
+    from jsonb_array_elements(coalesce(p_slots, '[]'::jsonb)) e
+  ) i;
+
+  if (p_expected_version is not null and p_expected_version <> v_version)
+     or (p_expected_version is null and v_existed) then
+    if v_current = v_incoming then
+      return jsonb_build_object('status', 'noop', 'version', v_version);
+    end if;
+    return jsonb_build_object('status', 'conflict', 'version', v_version);
+  end if;
+
+  delete from therapist_availability_template where therapist_id = p_therapist_id;
+
+  insert into therapist_availability_template (therapist_id, day_of_week, hour)
+  select p_therapist_id, (e->>'day_of_week')::smallint, (e->>'hour')::smallint
+  from jsonb_array_elements(coalesce(p_slots, '[]'::jsonb)) e
+  on conflict (therapist_id, day_of_week, hour) do nothing;
+
+  update therapist_schedule_state
+     set version = v_version + 1, updated_at = now(), updated_by = p_actor
+   where therapist_id = p_therapist_id;
+
+  return jsonb_build_object('status', 'ok', 'version', v_version + 1);
+end;
+$$;
+
+revoke all on function public.save_therapist_weekly_schedule(uuid, jsonb, bigint, uuid) from public, anon, authenticated;

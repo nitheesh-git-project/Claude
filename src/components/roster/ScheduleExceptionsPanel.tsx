@@ -21,9 +21,11 @@ import DateField from "@/components/system/DateField";
 // everywhere a person can see it -- "override" is the column's word, not
 // theirs.
 //
-// The write is a whole day at a time (/api/admin/set-availability-exception),
-// so an admin says "she's off on Tuesday" once instead of clicking eighteen
-// cells. The rows underneath are unchanged, and a sparse row written by the
+// The write is a whole day at a time, so an admin says "she's off on
+// Tuesday" once instead of clicking eighteen cells. Two doors onto the same
+// write (src/lib/dateException.ts): the admin's Roster posts to
+// /api/admin/set-availability-exception, and the therapist's own screen to
+// /api/therapist/set-availability-exception (`voice="self"`). The rows underneath are unchanged, and a sparse row written by the
 // old grid still reads correctly here, because the effective hours are
 // recomputed from the weekly schedule plus the exception rather than read
 // off the exception alone.
@@ -41,6 +43,8 @@ export default function ScheduleExceptionsPanel({
   overrideRows,
   todayKey,
   readOnly = false,
+  endpoint = "/api/admin/set-availability-exception",
+  voice = "admin",
 }: {
   therapistId: string;
   therapistName: string;
@@ -50,11 +54,15 @@ export default function ScheduleExceptionsPanel({
    *  in a browser, and a "today" from whichever clock is running is the
    *  hydration mismatch this codebase has already fixed twice. */
   todayKey: string;
-  /** A therapist sees their exceptions and cannot write them -- the same
-   *  rule as before the redesign. Broadening that is its own decision, not a
-   *  side effect of a new screen. */
+  /** An admin whose scope cannot manage the roster reads it only. */
   readOnly?: boolean;
+  /** Where the write goes. The therapist's route takes no therapist id --
+   *  it writes the signed-in therapist's own schedule. */
+  endpoint?: string;
+  /** "self" when the therapist is looking at their own schedule. */
+  voice?: "admin" | "self";
 }) {
+  const self = voice === "self";
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [date, setDate] = useState(todayKey);
@@ -76,10 +84,10 @@ export default function ScheduleExceptionsPanel({
     setBusyDate(forDate);
     setError(null);
     try {
-      const res = await fetch("/api/admin/set-availability-exception", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ therapistId, ...body }),
+        body: JSON.stringify(self ? body : { therapistId, ...body }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -101,8 +109,8 @@ export default function ScheduleExceptionsPanel({
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500">
-          {readOnly
-            ? "Dates the clinic has set differently from your weekly hours. Everything else follows your schedule above."
+          {self
+            ? "Days you're off, or working different hours. Everything else follows your weekly schedule above. Booked sessions stay as they are."
             : "Dates that differ from the weekly schedule. Everything else follows the schedule above."}
         </p>
         {!readOnly && (
@@ -158,7 +166,7 @@ export default function ScheduleExceptionsPanel({
             </div>
             <fieldset>
               <legend className="text-[11px] font-bold text-slate-700">
-                On this date {therapistName} is
+                On this date {self ? "you are" : `${therapistName} is`}
               </legend>
               <div className="mt-1 flex gap-3">
                 <label className="flex items-center gap-1.5 text-xs text-slate-700">
@@ -295,7 +303,7 @@ export default function ScheduleExceptionsPanel({
           icon="fa-calendar-day"
           title="No upcoming exceptions"
           body={`Every upcoming date follows ${
-            readOnly ? "your" : `${therapistName}'s`
+            self ? "your" : `${therapistName}'s`
           } weekly schedule.`}
         />
       ) : (

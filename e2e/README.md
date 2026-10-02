@@ -126,7 +126,7 @@ total, which moves with every spec added.
 | `mobile-smoke` | 8 | public pages and every role's dashboard at phone width (Pixel 7) - no sideways scroll, navigation reachable; runs in the `mobile` project only |
 | `admin-care-plans` | 21 | who may write a recommendation on a therapist's behalf, and the whole review step |
 | `session-suggestions` | 18 | therapist-suggested sessions, including button spam, concurrent answers and a dropped connection |
-| `therapist-roster` | 16 | ranges, exceptions, leave, authorization, stale and double-clicked saves, and that no roster change moved a booking |
+| `therapist-roster` | 21 | ranges, exceptions (the admin's and the therapist's own, today onwards), leave, authorization, stale and double-clicked saves, a versionless save refused once a schedule exists, and that no roster change moved a booking |
 | `roster-read-write-day` | 7 | the read-only gate, the day view, and the **first** save for a therapist with no state row |
 | `therapist-readiness` | 4 | the five things a therapist needs before live patients |
 | `therapist-specialty` | 3 | a specialisation as a value rather than a sentence |

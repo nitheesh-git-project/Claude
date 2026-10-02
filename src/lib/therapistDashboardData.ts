@@ -33,8 +33,8 @@ function nowTimestamp() {
 
 /** Stands in for a query this screen doesn't need -- see the patient
  *  loader's copy for why the destructuring stays positional. */
-function emptyRows<T>(): Promise<{ data: T[] }> {
-  return Promise.resolve({ data: [] as T[] });
+function emptyRows<T>(): Promise<{ data: T[]; error: null }> {
+  return Promise.resolve({ data: [] as T[], error: null });
 }
 
 /** Which screen is asking -- see PatientScreen for the reasoning. */
@@ -75,19 +75,19 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     { data: profile },
     { data: settingsRow },
     { data: therapistCodeRow },
-    { data: homeVisitShareRow },
+    { data: homeVisitShareRow, error: homeVisitShareError },
     { data: onLeaveProfile },
     { data: leaveDetailRow },
-    { data: scheduleStateRow },
-    { data: availabilitySlots },
+    { data: scheduleStateRow, error: scheduleStateError },
+    { data: availabilitySlots, error: availabilitySlotsError },
     { data: rawAppointments, error: appointmentsError },
-    { data: visitDetailRows },
+    { data: visitDetailRows, error: visitDetailError },
     { data: sessionCodeLinks },
     { data: meetLinkRows },
     { data: paymentTermsRows },
-    { data: payoutBatches },
+    { data: payoutBatches, error: payoutBatchesError },
     { data: treatmentCategories },
-    { data: payoutRequests },
+    { data: payoutRequests, error: payoutRequestsError },
     { data: sessionNoteRows },
   ] = await Promise.all([
     supabase
@@ -327,15 +327,17 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   ];
   const admin = createAdminClient();
   const [
-    { data: upcomingOverrides },
+    { data: upcomingOverrides, error: upcomingOverridesError },
     { data: patients },
-    { data: homeVisitPurchasesForFees },
+    { data: homeVisitPurchasesForFees, error: homeVisitFeesError },
   ] = await Promise.all([
-    supabase
-      .from("therapist_availability_override")
-      .select("date, hour, available, note")
-      .eq("therapist_id", user.id)
-      .gte("date", todayKey),
+    needAvailability
+      ? supabase
+          .from("therapist_availability_override")
+          .select("date, hour, available, note")
+          .eq("therapist_id", user.id)
+          .gte("date", todayKey)
+      : emptyRows<{ date: string; hour: number; available: boolean; note: string | null }>(),
     // Deliberately no `email`, and the phone is masked before it leaves
     // this function (see below). A therapist's dashboard used to hand over
     // every one of their patients' full contact details on every render --
@@ -356,8 +358,11 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
             .select("id, amount_paid_paise, visit_count")
             .in("id", chunk)
             .order("id")
-        ).then((r) => ({ data: r.error ? null : r.rows }))
-      : Promise.resolve({ data: [] as { id: string; amount_paid_paise: number | null; visit_count: number }[] }),
+        ).then((r) => ({ data: r.error ? null : r.rows, error: r.error ?? null }))
+      : Promise.resolve({
+          data: [] as { id: string; amount_paid_paise: number | null; visit_count: number }[],
+          error: null,
+        }),
   ]);
   // Masking is applied here, at the one place the rows are loaded, rather
   // than in each card -- the same reasoning ledgerBalances.ts documents for
@@ -766,10 +771,43 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // recommend control rather than the dashboard.
   const recommendablePackages = await loadRecommendablePackages(admin);
 
+  const availabilityLoadFailed =
+    needAvailability && (!!scheduleStateError || !!availabilitySlotsError || !!upcomingOverridesError);
+
   return {
     // The read every earnings figure and session list here is built from.
     // A failure shows the load banner rather than "₹0" and an empty list.
-    loadIssues: { missing: appointmentsError ? ["your sessions"] : [], truncated: [] as string[] },
+    //
+    // Every other read a money figure or the roster editor depends on is
+    // named here too. They used to be discarded: a failed home-visit read
+    // priced home visits at the online rate, a failed payout-batch read
+    // showed no payout history, a failed payout-request read said "Not yet
+    // requested" -- each a plausible screen built from a read that never
+    // happened. A read that failed is said, never shown as a figure.
+    loadIssues: {
+      missing: [
+        ...(appointmentsError ? ["your sessions"] : []),
+        ...(visitDetailError || homeVisitFeesError ? ["your home visits"] : []),
+        ...(homeVisitShareError ? ["your home-visit revenue share"] : []),
+        ...(payoutBatchesError ? ["your payout history"] : []),
+        ...(payoutRequestsError ? ["your payout requests"] : []),
+        ...(availabilityLoadFailed ? ["your schedule"] : []),
+      ],
+      truncated: [] as string[],
+    },
+    // Whether the money on this screen can be trusted. The Earnings screen
+    // shows its figures only when this is true; see earnings/page.tsx.
+    earningsLoadFailed:
+      !!appointmentsError ||
+      !!visitDetailError ||
+      !!homeVisitFeesError ||
+      !!homeVisitShareError ||
+      !!payoutBatchesError ||
+      !!payoutRequestsError,
+    // The roster editor's three reads. If any failed, the availability
+    // screen shows an error instead of an editor: an empty schedule drawn
+    // from a failed read, saved, would replace the real one.
+    availabilityLoadFailed,
     user,
     sessionCodeByAppointmentId,
     profile,

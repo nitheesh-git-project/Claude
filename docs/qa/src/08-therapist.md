@@ -170,10 +170,21 @@ The therapist Overview is where a clinician starts every shift: what is on today
 * Step 3: refused with **HTTP 409** and a message telling the therapist to reload the latest. Tab 1's save is not overwritten.
 * Step 4: **both identical requests succeed** - two identical requests carrying the same stale version are one logical change, so this is a **no-op success**, not a 409. Exactly one change is stored.
 
-#### `THR-AVAIL-005` - A therapist reads their exceptions but cannot write them · P0
+#### `THR-AVAIL-005` - A therapist adds and removes their own exceptions · P0
 
-**Steps.** On the availability screen, look for a control that creates a date exception. Then call `POST /api/admin/set-availability-exception` with the therapist's cookie.
-**Expected Result.** The therapist's own screen **shows** any exception on their record but offers no control to create one. The admin route returns **403 Forbidden**. Writing a date exception is an admin capability and stays one.
+**Steps**
+1. On the availability screen, under **Exceptions**, tap **Add exception**. Pick a date next week, choose **Available for set hours**, set `10 AM - 12 PM`, add a note. Save.
+2. Tap **Remove** on that exception.
+3. Try to pick a date before today in the date picker. Then call `POST /api/therapist/set-availability-exception` with `{ "date": "<yesterday>", "mode": "unavailable" }` and the therapist's cookie.
+4. Call `POST /api/admin/set-availability-exception` with the therapist's cookie.
+5. Call `POST /api/therapist/set-availability-exception` with another therapist's id in the body.
+
+**Expected Result.** Step 1: the exception is listed with its hours and note, and the admin's Roster shows the same date. Step 2: it disappears and the date follows the weekly schedule again. Step 3: the picker does not offer past dates, and the route answers **400** - *That date has already passed.* Step 4: **403** - the admin route is still the admin's. Step 5: the id is ignored; only the caller's own schedule changes. A booked session on the date is never moved or cancelled.
+
+#### `THR-AVAIL-005b` - A failed read never shows an empty schedule · P0
+
+**Steps.** With the database briefly unreachable (or `therapist_availability_template` reads failing), open the availability screen.
+**Expected Result.** The screen says *We couldn't load your schedule* and shows **no editor and no Save**. An empty week built from a read that failed would look like "no hours set", and saving it would wipe the real schedule. Separately: a weekly save sent with no `expectedVersion` for a therapist who already has a schedule is refused with **409** (or succeeds as a no-op if it asks for exactly the stored hours).
 
 #### `THR-AVAIL-006` - Leave leaves the schedule intact · P0
 

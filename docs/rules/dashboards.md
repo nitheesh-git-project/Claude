@@ -37,6 +37,16 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   end - and a therapist's earnings were summed over the first page. A
   failed main appointments read shows the load banner instead of "no
   sessions" or "₹0".
+  **Every read a money figure is built from counts, not only the main
+  one.** The therapist loader used to discard errors on the home-visit
+  details, the home-visit fee and revenue-share reads, payout batches and
+  payout requests -- so a failed read priced home visits at the online
+  share, showed no payout history, or said "Not yet requested". Each is now
+  named in `loadIssues.missing`, and `earningsLoadFailed` makes the
+  Earnings screen show an error card instead of any figure: money is shown
+  whole or not at all. The availability screen does the same with
+  `availabilityLoadFailed` and shows no editor, because an empty week from a
+  failed read, saved, would wipe the real schedule.
   The admin dashboard follows the same rule for every read over a table
   that grows (appointments' supplementary column groups, profiles,
   purchases, referrals, payout batches and requests, expenses - no more

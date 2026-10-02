@@ -1036,12 +1036,17 @@ save-spam in the browser.
 `/api/admin/save-therapist-availability` (any therapist,
 `requireAdminScope("sessions")`), `/api/admin/set-availability-exception`
 (one date: unavailable / custom hours / clear, `sessions`),
+`/api/therapist/set-availability-exception` (the same, for the therapist's own
+schedule only, today onwards),
 `/api/admin/set-therapist-on-leave` (`people`) and
 `/api/therapist/set-on-leave` (own), and `/api/admin/roster-day` (day view,
 `sessions`, read-only). Every admin one writes an
-`admin_activity_log` row naming the therapist and what changed. Writing a
-date exception is still an admin action only: a therapist sees theirs and
-cannot create one, exactly as before.
+`admin_activity_log` row naming the therapist and what changed. A therapist
+adds and removes their own date exceptions from their availability screen,
+the way they set their weekly hours and leave; both routes share
+`src/lib/dateException.ts` and the same locked database function. A weekly
+save that carries no version is a first-save claim, and is refused once the
+therapist has a schedule (see `docs/rules/roster.md`, rule 3).
 
 ### Care plans
 

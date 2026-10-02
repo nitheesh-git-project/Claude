@@ -193,7 +193,7 @@ Other reference, read on demand: `README.md` (the product and setup in full),
 ## Layout
 
 ```
-src/app/                 pages, layouts, API route handlers (185 of them)
+src/app/                 pages, layouts, API route handlers (187 of them)
 src/app/api/**           grouped by audience: admin/, appointments/, patient/,
                          therapist/, hospital/, packages/, razorpay/, and
                          medical-documents/ (the one route every role shares,
