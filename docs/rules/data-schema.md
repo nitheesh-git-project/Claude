@@ -474,7 +474,7 @@ before.
   sweeps (programme and home-visit expiry, Meet sync retries, Meet waiting
   rooms, the risk scan, the credential purge); the admin dashboard runs it
   in `after()`, and `/api/cron/maintenance` (bearer `CRON_SECRET`) runs it
-  every 15 minutes from `.github/workflows/maintenance.yml` once a person
+  every 30 minutes from `.github/workflows/maintenance.yml` once a person
   sets the `MAINTENANCE_URL` and `CRON_SECRET` repository secrets. Before
   that, a failed Meet link waited for somebody to open the back office.
   The original rule below still holds for how a sweep is written: anything that
