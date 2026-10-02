@@ -33,14 +33,20 @@ test.describe("Promo codes and invites", () => {
     return d.toISOString();
   }
 
-  async function freshBooking(forPatientId: string, daysAhead = 4, hour = 12): Promise<string> {
-    const { data } = await admin
+  // The schema refuses one patient two overlapping sessions
+  // (appointments_patient_no_overlap), and these bookings are only removed in
+  // afterAll, so a spec that books the same patient at the same time twice
+  // needs its own hour. Calls that name an hour keep it.
+  let nextHour = 8;
+  async function freshBooking(forPatientId: string, daysAhead = 4, hour?: number): Promise<string> {
+    const slotHour = hour ?? nextHour++;
+    const { data, error } = await admin
       .from("appointments")
       .insert({
         patient_id: forPatientId,
         category_id: categoryId,
         concern: CATEGORY_TITLE,
-        slot_time: futureSlot(daysAhead, hour),
+        slot_time: futureSlot(daysAhead, slotHour),
         duration_minutes: 45,
         status: "requested",
         payment_status: "unpaid",
@@ -48,7 +54,7 @@ test.describe("Promo codes and invites", () => {
       })
       .select("id")
       .single();
-    expect(data?.id, "seeded booking").toBeTruthy();
+    expect(data?.id, `seeded booking${error ? `: ${error.message}` : ""}`).toBeTruthy();
     return data!.id as string;
   }
 
