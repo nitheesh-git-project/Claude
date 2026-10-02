@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createPublicClient } from "@/lib/supabase/public";
+import { devContactFromRow, type DevContact } from "@/lib/devReachout";
 
 /**
  * The one row of `site_settings`, read once per request instead of once per
@@ -60,13 +61,14 @@ import { createPublicClient } from "@/lib/supabase/public";
  * one missing column costs exactly the group it belongs to.
  *
  * What changed is that they no longer run one after another. `Promise.all`
- * costs the slowest of the four rather than the sum, and the isolation is
+ * costs the slowest of the five rather than the sum, and the isolation is
  * untouched: each still fails on its own.
  */
 const BRAND_COLUMNS =
   "site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text";
 const SPLASH_COLUMNS =
   "splash_enabled, splash_brand_line, splash_phrase, splash_hold_seconds, splash_revisit_minutes";
+const DEV_CONTACT_COLUMNS = "dev_contact_enabled, dev_contact_email";
 
 export type LayoutBrandRow = {
   site_name?: string | null;
@@ -89,16 +91,26 @@ export type LayoutSettingsRow = {
     splash_hold_seconds?: number | null;
     splash_revisit_minutes?: number | null;
   } | null;
+  /** The developer credit's two switches. Its own group: these are the
+   *  newest columns here, so a database that has not applied them yet loses
+   *  the credit line and nothing else. */
+  devContact: DevContactRow | null;
+};
+
+export type DevContactRow = {
+  dev_contact_enabled?: boolean | null;
+  dev_contact_email?: string | null;
 };
 
 async function readLayoutSettings(): Promise<LayoutSettingsRow> {
   const supabase = createPublicClient();
 
-  const [brand, homeVisit, farewell, splash] = await Promise.all([
+  const [brand, homeVisit, farewell, splash, devContact] = await Promise.all([
     supabase.from("site_settings").select(BRAND_COLUMNS).maybeSingle(),
     supabase.from("site_settings").select("home_visit_enabled").maybeSingle(),
     supabase.from("site_settings").select("farewell_banner_seconds").maybeSingle(),
     supabase.from("site_settings").select(SPLASH_COLUMNS).maybeSingle(),
+    supabase.from("site_settings").select(DEV_CONTACT_COLUMNS).maybeSingle(),
   ]);
 
   return {
@@ -106,13 +118,24 @@ async function readLayoutSettings(): Promise<LayoutSettingsRow> {
     homeVisit: (homeVisit.data as LayoutSettingsRow["homeVisit"]) ?? null,
     farewell: (farewell.data as LayoutSettingsRow["farewell"]) ?? null,
     splash: (splash.data as LayoutSettingsRow["splash"]) ?? null,
+    devContact: (devContact.data as LayoutSettingsRow["devContact"]) ?? null,
   };
 }
 
 /**
- * The four groups the root layout needs, in one call, deduped within the
+ * The five groups the root layout needs, in one call, deduped within the
  * request. Returns nulls rather than throwing when a group's columns do not
  * exist yet -- the callers already fall back to the defaults in
  * adminSettings.ts and splashScreen.ts.
  */
 export const getLayoutSettings = cache(readLayoutSettings);
+
+/**
+ * The developer credit's switch and published address, with the defaults
+ * applied. Used by the footer's layout and by both /developer pages and the
+ * reachout route, so all of them answer the same question the same way.
+ */
+export async function getDevContact(): Promise<DevContact> {
+  const { devContact } = await getLayoutSettings();
+  return devContactFromRow(devContact);
+}

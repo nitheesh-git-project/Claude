@@ -274,6 +274,18 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
   contact_phone: { kind: "text", describe: () => "Your contact phone number is updated." },
   whatsapp_number: { kind: "text", describe: () => "Your WhatsApp number is updated." },
   footer_copyright_text: { kind: "text", describe: () => "The footer text is updated." },
+  dev_contact_enabled: {
+    kind: "boolean",
+    on: "Developer credit is now shown. The footer line and the contact pages are live.",
+    off: "Developer credit is now hidden. The footer line is gone and the contact pages no longer open.",
+  },
+  dev_contact_email: {
+    kind: "text",
+    describe: (v) =>
+      v.trim() === ""
+        ? "The email row on the contact page is hidden."
+        : "The email shown on the contact page is updated.",
+  },
   journey_step_seconds: {
     kind: "number",
     describe: (v) =>
