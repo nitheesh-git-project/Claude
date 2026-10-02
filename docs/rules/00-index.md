@@ -118,6 +118,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - `text-slate-400` is a dark-surface token
 - Every control carries an accessible name, and an icon-only one carries it explicitly
 - A dialog opened by a tap uses `useDialogChrome`
+- A dialog's open/close effect never depends on something that changes per keystroke
 - A row you can tap spreads `rowActivationProps`
 - No browser default ever speaks to a person
 - A number box takes digits, and the browser does not enforce that
@@ -169,6 +170,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - An admin can sign in as somebody, and that is a session swap rather than a preview
 - Don't name the back office to anyone outside it
 - The debug bar is on in every environment, on purpose
+- The simulated clock moves one server gate, and only behind a server flag
 - No `.env` file that arms the reset is committed, and two have been
 - `.env.production` stays deleted
 - The page behind an intercepted overlay is the dashboard, not a frame that looks like it

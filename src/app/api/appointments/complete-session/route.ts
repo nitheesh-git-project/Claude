@@ -12,6 +12,7 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { readSettlementRates } from "@/lib/settlementRates";
 import { serverError } from "@/lib/apiError";
 import { recordSessionSettlement } from "@/lib/sessionSettlement";
+import { serverNowMs } from "@/lib/debugClock";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
 // the session, or an admin correcting the record - nobody else.
@@ -177,7 +178,9 @@ export async function POST(request: NextRequest) {
       kind,
       lateGraceMinutes
     );
-    if (Date.now() < opensAt) {
+    // The debug bar's simulated clock moves this gate only on a server with
+    // ALLOW_DEBUG_CLOCK=true; everywhere else it is the real clock.
+    if (serverNowMs(request) < opensAt) {
       return NextResponse.json(
         { error: completionRefusal(kind, lateGraceMinutes), notYet: true },
         { status: 409 }

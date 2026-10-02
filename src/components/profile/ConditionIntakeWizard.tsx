@@ -193,16 +193,28 @@ export default function ConditionIntakeWizard({
     };
   }, [values, draftEndpoint, fireAutosave]);
 
+  // `values` and `onClose` are read through refs so `close` keeps one
+  // identity for the life of the dialog. It used to depend on `values`, so
+  // every keystroke rebuilt it, re-ran the focus/Escape effect below, and
+  // that effect's cleanup handed focus back to the opener -- the field lost
+  // focus after each letter and only one character could be typed at a time.
+  const valuesRef = useRef(values);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    valuesRef.current = values;
+    onCloseRef.current = onClose;
+  });
+
   // Closing mid-answer must not lose the last few keystrokes: the
   // debounce timer may still be pending, so flush it on the way out.
   const close = useCallback(() => {
     if (autosaveTimer.current) {
       clearTimeout(autosaveTimer.current);
       autosaveTimer.current = null;
-      if (!skipNextAutosave.current) fireAutosave(values);
+      if (!skipNextAutosave.current) fireAutosave(valuesRef.current);
     }
-    onClose();
-  }, [fireAutosave, onClose, values]);
+    onCloseRef.current();
+  }, [fireAutosave]);
 
   useEffect(() => {
     lastFocused.current = document.activeElement as HTMLElement | null;

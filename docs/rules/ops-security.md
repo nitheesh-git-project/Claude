@@ -661,6 +661,20 @@ line describing nothing but carelessness. Before real patients exist, remove
   hide the shared Navbar all call the one helper. At real launch, **delete**
   the bar rather than flipping the flag - it is a public flag, and the bar
   names every route including `/admin/login` and `/admin/dashboard`.
+- **The simulated clock moves one server gate, and only behind a server
+  flag.** The debug bar's clock is a browser-side offset (`debugNow.ts`), so
+  on its own it only moved what the UI offered: a therapist simulated "an
+  hour after the session", saw Done, tapped it, and was told the session had
+  not started, because `complete-session` judged the join window against the
+  real clock. The two completion buttons now send the offset as
+  `x-debug-now-offset-ms` (`debugNowHeaders()`), and the route reads "now"
+  through `serverNowMs()` (`src/lib/debugClock.ts`), which honours it
+  **only** when `ALLOW_DEBUG_CLOCK` is exactly `"true"` in the server
+  environment - never the public `NEXT_PUBLIC_SHOW_DEBUG_NAV`, because
+  completion makes a therapist's share payable and the bar is on everywhere.
+  Every other server-side time check stays on the real clock. Like the reset
+  flag, it belongs in a deliberately set server environment, never a
+  committed file, and must be unset before real patients exist.
 - **No `.env` file that arms the reset is committed, and two have been.**
   `.env.production` armed both the public debug nav and the whole-database
   reset on the live site. `.env.development` then did the same thing one

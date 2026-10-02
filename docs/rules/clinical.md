@@ -376,7 +376,12 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   (`BodyMapDiagram.tsx`) is an anatomical human silhouette built from
   cross-section nodes (`silhouettePath`), one `<svg>` per view so front and
   back stack on a phone instead of shrinking each tap target below a
-  fingertip. See the "Patient Care Intake and Pain Map" section in README.md
+  fingertip. The **front figure faces the reader**, so the patient's left is
+  on the reader's right (an `R`/`L` marker sits under each figure), and the
+  surface detail tells the views apart: collarbones, chest, abdominal line
+  and navel on the front; spine, shoulder blades and glute cleft on the
+  back. Both used to place "left" on the reader's left, and the back's
+  shoulder-blade arcs read as a chest, so the two views looked swapped. See the "Patient Care Intake and Pain Map" section in README.md
   for the full flow.
 - **A patient's own record leaves the app as a PDF, not as JSON.**
   `/api/patient/condition-profile/export` returns a typeset document named

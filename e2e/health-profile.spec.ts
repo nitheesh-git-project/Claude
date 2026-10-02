@@ -707,6 +707,36 @@ test("INT-002: a dropped connection during submit is reported, not swallowed", a
   await ctx.close();
 });
 
+test("INT-009: a free-text answer takes a whole sentence, not one letter", async ({ browser }) => {
+  // The wizard's focus effect used to re-run on every keystroke and hand
+  // focus back to the button that opened it, so each letter landed and the
+  // next one went nowhere. Typed key by key on purpose -- `fill()` sets the
+  // value in one go and would pass on the broken build.
+  await seedProfile("ortho", ORTHO_ANSWERS);
+  const { ctx, page } = await pageAs(browser, PATIENT);
+
+  await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  await page.getByRole("button", { name: /Add more detail|Review or update answers/i }).click(SEEN);
+
+  const field = page.locator('[role="dialog"] textarea[id^="intake-"], [role="dialog"] input[type="text"][id^="intake-"]');
+  const intro = page.getByRole("button", { name: /^(Start|Continue)$/ });
+  const next = page.getByRole("button", { name: /^(Next|Skip)$/ });
+  if (await intro.isVisible().catch(() => false)) await intro.click();
+  for (let i = 0; i < 12 && !(await field.first().isVisible().catch(() => false)); i++) {
+    await next.click();
+    await page.waitForTimeout(200);
+  }
+  const input = field.first();
+  await expect(input).toBeVisible(SEEN);
+  await input.click();
+  await input.fill("");
+  const sentence = "Climbing stairs and sitting long";
+  await input.pressSequentially(sentence, { delay: 30 });
+  await expect(input).toHaveValue(sentence);
+  await expect(input).toBeFocused();
+  await ctx.close();
+});
+
 test("INT-001/008: an interrupted fill survives the wizard closing", async ({ request }) => {
   await seedProfile("ortho", ORTHO_ANSWERS);
   const draft = await post(request, "/api/patient/condition-profile/save-draft", patientCookie, {

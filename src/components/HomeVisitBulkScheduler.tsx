@@ -60,7 +60,16 @@ export default function HomeVisitBulkScheduler({
 
   const maxSelectable = Math.max(0, Math.min(pendingCount, bulkScheduleMax));
 
-  const close = useCallback(() => onClose(), [onClose]);
+  // Held in a ref so `close` is stable and the open/close effect below runs
+  // once per mount. Keyed on `onClose`, it re-ran whenever the parent
+  // re-rendered with a fresh inline handler, and its cleanup moved focus
+  // back to the opener -- out of a field mid-typing, so only one letter
+  // landed at a time. Same pattern as `useDialogChrome`.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+  const close = useCallback(() => onCloseRef.current(), []);
 
   useEffect(() => {
     lastFocused.current = document.activeElement as HTMLElement | null;

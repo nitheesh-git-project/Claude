@@ -1,6 +1,6 @@
 # The end-to-end suite
 
-54 spec files, ~390 cases, one worker. `npm run test:e2e` runs all of them;
+55 spec files, ~390 cases, one worker. `npm run test:e2e` runs all of them;
 `npx playwright test e2e/<name>.spec.ts` runs one.
 
 This file is the **inventory** - what exists and what each file is for. The
@@ -114,13 +114,14 @@ total, which moves with every spec added.
 | `splash-screen` | 8 | the brand splash's cold-open, reload and long-absence rules |
 | `journey-pace` | 16 | the home walkthrough's admin-configured rotation pace |
 | `session-completed-cutoff` | 11 | the cutoff on every surface that lists a session |
+| `debug-clock` | 2 | the debug bar's simulated clock moving the completion gate only on a server with `ALLOW_DEBUG_CLOCK=true`; asserts refusals only, since a successful completion writes append-only settlement rows |
 | `admin-login` | 4 | the real login form. Needs the relay (see `docs/rules/testing.md`); skips itself otherwise |
 
 ### Clinical, roster and catalogue
 
 | Spec | Cases | Covers |
 | --- | --- | --- |
-| `health-profile` | 28 | the per-specialty intake, the Pain Map, the double-submit no-op, and clinical access following live or delivered care |
+| `health-profile` | 29 | the per-specialty intake, the Pain Map, a free-text answer typed key by key (focus must stay in the field), the double-submit no-op, and clinical access following live or delivered care |
 | `mobile-smoke` | 8 | public pages and every role's dashboard at phone width (Pixel 7) - no sideways scroll, navigation reachable; runs in the `mobile` project only |
 | `admin-care-plans` | 21 | who may write a recommendation on a therapist's behalf, and the whole review step |
 | `session-suggestions` | 18 | therapist-suggested sessions, including button spam, concurrent answers and a dropped connection |

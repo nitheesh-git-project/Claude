@@ -11,10 +11,13 @@
 // Client-only and additive: every call site that reads debugNow() instead
 // of Date.now() falls back to the real clock when no override is set, so
 // this has zero effect once the debug bar itself is gone at launch (see
-// src/lib/debugNavVisible.ts). Deliberately never wired into any
-// server-side/API-route time check (refund eligibility, payout math, etc.)
-// -- those must stay grounded in the server's real clock; only client-
-// rendered advisory gates read this.
+// src/lib/debugNavVisible.ts). Server-side time checks (refund eligibility,
+// payout math, etc.) stay grounded in the server's real clock, with one
+// opt-in exception: a request carrying `debugNowHeaders()` lets the
+// session-completion gate read the simulated clock, and only on a server
+// with `ALLOW_DEBUG_CLOCK=true` -- see src/lib/debugClock.ts.
+import { DEBUG_NOW_OFFSET_HEADER } from "@/lib/debugClock";
+
 const STORAGE_KEY = "debugNowOffsetMs";
 
 export function getDebugNowOffsetMs(): number {
@@ -38,4 +41,12 @@ export function setDebugNowOffsetMs(offsetMs: number | null) {
 // should respect the simulated clock.
 export function debugNow(): number {
   return Date.now() + getDebugNowOffsetMs();
+}
+
+// The simulated offset as a request header, for the few routes whose time
+// gate the debug clock may move (see src/lib/debugClock.ts). Empty when no
+// simulation is active, so a real-time request is unchanged.
+export function debugNowHeaders(): Record<string, string> {
+  const offset = getDebugNowOffsetMs();
+  return offset ? { [DEBUG_NOW_OFFSET_HEADER]: String(offset) } : {};
 }

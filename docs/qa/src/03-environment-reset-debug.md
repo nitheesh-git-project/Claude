@@ -12,6 +12,7 @@
 | **Razorpay test-mode keys** | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` from the Razorpay dashboard in **Test Mode**. Never live keys. |
 | `RAZORPAY_WEBHOOK_SECRET` set | Without it `/api/razorpay/webhook` answers `503 {"error":"Webhook not configured"}` and a patient who pays and closes the tab leaves a paid order against an unpaid booking. Webhook tests need it. |
 | `ALLOW_DEBUG_DATA_RESET=true` | **Server-side only.** Arms the Reset data button. Never set on a live site. |
+| `ALLOW_DEBUG_CLOCK=true` | **Server-side only.** Lets the simulated clock move the session-completion gate (Done / No-show). Needed for the session-completed flow under a simulated time. Never set on a live site. |
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Leave unset. The Debug Bar must be visible. |
 | Google Calendar credentials | Optional. Without them Meet sync fails and is recorded - which is itself a test (`ADM-SET-031`). |
 | The app running with **`npm run dev`** | Not `next start`. The public pages are ISR-cached for 300s, so a production build serves HTML that predates your fixtures. |
@@ -233,18 +234,18 @@ This is the single most misunderstood part of the application, and mis-reading i
 
 **The simulated clock is stored as an OFFSET, not as a fixed target.** When you set "12 September 2026, 18:00", the app stores `target − Date.now()` in `localStorage` under `debugNowOffsetMs`. The simulated clock then keeps **ticking forward at normal speed**. It never freezes.
 
-**It is client-side only.** It affects only client-rendered advisory gates that call `debugNow()` instead of `Date.now()`. It is **deliberately never wired into any server-side or API-route time check.**
+**It is client-side, with one opt-in server exception.** It affects client-rendered advisory gates that call `debugNow()` instead of `Date.now()`. Server-side time checks use the server's real clock - **except** `/api/appointments/complete-session` (Done and No-show), which honours the simulated clock when the server has `ALLOW_DEBUG_CLOCK=true`. The browser sends its offset in the `x-debug-now-offset-ms` header; a server without the flag ignores it.
 
 | Affected by the simulated clock | NOT affected (uses the server's real clock) |
 | --- | --- |
 | The `/book` wizard's date calendar and hour list (which dates/times are offered) | `/api/appointments/create`'s lead-time validation |
 | The `/book-home-visit` wizard's date/time picker | `/api/home-visit/*` lead-time validation |
-| **Tap to Join** / **Session Completed** button states on every dashboard | `/api/appointments/complete-session`'s join-window gate |
+| **Tap to Join** / **Session Completed** button states on every dashboard | `/api/appointments/complete-session`'s join-window gate - **unless** `ALLOW_DEBUG_CLOCK=true` on the server, when it follows the simulated clock too |
 | Session card greying and Upcoming/Past bucketing in the browser | Refund-eligibility maths in `/api/appointments/cancel` |
 | The therapist's own suggestion picker | `/api/therapist/suggest-session`'s lead-time check |
 | | Payout maths, `completed_at` stamping, audit timestamps, `paid_at` |
 
-**The practical consequence, stated plainly:** you can use the simulated clock to make the *UI offer* a slot or a button. You cannot use it to make the *server accept* a time-gated write. If you simulate a date far in the future and then try to complete a session, the client will show you the **Tap to Join** control and the server will still answer `409` with *"This session hasn't started yet. You can mark it done once it's under way."* **That is correct behaviour, not a defect.** Tests that need a server-side time gate to pass say so explicitly and tell you to use a real near-future slot instead.
+**The practical consequence, stated plainly:** you can use the simulated clock to make the *UI offer* a slot or a button. You cannot use it to make the *server accept* a time-gated write. The one exception is marking a session done or a no-show: with `ALLOW_DEBUG_CLOCK=true` on the server, simulate a time after the session and **Done** is accepted. Without that flag the server still answers `409` with *"This session hasn't started yet. You can mark it done once it's under way."* - check the flag before writing that up as a defect. Tests that need any other server-side time gate to pass say so explicitly and tell you to use a real near-future slot instead.
 
 Because the storage key is `localStorage`, the simulation is **per browser profile**, and it survives navigation and reload until you reset it. Applying it triggers a **full page reload** - soft re-renders would not pick it up, because every consumer reads the clock once in a lazy initializer.
 
