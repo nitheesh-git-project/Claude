@@ -15102,3 +15102,77 @@ end;
 $$;
 
 revoke all on function public.decline_pending_account(uuid) from public, anon, authenticated;
+
+-- Approving a recommendation is one transaction: claim, offer window, record.
+--
+-- approveCarePlan() used to do these as three separate writes. The plan was
+-- claimed (status 'active') first and its version's offer window stamped
+-- second, with a failed stamp only logged -- leaving a published offer with
+-- no expiry, purchasable for ever. A failed review record then put the plan
+-- back in the queue, but the version keeps a first expires_at for good (the
+-- append-only trigger allows exactly one), so the retry skipped the stamp
+-- and published with the window from the failed attempt.
+--
+-- Here the plan row is locked, its pending state checked under the lock,
+-- the window stamped (only if the version has none), the plan published and
+-- the review recorded -- all or nothing. A version whose window was already
+-- stamped and has run out is refused rather than published already lapsed.
+--
+-- Returns 'approved', 'not_found', 'not_pending' or 'window_passed'.
+create or replace function public.approve_care_plan(
+  p_care_plan_id uuid,
+  p_reviewer_id uuid,
+  p_expiry_days integer,
+  p_reason text
+) returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_status text;
+  v_version_id uuid;
+  v_expires timestamptz;
+begin
+  select status, current_version_id into v_status, v_version_id
+  from care_plans
+  where id = p_care_plan_id
+  for update;
+
+  if not found then
+    return 'not_found';
+  end if;
+  if v_status <> 'pending_review' then
+    return 'not_pending';
+  end if;
+
+  if v_version_id is not null then
+    select expires_at into v_expires
+    from care_plan_versions
+    where id = v_version_id
+    for update;
+
+    if v_expires is null then
+      update care_plan_versions
+         set expires_at = now() + make_interval(days => greatest(p_expiry_days, 1))
+       where id = v_version_id;
+    elsif v_expires <= now() then
+      return 'window_passed';
+    end if;
+  end if;
+
+  update care_plans
+     set status = 'active',
+         reviewed_by = p_reviewer_id,
+         reviewed_at = now(),
+         updated_at = now()
+   where id = p_care_plan_id;
+
+  insert into care_plan_reviews (care_plan_id, version_id, reviewer_id, decision, reason)
+  values (p_care_plan_id, v_version_id, p_reviewer_id, 'approved', nullif(btrim(coalesce(p_reason, '')), ''));
+
+  return 'approved';
+end;
+$$;
+
+revoke all on function public.approve_care_plan(uuid, uuid, integer, text) from public, anon, authenticated;

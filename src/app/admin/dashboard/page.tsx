@@ -3944,15 +3944,47 @@ export default async function AdminDashboardPage({
   // Every recommendation, on its own call for the usual
   // migration-tolerance reason. Sessions scope, matching the withdraw route
   // and the section it sits in.
-  const { data: adminCarePlanRows } = canSeeCarePlans
-    ? await admin
-        .from("care_plans")
-        .select(
-          "id, patient_id, therapist_id, status, category_id, current_version_id, created_at"
-        )
-        .order("created_at", { ascending: false })
-        .limit(200)
-    : { data: [] as AdminCarePlanQueryRow[] };
+  //
+  // Two reads, not one. This was the newest 200 across every status, so a
+  // recommendation still waiting for review but older than the 200th
+  // decided one simply vanished from the review queue -- nobody could
+  // approve what nobody could see. Everything waiting is read in full
+  // (paged); the decided history keeps its window of the newest 200.
+  const CARE_PLAN_COLUMNS =
+    "id, patient_id, therapist_id, status, category_id, current_version_id, created_at";
+  const [pendingCarePlans, recentCarePlans] = canSeeCarePlans
+    ? await Promise.all([
+        readAllRowsAsData<AdminCarePlanQueryRow>(() =>
+          admin
+            .from("care_plans")
+            .select(CARE_PLAN_COLUMNS)
+            .eq("status", "pending_review")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        ),
+        admin
+          .from("care_plans")
+          .select(CARE_PLAN_COLUMNS)
+          .neq("status", "pending_review")
+          .order("created_at", { ascending: false })
+          .limit(200),
+      ])
+    : [
+        { data: [] as AdminCarePlanQueryRow[], error: null },
+        { data: [] as AdminCarePlanQueryRow[], error: null },
+      ];
+  if (pendingCarePlans.error) {
+    console.error("Admin dashboard: failed to load care plans waiting for review", pendingCarePlans.error);
+    failedCoreReads.push("recommendations waiting for review");
+  }
+  if (recentCarePlans.error) {
+    console.error("Admin dashboard: failed to load decided care plans", recentCarePlans.error);
+    failedCoreReads.push("decided recommendations");
+  }
+  const adminCarePlanRows: AdminCarePlanQueryRow[] = [
+    ...((pendingCarePlans.data ?? []) as AdminCarePlanQueryRow[]),
+    ...((recentCarePlans.data ?? []) as AdminCarePlanQueryRow[]),
+  ].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
 
   const adminPlanVersionIds = (adminCarePlanRows ?? [])
     .map((p) => p.current_version_id)

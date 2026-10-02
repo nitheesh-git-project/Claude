@@ -124,7 +124,7 @@ total, which moves with every spec added.
 | --- | --- | --- |
 | `health-profile` | 29 | the per-specialty intake, the Pain Map, a free-text answer typed key by key (focus must stay in the field), the double-submit no-op, and clinical access following live or delivered care |
 | `mobile-smoke` | 8 | public pages and every role's dashboard at phone width (Pixel 7) - no sideways scroll, navigation reachable; runs in the `mobile` project only |
-| `admin-care-plans` | 21 | who may write a recommendation on a therapist's behalf, and the whole review step |
+| `admin-care-plans` | 22 | who may write a recommendation on a therapist's behalf, and the whole review step |
 | `session-suggestions` | 18 | therapist-suggested sessions, including button spam, concurrent answers and a dropped connection |
 | `hospital-referrals` | 3 | one open referral per patient under five simultaneous submissions, a withdrawn one freeing the number, and the withdraw control saying so when the connection drops |
 | `therapist-roster` | 21 | ranges, exceptions (the admin's and the therapist's own, today onwards), leave, authorization, stale and double-clicked saves, a versionless save refused once a schedule exists, and that no roster change moved a booking |

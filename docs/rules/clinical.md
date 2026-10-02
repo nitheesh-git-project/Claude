@@ -243,6 +243,16 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      window can be stamped once and never moved after the patient has read
      it. Stamping at authoring meant the plans the clinic took longest over
      reached the patient with the least time on them.
+     **Approval is one transaction** (`approve_care_plan()`): lock the plan,
+     check it is still pending, stamp the window if the version has none,
+     publish, record the review -- all or nothing. It was three writes, and a
+     failed stamp was only logged, publishing an offer with no expiry; a
+     failed review record put the plan back in the queue with a window the
+     retry could not restamp. A version already stamped and lapsed is refused
+     (409) rather than published expired. The admin's review queue reads
+     every `pending_review` plan in full and only caps the decided history at
+     the newest 200 -- a single newest-200 read across all statuses hid older
+     plans still waiting for a decision.
   6. **A new version on a published thread sends the whole thread back.**
      Deliberately, even though it takes a live offer off the patient's
      screen: what they can now see is a version nobody approved.

@@ -907,6 +907,45 @@ test.describe("The clinic approves a recommendation", () => {
     await ctx.dispose();
   });
 
+  test("ACP-022: a version whose window already ran out is not published", async () => {
+    // The old three-step approval could leave a version stamped by a failed
+    // attempt; a retry then skipped the stamp and published it with that old
+    // window. approve_care_plan refuses rather than publish it lapsed.
+    await clearOpenPlans();
+    const planId = await submitAsTherapist();
+    const { data: plan } = await admin
+      .from("care_plans")
+      .select("current_version_id")
+      .eq("id", planId)
+      .single();
+    // The append-only trigger allows exactly one first expires_at -- the
+    // state a failed earlier attempt left behind.
+    const { error: stampError } = await admin
+      .from("care_plan_versions")
+      .update({ expires_at: new Date(Date.now() - 86_400_000).toISOString() })
+      .eq("id", plan?.current_version_id ?? "")
+      .is("expires_at", null);
+    expect(stampError, stampError?.message).toBeNull();
+
+    const ctx = await playwrightRequest.newContext({
+      extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.admin) },
+    });
+    const res = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: { carePlanId: planId, decision: "approved", reason: "" },
+    });
+    expect(res.status(), await res.text()).toBe(409);
+    expect((await res.json()).error).toMatch(/offer window has already run out/i);
+
+    const { data: after } = await admin.from("care_plans").select("status").eq("id", planId).single();
+    expect(after?.status, "still waiting, nothing published").toBe("pending_review");
+    const { count } = await admin
+      .from("care_plan_reviews")
+      .select("id", { count: "exact", head: true })
+      .eq("care_plan_id", planId);
+    expect(count ?? 0, "no review recorded for a decision that did not land").toBe(0);
+    await ctx.dispose();
+  });
+
   test("ACP-017: turning one down closes the thread and keeps the reason", async () => {
     await clearOpenPlans();
     const planId = await submitAsTherapist();
