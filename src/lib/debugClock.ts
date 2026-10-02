@@ -6,15 +6,21 @@
 // therapist could simulate "one hour after the session" and see Done, then
 // tap it and be told the session had not started, because the route judged
 // the join window against the server's real clock. The client now sends its
-// offset in a header, and the server honours it **only** when
-// `ALLOW_DEBUG_CLOCK` is exactly "true" in the server environment.
+// offset in a header, and the server honours it **whenever the debug bar is
+// on** -- the same `isDebugNavVisible()` switch that shows the bar. There is
+// no separate setting: if the bar is there to simulate time, the simulation
+// has to work end to end, and when the bar is switched off
+// (`NEXT_PUBLIC_SHOW_DEBUG_NAV=false`) or deleted at launch, the header is
+// ignored and every gate reads the real clock.
 //
-// Deliberately a server-only flag and not `NEXT_PUBLIC_SHOW_DEBUG_NAV`: the
-// bar is on in every environment while the app is pre-launch, and the gate
-// this moves is a financial one (completion is what makes a therapist's
-// share payable). Reusing the public flag would let anyone holding a
-// therapist login complete sessions before they happen on the live site.
-// Unset, the header is ignored and every gate reads the real clock.
+// The trade-off is deliberate and belongs to the pre-launch period: the gate
+// this moves is a financial one (completing a session is what makes a
+// therapist's share payable), and the bar is on in every environment, so
+// while it is on any signed-in therapist can send the header. That is
+// acceptable only while there are no real patients. Deleting the bar before
+// launch removes this with it -- see debugNavVisible.ts.
+
+import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 export const DEBUG_NOW_OFFSET_HEADER = "x-debug-now-offset-ms";
 
@@ -38,7 +44,7 @@ export function resolveServerNowMs({
 }
 
 export function isDebugClockEnabled(): boolean {
-  return process.env.ALLOW_DEBUG_CLOCK === "true";
+  return isDebugNavVisible();
 }
 
 /** "Now" for a server-side time gate that the debug clock may move. */

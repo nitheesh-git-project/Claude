@@ -683,12 +683,15 @@ line describing nothing but carelessness. Before real patients exist, remove
   real clock. The two completion buttons now send the offset as
   `x-debug-now-offset-ms` (`debugNowHeaders()`), and the route reads "now"
   through `serverNowMs()` (`src/lib/debugClock.ts`), which honours it
-  **only** when `ALLOW_DEBUG_CLOCK` is exactly `"true"` in the server
-  environment - never the public `NEXT_PUBLIC_SHOW_DEBUG_NAV`, because
-  completion makes a therapist's share payable and the bar is on everywhere.
-  Every other server-side time check stays on the real clock. Like the reset
-  flag, it belongs in a deliberately set server environment, never a
-  committed file, and must be unset before real patients exist.
+  **whenever the debug bar is on** (`isDebugNavVisible()`) - there is no
+  separate setting, because a bar that offers to simulate time has to do it
+  end to end. The cost is knowing what that means: completion is what makes a
+  therapist's share payable, the bar is on in every environment, and so while
+  it is on any signed-in therapist can send the header and complete a session
+  early. That is acceptable only while there are no real patients, and it
+  goes away with the bar - **delete the bar before launch** and the header is
+  ignored. The offset is bounded to a year either way. Every other
+  server-side time check stays on the real clock.
 - **No `.env` file that arms the reset is committed, and two have been.**
   `.env.production` armed both the public debug nav and the whole-database
   reset on the live site. `.env.development` then did the same thing one

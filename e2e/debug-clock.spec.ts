@@ -2,8 +2,8 @@
 // /api/appointments/complete-session's "has this session started yet".
 //
 // The bar keeps its offset in the browser; the completion buttons send it as
-// `x-debug-now-offset-ms`, and the route honours it only when the server has
-// ALLOW_DEBUG_CLOCK=true (src/lib/debugClock.ts). Before that, a tester who
+// `x-debug-now-offset-ms`, and the route honours it whenever the debug bar is
+// on (isDebugNavVisible, via src/lib/debugClock.ts). Before that, a tester who
 // simulated "an hour after the session" saw Done, tapped it and was told the
 // session had not started.
 //
@@ -13,15 +13,16 @@
 // the direction that proves the header was (or was not) read without
 // completing anything:
 //
-//   flag on:  a session that started two hours ago, with the clock wound
-//             back four hours, is refused as "not started yet" -- only the
-//             header can have produced that answer.
-//   flag off: a session three hours away, with the clock wound forward four
-//             hours, is still refused -- the header was ignored.
+//   bar on:  a session that started two hours ago, with the clock wound
+//            back four hours, is refused as "not started yet" -- only the
+//            header can have produced that answer.
+//   bar off: a session three hours away, with the clock wound forward four
+//            hours, is still refused -- the header was ignored.
 //
-// The branch follows ALLOW_DEBUG_CLOCK in the environment the suite runs in,
-// which is the environment the `webServer` block starts `npm run dev` with.
-// Against a server started separately, keep the two in step.
+// The branch follows NEXT_PUBLIC_SHOW_DEBUG_NAV in the environment the suite
+// runs in (on unless exactly "false"), which is the environment the
+// `webServer` block starts `npm run dev` with. Against a server started
+// separately, keep the two in step.
 import { test, expect, request, type APIRequestContext } from "@playwright/test";
 import { BASE, QA_EMAILS, adminClient, cookieHeaderFor, profileIdFor } from "./helpers";
 
@@ -29,7 +30,7 @@ const db = adminClient();
 const MARKER = "E2E debug-clock";
 const HEADER = "x-debug-now-offset-ms";
 const HOUR = 60 * 60 * 1000;
-const FLAG_ON = process.env.ALLOW_DEBUG_CLOCK === "true";
+const BAR_ON = process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV !== "false";
 
 let patientId: string;
 let therapistId: string;
@@ -96,8 +97,8 @@ test("DC-001: a session that has not started is refused on the real clock", asyn
   expect(await statusOf(id)).toBe("confirmed");
 });
 
-test("DC-002: the simulated clock moves the completion gate only with ALLOW_DEBUG_CLOCK", async () => {
-  if (FLAG_ON) {
+test("DC-002: the simulated clock moves the completion gate while the debug bar is on", async () => {
+  if (BAR_ON) {
     // Started two hours ago by the real clock; the header winds "now" back
     // four hours, so the route must answer as though it has not started.
     const id = await seedPaidSession(Date.now() - 2 * HOUR);
@@ -106,11 +107,11 @@ test("DC-002: the simulated clock moves the completion gate only with ALLOW_DEBU
     expect((await res.json()).notYet).toBe(true);
     expect(await statusOf(id)).toBe("confirmed");
   } else {
-    // Three hours away; the header claims it is four hours later. A server
-    // without the flag must still refuse.
+    // Three hours away; the header claims it is four hours later. With the
+    // bar off the server must still refuse.
     const id = await seedPaidSession(Date.now() + 3 * HOUR);
     const res = await complete(id, 4 * HOUR);
-    expect(res.status(), "the server honoured a debug clock it was not told to").toBe(409);
+    expect(res.status(), "the server honoured a debug clock with the bar off").toBe(409);
     expect((await res.json()).notYet).toBe(true);
     expect(await statusOf(id)).toBe("confirmed");
   }

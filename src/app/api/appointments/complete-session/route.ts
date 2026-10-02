@@ -178,8 +178,8 @@ export async function POST(request: NextRequest) {
       kind,
       lateGraceMinutes
     );
-    // The debug bar's simulated clock moves this gate only on a server with
-    // ALLOW_DEBUG_CLOCK=true; everywhere else it is the real clock.
+    // The debug bar's simulated clock moves this gate while the bar is on
+    // (isDebugNavVisible); with the bar off it is the real clock.
     if (serverNowMs(request) < opensAt) {
       return NextResponse.json(
         { error: completionRefusal(kind, lateGraceMinutes), notYet: true },

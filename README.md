@@ -322,7 +322,6 @@ Copy `.env.example` to `.env.local` and fill in:
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer, and the account whose Meet permission opens each meeting |
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it |
 | `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which deletes every non-admin account and empties the tables testing fills, while keeping everything a person typed: `site_settings` and `risk_rules` are not touched at all, and the conditions catalogue (`treatment_categories` and their packages), `faqs`, `testimonials` and `mission_principles` all survive. Never set it on a deployment holding real data |
-| `ALLOW_DEBUG_CLOCK` | Optional, pre-launch testing only. Exactly `true` lets the debug bar's simulated clock move the server's session-completion gate (`/api/appointments/complete-session`, Done and No-show), so a simulated "an hour after the session" can actually be marked done. Unset, the route ignores the browser's offset header and reads the real clock. Every other server-side time check stays on the real clock either way. Never set it on a deployment holding real data |
 | `SUPABASE_MAX_IN_FLIGHT` | Optional. How many HTTP requests this server may have in flight to Supabase at once, per instance. Default 96, measured: at 40 concurrent admin dashboard renders 48 gave a p50 of 130s, 96 gave 15.3s and 192 gave 16.4s. Without a cap, ~3,300 concurrent requests exhausted the connect timeout and the dashboard rendered the lost rows as zeroes. |
 | `SUPABASE_REQUEST_TIMEOUT_MS` | Optional. Deadline on each Supabase request, covering the wait for a slot. Default 20000. undici's own default is five minutes, and a socket stuck that long holds a slot the requests behind it need. |
 | `WEB_CONCURRENCY` | Optional. How many Node processes `npm run start:cluster` runs on one port. Default: cores, capped at 4. One `next start` renders on one thread, which is the ceiling once the database is not: four workers took the public site from 395 to 580 requests a second and an admin dashboard render under that load from 15.9s to 11.3s. Capped rather than per-core because the lazy sweeps keep their intervals per process. |
@@ -339,6 +338,12 @@ is deliberate while the app is pre-launch - the bar's "jump to page" list,
 its simulated clock and its Reset button are how a published change gets
 checked. **Delete the bar before real launch**: the flag is public, and the
 bar's dropdown names every route, protected dashboards included.
+
+While the bar is on, its simulated clock also moves the server's
+session-completion gate (Done and No-show), so a simulated "an hour after the
+session" can actually be marked done; there is no separate setting. With the
+bar off, or deleted at launch, the server ignores it. See
+`docs/rules/ops-security.md` for what that costs while it is on.
 
 `.env.production` stays **deleted**. It used to set that flag plus
 `ALLOW_DEBUG_DATA_RESET=true`, which armed the button that truncates every

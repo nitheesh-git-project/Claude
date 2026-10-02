@@ -22,24 +22,26 @@ describe("resolveServerNowMs", () => {
 });
 
 describe("serverNowMs", () => {
-  const original = process.env.ALLOW_DEBUG_CLOCK;
+  const original = process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV;
   afterEach(() => {
-    if (original === undefined) delete process.env.ALLOW_DEBUG_CLOCK;
-    else process.env.ALLOW_DEBUG_CLOCK = original;
+    if (original === undefined) delete process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV;
+    else process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV = original;
   });
   const request = (offset: number) => ({
     headers: { get: (name: string) => (name === DEBUG_NOW_OFFSET_HEADER ? String(offset) : null) },
   });
+  const offset = 30 * 24 * HOUR;
 
-  it("honours the header only when ALLOW_DEBUG_CLOCK is exactly \"true\"", () => {
-    const offset = 30 * 24 * HOUR;
-    process.env.ALLOW_DEBUG_CLOCK = "true";
+  it("honours the header whenever the debug bar is on, with no other setting", () => {
+    // The bar's own default: unset means on everywhere while pre-launch.
+    delete process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV;
     expect(serverNowMs(request(offset)) - Date.now()).toBeGreaterThan(offset - 5000);
-    for (const value of ["1", "TRUE", "yes", ""]) {
-      process.env.ALLOW_DEBUG_CLOCK = value;
-      expect(Math.abs(serverNowMs(request(offset)) - Date.now())).toBeLessThan(5000);
-    }
-    delete process.env.ALLOW_DEBUG_CLOCK;
+    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV = "true";
+    expect(serverNowMs(request(offset)) - Date.now()).toBeGreaterThan(offset - 5000);
+  });
+
+  it("ignores the header once the bar is switched off", () => {
+    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV = "false";
     expect(Math.abs(serverNowMs(request(offset)) - Date.now())).toBeLessThan(5000);
   });
 });

@@ -115,7 +115,7 @@ total, which moves with every spec added.
 | `splash-screen` | 8 | the brand splash's cold-open, reload and long-absence rules |
 | `journey-pace` | 16 | the home walkthrough's admin-configured rotation pace |
 | `session-completed-cutoff` | 11 | the cutoff on every surface that lists a session |
-| `debug-clock` | 2 | the debug bar's simulated clock moving the completion gate only on a server with `ALLOW_DEBUG_CLOCK=true`; asserts refusals only, since a successful completion writes append-only settlement rows |
+| `debug-clock` | 2 | the debug bar's simulated clock moving the completion gate while the debug bar is on; asserts refusals only, since a successful completion writes append-only settlement rows |
 | `admin-login` | 4 | the real login form. Needs the relay (see `docs/rules/testing.md`); skips itself otherwise |
 
 ### Clinical, roster and catalogue

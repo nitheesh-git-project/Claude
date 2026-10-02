@@ -24,8 +24,8 @@ export default function CompleteSessionButton({
     // The route refuses Done before the session's start (sessionCompletion.ts)
     // for a therapist, so asking "mark it done anyway?" only led to a refusal.
     // An admin is exempt and still gets the warning. Judged against the
-    // debug bar's simulated clock, the same one the route reads when
-    // ALLOW_DEBUG_CLOCK is on, so the warning and the answer agree.
+    // debug bar's simulated clock, the same one the route reads while the
+    // bar is on, so the warning and the answer agree.
     const isBeforeScheduledTime = slotTime ? new Date(slotTime).getTime() > debugNow() : false;
     setError(null);
     setConfirmMessage(
