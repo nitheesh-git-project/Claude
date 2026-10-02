@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { mergeSessionCodes } from "@/lib/sessionCode";
-import { readAllRows, readAllRowsByIds } from "@/lib/supabase/readAllRows";
+import { readAllRows, readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
 import { hospitalSessionLine } from "@/lib/hospitalEarnings";
 import { buildHospitalFeed } from "@/lib/dashboardFeed";
 import { HOSPITAL_NAV_ITEMS } from "@/lib/dashboardNavItems";
@@ -56,8 +56,8 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     { data: settingsRow },
     { data: hospitalCodeRow },
     referralsResult,
-    { data: capacityNoteRows },
-    { data: declineReasonRows },
+    { data: capacityNoteRows, error: capacityNoteError },
+    { data: declineReasonRows, error: declineReasonError },
     referredPatientsResult,
   ] = await Promise.all([
     supabase
@@ -92,7 +92,15 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     // capacity_note is new/migration-dependent -- kept isolated (same
     // convention used throughout this codebase) so a missing migration only
     // blanks this one note, not the whole referrals list.
-    supabase.from("patient_referrals").select("id, capacity_note").eq("hospital_id", user.id),
+    // Paged like the referral list it annotates: a plain select stops at
+    // 1,000 rows, and a note past that was silently dropped.
+    readAllRowsAsData<{ id: string; capacity_note: string | null }>(() =>
+      supabase
+        .from("patient_referrals")
+        .select("id, capacity_note")
+        .eq("hospital_id", user.id)
+        .order("id", { ascending: true })
+    ),
 
     // decline_reason is newer still, so it gets its own isolated read for
     // the same reason -- folded into the select above, a database without
@@ -100,10 +108,13 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     // reason is the one thing that makes a declined referral actionable for
     // the partner who sent it, so it must not be able to take the note
     // down with it.
-    supabase
-      .from("patient_referrals")
-      .select("id, decline_reason")
-      .eq("hospital_id", user.id),
+    readAllRowsAsData<{ id: string; decline_reason: string | null }>(() =>
+      supabase
+        .from("patient_referrals")
+        .select("id, decline_reason")
+        .eq("hospital_id", user.id)
+        .order("id", { ascending: true })
+    ),
 
     readAllRows<{ id: string; full_name: string | null; email: string | null }>(() =>
       admin
@@ -121,6 +132,11 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
   const truncated: string[] = [];
   if (profileError) missing.push("your organisation's profile");
   if (referralsResult.error) missing.push("your referrals");
+  // The note says what the clinic needs before it can act on a referral,
+  // and the reason says why one was declined. Losing either used to look
+  // exactly like the clinic having said nothing.
+  if (capacityNoteError) missing.push("the clinic's notes on your referrals");
+  if (declineReasonError) missing.push("the reasons referrals were declined");
   if (referralsResult.truncated) truncated.push("referrals");
   if (referredPatientsResult.error) missing.push("the patients you referred");
 

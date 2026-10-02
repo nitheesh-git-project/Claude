@@ -158,7 +158,7 @@ Three more checks need a real database and are run by hand, never in lint:
 
 ### End-to-end regression suite
 
-`npm run test:e2e` runs the Playwright suite under `e2e/` - **56 spec
+`npm run test:e2e` runs the Playwright suite under `e2e/` - **57 spec
 files**, around 390 cases, listed one by one in **`e2e/README.md`** - against a running `npm run dev` (started
 automatically if one isn't already up). It needs real credentials for a
 **test/staging** Supabase project and Razorpay **test-mode** keys in the
@@ -2766,7 +2766,7 @@ scripts/                 One-off tooling (Google refresh-token helper,
                          and seed-qa-accounts.mjs, which recreates its
                          fixture accounts after a data reset)
 e2e/                     The Playwright suite. e2e/README.md is its
-                         inventory - all 56 spec files, what each covers,
+                         inventory - all 57 spec files, what each covers,
                          how to run them, and the nine cases that cannot
                          pass without browser egress to Supabase
 docs/rules/              The working rules for editing this codebase, split

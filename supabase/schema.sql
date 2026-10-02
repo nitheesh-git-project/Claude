@@ -15037,3 +15037,22 @@ end;
 $$;
 
 revoke all on function public.save_therapist_weekly_schedule(uuid, jsonb, bigint, uuid) from public, anon, authenticated;
+
+-- One open referral per patient per partner, held by the database.
+--
+-- /api/hospital/submit-referral checked for an open referral and then
+-- inserted in a separate statement, so two submissions for the same phone
+-- arriving together both passed the check and both landed -- duplicate
+-- calls, duplicate therapist assignments and two registration links, the
+-- very outcome the check was written to stop. The route keeps its check
+-- (it is what gives the friendly sentence), and this partial unique index is
+-- what makes the second insert fail; the route reads that 23505 as the same
+-- "already referred" answer. The statuses match OPEN_REFERRAL_STATUSES in
+-- src/lib/referralLimits.ts -- a declined, withdrawn or converted referral
+-- does not block a new one.
+--
+-- If this ever fails to build against a live database, that failure is the
+-- finding: there are duplicate open referrals to reconcile first.
+create unique index if not exists patient_referrals_one_open_per_phone
+  on patient_referrals (hospital_id, patient_phone)
+  where status in ('pending_review', 'therapist_assigned', 'invite_sent');
