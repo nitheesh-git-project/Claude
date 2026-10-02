@@ -37,6 +37,12 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   end - and a therapist's earnings were summed over the first page. A
   failed main appointments read shows the load banner instead of "no
   sessions" or "₹0".
+  The admin dashboard follows the same rule for every read over a table
+  that grows (appointments' supplementary column groups, profiles,
+  purchases, referrals, payout batches and requests, expenses - no more
+  `.limit(500)` on costs that feed profit), and the System Health
+  accounting check narrows its query to unbacked sessions and reads them in
+  full rather than filtering the newest 200.
 - **A partner sees what was delivered and what it earned them - never the
   session.** The hospital loader reads referred patients' **completed**
   sessions only, and never `meet_link`: a consultation is private to the

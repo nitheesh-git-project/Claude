@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { readAllRows } from "@/lib/supabase/readAllRows";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -125,15 +126,19 @@ async function readUnmatchedPayments(admin: AdminClient): Promise<UnmatchedPayme
       // "unknown" on a clinic where nothing is wrong. Read separately, an
       // unmigrated database simply has no settlements to exclude, which is
       // exactly right: it cannot have taken one.
-      admin
-        .from("payments")
-        .select("id")
-        .eq("status", "captured")
-        .not("target_pay_later_payment_id", "is", null)
-        .limit(500),
+      // Paged: a fixed 500 meant the 501st settlement read as an unmatched
+      // capture.
+      readAllRows<{ id: string }>(() =>
+        admin
+          .from("payments")
+          .select("id")
+          .eq("status", "captured")
+          .not("target_pay_later_payment_id", "is", null)
+          .order("id", { ascending: true })
+      ),
     ]);
     if (captured.error) return null;
-    const settled = new Set((settlements.data ?? []).map((p) => p.id));
+    const settled = new Set(settlements.rows.map((p) => p.id));
     return (captured.data ?? [])
       .filter((p) => !settled.has(p.id))
       .map((p) => ({
@@ -160,15 +165,34 @@ async function readSessionsWithoutBacking(
   admin: AdminClient
 ): Promise<SessionWithoutBacking[] | null> {
   try {
-    const { data, error } = await admin
-      .from("appointments")
-      .select("id, session_code, patient_id, slot_time, payment_terms, package_purchase_id, home_visit_purchase_id, cash_collected_at")
-      .eq("status", "completed")
-      .neq("payment_status", "paid")
-      .order("slot_time", { ascending: false })
-      .limit(200);
-    if (error) return null;
-    return (data ?? [])
+    // Narrowed in the query to rows with no programme and no cash behind
+    // them, and read in full (paged). It used to take the newest 200
+    // completed-unpaid rows and filter afterwards, so a clinic with 200
+    // legitimate pay-later or programme sessions on top was told it was
+    // healthy whatever sat underneath.
+    const { rows: data, error, truncated } = await readAllRows<{
+      id: string;
+      session_code: string | null;
+      patient_id: string;
+      slot_time: string | null;
+      payment_terms: string | null;
+      package_purchase_id: string | null;
+      home_visit_purchase_id: string | null;
+      cash_collected_at: string | null;
+    }>(() =>
+      admin
+        .from("appointments")
+        .select("id, session_code, patient_id, slot_time, payment_terms, package_purchase_id, home_visit_purchase_id, cash_collected_at")
+        .eq("status", "completed")
+        .neq("payment_status", "paid")
+        .is("package_purchase_id", null)
+        .is("home_visit_purchase_id", null)
+        .is("cash_collected_at", null)
+        .order("slot_time", { ascending: false })
+        .order("id", { ascending: true })
+    );
+    if (error || truncated) return null;
+    return data
       .filter(
         (a) =>
           !a.package_purchase_id &&
