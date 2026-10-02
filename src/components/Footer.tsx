@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { isDashboardShellRoute } from "@/lib/dashboardShellRoutes";
+import { isDashboardShellRoute, isDeveloperRoute } from "@/lib/dashboardShellRoutes";
 import { MARKETING_PAGES } from "@/lib/marketingNav";
 import BrandMark from "@/components/BrandMark";
 import type { ReactNode } from "react";
@@ -41,6 +41,10 @@ export default function Footer({
   // full-height dark app shell with no page scroll, so a footer below it
   // would never be reachable/visible anyway.
   if (isDashboardShellRoute(pathname)) {
+    return null;
+  }
+  // The developer pages stand alone -- see isDeveloperRoute.
+  if (isDeveloperRoute(pathname)) {
     return null;
   }
 

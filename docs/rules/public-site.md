@@ -48,6 +48,10 @@ Eight pages from one design system, the word budgets, why every photograph carri
   admin should be able to desynchronise.
   `e2e/splash-screen.spec.ts` holds these rules.
 
+- **The developer pages carry no site chrome.** `isDeveloperRoute`
+  (`src/lib/dashboardShellRoutes.ts`) hides the Navbar, Footer and debug bar on
+  `/developer*`, and `src/app/developer/layout.tsx` draws the one "Back to
+  home" button, fixed bottom right. Do not add another way out to either page.
 - **The developer pages are deliberately outside `MARKETING_PAGES`.**
   `/developer` ("Say hello!") and `/developer/lets-talk` are not marketing
   pages: they are a credit for whoever built the app, reached only by the

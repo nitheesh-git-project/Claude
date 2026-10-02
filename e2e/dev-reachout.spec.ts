@@ -65,10 +65,17 @@ test.describe("DEV -- the developer credit and its reachouts", () => {
 
       await expect(page).toHaveURL(/\/developer$/);
       await expect(page.getByRole("heading", { name: "Say hello!" })).toBeVisible();
+      // The page stands alone: no site nav, no footer, one way out.
+      await expect(page.getByRole("navigation")).toHaveCount(0);
+      await expect(page.getByRole("contentinfo")).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "Back to home" })).toHaveCount(1);
       await page.getByRole("link", { name: "Say hey!" }).click();
 
       await expect(page).toHaveURL(/\/developer\/lets-talk$/);
       await expect(page.getByRole("heading", { name: /Let's build something/ })).toBeVisible();
+      await expect(page.getByRole("navigation")).toHaveCount(0);
+      await expect(page.getByRole("contentinfo")).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "Back to home" })).toHaveCount(1);
       // No address is committed, so while the setting is blank the row is gone.
       await expect(page.getByText("Prefer email?")).toHaveCount(0);
 
