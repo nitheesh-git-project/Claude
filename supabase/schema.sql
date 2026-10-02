@@ -15249,3 +15249,12 @@ drop trigger if exists admin_activity_gaps_no_change on admin_activity_gaps;
 create trigger admin_activity_gaps_no_change
   before update or delete on admin_activity_gaps
   for each row execute function communication_evidence_is_append_only();
+
+-- The dashboard reads admin_activity_gaps (System Health and the activity
+-- screens), so it refreshes when one is written -- the rule every table the
+-- dashboard reads follows (e2e admin-multi-admin H-006).
+do $$
+begin
+  alter publication supabase_realtime add table admin_activity_gaps;
+exception when duplicate_object then null;
+end $$;
