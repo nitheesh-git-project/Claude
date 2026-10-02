@@ -42,6 +42,7 @@ import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import AdminAdvancedTab from "@/components/admin/AdminAdvancedTab";
+import DevReachoutsTab, { type DevReachoutRow } from "@/components/admin/DevReachoutsTab";
 import SettingsJumpNav, { SettingsSection } from "@/components/admin/SettingsJumpNav";
 import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
 import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
@@ -893,6 +894,7 @@ export default async function AdminDashboardPage({
     storageHealth,
     settlementDisagreements,
     settlementsRecorded,
+    devReachoutRows,
   ] = await Promise.all([
     loadAccountingHealth(admin),
     guard(
@@ -1244,6 +1246,27 @@ export default async function AdminDashboardPage({
         (n) => n,
         () => null
       ),
+    // The developer's own inbox, behind Settings -> Dev Reachouts. Read only
+    // for a viewer whose scope can open Settings: anything in this response
+    // reaches the browser whether or not the screen is drawn, and these rows
+    // are a stranger's name, email and number. Guarded for the usual reason --
+    // a database that has not applied the table yet loses this screen, not the
+    // dashboard. Newest first, capped: the screen pages what it is given.
+    guard(
+      async () =>
+        scopeCanOpen(viewerScope, "settings")
+          ? ((
+              await admin
+                .from("dev_reachouts")
+                .select(
+                  "id, name, email, phone, message, status, admin_note, note_updated_at, contacted_at, created_at"
+                )
+                .order("created_at", { ascending: false })
+                .limit(500)
+            ).data as DevReachoutRow[] | null)
+          : null,
+      null as DevReachoutRow[] | null
+    ),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -3523,6 +3546,14 @@ export default async function AdminDashboardPage({
     <AdminAdvancedTab ledgerAuthoritative={adminSettings.entitlementLedgerAuthoritative} />
   );
 
+  const settingsDevReachoutsTab = (
+    <DevReachoutsTab
+      reachouts={devReachoutRows ?? []}
+      devContactEnabled={adminSettings.devContactEnabled}
+      devContactEmail={adminSettings.devContactEmail}
+    />
+  );
+
   const settingsSecurityTab = (
     <AdminFeatureControlTab
       settings={adminSettings}
@@ -4923,6 +4954,7 @@ export default async function AdminDashboardPage({
     "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
     "settings:advanced": settingsAdvancedTab,
+    "settings:reachouts": settingsDevReachoutsTab,
     // The three limited desks' own history, on Today because they cannot
     // open the Logs section at all -- without it, their record is whatever
     // fits in the Today feed. Hidden from a Master Admin, who reads the
@@ -4950,6 +4982,8 @@ export default async function AdminDashboardPage({
     // missing webhook secret (money arriving against unpaid bookings) and a
     // dead Google credential both badged zero.
     "settings:health": summarizeHealth(systemHealthChecks).needsPerson,
+    // Messages nobody has answered yet.
+    "settings:reachouts": (devReachoutRows ?? []).filter((r) => r.status === "new").length,
   };
 
   // Only the screens this scope reaches leave the server. AdminShell hides
