@@ -146,8 +146,6 @@ import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import {
-  retryDueMeetSyncs,
-  retryDueMeetAccess,
   MAX_MEET_SYNC_AUTO_ATTEMPTS,
   MAX_MEET_ACCESS_AUTO_ATTEMPTS,
   MEET_SYNC_CLAIM_STALE_MS,
@@ -155,7 +153,7 @@ import {
 import { checkGoogleConnection } from "@/lib/googleConnectionHealth";
 import { describeCalendarSync, sessionNeedsCalendarSync } from "@/lib/meetSyncState";
 import { readAllRows, readAllRowsAsData } from "@/lib/supabase/readAllRows";
-import { runRiskSweep } from "@/lib/riskDetectors";
+import { runMaintenanceSweep } from "@/lib/maintenanceSweep";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import AdminCarePlansTab from "@/components/admin/AdminCarePlansTab";
@@ -190,9 +188,6 @@ import { summariseFindings, type LeakFinding } from "@/lib/contactLeakScan";
 import type { RiskSeverity, RiskStatus, RiskSubjectKind } from "@/lib/riskSignals";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
-import {
-  TEMP_PASSWORD_VISIBLE_DAYS,
-} from "@/lib/tempPassword";
 import { readReferralAttributionHealth } from "@/lib/referralAttribution";
 import { readRefundHealth } from "@/lib/refundHealthServer";
 import { readStorageReconciliation } from "@/lib/storageReconciliation";
@@ -286,38 +281,7 @@ export default async function AdminDashboardPage({
   // there, so one more render makes no difference, while a blocked page is
   // felt on every single admin request.
   after(async () => {
-    await retryDueMeetSyncs(admin);
-    // The waiting-room pass, after the event pass and bounded the same way.
-    // A session whose Meet space is still TRUSTED works -- it just makes
-    // both parties wait to be admitted -- so it is the lower priority of the
-    // two, and it must run second for a plainer reason: a session the first
-    // pass has only just given an event to has already had its access set
-    // by the same call.
-    await retryDueMeetAccess(admin);
-    // The detector sweep, after the response for the same reason: it makes
-    // no outbound calls but it does run several aggregate queries, and a
-    // finding that appears one render later costs nothing -- the queue
-    // exists for patterns that have been building for days. Its own
-    // interval guard means most renders skip it entirely.
-    await runRiskSweep(admin);
-    // Not keeping a credential the clinic issued and nobody collected.
-    //
-    // The screens already stop *showing* one past its window (see
-    // src/lib/tempPassword.ts); this is the other half, so the plaintext is
-    // not left on disk indefinitely. In after() with the other sweeps
-    // because there is no worker in this deployment, and it is cheap, bounded
-    // and idempotent -- four qualified UPDATEs that match nothing on almost
-    // every render.
-    //
-    // A failure is swallowed deliberately: this is housekeeping, and it must
-    // never be the thing that takes the dashboard down.
-    try {
-      await admin.rpc("purge_expired_temp_passwords", {
-        p_older_than_days: TEMP_PASSWORD_VISIBLE_DAYS,
-      });
-    } catch (err) {
-      console.error("Could not purge expired temporary passwords", err);
-    }
+    await runMaintenanceSweep(admin);
   });
 
   // All of these are independent reads -- none needs another query's data,

@@ -469,7 +469,15 @@ before.
   are otherwise simply absent, which fails in ways that read as code bugs.
   STAGING.md holds the whole model.
 
-- **No cron or background worker exists in this deployment.** Anything that
+- **Time-based work runs lazily on render AND on a schedule, and never
+  depends on either alone.** `src/lib/maintenanceSweep.ts` gathers the
+  sweeps (programme and home-visit expiry, Meet sync retries, Meet waiting
+  rooms, the risk scan, the credential purge); the admin dashboard runs it
+  in `after()`, and `/api/cron/maintenance` (bearer `CRON_SECRET`) runs it
+  every 15 minutes from `.github/workflows/maintenance.yml` once a person
+  sets the `MAINTENANCE_URL` and `CRON_SECRET` repository secrets. Before
+  that, a failed Meet link waited for somebody to open the back office.
+  The original rule below still holds for how a sweep is written: anything that
   needs to happen "when time passes" (a package purchase's `status` moving
   from `active` to `expired` past `expires_at`) runs as a lazy, idempotent
   sweep at the top of a relevant page's render instead of on a schedule -
