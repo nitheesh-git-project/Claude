@@ -10197,6 +10197,8 @@ begin
     marketing_campaigns,
     balance_sheet_entries,
     admin_activity_log,
+    -- Its gaps go with it: a reset empties the history they are missing from.
+    admin_activity_gaps,
     admin_impersonation_sessions,
     session_suggestions,
     appointment_reassignment_log,
@@ -15205,3 +15207,45 @@ alter table risk_sweep_runs enable row level security;
 drop policy if exists "risk_sweep_runs_select_admin" on risk_sweep_runs;
 create policy "risk_sweep_runs_select_admin" on risk_sweep_runs
   for select using (is_admin());
+
+-- Admin actions the activity log could not record.
+--
+-- recordAdminActivity is best-effort by design -- the action has already
+-- happened, and refusing to refund a patient because the log table is
+-- unhappy is the worse outcome -- and it retries once. But after the second
+-- failure the entry existed only in a server log nobody reads, while Logs ->
+-- All Activity went on presenting itself as the complete history. This
+-- table is where such an entry goes instead: deliberately minimal (no
+-- foreign keys, no check on the action) so that whatever refused the main
+-- log is unlikely to refuse it too. System Health counts it and the
+-- activity screen lists it, so the history says what it is missing.
+--
+-- Append-only, the same guard as the communication evidence (a gap record
+-- that could be quietly deleted would defeat the point). No foreign key on
+-- actor_id on purpose: an `on delete set null` would be an UPDATE the guard
+-- refuses, and deleting the admin would then fail.
+create table if not exists admin_activity_gaps (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid,
+  action text not null,
+  target_id text,
+  target_label text,
+  amount_paise bigint,
+  details jsonb,
+  error text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists admin_activity_gaps_created_at_idx
+  on admin_activity_gaps (created_at desc);
+
+alter table admin_activity_gaps enable row level security;
+
+drop policy if exists "admin_activity_gaps_select_admin" on admin_activity_gaps;
+create policy "admin_activity_gaps_select_admin" on admin_activity_gaps
+  for select using (is_admin());
+
+drop trigger if exists admin_activity_gaps_no_change on admin_activity_gaps;
+create trigger admin_activity_gaps_no_change
+  before update or delete on admin_activity_gaps
+  for each row execute function communication_evidence_is_append_only();

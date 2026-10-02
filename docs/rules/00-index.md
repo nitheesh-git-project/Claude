@@ -21,13 +21,13 @@ rg -i "<the thing you are seeing>" docs/rules/
 - User Access is where the access model is read, and it is derived
 - Settings is ten screens under four captions, and the captions are part of the definition
 - A settings screen says what it is and gives an example
-- System Health is eleven checks in one shape, and every unhealthy one says how to fix it
+- System Health is twelve checks in one shape, and every unhealthy one says how to fix it
 - A count links to the rows it counted, never to the whole table
 - A session is listed once
 - A person's session list is ordered by the session, not by the booking
 - Every admin export offers CSV and PDF, from one column definition
 - The log is a section of its own, and clearing it is the one thing that takes evidence away
-- An audit write is tried twice
+- An audit write is tried twice, and a write that still fails is not lost
 - An audit entry is read months later, so it says what changed from what
 - A profile change is checked by value, and approving it is claimed before it is applied
 - Approvals are a queue, not a person

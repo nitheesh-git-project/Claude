@@ -876,6 +876,7 @@ export default async function AdminDashboardPage({
     financeSettings,
     missionCopyRow,
     socialLinksRow,
+    activityGapsRead,
     missionPrincipleRows,
     payLaterAgeSetting,
     payLaterFeatureEnabled,
@@ -1100,6 +1101,21 @@ export default async function AdminDashboardPage({
           .data as Record<string, string | null> | null,
       null as Record<string, string | null> | null
     ),
+    // Admin actions the activity log could not record (see
+    // recordAdminActivity). Read on its own and never swallowed into an
+    // empty list: `null` means "couldn't tell", which System Health shows as
+    // not checked rather than as a complete history.
+    (async () => {
+      const since = new Date(nowTimestamp() - 30 * 86_400_000).toISOString();
+      const { data, count, error } = await admin
+        .from("admin_activity_gaps")
+        .select("id, actor_id, action, target_label, amount_paise, error, created_at", { count: "exact" })
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) return null;
+      return { rows: data ?? [], count: count ?? (data ?? []).length };
+    })(),
     // The promises and the limits. Read with the admin client rather than the
     // page's own, because the public policy shows active rows only and an
     // admin who hides one has to still be able to find it. Isolated for the
@@ -4252,6 +4268,17 @@ export default async function AdminDashboardPage({
     />
   );
 
+  // The same rows, named, for the two activity screens -- a history that is
+  // missing entries says which, at the top, rather than reading as complete.
+  const activityGaps = (activityGapsRead?.rows ?? []).map((g) => ({
+    id: g.id as string,
+    actorName: adminRows.find((a) => a.id === g.actor_id)?.fullName ?? "An admin",
+    action: g.action as string,
+    targetLabel: (g.target_label as string | null) ?? null,
+    createdAt: g.created_at as string,
+  }));
+  const activityGapsTotal = activityGapsRead?.count ?? 0;
+
   // The whole log, for a Master Admin. Fed the same rows as the desk screen
   // below -- unfiltered, since `filterActivityForViewer` leaves a full
   // scope's list untouched -- plus a search, a category filter, and older
@@ -4259,6 +4286,8 @@ export default async function AdminDashboardPage({
   const logsTab = (
     <AdminLogsTab
       rows={activityRows}
+      gaps={activityGaps}
+      gapsTotal={activityGapsTotal}
       actors={adminRows.map((a) => ({ id: a.id, name: a.fullName ?? "Unnamed admin" }))}
     />
   );
@@ -4266,6 +4295,8 @@ export default async function AdminDashboardPage({
   const activityLogTab = (
     <AdminActivityLogTab
       rows={activityRows}
+      gaps={activityGaps}
+      gapsTotal={activityGapsTotal}
       actors={adminRows.map((a) => ({ id: a.id, name: a.fullName ?? "Unnamed admin" }))}
       // Null for a Master Admin, who is reading everything. For the other
       // three the screen says so, because a filtered list that looks
@@ -4728,7 +4759,14 @@ export default async function AdminDashboardPage({
     settlementDisagreements: settlementDisagreements,
     settlementsRecorded: settlementsRecorded,
     storage: storageHealth,
+    activityLog: activityGapsRead
+      ? {
+          gapsLast30Days: activityGapsRead.count,
+          latestGapAt: activityGapsRead.rows[0]?.created_at ?? null,
+        }
+      : null,
   });
+
 
   const home = buildAdminHome(viewerScope, {
     sessionsToday: sessionsToday.length,
