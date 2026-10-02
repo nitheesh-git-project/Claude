@@ -33,8 +33,19 @@ test.describe("Promo codes and invites", () => {
     return d.toISOString();
   }
 
-  async function freshBooking(forPatientId: string, daysAhead = 4, hour = 12): Promise<string> {
-    const { data } = await admin
+  // Each seeded booking gets a slot of its own. The database refuses a
+  // second session for one patient in an overlapping slot (the per-patient
+  // overlap trigger in schema.sql), and every case used to seed at the same
+  // default day and hour -- so whichever ran second failed to seed at all,
+  // as "seeded booking: undefined", on working code. Explicit slots (days 5
+  // and 6) sit below this range, so they cannot meet it either.
+  let nextFreeDay = 8;
+  async function freshBooking(
+    forPatientId: string,
+    daysAhead: number = nextFreeDay++,
+    hour = 12
+  ): Promise<string> {
+    const { data, error } = await admin
       .from("appointments")
       .insert({
         patient_id: forPatientId,
@@ -48,7 +59,7 @@ test.describe("Promo codes and invites", () => {
       })
       .select("id")
       .single();
-    expect(data?.id, "seeded booking").toBeTruthy();
+    expect(data?.id, `seeded booking: ${error?.message ?? "no row"}`).toBeTruthy();
     return data!.id as string;
   }
 
