@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { preloadRazorpayScript } from "@/lib/razorpay";
+import { revealField } from "@/lib/revealField";
+import {
+  publishBookingPaymentTrouble,
+  MAX_ATTEMPTS_BEFORE_ESCAPE,
+} from "@/lib/bookingPaymentTrouble";
 import {
   isDirectlyPurchasable,
   PROGRAMME_NEEDS_RECOMMENDATION,
@@ -68,8 +74,6 @@ type AreaCheck =
   | { state: "serviceable"; city: string; areaName: string | null; travelFeePaise: number }
   | { state: "unserviceable" }
   | { state: "error"; message: string };
-
-const MAX_ATTEMPTS_BEFORE_ESCAPE = 3;
 
 function inputCls() {
   return "w-full p-3 rounded-xl border border-slate-300 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100";
@@ -201,6 +205,21 @@ export default function HomeVisitBookingWizard({
       singleOptionNote="This is the only visit on offer today, so it is already chosen for you."
     />
   );
+
+  // Fetch checkout.js while the patient is still filling the form, so the Pay
+  // tap is not the one that pays for the download.
+  useEffect(() => {
+    preloadRazorpayScript();
+  }, []);
+
+  // Tells the page-level exit link whether to show (see bookingPaymentTrouble).
+  useEffect(() => {
+    publishBookingPaymentTrouble({
+      onPaymentStep: step === 4 && !done,
+      failedAttempts,
+    });
+    return () => publishBookingPaymentTrouble({ onPaymentStep: false, failedAttempts: 0 });
+  }, [step, done, failedAttempts]);
 
   useEffect(() => {
     // The browser's detected timezone is only knowable once mounted on the
@@ -352,10 +371,17 @@ export default function HomeVisitBookingWizard({
       })
     : null;
 
+  /** A failed rule, said once and shown where it is: the message, and the
+   *  page taken to the field that needs attention. */
+  function failField(message: string, fieldId: string) {
+    setError(message);
+    requestAnimationFrame(() => revealField(fieldId));
+  }
+
   function goToStep2() {
     setError(null);
     if (!address.line1.trim()) {
-      setError("Please enter your street address.");
+      failField("Please enter your street address.", "hv-address");
       return;
     }
     primeSlotDefaults();
@@ -365,7 +391,7 @@ export default function HomeVisitBookingWizard({
   function goToStep3() {
     setError(null);
     if (!bookDate || bookHour === "") {
-      setError("Please pick a date and time.");
+      failField("Please pick a date and time.", "hv-slot");
       return;
     }
     if (new Date(slotDateTime).getTime() < nowMs + leadTimeMs) {
@@ -377,22 +403,26 @@ export default function HomeVisitBookingWizard({
 
   function goToStep4() {
     setError(null);
-    if (!fullName.trim() || !email.trim()) {
-      setError("Please enter your name and email.");
+    if (!fullName.trim()) {
+      failField("Please enter your full name.", "hv-fullname");
+      return;
+    }
+    if (!email.trim()) {
+      failField("Please enter your email address.", "hv-email");
       return;
     }
     if (!isLoggedIn) {
       if (password.length < 8) {
-        setError("Please choose a password of at least 8 characters.");
+        failField("Please choose a password of at least 8 characters.", "hv-password");
         return;
       }
       if (password !== confirmPassword) {
-        setError("Those passwords don't match.");
+        failField("Those passwords don't match.", "hv-confirm-password");
         return;
       }
     }
     if (!consent) {
-      setError("Please confirm you're happy for a therapist to visit this address.");
+      failField("Please confirm you're happy for a therapist to visit this address.", "hv-consent");
       return;
     }
     setStep(4);
@@ -647,9 +677,15 @@ export default function HomeVisitBookingWizard({
                 {selectedPackage?.travel_fee_included && <span> Travel is included.</span>}
               </p>
 
-              <AddressForm value={address} onChange={setAddress} />
+              <div id="hv-address">
+                <AddressForm value={address} onChange={setAddress} />
+              </div>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && (
+            <p data-form-error role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
               <button
                 type="button"
@@ -724,6 +760,7 @@ export default function HomeVisitBookingWizard({
             )}
           </div>
 
+          <div id="hv-slot">
           <BookingCalendar
             selectedDateKey={bookDate}
             onSelect={(dateKey) => {
@@ -738,6 +775,7 @@ export default function HomeVisitBookingWizard({
             autoSelected={autoPicked.date}
             leadTimeMs={leadTimeMs}
           />
+          </div>
 
           <SelectableChipGroup
             options={hourOptions}
@@ -752,7 +790,11 @@ export default function HomeVisitBookingWizard({
             emptyMessage="No times left on this date - pick another day."
           />
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <p data-form-error role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
           <div className="flex gap-3">
             <button
@@ -805,6 +847,7 @@ export default function HomeVisitBookingWizard({
           <label className="block">
             <span className="text-xs font-semibold text-slate-700">Full name</span>
             <input
+              id="hv-fullname"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               className={inputCls()}
@@ -814,6 +857,7 @@ export default function HomeVisitBookingWizard({
           <label className="block">
             <span className="text-xs font-semibold text-slate-700">Email</span>
             <input
+              id="hv-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -829,6 +873,7 @@ export default function HomeVisitBookingWizard({
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Password</span>
                   <input
+                    id="hv-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -838,6 +883,7 @@ export default function HomeVisitBookingWizard({
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Confirm password</span>
                   <input
+                    id="hv-confirm-password"
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
@@ -896,6 +942,7 @@ export default function HomeVisitBookingWizard({
 
           <label className="flex items-start gap-2">
             <input
+              id="hv-consent"
               type="checkbox"
               checked={consent}
               onChange={(e) => setConsent(e.target.checked)}
@@ -907,7 +954,11 @@ export default function HomeVisitBookingWizard({
             </span>
           </label>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <p data-form-error role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
           <div className="flex gap-3">
             <button
@@ -1029,7 +1080,11 @@ export default function HomeVisitBookingWizard({
             </div>
           )}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <p data-form-error role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
           {failedAttempts >= MAX_ATTEMPTS_BEFORE_ESCAPE && (
             <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">

@@ -660,3 +660,16 @@ because the route validates them against `MISSION_ICONS` in
 `src/lib/mission.ts`, which is a literal array the scanner can see. Keep it
 that way: an icon name built by concatenation, or accepted from a text box,
 is invisible to any tooling here.
+
+- **An error that appears off-screen is not shown, so the page goes to it.**
+  `FormValidationChrome` covers what the browser refuses (`required`, `type`);
+  rules a form checks in JavaScript used to say so in a banner at the top of the
+  form, so on a phone the tap on Continue seemed to do nothing. Two layers now:
+  `revealField(idOrElement)` (`src/lib/revealField.ts`) scrolls to and focuses
+  the field, rings it with the same `data-invalid` mark, and clears it on input
+  -- call it from a validator after `setError`, as both booking wizards do; and
+  `ErrorAutoScroll` (mounted in the root layout) brings any banner in the app's
+  error style (`[data-form-error]`, or `bg-red-50` + `border-red-200`) into view
+  when it appears within ~1.5s of a tap/key/submit and is outside the viewport.
+  A new form's validator should name the field, not rely on the safety net;
+  `data-no-autoscroll` opts a region out.

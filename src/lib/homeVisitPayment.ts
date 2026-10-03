@@ -69,13 +69,16 @@ export async function payForHomeVisit({
   onDismiss,
 }: PayForHomeVisitArgs) {
   try {
-    await loadRazorpayScript();
-
-    const res = await fetch("/api/home-visit/create-order", {
+    // Script and order are independent: run together so a cold load costs
+    // the slower of the two, not their sum (see payForAppointment).
+    const orderRequest = fetch("/api/home-visit/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ packageId, address }),
     });
+    orderRequest.catch(() => {});
+    await loadRazorpayScript();
+    const res = await orderRequest;
     const orderData = await res.json();
 
     if (!res.ok) {

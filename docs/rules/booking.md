@@ -184,3 +184,19 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   therapist the public view hides (suspended, unapproved, `visible_on_team`
   off) resolves to nothing and the request is dropped silently rather than
   failing the booking.
+- **The way to the payment sheet is kept short, and the exit link is withheld
+  until paying has failed.** Three things used to stack on the first tap of Pay.
+  `checkout.js` was only downloaded on that tap, then the order was created,
+  one after the other -- so both wizards now call `preloadRazorpayScript()`
+  (`src/lib/razorpay.ts`) on mount, and `payForAppointment` / `payForHomeVisit`
+  start the order request *before* awaiting the script, so a cold load costs the
+  slower of the two rather than their sum. `BookingWizard` also no longer runs
+  its own overlap query or `auth.getUser()` before `/api/appointments/create`:
+  the route (and `trg_appointments_patient_no_overlap`) already answer a clash,
+  and `getSession()` reads the stored session without a round trip. Separately,
+  the page-level `BookingExitLink` sits outside the wizard, so it showed
+  "Back to Dashboard" beside the Pay button of a patient who had not yet tried
+  to pay. `src/lib/bookingPaymentTrouble.ts` carries the two facts across
+  (`onPaymentStep`, `failedAttempts`); `exitLinkHidden()` hides the link on the
+  payment step until `MAX_ATTEMPTS_BEFORE_ESCAPE` (3) failures, which is also
+  when the wizard's own dashboard escape appears. Keep both on that one constant.

@@ -6,10 +6,15 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { PROGRAMME_NEEDS_RECOMMENDATION } from "@/lib/consultationFirst";
-import { payForAppointment } from "@/lib/razorpay";
+import { payForAppointment, preloadRazorpayScript } from "@/lib/razorpay";
+import { revealField } from "@/lib/revealField";
+import {
+  publishBookingPaymentTrouble,
+  MAX_ATTEMPTS_BEFORE_ESCAPE,
+} from "@/lib/bookingPaymentTrouble";
 import PromoCodeField from "@/components/booking/PromoCodeField";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
-import { BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
+import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
 import WrongAccountForBooking, {
@@ -47,11 +52,6 @@ type Category = {
   image_focal_y?: number | null;
 };
 
-// After this many failed/dismissed payment attempts on the same booking,
-// offer an escape hatch -- the unpaid appointment isn't lost, it just sits
-// as a normal pending booking the patient can retry later via the same
-// Pay Now button their dashboard already shows for any unpaid session.
-const MAX_ATTEMPTS_BEFORE_ESCAPE = 3;
 
 function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
@@ -294,6 +294,23 @@ export default function BookingWizard({
   // describe the choice differently from the control that made it.
   const selectedOption = serviceOptions.find((o) => o.id === categoryId) ?? null;
 
+  // The payment screen's slowest tap used to be the first one: checkout.js was
+  // only fetched once Pay was pressed. Fetching it while the patient is still
+  // choosing a slot and typing their details makes that tap just the order
+  // call.
+  useEffect(() => {
+    preloadRazorpayScript();
+  }, []);
+
+  // Tells the page-level exit link whether to show. See bookingPaymentTrouble.
+  useEffect(() => {
+    publishBookingPaymentTrouble({
+      onPaymentStep: step === 3 && !done,
+      failedAttempts,
+    });
+    return () => publishBookingPaymentTrouble({ onPaymentStep: false, failedAttempts: 0 });
+  }, [step, done, failedAttempts]);
+
   useEffect(() => {
     // Reads the browser's detected timezone, which is only known once
     // mounted on the client - there's no way to get this during render.
@@ -416,28 +433,44 @@ export default function BookingWizard({
     setStep(2);
   }
 
+  /** A failed rule, said once and shown where it is: the message at the top
+   *  of the card, and the page taken to the field that needs attention. */
+  function failField(message: string, fieldId: string) {
+    setError(message);
+    requestAnimationFrame(() => revealField(fieldId));
+  }
+
   function goToStep3() {
     setError(null);
     if (!isLoggedIn) {
-      if (!fullName || !email || password.length < 6) {
-        setError("Please fill in your name, email, and a password (min 6 characters).");
+      if (!fullName.trim()) {
+        failField("Please enter your full name.", "bw-fullname");
+        return;
+      }
+      if (!email) {
+        failField("Please enter your email address.", "bw-email");
         return;
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        setError("Please enter a valid email address.");
+        failField("Please enter a valid email address.", "bw-email");
         return;
       }
       if (!isValidStoredPhone(phone)) {
-        setError("Please enter a valid phone number.");
+        failField("Please enter a valid phone number.", "bw-phone");
+        return;
+      }
+      if (password.length < 6) {
+        failField("Please choose a password of at least 6 characters.", "bw-password");
         return;
       }
       if (password !== confirmPassword) {
-        setError("Passwords do not match. Please re-enter them.");
+        failField("Passwords do not match. Please re-enter them.", "bw-confirm-password");
         return;
       }
       if (referralCheck.status === "invalid") {
-        setError(
-          "That referral code isn't recognized. Please double-check it or clear the field to continue without one."
+        failField(
+          "That referral code isn't recognized. Please double-check it or clear the field to continue without one.",
+          "bw-referral"
         );
         return;
       }
@@ -447,7 +480,7 @@ export default function BookingWizard({
       return;
     }
     if (!consent) {
-      setError("Please agree to the telehealth consent terms to continue.");
+      failField("Please agree to the telehealth consent terms to continue.", "bw-consent");
       return;
     }
     setStep(3);
@@ -472,16 +505,17 @@ export default function BookingWizard({
     setLoading(true);
     setError(null);
 
-    let userId: string;
-
     if (isLoggedIn) {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) {
+      // getSession reads the stored session instead of asking the auth server
+      // (getUser is a network round trip on the way to the payment sheet).
+      // Nothing here trusts it: /api/appointments/create authenticates the
+      // request itself and re-derives the patient from the cookie.
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
         setLoading(false);
         setError("Your session expired. Please refresh the page and try again.");
         return;
       }
-      userId = data.user.id;
     } else {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -515,30 +549,13 @@ export default function BookingWizard({
         );
         return;
       }
-      userId = data.user.id;
     }
 
-    const newDuration = selectedCategory?.duration_minutes ?? BASE_DURATION_MINUTES;
-    const newStart = new Date(slotDateTime).getTime();
-    const newEnd = newStart + newDuration * 60_000;
-    const { data: existingBookings } = await supabase
-      .from("appointments")
-      .select("slot_time, duration_minutes")
-      .eq("patient_id", userId)
-      .in("status", ["requested", "confirmed"]);
-    const overlaps = (existingBookings ?? []).some((a) => {
-      if (!a.slot_time) return false;
-      const existingStart = new Date(a.slot_time).getTime();
-      const existingEnd = existingStart + (a.duration_minutes ?? BASE_DURATION_MINUTES) * 60_000;
-      return existingStart < newEnd && newStart < existingEnd;
-    });
-    if (overlaps) {
-      setLoading(false);
-      setError(
-        "You already have a session scheduled around this time. Please pick a different slot, or check your dashboard for existing bookings."
-      );
-      return;
-    }
+    // No client-side overlap query here any more: it was a whole round trip
+    // on the path to Razorpay, and it only ever duplicated what
+    // /api/appointments/create already checks (and the database trigger
+    // `trg_appointments_patient_no_overlap` binds) -- the route answers a
+    // clash with the same words, in the same call that creates the booking.
 
     // Deliberately a server route rather than the direct insert this used
     // to be. That insert was validated only by the appointments_insert_own
@@ -933,7 +950,7 @@ export default function BookingWizard({
           Restores p-8 from sm: up, where there's room to spare. */}
       <div className="p-5 sm:p-8 space-y-5 text-sm">
       {error && (
-        <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+        <div data-form-error role="alert" className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
           {error}
         </div>
       )}
@@ -984,6 +1001,7 @@ export default function BookingWizard({
                   Full Name
                 </span>
                 <input
+                  id="bw-fullname"
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
@@ -997,6 +1015,7 @@ export default function BookingWizard({
                     Email
                   </span>
                   <input
+                    id="bw-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -1012,6 +1031,7 @@ export default function BookingWizard({
                     </span>
                   </span>
                   <input
+                    id="bw-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -1020,18 +1040,22 @@ export default function BookingWizard({
                   />
                 </label>
               </div>
-              <PhoneNumberField
-                value={phone}
-                onChange={setPhone}
-                labelClassName="block font-semibold mb-1.5 text-slate-900"
-              />
-              <ConfirmPasswordField
-                password={password}
-                value={confirmPassword}
-                onChange={setConfirmPassword}
-                labelClassName="block font-semibold mb-1.5 text-slate-900"
-                errorClassName="text-xs"
-              />
+              <div id="bw-phone">
+                <PhoneNumberField
+                  value={phone}
+                  onChange={setPhone}
+                  labelClassName="block font-semibold mb-1.5 text-slate-900"
+                />
+              </div>
+              <div id="bw-confirm-password">
+                <ConfirmPasswordField
+                  password={password}
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                  labelClassName="block font-semibold mb-1.5 text-slate-900"
+                  errorClassName="text-xs"
+                />
+              </div>
               <label className="block">
                 <span className="block font-semibold mb-1.5 text-slate-900">
                   Referral Code{" "}
@@ -1040,6 +1064,7 @@ export default function BookingWizard({
                   </span>
                 </span>
                 <input
+                  id="bw-referral"
                   type="text"
                   value={referralCode}
                   onChange={(e) => {
@@ -1199,12 +1224,16 @@ export default function BookingWizard({
 
           <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <input
+              id="bw-consent"
               type="checkbox"
               checked={consent}
               onChange={(e) => setConsent(e.target.checked)}
               className="mt-1 w-4 h-4 accent-teal-600"
             />
-            <label className="text-xs text-slate-700 leading-relaxed font-medium">
+            <label
+              htmlFor="bw-consent"
+              className="text-xs text-slate-700 leading-relaxed font-medium"
+            >
               I agree to the Telehealth Consent Terms & Emergency Disclaimer. I
               understand virtual physical therapy is for non-emergency
               musculoskeletal care.

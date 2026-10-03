@@ -60,6 +60,19 @@ export function loadRazorpayScript(): Promise<void> {
   return razorpayScriptPromise;
 }
 
+/**
+ * Starts the checkout.js download without waiting on it or surfacing a
+ * failure. Called when a payment screen mounts, so the script is already on
+ * the page by the time the patient taps Pay -- the tap used to pay for the
+ * download, then the order round trip, one after the other. A failure here is
+ * swallowed: `payForAppointment` retries the load on the tap and reports it
+ * there, where the patient can act on it.
+ */
+export function preloadRazorpayScript(): void {
+  if (typeof window === "undefined") return;
+  void loadRazorpayScript().catch(() => {});
+}
+
 type PayForAppointmentArgs = {
   appointmentId: string;
   /** A code the patient typed, passed straight through. An identifier, never
@@ -93,13 +106,19 @@ export async function payForAppointment({
   onFree,
 }: PayForAppointmentArgs) {
   try {
-    await loadRazorpayScript();
-
-    const res = await fetch("/api/razorpay/create-order", {
+    // The script and the order are independent, so they run together: a
+    // cold load costs the slower of the two rather than their sum. (When the
+    // script was preloaded this is just the order call.) The order promise
+    // is started first, and given a no-op catch so a script failure that
+    // throws below cannot leave it as an unhandled rejection.
+    const orderRequest = fetch("/api/razorpay/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ appointmentId, ...(promoCode ? { promoCode } : {}) }),
     });
+    orderRequest.catch(() => {});
+    await loadRazorpayScript();
+    const res = await orderRequest;
     const orderData = await res.json();
 
     if (!res.ok) {
