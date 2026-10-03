@@ -86,10 +86,13 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   `payments` is the record of money. Don't drop those indexes to make an
   import succeed - a collision means a duplicate already exists and wants
   investigating.
-  For a single online session, `/api/razorpay/create-order` flips the paying
+  For a single online session, `/api/razorpay/create-order` -- or
+  `/api/appointments/create` when it mints the order in the same request,
+  through the same `mintAppointmentOrder` -- flips the paying
   patient's `profiles.approved` to `true` the moment they genuinely attempt
   checkout (`approvePatientForGenuinePaymentAttempt` in
-  `requireActiveProfile.ts`) - deliberately on the attempt, not a completed
+  `requireActiveProfile.ts`, scheduled with `after()` so the patient does not
+  wait on it) - deliberately on the attempt, not a completed
   payment, so a patient who fails or abandons checkout after repeated tries
   still lands straight in their dashboard via BookingWizard's escape hatch,
   appointment showing pending, rather than being bounced to

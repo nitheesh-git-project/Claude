@@ -109,6 +109,33 @@ export async function isPatientProfile(userId: string): Promise<boolean | null> 
   return data?.role === "patient";
 }
 
+/**
+ * `isProfileActive` and `isPatientProfile` in one read, for the routes on the
+ * path to a payment sheet. They were two sequential queries against the same
+ * row on every checkout call -- `/api/appointments/create` and
+ * `/api/razorpay/create-order` each paid for both, back to back, while the
+ * patient watched a spinner. Same answers, same order (suspension first, so a
+ * suspended account is told that rather than "wrong role"), one round trip.
+ */
+export type PatientCheckoutStanding = "ok" | "unavailable" | "suspended" | "not_patient";
+
+export async function readPatientCheckoutStanding(
+  userId: string
+): Promise<PatientCheckoutStanding> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("role, active")
+    .eq("id", userId)
+    .single();
+  // A failed read is not a refusal; PGRST116 is the one genuine "no row",
+  // which isProfileActive answers as not-active.
+  if (error) return error.code === "PGRST116" ? "suspended" : "unavailable";
+  if (!data || data.active !== true) return "suspended";
+  if (data.role !== "patient") return "not_patient";
+  return "ok";
+}
+
 // Grants the same vetting a human admin would, the moment a self-signup
 // patient genuinely tries to pay for a single online session -- reaching
 // /api/razorpay/create-order for their own appointment means a real

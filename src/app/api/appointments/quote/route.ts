@@ -3,10 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
-import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
-import { isGatewayPayable } from "@/lib/discounts";
+import { buildCheckoutQuoteBody } from "@/lib/checkoutQuoteServer";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
-import { readPayLaterBookingEligibility } from "@/lib/payLaterSettingsServer";
 
 // What this booking costs, as the payment screen will say it.
 //
@@ -128,58 +126,14 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Whether this patient may settle afterwards, re-derived here rather than
-  // assumed -- the screen must not offer a choice the confirmation route
-  // would then refuse. A signed-out visitor is never eligible and is not
-  // asked about: the anonymous quote answers for "a new patient", and terms
-  // are granted to an account by an admin.
-  // The quote is resolved **first** now, because the eligibility check needs
-  // the figure: a ceiling on what a patient may owe has to be applied to
-  // what this booking would actually add, not to its list price. `claim:
-  // false` makes that free -- it is a read that promises nothing, which is
-  // what this route has always been.
-  const quote = await resolveCheckoutQuote(admin, {
-    appointment,
-    promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
-    claim: false,
-  });
-
-  const payLater =
-    user && !hasProgramme
-      ? await readPayLaterBookingEligibility(admin, {
-          patientId: user.id,
-          visitMode: appointment.visit_mode,
-          hasProgramme,
-          bookingAmountPaise: quote.payablePaise,
-        })
-      : { allowed: false as const, reason: "not_on_terms" as const };
-
-  return NextResponse.json({
-    listPricePaise: quote.listPricePaise,
-    discountPaise: quote.discountPaise,
-    payablePaise: quote.payablePaise,
-    travelFeePaise: quote.travelFeePaise,
-    totalPaise: quote.totalPaise,
-    discountLabel: quote.label,
-    promoApplied: quote.source === "promo_code",
-    promoError: quote.promoError,
-    promoCodesEnabled: quote.promoCodesEnabled,
-    // What the button should do. Named for the decision rather than for the
-    // number, so the client is not left to re-implement the threshold.
-    //
-    // A named three-way rather than a second boolean beside `free`: two
-    // booleans can contradict each other and this one cannot. **Free beats
-    // pay later** -- a discount that reached zero leaves nothing to settle,
-    // so writing terms would create a debt of zero somebody is later asked
-    // to pay.
-    settlement: !isGatewayPayable(quote.totalPaise)
-      ? "free"
-      : payLater.allowed
-        ? "pay_later"
-        : "gateway",
-    // Whether paying now is possible at all, which is a different question:
-    // a patient on terms may still prefer to pay and not owe, and losing
-    // that would be a downgrade for the people the clinic trusts most.
-    canPayNow: isGatewayPayable(quote.totalPaise),
-  });
+  // Built by the same function `/api/appointments/create` uses to hand back
+  // the quote for the booking it just made, so the two cannot disagree.
+  return NextResponse.json(
+    await buildCheckoutQuoteBody(admin, {
+      appointment,
+      userId: user?.id ?? null,
+      hasProgramme,
+      promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
+    })
+  );
 }

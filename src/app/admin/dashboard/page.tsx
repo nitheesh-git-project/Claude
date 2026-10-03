@@ -41,6 +41,7 @@ import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager"
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
+import { readCheckoutSpeed } from "@/lib/checkoutSpeedServer";
 import AdminAdvancedTab from "@/components/admin/AdminAdvancedTab";
 import DevReachoutsTab, { type DevReachoutRow } from "@/components/admin/DevReachoutsTab";
 import SettingsJumpNav, { SettingsSection } from "@/components/admin/SettingsJumpNav";
@@ -851,6 +852,11 @@ export default async function AdminDashboardPage({
   // costs only its own value.
   const guard = <T,>(run: () => Promise<T>, fallback: T): Promise<T> =>
     run().catch(() => fallback);
+
+  // System Health's Checkout speed. Started here, beside the batch below,
+  // and awaited where the checks are built -- a new table, so isolated, and
+  // a failed read is null ("could not check"), never "fast".
+  const checkoutSpeedRead = guard(() => readCheckoutSpeed(admin, nowTimestamp()), null);
 
   const [
     accountingHealth,
@@ -3553,6 +3559,7 @@ export default async function AdminDashboardPage({
   // apart is a fact about the hosting rather than about any one request, so
   // it costs nothing and is read where the health checks are built.
   const rateLimitIdentity = rateLimitIdentifierStats();
+  const checkoutSpeed = await checkoutSpeedRead;
 
   const settingsHealthTab = (
     <AdminSystemHealthTab
@@ -3566,6 +3573,7 @@ export default async function AdminDashboardPage({
       accounting={accountingHealth}
       openAccessEnabled={adminSettings.meetOpenAccessEnabled}
       rateLimitIdentity={rateLimitIdentity}
+      checkoutSpeed={checkoutSpeed}
       canFix={scopeCanManage(viewerScope, "settings")}
       renderedAt={nowTimestamp()}
     />
@@ -4796,6 +4804,7 @@ export default async function AdminDashboardPage({
           latestGapAt: activityGapsRead.rows[0]?.created_at ?? null,
         }
       : null,
+    checkoutSpeed,
   });
 
 

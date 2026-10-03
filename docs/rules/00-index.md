@@ -21,7 +21,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - User Access is where the access model is read, and it is derived
 - Settings is eleven screens under four captions, and the captions are part of the definition
 - A settings screen says what it is and gives an example
-- System Health is twelve checks in one shape, and every unhealthy one says how to fix it
+- System Health is thirteen checks in one shape, and every unhealthy one says how to fix it
 - A count links to the rows it counted, never to the whole table
 - A session is listed once
 - A person's session list is ordered by the session, not by the booking

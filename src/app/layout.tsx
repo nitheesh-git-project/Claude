@@ -16,6 +16,7 @@ import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
 import RouteProgress from "@/components/system/RouteProgress";
 import FormValidationChrome from "@/components/system/FormValidationChrome";
+import ErrorAutoScroll from "@/components/system/ErrorAutoScroll";
 import LinkProgress from "@/components/system/LinkProgress";
 import NumericInputGuard from "@/components/system/NumericInputGuard";
 import ToastViewport from "@/components/system/ToastViewport";
@@ -189,6 +190,9 @@ export default async function RootLayout({
               form, because `invalid` is fired by the browser on every
               control it refuses and no form has to opt in. */}
           <FormValidationChrome />
+          {/* The same idea for errors the browser cannot see: a red banner that
+              appears off-screen after a tap is scrolled into view. */}
+          <ErrorAutoScroll />
           {/* A number box takes digits and nothing else. The browser's own
               type="number" also accepts e, E and +, and then reports the
               value as empty -- so one listener here rather than a rule each

@@ -2,6 +2,7 @@
 
 import Link from "@/components/system/ProgressLink";
 import { useAccountDestination } from "@/lib/useAccountDestination";
+import { useExitLinkHidden } from "@/lib/bookingPaymentTrouble";
 
 /**
  * The one deliberate way out of the booking wizard.
@@ -57,6 +58,12 @@ export default function BookingExitLink({
   signedOutLabel?: string;
 } = {}) {
   const { destination } = useAccountDestination();
+  // On the payment step the way out is withheld until paying has failed
+  // MAX_ATTEMPTS_BEFORE_ESCAPE times -- see bookingPaymentTrouble. Offering
+  // "Back to Dashboard" beside a Pay button, to someone who has not yet tried
+  // to pay, is an invitation to abandon the purchase.
+  const hidden = useExitLinkHidden();
+  if (hidden) return null;
 
   // Not offered mid-booking, for the reason above: this account is unapproved
   // because it was made here seconds ago, and paying is what approves it.

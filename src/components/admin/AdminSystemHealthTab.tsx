@@ -17,6 +17,7 @@ import {
   summarizeHealth,
   type HealthCheck,
   type HealthStatus,
+  type CheckoutSpeedHealth,
 } from "@/lib/systemHealth";
 
 // Settings -> System Health.
@@ -78,6 +79,7 @@ export default function AdminSystemHealthTab({
   accounting,
   openAccessEnabled,
   rateLimitIdentity,
+  checkoutSpeed,
   canFix,
   renderedAt,
 }: {
@@ -100,6 +102,8 @@ export default function AdminSystemHealthTab({
     anonymous: number;
     allOneCaller: boolean;
   };
+  /** Pay-tap timings for the last seven days; null when unreadable. */
+  checkoutSpeed?: CheckoutSpeedHealth | null;
   /** Whether this admin's scope may call the fix routes. Both are
    *  requireAdminScope("settings"), so a scope that only reads gets the
    *  findings without a button that would 403 with nothing to explain it. */
@@ -122,6 +126,7 @@ export default function AdminSystemHealthTab({
     accounting,
     openAccessEnabled,
     rateLimitIdentity,
+    checkoutSpeed,
   });
   const summary = summarizeHealth(checks);
   const byId = (id: HealthCheck["id"]) => checks.find((c) => c.id === id)!;
@@ -280,6 +285,7 @@ export default function AdminSystemHealthTab({
           payments card above, which is the other check that reports a
           configuration rather than a backlog. */}
       <SystemHealthCard check={byId("rate_limits")} checkedAt={renderedAt} />
+      <SystemHealthCard check={byId("checkout_speed")} checkedAt={renderedAt} />
     </div>
   );
 }
