@@ -290,6 +290,18 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
       },
     ])
   ),
+  dev_contact_enabled: {
+    kind: "boolean",
+    on: "Developer credit is now shown. The footer line and the contact pages are live.",
+    off: "Developer credit is now hidden. The footer line is gone and the contact pages no longer open.",
+  },
+  dev_contact_email: {
+    kind: "text",
+    describe: (v) =>
+      v.trim() === ""
+        ? "The email row on the contact page is hidden."
+        : "The email shown on the contact page is updated.",
+  },
   journey_step_seconds: {
     kind: "number",
     describe: (v) =>

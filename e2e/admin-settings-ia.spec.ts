@@ -53,7 +53,7 @@ test.describe("CFG -- Settings information architecture", () => {
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   });
 
-  test("CFG-001 the sidebar groups the ten screens under four captions", async ({ page }) => {
+  test("CFG-001 the sidebar groups the eleven screens under four captions", async ({ page }) => {
     await openSettings(page, "brand");
     // Sentence case in the DOM; the uppercase is CSS, and innerText would
     // report the transformed text -- so match the source casing.
@@ -71,6 +71,7 @@ test.describe("CFG -- Settings information architecture", () => {
       "Sign-in & Security",
       "System Health",
       "Advanced",
+      "Dev Reachouts",
     ]) {
       await expect(onScreen(page, label).first()).toBeVisible();
     }

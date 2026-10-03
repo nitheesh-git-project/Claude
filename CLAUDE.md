@@ -193,7 +193,7 @@ Other reference, read on demand: `README.md` (the product and setup in full),
 ## Layout
 
 ```
-src/app/                 pages, layouts, API route handlers (187 of them)
+src/app/                 pages, layouts, API route handlers (189 of them)
 src/app/api/**           grouped by audience: admin/, appointments/, patient/,
                          therapist/, hospital/, packages/, razorpay/, and
                          medical-documents/ (the one route every role shares,
@@ -225,7 +225,7 @@ the ones that matter for that area.
 npm run dev                  # Next dev server
 npm run verify               # lint + unit tests + build -- run before pushing
 npm run lint                 # 5 schema/asset checks, then eslint
-npm run test                 # Vitest, 1,184 tests over dependency-free src/lib
+npm run test                 # Vitest, 1,304 tests over dependency-free src/lib
 npm run build
 npm run start:cluster        # production on several Node workers
 

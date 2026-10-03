@@ -17,6 +17,7 @@ import {
   MIN_PAY_LATER_AGED_AFTER_DAYS,
   MAX_PAY_LATER_AGED_AFTER_DAYS,
 } from "@/lib/patientBalances";
+import { EMAIL_RE, MAX_DEV_REACHOUT_EMAIL_LENGTH } from "@/lib/devReachout";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { SOCIAL_LINK_COLUMNS, normaliseSocialUrl, socialLinkForColumn } from "@/lib/socialLinks";
 import { serverError } from "@/lib/apiError";
@@ -77,6 +78,10 @@ const ALLOWED_COLUMNS = new Set([
   // The footer's social profiles. Blank (null) is a real value: it hides
   // that network's icon. See src/lib/socialLinks.ts.
   ...SOCIAL_LINK_COLUMNS,
+  // The developer credit under the footer, and the address its contact page
+  // publishes. Their own screen is Settings -> Dev Reachouts.
+  "dev_contact_enabled",
+  "dev_contact_email",
   "home_visit_enabled",
   "home_visit_cash_enabled",
   "home_visit_lead_time_hours",
@@ -151,7 +156,6 @@ const LONG_TEXT_FIELDS = new Set(["site_description"]);
 const MAX_LONG_TEXT_LENGTH = 300;
 const CONTACT_FIELDS = new Set(["whatsapp_number", "contact_phone"]);
 const MAX_CONTACT_LENGTH = 40;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // The /home-visit page's hero copy. Longer bounds than the brand fields --
 // this is a headline and a supporting sentence on one page, not a string
@@ -199,6 +203,7 @@ export async function POST(request: NextRequest) {
       key === "google_meet_enabled" ||
       key === "package_therapist_lock_enabled" ||
       key === "home_visit_enabled" ||
+      key === "dev_contact_enabled" ||
       key === "home_visit_cash_enabled" ||
       key === "therapist_suggestions_enabled" ||
       key === "auto_assign_therapist_enabled" ||
@@ -624,6 +629,20 @@ export async function POST(request: NextRequest) {
     nextValue = value.trim();
   }
 
+  // The one email setting where blank is a real value: it hides the "Prefer
+  // email?" row on /developer/lets-talk, which is how an owner takes an
+  // address back down without having to type another one over it.
+  if (key === "dev_contact_email") {
+    if (typeof value !== "string") {
+      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+    }
+    const trimmed = value.trim();
+    if (trimmed !== "" && (trimmed.length > MAX_DEV_REACHOUT_EMAIL_LENGTH || !EMAIL_RE.test(trimmed))) {
+      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+    }
+    nextValue = trimmed;
+  }
+
   const admin = createAdminClient();
 
   // Read the value being replaced, then write only while it is still that
@@ -769,6 +788,10 @@ export async function POST(request: NextRequest) {
     key === "contact_email" ||
     // The social icons sit in the footer, in the same root layout.
     socialLink !== undefined ||
+    // The developer credit is a line in the footer and two pages under
+    // /developer, so it needs the same layout-wide invalidation.
+    key === "dev_contact_enabled" ||
+    key === "dev_contact_email" ||
     // The sign-out banner's duration is read by the root layout too, so it
     // needs the same layout-wide invalidation -- otherwise the new value
     // reaches nobody until the ISR window expires.

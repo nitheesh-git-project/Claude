@@ -36,8 +36,22 @@ const NAV_HIDDEN_EXTRA = new Set(["/book", "/book-home-visit"]);
 
 export function isNavHiddenRoute(pathname: string | null): boolean {
   return (
-    pathname !== null && (isDashboardShellRoute(pathname) || NAV_HIDDEN_EXTRA.has(pathname))
+    pathname !== null &&
+    (isDashboardShellRoute(pathname) ||
+      NAV_HIDDEN_EXTRA.has(pathname) ||
+      isDeveloperRoute(pathname))
   );
+}
+
+// The developer credit's own pages (/developer, /developer/lets-talk). They
+// stand alone: no Navbar, no Footer, no debug bar -- the only way out is the
+// single "Back to home" button the /developer layout draws. Chrome here would
+// give a visitor who came to say hello two more doors back into the site
+// than the one the page is designed around.
+const DEVELOPER_ROUTE = /^\/developer(\/|$)/;
+
+export function isDeveloperRoute(pathname: string | null): boolean {
+  return pathname !== null && DEVELOPER_ROUTE.test(pathname);
 }
 
 // Routes where the nav keeps its links but drops its auth call-to-action

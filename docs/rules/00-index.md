@@ -19,7 +19,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - A scope that could not be read is refused, never promoted, and a screen outside the scope never leaves the server
 - No password is issued, stored or shown - an admin hands over a one-time link
 - User Access is where the access model is read, and it is derived
-- Settings is ten screens under four captions, and the captions are part of the definition
+- Settings is eleven screens under four captions, and the captions are part of the definition
 - A settings screen says what it is and gives an example
 - System Health is thirteen checks in one shape, and every unhealthy one says how to fix it
 - A count links to the rows it counted, never to the whole table
