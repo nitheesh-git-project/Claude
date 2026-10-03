@@ -119,6 +119,64 @@ test.describe("Suite H: two admins", () => {
     }
   });
 
+  test("H-021: an approve and a decline racing on one signup cannot both land", async () => {
+    // The decline used to read "still pending?" and then delete in a second
+    // call, so an approval landing between the two was erased. Run the pair
+    // several times, both orders racing, and the outcome must always be
+    // coherent: approved and kept, or declined and gone -- never approved
+    // and deleted, never a 500.
+    test.setTimeout(120_000);
+    const admin = adminClient();
+    const cookie = await cookieHeaderFor(QA_EMAILS.admin);
+    const call = (path: string, userId: string) =>
+      fetch(`${BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookie },
+        body: JSON.stringify({ userId }),
+      });
+
+    for (let round = 0; round < 4; round++) {
+      const { data: created, error: createError } = await admin.auth.admin.createUser({
+        email: `qa.race.${Date.now()}.${round}@example.test`,
+        password: "QaTest!2024pass",
+        email_confirm: true,
+        user_metadata: { full_name: "QA Race Signup" },
+      });
+      expect(createError, createError?.message).toBeNull();
+      const userId = created!.user!.id;
+      await admin
+        .from("profiles")
+        .update({ role: "patient", approved: false, active: true, full_name: "QA Race Signup" })
+        .eq("id", userId);
+
+      try {
+        const pair =
+          round % 2 === 0
+            ? [call("/api/admin/approve-account", userId), call("/api/admin/decline-account", userId)]
+            : [call("/api/admin/decline-account", userId), call("/api/admin/approve-account", userId)];
+        const [first, second] = await Promise.all(pair);
+        const [approve, decline] = round % 2 === 0 ? [first, second] : [second, first];
+        expect([approve.status, decline.status].every((s) => s < 500), `${approve.status}/${decline.status}`).toBe(true);
+
+        const { data: profile } = await admin.from("profiles").select("approved").eq("id", userId).maybeSingle();
+        const { data: authUser } = await admin.auth.admin.getUserById(userId);
+        if (profile) {
+          // Kept: then it was approved, the decline refused, and the login exists.
+          expect(profile.approved, "a kept account must be approved").toBe(true);
+          expect(decline.status).toBe(409);
+          expect(authUser?.user).toBeTruthy();
+        } else {
+          // Gone: the decline won, so the approve must not have reported success.
+          expect(decline.status).toBe(200);
+          expect(approve.status).toBe(404);
+          expect(authUser?.user ?? null).toBeNull();
+        }
+      } finally {
+        await admin.auth.admin.deleteUser(userId).catch(() => {});
+      }
+    }
+  });
+
   test("H-020: two admins assigning different therapists to one session cannot both win", async () => {
     const admin = adminClient();
     const patientId = await profileIdFor(admin, QA_EMAILS.patientA);

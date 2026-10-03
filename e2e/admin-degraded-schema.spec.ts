@@ -124,9 +124,10 @@ test.describe("Suite J: degraded schema", () => {
       sql("alter table profiles drop column if exists admin_scope cascade;");
       await dashboardStillWorks(page);
 
-      // parseAdminScope() treats absent as 'full', which is how every admin
-      // behaved before scopes existed -- a migration must never lock the
-      // only admin out of their own dashboard.
+      // resolveAdminScope() reads an unknown-column error as 'full' -- no
+      // limited admin can exist on a database without the column, and a
+      // migration must never lock the only admin out of their own
+      // dashboard. Any other failed read is refused, never promoted.
       await page.goto(`${BASE}/admin/dashboard?section=settings&tab=access`);
       await expect(page.getByRole("heading", { name: "Admins" })).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText("Create an account")).toBeVisible();

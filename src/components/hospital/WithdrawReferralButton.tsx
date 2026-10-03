@@ -29,11 +29,22 @@ export default function WithdrawReferralButton({
     setError(null);
     startTransition(async () => {
       setOptimisticWithdrawn(true);
-      const res = await fetch("/api/hospital/withdraw-referral", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ referralId }),
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/hospital/withdraw-referral", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ referralId }),
+        });
+      } catch {
+        // A rejected fetch -- offline, a dropped connection. This used to
+        // escape the transition unhandled: the optimistic "Withdrawing..."
+        // reverted silently, or stayed, with nothing said either way. The
+        // request may still have landed, so refresh to show which.
+        setError("Couldn't reach the clinic. Check your connection - the list below shows whether it was withdrawn.");
+        router.refresh();
+        return;
+      }
       if (res.ok) {
         show("Referral withdrawn.");
         router.refresh();

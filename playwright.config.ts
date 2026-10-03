@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 // The suite runs in the clinic's zone, and this line is load-bearing.
 //
@@ -88,6 +88,19 @@ export default defineConfig({
         }
       : {}),
   },
+  // Two projects. `desktop` is the suite as it always ran. `mobile` runs the
+  // phone-width specs (`e2e/mobile-*.spec.ts`) on an emulated Pixel 7 --
+  // every role's dashboard and the public booking path must work at the
+  // width most patients use, and nothing checked that before. Run one with
+  // `--project=desktop` or `--project=mobile`.
+  projects: [
+    { name: "desktop", testIgnore: /mobile-.*\.spec\.ts$/ },
+    {
+      name: "mobile",
+      testMatch: /mobile-.*\.spec\.ts$/,
+      use: { ...devices["Pixel 7"] },
+    },
+  ],
   webServer: {
     command: "npm run dev",
     url: process.env.E2E_BASE_URL ?? "http://localhost:3000",

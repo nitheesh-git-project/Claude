@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import crypto from "crypto";
 import { getAdminContextResult } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -14,6 +13,7 @@ import {
   YEARS_EXPERIENCE_ERROR,
 } from "@/lib/therapistExperience";
 import { serverError } from "@/lib/apiError";
+import { issueSetPasswordLink, unknowablePassword } from "@/lib/accessLink";
 
 // Creates a patient, therapist or admin account by hand.
 //
@@ -27,28 +27,13 @@ import { serverError } from "@/lib/apiError";
 // trusting user_metadata (the handle_new_user trigger ignores anything but
 // 'therapist' there on purpose).
 //
-// The temporary password is **persisted**, in the same per-role
-// `*_admin_notes` table the three reset-password routes already write to,
-// and returned in this response as well.
-//
-// It used to be returned and nothing else -- shown once on the User Access
-// screen and held in React state alone. That made losing it a matter of
-// timing rather than of carelessness: this route inserts a `profiles` row,
-// `profiles` is one of the admin dashboard's realtime tables, and the
-// resulting `router.refresh()` lands while the admin is still reading the
-// password out. The hospital table above was added for exactly this failure
-// on exactly this kind of control; this is the same fix for the last role
-// that lacked it.
-//
-// The row is cleared the moment that person sets their own password
-// (/api/clear-temp-password), so "still on the password we issued" stays a
-// true statement rather than a stale one. A password the *user* chose is
-// never recoverable and is never stored: Supabase keeps a bcrypt hash, and
-// the honest answer for an account in that state is to reset it.
-
-function generatePassword() {
-  return crypto.randomBytes(9).toString("base64url");
-}
+// No password is generated for the person, stored or shown. The account is
+// created with one nobody knows, and the admin is handed a one-time link
+// (src/lib/accessLink.ts) to pass on, with which the person sets their own.
+// The clinic used to keep the plaintext of a generated password in the
+// `*_admin_notes` tables for up to fourteen days so an admin could read it
+// back -- a working credential for every recent account, one service-role
+// leak away. A lost link costs nothing: the person's page issues another.
 
 type Body = {
   role?: string;
@@ -147,7 +132,7 @@ export async function POST(request: NextRequest) {
       : "full";
 
   const admin = createAdminClient();
-  const password = generatePassword();
+  const password = unknowablePassword();
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email,
@@ -226,31 +211,19 @@ export async function POST(request: NextRequest) {
   // default) visible, so they belong on /team from this moment.
   if (role === "therapist") revalidatePath("/team");
 
-  // Best-effort, and deliberately after the profile update: an account that
-  // exists with an unreadable password is recoverable by resetting it, while
-  // failing the whole request here would leave a created auth user behind
-  // with the caller told it had failed. The response still carries the
-  // password, so the admin in front of the screen is not affected either way.
-  const notesTable =
-    role === "patient"
-      ? "patient_admin_notes"
-      : role === "therapist"
-        ? "therapist_admin_notes"
-        : "admin_account_notes";
-  const notesKey =
-    role === "patient" ? "patient_id" : role === "therapist" ? "therapist_id" : "admin_id";
-  const { error: noteError } = await admin.from(notesTable).upsert({
-    [notesKey]: created.user.id,
-    temp_password: password,
-    temp_password_set_at: new Date().toISOString(),
-  });
-  if (noteError) {
-    console.error("create-account: temp password not persisted", noteError.message);
+  // The link the person sets their password with. Best-effort, and after
+  // the profile update: an account that exists without a link is
+  // recoverable from its own page (Send sign-in link), while failing the
+  // whole request here would leave a created user behind with the admin
+  // told it had failed.
+  const link = await issueSetPasswordLink(admin, email);
+  if (!link.ok) {
+    console.error("create-account: sign-in link not issued", link.error);
   }
 
-  // The generated password is deliberately NOT in the log -- it is a live
-  // credential and admin_activity_log is readable by every admin. Who was
-  // created, by whom and when is the part with audit value.
+  // The link is deliberately NOT in the log -- it is a live credential and
+  // admin_activity_log is readable by every admin. Who was created, by whom
+  // and when is the part with audit value.
   await recordAdminActivity(admin, context.id, {
     action: "account.create",
     targetId: created.user.id,
@@ -258,5 +231,13 @@ export async function POST(request: NextRequest) {
     details: { role, adminScope: role === "admin" ? adminScope : null },
   });
 
-  return NextResponse.json({ success: true, userId: created.user.id, password });
+  return NextResponse.json({
+    success: true,
+    userId: created.user.id,
+    email,
+    linkPath: link.ok ? link.path : null,
+    ...(link.ok
+      ? {}
+      : { warning: "The account was created, but its sign-in link could not be made. Open their page and send a new one." }),
+  });
 }

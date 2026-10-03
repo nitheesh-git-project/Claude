@@ -17,7 +17,9 @@ import {
   MIN_PAY_LATER_AGED_AFTER_DAYS,
   MAX_PAY_LATER_AGED_AFTER_DAYS,
 } from "@/lib/patientBalances";
+import { EMAIL_RE, MAX_DEV_REACHOUT_EMAIL_LENGTH } from "@/lib/devReachout";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { SOCIAL_LINK_COLUMNS, normaliseSocialUrl, socialLinkForColumn } from "@/lib/socialLinks";
 import { serverError } from "@/lib/apiError";
 
 const ALLOWED_COLUMNS = new Set([
@@ -73,6 +75,13 @@ const ALLOWED_COLUMNS = new Set([
   "whatsapp_number",
   "contact_phone",
   "footer_copyright_text",
+  // The footer's social profiles. Blank (null) is a real value: it hides
+  // that network's icon. See src/lib/socialLinks.ts.
+  ...SOCIAL_LINK_COLUMNS,
+  // The developer credit under the footer, and the address its contact page
+  // publishes. Their own screen is Settings -> Dev Reachouts.
+  "dev_contact_enabled",
+  "dev_contact_email",
   "home_visit_enabled",
   "home_visit_cash_enabled",
   "home_visit_lead_time_hours",
@@ -147,7 +156,6 @@ const LONG_TEXT_FIELDS = new Set(["site_description"]);
 const MAX_LONG_TEXT_LENGTH = 300;
 const CONTACT_FIELDS = new Set(["whatsapp_number", "contact_phone"]);
 const MAX_CONTACT_LENGTH = 40;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // The /home-visit page's hero copy. Longer bounds than the brand fields --
 // this is a headline and a supporting sentence on one page, not a string
@@ -195,6 +203,7 @@ export async function POST(request: NextRequest) {
       key === "google_meet_enabled" ||
       key === "package_therapist_lock_enabled" ||
       key === "home_visit_enabled" ||
+      key === "dev_contact_enabled" ||
       key === "home_visit_cash_enabled" ||
       key === "therapist_suggestions_enabled" ||
       key === "auto_assign_therapist_enabled" ||
@@ -600,11 +609,38 @@ export async function POST(request: NextRequest) {
     nextValue = value.trim();
   }
 
+  // A social link: blank clears it (the footer stops drawing that icon),
+  // anything else must be an https link on that network's own domain. The
+  // stored value is the cleaned URL, so what the footer renders is exactly
+  // what passed this check.
+  const socialLink = socialLinkForColumn(key);
+  if (socialLink) {
+    const result = normaliseSocialUrl(socialLink.platform, value);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    nextValue = result.value;
+  }
+
   if (key === "contact_email") {
     if (typeof value !== "string" || !EMAIL_RE.test(value.trim())) {
       return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
     }
     nextValue = value.trim();
+  }
+
+  // The one email setting where blank is a real value: it hides the "Prefer
+  // email?" row on /developer/lets-talk, which is how an owner takes an
+  // address back down without having to type another one over it.
+  if (key === "dev_contact_email") {
+    if (typeof value !== "string") {
+      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+    }
+    const trimmed = value.trim();
+    if (trimmed !== "" && (trimmed.length > MAX_DEV_REACHOUT_EMAIL_LENGTH || !EMAIL_RE.test(trimmed))) {
+      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+    }
+    nextValue = trimmed;
   }
 
   const admin = createAdminClient();
@@ -750,6 +786,12 @@ export async function POST(request: NextRequest) {
     LONG_TEXT_FIELDS.has(key) ||
     CONTACT_FIELDS.has(key) ||
     key === "contact_email" ||
+    // The social icons sit in the footer, in the same root layout.
+    socialLink !== undefined ||
+    // The developer credit is a line in the footer and two pages under
+    // /developer, so it needs the same layout-wide invalidation.
+    key === "dev_contact_enabled" ||
+    key === "dev_contact_email" ||
     // The sign-out banner's duration is read by the root layout too, so it
     // needs the same layout-wide invalidation -- otherwise the new value
     // reaches nobody until the ISR window expires.

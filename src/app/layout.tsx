@@ -9,11 +9,14 @@ import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
 import { SectionNavProvider } from "@/components/SectionNavContext";
 import { getLayoutSettings } from "@/lib/siteSettingsCache";
+import { devContactFromRow } from "@/lib/devReachout";
+import { footerSocialLinks } from "@/lib/socialLinks";
 import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
 import RouteProgress from "@/components/system/RouteProgress";
 import FormValidationChrome from "@/components/system/FormValidationChrome";
+import ErrorAutoScroll from "@/components/system/ErrorAutoScroll";
 import LinkProgress from "@/components/system/LinkProgress";
 import NumericInputGuard from "@/components/system/NumericInputGuard";
 import ToastViewport from "@/components/system/ToastViewport";
@@ -76,15 +79,27 @@ export default async function RootLayout({
   // degrades to the old hardcoded strings as defaults if the migration
   // adding these columns hasn't run yet.
   //
-  // All four groups below are still four separate selects -- see
+  // All five groups below are still five separate selects -- see
   // siteSettingsCache.ts for why a newer column must not be able to blank
   // the site name -- but they now run concurrently and the whole set is
   // cached under the `site-settings` tag. This layout wraps every page in
   // the app, so what used to be four serial Supabase round-trips before
   // first byte, on every single page load, is now usually none.
-  const { brand: settingsRow, homeVisit: homeVisitRow, farewell: farewellRow, splash: splashRow } =
-    await getLayoutSettings();
+  const {
+    brand: settingsRow,
+    social: socialRow,
+    homeVisit: homeVisitRow,
+    farewell: farewellRow,
+    splash: splashRow,
+    devContact: devContactRow,
+  } = await getLayoutSettings();
+  // The developer credit under the footer's copyright. On unless an admin
+  // switched it off -- and an unreadable row is "could not check", not "off".
+  const devCreditEnabled = devContactFromRow(devContactRow).enabled;
   const brand = parseAdminSettings(settingsRow);
+  // The footer's social icons -- only the networks the clinic has filled in,
+  // and nothing at all on a database without the columns yet.
+  const socialLinks = footerSocialLinks(socialRow);
 
   // Whether the Navbar shows its Home Visit link. Defaults to hidden when
   // the column doesn't exist yet, which is also the right answer for a
@@ -175,6 +190,9 @@ export default async function RootLayout({
               form, because `invalid` is fired by the browser on every
               control it refuses and no form has to opt in. */}
           <FormValidationChrome />
+          {/* The same idea for errors the browser cannot see: a red banner that
+              appears off-screen after a tap is scrolled into view. */}
+          <ErrorAutoScroll />
           {/* A number box takes digits and nothing else. The browser's own
               type="number" also accepts e, E and +, and then reports the
               value as empty -- so one listener here rather than a rule each
@@ -202,7 +220,9 @@ export default async function RootLayout({
             whatsappNumber={brand.whatsappNumber}
             contactPhone={brand.contactPhone}
             footerCopyrightText={brand.footerCopyrightText}
+            socialLinks={socialLinks}
             homeVisitEnabled={homeVisitEnabled}
+            devCreditEnabled={devCreditEnabled}
           />
           <ScrollHint />
         </SectionNavProvider>

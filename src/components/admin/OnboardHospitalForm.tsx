@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
+import SignInLinkResult from "@/components/admin/SignInLinkResult";
 
 export default function OnboardHospitalForm({
   lead,
@@ -11,12 +12,12 @@ export default function OnboardHospitalForm({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [sharePercent, setSharePercent] = useState("");
   const [result, setResult] = useState<{
     email: string;
-    password: string;
     referralCode: string;
+    linkPath: string | null;
+    warning?: string;
   } | null>(null);
   const router = useRouter();
 
@@ -57,48 +58,30 @@ export default function OnboardHospitalForm({
 
   if (result) {
     return (
-      <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 text-xs space-y-1.5">
+      <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 text-xs space-y-2">
         <p className="font-bold text-teal-900">Hospital account created.</p>
-        <p className="text-teal-800">
-          {/* It used to say "save these now, they won't be shown again", which
-              was true and was the defect: the password lived only in this
-              component's state, so one refresh lost it for good. The route
-              writes it to hospital_admin_notes now, and the partner's own card
-              shows it until they set their own. */}
-          The password stays readable on this partner&apos;s card under Partners
-          until they set their own, so closing this does not lose it.
-        </p>
         <p>
-          <span className="text-slate-500">Email:</span>{" "}
-          <strong>{result.email}</strong>
-        </p>
-        <p>
-          <span className="text-slate-500">Temporary Password:</span>{" "}
-          <strong>{result.password}</strong>
-        </p>
-        <p>
+          <span className="text-slate-500">Email:</span> <strong>{result.email}</strong>
+          {" · "}
           <span className="text-slate-500">Referral Code:</span>{" "}
           <strong>{result.referralCode}</strong>
         </p>
-        <div className="flex gap-2 pt-1">
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(
-                `Email: ${result.email}\nPassword: ${result.password}\nReferral Code: ${result.referralCode}`
-              );
-              setCopied(true);
-            }}
-            className="bg-teal-700 hover:bg-teal-800 text-white font-semibold px-3 py-1.5 rounded-lg transition"
-          >
-            {copied ? "Copied!" : "Copy All"}
-          </button>
-          <button
-            onClick={() => router.refresh()}
-            className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-3 py-1.5 rounded-lg transition"
-          >
-            Done
-          </button>
-        </div>
+        {/* No password: the partner sets their own with this one-time link,
+            and the clinic keeps no copy. A lost link is replaced from the
+            partner's card under Partners. */}
+        {result.linkPath ? (
+          <SignInLinkResult email={result.email} linkPath={result.linkPath} />
+        ) : (
+          <p className="text-amber-800">
+            {result.warning ?? "A sign-in link could not be made. Send one from their card."}
+          </p>
+        )}
+        <button
+          onClick={() => router.refresh()}
+          className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-3 py-1.5 rounded-lg transition"
+        >
+          Done
+        </button>
       </div>
     );
   }

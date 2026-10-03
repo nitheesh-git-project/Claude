@@ -43,6 +43,9 @@ const ADMIN_REALTIME_TABLES = [
   "therapist_payout_requests",
   "patient_referrals",
   "b2b_leads",
+  // The developer's own inbox (Settings -> Dev Reachouts): a new message
+  // should show up without a reload, like a new B2B lead does.
+  "dev_reachouts",
   "profiles",
   "profile_change_requests",
   "patient_package_purchases",
@@ -136,6 +139,7 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   // append-only record nobody watches live; 30s is instant enough for the
   // Logs screen and stops every tap in the back office costing two rebuilds.
   "admin_activity_log",
+  "admin_activity_gaps",
   // Campaigns are admin-edited catalog data like the rest of this list, and
   // the editor already sees their own change -- so the long cooldown is
   // right and the operational one would be wasted rebuilds.

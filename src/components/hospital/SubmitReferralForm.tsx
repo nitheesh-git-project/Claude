@@ -4,14 +4,19 @@ import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import PhoneNumberField from "@/components/PhoneNumberField";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
+import { MIN_HOME_VISIT_ADDRESS_LENGTH, REFERRAL_LIMITS } from "@/lib/referralLimits";
 
 export default function SubmitReferralForm({
   homeVisitEnabled,
+  languages,
 }: {
   // Master switch from site_settings -- a hospital shouldn't be offered a
   // delivery mode the platform hasn't turned on yet, same gate the public
   // booking wizards already honour.
   homeVisitEnabled: boolean;
+  // The languages the clinic books in (site_settings.booking_languages).
+  // A picker rather than free text: the route refuses anything else.
+  languages: string[];
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +124,7 @@ export default function SubmitReferralForm({
         <input
           name="patient_name"
           required
+          maxLength={REFERRAL_LIMITS.patientName}
           className="w-full p-2.5 rounded-lg border border-slate-300"
         />
       </label>
@@ -161,10 +167,19 @@ export default function SubmitReferralForm({
       )}
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className="block font-semibold mb-1">Address</span>
+          <span className="block font-semibold mb-1">
+            Address
+            {visitMode === "home_visit" ? (
+              <span className="font-normal text-slate-500"> (where the therapist will visit)</span>
+            ) : (
+              <span className="font-normal text-slate-500"> (optional)</span>
+            )}
+          </span>
           <input
             name="address"
             required={visitMode === "home_visit"}
+            minLength={visitMode === "home_visit" ? MIN_HOME_VISIT_ADDRESS_LENGTH : undefined}
+            maxLength={REFERRAL_LIMITS.address}
             className="w-full p-2.5 rounded-lg border border-slate-300"
           />
         </label>
@@ -172,10 +187,18 @@ export default function SubmitReferralForm({
           <span className="block font-semibold mb-1">
             Preferred Language
           </span>
-          <input
+          <select
             name="preferred_language"
-            className="w-full p-2.5 rounded-lg border border-slate-300"
-          />
+            defaultValue=""
+            className="w-full p-2.5 rounded-lg border border-slate-300 bg-white"
+          >
+            <option value="">No preference</option>
+            {languages.map((language) => (
+              <option key={language} value={language}>
+                {language}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
       {visitMode === "home_visit" && (
@@ -196,6 +219,7 @@ export default function SubmitReferralForm({
           name="medical_issue"
           rows={2}
           required
+          maxLength={REFERRAL_LIMITS.medicalIssue}
           className="w-full p-2.5 rounded-lg border border-slate-300"
         />
       </label>
@@ -207,6 +231,7 @@ export default function SubmitReferralForm({
         <textarea
           name="treatment_needed"
           rows={2}
+          maxLength={REFERRAL_LIMITS.treatmentNeeded}
           className="w-full p-2.5 rounded-lg border border-slate-300"
         />
       </label>

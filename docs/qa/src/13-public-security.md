@@ -86,6 +86,27 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 #### `PUB-HV-001` - Home visit page · P1
 Covered by `PAT-HV-001` and `ADM-SET-013`.
 
+#### `PUB-DEV-001` - The developer credit and its Say hello flow · P1
+**Steps.**
+1. On any public page, scroll to the footer. Under the copyright read the second line, then tap **Contact me**.
+2. On `/developer` read the heading and tap **Say hey!**.
+3. On `/developer/lets-talk`, tap **Let's talk ↗** with the form empty. Then fill **Full name**, **Email** and **Message**, leave **Contact number** blank, and tap it again.
+4. Repeat with a contact number of `abc`, and with a number that is too short for the country shown.
+5. Resize to 375px wide and repeat step 3.
+6. Open Settings → Dev Reachouts (`ADM-SET-038`) and switch the credit off. Reload the footer on a public page and open `/developer` and `/developer/lets-talk` by address.
+
+**Expected Result.**
+* Step 1: the line reads *Researched, designed and hand-built to make care easier for patients and therapists — by **Nitheesh M** · Contact me*, in muted text that is still readable on the dark footer, with a link tall enough to tap. It is **not** in the navbar, the Explore grid or any page's "where next" band. Dashboards show no footer, so it appears on public pages only.
+* Step 3: the empty form is stopped by the browser's own validation on the first required field and nothing is sent. The valid one replaces the form with a check and **Thanks, <first name>.** / **Nitheesh will be reaching you shortly.** The button reads **Sending…** and is disabled only while that request is in flight.
+* Step 4: a number that cannot be dialled is refused with a sentence that does not blame the visitor; leaving the field blank is always fine. The **Prefer email?** line shows only when an address has been set on Dev Reachouts - on a fresh database it is absent and the form still works.
+* Step 5: the split card stacks, with no sideways scroll, and every control is reachable.
+* Step 6: the credit line is gone and both pages are **404**.
+**Negative:** dropping the connection and submitting shows `Could not reach us just now. Please check your connection and try again.` and keeps what was typed.
+
+#### `PUB-DEV-002` - The Say hello door resists scripts and floods · P1
+**Steps.** In DevTools → Console on `/developer/lets-talk`, post to `/api/developer/reachout` (a) with a body that is not JSON, (b) with a valid body that also carries `website: "http://spam.example"`, and (c) six valid bodies in a row from one address.
+**Expected Result.** (a) is a **400**, not a 500. (b) answers `{ "success": true }` exactly as a real submission does but **writes nothing** - no row appears on Dev Reachouts. (c) The sixth is refused with **429** and `Retry-After`, in words with no number in them and no blame; the form tells the visitor roughly when to try again. With the credit switched off, every call answers **404**. The table cannot be written from a browser with the publishable key at all - there is no insert policy.
+
 ---
 
 ## 18. Security and authorization test plan

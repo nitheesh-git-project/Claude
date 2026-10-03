@@ -70,7 +70,13 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
      eligibility check, since a ceiling applies to what the booking would add
      rather than to its list price, and `confirm-pay-later`'s preview is
      deliberately non-claiming: a refusal after a claim would spend a promo
-     code on a booking that never happened.
+     code on a booking that never happened. "Could not be read" includes a
+     *returned* error and a balance past PostgREST's row cap -
+     `readPatientOwed` pages both reads and returns null rather than a
+     partial sum. And when claiming raises the figure (a code at its cap, an
+     invite half another checkout holds), the ceiling is checked **again**
+     against the amount actually written; a refusal there leaves the claims
+     on the appointment, where the pay-now path picks them up.
      With no ceiling set, the two figures on Money -> Owed by
      Patients are the whole of the early warning: the total, and
      `oldestOwedAgeDays` against `site_settings.pay_later_aged_after_days`.

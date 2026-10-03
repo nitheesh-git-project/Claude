@@ -44,8 +44,8 @@ export type AdminTabDef = {
   /**
    * The caption this screen sits under in the sidebar.
    *
-   * Settings is ten screens, which is where a flat list stops being read and
-   * starts being scanned: an owner looking for the refund window read all ten
+   * Settings is eleven screens, which is where a flat list stops being read and
+   * starts being scanned: an owner looking for the refund window read all eleven
    * labels because nothing said which four were about how the clinic runs.
    * Screens carrying the same group are drawn under one small caption, so the
    * list is four short lists instead of one long one. Screens sharing a group
@@ -407,6 +407,18 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
           "Technical switches that change how the app works inside, not what the clinic sells. Leave these alone unless you are following instructions.",
         example: "Switch which of two records the app trusts for a patient's remaining sessions.",
       },
+      // The developer's own inbox: messages left through the "Contact me" link
+      // under the footer, and the two switches that publish that page. It sits
+      // after Advanced so the Technical caption stays one adjacent run, and it
+      // is Master Admin only like everything under Settings -- these are not
+      // the clinic's leads, and a scoped admin has no business reading them.
+      {
+        key: "reachouts",
+        label: "Dev Reachouts",
+        group: "Technical",
+        blurb: "Messages left through the developer credit in the footer, and the switch that shows it.",
+        example: "Read a note somebody left on the Say hello page, then mark it contacted.",
+      },
     ],
   },
 ];
@@ -459,6 +471,39 @@ export function visibleTabs(
     if (tab.limitedScopesOnly && !limitedScope) return false;
     return true;
   });
+}
+
+/**
+ * Every "<section>:<tab>" key this admin may be sent, and nothing else.
+ *
+ * The shell only *shows* the screens a scope reaches, but whatever the page
+ * hands it is serialized into the response whether it is shown or not -- a
+ * restricted admin could read a hidden Money or Settings screen's props out
+ * of the RSC payload. The page filters its screen map through this before
+ * passing it on, so a screen outside the scope never leaves the server.
+ */
+export function visibleScreenKeys(
+  allowed: AdminSectionKey[],
+  manageable: AdminSectionKey[],
+  limitedScope: boolean
+): Set<string> {
+  const keys = new Set<string>();
+  for (const section of ADMIN_SECTIONS) {
+    if (!allowed.includes(section.key)) continue;
+    for (const tab of visibleTabs(section, manageable.includes(section.key), limitedScope)) {
+      keys.add(`${section.key}:${tab.key}`);
+    }
+  }
+  return keys;
+}
+
+/** A screen or badge map with every key outside `keys` removed. */
+export function pickScreens<T>(map: Record<string, T>, keys: Set<string>): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [key, value] of Object.entries(map)) {
+    if (keys.has(key)) out[key] = value;
+  }
+  return out;
 }
 
 // Builds the href an in-page link uses to send an admin to another screen --

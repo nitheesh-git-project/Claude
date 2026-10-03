@@ -1,30 +1,67 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
+import { CLINICAL_ACCESS_APPOINTMENT_STATUSES } from "@/lib/clinicalAccess";
+
 // Shared "is this therapist assigned to this patient" check, used by the
 // API routes as a defense-in-depth mirror of the RLS policies on
-// condition_access_grants / patient_condition_profiles / pain_assessments
-// in supabase/schema.sql (which encode the same rule at the database
-// level). "Assigned" = has ever had an appointment with this patient, or
-// holds a package's locked_therapist_id - see that schema section's
-// comment for why this is intentionally broader than strictly "current".
+// patient_condition_profiles / pain_assessments / patient_medical_documents
+// / session_notes in supabase/schema.sql, which encode the same rule.
+//
+// "Assigned" = named on one of this patient's live or delivered
+// appointments (never a cancelled one), or holding the lock on a programme
+// that is paid, active and not expired. See clinicalAccess.ts for why.
+//
+// Null when the check could not be run -- callers writing
+// `if (!(await isTherapistAssignedToPatient(...)))` refuse on that too.
 export async function isTherapistAssignedToPatient(
   supabase: SupabaseClient,
   therapistId: string,
   patientId: string
-): Promise<boolean> {
-  const [{ count: appointmentCount }, { count: packageCount }] = await Promise.all([
+): Promise<boolean | null> {
+  const [appointments, packages] = await Promise.all([
     supabase
       .from("appointments")
       .select("id", { count: "exact", head: true })
       .eq("patient_id", patientId)
-      .eq("therapist_id", therapistId),
+      .eq("therapist_id", therapistId)
+      .in("status", [...CLINICAL_ACCESS_APPOINTMENT_STATUSES]),
     supabase
       .from("patient_package_purchases")
       .select("id", { count: "exact", head: true })
       .eq("patient_id", patientId)
-      .eq("locked_therapist_id", therapistId),
+      .eq("locked_therapist_id", therapistId)
+      .eq("payment_status", "paid")
+      .eq("status", "active")
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`),
   ]);
-  return (!!appointmentCount && appointmentCount > 0) || (!!packageCount && packageCount > 0);
+  if (appointments.error || packages.error) return null;
+  return (appointments.count ?? 0) > 0 || (packages.count ?? 0) > 0;
+}
+
+/**
+ * Whether this therapist has a session with this patient that has actually
+ * started: completed, or confirmed and inside its join window. What a Pain
+ * Map exam records is an observation from a session the therapist ran, so
+ * being assigned is not enough -- an exam used to be recordable before any
+ * treatment, or against a session that was cancelled. Null when the read
+ * failed. Mirrors pain_assessments_insert_assigned_therapist.
+ */
+export async function hasStartedSessionWithPatient(
+  supabase: SupabaseClient,
+  therapistId: string,
+  patientId: string,
+  joinWindowMinutes: number,
+  nowMs: number = Date.now()
+): Promise<boolean | null> {
+  const opensBy = new Date(nowMs + Math.max(0, joinWindowMinutes) * 60_000).toISOString();
+  const { count, error } = await supabase
+    .from("appointments")
+    .select("id", { count: "exact", head: true })
+    .eq("patient_id", patientId)
+    .eq("therapist_id", therapistId)
+    .or(`status.eq.completed,and(status.eq.confirmed,slot_time.lte.${opensBy})`);
+  if (error) return null;
+  return (count ?? 0) > 0;
 }
 
 /** Whether a therapist currently holds an approved write-access grant for

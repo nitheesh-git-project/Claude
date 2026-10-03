@@ -1,4 +1,5 @@
 import "server-only";
+import { readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
@@ -32,8 +33,8 @@ function nowTimestamp() {
 
 /** Stands in for a query this screen doesn't need -- see the patient
  *  loader's copy for why the destructuring stays positional. */
-function emptyRows<T>(): Promise<{ data: T[] }> {
-  return Promise.resolve({ data: [] as T[] });
+function emptyRows<T>(): Promise<{ data: T[]; error: null }> {
+  return Promise.resolve({ data: [] as T[], error: null });
 }
 
 /** Which screen is asking -- see PatientScreen for the reasoning. */
@@ -74,19 +75,19 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     { data: profile },
     { data: settingsRow },
     { data: therapistCodeRow },
-    { data: homeVisitShareRow },
+    { data: homeVisitShareRow, error: homeVisitShareError },
     { data: onLeaveProfile },
     { data: leaveDetailRow },
-    { data: scheduleStateRow },
-    { data: availabilitySlots },
-    { data: rawAppointments },
-    { data: visitDetailRows },
+    { data: scheduleStateRow, error: scheduleStateError },
+    { data: availabilitySlots, error: availabilitySlotsError },
+    { data: rawAppointments, error: appointmentsError },
+    { data: visitDetailRows, error: visitDetailError },
     { data: sessionCodeLinks },
     { data: meetLinkRows },
     { data: paymentTermsRows },
-    { data: payoutBatches },
+    { data: payoutBatches, error: payoutBatchesError },
     { data: treatmentCategories },
-    { data: payoutRequests },
+    { data: payoutRequests, error: payoutRequestsError },
     { data: sessionNoteRows },
   ] = await Promise.all([
     supabase
@@ -146,39 +147,55 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       ? supabase.from("therapist_availability_template").select("day_of_week, hour").eq("therapist_id", user.id)
       : emptyRows<{ day_of_week: number; hour: number }>(),
 
-    supabase
-      .from("appointments")
-      .select(
-        "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id, package_purchase_id"
-      )
-      .eq("therapist_id", user.id)
-      .order("created_at", { ascending: false }),
+    // Every appointment read is paged (readAllRowsAsData), and the lists
+    // keyed off them below are chunked by id. PostgREST stops a plain select
+    // at 1,000 rows, so a busy therapist's history -- and the earnings and
+    // payout totals summed over it -- silently stopped at the first page.
+    readAllRowsAsData(() =>
+      supabase
+        .from("appointments")
+        .select(
+          "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id, package_purchase_id"
+        )
+        .eq("therapist_id", user.id)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+    ),
 
     // The home-visit columns, kept as their own query rather than added to
     // the select above: they are new and migration-dependent, and that
     // select feeds every session list, the calendar and the earnings math.
     // An unknown-column error there would blank the whole dashboard;
     // isolated, a missing migration only means no Home Visits section.
-    supabase
-      .from("appointments")
-      .select(
-        "id, visit_mode, visit_label, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_contact_phone, visit_access_notes, travel_fee_paise, home_visit_purchase_id, cash_collected_at, cash_collected_amount_paise"
-      )
-      .eq("therapist_id", user.id),
+    readAllRowsAsData(() =>
+      supabase
+        .from("appointments")
+        .select(
+          "id, visit_mode, visit_label, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_contact_phone, visit_access_notes, travel_fee_paise, home_visit_purchase_id, cash_collected_at, cash_collected_amount_paise"
+        )
+        .eq("therapist_id", user.id)
+        .order("id")
+    ),
 
     // session_code is also new/migration-dependent -- same isolation
     // reasoning as therapistCodeRow above.
-    supabase.from("appointments").select("id, session_code").eq("therapist_id", user.id),
+    readAllRowsAsData(() =>
+      supabase.from("appointments").select("id, session_code").eq("therapist_id", user.id).order("id")
+    ),
 
     // meet_link is also new/migration-dependent -- same isolation reasoning
     // as sessionCodeLinks above.
-    supabase.from("appointments").select("id, meet_link").eq("therapist_id", user.id),
+    readAllRowsAsData(() =>
+      supabase.from("appointments").select("id, meet_link").eq("therapist_id", user.id).order("id")
+    ),
 
     // payment_terms, same isolation reasoning again. It decides only whether
     // a session card tells this therapist to collect cash -- and a patient on
     // terms is the clinic's to settle with, never theirs to chase. Absent, it
     // reads as `prepaid`, which is what every session was before the column.
-    supabase.from("appointments").select("id, payment_terms").eq("therapist_id", user.id),
+    readAllRowsAsData(() =>
+      supabase.from("appointments").select("id, payment_terms").eq("therapist_id", user.id).order("id")
+    ),
 
     // Kept as its own query rather than folded into the profile select for
     // the same reason as onLeaveProfile -- therapist_payout_batches is new
@@ -186,11 +203,14 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     // degrade the Payout Receipts section (empty until the migration runs),
     // not blank the whole dashboard.
     needEarnings
-      ? supabase
-          .from("therapist_payout_batches")
-          .select("id, therapist_id, amount_paise, method, note, created_at")
-          .eq("therapist_id", user.id)
-          .order("created_at", { ascending: false })
+      ? readAllRowsAsData(() =>
+          supabase
+            .from("therapist_payout_batches")
+            .select("id, therapist_id, amount_paise, method, note, created_at")
+            .eq("therapist_id", user.id)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        )
       : emptyRows<{
           id: string;
           therapist_id: string;
@@ -226,10 +246,13 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     // the note buttons, not blank the dashboard. RLS scopes it to notes
     // this clinician may read -- see session_notes_select_clinician.
     needNotes
-      ? supabase
-          .from("session_notes")
-          .select("id, appointment_id, patient_id, therapist_id, data, free_text, created_at, updated_at")
-          .order("created_at", { ascending: false })
+      ? readAllRowsAsData(() =>
+          supabase
+            .from("session_notes")
+            .select("id, appointment_id, patient_id, therapist_id, data, free_text, created_at, updated_at")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        )
       : emptyRows<SessionNoteRow>(),
   ]);
 
@@ -304,15 +327,17 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   ];
   const admin = createAdminClient();
   const [
-    { data: upcomingOverrides },
+    { data: upcomingOverrides, error: upcomingOverridesError },
     { data: patients },
-    { data: homeVisitPurchasesForFees },
+    { data: homeVisitPurchasesForFees, error: homeVisitFeesError },
   ] = await Promise.all([
-    supabase
-      .from("therapist_availability_override")
-      .select("date, hour, available, note")
-      .eq("therapist_id", user.id)
-      .gte("date", todayKey),
+    needAvailability
+      ? supabase
+          .from("therapist_availability_override")
+          .select("date, hour, available, note")
+          .eq("therapist_id", user.id)
+          .gte("date", todayKey)
+      : emptyRows<{ date: string; hour: number; available: boolean; note: string | null }>(),
     // Deliberately no `email`, and the phone is masked before it leaves
     // this function (see below). A therapist's dashboard used to hand over
     // every one of their patients' full contact details on every render --
@@ -320,16 +345,24 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     // that it had been. The real number now comes one session at a time
     // through /api/therapist/reveal-contact, which logs the ask.
     patientIds.length > 0
-      ? admin.from("profiles").select("id, full_name, phone, patient_code").in("id", patientIds)
+      ? readAllRowsByIds(patientIds, (chunk) =>
+          admin.from("profiles").select("id, full_name, phone, patient_code").in("id", chunk).order("id")
+        ).then((r) => ({ data: r.error ? null : r.rows }))
       : Promise.resolve({
           data: [] as { id: string; full_name: string; phone: string | null; patient_code: string | null }[],
         }),
     homeVisitPurchaseIds.length > 0
-      ? admin
-          .from("home_visit_package_purchases")
-          .select("id, amount_paid_paise, visit_count")
-          .in("id", homeVisitPurchaseIds)
-      : Promise.resolve({ data: [] as { id: string; amount_paid_paise: number | null; visit_count: number }[] }),
+      ? readAllRowsByIds(homeVisitPurchaseIds, (chunk) =>
+          admin
+            .from("home_visit_package_purchases")
+            .select("id, amount_paid_paise, visit_count")
+            .in("id", chunk)
+            .order("id")
+        ).then((r) => ({ data: r.error ? null : r.rows, error: r.error ?? null }))
+      : Promise.resolve({
+          data: [] as { id: string; amount_paid_paise: number | null; visit_count: number }[],
+          error: null,
+        }),
   ]);
   // Masking is applied here, at the one place the rows are loaded, rather
   // than in each card -- the same reasoning ledgerBalances.ts documents for
@@ -361,10 +394,13 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // Isolated for the usual migration-tolerance reason.
   const { data: conditionProfileRows } =
     screen === "overview" && patientIds.length > 0
-      ? await supabase
-          .from("patient_condition_profiles")
-          .select("patient_id, data")
-          .in("patient_id", patientIds)
+      ? await readAllRowsByIds(patientIds, (chunk) =>
+          supabase
+            .from("patient_condition_profiles")
+            .select("patient_id, data")
+            .in("patient_id", chunk)
+            .order("patient_id")
+        ).then((r) => ({ data: r.error ? null : r.rows }))
       : { data: [] as { patient_id: string; data: Record<string, string> | null }[] };
   const onboardedPatientIds = new Set(
     (conditionProfileRows ?? [])
@@ -735,7 +771,43 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // recommend control rather than the dashboard.
   const recommendablePackages = await loadRecommendablePackages(admin);
 
+  const availabilityLoadFailed =
+    needAvailability && (!!scheduleStateError || !!availabilitySlotsError || !!upcomingOverridesError);
+
   return {
+    // The read every earnings figure and session list here is built from.
+    // A failure shows the load banner rather than "₹0" and an empty list.
+    //
+    // Every other read a money figure or the roster editor depends on is
+    // named here too. They used to be discarded: a failed home-visit read
+    // priced home visits at the online rate, a failed payout-batch read
+    // showed no payout history, a failed payout-request read said "Not yet
+    // requested" -- each a plausible screen built from a read that never
+    // happened. A read that failed is said, never shown as a figure.
+    loadIssues: {
+      missing: [
+        ...(appointmentsError ? ["your sessions"] : []),
+        ...(visitDetailError || homeVisitFeesError ? ["your home visits"] : []),
+        ...(homeVisitShareError ? ["your home-visit revenue share"] : []),
+        ...(payoutBatchesError ? ["your payout history"] : []),
+        ...(payoutRequestsError ? ["your payout requests"] : []),
+        ...(availabilityLoadFailed ? ["your schedule"] : []),
+      ],
+      truncated: [] as string[],
+    },
+    // Whether the money on this screen can be trusted. The Earnings screen
+    // shows its figures only when this is true; see earnings/page.tsx.
+    earningsLoadFailed:
+      !!appointmentsError ||
+      !!visitDetailError ||
+      !!homeVisitFeesError ||
+      !!homeVisitShareError ||
+      !!payoutBatchesError ||
+      !!payoutRequestsError,
+    // The roster editor's three reads. If any failed, the availability
+    // screen shows an error instead of an editor: an empty schedule drawn
+    // from a failed read, saved, would replace the real one.
+    availabilityLoadFailed,
     user,
     sessionCodeByAppointmentId,
     profile,

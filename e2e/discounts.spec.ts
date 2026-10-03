@@ -27,8 +27,14 @@ test.describe("Acquisition discounts", () => {
   }
 
   /** An unpaid booking for the QA patient, the shape create-order works on. */
-  async function freshBooking(daysAhead = 3, hour = 11): Promise<string> {
-    const { data } = await admin
+  // Each seeded booking gets a slot of its own: the per-patient overlap
+  // trigger in schema.sql refuses a second session for one patient in an
+  // overlapping slot, and every case used to seed at the same default day
+  // and hour, so all but the first failed to seed on working code. Same fix
+  // as acquisition-codes.spec.ts.
+  let nextFreeDay = 8;
+  async function freshBooking(daysAhead: number = nextFreeDay++, hour = 11): Promise<string> {
+    const { data, error } = await admin
       .from("appointments")
       .insert({
         patient_id: patientId,
@@ -42,7 +48,7 @@ test.describe("Acquisition discounts", () => {
       })
       .select("id")
       .single();
-    expect(data?.id, "seeded booking").toBeTruthy();
+    expect(data?.id, `seeded booking: ${error?.message ?? "no row"}`).toBeTruthy();
     return data!.id as string;
   }
 

@@ -35,7 +35,22 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   `payment_webhook_events` row **before** doing any work, because that
   insert colliding on `razorpay_event_id` is the deduplication; processing
   first and recording after would let a retry arriving mid-flight do the
-  work twice.
+  work twice. **A failed attempt is written on that row, never deleted
+  from it** - the row cannot be deleted (`trg_payment_webhook_events_identity`),
+  and the old "delete so the retry gets a real attempt" path raised, so the
+  retry was acknowledged as a duplicate and a paid booking stayed unpaid.
+  A retryable failure sets `processing_error` with the `retryable: ` prefix;
+  `webhookRetryVerdict` (`src/lib/webhookRetry.ts`) then answers a repeat
+  delivery as `retry` (reprocess on the same row), `in_flight` (409, a
+  live attempt under two minutes old), or `duplicate` (200).
+  **A paid purchase is fulfilled by `fulfilPaidPurchase`, on both paths.**
+  `record_payment_capture` only marks a package purchase paid; its expiry,
+  its credits (`ensure_entitlement_for_purchase`) and, for a care-plan
+  purchase, the plan's acceptance were done inline by the verify route
+  alone, so a patient who paid and closed the tab had a paid purchase with
+  no credits and an open plan. The webhook now runs the same idempotent
+  helper for every purchase capture, and a failed step is a retryable
+  outcome rather than a 200.
   **`payment.captured` is the only event that applies anything, and
   `payment.authorized` is not a capture.** An authorization is a hold, not
   money taken: Razorpay voids one that is never captured and auto-refunds
@@ -71,10 +86,13 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   `payments` is the record of money. Don't drop those indexes to make an
   import succeed - a collision means a duplicate already exists and wants
   investigating.
-  For a single online session, `/api/razorpay/create-order` flips the paying
+  For a single online session, `/api/razorpay/create-order` -- or
+  `/api/appointments/create` when it mints the order in the same request,
+  through the same `mintAppointmentOrder` -- flips the paying
   patient's `profiles.approved` to `true` the moment they genuinely attempt
   checkout (`approvePatientForGenuinePaymentAttempt` in
-  `requireActiveProfile.ts`) - deliberately on the attempt, not a completed
+  `requireActiveProfile.ts`, scheduled with `after()` so the patient does not
+  wait on it) - deliberately on the attempt, not a completed
   payment, so a patient who fails or abandons checkout after repeated tries
   still lands straight in their dashboard via BookingWizard's escape hatch,
   appointment showing pending, rather than being bounced to
@@ -188,6 +206,19 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   hover reads it rather than printing `CANCELLATION_FULL_REFUND_HOURS`: a
   home visit has its own window, so the constant was quoting the wrong number
   of hours on every cancelled visit.
+- **A programme refund claims the purchase before it counts what was
+  delivered, and closes every live session it leaves behind.** Both package
+  refund routes used to count completed sessions first - dropping the
+  count's error, so a failed read refunded delivered treatment in full - and
+  then claim; a session completed in the window was refunded too. Now the
+  purchase is claimed `refunded` first, `countDeliveredSessions` runs
+  second (a failed count releases the claim and refunds nothing), and
+  `/api/appointments/complete-session` refuses any session on a refunded
+  programme, so the count cannot move. After the gateway succeeds,
+  `closeRefundedPurchaseSessions` (`src/lib/packageRefundServer.ts`)
+  cancels each live session, checks each write, then removes its Meet
+  event; anything it could not close comes back as a `warning` the purchase
+  modal shows, instead of a success over sessions that are still joinable.
 - **A refund records what it is about to do, before the gateway is called.**
   Every gateway refund here claims its local row *first* and calls Razorpay
   second, deliberately: a refusal must leave no trace claiming money went

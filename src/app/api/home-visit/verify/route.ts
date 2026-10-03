@@ -10,7 +10,7 @@ import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import { normalizePincode } from "@/lib/homeVisitAreas";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
 import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
-import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import { isProfileActive, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 
 const MAX_NOTES_LENGTH = 1000;
 
@@ -56,7 +56,9 @@ export async function POST(request: NextRequest) {
   // stay: src/proxy.ts for dashboard navigation, and here, because a valid
   // session cookie reaches this route without passing the proxy at all.
   // This route had only the first.
-  if (!(await isProfileActive(user.id))) {
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
     return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }
 

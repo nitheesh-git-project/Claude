@@ -43,7 +43,7 @@ rule under "Supabase clients"), `npm run lint`,
 per fix; see the two gears under the e2e section below),
 `npm run seed:qa` (recreate the QA fixture accounts after a data reset),
 `npm run clean:e2e` (delete the fixture rows earlier e2e runs left behind),
-and `npm run verify` (lint + test + build, the one to run before pushing --
+and `npm run verify` (lint + test + build, which `.github/workflows/ci.yml` also runs on every pull request and push to `staging`/`main`; the one to run before pushing --
 and, for a change a browser can see, alongside the two or three specs
 covering what moved rather than the whole suite).
 `npm run test` is Vitest over `src/**/*.test.ts` - the dependency-free
@@ -72,7 +72,7 @@ summary names them. The old script collapsed all of it into a row count: it
 passed on `admin_activity_log` because that table had rows and failed on
 `appointments` because it had none, so its verdict moved with how much data
 happened to be lying around -- a false alarm on a database whose policies
-were perfect, which is exactly how a red line stops being read. **`e2e/README.md` is the inventory** -- all 54 spec files, what each covers,
+were perfect, which is exactly how a red line stops being read. **`e2e/README.md` is the inventory** -- all 61 spec files, what each covers,
 how to run them, and the nine cases that cannot pass without browser egress.
 Read it to find a spec; read this section for the rules behind it. A new spec
 adds its row there in the same commit.
@@ -175,6 +175,9 @@ that its six known no-egress failures are scrolled past is a suite nobody is
 reading, which is the same failure mode as a badge that is always on. Two
 gears:
 
+0. **Two Playwright projects.** `desktop` is the suite as it always ran;
+   `mobile` runs `e2e/mobile-*.spec.ts` on an emulated Pixel 7. Choose with
+   `--project=desktop|mobile`; a plain `npm run test:e2e` runs both.
 1. **Per change -- a quick retest and a regression.** `npm run verify`
    (lint + unit tests + build, which is what `verify` is for) plus **the
    specs that cover what moved**, by file:
@@ -215,6 +218,23 @@ Three environment notes for the browser specs:
 - They sign in by injecting a Node-minted session cookie rather than typing
   into the login form, so a sandbox whose browser has no outbound network
   can still exercise the whole dashboard.
+- **The QA accounts are never empty, so a spec that seeds a row and looks
+  for it must not assume the row is on page one, or in a free slot.** Every
+  spec shares the same fixture patients, and between runs they carry
+  hundreds of rows (patient A held 215 sessions, 188 of them cancelled).
+  Two ways this has turned working code red:
+  1. **Paging.** `session-completed-cutoff` asked for 200 per page and broke
+     when the total crossed 200; `unscheduled-purchases` never widened its
+     page and broke at eleven rows. Find a seeded row with
+     `pageUntilVisible()` and prove an absence with `countAcrossPages()`
+     (`e2e/helpers.ts`), which follow the list's own pager -- any fixed page
+     size moves with the residue.
+  2. **Slots.** The per-patient overlap trigger refuses a second session
+     for one patient in an overlapping slot, so a helper that seeds every
+     booking at the same default day and hour fails on its second call with
+     `seeded booking: undefined`. Give each seeded booking its own slot
+     (`acquisition-codes`, `discounts`), and print the database's error when
+     a seed fails so the reason is on the line rather than lost.
 - **A spec that needs the *browser* to reach Supabase cannot pass here.**
   The cookie injection above covers authentication, not data: a page that
   resolves something with the browser-side client still needs egress from

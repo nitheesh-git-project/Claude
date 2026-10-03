@@ -1,7 +1,13 @@
 "use client";
 
 import { useId } from "react";
-import { PAIN_MAP_REGIONS, painBand, type PainMapRegionKey, type PainMapSide } from "@/lib/painMap";
+import {
+  PAIN_MAP_REGIONS,
+  painBand,
+  painMapSideDirection,
+  type PainMapRegionKey,
+  type PainMapSide,
+} from "@/lib/painMap";
 
 const PAIN_DOT_COLOR: Record<string, string> = {
   low: "#10b981", // emerald-500
@@ -64,8 +70,9 @@ function silhouettePath(
 // Every measurement below is in the figure's own space: x as an offset
 // from its centerline, y from the top of the head. Both figures are the
 // same anatomy - a back view of a body is the same outline as its front
-// - so one set of parts draws both, and only the surface detail (spine
-// and shoulder blades vs. collarbone and midline) differs.
+// - so one set of parts draws both, and only the surface detail and which
+// side of the centreline is the patient's left (painMapSideDirection)
+// differ.
 const HEAD = { cy: 60, rx: 27, ry: 34 };
 
 const TORSO: BodyNode[] = [
@@ -278,22 +285,41 @@ export default function BodyMapDiagram({
         </g>
 
         {/* Surface detail: enough to tell the two views apart at a glance
-            without turning a body map into an anatomy chart. */}
-        <g fill="none" stroke="#94a3b8" strokeOpacity={0.45} strokeLinecap="round">
+            without turning a body map into an anatomy chart. The front
+            carries the collarbones, chest, abdominal midline and navel; the
+            back carries the spine, shoulder blades and glute cleft. The
+            shoulder-blade marks used to be two downward arcs either side of
+            the spine, which read as a chest -- so the BACK figure looked
+            like a front and the FRONT one, with only a collarbone curve and
+            a plain midline, looked like a back. */}
+        <g fill="none" stroke="#94a3b8" strokeOpacity={0.45} strokeLinecap="round" strokeLinejoin="round">
           {view === "front" ? (
             <>
-              <path d={`M ${cx - 40} 140 Q ${cx} 156 ${cx + 40} 140`} strokeWidth={1.6} />
-              <path d={`M ${cx} 178 L ${cx} 258`} strokeWidth={1.2} />
+              <path d={`M ${cx - 10} 124 Q ${cx - 30} 120 ${cx - 52} 130`} strokeWidth={1.6} />
+              <path d={`M ${cx + 10} 124 Q ${cx + 30} 120 ${cx + 52} 130`} strokeWidth={1.6} />
+              <path d={`M ${cx - 46} 150 Q ${cx - 28} 182 ${cx - 6} 166`} strokeWidth={1.4} />
+              <path d={`M ${cx + 46} 150 Q ${cx + 28} 182 ${cx + 6} 166`} strokeWidth={1.4} />
+              <path d={`M ${cx} 184 L ${cx} 252`} strokeWidth={1.2} />
               <path d={`M ${cx - 26} 214 Q ${cx} 220 ${cx + 26} 214`} strokeWidth={1.1} />
               <path d={`M ${cx - 24} 238 Q ${cx} 244 ${cx + 24} 238`} strokeWidth={1.1} />
-              <path d={`M ${cx - 30} 300 Q ${cx} 316 ${cx + 30} 300`} strokeWidth={1.4} />
+              <circle cx={cx} cy={262} r={2.5} strokeWidth={1.3} />
+              <path d={`M ${cx - 38} 278 Q ${cx - 22} 296 ${cx - 8} 312`} strokeWidth={1.3} />
+              <path d={`M ${cx + 38} 278 Q ${cx + 22} 296 ${cx + 8} 312`} strokeWidth={1.3} />
             </>
           ) : (
             <>
               <path d={`M ${cx} 112 L ${cx} 285`} strokeWidth={1.5} />
-              <path d={`M ${cx - 44} 150 Q ${cx - 26} 178 ${cx - 12} 158`} strokeWidth={1.3} />
-              <path d={`M ${cx + 44} 150 Q ${cx + 26} 178 ${cx + 12} 158`} strokeWidth={1.3} />
-              <path d={`M ${cx - 34} 300 Q ${cx} 292 ${cx + 34} 300`} strokeWidth={1.3} />
+              <path
+                d={`M ${cx - 14} 142 L ${cx - 44} 140 L ${cx - 22} 196 Z`}
+                strokeWidth={1.3}
+              />
+              <path
+                d={`M ${cx + 14} 142 L ${cx + 44} 140 L ${cx + 22} 196 Z`}
+                strokeWidth={1.3}
+              />
+              <path d={`M ${cx} 298 L ${cx} 318`} strokeWidth={1.3} />
+              <path d={`M ${cx - 44} 314 Q ${cx - 22} 326 ${cx - 4} 318`} strokeWidth={1.3} />
+              <path d={`M ${cx + 44} 314 Q ${cx + 22} 326 ${cx + 4} 318`} strokeWidth={1.3} />
               <path d={`M ${cx - 30} 460 Q ${cx - 18} 470 ${cx - 30} 486`} strokeWidth={1.1} />
               <path d={`M ${cx + 30} 460 Q ${cx + 18} 470 ${cx + 30} 486`} strokeWidth={1.1} />
             </>
@@ -311,14 +337,23 @@ export default function BodyMapDiagram({
         >
           {label}
         </text>
+        {/* Which side is which, from the patient's point of view: facing
+            the reader on the front figure, so their left is on the reader's
+            right; seen from behind on the back figure, so it is not. */}
+        <g fontSize={11} fontWeight={700} fill="#94a3b8" textAnchor="middle" aria-hidden>
+          <text x={cx - 110} y={620}>{view === "front" ? "R" : "L"}</text>
+          <text x={cx + 110} y={620}>{view === "front" ? "L" : "R"}</text>
+        </g>
 
         {regions.map((region) => {
           const coords = REGION_COORDS[region.key];
           if (region.paired) {
             return (
               <g key={region.key}>
-                {renderDot(region, "left", cx - coords.dx, coords.dy, view)}
-                {renderDot(region, "right", cx + coords.dx, coords.dy, view)}
+                {/* The patient's left is on the reader's right on the front
+                    figure -- see painMapSideDirection. */}
+                {renderDot(region, "left", cx + painMapSideDirection(view, "left") * coords.dx, coords.dy, view)}
+                {renderDot(region, "right", cx + painMapSideDirection(view, "right") * coords.dx, coords.dy, view)}
               </g>
             );
           }

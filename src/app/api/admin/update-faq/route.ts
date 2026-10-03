@@ -44,10 +44,19 @@ export async function POST(request: NextRequest) {
     patch.active = Boolean(active);
   }
 
-  const { error } = await admin.from("faqs").update(patch).eq("id", id);
+  const { data: updated, error } = await admin
+    .from("faqs")
+    .update(patch)
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return serverError("admin/update-faq", error);
+  }
+  // A deleted or wrong id updated nothing: say so, and log nothing.
+  if (!updated) {
+    return NextResponse.json({ error: "That FAQ no longer exists. Refresh to see the current list." }, { status: 404 });
   }
 
   // Catalog rows decide what is sold and at what price, so every

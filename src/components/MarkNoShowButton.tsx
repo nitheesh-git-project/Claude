@@ -4,6 +4,7 @@ import { useOptimistic, useState, useTransition } from "react";
 import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
+import { debugNowHeaders } from "@/lib/debugNow";
 
 export default function MarkNoShowButton({
   appointmentId,
@@ -34,13 +35,14 @@ export default function MarkNoShowButton({
       setOptimisticDone(true);
       const res = await fetch("/api/appointments/complete-session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...debugNowHeaders() },
         body: JSON.stringify({ appointmentId, noShow: true }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? "Could not update. Please try again.");
-        if (res.status === 409) {
+        // "Not late enough yet" changed nothing, so the card stays as it is.
+        if (res.status === 409 && !data.notYet) {
           // Someone else already changed this session (marked it done, or
           // the patient cancelled it) - refresh so this stops showing it as
           // still actionable.

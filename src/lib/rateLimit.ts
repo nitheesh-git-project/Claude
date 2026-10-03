@@ -137,6 +137,22 @@ export const RATE_LIMITS = {
     message: "We already have your details from a moment ago.",
   },
 
+  /**
+   * The developer's "Say hello" form behind the footer credit.
+   *
+   * Its own scope on the one-scope-per-flow rule, for the same reason
+   * `referralSubmit` is: folding it into `publicWrite` would let somebody
+   * saying hello spend the allowance a stranger needs to ask the clinic about
+   * a partnership. Tighter than that one, because nothing here is time
+   * sensitive and a person writes to a developer once, not repeatedly.
+   */
+  devReachout: {
+    scope: "dev-reachout",
+    limit: 5,
+    windowSeconds: 3600,
+    message: "I already have your message from a moment ago.",
+  },
+
   /** Creating an account from a referral link. */
   registration: {
     scope: "registration",
@@ -156,6 +172,21 @@ export const RATE_LIMITS = {
     limit: 40,
     windowSeconds: 600,
     message: "We couldn't start that payment just now.",
+  },
+
+  /**
+   * The booking wizards reporting how long a Pay tap took to open the
+   * Razorpay sheet (see checkoutTiming). Its own scope on the
+   * one-scope-per-flow rule: a measurement must never spend the allowance a
+   * patient needs to actually pay. Loose, because one is sent per tap and a
+   * patient retrying a declined card taps several times; the ceiling exists
+   * to bound the table, not to judge anybody.
+   */
+  checkoutTiming: {
+    scope: "checkout-timing",
+    limit: 60,
+    windowSeconds: 600,
+    message: "That measurement was not recorded just now.",
   },
 
   /**

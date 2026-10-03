@@ -10,7 +10,7 @@ Every setting below is read through one shared settings module with defaults. **
 
 #### `ADM-SET-001` - Brand & Contact Details · P1
 
-**What it controls.** `site_name`, `site_tagline`, `site_description`, `contact_email`, `whatsapp_number`, `contact_phone`, `footer_copyright_text`.
+**What it controls.** `site_name`, `site_tagline`, `site_description`, `contact_email`, `whatsapp_number`, `contact_phone`, `footer_copyright_text`. The social links on the same screen are `ADM-SET-001b`.
 **What depends on it.** The **root layout** is the one place these are read (through a public/anon client, so ISR-cached pages under it are not forced dynamic) and it passes them into `Navbar` and `Footer` **as props**. Those two components must never fetch their own copy or hardcode a string.
 
 **Steps**
@@ -24,6 +24,21 @@ Every setting below is read through one shared settings module with defaults. **
 
 **Expected Result.** Step 4: the navbar and the page title/description show `QA Physio Clinic`. Step 5: the footer shows the new line. Step 6: refused with a validation message (`Enter a valid email address.`). Step 3 and every reload: values persist. Existing records are unaffected - this is presentation only.
 **Interaction worth checking:** the **splash** brand line is **blank by default and falls back to the site name**, so changing the site name also changes the splash greeting until an admin deliberately parts them.
+
+#### `ADM-SET-001b` - Social media links · P2
+
+**What it controls.** `social_instagram_url`, `social_facebook_url`, `social_linkedin_url`, `social_youtube_url`, `social_whatsapp_url` - the icon row under the clinic's name in the website footer.
+
+**Steps**
+1. Open **Settings → Brand & Contact → Social Media Links**. With nothing set, each row reads *Not set - no icon in the footer*, and `/` shows **no** icon row in the footer.
+2. Set **Instagram** to `instagram.com/yourclinic` (no `https://`). Save.
+3. Set **Facebook** to `https://www.youtube.com/@clinic`. Save.
+4. Set **YouTube** to `javascript:alert(1)`. Save.
+5. Open `/` and scroll to the footer. Click the Instagram icon.
+6. Back on Settings, edit **Instagram**, clear the box, Save. Reload `/`.
+7. In the footer's **Contact** column, click the WhatsApp number (needs a real number set above).
+
+**Expected Result.** Step 2: saved, and the row shows `https://instagram.com/yourclinic`. Step 3: refused - *That link isn't on Facebook (facebook.com).* Step 4: refused - *Enter a web link starting with https://*. Step 5: only the Instagram icon shows; it opens the profile **in a new tab** and the site stays open in the original one. Step 6: the toast says the icon is removed, and the footer has no icon row. Step 7: WhatsApp opens **in a new tab**; the website page is not replaced.
 
 ---
 
@@ -101,13 +116,13 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 
 #### `ADM-SET-009` - Every Settings screen says what it is · P2
 
-**Steps.** Open each of the ten Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Advanced. Then open both Logs screens: All Activity and Archive & Clear.
+**Steps.** Open each of the eleven Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Advanced, Dev Reachouts. Then open both Logs screens: All Activity and Archive & Clear.
 
 **Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen - none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
 
 **Spot checks.** The sidebar draws the four captions above their screens, and each caption appears exactly once. Offers & Discounts ends with a **"Looking for promo codes?"** note pointing at **Money → Costs**, and saying a goodwill discount is applied to a session rather than set up here. Booking Rules holds **only** the single-session rules and the Google Meet block - no discount, no package, no home-visit settings, and **no sign-out settings**: the inactivity timeout and the sign-out message moved to Sign-in & Security, since neither is a booking rule. Programmes & Home Visits no longer carries the session-balance switch; it is on **Advanced**. Public Site and Programmes & Home Visits each open with a **jump strip** of that screen's own sections, which sticks to the top as you scroll.
 
-**Critical check:** these are the same ten screens the sidebar lists and the same ten `?tab=` values. A screen reachable from the sidebar with no sentence under its heading, or a sentence on a screen that is not in the sidebar, means `adminNav.ts` and the shell have drifted.
+**Critical check:** these are the same eleven screens the sidebar lists and the same eleven `?tab=` values. A screen reachable from the sidebar with no sentence under its heading, or a sentence on a screen that is not in the sidebar, means `adminNav.ts` and the shell have drifted.
 
 #### `ADM-SET-010` - Online Booking Lead Time → the booking wizard · P0
 
@@ -377,52 +392,50 @@ The screen warns you to turn it on only once System Health has been clean.
 #### `ADM-SET-026` - Create the three scoped admins · P0
 **Steps.** Create `qa.admin.ops@example.test` (Operations), `qa.admin.finance@example.test` (Finance), `qa.admin.clinical@example.test` (Clinical).
 **The Account type picker is one control, not two.** It lists six entries in two groups - **Clinic**: Patient, Therapist · **Back office**: Master Admin, Operations, Finance, Clinical - using the same four names the dashboards call themselves. There is no separate **Access level** dropdown; picking a back-office desk shows that desk's one-line description under the picker. As a **non-`full`** admin, the whole Back office group is **absent** (only a Master Admin may mint an admin, and `create-account` enforces that with a full-only check, not a section gate - see §2).
-**Expected Result.** Each is created with a generated password that is shown on the panel **and kept on that admin's own row in Back office** until they set their own, and is **never logged** (`ADM-SET-026b`). Signing in as each shows only their allowed sections in the sidebar - Operations: Today, Sessions, People, Catalog. Finance: Today, **Sessions (read-only)**, People, Money. Clinical: Today, Sessions, People.
+**Expected Result.** Each is created with **no password anyone can read**: the panel shows a **one-time sign-in link** for them to set their own, which is never stored and never logged (`ADM-SET-026b`). Signing in as each shows only their allowed sections in the sidebar - Operations: Today, Sessions, People, Catalog. Finance: Today, **Sessions (read-only)**, People, Money. Clinical: Today, Sessions, People.
 
-#### `ADM-SET-026b` - The issued password survives, and the chosen one is never shown · P0
+#### `ADM-SET-026b` - No password is issued, stored or shown; a one-time link is · P0
 
-**Feature.** Every route in this app that generates a password now stores the plaintext on a service-role-only table, so a credential cannot be lost to a re-render. Create-account was the last one that did not: it held the password in React state alone, and the `profiles` row it had just inserted fired a realtime refresh that took it off the screen mid-sentence.
+**Feature.** Creating or resetting any account (patient, therapist, partner, back office) no longer generates a password. The account gets one nobody knows, and the admin is shown a **one-time sign-in link** (`/reset-password?token_hash=...`) to send them, with which they set their own. Nothing readable is written to the `*_admin_notes` tables, and the plaintext earlier versions stored there is cleared by `schema.sql`.
 
 **Steps**
-1. Create a back-office account. **Without touching anything**, wait for the dashboard to refresh (or have a second admin approve something so a realtime event fires).
-2. Reload the page entirely and open **Settings → User Access**.
-3. Press **Copy** on that row.
-4. Create a **patient** and a **therapist** the same way, then open each of their profiles under **People**.
-5. Sign in as the new admin and change the password through the forgot-password flow. Reopen User Access.
-6. Look for anywhere in the product that displays the password they just chose.
-7. **[SQL]** `select * from admin_account_notes;` as an authenticated non-service-role session.
-8. **[SQL]** Search `admin_activity_log` for any generated password.
+1. Create a back-office account. Copy the link from the panel.
+2. Open the link in a private window. Set a password.
+3. Open the same link again.
+4. Reload the admin page and open **Settings → User Access**, then a patient's and a partner's page under **People**.
+5. Press **Reset password (send sign-in link)** on another account's row and confirm.
+6. **[SQL]** `select temp_password from patient_admin_notes where temp_password is not null union all select temp_password from therapist_admin_notes where temp_password is not null union all select temp_password from hospital_admin_notes where temp_password is not null union all select temp_password from admin_account_notes where temp_password is not null;`
+7. **[SQL]** Search `admin_activity_log` for any link or token.
 
 **Expected Result**
-* Steps 1–2: the password is **still readable** on that admin's row - the panel going away does not lose it. The row reads *Still on the password we issued*, with the date it was issued.
-* Step 3 puts it on the clipboard.
-* Step 4: the same password appears on the patient's and the therapist's profile, in the existing **Current admin-set password** panel beside Reset Password.
-* Step 5: the row now reads **Signing in with their own password** and the password is gone - cleared by `/api/clear-temp-password`, so the screen never offers a credential that no longer works.
-* Step 6: **nowhere, by design.** A password somebody chose is stored by Supabase as a bcrypt hash and cannot be read back by this app or anyone else. The lane for a locked-out account is **Reset Password**, which issues a new one and puts the row back into the first state.
-* Step 7: **no rows** - the table carries no RLS policies at all, so only the service role reads it. A plain column on `profiles` would be handed straight back to the account owner by `profiles_select_own`, which is why these four tables exist.
-* Step 8: **no password anywhere in the log**, which every admin can read.
+* Step 2: the reset page signs them in from the link, takes the new password, and sends them to their role's login.
+* Step 3: the link is spent - the page says it could not verify the link.
+* Step 4: **no password anywhere** - no "Still on the password we issued", no "Current admin-set password" panel.
+* Step 5: the old password stops working at once, and a new one-time link is shown.
+* Step 6: **no rows**.
+* Step 7: no link or token anywhere in the log.
 
-#### `ADM-SET-026c` - Re-issuing a back-office password, and dismissing the panel · P1
+#### `ADM-SET-026c` - Re-issuing a back-office sign-in, and dismissing the panel · P1
 
-**Feature.** Patients, therapists and hospitals could all have a password re-issued from the back office; an admin who had locked themselves out needed somebody with Supabase access. **Reset password** on a Back office row is the fourth of those doors. The created-account panel also has a close button now, and its Copy button no longer reads "Copied" for ever after one click.
+**Feature.** Patients, therapists, hospitals and back-office accounts can all have their sign-in re-issued from the back office as a **one-time link** (`ADM-SET-026b`). The created-account panel has a close button, and its Copy button no longer reads "Copied" for ever.
 
 **Steps**
-1. Create a back-office account. On the panel that appears, press **Copy**, wait a few seconds, then read the button. Press the **×**.
-2. On another admin's row, press **Reset password** and read what comes up before anything happens.
-3. Confirm it. Read that admin's row.
-4. Sign in as that admin with the **old** password, then with the new one.
-5. Look for **Reset password** on **your own** row. Then POST `/api/admin/reset-admin-password` with your own id.
+1. Create a back-office account. On the panel, press **Copy link**. Press the **×**.
+2. On another admin's row, press **Reset password (send sign-in link)** and read what comes up before anything happens.
+3. Confirm it.
+4. Sign in as that admin with the **old** password. Then open the link and set a new one.
+5. Look for the reset button on **your own** row. Then POST `/api/admin/reset-admin-password` with your own id.
 6. Sign in as **Operations**, then **Finance**, then **Clinical**. Look for the button, then POST the route directly as each.
 7. Open **Logs → All Activity**.
 
 **Expected Result**
-* Step 1: Copy goes back to **Copy** after a moment rather than staying "Copied". The **×** dismisses the panel, and the password is **still on that admin's row** - dismissing a panel must not lose a credential (`ADM-SET-026b`).
-* Step 2: a **confirmation first**, saying the current password stops working immediately. Nothing has changed until it is confirmed - somebody who tapped it meaning to *read* the existing password has not locked anybody out.
-* Step 3: the new password is on that admin's **row**, in the same place the created one appeared - **not** in a second panel under the button. Two places showing one password means the stale one is the one somebody reads out.
-* Step 4: the old password is refused; the new one signs in.
+* Step 1: the link is copied. The **×** dismisses the panel; the link is gone, and that is fine - the row issues a new one.
+* Step 2: a **confirmation first**, saying the current password stops working straight away. Nothing changes until it is confirmed.
+* Step 3: a one-time link appears under the button, with a Copy link control.
+* Step 4: the old password is refused; the link sets a new one, which then signs in.
 * Step 5: **no button on your own row**, and the direct POST is refused. The lane for your own password is the emailed reset on **Settings → Sign-in & Security**.
-* Step 6: **no button** for any of the three, and the POST is **403** for all three - this is Master Admin's alone, even though every one of those desks can manage People.
-* Step 7: an entry naming who reset whose password, with `role: admin`, and **no password in it**.
+* Step 6: **no button** for any of the three, and the POST is **403** for all three.
+* Step 7: an entry naming who reset whose sign-in, with `role: admin`, and **no link or token in it**.
 
 #### `ADM-SET-025c` - Suspend and Create release the button, not the page · P1
 
@@ -506,7 +519,7 @@ This tab also surfaces the `communication_flags` and `contact_reveal_log` eviden
 #### `ADM-SET-030` - System Health · P0
 
 **Steps.** Open **Settings → System Health**. Read the verdict strip at the top, then tap the **i** button on each check.
-**Expected Result.** A verdict strip naming how many checks need a person (`All 11 checks healthy`, `2 checks need you`, or `Nothing is broken` when a check is switched off or could not be run), with a jump chip per failing check, followed by eleven cards in a fixed shape: **Payment Confirmations**, **Google Connection**, **Session Links**, **Waiting Room**, **Books & Sessions Agree**, **Public doors**, **Pay Later**, **Refunds**, **Settlement record**, **Patient files**, and the accounting check. Every card carries a status **word** as well as a colour - `Healthy`, `Needs a look`, `Needs you now`, `Not set up`, `Not checked` - a one-line plain-words headline, and, whenever it is not healthy, a numbered **How to fix it yourself**. The **i** button expands *What this watches* and *For example* inside the same card and nothing else moves. **Books & Sessions Agree** reports where the entitlement **cache**, the **ledger** and the **legacy counter** disagree, plus captured payments attached to nothing and delivered sessions with nothing behind them. **It reports and never repairs** - a silent auto-fix on a money record is how a discrepancy becomes permanent, and that card deliberately has no fix button. The badge on this tab is the number of **checks** needing a person, and it matches the strip's own count and its chips exactly.
+**Expected Result.** A verdict strip naming how many checks need a person (`All 13 checks healthy`, `2 checks need you`, or `Nothing is broken` when a check is switched off or could not be run), with a jump chip per failing check, followed by thirteen cards in a fixed shape: **Payment Confirmations**, **Google Connection**, **Session Links**, **Waiting Room**, **Books & Sessions Agree**, **Public doors**, **Pay Later**, **Refunds**, **Settlement record**, **Patient files**, **Activity log**, **Checkout speed**, and the accounting check. **Checkout speed** reads *Not checked* until ten payments in the last seven days have opened the Razorpay window, then *Healthy* with the typical wait, or *Needs a look* when one patient in ten waits more than six seconds, listing how long each stage took. **Activity log** reads *Needs a look* when any admin action in the last 30 days could not be written to the log; Logs → All Activity then lists those actions at the top (who, what, when) instead of reading as a complete history. Every card carries a status **word** as well as a colour - `Healthy`, `Needs a look`, `Needs you now`, `Not set up`, `Not checked` - a one-line plain-words headline, and, whenever it is not healthy, a numbered **How to fix it yourself**. The **i** button expands *What this watches* and *For example* inside the same card and nothing else moves. **Books & Sessions Agree** reports where the entitlement **cache**, the **ledger** and the **legacy counter** disagree, plus captured payments attached to nothing and delivered sessions with nothing behind them. **It reports and never repairs** - a silent auto-fix on a money record is how a discrepancy becomes permanent, and that card deliberately has no fix button. The badge on this tab is the number of **checks** needing a person, and it matches the strip's own count and its chips exactly.
 **Negative:** a missing `RAZORPAY_WEBHOOK_SECRET` and a dead Google credential both badged **0** before this, because the badge counted rows and those two failures have no rows.
 
 #### `ADM-SET-030b` - Public doors · P1
@@ -636,8 +649,27 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 **Expected Result**
 * Step 1: **no Logs section** for any of the three.
 * Step 2: each lands on a screen their scope can open - never a heading over nothing, and never the log.
-* Step 3: Settings has **ten** screens under four captions, and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
+* Step 3: Settings has **eleven** screens under four captions, and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
 * Step 4: the matrix carries a **Logs** group with a read row and a clear row, ticked for Master Admin and blank for the other three - derived from the same module the routes enforce with, so it cannot claim access nobody has.
+
+#### `ADM-SET-038` - Dev Reachouts · P1
+**Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Dev Reachouts**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.
+
+**Steps**
+1. Complete `PUB-DEV-001` so there is at least one message, then sign in as the Master Admin and open **Settings → Dev Reachouts** (`?section=settings&tab=reachouts`). Check the sidebar badge counts the **new** messages.
+2. On the message, confirm the name, a `mailto:` email link, a `tel:` number link (when one was given), the message with its line breaks kept, and the received time **in the clinic's zone**.
+3. Type a note and tap **Save note**. Then tap **Mark as contacted**. Then tap **Move back to new**.
+4. In **Show the developer credit and contact page**, tap the switch. Read the dialog, tap **No**. Tap it again and tap **Yes**. Open `/developer`, then switch it back on the same way (dialog again, **No**, then **Yes**).
+5. In **Email shown on the Let's talk page**, type `not an email` and tap **Save**. Then enter a real address and **Save**. Open `/developer/lets-talk`. Clear the box, **Save**, and open it again.
+6. Sign in as each of the three scoped admins and try `?section=settings&tab=reachouts`.
+
+**Expected Result**
+* Step 1: the badge shows the number of **new** messages and the filter chips read New / Contacted / All. A new message appears without a reload.
+* Step 3: the toast reads `Note saved for <name>`; the status pill reads **Contacted** with the date and time, then returns to **New**. Moving back clears who and when. Each action appears in Logs → All Activity as *Saved a note on a developer reachout* / *Moved a developer reachout*, and **the note's text is never in the log** - only that one was saved.
+* Step 4: **both** directions open a confirm dialog before anything is saved; **No** leaves the switch exactly where it was and writes nothing. After **Yes** the toast names the new state (`Developer credit is now hidden` / `shown`), the switch reads **Saving…** while in flight, the footer's credit line disappears or returns on a public page, and `/developer` and `/developer/lets-talk` are **404** while it is off. Messages already received are still listed.
+* Step 5: an invalid address is refused with a sentence and nothing is saved. A saved address shows as a `mailto:` link under **Prefer email?**; a blank one **hides that line entirely** while the form still works. No address ships in the code - a fresh database shows the box empty.
+* Step 6: a scoped admin never gets the tab, the rows or the controls, and a direct call to `/api/admin/update-dev-reachout` answers **403**.
+**Negative:** the debug **Reset data** button must **not** remove these messages or change either setting - they are the developer's own leads, not test data.
 
 #### `ADM-SET-035` - Sign-in & Security · P2
 **Steps.** Open **Settings → Sign-in & Security** and change the admin's own password. Check the screen carries two headed blocks: *Your own sign-in* (the reset button) and *Everybody else's sign-in* (the inactivity timeout and the sign-out message).
@@ -689,6 +721,7 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 36 | Walkthrough seconds | Settings → Public Site | The home page walkthrough | Pace changes; 0 = static | `ADM-SET-005` |
 | 36a | Mission & Vision | Settings → Public Site | `/` and `/mission` | Both update at once; blank restores the shipped line | `ADM-SET-036` |
 | 36b | Promises and limits | Settings → Public Site | `/` chips and both `/mission` bands | Rows publish at once; empty band restores the shipped set; all-off drops the band and its rail entry | `ADM-SET-037` |
+| 36c | Developer credit switch + published email | Settings → Dev Reachouts | Footer credit line, `/developer`, `/developer/lets-talk`, `/api/developer/reachout` | Off ⇒ line hidden and all three 404; email blank ⇒ **Prefer email?** line hidden; **both directions confirm first** | `ADM-SET-038`, `PUB-DEV-001` |
 | 37 | Splash (5 settings) | Settings → Public Site | The opening splash | Each behaves as documented | `ADM-SET-006` |
 | 38 | Testimonials | Settings → Public Site | `/` and `/mission` bands | Both update from one component | `ADM-SET-007` |
 | 39 | FAQ | Settings → Public Site | `/faq` | Accordion updates | `ADM-SET-008` |

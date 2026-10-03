@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ProfileLoadFailed from "@/components/profile/ProfileLoadFailed";
 import { createClient } from "@/lib/supabase/server";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import AccountCreatedNote from "@/components/profile/AccountCreatedNote";
@@ -29,8 +30,8 @@ export default async function TherapistProfilePage() {
   // Independent of each other -- run in parallel instead of one at a time.
   // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
   const [
-    { data: profile },
-    { data: changeRequests },
+    { data: profile, error: profileError },
+    { data: changeRequests, error: changeRequestsError },
     { data: therapistCodeRow },
     { data: settingsRow },
   ] = await Promise.all([
@@ -62,6 +63,11 @@ export default async function TherapistProfilePage() {
       .maybeSingle()
   ]);
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
+  // A failed read is not a blank profile. Rendered anyway, the form showed
+  // empty fields as what is on file and hid any change already waiting for
+  // approval -- inviting a therapist to retype credentials that exist, or to
+  // send the same change twice. See ProfileLoadFailed.
+  const profileUnreadable = !!profileError || !!changeRequestsError;
 
   // The eight the clinic recognises, plus whatever this therapist already
   // has if it is not one of them. Without that second half a legacy
@@ -96,6 +102,14 @@ export default async function TherapistProfilePage() {
       headerSubtitle="Update your public details, credentials, and account security."
     >
       <div className="max-w-2xl mx-auto">
+      {profileUnreadable ? (
+        <ProfileLoadFailed
+          title="We couldn't load your profile"
+          anchorIds={["profile-photo", "public-details", "credentials"]}
+          body="Your details, credentials and any change waiting for approval are all safe - they just didn't load this time. Nothing can be edited or sent from here until they do."
+        />
+      ) : (
+      <>
       <div id="profile-photo" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <AvatarUpload
           userId={user.id}
@@ -166,6 +180,9 @@ export default async function TherapistProfilePage() {
           fieldStatus={fieldStatus}
         />
       </div>
+
+      </>
+      )}
 
       <div id="account-security" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-6">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Account Security</h2>

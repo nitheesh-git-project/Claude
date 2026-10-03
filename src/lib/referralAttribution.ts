@@ -26,22 +26,27 @@ export async function readReferralAttributionHealth(
   admin: SupabaseClient
 ): Promise<ReferralAttributionHealth | null> {
   try {
-    const { data: converted, error } = await admin
+    // Every converted referral, linked or not. This used to read only rows
+    // where converted_patient_id was set -- so the failure that most needed
+    // finding, the link itself not being written, was the one it could not
+    // see. An unlinked converted referral is counted on its own.
+    const { data: allConverted, error } = await admin
       .from("patient_referrals")
       .select("hospital_id, converted_patient_id")
-      .eq("status", "converted")
-      .not("converted_patient_id", "is", null);
+      .eq("status", "converted");
 
     if (error) return null;
-    if (!converted || converted.length === 0) {
-      return { orphanedCount: 0, withCompletedSessions: 0 };
+    const unlinkedCount = (allConverted ?? []).filter((r) => !r.converted_patient_id).length;
+    const converted = (allConverted ?? []).filter((r) => !!r.converted_patient_id);
+    if (converted.length === 0) {
+      return { orphanedCount: 0, withCompletedSessions: 0, unlinkedCount };
     }
 
     const patientIds = converted
       .map((r) => r.converted_patient_id as string | null)
       .filter((id): id is string => !!id);
     if (patientIds.length === 0) {
-      return { orphanedCount: 0, withCompletedSessions: 0 };
+      return { orphanedCount: 0, withCompletedSessions: 0, unlinkedCount };
     }
 
     const { data: profiles, error: profileError } = await admin
@@ -65,7 +70,7 @@ export async function readReferralAttributionHealth(
     });
 
     if (orphaned.length === 0) {
-      return { orphanedCount: 0, withCompletedSessions: 0 };
+      return { orphanedCount: 0, withCompletedSessions: 0, unlinkedCount };
     }
 
     const orphanIds = orphaned
@@ -87,6 +92,7 @@ export async function readReferralAttributionHealth(
     return {
       orphanedCount: orphaned.length,
       withCompletedSessions: withSessions.size,
+      unlinkedCount,
     };
   } catch {
     return null;

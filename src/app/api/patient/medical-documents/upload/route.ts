@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import {
+  isPatientProfile,
+  isProfileActive,
+  profileCheckUnavailable,
+} from "@/lib/supabase/requireActiveProfile";
 import {
   MAX_DOCUMENT_BYTES,
   MAX_DOCUMENTS_PER_PATIENT,
@@ -9,6 +13,8 @@ import {
   documentExtension,
   isAllowedDocumentMimeType,
   isMedicalDocumentType,
+  pdfHasActiveContent,
+  sniffDocumentMimeType,
 } from "@/lib/medicalDocuments";
 import { serverError } from "@/lib/apiError";
 
@@ -32,8 +38,18 @@ export async function POST(request: NextRequest) {
   // isProfileActive, not isProfileActiveAndApproved: a patient who paid
   // and is waiting on approval still has a session next week and a report
   // to bring to it.
-  if (!(await isProfileActive(user.id))) {
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
     return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
+  }
+  // A health record belongs to a patient. Any other active account (a
+  // therapist, a partner, an admin) could otherwise file "reports" under its
+  // own id into the clinical bucket.
+  const isPatient = await isPatientProfile(user.id);
+  if (isPatient === null) return profileCheckUnavailable();
+  if (!isPatient) {
+    return NextResponse.json({ error: "Reports are uploaded from a patient account." }, { status: 403 });
   }
 
   let form: FormData;
@@ -53,10 +69,24 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  const mimeType = (file.type || "").toLowerCase();
-  if (!isAllowedDocumentMimeType(mimeType)) {
+  // The type is read from the file's own bytes, never from `file.type`,
+  // which is whatever the browser (or a crafted request) says it is. The
+  // stored content type is the sniffed one, so a clinician's browser is
+  // never told to render something as a type it is not.
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const mimeType = sniffDocumentMimeType(bytes);
+  if (!mimeType || !isAllowedDocumentMimeType(mimeType)) {
     return NextResponse.json(
       { error: "Upload a PDF or a photo (JPG, PNG, WEBP or HEIC)." },
+      { status: 400 }
+    );
+  }
+  if (mimeType === "application/pdf" && pdfHasActiveContent(bytes)) {
+    return NextResponse.json(
+      {
+        error:
+          "This PDF contains scripts or attached files, which we can't accept. Print it to a new PDF or upload a photo of it instead.",
+      },
       { status: 400 }
     );
   }
@@ -105,7 +135,7 @@ export async function POST(request: NextRequest) {
   const storagePath = `${user.id}/${crypto.randomUUID()}.${documentExtension(mimeType)}`;
   const { error: uploadError } = await admin.storage
     .from("medical-reports")
-    .upload(storagePath, await file.arrayBuffer(), { contentType: mimeType, upsert: false });
+    .upload(storagePath, bytes, { contentType: mimeType, upsert: false });
   if (uploadError) {
     return NextResponse.json({ error: "Could not upload that file. Please try again." }, { status: 500 });
   }

@@ -44,6 +44,20 @@ inline `profile.active === false` even when the route already loads the row
 (`reveal-contact` does, correctly, and is why the other eight were missed):
 a grep for the helper name is how the next audit finds the gap.
 
+A third layer now holds for the reads and writes a token can make
+directly against PostgREST and Storage. **A suspended account's live token
+reads and edits nothing of its own**: the patient's own-row select
+policies (appointments, health profile, Pain Map, report metadata) require
+the caller's `active` flag, read once per statement as an initplan, and
+`profiles_update_own` plus the avatar bucket policies do the same for the
+direct-save profile fields - so a suspended therapist or partner can no
+longer rewrite the bio and photo patients read. Approval is deliberately
+*not* required there: an applicant must be able to finish their profile.
+`scripts/authorization-checks.mjs` section 5 asserts the read half.
+The helpers in `requireActiveProfile.ts` answer `null` when the read
+itself failed; routes answer that with `profileCheckUnavailable()` (503,
+retry), never with "suspended".
+
 Admin routes go through `src/lib/supabase/requireAdmin.ts`. Never trust a
 role, an id, or an amount sent from the client - re-derive it server-side.
 
@@ -256,7 +270,11 @@ client is the only writer and the log is append-only from any session.
      request has turned a blip into a checkout outage, which is worse than
      the burst it would have stopped -- the direction `contact_scan_mode`
      fails, and the opposite of `contact_masking_enabled`, because the safe
-     answer differs by what is at stake. Logged, never silent. **No
+     answer differs by what is at stake. Logged, never silent. The limits
+     marked `onCheckFailure: "closed"` (the enumerable lookups) refuse
+     instead, and a **thrown** failure takes the same direction as a
+     returned error - it used to allow the request unconditionally, so a
+     dropped connection opened exactly the limits meant to stay shut. **No
      identifier is the same case**: with neither `x-real-ip` nor
      `x-forwarded-for` (local dev, or any host that does not set them) the
      request is allowed rather than filed under an invented key, which would
@@ -325,6 +343,22 @@ client is the only writer and the log is append-only from any session.
   `appointments_insert_own` got. Sign-up and sign-in are **not** covered here:
   both call Supabase Auth directly from the browser rather than a route of
   ours, so their limits are the ones set in the Supabase dashboard.
+  **The developer's "Say hello" form is the second public write door of this
+  kind.** `/api/developer/reachout` inserts into `dev_reachouts`, which has no
+  insert policy and no insert grant for `anon` or `authenticated` -- the
+  service-role client behind the route is the only writer, which is what makes
+  it limitable at all. It runs `parseJsonBody` -> `validateDevReachout`
+  (`src/lib/devReachout.ts`) -> `enforceRateLimit(request, "devReachout")` ->
+  the `dev_contact_enabled` read -> insert, in that order. Its scope
+  (`dev-reachout`, five an hour) is its own, for the one-scope-per-flow rule:
+  folded into `publicWrite` it would let somebody saying hello spend the
+  allowance a stranger needs to ask the clinic about a partnership, and its
+  message has no digits and no blame. The **honeypot** (`website`) is an
+  off-screen, `aria-hidden`, `tabIndex={-1}`, `autoComplete="off"` input; a
+  filled one is answered exactly like a success and writes nothing, so a script
+  learns nothing about what to change. A switch that is off answers **404**, but
+  a switch that could not be *read* falls back to the default (on) -- "we could
+  not check" is not "an admin turned it off".
 - **A flag is never an accusation, and never carries a penalty.** The
   detectors (`src/lib/riskDetectors.ts`, vocabulary in
   `src/lib/riskSignals.ts`) run as a bounded lazy sweep after the admin
@@ -335,6 +369,20 @@ client is the only writer and the log is append-only from any session.
   that action and doing it deliberately, with its own audit row. That
   separation is what makes a heuristic over clinical data safe to run at
   all, and the Risk tab deliberately carries no action buttons.
+  **"Nothing waiting" is said only after a complete sweep.** The sweep used
+  to swallow everything: a detector whose read failed returned "no
+  findings", rules the time budget did not reach were skipped, and a read
+  that hit its row cap looked complete. Every detector read now goes through
+  `checkRead()` (a failed read throws, so the rule counts as failed; a read
+  at its cap marks the rule truncated), and each sweep stores its outcome in
+  the one-row `risk_sweep_runs` (admin-readable, written by the service role)
+  -- failed, unreached and truncated rules and findings that could not be
+  written. The Risk tab reads it through `summariseRiskSweep()` and shows
+  the all-clear only when it was complete; otherwise it names the rules.
+  The budget is 8 seconds: the sweep runs in `after()` and the scheduled
+  job, not in the render, and at 2.5s a real sweep with every rule on left
+  three unreached. Open signals are read in full; only the closed history
+  and the two evidence trails show a newest-200 window, and say so.
   `risk_signals.evidence` stores the ids of the rows that fired a rule
   rather than a score, because an admin who can only see a verdict cannot
   disagree with it. A partial unique index gives at most one **open or
@@ -465,12 +513,17 @@ client is the only writer and the log is append-only from any session.
      names cannot rewrite it. **The row is written before the swap**, so a
      session with no record behind it cannot exist; a failed insert refuses
      the whole thing, the same posture as `/api/therapist/reveal-contact`.
-  3. **Everything done during the window is written as that user.** No column
-     on `appointments` -- or anywhere else -- can say an admin was at the
-     keyboard, so that row's `started_at`/`ended_at` window is the only thing
-     a later reader can intersect an action against. That is a real cost of
-     the swap, accepted deliberately: a read-only mirror cannot reproduce a
-     bug that only appears on submit.
+  3. **Everything done during the window is written as that user - and
+     recorded under the admin.** No column on `appointments` can say an
+     admin was at the keyboard, so the proxy now matches `/api/:path*` for
+     one purpose: a non-GET API call carrying the marker cookie is written
+     to `admin_activity_log` as `impersonation.action` under the **admin's**
+     id, with the method, path and session id (`src/lib/impersonationAudit.ts`,
+     off the response path via `waitUntil`, and only after checking the
+     cookie against the open `admin_impersonation_sessions` row). With no
+     marker an API request passes straight through. The swap itself is
+     still accepted deliberately: a read-only mirror cannot reproduce a bug
+     that only appears on submit.
   4. **It expires, and the proxy is what ends it.** The marker cookie and the
      Supabase session cookies are separate things, so letting the marker
      lapse on its own max-age would drop the banner while the swap ran on
@@ -604,6 +657,17 @@ them costs an owner their clinic's identity, and the mission and vision have no
 are an admin's tuning on Today -> Risk, while the signals they produced are
 rows and are still truncated.
 
+**`dev_reachouts` is kept too, and so are `dev_contact_enabled` and
+`dev_contact_email`.** They are the developer's own leads from the footer
+credit's Say hello form, and the two switches that publish it. Testing produces
+none of them -- the e2e spec deletes what it writes -- so a reset has nothing
+here to clear and a real message to lose. CASCADE cannot reach the table: its
+one foreign key, `contacted_by`, points at `profiles`, which is never truncated
+(and is `on delete set null` regardless). **Do not add it to the `TRUNCATE`
+list**; `src/lib/devReachoutResetGuard.test.ts` reads the *last*
+`debug_reset_all_data` body and fails if its list names `dev_reachouts` or any
+statement touches `dev_contact_`.
+
 **`faqs`, `testimonials` and `mission_principles` are kept for the same
 reason**, one table at a time with its own reason, as
 `treatment_categories` already was. They are the website's own content, written
@@ -638,6 +702,23 @@ line describing nothing but carelessness. Before real patients exist, remove
   hide the shared Navbar all call the one helper. At real launch, **delete**
   the bar rather than flipping the flag - it is a public flag, and the bar
   names every route including `/admin/login` and `/admin/dashboard`.
+- **The simulated clock moves one server gate, and only behind a server
+  flag.** The debug bar's clock is a browser-side offset (`debugNow.ts`), so
+  on its own it only moved what the UI offered: a therapist simulated "an
+  hour after the session", saw Done, tapped it, and was told the session had
+  not started, because `complete-session` judged the join window against the
+  real clock. The two completion buttons now send the offset as
+  `x-debug-now-offset-ms` (`debugNowHeaders()`), and the route reads "now"
+  through `serverNowMs()` (`src/lib/debugClock.ts`), which honours it
+  **whenever the debug bar is on** (`isDebugNavVisible()`) - there is no
+  separate setting, because a bar that offers to simulate time has to do it
+  end to end. The cost is knowing what that means: completion is what makes a
+  therapist's share payable, the bar is on in every environment, and so while
+  it is on any signed-in therapist can send the header and complete a session
+  early. That is acceptable only while there are no real patients, and it
+  goes away with the bar - **delete the bar before launch** and the header is
+  ignored. The offset is bounded to a year either way. Every other
+  server-side time check stays on the real clock.
 - **No `.env` file that arms the reset is committed, and two have been.**
   `.env.production` armed both the public debug nav and the whole-database
   reset on the live site. `.env.development` then did the same thing one

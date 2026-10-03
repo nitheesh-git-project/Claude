@@ -42,7 +42,6 @@ function nowTimestamp() {
 import SpecialtyChip from "@/components/SpecialtyChip";
 import TherapistReadinessPanel from "@/components/admin/TherapistReadinessPanel";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
-import { readableTempPassword } from "@/lib/tempPassword";
 
 // Shared body for both the standalone /admin/dashboard/therapists/[id] page
 // (hard navigation, shareable link) and the @modal intercepted route that
@@ -124,7 +123,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
   ] = await Promise.all([
     admin
       .from("therapist_admin_notes")
-      .select("note, temp_password, temp_password_set_at")
+      .select("note")
       .eq("therapist_id", id)
       .maybeSingle(),
     admin
@@ -425,15 +424,11 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
             {/*
-              A credential the clinic issued stops being shown once it has
-              aged out -- see src/lib/tempPassword.ts. It had no end date, so
-              one nobody collected sat readable indefinitely while having no
-              support value left.
+              No password is shown or stored: the button issues a one-time
+              link for them to set their own -- see src/lib/accessLink.ts.
             */}
             <ResetTherapistPasswordButton
               therapistId={therapist.id}
-              currentPassword={readableTempPassword(note, nowTimestamp()).password}
-              currentPasswordSetAt={note?.temp_password_set_at}
             />
             {/* See the patient screen's note: Master Admin only, checked
                 again by the route. */}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { isProfileActive, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 
 // Short-lived signed URL for one report, for whoever may read it: the
 // patient, a therapist who treats them, or an admin. There is no role
@@ -14,7 +15,6 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 const SIGNED_URL_TTL_SECONDS = 120;
 
 export async function POST(request: NextRequest) {
-
   // Who is asking, before anything the caller sent is looked at. An
   // anonymous request is refused here rather than after body validation,
   // so an unauthenticated caller never drives this route's parsing and is
@@ -26,6 +26,15 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  // RLS decides *which* reports this caller may read, but RLS does not know
+  // about suspension: a suspended account's still-valid token would keep
+  // minting links to clinical files. Checked here for every role alike.
+  const activeStanding = await isProfileActive(user.id);
+  if (activeStanding === null) return profileCheckUnavailable();
+  if (!activeStanding) {
+    return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
+  }
+
   const { data: body, error: parseError } = await parseJsonBody<{ documentId?: string }>(request);
   if (parseError) return parseError;
 
@@ -35,11 +44,14 @@ export async function POST(request: NextRequest) {
   }
 
 
-  const { data: document } = await supabase
+  const { data: document, error: readError } = await supabase
     .from("patient_medical_documents")
     .select("storage_path, title, mime_type")
     .eq("id", documentId)
     .maybeSingle();
+  if (readError) {
+    return NextResponse.json({ error: "Could not open that report. Please try again." }, { status: 503 });
+  }
   if (!document) {
     return NextResponse.json({ error: "Report not found." }, { status: 404 });
   }

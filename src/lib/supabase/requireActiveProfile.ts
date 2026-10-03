@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Suspending a patient/therapist (profiles.active = false) is meant to lock
@@ -15,14 +16,32 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // a not-yet-approved patient holding a valid session could still call
 // /api/razorpay/create-order and friends directly and book a session the
 // admin never approved them for.
-export async function isProfileActiveAndApproved(userId: string): Promise<boolean> {
+//
+// Three answers, not two: `null` means the read failed and nothing is known.
+// It used to discard the error, so a failed read evaluated as active AND
+// approved -- the check failed open exactly when it could not be run. A
+// caller writing `if (!(await isProfileActiveAndApproved(id)))` now refuses
+// on null as well (fail closed); the callers that can, answer null with
+// `profileCheckUnavailable()` so the person is told to retry rather than
+// that they are suspended.
+export async function isProfileActiveAndApproved(userId: string): Promise<boolean | null> {
   const admin = createAdminClient();
-  const { data } = await admin
+  const { data, error } = await admin
     .from("profiles")
     .select("active, approved")
     .eq("id", userId)
     .single();
-  return data?.active !== false && data?.approved !== false;
+  if (error) return error.code === "PGRST116" ? false : null;
+  if (!data) return false;
+  return data.active === true && data.approved === true;
+}
+
+/** The 503 every caller of the three checks here answers `null` with. */
+export function profileCheckUnavailable(): NextResponse {
+  return NextResponse.json(
+    { error: "We couldn't check your account just now. Please try again." },
+    { status: 503 }
+  );
 }
 
 // The suspension half of the check above, without the approval gate.
@@ -44,14 +63,18 @@ export async function isProfileActiveAndApproved(userId: string): Promise<boolea
 // back in. Do not reach for this in place of isProfileActiveAndApproved on
 // any route where a real payment isn't the thing granting approval --
 // everywhere else, the approval gate is doing real work.
-export async function isProfileActive(userId: string): Promise<boolean> {
+//
+// Null when the read failed -- see isProfileActiveAndApproved.
+export async function isProfileActive(userId: string): Promise<boolean | null> {
   const admin = createAdminClient();
-  const { data } = await admin
+  const { data, error } = await admin
     .from("profiles")
     .select("active")
     .eq("id", userId)
     .single();
-  return data?.active !== false;
+  if (error) return error.code === "PGRST116" ? false : null;
+  if (!data) return false;
+  return data.active === true;
 }
 
 // One auth user carries exactly one role (profiles.id *is* the auth user's
@@ -73,14 +96,44 @@ export async function isProfileActive(userId: string): Promise<boolean> {
 // against an already-owned purchase (book-with-package, book-package-sessions,
 // book-visits) don't need it: a non-patient could never come to own the
 // purchase row they require in the first place.
-export async function isPatientProfile(userId: string): Promise<boolean> {
+//
+// Null when the read failed -- see isProfileActiveAndApproved.
+export async function isPatientProfile(userId: string): Promise<boolean | null> {
   const admin = createAdminClient();
-  const { data } = await admin
+  const { data, error } = await admin
     .from("profiles")
     .select("role")
     .eq("id", userId)
     .single();
+  if (error) return error.code === "PGRST116" ? false : null;
   return data?.role === "patient";
+}
+
+/**
+ * `isProfileActive` and `isPatientProfile` in one read, for the routes on the
+ * path to a payment sheet. They were two sequential queries against the same
+ * row on every checkout call -- `/api/appointments/create` and
+ * `/api/razorpay/create-order` each paid for both, back to back, while the
+ * patient watched a spinner. Same answers, same order (suspension first, so a
+ * suspended account is told that rather than "wrong role"), one round trip.
+ */
+export type PatientCheckoutStanding = "ok" | "unavailable" | "suspended" | "not_patient";
+
+export async function readPatientCheckoutStanding(
+  userId: string
+): Promise<PatientCheckoutStanding> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("role, active")
+    .eq("id", userId)
+    .single();
+  // A failed read is not a refusal; PGRST116 is the one genuine "no row",
+  // which isProfileActive answers as not-active.
+  if (error) return error.code === "PGRST116" ? "suspended" : "unavailable";
+  if (!data || data.active !== true) return "suspended";
+  if (data.role !== "patient") return "not_patient";
+  return "ok";
 }
 
 // Grants the same vetting a human admin would, the moment a self-signup

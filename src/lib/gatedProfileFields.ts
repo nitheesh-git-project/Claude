@@ -7,5 +7,9 @@ export const GATED_PROFILE_FIELDS: Record<string, string[]> = {
   // A partner's organisation name is shown to the patients they refer, so
   // it is a trust claim in exactly the way a therapist's credentials are --
   // it goes through review rather than being directly writable.
-  hospital: ["organization_name", "full_name", "phone"],
+  //
+  // Email is the partner's sign-in as well as their contact address, so a
+  // change is reviewed like the others and, once approved, moves the login
+  // too (see approve-profile-change).
+  hospital: ["organization_name", "full_name", "phone", "email"],
 };

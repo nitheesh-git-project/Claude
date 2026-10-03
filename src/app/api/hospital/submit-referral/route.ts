@@ -9,12 +9,24 @@ import {
   getProfileStanding,
 } from "@/lib/supabase/requireActiveProfile";
 import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import {
+  MIN_HOME_VISIT_ADDRESS_LENGTH,
+  OPEN_REFERRAL_STATUSES,
+  REFERRAL_LIMITS,
+} from "@/lib/referralLimits";
+import { lookupServiceArea } from "@/lib/serviceAreaServer";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 
-const MAX_NAME_LENGTH = 120;
-const MAX_ADDRESS_LENGTH = 500;
-const MAX_ISSUE_LENGTH = 2000;
-const MAX_TREATMENT_LENGTH = 1000;
-const MAX_LANGUAGE_LENGTH = 40;
+/** Clinically relevant text is accepted whole or refused, never cut. */
+function tooLong(value: string, max: number, label: string): NextResponse | null {
+  return value.length > max
+    ? NextResponse.json(
+        { error: `${label} is too long (${value.length} characters; the limit is ${max}). Please shorten it.` },
+        { status: 400 }
+      )
+    : null;
+}
+
 const VISIT_MODES = ["online", "home_visit"] as const;
 
 /**
@@ -46,6 +58,9 @@ const VISIT_MODES = ["online", "home_visit"] as const;
  * The policy and the insert grant are dropped at the end of `schema.sql`,
  * the same move `appointments_insert_own` and `b2b_leads_insert_public` got.
  */
+const ALREADY_REFERRED =
+  "You've already referred this patient and the clinic is still working on it. You can follow it under Your Referrals.";
+
 export async function POST(request: NextRequest) {
   // Who is asking, before anything they sent is read.
   const supabase = await createClient();
@@ -77,10 +92,7 @@ export async function POST(request: NextRequest) {
   }>(request);
   if (parseError) return parseError;
 
-  const patientName =
-    typeof body.patientName === "string"
-      ? body.patientName.trim().slice(0, MAX_NAME_LENGTH)
-      : "";
+  const patientName = typeof body.patientName === "string" ? body.patientName.trim() : "";
   if (!patientName) {
     return NextResponse.json(
       { error: "Enter the patient's full name." },
@@ -99,10 +111,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const medicalIssue =
-    typeof body.medicalIssue === "string"
-      ? body.medicalIssue.trim().slice(0, MAX_ISSUE_LENGTH)
-      : "";
+  const medicalIssue = typeof body.medicalIssue === "string" ? body.medicalIssue.trim() : "";
   if (!medicalIssue) {
     return NextResponse.json(
       { error: "Describe the patient's medical issue." },
@@ -142,16 +151,94 @@ export async function POST(request: NextRequest) {
     pincode = raw;
   }
 
-  const address =
-    typeof body.address === "string" ? body.address.trim().slice(0, MAX_ADDRESS_LENGTH) : "";
-  const preferredLanguage =
-    typeof body.preferredLanguage === "string"
-      ? body.preferredLanguage.trim().slice(0, MAX_LANGUAGE_LENGTH)
-      : "";
+  const address = typeof body.address === "string" ? body.address.trim() : "";
+  const preferredLanguageRaw =
+    typeof body.preferredLanguage === "string" ? body.preferredLanguage.trim() : "";
   const treatmentNeeded =
-    typeof body.treatmentNeeded === "string"
-      ? body.treatmentNeeded.trim().slice(0, MAX_TREATMENT_LENGTH)
-      : "";
+    typeof body.treatmentNeeded === "string" ? body.treatmentNeeded.trim() : "";
+
+  const lengthRefusal =
+    tooLong(patientName, REFERRAL_LIMITS.patientName, "The patient's name") ??
+    tooLong(address, REFERRAL_LIMITS.address, "The address") ??
+    tooLong(medicalIssue, REFERRAL_LIMITS.medicalIssue, "The medical issue") ??
+    tooLong(treatmentNeeded, REFERRAL_LIMITS.treatmentNeeded, "Treatment needed");
+  if (lengthRefusal) return lengthRefusal;
+
+  const admin = createAdminClient();
+
+  // Only a language the clinic actually books in. Any string used to be
+  // stored, so a referral could ask for a language no therapist or booking
+  // workflow supports.
+  let preferredLanguage: string | null = null;
+  if (preferredLanguageRaw) {
+    const { data: settingsRow } = await admin.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle();
+    const offered = parseAdminSettings(settingsRow).bookingLanguages;
+    const match = offered.find((l) => l.toLowerCase() === preferredLanguageRaw.toLowerCase());
+    if (!match) {
+      return NextResponse.json(
+        { error: `Choose one of the languages we offer: ${offered.join(", ")}.` },
+        { status: 400 }
+      );
+    }
+    preferredLanguage = match;
+  }
+
+  if (visitMode === "home_visit") {
+    // A therapist needs somewhere to go. A pincode alone used to be enough,
+    // and conversion then booked the visit at "Address on file with
+    // referring hospital".
+    if (address.length < MIN_HOME_VISIT_ADDRESS_LENGTH) {
+      return NextResponse.json(
+        { error: "Enter the patient's full address for a home visit referral." },
+        { status: 400 }
+      );
+    }
+    // And somewhere the clinic goes. The format alone used to be checked.
+    const lookup = await lookupServiceArea(admin, pincode as string);
+    if (!lookup.ok) {
+      return NextResponse.json(
+        { error: "We couldn't check that pincode just now. Please try again." },
+        { status: 503 }
+      );
+    }
+    if (!lookup.area) {
+      return NextResponse.json(
+        {
+          error:
+            "We don't visit that pincode yet. Please refer this patient for an online session instead.",
+        },
+        { status: 409 }
+      );
+    }
+  }
+
+  // One open referral per patient per partner. A second for the same phone
+  // number while the first is still with the clinic meant duplicate calls,
+  // duplicate therapist assignments and two registration links. This check
+  // gives the sentence; the partial unique index
+  // `patient_referrals_one_open_per_phone` is what holds it when two
+  // submissions race past the check together (see the insert below).
+  const { data: open, error: openError } = await admin
+    .from("patient_referrals")
+    .select("id")
+    .eq("hospital_id", user.id)
+    .eq("patient_phone", patientPhone)
+    .in("status", [...OPEN_REFERRAL_STATUSES])
+    .limit(1);
+  if (openError) {
+    return NextResponse.json(
+      { error: "We couldn't check your existing referrals just now. Please try again." },
+      { status: 503 }
+    );
+  }
+  if ((open ?? []).length > 0) {
+    return NextResponse.json(
+      {
+        error: ALREADY_REFERRED,
+      },
+      { status: 409 }
+    );
+  }
 
   // Counted after the shape is checked, per the ordering rule: the limiter
   // costs a round trip where the checks above cost a trim and a regex, and
@@ -167,12 +254,12 @@ export async function POST(request: NextRequest) {
   // Service role for the insert: `hospital_id` is taken from the session
   // rather than the body, so there is nothing a caller could point at
   // somebody else's account.
-  const { error } = await createAdminClient().from("patient_referrals").insert({
+  const { error } = await admin.from("patient_referrals").insert({
     hospital_id: user.id,
     patient_name: patientName,
     patient_phone: patientPhone,
     address: address || null,
-    preferred_language: preferredLanguage || null,
+    preferred_language: preferredLanguage,
     medical_issue: medicalIssue,
     treatment_needed: treatmentNeeded || null,
     visit_mode: visitMode,
@@ -180,6 +267,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
+    // Two submissions raced past the check above and the index refused the
+    // second -- the same answer the check would have given it.
+    if (error.code === "23505") {
+      return NextResponse.json({ error: ALREADY_REFERRED }, { status: 409 });
+    }
     console.error("Could not record a patient referral", error.message);
     return NextResponse.json(
       { error: "Could not submit the referral. Please try again." },

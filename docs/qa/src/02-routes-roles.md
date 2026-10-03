@@ -16,6 +16,8 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/mission` | Mission, vision, four promises, testimonials | Public | `PUB-NAV-001` |
 | `/faq` | Admin-managed FAQ accordion | Public | `PUB-FAQ-001` |
 | `/hospitals` | Partner pitch plus the hospital enquiry form | Public | `HOS-LEAD-001` |
+| `/developer` | "Say hello!" - the developer credit's landing card. Reached only from the footer's "Contact me" link; not in the nav. **404s while Settings → Dev Reachouts has the credit switched off** | Public | `PUB-DEV-001` |
+| `/developer/lets-talk` | "Let's talk" - the contact form (name, email, optional number, message). **404s while the credit is switched off** | Public | `PUB-DEV-001`, `PUB-DEV-002` |
 | `/get-started` | Role hub - where a signed-in user of the wrong role is sent | Public | `SEC-ROUTE-003` |
 
 ### 3.2 Booking
@@ -66,7 +68,7 @@ Every route below is covered by at least one test. The rightmost column names th
 
 ### 3.6 Admin back office
 
-`/admin/login` and `/admin/dashboard`. The dashboard is one page; the screen is chosen by `?section=&tab=`. All 31 screens:
+`/admin/login` and `/admin/dashboard`. The dashboard is one page; the screen is chosen by `?section=&tab=`. All 32 screens:
 
 | Section | Tab key | Screen | Covered by |
 | --- | --- | --- | --- |
@@ -106,6 +108,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `health` | System Health | `ADM-SET-030` |
 | Settings | `security` | Sign-in & Security | `ADM-SET-035` |
 | Settings | `advanced` | Advanced | `ADM-SET-019` |
+| Settings | `reachouts` | Dev Reachouts (Master Admin only) | `ADM-SET-038` |
 
 Detail routes (open as an overlay from the dashboard, and as a full page on direct navigation):
 
@@ -126,7 +129,7 @@ Detail routes (open as an overlay from the dashboard, and as a full page on dire
 
 ### 3.8 API routes
 
-The application exposes 150+ POST route handlers under `/api`, grouped by audience: `admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`, `packages/`, `home-visit/`, `care-plan/`, `razorpay/`, and `medical-documents/`. Individual routes are named inside the tests that exercise them. The security section calls them directly **from the browser's DevTools console** - no terminal, see §5.1a - in `SEC-ROUTE-002` (anonymous), `SEC-ADMIN-002` (wrong role) and `SEC-TAMPER-*` (manipulated bodies).
+The application exposes 150+ POST route handlers under `/api`, grouped by audience: `admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`, `packages/`, `home-visit/`, `care-plan/`, `razorpay/`, `developer/` (the one public "Say hello" write door) and `medical-documents/`. Individual routes are named inside the tests that exercise them. The security section calls them directly **from the browser's DevTools console** - no terminal, see §5.1a - in `SEC-ROUTE-002` (anonymous), `SEC-ADMIN-002` (wrong role) and `SEC-TAMPER-*` (manipulated bodies).
 
 ---
 

@@ -34,6 +34,37 @@
  * medical record has to be right.
  */
 
+/**
+ * Which appointments carry clinical access: live ones (the therapist must be
+ * able to prepare) and delivered ones (they must be able to answer for the
+ * care). A **cancelled** session never does -- a therapist attached only to
+ * a session that was cancelled never treated this patient, and used to keep
+ * reading their documents, exams and other clinicians' notes regardless.
+ * The RLS policies in schema.sql hold the same list; keep them together.
+ */
+export const CLINICAL_ACCESS_APPOINTMENT_STATUSES = ["requested", "confirmed", "completed"] as const;
+
+export function appointmentGrantsClinicalAccess(status: string | null | undefined): boolean {
+  return (CLINICAL_ACCESS_APPOINTMENT_STATUSES as readonly string[]).includes(status ?? "");
+}
+
+/**
+ * Whether a programme lock carries clinical access on its own: the
+ * programme is paid for, still active, and not past its expiry. A refunded,
+ * cancelled or lapsed programme is no longer a relationship with the
+ * patient -- the sessions actually delivered under it keep their access
+ * through the appointment rule above.
+ */
+export function programmeLockGrantsClinicalAccess(
+  purchase: { payment_status?: string | null; status?: string | null; expires_at?: string | null },
+  nowMs: number
+): boolean {
+  if (purchase.payment_status !== "paid") return false;
+  if (purchase.status !== "active") return false;
+  if (purchase.expires_at && Date.parse(purchase.expires_at) <= nowMs) return false;
+  return true;
+}
+
 export type ClinicalAccessSource = {
   therapistId: string;
   /** ISO instant of the session, or null for a programme lock. */

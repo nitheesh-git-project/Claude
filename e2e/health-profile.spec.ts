@@ -152,12 +152,15 @@ test.beforeAll(async () => {
   ]);
 
   // Assignment is what /onboard gates on: one past appointment is enough.
+  // A *completed* one -- a cancelled session grants no clinical access, and a
+  // Pain Map exam needs a session that has actually happened.
   for (const tid of [therapistId]) {
     const { count } = await admin
       .from("appointments")
       .select("id", { count: "exact", head: true })
       .eq("patient_id", patientId)
-      .eq("therapist_id", tid);
+      .eq("therapist_id", tid)
+      .eq("status", "completed");
     if (!count) {
       await admin.from("appointments").insert({
         patient_id: patientId,
@@ -704,6 +707,36 @@ test("INT-002: a dropped connection during submit is reported, not swallowed", a
   await ctx.close();
 });
 
+test("INT-009: a free-text answer takes a whole sentence, not one letter", async ({ browser }) => {
+  // The wizard's focus effect used to re-run on every keystroke and hand
+  // focus back to the button that opened it, so each letter landed and the
+  // next one went nowhere. Typed key by key on purpose -- `fill()` sets the
+  // value in one go and would pass on the broken build.
+  await seedProfile("ortho", ORTHO_ANSWERS);
+  const { ctx, page } = await pageAs(browser, PATIENT);
+
+  await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  await page.getByRole("button", { name: /Add more detail|Review or update answers/i }).click(SEEN);
+
+  const field = page.locator('[role="dialog"] textarea[id^="intake-"], [role="dialog"] input[type="text"][id^="intake-"]');
+  const intro = page.getByRole("button", { name: /^(Start|Continue)$/ });
+  const next = page.getByRole("button", { name: /^(Next|Skip)$/ });
+  if (await intro.isVisible().catch(() => false)) await intro.click();
+  for (let i = 0; i < 12 && !(await field.first().isVisible().catch(() => false)); i++) {
+    await next.click();
+    await page.waitForTimeout(200);
+  }
+  const input = field.first();
+  await expect(input).toBeVisible(SEEN);
+  await input.click();
+  await input.fill("");
+  const sentence = "Climbing stairs and sitting long";
+  await input.pressSequentially(sentence, { delay: 30 });
+  await expect(input).toHaveValue(sentence);
+  await expect(input).toBeFocused();
+  await ctx.close();
+});
+
 test("INT-001/008: an interrupted fill survives the wizard closing", async ({ request }) => {
   await seedProfile("ortho", ORTHO_ANSWERS);
   const draft = await post(request, "/api/patient/condition-profile/save-draft", patientCookie, {
@@ -715,6 +748,56 @@ test("INT-001/008: an interrupted fill survives the wizard closing", async ({ re
   expect((row?.draft_data as Record<string, string>).worsens).toBe("Stairs");
   // And it is attributed, so it is offered back to the right person.
   expect(row?.draft_saved_by_role).toBe("patient");
+});
+
+test("SEC-007: a cancelled session grants no access, and a future one allows no Pain Map exam", async ({
+  request,
+}) => {
+  await seedProfile("ortho", ORTHO_ANSWERS);
+  const otherCookie = await cookieHeaderFor(OTHER_THERAPIST);
+  const { data: appt } = await admin
+    .from("appointments")
+    .insert({
+      patient_id: patientId,
+      therapist_id: otherTherapistId,
+      slot_time: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+      status: "cancelled",
+      payment_status: "unpaid",
+      visit_mode: "online",
+    })
+    .select("id")
+    .single();
+  try {
+    // Only a cancelled session links them: no clinical access at all.
+    const cancelled = await post(request, "/api/therapist/pain-assessments/submit", otherCookie, {
+      patientId,
+      region: "knee",
+      side: "right",
+      answers: [],
+      painPercent: 40,
+    });
+    expect(cancelled.status()).toBe(403);
+
+    // Confirmed but days away: assigned, yet nothing has been observed yet.
+    await admin.from("appointments").update({ status: "confirmed" }).eq("id", appt!.id);
+    const early = await post(request, "/api/therapist/pain-assessments/submit", otherCookie, {
+      patientId,
+      region: "knee",
+      side: "right",
+      answers: [],
+      painPercent: 40,
+    });
+    expect(early.status()).toBe(409);
+
+    const { count } = await admin
+      .from("pain_assessments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", patientId)
+      .eq("submitted_by", otherTherapistId);
+    expect(count).toBe(0);
+  } finally {
+    await admin.from("appointments").delete().eq("id", appt!.id);
+  }
 });
 
 test("INT-005: two therapists onboarding at once leave one coherent record", async ({

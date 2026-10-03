@@ -62,6 +62,11 @@ export default function DataExportButtons<T>({
           filename,
           title: heading,
           subtitle,
+          // The section this table is on, read from the address the shell
+          // keeps current. The route refuses a section the caller's scope
+          // cannot open, so a desk cannot print a clinic-branded document
+          // from data it is not allowed to see.
+          section: new URLSearchParams(window.location.search).get("section") ?? "today",
           columns: columns.map((column) => column.header),
           rows: rows.map((row) => columns.map((column) => String(column.value(row)))),
         }),

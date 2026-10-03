@@ -89,3 +89,46 @@ export async function readAllRows<T>(
 
   return { rows, truncated: true, error: null };
 }
+
+/**
+ * `readAllRows` over an `.in(column, ids)` filter, in chunks.
+ *
+ * A long id list is a long URL, and PostgREST (and the proxies in front of
+ * it) refuse one past a few kilobytes -- so a partner with a few hundred
+ * referred patients stopped getting an answer at all. Each chunk is paged in
+ * full; any chunk failing fails the whole read, same rule as above.
+ */
+export const ID_CHUNK_SIZE = 150;
+
+export async function readAllRowsByIds<T>(
+  ids: string[],
+  build: (chunk: string[]) => RangeableQuery<T>,
+  options?: { maxRows?: number }
+): Promise<ReadAllResult<T>> {
+  const rows: T[] = [];
+  let truncated = false;
+  for (let i = 0; i < ids.length; i += ID_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + ID_CHUNK_SIZE);
+    const result = await readAllRows(() => build(chunk), options);
+    if (result.error) return { rows: [], truncated: false, error: result.error };
+    rows.push(...result.rows);
+    truncated ||= result.truncated;
+  }
+  return { rows, truncated, error: null };
+}
+
+/**
+ * `readAllRows` in the `{ data, error }` shape a `Promise.all` of plain
+ * PostgREST calls already destructures, so a loader can swap a capped
+ * `.select()` for a paged one without restructuring. A walk that hit
+ * `maxRows` carries a `truncated` error rather than a quietly short list.
+ */
+export async function readAllRowsAsData<T>(
+  build: () => RangeableQuery<T>,
+  options?: { maxRows?: number }
+): Promise<{ data: T[] | null; error: unknown }> {
+  const result = await readAllRows(build, options);
+  if (result.error) return { data: null, error: result.error };
+  if (result.truncated) return { data: result.rows, error: { message: "truncated", code: "TRUNCATED" } };
+  return { data: result.rows, error: null };
+}

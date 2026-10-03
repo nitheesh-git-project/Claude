@@ -362,6 +362,16 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   It takes an `active` flag because `Modal.tsx` stays mounted and toggles
   `open` -- a hook that locked body scroll while closed is the bug that flag
   exists to prevent.
+- **A dialog's open/close effect never depends on something that changes
+  per keystroke.** The effect that records the opener, moves focus in and
+  restores it on cleanup must run once per open: key it on a handler rebuilt
+  each render (an inline `onClose`, or a `close` that closes over the form's
+  values) and every keystroke re-runs it, the cleanup hands focus back to the
+  opener, and only one letter lands at a time. That is what the health
+  profile's intake wizard did. Hold the handler in a ref, as
+  `useDialogChrome` does; the six hand-rolled dialogs (intake wizard,
+  session note, the two package dialogs, the two home-visit dialogs) now do
+  the same.
 - **A row you can tap spreads `rowActivationProps`** (`src/lib/rowActivation.ts`),
   never a bare `onClick`. Nine `<tr>`/`<li>` rows shipped with a click handler
   and nothing else -- no tab stop, no key handler, and in every one of the nine
@@ -650,3 +660,16 @@ because the route validates them against `MISSION_ICONS` in
 `src/lib/mission.ts`, which is a literal array the scanner can see. Keep it
 that way: an icon name built by concatenation, or accepted from a text box,
 is invisible to any tooling here.
+
+- **An error that appears off-screen is not shown, so the page goes to it.**
+  `FormValidationChrome` covers what the browser refuses (`required`, `type`);
+  rules a form checks in JavaScript used to say so in a banner at the top of the
+  form, so on a phone the tap on Continue seemed to do nothing. Two layers now:
+  `revealField(idOrElement)` (`src/lib/revealField.ts`) scrolls to and focuses
+  the field, rings it with the same `data-invalid` mark, and clears it on input
+  -- call it from a validator after `setError`, as both booking wizards do; and
+  `ErrorAutoScroll` (mounted in the root layout) brings any banner in the app's
+  error style (`[data-form-error]`, or `bg-red-50` + `border-red-200`) into view
+  when it appears within ~1.5s of a tap/key/submit and is outside the viewport.
+  A new form's validator should name the field, not rely on the safety net;
+  `data-no-autoscroll` opts a region out.

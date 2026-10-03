@@ -28,6 +28,11 @@ export type AdminActivityAction =
   // that an admin was at the keyboard at all.
   | "impersonation.start"
   | "impersonation.end"
+  // A change made while signed in as somebody else. Written by the proxy for
+  // every non-GET API call during the window, under the ADMIN's id -- the
+  // route itself records it (if at all) as the person being impersonated,
+  // so without this the trail showed the patient doing what the admin did.
+  | "impersonation.action"
   | "account.reset_password"
   | "profile_change.approve"
   | "profile_change.decline"
@@ -149,6 +154,8 @@ export type AdminActivityAction =
   | "session.retry_meet_sync"
   | "home_visit.waitlist_status"
   | "lead.update_status"
+  | "dev_reachout.update_status"
+  | "dev_reachout.update_note"
   | "referral.set_capacity_note"
   // The clinical layer: who let a therapist into a patient's record, who
   // decided a change to it, and who reworded the questions themselves.
@@ -230,24 +237,53 @@ export async function recordAdminActivity(
   actorId: string,
   entry: AdminActivityEntry
 ): Promise<boolean> {
+  // Two attempts. The action this records has already happened, so the
+  // trail is best-effort by design -- but a single dropped insert used to
+  // be the whole of that effort, and the history is what an owner reads to
+  // find out who did what. A second attempt costs nothing on the success
+  // path and closes the transient failures.
+  let lastError = "unknown error";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { error } = await admin.from("admin_activity_log").insert({
+        actor_id: actorId,
+        action: entry.action,
+        target_id: entry.targetId ?? null,
+        target_label: entry.targetLabel ?? null,
+        amount_paise: entry.amountPaise ?? null,
+        details: entry.details ?? null,
+      });
+      if (!error) return true;
+      lastError = error.message;
+      console.error("admin activity log write failed", entry.action, attempt, error.message);
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      console.error("admin activity log write threw", entry.action, attempt, err);
+    }
+  }
+
+  // Both attempts failed. The entry used to exist only in the server log
+  // above, while All Activity went on reading as the complete history. It
+  // goes to admin_activity_gaps instead -- a deliberately minimal table, so
+  // whatever refused the main log is unlikely to refuse this -- where System
+  // Health counts it and the activity screen lists it. Still best-effort:
+  // if even this fails, the console line is all that is left, and the
+  // caller still gets `false`.
   try {
-    const { error } = await admin.from("admin_activity_log").insert({
+    const { error } = await admin.from("admin_activity_gaps").insert({
       actor_id: actorId,
       action: entry.action,
       target_id: entry.targetId ?? null,
       target_label: entry.targetLabel ?? null,
       amount_paise: entry.amountPaise ?? null,
       details: entry.details ?? null,
+      error: lastError.slice(0, 500),
     });
-    if (error) {
-      console.error("admin activity log write failed", entry.action, error.message);
-      return false;
-    }
-    return true;
+    if (error) console.error("admin activity gap could not be recorded either", entry.action, error.message);
   } catch (err) {
-    console.error("admin activity log write threw", entry.action, err);
-    return false;
+    console.error("admin activity gap could not be recorded either", entry.action, err);
   }
+  return false;
 }
 
 // Labels for the Activity Log screen. Kept beside the action union so a new
@@ -260,6 +296,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "account.delete": "Deleted an account",
   "impersonation.start": "Signed in as a user",
   "impersonation.end": "Stopped signing in as a user",
+  "impersonation.action": "Made a change while signed in as a user",
   "account.reset_password": "Reset password",
   "profile_change.approve": "Approved profile change",
   "profile_change.decline": "Declined profile change",
@@ -335,6 +372,8 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "session.retry_meet_sync": "Retried a Meet sync",
   "home_visit.waitlist_status": "Moved a waitlist entry",
   "lead.update_status": "Moved a lead",
+  "dev_reachout.update_status": "Moved a developer reachout",
+  "dev_reachout.update_note": "Saved a note on a developer reachout",
   "referral.set_capacity_note": "Edited the referral capacity note",
   "condition_access.decide": "Decided a record-access request",
   "condition_change.decide": "Decided a health-profile change",

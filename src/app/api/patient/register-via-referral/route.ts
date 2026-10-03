@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { findAreaForPincode } from "@/lib/homeVisitAreas";
+import { lookupServiceArea } from "@/lib/serviceAreaServer";
+import { MIN_HOME_VISIT_ADDRESS_LENGTH } from "@/lib/referralLimits";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
@@ -25,13 +26,71 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
+  // Everything that can refuse this conversion is checked BEFORE anything
+  // is written. The referral used to be marked converted first and the
+  // area looked up last -- so an unserviceable pincode, or a failed read,
+  // booked a home visit at zero travel and no area, and a later failure
+  // left the referral converted with no session behind it and its link
+  // burned for good.
+  const { data: preview, error: previewError } = await admin
+    .from("patient_referrals")
+    .select("id, visit_mode, address, pincode")
+    .eq("invite_token", token)
+    .eq("status", "invite_sent")
+    .maybeSingle();
+  if (previewError) {
+    return NextResponse.json(
+      { error: "We couldn't check this invite just now. Please try again." },
+      { status: 503 }
+    );
+  }
+  if (!preview) {
+    return NextResponse.json(
+      { error: "This invite link is invalid or has already been used." },
+      { status: 400 }
+    );
+  }
+
+  const isHomeVisit = preview.visit_mode === "home_visit";
+  let travelFeePaise = 0;
+  let areaId: string | null = null;
+  if (isHomeVisit) {
+    // A therapist needs a real address, and the clinic has to serve it.
+    // Neither is waved through with a placeholder or a zero travel fee.
+    const address = (preview.address ?? "").trim();
+    if (address.length < MIN_HOME_VISIT_ADDRESS_LENGTH || !preview.pincode) {
+      return NextResponse.json(
+        {
+          error:
+            "We need the full home address for this visit before you can register. Please contact the clinic and we'll sort it out.",
+        },
+        { status: 409 }
+      );
+    }
+    const lookup = await lookupServiceArea(admin, preview.pincode);
+    if (!lookup.ok) {
+      return NextResponse.json(
+        { error: "We couldn't check your area just now. Please try again." },
+        { status: 503 }
+      );
+    }
+    if (!lookup.area) {
+      return NextResponse.json(
+        {
+          error:
+            "We don't visit that area at the moment. Please contact the clinic -- we can arrange an online session instead.",
+        },
+        { status: 409 }
+      );
+    }
+    travelFeePaise = lookup.area.travel_fee_paise ?? 0;
+    areaId = lookup.area.id;
+  }
+
   // Atomically claim the referral by flipping its status in the same
-  // statement that checks it's still "invite_sent" - the update's WHERE
-  // clause is evaluated and applied under a row lock in Postgres, so if
-  // the same link is submitted twice at once (e.g. opened in two tabs),
-  // only one request can win this update; the other gets 0 rows back
-  // here instead of both racing past a separate SELECT check and each
-  // creating their own account/appointment for the same referral.
+  // statement that checks it's still "invite_sent" -- if the same link is
+  // submitted twice at once (two tabs), only one request wins and the
+  // other gets 0 rows back instead of both creating an account.
   const { data: referral, error: claimError } = await admin
     .from("patient_referrals")
     .update({ status: "converted" })
@@ -59,88 +118,64 @@ export async function POST(request: NextRequest) {
   if (createError || !created.user) {
     // Account creation failed after the claim - release it so the same
     // link can be retried instead of being permanently burned.
-    await admin
-      .from("patient_referrals")
-      .update({ status: "invite_sent" })
-      .eq("id", referral.id);
+    await releaseReferral(admin, referral.id);
     return NextResponse.json(
       { error: createError?.message ?? "Could not create account" },
       { status: 500 }
     );
   }
+  const patientId = created.user.id;
 
-  // approved: true is set here because self-serve patient signups now start
-  // unapproved and wait on the admin (same gate therapist applications go
-  // through). A hospital-referred patient has already been vetted by the
-  // admin - they assigned the therapist and issued this invite link - so
-  // making them wait again would strand a patient who is about to pay for a
-  // session that's already scheduled.
-  // Attribution is the whole commercial point of a referral, so it gets a
-  // retry and a reconciliation rather than a log line.
-  //
-  // This was one best-effort write behind a console.error, and its own
-  // comment said a failure "would silently break revenue attribution" --
-  // which understates it: `referred_by_hospital_id` is what every commission
-  // figure reads, so a partner would earn nothing on this patient's first
-  // session and nothing on any of them, for ever, with no error anywhere
-  // because the registration itself worked.
-  //
-  // It is still not fatal to the patient, deliberately: they have an account
-  // and a session booked, and failing their registration over the clinic's
-  // own bookkeeping would be the wrong trade. What changes is that the gap
-  // is no longer invisible. `patient_referrals.converted_patient_id` is
-  // written below and is the durable record that makes it detectable, and
-  // Settings -> System Health -> Partner attribution is the check that
-  // compares the two.
-  let attributionError: { message: string } | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const { error } = await admin
+  // From here every step the referral depends on either lands or the whole
+  // conversion is undone: the account just created is removed and the link
+  // works again. A converted referral with no patient linked, no partner
+  // attribution or no session is worse than a link the patient can retry --
+  // it was invisible to the attribution check (which only looked at linked
+  // rows) and earned the partner nothing, permanently.
+  const undo = async (step: string, cause: unknown) => {
+    console.error(`register-via-referral: ${step} failed; rolling back`, referral.id, cause);
+    const { error: deleteError } = await admin.auth.admin.deleteUser(patientId);
+    if (deleteError) {
+      console.error("register-via-referral: could not remove the half-created account", patientId, deleteError.message);
+    }
+    await releaseReferral(admin, referral.id);
+    return NextResponse.json(
+      {
+        error:
+          "We couldn't finish setting up your account, so nothing was kept. Please open your invite link and try again.",
+      },
+      { status: 503 }
+    );
+  };
+
+  // The durable link from the referral to the patient, written first: it is
+  // what Settings -> System Health -> Partner attribution compares against.
+  const linked = await withRetry(() =>
+    admin.from("patient_referrals").update({ converted_patient_id: patientId }).eq("id", referral.id)
+  );
+  if (linked) return undo("recording converted_patient_id", linked);
+
+  // approved: true because a hospital-referred patient has already been
+  // vetted by the admin (they assigned the therapist and issued this link).
+  // referred_by_hospital_id is what every commission figure reads, so it is
+  // required, not best-effort.
+  const attributed = await withRetry(() =>
+    admin
       .from("profiles")
       .update({ referred_by_hospital_id: referral.hospital_id, approved: true })
-      .eq("id", created.user.id);
-    if (!error) {
-      attributionError = null;
-      break;
-    }
-    attributionError = error;
-  }
-  if (attributionError) {
-    console.error(
-      "Failed to set referred_by_hospital_id for",
-      created.user.id,
-      "- Settings -> System Health -> Partner attribution will report this",
-      attributionError
-    );
-  }
-
-  // A home-visit referral has no home_visit_package_purchases row behind
-  // it (it's a single hospital-arranged appointment, not a programme), so
-  // it never goes through bookHomeVisitSession -- the address and travel
-  // fee are snapshotted here directly, same fields, same reasoning: an
-  // appointment must carry its own copy so a later edit to the source
-  // (here, the referral row itself, which admin can't even edit - but the
-  // pattern still holds) can't silently rewrite a visit already delivered.
-  const isHomeVisit = referral.visit_mode === "home_visit";
-  let travelFeePaise = 0;
-  let areaId: string | null = null;
-  if (isHomeVisit && referral.pincode) {
-    const { data: areas } = await admin
-      .from("home_visit_areas")
-      .select("id, city, area_name, pincode, travel_fee_paise, active")
-      .eq("active", true);
-    const area = findAreaForPincode(areas ?? [], referral.pincode);
-    travelFeePaise = area?.travel_fee_paise ?? 0;
-    areaId = area?.id ?? null;
-  }
+      .eq("id", patientId)
+  );
+  if (attributed) return undo("partner attribution", attributed);
 
   // Left as "requested"/unpaid on purpose - the therapist and slot are
   // already arranged, but the session isn't confirmed until the patient
   // actually pays. Payment verification (see /api/razorpay/verify) flips
-  // this to "confirmed" once payment_status is set to "paid".
+  // this to "confirmed" once payment_status is set to "paid". A home visit
+  // carries its own snapshot of the address and travel fee.
   const { data: appointment, error: appointmentError } = await admin
     .from("appointments")
     .insert({
-      patient_id: created.user.id,
+      patient_id: patientId,
       therapist_id: referral.assigned_therapist_id,
       slot_time: referral.assigned_slot_time,
       concern: referral.medical_issue,
@@ -151,7 +186,7 @@ export async function POST(request: NextRequest) {
       ...(isHomeVisit
         ? {
             visit_mode: "home_visit",
-            visit_address_line1: referral.address || "Address on file with referring hospital",
+            visit_address_line1: (referral.address ?? "").trim(),
             visit_pincode: referral.pincode,
             visit_area_id: areaId,
             travel_fee_paise: travelFeePaise,
@@ -162,44 +197,23 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (appointmentError || !appointment) {
-    // The account was already created at this point, so don't leave the
-    // patient stuck with no explanation - they can sign in and contact
-    // support even though there's nothing to pay for yet.
-    console.error("Failed to create appointment for referral", referral.id, appointmentError);
-    return NextResponse.json(
-      {
-        error:
-          "Your account was created, but we couldn't set up your booking. Please sign in and contact us.",
-      },
-      { status: 500 }
-    );
+    return undo("creating the appointment", appointmentError);
   }
 
   // Best-effort: gives the patient a starting entry in their own address
-  // book (patient_referrals.address was otherwise dead data, never read
-  // again after conversion) so a future home-visit booking or programme
-  // doesn't start from a blank form. Never blocks the flow the patient is
-  // already through - the appointment's own snapshot above is what
-  // actually governs this first visit regardless of whether this succeeds.
+  // book so a future home-visit booking doesn't start from a blank form.
+  // The appointment's own snapshot above governs this first visit.
   if (isHomeVisit && referral.address && referral.pincode) {
     const { error: addressError } = await admin.from("patient_addresses").insert({
-      patient_id: created.user.id,
+      patient_id: patientId,
       line1: referral.address,
       pincode: referral.pincode,
       area_id: areaId,
       is_default: true,
     });
     if (addressError) {
-      console.error("Failed to save address for referred patient", created.user.id, addressError);
+      console.error("Failed to save address for referred patient", patientId, addressError);
     }
-  }
-
-  const { error: referralUpdateError } = await admin
-    .from("patient_referrals")
-    .update({ converted_patient_id: created.user.id })
-    .eq("id", referral.id);
-  if (referralUpdateError) {
-    console.error("Failed to record converted_patient_id", referral.id, referralUpdateError);
   }
 
   return NextResponse.json({
@@ -207,4 +221,27 @@ export async function POST(request: NextRequest) {
     appointmentId: appointment.id,
     concern: referral.medical_issue,
   });
+}
+
+/** Puts a claimed referral back so its link works again. */
+async function releaseReferral(admin: ReturnType<typeof createAdminClient>, referralId: string) {
+  const { error } = await admin
+    .from("patient_referrals")
+    .update({ status: "invite_sent", converted_patient_id: null })
+    .eq("id", referralId)
+    .eq("status", "converted");
+  if (error) console.error("register-via-referral: could not release referral", referralId, error.message);
+}
+
+/** One write, tried twice. Returns the last error, or null when it landed. */
+async function withRetry(
+  write: () => PromiseLike<{ error: { message: string } | null }>
+): Promise<{ message: string } | null> {
+  let last: { message: string } | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { error } = await write();
+    if (!error) return null;
+    last = error;
+  }
+  return last;
 }

@@ -5,6 +5,7 @@ import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Spinner from "@/components/system/Spinner";
+import { debugNow, debugNowHeaders } from "@/lib/debugNow";
 
 export default function CompleteSessionButton({
   appointmentId,
@@ -20,10 +21,16 @@ export default function CompleteSessionButton({
   const router = useRouter();
 
   function openConfirm() {
-    const isBeforeScheduledTime = slotTime ? new Date(slotTime).getTime() > Date.now() : false;
+    // The route refuses Done before the session's start (sessionCompletion.ts)
+    // for a therapist, so asking "mark it done anyway?" only led to a refusal.
+    // An admin is exempt and still gets the warning. Judged against the
+    // debug bar's simulated clock, the same one the route reads while the
+    // bar is on, so the warning and the answer agree.
+    const isBeforeScheduledTime = slotTime ? new Date(slotTime).getTime() > debugNow() : false;
+    setError(null);
     setConfirmMessage(
       isBeforeScheduledTime
-        ? "This session's scheduled time hasn't passed yet - mark it done anyway? You'll be asked to rate it next."
+        ? "This session's scheduled time hasn't arrived yet. Mark it done anyway? (Only an admin can close a session before it starts.)"
         : "Mark this session as done? You'll be asked to rate it next."
     );
   }
@@ -33,7 +40,7 @@ export default function CompleteSessionButton({
     setError(null);
     const res = await fetch("/api/appointments/complete-session", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...debugNowHeaders() },
       body: JSON.stringify({ appointmentId }),
     });
     setLoading(false);
@@ -41,15 +48,16 @@ export default function CompleteSessionButton({
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Could not update. Please try again.");
-      if (res.status === 409) {
-        // Someone else already changed this session (marked it done/no-show,
-        // or the patient cancelled it) - refresh so this stops showing it as
-        // still actionable.
-        show("Session marked as completed.");
-      router.refresh();
+      // A 409 is either "not started yet" (nothing changed -- leave the card
+      // as it is) or "someone else already changed this session" -- refresh
+      // so it stops showing as actionable. It used to toast "Session marked
+      // as completed." for both, which was false for the first.
+      if (res.status === 409 && !data.notYet) {
+        router.refresh();
       }
       return;
     }
+    show("Session marked as completed.");
     router.refresh();
   }
 

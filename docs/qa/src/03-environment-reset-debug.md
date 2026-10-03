@@ -84,6 +84,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 * **Detector thresholds** (`risk_rules`) - an admin's own tuning on Today → Risk, so configuration in exactly the same sense and kept for the same reason. The **signals** those thresholds produced are rows, and are removed.
 * **The conditions catalogue** - `treatment_categories` and their `treatment_category_packages`. They are the one part of the list an admin builds by hand rather than generates by testing, so emptying them meant retyping the catalogue after every reset and left the public pages showing nothing, which reads as the clinic having shut rather than as test data being cleared.
 * **The website's own content** - `faqs`, `testimonials` and `mission_principles`, written by a person on Settings → Public Site and kept for the same reason, one table at a time. `mission_principles` used to be cleared on the argument that the pages then fall back to the shipped wording in `src/lib/mission.ts`; that is true, and it is exactly the argument an owner rejects the first time a reset replaces their promises with ours. **Home-visit packages and service areas are still removed** - a named test creates each of them (§23.2), and a fixture that arrived already correct would let that test pass without running.
+* **The developer's own leads** - `dev_reachouts` (the messages left through the footer's "Contact me" link) and the two `dev_contact_*` settings that publish that page. Testing produces none of them, so a reset has nothing there to clear and a real message to lose. Check Settings → Dev Reachouts is unchanged after a reset.
 * **Objects in the private `medical-reports` Storage bucket.** The metadata rows go; the files do not. Storage is not reachable from SQL. Clear that bucket from the Supabase dashboard if you need the space back.
 
 > **Getting the accounts back in one command.** Every account in §8.2, §8.3, §8.8 and §8.9 is deleted by the reset - that is what "every non-admin account" means, and the full admin is the only login that survives. Rather than recreating twelve of them by hand before testing can start, run **`npm run seed:qa`** (`scripts/seed-qa-accounts.mjs`) from the repository, with `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` in `.env.local`. It creates all four admins, all three patients, all three therapists and both hospitals with the §8.1 password, prints each hospital's referral code, and is safe to re-run: an existing account keeps its id, its history and its code, and only has its password put back. **If a tester reports `Invalid login credentials` on an account this document names, that command is the first thing to try** - it repairs a missing account and a forgotten password alike.
@@ -123,7 +124,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 4. Tap **Sign In**.
 5. Confirm the black **Debug** bar is pinned across the top of the page.
 6. In the Debug bar, tap **Reset data**.
-7. Read the red warning that appears: *"Deletes people, sessions, purchases and money. Your **settings and website content** are kept - the clinic name, contact details, mission, FAQs and conditions all survive. Home visit packages and service areas do not. No undo."*
+7. Read the red warning that appears: *"Deletes people, sessions, purchases and money. Your **settings and website content** are kept - the clinic name, contact details, mission, FAQs, conditions and Dev Reachouts all survive. Home visit packages and service areas do not. No undo."*
 8. Tap the confirmation text field (its placeholder reads `RESET ALL DATA`). Enter `reset all data` (lower case, deliberately wrong).
 9. Observe the **Reset** button.
 10. Clear the field. Enter `RESET ALL DATA` exactly.
@@ -166,7 +167,7 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Preconditions.** `ADM-SET-026` has created `qa.admin.ops@example.test` with scope **Operations** - **run it before this test even though it belongs to a later phase.** The account cannot exist before somebody creates it, and the reset does not create it: a fresh database has exactly one admin, the one made by hand in Supabase before Step 0. Attempting this test first is answered `Invalid login credentials`, which is the account being absent rather than anything about the reset.
 
-> **The password is not the standard one.** `create-account` **generates** it - nine random bytes, base64url - and shows it on the User Access screen as *"temporary password `<value>`"*. It is deliberately never emailed and never written to the activity log. It **is** kept, on `admin_account_notes`, which only the service role reads, so it stays readable on that admin's own Back office row until they set their own - see `ADM-SET-026b`. If it is lost anyway, **Reset password** on that row issues a new one (Master Admin only, never your own row); the Supabase dashboard under **Authentication → Users** is no longer the only lane.
+> **There is no password to read.** `create-account` creates the account with a password nobody knows and shows a **one-time sign-in link** on the User Access panel; open it to set the password you want. Nothing is stored or logged. If it is lost, **Reset password (send sign-in link)** on that row issues a new one (Master Admin only, never your own row).
 
 **Steps**
 
@@ -233,18 +234,18 @@ This is the single most misunderstood part of the application, and mis-reading i
 
 **The simulated clock is stored as an OFFSET, not as a fixed target.** When you set "12 September 2026, 18:00", the app stores `target − Date.now()` in `localStorage` under `debugNowOffsetMs`. The simulated clock then keeps **ticking forward at normal speed**. It never freezes.
 
-**It is client-side only.** It affects only client-rendered advisory gates that call `debugNow()` instead of `Date.now()`. It is **deliberately never wired into any server-side or API-route time check.**
+**It is client-side, with one server exception.** It affects client-rendered advisory gates that call `debugNow()` instead of `Date.now()`. Server-side time checks use the server's real clock - **except** `/api/appointments/complete-session` (Done and No-show), which honours the simulated clock whenever the debug bar is on (no separate setting). The browser sends its offset in the `x-debug-now-offset-ms` header; a server without the flag ignores it.
 
 | Affected by the simulated clock | NOT affected (uses the server's real clock) |
 | --- | --- |
 | The `/book` wizard's date calendar and hour list (which dates/times are offered) | `/api/appointments/create`'s lead-time validation |
 | The `/book-home-visit` wizard's date/time picker | `/api/home-visit/*` lead-time validation |
-| **Tap to Join** / **Session Completed** button states on every dashboard | `/api/appointments/complete-session`'s join-window gate |
+| **Tap to Join** / **Session Completed** button states on every dashboard | `/api/appointments/complete-session`'s join-window gate - **while the debug bar is on**, it follows the simulated clock too |
 | Session card greying and Upcoming/Past bucketing in the browser | Refund-eligibility maths in `/api/appointments/cancel` |
 | The therapist's own suggestion picker | `/api/therapist/suggest-session`'s lead-time check |
 | | Payout maths, `completed_at` stamping, audit timestamps, `paid_at` |
 
-**The practical consequence, stated plainly:** you can use the simulated clock to make the *UI offer* a slot or a button. You cannot use it to make the *server accept* a time-gated write. If you simulate a date far in the future and then try to complete a session, the client will show you the **Tap to Join** control and the server will still answer `409` with *"This session hasn't started yet. You can mark it done once it's under way."* **That is correct behaviour, not a defect.** Tests that need a server-side time gate to pass say so explicitly and tell you to use a real near-future slot instead.
+**The practical consequence, stated plainly:** you can use the simulated clock to make the *UI offer* a slot or a button. You cannot use it to make the *server accept* a time-gated write. The one exception is marking a session done or a no-show: while the debug bar is on, simulate a time after the session and **Done** is accepted. With the bar switched off (`NEXT_PUBLIC_SHOW_DEBUG_NAV=false`) the server ignores the simulated time and still answers `409` with *"This session hasn't started yet. You can mark it done once it's under way."* - that is correct then, not a defect. Tests that need any other server-side time gate to pass say so explicitly and tell you to use a real near-future slot instead.
 
 Because the storage key is `localStorage`, the simulation is **per browser profile**, and it survives navigation and reload until you reset it. Applying it triggers a **full page reload** - soft re-renders would not pick it up, because every consumer reads the clock once in a lazy initializer.
 

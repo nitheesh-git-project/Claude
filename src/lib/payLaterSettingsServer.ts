@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { readPatientOwed } from "@/lib/payLaterSettlementServer";
 import {
   PAY_LATER_AGED_AFTER_DAYS,
   describeAgedAfterDays,
@@ -9,11 +10,6 @@ import {
   resolveMaxOwedPaise,
   type PayLaterDecision,
 } from "@/lib/payLaterBooking";
-import {
-  computePatientBalance,
-  type PayLaterAppointment,
-  type PayLaterPaymentRow,
-} from "@/lib/patientBalances";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -192,31 +188,15 @@ export async function readPayLaterBookingEligibility(
   // otherwise unchanged, which is what keeps "no ceiling" free.
   let currentlyOwedPaise = 0;
   if (ceiling !== null) {
-    try {
-      const { data } = await admin
-        .from("appointments")
-        .select(
-          "id, patient_id, payment_terms, payment_status, status, amount_due_paise, pay_later_outcome"
-        )
-        .eq("patient_id", args.patientId)
-        .eq("status", "completed");
-      const { data: pool } = await admin
-        .from("pay_later_payments")
-        .select("id, patient_id, status, unallocated_paise")
-        .eq("patient_id", args.patientId)
-        .eq("status", "confirmed");
-      currentlyOwedPaise = computePatientBalance(
-        args.patientId,
-        (data ?? []) as PayLaterAppointment[],
-        (pool ?? []) as PayLaterPaymentRow[]
-      ).owedPaise;
-    } catch {
-      // A balance that could not be read must not silently become zero and
-      // wave the booking through -- that is the one direction this ceiling
-      // exists to stop. It reads as "at the ceiling", so the patient is
-      // asked to pay now and can still book.
-      currentlyOwedPaise = ceiling;
-    }
+    // Both reads are checked and paged. They used to drop a returned error
+    // (only a *thrown* one was caught), so a failed read became a balance of
+    // zero and waved the booking through -- the one direction this ceiling
+    // exists to stop -- and a patient with a long history was summed over
+    // the first thousand rows PostgREST returns.
+    const owed = await readOwedForCeiling(admin, args.patientId);
+    // A balance that could not be read reads as "at the ceiling", so the
+    // patient is asked to pay now and can still book.
+    currentlyOwedPaise = owed === null ? ceiling : owed;
   }
 
   // The judgement itself is dependency-free and unit-tested; this function
@@ -230,4 +210,15 @@ export async function readPayLaterBookingEligibility(
     bookingAmountPaise: args.bookingAmountPaise,
     maxOwedPaise: ceiling,
   });
+}
+
+/**
+ * What a patient owes right now, for the ceiling check -- or null when it
+ * could not be read in full (readPatientOwed pages and refuses a partial
+ * sum). An understated balance is exactly how a patient goes past a ceiling
+ * the clinic set.
+ */
+async function readOwedForCeiling(admin: AdminClient, patientId: string): Promise<number | null> {
+  const owed = await readPatientOwed(admin, patientId);
+  return owed ? owed.owedPaise : null;
 }

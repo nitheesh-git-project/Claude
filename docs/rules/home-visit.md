@@ -158,6 +158,17 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   calendar event even when `google_meet_enabled` is off - that toggle only
   gates the Meet conferencing, not event creation, since the invite email is
   the only outbound notification this platform sends.
+- **"Do you come to me?" has three answers, and every caller asks the same
+  way.** `lookupServiceArea` (`src/lib/serviceAreaServer.ts`) returns a
+  served area, no area, or *could not ask*; check-area, both checkouts, the
+  address book and the waitlist answer the third with a 503 to retry,
+  never with "we don't visit that pincode". The waitlist refuses a pincode
+  the clinic already serves (409 with `serviceable: true`, and the wizard
+  re-runs the check so the patient moves straight on to booking): it is
+  where demand for *unserved* areas is read, and served pincodes polluted
+  it. Cash checkout still books when saving to the address book fails - the
+  visit carries its own copy - but answers `addressNotSaved` so the patient
+  is told rather than finding it missing later.
 - **Home Visit is a delivery mode, not a parallel booking system.**
   `appointments.visit_mode` (`'online'` / `'home_visit'`) is the only new
   column that matters at read time; everything else about an appointment -

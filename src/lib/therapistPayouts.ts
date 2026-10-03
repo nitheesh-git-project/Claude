@@ -103,6 +103,18 @@ export function sessionTherapistCutPaise(
     : computed;
 }
 
+/**
+ * Whether a session's therapist share is earned: delivered, and either paid
+ * or on pay-later terms (earned at completion -- see moneyLineFor). The one
+ * predicate the summary, the request route and the settle route all use, so
+ * a therapist can never request an amount the admin cannot then settle.
+ */
+export function isTherapistShareEarned(
+  a: Pick<PayoutAppointment, "status" | "payment_status" | "payment_terms">
+): boolean {
+  return a.status === "completed" && (a.payment_status === "paid" || a.payment_terms === "pay_later");
+}
+
 export function computeTherapistPayoutSummary(
   therapistId: string,
   sharePercent: number | null,
@@ -135,6 +147,7 @@ export function computeTherapistPayoutSummary(
   // month the work was done and a windfall in the month it was collected.
   const earned = (a: PayoutAppointment) =>
     a.payment_status === "paid" || a.payment_terms === "pay_later";
+  // (isTherapistShareEarned is this plus `status === "completed"`.)
 
   const paidAppointments = therapistAppointments.filter(earned);
   // Fallback stays 0, exactly as it was -- see sessionAmount.ts. Raising it to

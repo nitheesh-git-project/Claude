@@ -48,6 +48,26 @@ Eight pages from one design system, the word budgets, why every photograph carri
   admin should be able to desynchronise.
   `e2e/splash-screen.spec.ts` holds these rules.
 
+- **The developer pages carry no site chrome.** `isDeveloperRoute`
+  (`src/lib/dashboardShellRoutes.ts`) hides the Navbar, Footer and debug bar on
+  `/developer*`, and `src/app/developer/layout.tsx` draws the one "Back to
+  home" button, fixed bottom right. Do not add another way out to either page.
+- **The developer pages are deliberately outside `MARKETING_PAGES`.**
+  `/developer` ("Say hello!") and `/developer/lets-talk` are not marketing
+  pages: they are a credit for whoever built the app, reached only by the
+  "Contact me" link in the footer's second line, so they are not in
+  `src/lib/marketingNav.ts` and nothing -- the navbar, the Explore connector
+  grid, a "where next" band, the closing CTA -- advertises them. They carry no
+  `PageHero`, no photograph and none of the word budgets below; they are a
+  white card on a slate-50 band (a line-art SVG with `aria-hidden`, a heading,
+  one sentence, a pill button), and that is the whole of the design. Because
+  their existence is a switch (`site_settings.dev_contact_enabled`, Settings ->
+  Dev Reachouts) they render per request with `dynamic = "force-dynamic"` and
+  `notFound()` while it is off, for the reason `/book-home-visit` does, and the
+  footer line is hidden by the same flag so it never links to a 404. The
+  published email is `dev_contact_email`, **blank by default** -- no address is
+  committed -- and the "Prefer email?" row is hidden while it is blank. The
+  form's honeypot is off-screen rather than visible; see `ops-security.md`.
 - **The eight public pages are one template, not eight layouts.** `/`,
   `/conditions`, `/how-it-works`, `/home-visit`, `/team`, `/mission`, `/faq`
   and `/hospitals` all assemble from `src/components/marketing/`: a `PageHero`
@@ -515,3 +535,16 @@ Eight pages from one design system, the word budgets, why every photograph carri
   dots, savings meter, stat tiles) live in
   `src/components/catalog/CatalogVisuals.tsx` and are fed already-computed
   numbers, since the arithmetic belongs in `src/lib/`.
+- **The footer's social icons are only the ones an admin filled in, and each
+  opens in a new tab.** Five optional `site_settings` columns
+  (Settings -> Brand & Contact -> Social Media Links); blank hides that icon,
+  and none filled in draws no row at all - an icon leading nowhere is worse
+  than no icon, the same reading the footer gives a placeholder phone
+  number. `src/lib/socialLinks.ts` is the one rule (https only, on the
+  network's own domain) and the footer re-applies it to what it reads, so a
+  value written straight into the table is dropped rather than rendered as
+  an `href`. A link that leaves the site for another app - these and the
+  footer's WhatsApp number - carries `target="_blank"` with
+  `rel="noopener noreferrer"` and says "(opens in a new tab)" in its
+  accessible name; `mailto:` and `tel:` stay as they are. The icons are
+  inline SVG in `BrandGlyphs.tsx`, not the fa-brands webfont.

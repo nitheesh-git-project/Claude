@@ -46,7 +46,9 @@ export type HealthCheckId =
   | "referral_attribution"
   | "refunds"
   | "settlements"
-  | "patient_files";
+  | "patient_files"
+  | "activity_log"
+  | "checkout_speed";
 
 export type HealthCheck = {
   id: HealthCheckId;
@@ -181,6 +183,34 @@ export type SystemHealthInput = {
    * being counted is a medical record.
    */
   storage?: StorageHealth | null;
+  /** Admin actions the activity log could not record (admin_activity_gaps)
+   *  in the last 30 days. `null` when the table could not be read. */
+  activityLog?: ActivityLogHealth | null;
+  /** How long Pay taps took to open the Razorpay sheet in the last seven
+   *  days (checkout_timings). `null` when the table could not be read. */
+  checkoutSpeed?: CheckoutSpeedHealth | null;
+};
+
+export type CheckoutSpeedHealth = {
+  /** Taps that reached the sheet in the window. */
+  samples: number;
+  /** Median and 90th percentile tap-to-sheet, in milliseconds. */
+  p50Ms: number | null;
+  p90Ms: number | null;
+  /** Median time spent in each stage, where any tap recorded one. */
+  stageP50Ms: { signup: number | null; create: number | null; order: number | null };
+};
+
+/** Fewer taps than this and a percentile is an anecdote. */
+export const CHECKOUT_SPEED_MIN_SAMPLES = 10;
+/** Past this at the 90th percentile, one patient in ten waits long enough
+ *  to wonder whether the page has frozen. */
+export const CHECKOUT_SPEED_SLOW_P90_MS = 6000;
+
+export type ActivityLogHealth = {
+  gapsLast30Days: number;
+  /** ISO time of the most recent one, or null when there are none. */
+  latestGapAt: string | null;
 };
 
 export type StorageHealth = {
@@ -213,6 +243,10 @@ export type ReferralAttributionHealth = {
   orphanedCount: number;
   /** ...of which this many have already had a session completed. */
   withCompletedSessions: number;
+  /** Referrals marked converted with no patient linked at all -- invisible
+   *  to the comparison above, so counted on their own. Optional so a
+   *  caller predating it reads as zero. */
+  unlinkedCount?: number;
 };
 
 const STATUS_RANK: Record<HealthStatus, number> = {
@@ -734,6 +768,21 @@ function referralAttributionCheck(
     };
   }
 
+  const unlinked = health.unlinkedCount ?? 0;
+  if (health.orphanedCount === 0 && unlinked > 0) {
+    return {
+      ...base,
+      status: "attention",
+      headline: `${plural(unlinked, "referral is", "referrals are")} marked registered with no patient linked to ${unlinked === 1 ? "it" : "them"}, so nobody can tell which account the partner should be credited on.`,
+      fix: [
+        "Open People -> Partners -> Patient Referrals and find the referral marked Registered.",
+        "Find the patient it converted to (same name and phone) and set the referring partner on their profile.",
+      ],
+      count: unlinked,
+      evidence: [`${plural(unlinked, "registered referral", "registered referrals")} with no patient linked`],
+    };
+  }
+
   if (health.orphanedCount === 0) {
     return {
       ...base,
@@ -758,9 +807,12 @@ function referralAttributionCheck(
       "Open the patient it converted to, and set the partner that referred them on their profile.",
       "Their commission then applies to sessions from that point. Sessions already delivered keep the split that was recorded on the day.",
     ],
-    count: health.orphanedCount,
+    count: health.orphanedCount + unlinked,
     evidence: [
       `${plural(health.orphanedCount, "patient", "patients")} with no partner recorded`,
+      ...(unlinked > 0
+        ? [`${plural(unlinked, "registered referral", "registered referrals")} with no patient linked`]
+        : []),
       delivered > 0
         ? `${plural(delivered, "patient", "patients")} already have a delivered session`
         : "None have had a session delivered yet",
@@ -971,6 +1023,119 @@ function refundsCheck(health: RefundHealth | null): HealthCheck {
  * the failure. A file with no row is amber -- nothing is broken for anybody,
  * but a scan report the patient believes they deleted is still in a bucket.
  */
+/**
+ * Whether Logs -> All Activity is the complete history it presents itself
+ * as. recordAdminActivity retries a failed write once and then records the
+ * entry in admin_activity_gaps; this counts those. Amber, never red: the
+ * actions themselves happened and nothing is being lost now -- but who did
+ * them is missing from the one screen that is meant to say.
+ */
+function activityLogCheck(health: ActivityLogHealth | null): HealthCheck {
+  const base = {
+    id: "activity_log" as const,
+    label: "Activity log",
+    icon: "fa-clipboard-list",
+    what: "Whether every admin action was written to Logs -> All Activity. A write that fails twice is kept in a separate list so the history can say what it is missing.",
+    example:
+      "An admin issues a refund while the database is struggling. The refund goes through, but its activity entry cannot be written - so the history shows no refund and nobody who authorised it. This counts those, and the activity screen lists them.",
+  };
+  if (!health) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Cannot be checked right now - the list of unrecorded actions could not be read.",
+      fix: ["Reload this page. If it persists, apply `supabase/schema.sql` to this project."],
+      count: 0,
+      evidence: [],
+    };
+  }
+  if (health.gapsLast30Days === 0) {
+    return {
+      ...base,
+      status: "healthy",
+      headline: "Every admin action in the last 30 days is in the activity log.",
+      fix: [],
+      count: 0,
+      evidence: [],
+    };
+  }
+  return {
+    ...base,
+    status: "attention",
+    headline: `${plural(health.gapsLast30Days, "admin action", "admin actions")} in the last 30 days could not be written to the activity log.`,
+    fix: [
+      "Open Logs -> All Activity: the missing entries are listed at the top, with who, what and when.",
+      "Note anything that moved money somewhere you keep records - the log will not show it.",
+    ],
+    count: health.gapsLast30Days,
+    evidence: [],
+  };
+}
+
+function seconds(ms: number): string {
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function checkoutSpeedCheck(health: CheckoutSpeedHealth | null): HealthCheck {
+  const base = {
+    id: "checkout_speed" as const,
+    label: "Checkout speed",
+    icon: "fa-gauge-high",
+    what: "How long it takes, from a patient tapping Pay, for the secure payment window to open - measured on the patient's own phone or computer over the last seven days.",
+    example:
+      "The payment window starts taking eight seconds to appear. Patients see a spinner, assume the page has frozen, and leave - a lost booking that no error message ever records.",
+  };
+  if (!health) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Cannot be checked right now - the timings could not be read.",
+      fix: ["Reload this page. If it persists, apply `supabase/schema.sql` to this project."],
+      count: 0,
+      evidence: [],
+    };
+  }
+  if (health.samples < CHECKOUT_SPEED_MIN_SAMPLES || health.p90Ms === null) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: `Not enough payments yet to measure - ${plural(health.samples, "payment", "payments")} in the last seven days, and ${CHECKOUT_SPEED_MIN_SAMPLES} are needed.`,
+      fix: ["Nothing to do. This fills in by itself as patients book."],
+      count: 0,
+      evidence: [],
+    };
+  }
+  const typical = health.p50Ms !== null ? seconds(health.p50Ms) : "-";
+  if (health.p90Ms <= CHECKOUT_SPEED_SLOW_P90_MS) {
+    return {
+      ...base,
+      status: "healthy",
+      headline: `The payment window opens in about ${typical}, and within ${seconds(health.p90Ms)} for nine patients in ten.`,
+      fix: [],
+      count: 0,
+      evidence: [],
+    };
+  }
+  const stages = health.stageP50Ms;
+  const evidence = [
+    `${plural(health.samples, "payment", "payments")} measured in the last seven days`,
+    stages.signup !== null ? `creating a new account: about ${seconds(stages.signup)}` : null,
+    stages.create !== null ? `saving the booking: about ${seconds(stages.create)}` : null,
+    stages.order !== null ? `starting the payment: about ${seconds(stages.order)}` : null,
+  ].filter((line): line is string => line !== null);
+  return {
+    ...base,
+    status: "attention",
+    headline: `One patient in ten waits more than ${seconds(health.p90Ms)} for the payment window to open (typical: ${typical}).`,
+    fix: [
+      "Book a session yourself on a phone, on mobile data, to see the wait a patient sees.",
+      "Send the figures below to whoever looks after the website - they say which stage the time is going into.",
+    ],
+    count: 0,
+    evidence,
+  };
+}
+
 function patientFilesCheck(health: StorageHealth | null): HealthCheck {
   const base = {
     id: "patient_files" as const,
@@ -1300,6 +1465,8 @@ export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
     refundsCheck(input.refunds ?? null),
     settlementsCheck(input.settlementDisagreements ?? null, input.settlementsRecorded ?? null),
     patientFilesCheck(input.storage ?? null),
+    activityLogCheck(input.activityLog ?? null),
+    checkoutSpeedCheck(input.checkoutSpeed ?? null),
   ];
 }
 

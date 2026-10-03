@@ -169,6 +169,15 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   naming only the admin a louder one about whose judgement it is.
   `/api/admin/author-care-plan` takes `requireAdminScope("sessions")`, a
   mandatory reason, and writes a `care_plan.author_on_behalf` audit row.
+  **A version is published in one transaction, and only by the plan's own
+  therapist.** The new version is inserted with `is_current = false`, and
+  `publish_care_plan_version()` (schema.sql) moves both current flags and
+  the plan's pointer together under a row lock - the old order (retire,
+  insert, repoint, with the repoint's failure only logged) could leave a
+  plan with no current version or pointing at one it did not hold. A new
+  thread whose first version fails to publish is withdrawn, so it neither
+  shows empty nor blocks the retry. An open plan belonging to another
+  therapist is refused (409) rather than revised under their name.
   The admin's panel matches the therapist's dialog on the two things that
   decide what gets picked. The programmes on offer are narrowed to the
   chosen session's own condition, through `narrowToCategory()` in
@@ -234,6 +243,16 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      window can be stamped once and never moved after the patient has read
      it. Stamping at authoring meant the plans the clinic took longest over
      reached the patient with the least time on them.
+     **Approval is one transaction** (`approve_care_plan()`): lock the plan,
+     check it is still pending, stamp the window if the version has none,
+     publish, record the review -- all or nothing. It was three writes, and a
+     failed stamp was only logged, publishing an offer with no expiry; a
+     failed review record put the plan back in the queue with a window the
+     retry could not restamp. A version already stamped and lapsed is refused
+     (409) rather than published expired. The admin's review queue reads
+     every `pending_review` plan in full and only caps the decided history at
+     the newest 200 -- a single newest-200 read across all statuses hid older
+     plans still waiting for a decision.
   6. **A new version on a published thread sends the whole thread back.**
      Deliberately, even though it takes a live offer off the patient's
      screen: what they can now see is a version nobody approved.
@@ -367,7 +386,12 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   (`BodyMapDiagram.tsx`) is an anatomical human silhouette built from
   cross-section nodes (`silhouettePath`), one `<svg>` per view so front and
   back stack on a phone instead of shrinking each tap target below a
-  fingertip. See the "Patient Care Intake and Pain Map" section in README.md
+  fingertip. The **front figure faces the reader**, so the patient's left is
+  on the reader's right (an `R`/`L` marker sits under each figure), and the
+  surface detail tells the views apart: collarbones, chest, abdominal line
+  and navel on the front; spine, shoulder blades and glute cleft on the
+  back. Both used to place "left" on the reader's left, and the back's
+  shoulder-blade arcs read as a chest, so the two views looked swapped. See the "Patient Care Intake and Pain Map" section in README.md
   for the full flow.
 - **A patient's own record leaves the app as a PDF, not as JSON.**
   `/api/patient/condition-profile/export` returns a typeset document named
@@ -379,7 +403,27 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   goes through that module's `toWinAnsi()` before it is drawn - a
   Devanagari name would otherwise throw at draw time and 500 the whole
   export rather than degrading. Session notes stay excluded from every
-  format, same rule as before.
+  format, same rule as before. **An export is complete or it is refused**:
+  every read carrying part of the record is checked and its lists are
+  paged, and a failure answers 503 rather than a document missing a
+  section. The button fetches the file instead of linking to it, so that
+  refusal reads as a sentence beside the button, not a page of JSON.
+- **Clinical access follows live or delivered care - never a cancelled
+  session or a lapsed programme.** A therapist reads a patient's health
+  profile, Pain Map exams, reports, addresses and other clinicians' session
+  notes while named on one of their `requested`, `confirmed` or
+  `completed` appointments, or while holding the lock on a programme that
+  is paid, active and unexpired. The policies used to match *any*
+  appointment row, so a therapist attached only to a session cancelled
+  before it happened kept reading the record for good. The rule lives in
+  the RLS policies appended at the end of `schema.sql`, in
+  `CLINICAL_ACCESS_APPOINTMENT_STATUSES` / `programmeLockGrantsClinicalAccess`
+  (`src/lib/clinicalAccess.ts`, which the admin's "who can see this"
+  panel reads) and in `isTherapistAssignedToPatient`; change all three
+  together. **A Pain Map exam also needs a session that has started**
+  (`hasStartedSessionWithPatient`: completed, or confirmed and inside its
+  join window) - it records an observation from a session the therapist
+  ran, so being assigned to a future session is not enough.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate
@@ -400,6 +444,22 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   read. There is deliberately **no update policy**: correcting a report
   means deleting it and uploading again, so the row and the object can
   never describe different things.
+- **An uploaded report is typed by its bytes, not its label, and only a
+  patient uploads one.** The upload route ignores `File.type` (whatever
+  the browser or a crafted request claims) and reads the type with
+  `sniffDocumentMimeType`; the sniffed type is what Storage stores. A PDF
+  carrying scripts, launch actions or embedded files is refused
+  (`pdfHasActiveContent`) - a clinician opens these on a work machine.
+  That is a structural check, **not a virus scan**: names inside a
+  compressed object stream are invisible to it, and a real scanner needs
+  an external service this deployment does not have. The route also
+  requires the patient role (any other active account could otherwise
+  file "reports" under its own id), and the view route checks suspension
+  for every role, because RLS does not know about it. **Delete removes
+  the file before the row** and never answers success while the file
+  remains; the ownership check compares `patient_id` to the caller,
+  because the select policies also let a treating therapist and an admin
+  read the row.
 - **Session notes are clinician-only, and they are the prep loop.** After a
   delivered session the therapist writes what was treated, how the patient
   responded, the home exercise and the plan for next time
@@ -411,7 +471,13 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   printable profile both exclude the table on purpose. Notes stay editable
   for 24 hours (`SESSION_NOTE_EDIT_WINDOW_HOURS`), enforced in the submit
   route, and every edit inside that window copies what it replaced into
-  `session_note_revisions`. Writing one needs no
+  `session_note_revisions` - **and if that copy fails, the note is not
+  changed** (its result used to be ignored). An edit carries the version
+  the editor opened (`baseUpdatedAt`) and the update compare-and-sets on
+  it, so two windows saving the same note cannot silently erase each
+  other; the second is told to reopen. A note is written only for a
+  `completed` session, or a `confirmed` one whose time has come - a
+  `requested` session past its slot was never held. Writing one needs no
   `condition_access_grant`, unlike the intake and Pain Map: a note records
   work this therapist personally did rather than editing the patient's own
   history. Completion is never blocked on a note - the nudge is a

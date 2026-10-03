@@ -165,6 +165,7 @@ A hospital is a **referral source**, never a clinical actor. It is **provisioned
 #### `HOS-PROF-001` - Edit Profile · P2
 **Steps.** Open `/hospital/dashboard/profile` and walk **Logo**, **Organisation Details**, **Contact Preferences**, **Account Security**.
 **Expected Result.** The page is named **Edit Profile** - not "Account Security", which named one section of the page rather than the page. Changing the organisation name updates what the admin's Partners screen shows. A password change signs the partner out of other sessions or requires re-authentication, per the security section's behaviour.
+**If it fails to load.** When the profile (or the list of changes waiting for approval) cannot be read, the page shows *We couldn't load …* with a **Try again** button **instead of** the editable sections - never blank fields. Account Security still works. The sidebar's section links land on the notice. To check by hand, the page must be made to fail a read on the server (for example a temporarily broken query on a scratch build); there is no switch for it.
 
 #### `HOS-DASH-001` - Overview · P2
 **Expected Result.** The same shape as every other dashboard: a strip of four figures, then the activity feed, then quick actions - in that order. Items still waiting on the partner are pinned to the top of the feed and counted.

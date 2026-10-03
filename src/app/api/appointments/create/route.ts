@@ -1,8 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { isPatientProfile, isProfileActive } from "@/lib/supabase/requireActiveProfile";
+import {
+  readPatientCheckoutStanding,
+  profileCheckUnavailable,
+  approvePatientForGenuinePaymentAttempt,
+} from "@/lib/supabase/requireActiveProfile";
+import { mintAppointmentOrder } from "@/lib/appointmentOrderServer";
+import { buildCheckoutQuoteBody } from "@/lib/checkoutQuoteServer";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import {
@@ -43,6 +49,17 @@ type Body = {
   notes?: string | null;
   preferredTherapistId?: string | null;
   preferredLanguage?: string | null;
+  /** When present, the response carries the payment screen's quote for the
+   *  new booking (see checkoutQuoteServer), so the wizard need not make a
+   *  second round trip to /api/appointments/quote before opening Razorpay.
+   *  An identifier, never an amount. */
+  quotePromoCode?: string | null;
+  withQuote?: boolean;
+  /** With `withQuote`: also mint the Razorpay order for the new booking when
+   *  the quote says the gateway is how it settles, so the wizard opens the
+   *  sheet straight from this response. `"pay_now"` is a patient on terms
+   *  who would rather pay -- the same intent the wizard has always passed. */
+  startPayment?: "default" | "pay_now";
 };
 
 export async function POST(request: NextRequest) {
@@ -81,20 +98,13 @@ export async function POST(request: NextRequest) {
   // vets them (see approvePatientForGenuinePaymentAttempt). The row this
   // creates is always unpaid, unassigned and 'requested', so it grants
   // nothing on its own. Suspension is still enforced.
-  if (!(await isProfileActive(user.id))) {
+  // One read for both checks (see readPatientCheckoutStanding).
+  const standing = await readPatientCheckoutStanding(user.id);
+  if (standing === "unavailable") return profileCheckUnavailable();
+  if (standing === "suspended") {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
-
-  // Sessions are delivered to patients, and one account carries one role --
-  // see isPatientProfile. This clause used to live on
-  // appointments_insert_own, which was the only enforcement point for the
-  // wizard's direct insert; that insert is now this route, so the check
-  // comes with it. Without it a therapist/hospital/admin session could
-  // still create a booking their own dashboard can never list again --
-  // which is the bug the RLS clause was added for, after money had moved
-  // for one. The wizards say so in the UI and the purchase routes check it
-  // too; this is the same check for a session cookie calling directly.
-  if (!(await isPatientProfile(user.id))) {
+  if (standing === "not_patient") {
     return NextResponse.json(
       { error: "This account can't book sessions. Sessions are booked under a patient account." },
       { status: 403 }
@@ -112,11 +122,37 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  const { data: settingsRow } = await admin
-    .from("site_settings")
-    .select(SITE_SETTINGS_SELECT)
-    .maybeSingle();
-  const settings = parseAdminSettings(settingsRow);
+  const categoryId = body.categoryId?.trim() || null;
+  const requestedTherapistId = body.preferredTherapistId?.trim() || null;
+
+  // Every read below is independent of the others, so they go out together
+  // rather than one after another -- this route sits between the patient's
+  // tap on Pay and the Razorpay sheet, and each sequential query was a
+  // visible slice of that wait. The rules applied to the answers, and the
+  // order they are reported in, are unchanged.
+  const [settingsRes, categoryRes, existingRes, therapistRes] = await Promise.all([
+    admin.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
+    categoryId
+      ? admin
+          .from("treatment_categories")
+          .select("id, title, duration_minutes, active")
+          .eq("id", categoryId)
+          .maybeSingle()
+      : Promise.resolve(null),
+    admin
+      .from("appointments")
+      .select("slot_time, duration_minutes")
+      .eq("patient_id", user.id)
+      .in("status", ["requested", "confirmed"]),
+    requestedTherapistId
+      ? admin
+          .from("profiles")
+          .select("id, role, active, approved")
+          .eq("id", requestedTherapistId)
+          .maybeSingle()
+      : Promise.resolve(null),
+  ]);
+  const settings = parseAdminSettings(settingsRes.data);
 
   // The same lead time the wizard's own picker applies, read from the same
   // setting so the picker and this validator can't drift apart -- the whole
@@ -143,15 +179,10 @@ export async function POST(request: NextRequest) {
   // browser: /book is ISR-cached, so the copy of the catalogue the patient
   // filled the form against can legitimately be older than the one being
   // charged and scheduled against.
-  const categoryId = body.categoryId?.trim() || null;
   let durationMinutes = BASE_DURATION_MINUTES;
   let concern = "General Consultation";
   if (categoryId) {
-    const { data: category } = await admin
-      .from("treatment_categories")
-      .select("id, title, duration_minutes, active")
-      .eq("id", categoryId)
-      .maybeSingle();
+    const category = categoryRes?.data;
     if (!category || category.active === false) {
       return NextResponse.json(
         { error: "That concern isn't available any more. Please pick another one." },
@@ -166,11 +197,13 @@ export async function POST(request: NextRequest) {
   // immediate feedback before the last step; this is the copy that actually
   // binds, since the wizard's is a browser check like any other.
   const newEndMs = slotMs + durationMinutes * 60_000;
-  const { data: existing } = await admin
-    .from("appointments")
-    .select("slot_time, duration_minutes")
-    .eq("patient_id", user.id)
-    .in("status", ["requested", "confirmed"]);
+  const { data: existing, error: existingError } = existingRes;
+  if (existingError) {
+    return NextResponse.json(
+      { error: "We couldn't check your existing bookings just now. Please try again." },
+      { status: 503 }
+    );
+  }
   const overlaps = (existing ?? []).some((a) => {
     if (!a.slot_time) return false;
     const startMs = new Date(a.slot_time).getTime();
@@ -191,13 +224,9 @@ export async function POST(request: NextRequest) {
   // admin assigns one, exactly as before. Still re-checked: the browser can
   // name any id, and an inactive or unapproved therapist must not show up
   // as a request an admin might honour.
-  let preferredTherapistId: string | null = body.preferredTherapistId?.trim() || null;
+  let preferredTherapistId: string | null = requestedTherapistId;
   if (preferredTherapistId) {
-    const { data: therapist } = await admin
-      .from("profiles")
-      .select("id, role, active, approved")
-      .eq("id", preferredTherapistId)
-      .maybeSingle();
+    const therapist = therapistRes?.data;
     if (!therapist || therapist.role !== "therapist" || !therapist.approved || therapist.active === false) {
       preferredTherapistId = null;
     }
@@ -217,7 +246,9 @@ export async function POST(request: NextRequest) {
   // A patient is not the party this control exists to catch, and a 400 at
   // the last step of checkout costs a real booking.
   const notes = body.notes?.trim() || null;
-  await guardCommunication(admin, [{ surface: "appointment_notes", text: notes }], {
+  // Record-only, so it decides nothing about the insert: it runs alongside
+  // it rather than in front of it, and is still awaited before responding.
+  const guarded = guardCommunication(admin, [{ surface: "appointment_notes", text: notes }], {
     authorId: user.id,
     authorRole: "patient",
     patientId: user.id,
@@ -243,7 +274,21 @@ export async function POST(request: NextRequest) {
     })
     .select("id")
     .single();
+  await guarded;
 
+  // The same overlap, caught where it binds: trg_appointments_patient_no_overlap
+  // refuses the insert under a per-patient lock, which is what closes the
+  // window between the check above and this write for two requests fired
+  // together.
+  if (error?.code === "23P01") {
+    return NextResponse.json(
+      {
+        error:
+          "You already have a session scheduled around this time. Please pick a different slot, or check your dashboard for existing bookings.",
+      },
+      { status: 409 }
+    );
+  }
   if (error || !created) {
     console.error("Failed to create booking for patient", user.id, error);
     return NextResponse.json(
@@ -252,5 +297,71 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ success: true, appointmentId: created.id });
+  // The payment screen's quote for this booking, in this response, so the
+  // wizard goes straight to create-order. A failure here is not a failed
+  // booking -- the row exists -- so the quote is simply left out and the
+  // wizard falls back to asking /api/appointments/quote.
+  let quote = null;
+  if (body.withQuote === true) {
+    try {
+      quote = await buildCheckoutQuoteBody(admin, {
+        appointment: {
+          id: created.id,
+          patient_id: user.id,
+          category_id: categoryId,
+          visit_mode: "online",
+          travel_fee_paise: null,
+        },
+        userId: user.id,
+        hasProgramme: false,
+        promoCode: typeof body.quotePromoCode === "string" ? body.quotePromoCode : null,
+      });
+    } catch (err) {
+      console.error("Quote after booking create failed", created.id, err);
+    }
+  }
+
+  // The order, minted here when the quote says the gateway is how this
+  // booking settles -- one round trip from the Pay tap to the sheet instead
+  // of create, then create-order. Through `mintAppointmentOrder`, the same
+  // function create-order uses, so nothing about claiming, free bookings or
+  // what is written back differs between the two doors. Free and pay-later
+  // bookings are never minted (Razorpay refuses nothing, and terms are not a
+  // checkout); a failed quote is not guessed at -- the wizard falls back to
+  // create-order, which decides for itself.
+  //
+  // `order` carries create-order's own body plus its status, so the wizard
+  // handles it exactly as it handles that route's answer.
+  let order: Record<string, unknown> | null = null;
+  const wantsGateway =
+    quote !== null &&
+    (quote.settlement === "gateway" ||
+      (quote.settlement === "pay_later" && body.startPayment === "pay_now" && quote.canPayNow));
+  if (body.startPayment && wantsGateway) {
+    // A genuine payment attempt: the same vetting create-order grants, and
+    // scheduled the same way.
+    after(() => approvePatientForGenuinePaymentAttempt(user.id));
+    try {
+      const minted = await mintAppointmentOrder({
+        supabase,
+        appointment: {
+          id: created.id,
+          patient_id: user.id,
+          category_id: categoryId,
+          razorpay_order_id: null,
+          visit_mode: "online",
+          travel_fee_paise: null,
+        },
+        appointmentId: created.id,
+        promoCode: typeof body.quotePromoCode === "string" ? body.quotePromoCode : "",
+      });
+      order = { ...minted.body, status: minted.status };
+    } catch (err) {
+      // The booking exists either way; the wizard retries through
+      // create-order, which re-attaches to anything that did get written.
+      console.error("Order mint after booking create failed", created.id, err);
+    }
+  }
+
+  return NextResponse.json({ success: true, appointmentId: created.id, quote, order });
 }

@@ -47,6 +47,9 @@ const PROMISED_TO_SURVIVE = [
   "faqs",
   "testimonials",
   "mission_principles",
+  // The developer's own leads from the footer credit's Say hello form.
+  // Testing produces none of them. See devReachoutResetGuard.test.ts.
+  "dev_reachouts",
 ];
 
 describe("the reset keeps what its warning says it keeps", () => {

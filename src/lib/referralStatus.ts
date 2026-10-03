@@ -8,6 +8,9 @@ export const REFERRAL_STATUS_LABELS: Record<string, string> = {
   invite_sent: "Registration Link Sent",
   converted: "Registered",
   declined: "Declined",
+  // The partner took it back -- kept apart from `declined`, which is the
+  // clinic's decision and carries the clinic's reason.
+  withdrawn: "Withdrawn",
 };
 
 export function formatReferralStatus(status: string) {
@@ -36,6 +39,7 @@ export const REFERRAL_STATUSES = [
   "invite_sent",
   "converted",
   "declined",
+  "withdrawn",
 ] as const;
 
 export type ReferralStatus = (typeof REFERRAL_STATUSES)[number];
@@ -62,7 +66,7 @@ export function isReferralAccepted(status: string): boolean {
 
 /** Nothing further will happen without a new referral. */
 export function isReferralClosed(status: string): boolean {
-  return status === "converted" || status === "declined";
+  return status === "converted" || status === "declined" || status === "withdrawn";
 }
 
 /** The partner can still withdraw it -- nobody has been sent a link. */

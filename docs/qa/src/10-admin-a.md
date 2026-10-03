@@ -108,6 +108,16 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 * Each signal shows a severity (`Low` / `Worth a look` / `Look now`), a status (`Needs a look` / `Being reviewed` / `Nothing in it` / `Acted on`), and **links to the rows behind it** - `evidence` stores row ids, not a score, because an admin who can only see a verdict cannot disagree with it.
 * The eight rules are `contact_leak`, `completion_without_payment`, `early_completion`, `cash_variance`, `contact_reveal_volume`, `manual_adjustment_volume`, `plan_conversion_low`, `post_consultation_dropout`. **The last two ship disabled** - a threshold invented before anyone knows the clinic's normal rate fires on everyone or on nobody.
 
+#### `ADM-RISK-005` - An empty queue is an all-clear only after a complete check · P0
+
+**Steps**
+1. **[SQL]** `update risk_sweep_runs set complete = false, failed_rules = '{cash_variance}' where id = 1;` (insert the row with `id = 1` first if there is none).
+2. Open **Today → Risk** within five minutes (the sweep's own interval, so it does not overwrite the row first).
+3. **[SQL]** `update risk_sweep_runs set complete = true, failed_rules = '{}' where id = 1;` and reload.
+4. As a signed-out caller, read `risk_sweep_runs` with the anon key.
+
+**Expected Result.** Step 2: an amber notice reads *The last check wasn't complete. Couldn't run: Cash variance…*, and the empty state says *No open signals found - but the check above didn't cover everything*, never *Nothing waiting*. Step 3: the notice is gone and an empty queue reads *Nothing waiting*. Step 4: no rows. The flagged-messages and contact-reveal panels say *Showing the newest 200…* once they hold 200 rows, and say they couldn't load rather than *Nothing caught* when their read fails.
+
 #### `ADM-RISK-002` - Reviewing a signal requires a real note · P1
 **Steps.** Review a signal with a note of `ok` (2 characters), then with `Checked the two sessions, both legitimate.`
 **Expected Result.** The short note is refused - the minimum is **ten characters**, enforced by a CHECK, because "dismissed" with no reason reads the same as "not read". Reviews are **append-only**. Closing a signal frees its slot, so a repeat after a dismissal is raised **fresh** - that is correct, it is new information.

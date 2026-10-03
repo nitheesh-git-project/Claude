@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import { getAdminContextResult } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { serverError } from "@/lib/apiError";
-
-function generatePassword() {
-  return crypto.randomBytes(9).toString("base64url");
-}
+import { issueSetPasswordLink, unknowablePassword } from "@/lib/accessLink";
 
 // The fourth of these, and the one that did not exist.
 //
@@ -78,21 +74,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "That account is not a back-office account" }, { status: 400 });
   }
 
-  const password = generatePassword();
+  // A password nobody knows: the reset still locks out whoever holds the
+  // current one, and the person sets their own through the one-time link
+  // below. Nothing is stored or shown -- see src/lib/accessLink.ts.
+  const password = unknowablePassword();
   const { error } = await admin.auth.admin.updateUserById(adminId, { password });
   if (error) {
     return serverError("admin/reset-admin-password", error);
   }
 
-  // Kept readable here rather than shown once, the same rule the other three
-  // follow: an admin taking a "it won't let me in" call reads it back instead
-  // of resetting a working credential. Cleared by /api/clear-temp-password the
-  // moment they set their own.
-  await admin.from("admin_account_notes").upsert({
-    admin_id: adminId,
-    temp_password: password,
-    temp_password_set_at: new Date().toISOString(),
-  });
+  // Any plaintext an older version of this route left behind is cleared:
+  // it is a credential for the password just replaced.
+  await admin.from("admin_account_notes").update({ temp_password: null }).eq("admin_id", adminId);
+
+  const link = await issueSetPasswordLink(admin, target.email);
+  if (!link.ok) {
+    return serverError("admin/reset-admin-password", link.error, {
+      message:
+        "The old password was cleared, but a sign-in link could not be made. Press the button again to issue one.",
+    });
+  }
 
   // Never the password itself: this log is readable by every admin, and a live
   // back-office credential in it would be the widest of the four.
@@ -102,5 +103,5 @@ export async function POST(request: NextRequest) {
     details: { role: "admin" },
   });
 
-  return NextResponse.json({ email: target.email, password });
+  return NextResponse.json({ email: target.email, linkPath: link.path });
 }

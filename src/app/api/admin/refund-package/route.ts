@@ -5,7 +5,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { mirrorVoid } from "@/lib/sessionCreditMirror";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
+import {
+  closeRefundedPurchaseSessions,
+  countDeliveredSessions,
+  refundCloseoutWarning,
+} from "@/lib/packageRefundServer";
 import { serverError } from "@/lib/apiError";
 import {
   openRefundAttempt,
@@ -79,14 +83,49 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This package was never paid for." }, { status: 400 });
   }
 
-  const { count: completedCount } = await admin
-    .from("appointments")
-    .select("id", { count: "exact", head: true })
-    .eq("package_purchase_id", purchaseId)
-    .eq("status", "completed");
+  // CAS claim BEFORE counting and BEFORE calling Razorpay. Claiming first is
+  // what makes the delivered count final: once the purchase reads
+  // `refunded`, complete-session refuses its sessions, so no session can be
+  // delivered between the count below and the money moving. Only the
+  // request that wins this claim goes anywhere near the gateway.
+  const claimedAt = new Date().toISOString();
+  const { data: claimed, error: claimError } = await admin
+    .from("patient_package_purchases")
+    .update({ status: "refunded", refunded_at: claimedAt })
+    .eq("id", purchaseId)
+    .eq("status", "active")
+    .select("id")
+    .maybeSingle();
+  if (claimError) {
+    return serverError("admin/refund-package", claimError);
+  }
+  if (!claimed) {
+    return NextResponse.json(
+      { error: "This package was already refunded or changed concurrently - please refresh." },
+      { status: 409 }
+    );
+  }
+  const releaseClaim = () =>
+    admin
+      .from("patient_package_purchases")
+      .update({ status: "active", refund_amount_paise: null, refunded_at: null })
+      .eq("id", purchaseId)
+      .eq("status", "refunded");
 
-  const refundableCount = purchase.session_count - (completedCount ?? 0);
+  // A count that failed is not zero delivered -- that would refund treatment
+  // already given.
+  const completedCount = await countDeliveredSessions(admin, "package_purchase_id", purchaseId);
+  if (completedCount === null) {
+    await releaseClaim();
+    return NextResponse.json(
+      { error: "We couldn't count the sessions already delivered, so nothing was refunded. Please retry." },
+      { status: 503 }
+    );
+  }
+
+  const refundableCount = purchase.session_count - completedCount;
   if (refundableCount <= 0) {
+    await releaseClaim();
     return NextResponse.json(
       { error: "Every session on this package has already been completed - nothing to refund." },
       { status: 400 }
@@ -101,27 +140,17 @@ export async function POST(request: NextRequest) {
     purchase.amount_paid_paise ?? 0
   );
   if (refundAmountPaise <= 0) {
+    await releaseClaim();
     return NextResponse.json({ error: "Nothing to refund on this package." }, { status: 400 });
   }
-
-  // CAS claim BEFORE calling Razorpay -- see the file header comment. Only
-  // the request that wins this claim is allowed anywhere near
-  // razorpay.payments.refund; the loser exits here having moved no money.
-  const { data: claimed, error: claimError } = await admin
+  const { error: amountError } = await admin
     .from("patient_package_purchases")
-    .update({ status: "refunded", refund_amount_paise: refundAmountPaise, refunded_at: new Date().toISOString() })
+    .update({ refund_amount_paise: refundAmountPaise })
     .eq("id", purchaseId)
-    .eq("status", "active")
-    .select("id")
-    .maybeSingle();
-  if (claimError) {
-    return serverError("admin/refund-package", claimError);
-  }
-  if (!claimed) {
-    return NextResponse.json(
-      { error: "This package was already refunded or changed concurrently - please refresh." },
-      { status: 409 }
-    );
+    .eq("status", "refunded");
+  if (amountError) {
+    await releaseClaim();
+    return serverError("admin/refund-package", amountError);
   }
 
   // Recorded before the gateway call, so a refund that went through and
@@ -137,11 +166,7 @@ export async function POST(request: NextRequest) {
     requestedBy: adminUser.id,
   });
   if (!attemptId) {
-    await admin
-      .from("patient_package_purchases")
-      .update({ status: "active", refund_amount_paise: null, refunded_at: null })
-      .eq("id", purchaseId)
-      .eq("status", "refunded");
+    await releaseClaim();
     return NextResponse.json(
       {
         error:
@@ -165,11 +190,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error("Package refund failed for purchase", purchaseId, err);
     await failRefundAttempt(admin, attemptId, err);
-    const { error: revertError } = await admin
-      .from("patient_package_purchases")
-      .update({ status: "active", refund_amount_paise: null, refunded_at: null })
-      .eq("id", purchaseId)
-      .eq("status", "refunded");
+    const { error: revertError } = await releaseClaim();
     if (revertError) {
       console.error("Failed to revert package purchase claim after Razorpay refund failure", purchaseId, revertError);
     }
@@ -179,29 +200,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Refund succeeded - now close out the purchase and free any sessions
-  // it still had scheduled.
-  const { data: futureAppointments } = await admin
-    .from("appointments")
-    .select("id, google_event_id")
-    .eq("package_purchase_id", purchaseId)
-    .in("status", ["requested", "confirmed"]);
-
-  for (const appointment of futureAppointments ?? []) {
-    await deleteMeetEventForAppointment(admin, {
-      appointmentId: appointment.id,
-      googleEventId: appointment.google_event_id,
-    });
-    await admin
-      .from("appointments")
-      .update({
-        status: "cancelled",
-        cancelled_at: new Date().toISOString(),
-        cancelled_by: adminUser.id,
-        cancellation_reason: "Package refunded by admin",
-      })
-      .eq("id", appointment.id)
-      .in("status", ["requested", "confirmed"]);
+  // Refund succeeded - now close out the purchase's live sessions, checking
+  // every write (see closeRefundedPurchaseSessions).
+  const closeout = await closeRefundedPurchaseSessions(admin, {
+    column: "package_purchase_id",
+    purchaseId,
+    adminId: adminUser.id,
+  });
+  const closeoutWarning = refundCloseoutWarning(closeout);
+  if (closeoutWarning) {
+    console.error("refund-package: sessions not all closed", purchaseId, closeout);
   }
 
   // status/refund_amount_paise/refunded_at were already written by the CAS
@@ -238,7 +246,8 @@ export async function POST(request: NextRequest) {
       refundAmountPaise,
       refundableCount,
       reason: reason?.trim() || null,
-      cancelledAppointmentIds: (futureAppointments ?? []).map((a) => a.id),
+      cancelledAppointmentIds: closeout.cancelledIds,
+      appointmentsNotCancelled: closeout.failedIds,
     },
   });
   if (eventError) {
@@ -263,5 +272,9 @@ export async function POST(request: NextRequest) {
     targetId: purchaseId, amountPaise: refundAmountPaise,
   });
 
-  return NextResponse.json({ success: true, refundAmountPaise });
+  return NextResponse.json({
+    success: true,
+    refundAmountPaise,
+    ...(closeoutWarning ? { warning: closeoutWarning } : {}),
+  });
 }

@@ -1,6 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { parseAdminScope, scopeCanManage, type AdminScope } from "@/lib/adminScope";
+import { resolveAdminScope, scopeCanManage, type AdminScope } from "@/lib/adminScope";
 import type { AdminSectionKey } from "@/lib/adminNav";
 
 export type AdminContext = {
@@ -91,17 +91,18 @@ export async function getAdminContextResult(): Promise<AdminGuardResult> {
   if (profile?.role !== "admin") return { ok: false, reason: "forbidden" };
   if (profile.active === false) return { ok: false, reason: "forbidden" };
 
-  // `admin_scope` is a new, migration-dependent column, so it is read in its
-  // own isolated call and defaulted rather than added to the select above --
-  // on a database that has not re-run schema.sql, an unknown-column error
-  // here would otherwise lock every admin out of every admin route at once.
-  // See the migration-dependent column rule in AGENTS.md. That is also why a
-  // failure here is not `unavailable`: defaulting is the correct answer.
-  const { data: scopeRow } = await supabase
+  // `admin_scope` is read in its own call so that a database predating the
+  // column (an unknown-column error) still lets its admins in -- no limited
+  // admin can exist there. Any other failure is "we could not check", and
+  // resolves to unavailable rather than to Master Admin: defaulting a failed
+  // read to 'full' would hand a Finance desk every section during a blip.
+  const { data: scopeRow, error: scopeError } = await supabase
     .from("profiles")
     .select("admin_scope")
     .eq("id", user.id)
     .maybeSingle();
+  const scope = resolveAdminScope(scopeRow?.admin_scope, scopeError);
+  if (!scope) return { ok: false, reason: "unavailable" };
 
   return {
     ok: true,
@@ -109,7 +110,7 @@ export async function getAdminContextResult(): Promise<AdminGuardResult> {
     context: {
       id: user.id,
       email: user.email ?? null,
-      scope: parseAdminScope(scopeRow?.admin_scope),
+      scope,
     },
   };
 }
