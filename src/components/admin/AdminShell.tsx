@@ -139,6 +139,7 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   // append-only record nobody watches live; 30s is instant enough for the
   // Logs screen and stops every tap in the back office costing two rebuilds.
   "admin_activity_log",
+  "admin_activity_gaps",
   // Campaigns are admin-edited catalog data like the rest of this list, and
   // the editor already sees their own change -- so the long cooldown is
   // right and the operational one would be wasted rebuilds.

@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createPublicClient } from "@/lib/supabase/public";
 import { devContactFromRow, type DevContact } from "@/lib/devReachout";
+import { SOCIAL_LINKS_SELECT } from "@/lib/socialLinks";
 
 /**
  * The one row of `site_settings`, read once per request instead of once per
@@ -82,6 +83,8 @@ export type LayoutBrandRow = {
 
 export type LayoutSettingsRow = {
   brand: LayoutBrandRow | null;
+  /** The footer's social links -- newest columns here, so their own group. */
+  social: Record<string, string | null> | null;
   homeVisit: { home_visit_enabled?: boolean | null } | null;
   farewell: { farewell_banner_seconds?: number | null } | null;
   splash: {
@@ -105,8 +108,9 @@ export type DevContactRow = {
 async function readLayoutSettings(): Promise<LayoutSettingsRow> {
   const supabase = createPublicClient();
 
-  const [brand, homeVisit, farewell, splash, devContact] = await Promise.all([
+  const [brand, social, homeVisit, farewell, splash, devContact] = await Promise.all([
     supabase.from("site_settings").select(BRAND_COLUMNS).maybeSingle(),
+    supabase.from("site_settings").select(SOCIAL_LINKS_SELECT).maybeSingle(),
     supabase.from("site_settings").select("home_visit_enabled").maybeSingle(),
     supabase.from("site_settings").select("farewell_banner_seconds").maybeSingle(),
     supabase.from("site_settings").select(SPLASH_COLUMNS).maybeSingle(),
@@ -115,6 +119,7 @@ async function readLayoutSettings(): Promise<LayoutSettingsRow> {
 
   return {
     brand: (brand.data as LayoutSettingsRow["brand"]) ?? null,
+    social: (social.data as LayoutSettingsRow["social"]) ?? null,
     homeVisit: (homeVisit.data as LayoutSettingsRow["homeVisit"]) ?? null,
     farewell: (farewell.data as LayoutSettingsRow["farewell"]) ?? null,
     splash: (splash.data as LayoutSettingsRow["splash"]) ?? null,

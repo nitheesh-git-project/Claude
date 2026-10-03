@@ -234,18 +234,18 @@ This is the single most misunderstood part of the application, and mis-reading i
 
 **The simulated clock is stored as an OFFSET, not as a fixed target.** When you set "12 September 2026, 18:00", the app stores `target − Date.now()` in `localStorage` under `debugNowOffsetMs`. The simulated clock then keeps **ticking forward at normal speed**. It never freezes.
 
-**It is client-side only.** It affects only client-rendered advisory gates that call `debugNow()` instead of `Date.now()`. It is **deliberately never wired into any server-side or API-route time check.**
+**It is client-side, with one server exception.** It affects client-rendered advisory gates that call `debugNow()` instead of `Date.now()`. Server-side time checks use the server's real clock - **except** `/api/appointments/complete-session` (Done and No-show), which honours the simulated clock whenever the debug bar is on (no separate setting). The browser sends its offset in the `x-debug-now-offset-ms` header; a server without the flag ignores it.
 
 | Affected by the simulated clock | NOT affected (uses the server's real clock) |
 | --- | --- |
 | The `/book` wizard's date calendar and hour list (which dates/times are offered) | `/api/appointments/create`'s lead-time validation |
 | The `/book-home-visit` wizard's date/time picker | `/api/home-visit/*` lead-time validation |
-| **Tap to Join** / **Session Completed** button states on every dashboard | `/api/appointments/complete-session`'s join-window gate |
+| **Tap to Join** / **Session Completed** button states on every dashboard | `/api/appointments/complete-session`'s join-window gate - **while the debug bar is on**, it follows the simulated clock too |
 | Session card greying and Upcoming/Past bucketing in the browser | Refund-eligibility maths in `/api/appointments/cancel` |
 | The therapist's own suggestion picker | `/api/therapist/suggest-session`'s lead-time check |
 | | Payout maths, `completed_at` stamping, audit timestamps, `paid_at` |
 
-**The practical consequence, stated plainly:** you can use the simulated clock to make the *UI offer* a slot or a button. You cannot use it to make the *server accept* a time-gated write. If you simulate a date far in the future and then try to complete a session, the client will show you the **Tap to Join** control and the server will still answer `409` with *"This session hasn't started yet. You can mark it done once it's under way."* **That is correct behaviour, not a defect.** Tests that need a server-side time gate to pass say so explicitly and tell you to use a real near-future slot instead.
+**The practical consequence, stated plainly:** you can use the simulated clock to make the *UI offer* a slot or a button. You cannot use it to make the *server accept* a time-gated write. The one exception is marking a session done or a no-show: while the debug bar is on, simulate a time after the session and **Done** is accepted. With the bar switched off (`NEXT_PUBLIC_SHOW_DEBUG_NAV=false`) the server ignores the simulated time and still answers `409` with *"This session hasn't started yet. You can mark it done once it's under way."* - that is correct then, not a defect. Tests that need any other server-side time gate to pass say so explicitly and tell you to use a real near-future slot instead.
 
 Because the storage key is `localStorage`, the simulation is **per browser profile**, and it survives navigation and reload until you reset it. Applying it triggers a **full page reload** - soft re-renders would not pick it up, because every consumer reads the clock once in a lazy initializer.
 

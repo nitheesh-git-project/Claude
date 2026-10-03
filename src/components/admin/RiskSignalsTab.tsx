@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
+import { summariseRiskSweep, type SweepReportLike } from "@/lib/riskSweepSummary";
 import PagedList from "@/components/dashboard/PagedList";
 import {
   MIN_REVIEW_NOTE_LENGTH,
@@ -94,6 +95,8 @@ export default function RiskSignalsTab({
   canReview,
   canSeeTrails = true,
   scopeNote,
+  sweep = { report: null, readFailed: false },
+  readIssues = NO_READ_ISSUES,
 }: {
   signals: RiskSignalRow[];
   reviews: RiskReviewRow[];
@@ -115,6 +118,12 @@ export default function RiskSignalsTab({
    *  filtered queue that looks complete is worse than one that says what it
    *  is. */
   scopeNote?: string | null;
+  /** How the last detector sweep went. An empty queue is an all-clear only
+   *  when this says every rule ran -- see riskSweepSummary.ts. */
+  sweep?: { report: SweepReportLike | null; readFailed: boolean };
+  /** Which of this screen's reads failed, and which show a window of the
+   *  newest rows rather than all of them. */
+  readIssues?: RiskReadIssues;
 }) {
   const reviewsBySignal = new Map<string, RiskReviewRow[]>();
   for (const r of reviews) {
@@ -124,6 +133,8 @@ export default function RiskSignalsTab({
   }
 
   const open = signals.filter((s) => s.status === "open" || s.status === "reviewing");
+  const ruleLabel = (key: string) => rules.find((r) => r.ruleKey === key)?.label ?? key;
+  const sweepSummary = summariseRiskSweep(sweep, ruleLabel);
   const closed = signals.filter((s) => s.status === "dismissed" || s.status === "actioned");
 
   return (
@@ -139,11 +150,31 @@ export default function RiskSignalsTab({
             {scopeNote}
           </p>
         )}
-        {open.length === 0 ? (
+        {readIssues.openSignals && (
+          <ReadNotice tone="error">
+            We couldn&apos;t load the open signals. This list may be missing some - refresh to try
+            again.
+          </ReadNotice>
+        )}
+        {detectorsEnabled && !sweepSummary.trustworthy && (
+          <ReadNotice tone="warning">
+            <span className="font-semibold">The last check wasn&apos;t complete.</span>{" "}
+            {sweepSummary.problems.join(" ")}
+          </ReadNotice>
+        )}
+        {open.length === 0 && !readIssues.openSignals && sweepSummary.trustworthy ? (
           <EmptyState
             icon="fa-circle-check"
             title="Nothing waiting"
             body="No open signals. The detectors run when this page loads, so this stays current without anything scheduled."
+          />
+        ) : open.length === 0 ? (
+          // No open signal is NOT an all-clear when the check that would
+          // have raised one did not finish, or the list itself did not load.
+          <EmptyState
+            icon="fa-circle-question"
+            title="No open signals found"
+            body="But the check above didn't cover everything, so this isn't a clean bill of health."
           />
         ) : (
           <PagedList
@@ -163,20 +194,40 @@ export default function RiskSignalsTab({
         )}
       </SurfaceCard>
 
-      {canReview && canSeeTrails && <FlaggedMessages flags={flags} />}
+      {canReview && canSeeTrails && (
+        <FlaggedMessages
+          flags={flags}
+          readFailed={readIssues.flags}
+          windowed={readIssues.flagsWindowed}
+          windowSize={readIssues.windowSize}
+        />
+      )}
 
-      {canReview && canSeeTrails && <RevealTrail reveals={reveals} />}
+      {canReview && canSeeTrails && (
+        <RevealTrail
+          reveals={reveals}
+          readFailed={readIssues.reveals}
+          windowed={readIssues.revealsWindowed}
+          windowSize={readIssues.windowSize}
+        />
+      )}
 
       {canReview && canSeeTrails && (
         <RulesPanel rules={rules} detectorsEnabled={detectorsEnabled} />
       )}
 
-      {closed.length > 0 && (
+      {(closed.length > 0 || readIssues.closedSignals) && (
         <SurfaceCard
           title="Already looked at"
           icon="fa-clock-rotate-left"
           subtitle="Closed signals and what was concluded. If the behaviour continues, a fresh signal is raised rather than this one reopening."
         >
+          <TrailNotices
+            noun="closed signals"
+            readFailed={readIssues.closedSignals}
+            windowed={readIssues.closedSignalsWindowed}
+            windowSize={readIssues.windowSize}
+          />
           <PagedList
             items={closed.map((s) => ({
               id: s.id,
@@ -528,7 +579,17 @@ const SURFACE_LABELS: Record<string, string> = {
  *
  * Read-only, like the rest of this tab. Nothing here suspends anyone.
  */
-function FlaggedMessages({ flags }: { flags: CommunicationFlagRow[] }) {
+function FlaggedMessages({
+  flags,
+  readFailed,
+  windowed,
+  windowSize,
+}: {
+  flags: CommunicationFlagRow[];
+  readFailed: boolean;
+  windowed: boolean;
+  windowSize: number;
+}) {
   const blocked = flags.filter((f) => f.blocked);
   const delivered = flags.filter((f) => !f.blocked);
 
@@ -538,7 +599,8 @@ function FlaggedMessages({ flags }: { flags: CommunicationFlagRow[] }) {
       icon="fa-comment-slash"
       subtitle="What was written, and whether it was delivered. A phone number in an instruction is usually nothing; a payment handle never is."
     >
-      {flags.length === 0 ? (
+      <TrailNotices noun="caught messages" readFailed={readFailed} windowed={windowed} windowSize={windowSize} />
+      {readFailed && flags.length === 0 ? null : flags.length === 0 ? (
         <EmptyState
           icon="fa-circle-check"
           title="Nothing caught"
@@ -615,14 +677,25 @@ function FlagCard({ flag }: { flag: CommunicationFlagRow }) {
  * the patient they are with is the normal case and should read as
  * unremarkable here; the value is that a caseload being copied would not.
  */
-function RevealTrail({ reveals }: { reveals: ContactRevealRow[] }) {
+function RevealTrail({
+  reveals,
+  readFailed,
+  windowed,
+  windowSize,
+}: {
+  reveals: ContactRevealRow[];
+  readFailed: boolean;
+  windowed: boolean;
+  windowSize: number;
+}) {
   return (
     <SurfaceCard
       title="Contact details shown"
       icon="fa-address-book"
       subtitle="Every time a therapist unmasked a patient's number. Revealing is allowed and expected - this is the record that it happened."
     >
-      {reveals.length === 0 ? (
+      <TrailNotices noun="reveals" readFailed={readFailed} windowed={windowed} windowSize={windowSize} />
+      {readFailed && reveals.length === 0 ? null : reveals.length === 0 ? (
         <EmptyState
           icon="fa-eye-slash"
           title="No reveals yet"
@@ -651,4 +724,75 @@ function RevealTrail({ reveals }: { reveals: ContactRevealRow[] }) {
       )}
     </SurfaceCard>
   );
+}
+
+export type RiskReadIssues = {
+  openSignals: boolean;
+  closedSignals: boolean;
+  closedSignalsWindowed: boolean;
+  flags: boolean;
+  flagsWindowed: boolean;
+  reveals: boolean;
+  revealsWindowed: boolean;
+  windowSize: number;
+};
+
+const NO_READ_ISSUES: RiskReadIssues = {
+  openSignals: false,
+  closedSignals: false,
+  closedSignalsWindowed: false,
+  flags: false,
+  flagsWindowed: false,
+  reveals: false,
+  revealsWindowed: false,
+  windowSize: 200,
+};
+
+function ReadNotice({ tone, children }: { tone: "error" | "warning"; children: ReactNode }) {
+  return (
+    <p
+      role={tone === "error" ? "alert" : "status"}
+      className={`mb-4 rounded-xl border px-3.5 py-2.5 text-xs leading-relaxed ${
+        tone === "error"
+          ? "border-red-200 bg-red-50 text-red-800"
+          : "border-amber-200 bg-amber-50 text-amber-900"
+      }`}
+    >
+      {children}
+    </p>
+  );
+}
+
+/**
+ * The two evidence trails show a window of the newest rows. That used to be
+ * silent: two hundred rows looked like the whole history, and a failed read
+ * looked like none. Both are said now.
+ */
+function TrailNotices({
+  noun,
+  readFailed,
+  windowed,
+  windowSize,
+}: {
+  noun: string;
+  readFailed: boolean;
+  windowed: boolean;
+  windowSize: number;
+}) {
+  if (readFailed) {
+    return (
+      <ReadNotice tone="error">
+        We couldn&apos;t load the {noun}. Refresh to try again - an empty list here would not mean
+        there are none.
+      </ReadNotice>
+    );
+  }
+  if (windowed) {
+    return (
+      <ReadNotice tone="warning">
+        Showing the newest {windowSize} {noun}. Older ones are kept and not shown here.
+      </ReadNotice>
+    );
+  }
+  return null;
 }

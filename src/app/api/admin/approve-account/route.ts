@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
     .update({ approved: true })
     .eq("id", userId)
     .in("role", ["therapist", "patient"])
+    // Only a pending account. If a decline holds the row's lock this waits,
+    // and then finds the account gone rather than approving a deleted one.
+    .eq("approved", false)
     .select("id, role")
     .maybeSingle();
 
@@ -39,7 +42,22 @@ export async function POST(request: NextRequest) {
     return serverError("admin/approve-account", error);
   }
   if (!updated) {
-    return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    // Nothing pending to flip: either another admin approved it first (a
+    // harmless repeat -- report success) or it was declined, and is gone.
+    const { data: existing, error: readError } = await admin
+      .from("profiles")
+      .select("approved")
+      .eq("id", userId)
+      .in("role", ["therapist", "patient"])
+      .maybeSingle();
+    if (readError) return serverError("admin/approve-account (read)", readError);
+    if (existing?.approved) {
+      return NextResponse.json({ success: true, unchanged: true });
+    }
+    return NextResponse.json(
+      { error: "This signup isn't waiting any more - it may have just been declined. Refresh to see the list." },
+      { status: 404 }
+    );
   }
 
   // Only a therapist appears on /team, so only a therapist's row can have

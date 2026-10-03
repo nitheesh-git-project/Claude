@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ProfileLoadFailed from "@/components/profile/ProfileLoadFailed";
 import { createClient } from "@/lib/supabase/server";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import AccountCreatedNote from "@/components/profile/AccountCreatedNote";
@@ -30,15 +31,15 @@ export default async function PatientProfilePage() {
   // Independent of each other -- run in parallel instead of one at a time.
   // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
   const [
-    { data: profile },
+    { data: profile, error: profileError },
     { data: patientCodeRow },
-    { data: changeRequests },
+    { data: changeRequests, error: changeRequestsError },
     { count: ownedPackagesCount },
     { data: settingsRow },
     { count: onlineSessionCount },
     { count: homeVisitCount },
     { count: ownedHomeVisitCount },
-    { data: savedAddresses },
+    { data: savedAddresses, error: savedAddressesError },
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -110,6 +111,11 @@ export default async function PatientProfilePage() {
   ]);
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
   const adminSettings = parseAdminSettings(settingsRow);
+  // A failed read is not a blank profile -- see ProfileLoadFailed. Each
+  // section withholds only what it could not read: the addresses card can
+  // fail on its own and leave the details editable, and Account Security
+  // depends on neither.
+  const profileUnreadable = !!profileError || !!changeRequestsError;
 
   // The sidebar must have the same shape on every screen, so these two
   // stand-alone pages resolve the Suggested Sessions entry the same way the
@@ -158,6 +164,14 @@ export default async function PatientProfilePage() {
       headerSubtitle="Update your personal details, contact info, and account security."
     >
       <div className="max-w-2xl mx-auto">
+      {profileUnreadable ? (
+        <ProfileLoadFailed
+          title="We couldn't load your details"
+          anchorIds={["profile-photo", "personal-details", "contact-details"]}
+          body="Your details and any change you've asked for are safe - they just didn't load this time. Nothing can be edited or sent from here until they do."
+        />
+      ) : (
+      <>
       <div id="profile-photo" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <AvatarUpload
           userId={user.id}
@@ -224,8 +238,21 @@ export default async function PatientProfilePage() {
         />
       </div>
 
+      </>
+      )}
+
       <div id="my-addresses" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
-        <MyAddresses addresses={savedAddresses ?? []} />
+        {/* An empty list here offers "Add address" -- which, after a failed
+            read, is an invitation to save one the patient already has. */}
+        {savedAddressesError ? (
+          <ProfileLoadFailed
+            compact
+            title="We couldn't load your saved addresses"
+            body="Your addresses are safe - they just didn't load this time. Adding one now could save it twice, so this waits until they do."
+          />
+        ) : (
+          <MyAddresses addresses={savedAddresses ?? []} />
+        )}
       </div>
 
       <div id="account-security" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

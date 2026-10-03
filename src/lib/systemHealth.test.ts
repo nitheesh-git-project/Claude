@@ -41,6 +41,7 @@ const ALL_WELL: SystemHealthInput = {
   settlementDisagreements: 0,
   settlementsRecorded: 3,
   storage: { filesWithNoRow: 0, rowsWithNoFile: 0, truncated: false },
+  activityLog: { gapsLast30Days: 0, latestGapAt: null },
 };
 
 describe("buildSystemHealth", () => {
@@ -100,7 +101,7 @@ describe("buildSystemHealth", () => {
 
   it("reports every check healthy when nothing is wrong", () => {
     const checks = buildSystemHealth(ALL_WELL);
-    expect(checks).toHaveLength(11);
+    expect(checks).toHaveLength(12);
     expect(checks.every((c) => c.status === "healthy")).toBe(true);
     // A healthy check must not ask the reader to do anything.
     expect(checks.every((c) => c.fix.length === 0)).toBe(true);
@@ -505,7 +506,7 @@ describe("summarizeHealth", () => {
     const summary = summarizeHealth(buildSystemHealth(ALL_WELL));
     expect(summary.needsPerson).toBe(0);
     expect(summary.worst).toBe("healthy");
-    expect(summary.headline).toBe("All 11 checks healthy");
+    expect(summary.headline).toBe("All 12 checks healthy");
     expect(summary.attention).toHaveLength(0);
   });
 
@@ -760,5 +761,26 @@ describe("the partner attribution check", () => {
   it("gives an owner steps they can follow alone whenever it is not healthy", () => {
     expect(check(withAttribution({ orphanedCount: 1 })).fix.length).toBeGreaterThan(0);
     expect(check(withAttribution(null)).fix.length).toBeGreaterThan(0);
+  });
+});
+
+describe("activity log check", () => {
+  const check = (activityLog: { gapsLast30Days: number; latestGapAt: string | null } | null) =>
+    buildSystemHealth({ ...ALL_WELL, activityLog }).find((c) => c.id === "activity_log")!;
+
+  it("is healthy with no gaps", () => {
+    expect(check({ gapsLast30Days: 0, latestGapAt: null }).status).toBe("healthy");
+  });
+
+  it("asks for a person when the history is missing entries, and counts them", () => {
+    const c = check({ gapsLast30Days: 3, latestGapAt: "2026-10-01T10:00:00Z" });
+    expect(c.status).toBe("attention");
+    expect(c.count).toBe(3);
+    expect(c.headline).toContain("3 admin actions");
+    expect(c.fix.length).toBeGreaterThan(0);
+  });
+
+  it("never reads an unreadable gap list as healthy", () => {
+    expect(check(null).status).toBe("unknown");
   });
 });

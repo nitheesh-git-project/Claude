@@ -83,12 +83,20 @@ export async function approveCarePlan(
     reason,
   }: { carePlanId: string; reviewerId: string; reason?: string }
 ): Promise<CarePlanReviewResult> {
-  const { data: plan } = await admin
+  const { data: plan, error: planError } = await admin
     .from("care_plans")
     .select("id, status, current_version_id")
     .eq("id", carePlanId)
     .maybeSingle();
 
+  // A read that failed is not a plan that was deleted.
+  if (planError) {
+    return {
+      ok: false,
+      status: 503,
+      error: "We couldn't check that recommendation just now. Nothing was changed - please try again.",
+    };
+  }
   if (!plan) {
     return { ok: false, status: 404, error: "That recommendation no longer exists." };
   }
@@ -115,67 +123,52 @@ export async function approveCarePlan(
     if (drift) return { ok: false, status: 409, error: drift };
   }
 
-  const { data: claimed, error: claimError } = await admin
-    .from("care_plans")
-    .update({
-      status: "active",
-      reviewed_by: reviewerId,
-      reviewed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", carePlanId)
-    .eq("status", "pending_review")
-    .select("id")
-    .maybeSingle();
+  // Claim, offer window and review record in one transaction
+  // (approve_care_plan in schema.sql). They were three writes: a failed
+  // window stamp was only logged, publishing an offer with no expiry, and a
+  // failed review record put the plan back in the queue with a window the
+  // retry could not restamp. Now it is all or nothing.
+  const settings = await readCarePlanSettings(admin);
+  const { data: outcome, error: approveError } = await admin.rpc("approve_care_plan", {
+    p_care_plan_id: carePlanId,
+    p_reviewer_id: reviewerId,
+    p_expiry_days: settings.expiryDays,
+    p_reason: reason?.trim() ? reason : null,
+  });
 
-  if (claimError) {
-    return { ok: false, status: 500, error: claimError.message };
+  if (approveError) {
+    // No fallback to the old three-step path: that is what this replaced.
+    if (approveError.code === "PGRST202" || approveError.code === "42883") {
+      return {
+        ok: false,
+        status: 503,
+        error:
+          "The care-plan database update hasn't been applied yet. Ask an admin to re-run supabase/schema.sql.",
+      };
+    }
+    console.error("Care plan approval failed; nothing was applied", carePlanId, approveError);
+    return {
+      ok: false,
+      status: 500,
+      error: "The approval could not be saved, so it was not applied. The recommendation is still waiting.",
+    };
   }
-  if (!claimed) {
+  if (outcome === "not_found") {
+    return { ok: false, status: 404, error: "That recommendation no longer exists." };
+  }
+  if (outcome === "not_pending") {
     return {
       ok: false,
       status: 409,
       error: "Someone else decided this one first. Refresh to see where it landed.",
     };
   }
-
-  if (plan.current_version_id) {
-    const settings = await readCarePlanSettings(admin);
-    const expiresAt = new Date(
-      Date.now() + settings.expiryDays * 86_400_000
-    ).toISOString();
-    // Only ever on a version that has none. A second stamp would move an
-    // offer window the patient has already read, and the trigger refuses it
-    // regardless -- this predicate is what keeps that from being an error
-    // the admin sees.
-    const { error: stampError } = await admin
-      .from("care_plan_versions")
-      .update({ expires_at: expiresAt })
-      .eq("id", plan.current_version_id)
-      .is("expires_at", null);
-    if (stampError) {
-      console.error("Care plan approved but its offer window was not stamped", carePlanId, stampError);
-    }
-  }
-
-  const recorded = await recordReview(admin, {
-    carePlanId,
-    versionId: plan.current_version_id,
-    reviewerId,
-    decision: "approved",
-    reason: reason?.trim() ? reason : null,
-  });
-  if (!recorded) {
-    await admin
-      .from("care_plans")
-      .update({ status: "pending_review", reviewed_by: null, reviewed_at: null })
-      .eq("id", carePlanId)
-      .eq("status", "active");
+  if (outcome === "window_passed") {
     return {
       ok: false,
-      status: 500,
+      status: 409,
       error:
-        "The approval could not be recorded, so it was not applied. The recommendation is still waiting.",
+        "This version's offer window has already run out, so approving it would publish an expired offer. Ask the therapist to revise it, or edit and approve it.",
     };
   }
 

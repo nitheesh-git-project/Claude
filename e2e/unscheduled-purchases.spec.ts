@@ -13,7 +13,15 @@
 // dashboard follows everywhere and the one nothing but a rendered page can
 // check.
 import { test, expect } from "@playwright/test";
-import { adminClient, browserCookiesFor, profileIdFor, QA_EMAILS, BASE } from "./helpers";
+import {
+  adminClient,
+  browserCookiesFor,
+  countAcrossPages,
+  pageUntilVisible,
+  profileIdFor,
+  QA_EMAILS,
+  BASE,
+} from "./helpers";
 
 const MARKER = "e2e-unscheduled-purchase";
 const DAY = 86_400_000;
@@ -98,8 +106,16 @@ test.describe("Suite UP: purchases with nothing booked", () => {
     // second half is the one worth pinning: a filter that simply showed
     // everything would pass the first assertion on its own.
     test.skip(!codes.stale || !codes.fresh, "this database does not stamp purchase codes");
-    await expect(page.getByText(codes.stale, { exact: false }).first()).toBeVisible();
-    await expect(page.getByText(codes.fresh, { exact: false })).toHaveCount(0);
+    // Across every page: the QA patients carry other specs' purchases, so
+    // the list runs past one page and the stale row can sit on page two.
+    // The absence half walks every page too -- missing from page one proves
+    // nothing about page two.
+    const stale = page.getByText(codes.stale, { exact: false });
+    expect(
+      await pageUntilVisible(page, "purchases", stale, { timeout: 20_000 }),
+      `${codes.stale} on any page of the list`
+    ).toBe(true);
+    expect(await countAcrossPages(page, "purchases", page.getByText(codes.fresh, { exact: false }))).toBe(0);
   });
 
   test("UP-002: the filter is a filter, and unticking it shows everything again", async ({

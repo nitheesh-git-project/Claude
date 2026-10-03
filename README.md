@@ -158,7 +158,7 @@ Three more checks need a real database and are run by hand, never in lint:
 
 ### End-to-end regression suite
 
-`npm run test:e2e` runs the Playwright suite under `e2e/` - **57 spec
+`npm run test:e2e` runs the Playwright suite under `e2e/` - **61 spec
 files**, around 395 cases, listed one by one in **`e2e/README.md`** - against a running `npm run dev` (started
 automatically if one isn't already up). It needs real credentials for a
 **test/staging** Supabase project and Razorpay **test-mode** keys in the
@@ -338,6 +338,12 @@ is deliberate while the app is pre-launch - the bar's "jump to page" list,
 its simulated clock and its Reset button are how a published change gets
 checked. **Delete the bar before real launch**: the flag is public, and the
 bar's dropdown names every route, protected dashboards included.
+
+While the bar is on, its simulated clock also moves the server's
+session-completion gate (Done and No-show), so a simulated "an hour after the
+session" can actually be marked done; there is no separate setting. With the
+bar off, or deleted at launch, the server ignores it. See
+`docs/rules/ops-security.md` for what that costs while it is on.
 
 `.env.production` stays **deleted**. It used to set that flag plus
 `ALLOW_DEBUG_DATA_RESET=true`, which armed the button that truncates every
@@ -1042,12 +1048,17 @@ save-spam in the browser.
 `/api/admin/save-therapist-availability` (any therapist,
 `requireAdminScope("sessions")`), `/api/admin/set-availability-exception`
 (one date: unavailable / custom hours / clear, `sessions`),
+`/api/therapist/set-availability-exception` (the same, for the therapist's own
+schedule only, today onwards),
 `/api/admin/set-therapist-on-leave` (`people`) and
 `/api/therapist/set-on-leave` (own), and `/api/admin/roster-day` (day view,
 `sessions`, read-only). Every admin one writes an
-`admin_activity_log` row naming the therapist and what changed. Writing a
-date exception is still an admin action only: a therapist sees theirs and
-cannot create one, exactly as before.
+`admin_activity_log` row naming the therapist and what changed. A therapist
+adds and removes their own date exceptions from their availability screen,
+the way they set their weekly hours and leave; both routes share
+`src/lib/dateException.ts` and the same locked database function. A weekly
+save that carries no version is a first-save claim, and is refused once the
+therapist has a schedule (see `docs/rules/roster.md`, rule 3).
 
 ### Care plans
 
@@ -1980,6 +1991,16 @@ many minutes a tab must sit in the background before returning to it earns
 a second greeting. See [The opening splash](#the-opening-splash) for the
 columns, the bounds and what 0 minutes means.
 
+The same screen carries **Social Media Links** - Instagram, Facebook,
+LinkedIn, YouTube and WhatsApp (`social_instagram_url`, `social_facebook_url`,
+`social_linkedin_url`, `social_youtube_url`, `social_whatsapp_url`). Each is
+optional: the footer draws an icon only for the ones filled in, and every
+icon opens in a new tab. A link must be `https` and on that network's own
+domain (`src/lib/socialLinks.ts`, enforced by the save route and a CHECK on
+the columns); a bare `instagram.com/clinic` gets `https://` added, and
+saving an empty box removes the icon. The footer's WhatsApp contact number
+also opens in a new tab now, rather than replacing the page.
+
 Brand & Contact Details fields save individually (click Edit on a field,
 change it, Save) via `/api/admin/update-setting`, same as every other
 `site_settings` column; the root layout reads them on every request to pass
@@ -2764,7 +2785,7 @@ scripts/                 One-off tooling (Google refresh-token helper,
                          and seed-qa-accounts.mjs, which recreates its
                          fixture accounts after a data reset)
 e2e/                     The Playwright suite. e2e/README.md is its
-                         inventory - all 57 spec files, what each covers,
+                         inventory - all 61 spec files, what each covers,
                          how to run them, and the nine cases that cannot
                          pass without browser egress to Supabase
 docs/rules/              The working rules for editing this codebase, split

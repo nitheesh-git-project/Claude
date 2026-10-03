@@ -24,6 +24,7 @@ const WEEKLY = "/api/admin/save-therapist-availability";
 const EXCEPTION = "/api/admin/set-availability-exception";
 const LEAVE = "/api/admin/set-therapist-on-leave";
 const THERAPIST_WEEKLY = "/api/therapist/save-availability";
+const THERAPIST_EXCEPTION = "/api/therapist/set-availability-exception";
 
 type Range = { startHour: number; endHour: number };
 
@@ -92,7 +93,34 @@ function futureDateKey(offsetDays: number): string {
   return at.toISOString().slice(0, 10);
 }
 
+/** The version a save must carry: the stored one, or null when the
+ *  therapist has never saved. A weekly save with no version now claims
+ *  "there is no schedule yet", and the database refuses that claim when a
+ *  schedule exists -- so a setup save that wants to overwrite has to say
+ *  what it is overwriting, the way the editor does. */
+async function currentVersion(admin: SupabaseClient, therapistId: string): Promise<number | null> {
+  const { data } = await admin
+    .from("therapist_schedule_state")
+    .select("version")
+    .eq("therapist_id", therapistId)
+    .maybeSingle();
+  return typeof data?.version === "number" ? data.version : null;
+}
+
 async function post(path: string, cookie: string, body: unknown) {
+  // The admin's weekly route names its therapist, so a body that leaves the
+  // version out is given the current one here -- these are setup writes,
+  // not the concurrency cases, which set it themselves.
+  if (
+    path === WEEKLY &&
+    body &&
+    typeof body === "object" &&
+    !("expectedVersion" in body) &&
+    typeof (body as { therapistId?: unknown }).therapistId === "string"
+  ) {
+    const therapistId = (body as { therapistId: string }).therapistId;
+    body = { ...body, expectedVersion: await currentVersion(adminClient(), therapistId) };
+  }
   return fetch(`${BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: cookie },
@@ -287,6 +315,7 @@ test.describe("Therapist roster - the therapist's own screen", () => {
     const cookie = await cookieHeaderFor(QA_EMAILS.therapistA);
 
     const saved = await post(THERAPIST_WEEKLY, cookie, {
+      expectedVersion: await currentVersion(admin, therapistId),
       days: days({
         1: [
           { startHour: 9, endHour: 13 },
@@ -334,13 +363,113 @@ test.describe("Therapist roster - the therapist's own screen", () => {
     });
     expect(viaAdminRoute.status).toBe(403);
 
+    const ownId = await profileIdFor(admin, QA_EMAILS.therapistA);
     const viaOwnRoute = await post(THERAPIST_WEEKLY, cookie, {
       therapistId: otherId,
+      expectedVersion: await currentVersion(admin, ownId),
       days: days({ 1: [{ startHour: 6, endHour: 23 }] }),
     });
     expect(viaOwnRoute.status).toBe(200);
     // ...and it wrote the caller's own schedule, not the id they sent.
     expect(await templateHours(admin, otherId, 1)).toEqual(before);
+  });
+});
+
+test.describe("Therapist roster - the therapist's own exceptions", () => {
+  test("R-T07: a therapist sets and clears an exception on their own schedule", async () => {
+    const admin = adminClient();
+    const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
+    const otherId = await profileIdFor(admin, QA_EMAILS.therapistB);
+    const cookie = await cookieHeaderFor(QA_EMAILS.therapistA);
+    const date = futureDateKey(9);
+    await admin.from("therapist_availability_override").delete().in("therapist_id", [therapistId, otherId]).eq("date", date);
+
+    // A therapist id in the body is ignored: the route writes the caller's.
+    const set = await post(THERAPIST_EXCEPTION, cookie, {
+      therapistId: otherId,
+      date,
+      mode: "custom_hours",
+      ranges: [{ startHour: 10, endHour: 12 }],
+      note: "Clinic training in the afternoon",
+    });
+    expect(set.status, await set.clone().text()).toBe(200);
+    expect(await effectiveHours(admin, therapistId, date)).toEqual([10, 11]);
+    expect(await exceptionRows(admin, otherId, date)).toEqual([]);
+
+    const off = await post(THERAPIST_EXCEPTION, cookie, { date, mode: "unavailable" });
+    expect(off.status).toBe(200);
+    expect(await effectiveHours(admin, therapistId, date)).toEqual([]);
+
+    const cleared = await post(THERAPIST_EXCEPTION, cookie, { date, mode: "clear" });
+    expect(cleared.status).toBe(200);
+    expect(await exceptionRows(admin, therapistId, date)).toEqual([]);
+  });
+
+  test("R-T08: a date already behind the therapist is refused", async () => {
+    const admin = adminClient();
+    const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
+    const cookie = await cookieHeaderFor(QA_EMAILS.therapistA);
+    // Two days back is past in every timezone, whatever "today" is locally.
+    const past = futureDateKey(-2);
+    const res = await post(THERAPIST_EXCEPTION, cookie, { date: past, mode: "unavailable" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/already passed/i);
+    expect(await exceptionRows(admin, therapistId, past)).toEqual([]);
+  });
+
+  test("R-T09: only a therapist may use the therapist's exception route", async () => {
+    const date = futureDateKey(10);
+    const leaks: string[] = [];
+    for (const [who, cookie] of [
+      ["signed out", null],
+      ["patient", await cookieHeaderFor(QA_EMAILS.patientA)],
+      ["hospital", await cookieHeaderFor(QA_EMAILS.hospital)],
+    ] as const) {
+      const res = await fetch(`${BASE}${THERAPIST_EXCEPTION}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}) },
+        body: JSON.stringify({ date, mode: "unavailable" }),
+      });
+      if (res.status !== 403) leaks.push(`${who} got ${res.status}`);
+    }
+    expect(leaks, leaks.join("\n")).toEqual([]);
+  });
+
+  test("R-T10: the therapist's screen offers Add exception", async ({ browser }) => {
+    const context = await browser.newContext();
+    await context.addCookies(await browserCookiesFor(QA_EMAILS.therapistA));
+    const page = await context.newPage();
+    await page.goto(`${BASE}/therapist/dashboard/availability`);
+    await expect(page.getByRole("button", { name: "Add exception" })).toBeVisible();
+    await context.close();
+  });
+});
+
+test.describe("Therapist roster - a save that never read the schedule", () => {
+  test("R-C05: no version is a first-save claim, refused once a schedule exists", async () => {
+    const admin = adminClient();
+    const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
+    const cookie = await cookieHeaderFor(QA_EMAILS.therapistA);
+
+    // A real schedule, saved properly.
+    const real = await post(THERAPIST_WEEKLY, cookie, {
+      expectedVersion: await currentVersion(admin, therapistId),
+      days: days({ 2: [{ startHour: 9, endHour: 12 }] }),
+    });
+    expect(real.status).toBe(200);
+
+    // What a screen whose read failed would send: an empty week, no version.
+    // It used to replace the schedule with nothing.
+    const blind = await post(THERAPIST_WEEKLY, cookie, { days: days({}) });
+    expect(blind.status).toBe(409);
+    expect(await templateHours(admin, therapistId, 2)).toEqual([9, 10, 11]);
+
+    // The same blind save asking for exactly what is stored is a no-op, not
+    // an error -- the double-click rule still holds.
+    const same = await post(THERAPIST_WEEKLY, cookie, {
+      days: days({ 2: [{ startHour: 9, endHour: 12 }] }),
+    });
+    expect(same.status).toBe(200);
   });
 });
 

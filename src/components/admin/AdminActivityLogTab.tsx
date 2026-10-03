@@ -1,5 +1,6 @@
 "use client";
 
+import ActivityGapsNotice, { type ActivityGap } from "@/components/admin/ActivityGapsNotice";
 import { useMemo, useState } from "react";
 import DataExportButtons from "@/components/admin/DataExportButtons";
 import ListPager from "@/components/dashboard/ListPager";
@@ -50,6 +51,8 @@ export default function AdminActivityLogTab({
   rows,
   actors,
   scopeNote,
+  gaps = [],
+  gapsTotal = 0,
 }: {
   rows: ActivityRow[];
   actors: { id: string; name: string }[];
@@ -58,6 +61,9 @@ export default function AdminActivityLogTab({
    *  Operations admin reading "Nothing logged yet" while a Master Admin has
    *  been working all morning has been told something false. */
   scopeNote?: string | null;
+  /** Actions the log could not record -- see ActivityGapsNotice. */
+  gaps?: ActivityGap[];
+  gapsTotal?: number;
 }) {
   const [actorFilter, setActorFilter] = useState("all");
   const [moneyOnly, setMoneyOnly] = useState(false);
@@ -104,6 +110,7 @@ export default function AdminActivityLogTab({
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <ActivityGapsNotice gaps={gaps} total={gapsTotal} />
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-display font-bold text-lg text-slate-800">Activity Log</h2>

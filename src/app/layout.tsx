@@ -10,6 +10,7 @@ import ScrollHint from "@/components/ScrollHint";
 import { SectionNavProvider } from "@/components/SectionNavContext";
 import { getLayoutSettings } from "@/lib/siteSettingsCache";
 import { devContactFromRow } from "@/lib/devReachout";
+import { footerSocialLinks } from "@/lib/socialLinks";
 import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
@@ -85,6 +86,7 @@ export default async function RootLayout({
   // first byte, on every single page load, is now usually none.
   const {
     brand: settingsRow,
+    social: socialRow,
     homeVisit: homeVisitRow,
     farewell: farewellRow,
     splash: splashRow,
@@ -94,6 +96,9 @@ export default async function RootLayout({
   // switched it off -- and an unreadable row is "could not check", not "off".
   const devCreditEnabled = devContactFromRow(devContactRow).enabled;
   const brand = parseAdminSettings(settingsRow);
+  // The footer's social icons -- only the networks the clinic has filled in,
+  // and nothing at all on a database without the columns yet.
+  const socialLinks = footerSocialLinks(socialRow);
 
   // Whether the Navbar shows its Home Visit link. Defaults to hidden when
   // the column doesn't exist yet, which is also the right answer for a
@@ -211,6 +216,7 @@ export default async function RootLayout({
             whatsappNumber={brand.whatsappNumber}
             contactPhone={brand.contactPhone}
             footerCopyrightText={brand.footerCopyrightText}
+            socialLinks={socialLinks}
             homeVisitEnabled={homeVisitEnabled}
             devCreditEnabled={devCreditEnabled}
           />

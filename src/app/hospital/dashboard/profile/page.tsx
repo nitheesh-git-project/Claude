@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ProfileLoadFailed from "@/components/profile/ProfileLoadFailed";
 import { createClient } from "@/lib/supabase/server";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
 import AvatarUpload from "@/components/profile/AvatarUpload";
@@ -27,8 +28,12 @@ export default async function HospitalProfilePage() {
 
   // Independent of each other -- run in parallel instead of one at a time.
   // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
-  const [{ data: profile }, { data: hospitalCodeRow }, { data: settingsRow }, { data: changeRequests }] =
-    await Promise.all([
+  const [
+    { data: profile, error: profileError },
+    { data: hospitalCodeRow },
+    { data: settingsRow },
+    { data: changeRequests, error: changeRequestsError },
+  ] = await Promise.all([
       supabase
         .from("profiles")
         .select(
@@ -54,6 +59,11 @@ export default async function HospitalProfilePage() {
     ]);
   const adminSettings = parseAdminSettings(settingsRow);
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
+  // A failed read is not a blank organisation. Rendered anyway, the form
+  // showed empty fields as the current values and hid any change already
+  // waiting for approval -- inviting a partner to "fill in" details that
+  // exist, or to submit the same change twice.
+  const profileUnreadable = !!profileError || !!changeRequestsError;
 
   // This page hides the shared Navbar entirely, so it needs the debug
   // bar's own top offset for its fixed sidebar. See DashboardShell's offsetTop prop.
@@ -76,6 +86,14 @@ export default async function HospitalProfilePage() {
       headerSubtitle="Your organisation's details, your contact preferences, and account security."
     >
       <div className="max-w-2xl mx-auto">
+        {profileUnreadable ? (
+          <ProfileLoadFailed
+            title="We couldn't load your organisation's details"
+            anchorIds={["profile-photo", "organisation-details", "contact-details"]}
+            body="Your organisation's details and any change waiting for approval are safe - they just didn't load this time. Nothing can be edited or sent from here until they do."
+          />
+        ) : (
+        <>
         <div id="profile-photo" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
           <AvatarUpload
             userId={user.id}
@@ -139,6 +157,9 @@ export default async function HospitalProfilePage() {
             currentValues={{ preferred_language: profile?.preferred_language ?? "" }}
           />
         </div>
+
+        </>
+        )}
 
         <div id="account-security" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Account Security</h2>

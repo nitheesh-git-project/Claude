@@ -24,10 +24,12 @@ import { serverError } from "@/lib/apiError";
  *
  * `expectedVersion` is the version the editor loaded with. Sending it is
  * what stops a therapist's save from silently overwriting an admin's edit
- * made while their tab sat open; sending nothing is still accepted, and
- * means "I have not read a version, write mine" -- the pre-redesign
- * behaviour, kept so a stale client cannot be locked out of its own
- * schedule.
+ * made while their tab sat open. Sending null (or nothing) claims "this
+ * therapist has never saved a schedule", and the database holds it to that:
+ * if a schedule-state row already exists the save is refused as a conflict
+ * (or is a no-op when it asks for exactly what is stored). Before, null
+ * wrote straight through -- so a screen whose read had failed, drawing an
+ * empty week, could replace the real roster with it in one Save.
  */
 export async function POST(request: NextRequest) {
 

@@ -6,7 +6,22 @@ import { isDashboardShellRoute, isDeveloperRoute } from "@/lib/dashboardShellRou
 import { MARKETING_PAGES } from "@/lib/marketingNav";
 import BrandMark from "@/components/BrandMark";
 import type { ReactNode } from "react";
-import { WhatsAppGlyph } from "@/components/visuals/BrandGlyphs";
+import {
+  FacebookGlyph,
+  InstagramGlyph,
+  LinkedInGlyph,
+  WhatsAppGlyph,
+  YouTubeGlyph,
+} from "@/components/visuals/BrandGlyphs";
+import type { FooterSocialLink, SocialPlatform } from "@/lib/socialLinks";
+
+const SOCIAL_GLYPHS: Record<SocialPlatform, () => ReactNode> = {
+  instagram: () => <InstagramGlyph />,
+  facebook: () => <FacebookGlyph />,
+  linkedin: () => <LinkedInGlyph />,
+  youtube: () => <YouTubeGlyph />,
+  whatsapp: () => <WhatsAppGlyph />,
+};
 
 export default function Footer({
   siteName,
@@ -15,6 +30,7 @@ export default function Footer({
   whatsappNumber,
   contactPhone,
   footerCopyrightText,
+  socialLinks = [],
   homeVisitEnabled = false,
   devCreditEnabled = true,
 }: {
@@ -24,6 +40,9 @@ export default function Footer({
   whatsappNumber: string;
   contactPhone: string;
   footerCopyrightText: string;
+  /** Only the networks an admin has filled in -- see src/lib/socialLinks.ts.
+   *  Empty means the row is not drawn at all. */
+  socialLinks?: FooterSocialLink[];
   homeVisitEnabled?: boolean;
   /** Whether the developer credit line shows. Off when an admin switches the
    *  /developer pages off, so the line never links to a page that 404s. */
@@ -57,6 +76,29 @@ export default function Footer({
             <span className="font-display text-white font-bold">{siteName}</span>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">{siteDescription}</p>
+          {socialLinks.length > 0 && (
+            // Under the clinic's name rather than in Contact: these are
+            // where the practice is, not ways to reach it about a booking.
+            // A new tab, because each leaves this site for someone else's
+            // app -- a patient half-way through reading should not lose
+            // their place. 36px targets clear WCAG 2.2's 24px minimum.
+            <ul className="mt-4 flex flex-wrap gap-2" aria-label={`${siteName} on social media`}>
+              {socialLinks.map((link) => (
+                <li key={link.platform}>
+                  <a
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${link.label} (opens in a new tab)`}
+                    title={link.label}
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-base text-slate-300 transition hover:bg-teal-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+                  >
+                    {SOCIAL_GLYPHS[link.platform]()}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div>
@@ -97,7 +139,8 @@ export default function Footer({
               icon={<WhatsAppGlyph />}
               value={whatsappNumber}
               href={`https://wa.me/${digitsOnly(whatsappNumber)}`}
-              label="Chat on WhatsApp"
+              label="Chat on WhatsApp (opens in a new tab)"
+              newTab
               show={hasRealPhone(whatsappNumber)}
             />
             <ContactLine
@@ -166,12 +209,18 @@ function ContactLine({
   value,
   href,
   label,
+  newTab = false,
   show,
 }: {
   icon: ReactNode;
   value: string;
   href: string;
   label?: string;
+  /** For a link that leaves the site (WhatsApp). It used to replace this
+   *  page with wa.me, so a patient who came back had lost their place.
+   *  Email and phone stay as they are -- those hand off to an app, not a
+   *  page. */
+  newTab?: boolean;
   /** Whether this detail has actually been filled in -- see above. */
   show: boolean;
 }) {
@@ -183,6 +232,7 @@ function ContactLine({
       <a
         href={href}
         aria-label={label}
+        {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
         className="inline-block py-1 hover:text-teal-400 transition"
       >
         {/* The glyph is a node rather than a class string: the WhatsApp one

@@ -19,6 +19,7 @@ import {
 } from "@/lib/patientBalances";
 import { EMAIL_RE, MAX_DEV_REACHOUT_EMAIL_LENGTH } from "@/lib/devReachout";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { SOCIAL_LINK_COLUMNS, normaliseSocialUrl, socialLinkForColumn } from "@/lib/socialLinks";
 import { serverError } from "@/lib/apiError";
 
 const ALLOWED_COLUMNS = new Set([
@@ -74,6 +75,9 @@ const ALLOWED_COLUMNS = new Set([
   "whatsapp_number",
   "contact_phone",
   "footer_copyright_text",
+  // The footer's social profiles. Blank (null) is a real value: it hides
+  // that network's icon. See src/lib/socialLinks.ts.
+  ...SOCIAL_LINK_COLUMNS,
   // The developer credit under the footer, and the address its contact page
   // publishes. Their own screen is Settings -> Dev Reachouts.
   "dev_contact_enabled",
@@ -605,6 +609,19 @@ export async function POST(request: NextRequest) {
     nextValue = value.trim();
   }
 
+  // A social link: blank clears it (the footer stops drawing that icon),
+  // anything else must be an https link on that network's own domain. The
+  // stored value is the cleaned URL, so what the footer renders is exactly
+  // what passed this check.
+  const socialLink = socialLinkForColumn(key);
+  if (socialLink) {
+    const result = normaliseSocialUrl(socialLink.platform, value);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    nextValue = result.value;
+  }
+
   if (key === "contact_email") {
     if (typeof value !== "string" || !EMAIL_RE.test(value.trim())) {
       return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
@@ -769,6 +786,8 @@ export async function POST(request: NextRequest) {
     LONG_TEXT_FIELDS.has(key) ||
     CONTACT_FIELDS.has(key) ||
     key === "contact_email" ||
+    // The social icons sit in the footer, in the same root layout.
+    socialLink !== undefined ||
     // The developer credit is a line in the footer and two pages under
     // /developer, so it needs the same layout-wide invalidation.
     key === "dev_contact_enabled" ||
