@@ -158,8 +158,8 @@ Three more checks need a real database and are run by hand, never in lint:
 
 ### End-to-end regression suite
 
-`npm run test:e2e` runs the Playwright suite under `e2e/` - **58 spec
-files**, around 390 cases, listed one by one in **`e2e/README.md`** - against a running `npm run dev` (started
+`npm run test:e2e` runs the Playwright suite under `e2e/` - **61 spec
+files**, around 395 cases, listed one by one in **`e2e/README.md`** - against a running `npm run dev` (started
 automatically if one isn't already up). It needs real credentials for a
 **test/staging** Supabase project and Razorpay **test-mode** keys in the
 environment or `.env.local`: never point it at production, since it creates
@@ -321,7 +321,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer, and the account whose Meet permission opens each meeting |
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it |
-| `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which deletes every non-admin account and empties the tables testing fills, while keeping everything a person typed: `site_settings` and `risk_rules` are not touched at all, and the conditions catalogue (`treatment_categories` and their packages), `faqs`, `testimonials` and `mission_principles` all survive. Never set it on a deployment holding real data |
+| `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which deletes every non-admin account and empties the tables testing fills, while keeping everything a person typed: `site_settings` and `risk_rules` are not touched at all, and the conditions catalogue (`treatment_categories` and their packages), `faqs`, `testimonials`, `mission_principles` and `dev_reachouts` (the developer's own inbox) all survive. Never set it on a deployment holding real data |
 | `SUPABASE_MAX_IN_FLIGHT` | Optional. How many HTTP requests this server may have in flight to Supabase at once, per instance. Default 96, measured: at 40 concurrent admin dashboard renders 48 gave a p50 of 130s, 96 gave 15.3s and 192 gave 16.4s. Without a cap, ~3,300 concurrent requests exhausted the connect timeout and the dashboard rendered the lost rows as zeroes. |
 | `SUPABASE_REQUEST_TIMEOUT_MS` | Optional. Deadline on each Supabase request, covering the wait for a slot. Default 20000. undici's own default is five minutes, and a socket stuck that long holds a slot the requests behind it need. |
 | `WEB_CONCURRENCY` | Optional. How many Node processes `npm run start:cluster` runs on one port. Default: cores, capped at 4. One `next start` renders on one thread, which is the ceiling once the database is not: four workers took the public site from 395 to 580 requests a second and an admin dashboard render under that load from 15.9s to 11.3s. Capped rather than per-core because the lazy sweeps keep their intervals per process. |
@@ -491,6 +491,13 @@ admin action.
 `/mission`, `/hospitals`, `/faq`, `/get-started`, `/book`, `/home-visit`,
 `/book-home-visit`.
 
+**Developer credit (public, deliberately not a marketing page):** `/developer`
+("Say hello!") and `/developer/lets-talk` (the contact form), reached only by
+the "Contact me" link in the credit line under the footer's copyright. Both
+404 while **Settings → Dev Reachouts** has the credit switched off, and the
+footer line is hidden with them. They are not in `MARKETING_PAGES`, so no nav
+link, Explore card or sitemap entry points at them.
+
 **Shared:** `/dashboard` - redirects to whichever dashboard belongs to the
 signed-in role (`/get-started` when signed out). Every "go to my dashboard"
 link points here so no client bundle has to know the four paths; see
@@ -528,7 +535,7 @@ states" above.
 | **Money** | Summary · Business Health · Transactions · Payouts · Owed by Patients · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
 | **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
-| **Settings** | *Your website:* Brand & Contact · Public Site — *How the clinic runs:* Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions — *Who gets in:* User Access · Sign-in & Security — *Technical:* System Health · Advanced | How the product behaves. Every screen here states what it is and gives one example, under its heading, and the sidebar groups the ten under four captions - ten flat labels is a list nobody reads top to bottom. |
+| **Settings** | *Your website:* Brand & Contact · Public Site — *How the clinic runs:* Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions — *Who gets in:* User Access · Sign-in & Security — *Technical:* System Health · Advanced · Dev Reachouts | How the product behaves. Every screen here states what it is and gives one example, under its heading, and the sidebar groups the eleven under four captions - eleven flat labels is a list nobody reads top to bottom. **Dev Reachouts** is the developer's own inbox: the messages left through the footer's "Contact me" link, a note and a contacted flag per message, the switch that shows the credit (it asks before changing in either direction) and the email published on the contact page. |
 
 Three admin records have a route of their own as well as a place on that
 grid - `/admin/dashboard/patients/[id]`, `/therapists/[id]` and
@@ -1925,13 +1932,20 @@ public `/hospitals` page also captures anonymous B2B leads into `b2b_leads`,
 which only the admin can read back. That form posts to
 `/api/hospitals/inquiry` rather than inserting from the browser, so it can be
 validated and rate limited; the table's public insert policy is gone.
+The footer's developer credit works the same way: `/developer/lets-talk` posts
+to `/api/developer/reachout`, which validates, answers a filled honeypot as a
+success without writing anything, is rate limited under its own scope, and
+inserts into `dev_reachouts` (no insert grant or policy for anyone but the
+service role). Only a Master Admin can read it back, on Settings → Dev
+Reachouts. `dev_reachouts` and the two `dev_contact_*` settings survive the
+debug data reset - they are the developer's own leads, not test data.
 
 **Rate limiting.** The public doors are throttled per caller, in Postgres
 (`src/lib/rateLimit.ts`, `check_rate_limit()` in `supabase/schema.sql`) —
 there is no worker in this deployment and an in-memory counter would reset on
-every cold start. Ten routes are covered: the referral preview and referral
+every cold start. Eleven routes are covered: the referral preview and referral
 code lookups, pincode serviceability, the home-visit waitlist, the hospital
-inquiry, registration via referral, and the four quote/checkout routes, which
+inquiry, the developer's Say hello form, registration via referral, and the four quote/checkout routes, which
 key on the signed-in account rather than an IP. A refused caller gets `429`
 with `Retry-After`, and the screen tells them roughly when they can try again
 rather than "a few minutes". The count happens after the request's shape is
@@ -2771,7 +2785,7 @@ scripts/                 One-off tooling (Google refresh-token helper,
                          and seed-qa-accounts.mjs, which recreates its
                          fixture accounts after a data reset)
 e2e/                     The Playwright suite. e2e/README.md is its
-                         inventory - all 58 spec files, what each covers,
+                         inventory - all 61 spec files, what each covers,
                          how to run them, and the nine cases that cannot
                          pass without browser egress to Supabase
 docs/rules/              The working rules for editing this codebase, split

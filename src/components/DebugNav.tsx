@@ -6,6 +6,7 @@ import { useRouter } from "@/lib/useRouter";
 import { debugNow, getDebugNowOffsetMs, setDebugNowOffsetMs } from "@/lib/debugNow";
 import DebugResetButton from "@/components/DebugResetButton";
 import { MARKETING_PAGES } from "@/lib/marketingNav";
+import { isDeveloperRoute } from "@/lib/dashboardShellRoutes";
 
 // datetime-local wants "YYYY-MM-DDTHH:mm" in the browser's local timezone,
 // not an ISO/UTC string -- sliceing toISOString would silently shift the
@@ -71,6 +72,9 @@ export default function DebugNav() {
     setActive(false);
     window.location.reload();
   }
+
+  // The developer pages carry no chrome at all -- see isDeveloperRoute.
+  if (isDeveloperRoute(pathname)) return null;
 
   return (
     <div className="bg-slate-950 text-white border-b border-slate-800 sticky top-0 z-50">

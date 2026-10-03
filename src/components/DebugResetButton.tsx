@@ -72,7 +72,7 @@ export default function DebugResetButton() {
       <span className="text-[11px] text-red-200">
         Deletes people, sessions, purchases and money. Your{" "}
         <strong>settings and website content</strong> are kept - the clinic
-        name, contact details, mission, FAQs and conditions all survive. Home
+        name, contact details, mission, FAQs, conditions and Dev Reachouts all survive. Home
         visit packages and service areas do not. No undo.
       </span>
       <input

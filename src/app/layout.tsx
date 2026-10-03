@@ -9,6 +9,7 @@ import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
 import { SectionNavProvider } from "@/components/SectionNavContext";
 import { getLayoutSettings } from "@/lib/siteSettingsCache";
+import { devContactFromRow } from "@/lib/devReachout";
 import { footerSocialLinks } from "@/lib/socialLinks";
 import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
@@ -77,7 +78,7 @@ export default async function RootLayout({
   // degrades to the old hardcoded strings as defaults if the migration
   // adding these columns hasn't run yet.
   //
-  // All four groups below are still four separate selects -- see
+  // All five groups below are still five separate selects -- see
   // siteSettingsCache.ts for why a newer column must not be able to blank
   // the site name -- but they now run concurrently and the whole set is
   // cached under the `site-settings` tag. This layout wraps every page in
@@ -89,7 +90,11 @@ export default async function RootLayout({
     homeVisit: homeVisitRow,
     farewell: farewellRow,
     splash: splashRow,
+    devContact: devContactRow,
   } = await getLayoutSettings();
+  // The developer credit under the footer's copyright. On unless an admin
+  // switched it off -- and an unreadable row is "could not check", not "off".
+  const devCreditEnabled = devContactFromRow(devContactRow).enabled;
   const brand = parseAdminSettings(settingsRow);
   // The footer's social icons -- only the networks the clinic has filled in,
   // and nothing at all on a database without the columns yet.
@@ -213,6 +218,7 @@ export default async function RootLayout({
             footerCopyrightText={brand.footerCopyrightText}
             socialLinks={socialLinks}
             homeVisitEnabled={homeVisitEnabled}
+            devCreditEnabled={devCreditEnabled}
           />
           <ScrollHint />
         </SectionNavProvider>

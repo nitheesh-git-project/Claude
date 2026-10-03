@@ -10254,6 +10254,15 @@ begin
   -- in these three is produced by testing and every row has to be retyped by
   -- hand, so they follow `treatment_categories`: kept, one table at a time,
   -- each with its own reason.
+  --
+  -- Also NOT truncated: `dev_reachouts`, and the two `dev_contact_*` settings
+  -- beside it. These are the developer's own leads, from the "Say hello" form
+  -- behind the footer credit. Testing produces none of them -- the e2e spec
+  -- cleans up after itself -- so a reset has nothing here to clear and a real
+  -- message to lose. Nothing reaches the table through CASCADE either: its one
+  -- foreign key, `contacted_by`, points at `profiles`, which is never
+  -- truncated. Do not add it to the list above.
+  -- (src/lib/devReachoutResetGuard.test.ts holds this.)
 
   with removed as (
     delete from auth.users
@@ -15258,3 +15267,64 @@ begin
   alter publication supabase_realtime add table admin_activity_gaps;
 exception when duplicate_object then null;
 end $$;
+
+-- ===========================================================================
+-- Dev Reachouts: the developer credit's "Say hello" form, and its inbox
+-- ===========================================================================
+-- A visitor to /developer/lets-talk leaves a name, an email, an optional
+-- number and a message. Every one lands here and is read on Settings -> Dev
+-- Reachouts, which is Master Admin only.
+--
+-- Public WRITE goes through /api/developer/reachout (validated, honeypotted,
+-- rate limited, switched off by `dev_contact_enabled`), never a browser insert:
+-- the table carries NO insert policy and no insert grant for anon or
+-- authenticated, which is the posture b2b_leads was moved to. The finance
+-- tables' shape, not the waitlist's.
+--
+-- These rows are the developer's own leads and are deliberately NOT in
+-- debug_reset_all_data()'s TRUNCATE list -- see the comment in the newest
+-- declaration of that function, and src/lib/devReachoutResetGuard.test.ts.
+create table if not exists dev_reachouts (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(name) between 1 and 120),
+  email text not null check (char_length(email) between 3 and 254),
+  phone text check (phone is null or char_length(phone) <= 40),
+  message text not null check (char_length(message) between 1 and 2000),
+  status text not null default 'new' check (status in ('new', 'contacted')),
+  admin_note text check (admin_note is null or char_length(admin_note) <= 2000),
+  note_updated_at timestamptz,
+  contacted_at timestamptz,
+  -- `set null`, not `restrict`: deleting an admin account must not be blocked
+  -- by the fact that they once marked a reachout contacted.
+  contacted_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists dev_reachouts_status_created_idx
+  on dev_reachouts (status, created_at desc);
+
+alter table dev_reachouts enable row level security;
+
+drop policy if exists "dev_reachouts_select_admin" on dev_reachouts;
+create policy "dev_reachouts_select_admin" on dev_reachouts
+  for select using (is_admin());
+
+revoke insert, update, delete on dev_reachouts from anon, authenticated;
+
+-- Plain rather than `execute '...'`: check-realtime-coverage.mjs reads this
+-- file for the literal statement.
+do $$
+begin
+  alter publication supabase_realtime add table dev_reachouts;
+exception when duplicate_object then null;
+end $$;
+
+-- The two switches on that screen. Both are configuration a person chose, so
+-- neither is touched by debug_reset_all_data() (it leaves site_settings alone).
+--
+-- No address is committed here: `dev_contact_email` defaults to blank, and the
+-- owner types the one to publish into the Dev Reachouts settings card. While
+-- it is blank the "Prefer email?" row on /developer/lets-talk is hidden and the
+-- form still works.
+alter table site_settings add column if not exists dev_contact_enabled boolean not null default true;
+alter table site_settings add column if not exists dev_contact_email text not null default '';

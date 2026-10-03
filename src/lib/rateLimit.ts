@@ -137,6 +137,22 @@ export const RATE_LIMITS = {
     message: "We already have your details from a moment ago.",
   },
 
+  /**
+   * The developer's "Say hello" form behind the footer credit.
+   *
+   * Its own scope on the one-scope-per-flow rule, for the same reason
+   * `referralSubmit` is: folding it into `publicWrite` would let somebody
+   * saying hello spend the allowance a stranger needs to ask the clinic about
+   * a partnership. Tighter than that one, because nothing here is time
+   * sensitive and a person writes to a developer once, not repeatedly.
+   */
+  devReachout: {
+    scope: "dev-reachout",
+    limit: 5,
+    windowSeconds: 3600,
+    message: "I already have your message from a moment ago.",
+  },
+
   /** Creating an account from a referral link. */
   registration: {
     scope: "registration",
