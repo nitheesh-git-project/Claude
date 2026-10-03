@@ -150,6 +150,11 @@ export default function BookingWizard({
   // free, confirm on terms -- is decided on the answer that is about to
   // arrive rather than on the one it replaces.
   const quoteInFlight = useRef<Promise<CheckoutQuoteResponse | null> | null>(null);
+  // Bumped whenever a newer answer lands from somewhere other than
+  // refreshQuote (the quote that rides back on the create response). A quote
+  // request started before that bump must not paint over it when it
+  // finishes late -- the first tap no longer waits for it.
+  const quoteGeneration = useRef(0);
 
   /** The quote to act on: whatever is in flight, else what is on screen.
    *
@@ -567,6 +572,7 @@ export default function BookingWizard({
     // preference server-side (see its own header comment); the browser no
     // longer writes to appointments at all.
     let newAppointmentId: string;
+    let createdQuote: CheckoutQuoteResponse | null = null;
     try {
       const res = await fetch("/api/appointments/create", {
         method: "POST",
@@ -578,6 +584,11 @@ export default function BookingWizard({
           notes,
           preferredTherapistId: preferredTherapistId || null,
           preferredLanguage: language || null,
+          // Ask for the new booking's quote in the same response, so the
+          // wizard need not make a second round trip to re-quote before it
+          // can open Razorpay. A code, never an amount.
+          withQuote: true,
+          quotePromoCode: promoCode,
         }),
       });
       const result = await res.json().catch(() => null);
@@ -587,6 +598,7 @@ export default function BookingWizard({
         return;
       }
       newAppointmentId = result.appointmentId as string;
+      if (result.quote) createdQuote = result.quote as CheckoutQuoteResponse;
     } catch {
       setLoading(false);
       setError("Could not reach the server. Please check your connection and try again.");
@@ -601,7 +613,18 @@ export default function BookingWizard({
     // account exists, so that quote answers for "a new patient" and knows
     // nothing of a goodwill adjustment or an invite half. This one knows
     // both, and create-order resolves it all again under a row lock anyway.
-    const identified = await refreshQuote(newAppointmentId, promoCode);
+    //
+    // It normally arrives with the create response (same builder as the
+    // quote route, see checkoutQuoteServer); only if that was left out does
+    // this make the separate round trip.
+    let identified: CheckoutQuoteResponse | null;
+    if (createdQuote) {
+      quoteGeneration.current += 1;
+      setQuote(createdQuote);
+      identified = createdQuote;
+    } else {
+      identified = await refreshQuote(newAppointmentId, promoCode);
+    }
     if (identified?.settlement === "free") {
       await confirmFree(newAppointmentId);
       return;
@@ -704,6 +727,7 @@ export default function BookingWizard({
   ): Promise<CheckoutQuoteResponse | null> {
     if (!categoryId && !id) return Promise.resolve(null);
     setQuoting(true);
+    const generation = quoteGeneration.current;
     const run = (async (): Promise<CheckoutQuoteResponse | null> => {
       try {
         const res = await fetch("/api/appointments/quote", {
@@ -720,7 +744,9 @@ export default function BookingWizard({
         // anything it cannot honour, so a stale quote can only ever be
         // corrected, never charged.
         if (res.ok && data) {
-          setQuote(data as CheckoutQuoteResponse);
+          if (generation === quoteGeneration.current) {
+            setQuote(data as CheckoutQuoteResponse);
+          }
           return data as CheckoutQuoteResponse;
         }
         return null;
@@ -759,13 +785,15 @@ export default function BookingWizard({
   async function submitFromPaymentStep(intent: "default" | "pay_now" = "default") {
     setError(null);
     setLoading(true);
-    const settled = await settledQuote();
-    // No booking yet: `handleSubmit` creates one and re-quotes against the
-    // real account before anything is charged, so it needs nothing from here.
+    // No booking yet: `handleSubmit` creates one and gets the quote for the
+    // real account back with it, so it needs nothing from here -- and it no
+    // longer waits for the anonymous quote still in flight, which was a whole
+    // round trip of dead time on the first tap.
     if (!appointmentId) {
       await handleSubmit(intent);
       return;
     }
+    const settled = await settledQuote();
     if (settled?.settlement === "free") {
       await confirmFree(appointmentId);
       return;

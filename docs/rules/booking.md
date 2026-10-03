@@ -200,3 +200,16 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   (`onPaymentStep`, `failedAttempts`); `exitLinkHidden()` hides the link on the
   payment step until `MAX_ATTEMPTS_BEFORE_ESCAPE` (3) failures, which is also
   when the wizard's own dashboard escape appears. Keep both on that one constant.
+  **The first tap is now two round trips for a signed-in patient** (create,
+  then create-order), down from five. `/api/appointments/create` takes
+  `withQuote` + `quotePromoCode` and returns the new booking's quote in its own
+  response, built by `buildCheckoutQuoteBody` (`src/lib/checkoutQuoteServer.ts`)
+  -- the same builder `/api/appointments/quote` uses, so the two cannot
+  disagree. The wizard falls back to the quote route only when that field is
+  missing, and no longer waits on the anonymous quote still in flight before
+  creating the booking (`quoteGeneration` stops a late one painting over the
+  newer figures). Server-side, `readPatientCheckoutStanding` answers active +
+  patient in one query on both routes, the create route's settings, category,
+  overlap and therapist reads go out together, and create-order reads the
+  appointment alongside the standing check and schedules
+  `approvePatientForGenuinePaymentAttempt` with `after()`.

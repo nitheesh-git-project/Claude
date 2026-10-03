@@ -1,12 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { isGatewayPayable } from "@/lib/discounts";
 import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
 import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  isProfileActive,
-  isPatientProfile,
+  readPatientCheckoutStanding,
   approvePatientForGenuinePaymentAttempt,
   profileCheckUnavailable,
 } from "@/lib/supabase/requireActiveProfile";
@@ -66,34 +65,32 @@ export async function POST(request: NextRequest) {
   // on approval would mean that attempt can never happen. See
   // approvePatientForGenuinePaymentAttempt for why the vetting fires here,
   // on the attempt, rather than waiting on a completed payment.
-  const activeStanding = await isProfileActive(user.id);
-  if (activeStanding === null) return profileCheckUnavailable();
-  if (!activeStanding) {
+  // The standing check and the appointment read are independent, so they go
+  // out together -- this route sits between the tap on Pay and the Razorpay
+  // sheet. The appointment read is RLS-scoped and filtered to this caller, so
+  // starting it before the standing answer reveals nothing; the standing is
+  // still checked first, and refuses before the row is looked at.
+  const [standing, { data: appointment }] = await Promise.all([
+    readPatientCheckoutStanding(user.id),
+    supabase
+      .from("appointments")
+      .select(
+        "id, patient_id, payment_status, payment_terms, category_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone, visit_mode, travel_fee_paise"
+      )
+      .eq("id", appointmentId)
+      .eq("patient_id", user.id)
+      .single(),
+  ]);
+  if (standing === "unavailable") return profileCheckUnavailable();
+  if (standing === "suspended") {
     return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
   }
-
-  // Sessions are delivered to patients, and one account carries one role --
-  // see isPatientProfile. The wizard says so; this is the same check for a
-  // session cookie calling the route directly.
-  const isPatient = await isPatientProfile(user.id);
-  if (isPatient === null) return profileCheckUnavailable();
-  if (!isPatient) {
+  if (standing === "not_patient") {
     return NextResponse.json(
       { error: "This account can't book sessions. Sessions are booked under a patient account." },
       { status: 403 }
     );
   }
-
-  // RLS also enforces this (patients can only select their own rows), but
-  // we check explicitly so a mismatched appointment gives a clear 404.
-  const { data: appointment } = await supabase
-    .from("appointments")
-    .select(
-      "id, patient_id, payment_status, payment_terms, category_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone, visit_mode, travel_fee_paise"
-    )
-    .eq("id", appointmentId)
-    .eq("patient_id", user.id)
-    .single();
 
   if (!appointment) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
@@ -104,10 +101,13 @@ export async function POST(request: NextRequest) {
   // payment that follows actually succeeds (see the escape hatch in
   // BookingWizard.tsx, which sends a patient straight to their dashboard
   // with the booking left pending after repeated failed/dismissed
-  // attempts). Awaited (this is a serverless function -- an un-awaited
-  // write can get cut off once the response is sent) but never lets a
-  // failure here block checkout; see the function's own error handling.
-  await approvePatientForGenuinePaymentAttempt(user.id);
+  // attempts). Scheduled with `after()` rather than awaited in line: the
+  // platform keeps the function alive until it completes (an un-awaited
+  // promise could be cut off once the response is sent, which is why it was
+  // awaited before), but the patient no longer waits on it for the sheet to
+  // open. It never blocked checkout on failure either; see its own error
+  // handling.
+  after(() => approvePatientForGenuinePaymentAttempt(user.id));
 
   if (appointment.payment_status === "paid") {
     return NextResponse.json({ error: "This booking is already paid" }, { status: 400 });
