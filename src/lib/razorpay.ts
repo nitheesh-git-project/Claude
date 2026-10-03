@@ -91,6 +91,14 @@ type PayForAppointmentArgs = {
    *  /api/appointments/confirm-free instead -- handled here rather than
    *  surfaced as an error, since from the patient's side nothing went wrong. */
   onFree?: () => void;
+  /** create-order's answer, already fetched -- `/api/appointments/create`
+   *  mints the order in the same request that makes the booking, and hands
+   *  back that route's body plus its status. When present, no order request
+   *  is made here; everything after it is handled identically. */
+  preMintedOrder?: { status: number } & Record<string, unknown>;
+  /** Fired the moment the Razorpay sheet is opened -- what the wizard's
+   *  progress overlay and its tap-to-sheet timing are measured against. */
+  onOpen?: () => void;
 };
 
 /** Creates a Razorpay order for an existing appointment and opens Checkout. */
@@ -104,6 +112,8 @@ export async function payForAppointment({
   onError,
   onDismiss,
   onFree,
+  preMintedOrder,
+  onOpen,
 }: PayForAppointmentArgs) {
   try {
     // The script and the order are independent, so they run together: a
@@ -111,17 +121,30 @@ export async function payForAppointment({
     // script was preloaded this is just the order call.) The order promise
     // is started first, and given a no-op catch so a script failure that
     // throws below cannot leave it as an unhandled rejection.
-    const orderRequest = fetch("/api/razorpay/create-order", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId, ...(promoCode ? { promoCode } : {}) }),
-    });
+    const orderRequest: Promise<{ ok: boolean; data: Record<string, unknown> }> =
+      preMintedOrder
+        ? Promise.resolve({
+            ok: preMintedOrder.status >= 200 && preMintedOrder.status < 300,
+            data: preMintedOrder,
+          })
+        : fetch("/api/razorpay/create-order", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ appointmentId, ...(promoCode ? { promoCode } : {}) }),
+          }).then(async (res) => ({ ok: res.ok, data: await res.json() }));
     orderRequest.catch(() => {});
     await loadRazorpayScript();
-    const res = await orderRequest;
-    const orderData = await res.json();
+    const { ok, data } = await orderRequest;
+    const orderData = data as {
+      free?: boolean;
+      error?: string;
+      alreadyPaid?: boolean;
+      amount?: number;
+      currency?: string;
+      orderId?: string;
+    };
 
-    if (!res.ok) {
+    if (!ok) {
       if (orderData.free === true && onFree) {
         onFree();
         return;
@@ -215,6 +238,7 @@ export async function payForAppointment({
     });
 
     razorpay.open();
+    onOpen?.();
   } catch (err) {
     // Logged rather than silent: this catch covers everything from the
     // checkout.js script load through opening the Razorpay modal, so the

@@ -213,3 +213,27 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   overlap and therapist reads go out together, and create-order reads the
   appointment alongside the standing check and schedules
   `approvePatientForGenuinePaymentAttempt` with `after()`.
+  **And now one round trip, with the account made a step early.**
+  `/api/appointments/create` takes `startPayment` beside `withQuote`; when the
+  quote says the gateway is how the booking settles (or a patient on terms
+  chose `pay_now`), it mints the Razorpay order in the same request through
+  `mintAppointmentOrder` (`src/lib/appointmentOrderServer.ts`) -- the body of
+  create-order, extracted rather than copied, so prior-order re-attachment,
+  the claim under the row lock, `free`, and what is written back are one
+  code path behind two doors. The response's `order` is create-order's own
+  body plus its `status`, and `payForAppointment({ preMintedOrder })` handles
+  it exactly as it handles that route's answer; a missing `order` falls back
+  to create-order. A self-signup patient's account is created by
+  `beginSignup()` the moment they leave Step 2, while they read Step 3; the
+  Pay tap awaits the same promise. The Step 2 fields are locked in a disabled
+  `<fieldset>` while it runs (an edit would otherwise make a second account),
+  a success signs the wizard in and re-quotes for the real account, and a
+  failure -- an email already registered -- returns the patient to Step 2
+  with that field revealed. The consequence to know: an account now exists
+  for somebody who reached Step 3 and left without paying; it is unapproved
+  and holds no booking, the same as a bare `/patient/register`. The home-visit
+  wizard still signs up on the tap. `CheckoutProgress`
+  (`src/components/booking/`) covers the card from the tap until the sheet
+  opens, naming each stage (account, slot, payment); it is a status, not a
+  dialog. Both wizards report the tap's timing -- see the Checkout speed
+  bullet in `docs/rules/admin.md`.

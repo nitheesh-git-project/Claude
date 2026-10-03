@@ -159,6 +159,21 @@ export const RATE_LIMITS = {
   },
 
   /**
+   * The booking wizards reporting how long a Pay tap took to open the
+   * Razorpay sheet (see checkoutTiming). Its own scope on the
+   * one-scope-per-flow rule: a measurement must never spend the allowance a
+   * patient needs to actually pay. Loose, because one is sent per tap and a
+   * patient retrying a declined card taps several times; the ceiling exists
+   * to bound the table, not to judge anybody.
+   */
+  checkoutTiming: {
+    scope: "checkout-timing",
+    limit: 60,
+    windowSeconds: 600,
+    message: "That measurement was not recorded just now.",
+  },
+
+  /**
    * A patient telling the clinic they have paid what they owe.
    *
    * Its own scope rather than `checkout`, on the one-scope-per-flow rule: a

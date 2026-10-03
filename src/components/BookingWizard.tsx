@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import { PROGRAMME_NEEDS_RECOMMENDATION } from "@/lib/consultationFirst";
 import { payForAppointment, preloadRazorpayScript } from "@/lib/razorpay";
 import { revealField } from "@/lib/revealField";
+import { startCheckoutTimer, type CheckoutOutcome, type CheckoutTimer } from "@/lib/checkoutTiming";
+import CheckoutProgress, { type CheckoutProgressStage } from "@/components/booking/CheckoutProgress";
 import {
   publishBookingPaymentTrouble,
   MAX_ATTEMPTS_BEFORE_ESCAPE,
@@ -74,6 +76,10 @@ type CheckoutQuoteResponse = {
   canPayNow: boolean;
 };
 
+type SignupOutcome =
+  | { ok: true }
+  | { ok: false; message: string; fieldId: string | null };
+
 export default function BookingWizard({
   initialCategories,
   bookingLanguages,
@@ -112,6 +118,18 @@ export default function BookingWizard({
   const [signedInRole, setSignedInRole] = useState<NonPatientRole | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Which stage of the Pay tap is running, for the progress overlay. Only
+  // drawn while `loading`, so every path that clears loading clears it too.
+  const [payStage, setPayStage] = useState<CheckoutProgressStage | null>(null);
+  const [payIncludesAccount, setPayIncludesAccount] = useState(false);
+  // The account a self-signup patient is making, started when they leave
+  // Step 2 rather than when they tap Pay -- see beginSignup.
+  const signupRef = useRef<Promise<SignupOutcome> | null>(null);
+  const [signupPending, setSignupPending] = useState(false);
+  // True while a Pay tap is being handled, so a background signup that fails
+  // does not also bounce the screen: the tap reports it itself.
+  const payingRef = useRef(false);
+  const timerRef = useRef<CheckoutTimer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
@@ -445,6 +463,100 @@ export default function BookingWizard({
     requestAnimationFrame(() => revealField(fieldId));
   }
 
+  /**
+   * Creates the self-signup patient's account in the background, the moment
+   * they leave Step 2 -- not when they tap Pay.
+   *
+   * Signing up was the first and slowest thing the Pay tap did for a new
+   * patient, and it needs nothing Step 3 adds: every field it sends was just
+   * validated on Step 2. Started here, it runs while the patient reads the
+   * price, so by the time they tap it is usually finished. The tap awaits the
+   * same promise, so a slow one is still waited for rather than raced.
+   *
+   * While it runs the Step 2 fields are locked (a Back-and-edit would
+   * otherwise make a second account); once it succeeds the wizard is simply
+   * signed in, and Step 2 shows "Booking as ..." like any returning patient.
+   * A failure -- an email already registered -- sends the patient back to
+   * Step 2 with the field that caused it, unless a Pay tap is handling it.
+   */
+  function beginSignup(): Promise<SignupOutcome> {
+    if (signupRef.current) return signupRef.current;
+    setSignupPending(true);
+    const run = (async (): Promise<SignupOutcome> => {
+      try {
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              role: "patient",
+              full_name: fullName,
+              phone,
+              referral_code: referralCode.trim() || undefined,
+            },
+          },
+        });
+        if (signUpError) {
+          const message = signUpError.message;
+          return {
+            ok: false,
+            message,
+            fieldId: /email|registered|already/i.test(message)
+              ? "bw-email"
+              : /password/i.test(message)
+                ? "bw-password"
+                : null,
+          };
+        }
+        // A signup with no session means the Supabase project has email
+        // confirmation on, which this app does not use -- booking is gated
+        // by payment and the admin's approval, never by an inbox round trip.
+        // It is a misconfiguration rather than a step, so it reads as a
+        // failure here instead of sending the patient away mid-booking.
+        if (!data.session || !data.user) {
+          console.error(
+            "Booking signup returned no session -- turn OFF Confirm email in Supabase Auth settings."
+          );
+          return {
+            ok: false,
+            message:
+              "Your account was created but we couldn't sign you in to finish this booking. Please sign in and try again.",
+            fieldId: null,
+          };
+        }
+        return { ok: true };
+      } catch {
+        return {
+          ok: false,
+          message: "Could not reach the server. Please check your connection and try again.",
+          fieldId: null,
+        };
+      }
+    })();
+    signupRef.current = run;
+    void run.then((outcome) => {
+      setSignupPending(false);
+      if (outcome.ok) {
+        setIsLoggedIn(true);
+        // The price on screen was the anonymous one ("a new patient"); now
+        // there is an account, quote for it, so the Pay button already reads
+        // the figure the order will charge.
+        void refreshQuote(null, promoCode);
+        return;
+      }
+      // Cleared so a corrected form can try again.
+      signupRef.current = null;
+      if (!payingRef.current) showSignupFailure(outcome);
+    });
+    return run;
+  }
+
+  function showSignupFailure(outcome: Extract<SignupOutcome, { ok: false }>) {
+    setStep(2);
+    if (outcome.fieldId) failField(outcome.message, outcome.fieldId);
+    else setError(outcome.message);
+  }
+
   function goToStep3() {
     setError(null);
     if (!isLoggedIn) {
@@ -492,6 +604,7 @@ export default function BookingWizard({
     // The figures on the payment screen come from the server, not from the
     // category price this component happens to hold -- see refreshQuote.
     void refreshQuote(appointmentId, promoCode);
+    if (!isLoggedIn) void beginSignup();
   }
 
   /**
@@ -522,36 +635,13 @@ export default function BookingWizard({
         return;
       }
     } else {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            role: "patient",
-            full_name: fullName,
-            phone,
-            referral_code: referralCode.trim() || undefined,
-          },
-        },
-      });
-      if (signUpError) {
+      // Usually already finished: it started when the patient left Step 2.
+      setPayStage("account");
+      const outcome = await beginSignup();
+      timerRef.current?.mark("signup");
+      if (!outcome.ok) {
         setLoading(false);
-        setError(signUpError.message);
-        return;
-      }
-      // A signup with no session means the Supabase project has email
-      // confirmation on, which this app does not use -- booking is gated by
-      // payment and the admin's approval, never by an inbox round trip. It
-      // is a misconfiguration rather than a step, so it reads as a failure
-      // here instead of sending the patient away mid-booking.
-      if (!data.session || !data.user) {
-        setLoading(false);
-        console.error(
-          "Booking signup returned no session -- turn OFF Confirm email in Supabase Auth settings."
-        );
-        setError(
-          "Your account was created but we couldn't sign you in to finish this booking. Please sign in and try again."
-        );
+        showSignupFailure(outcome);
         return;
       }
     }
@@ -573,6 +663,8 @@ export default function BookingWizard({
     // longer writes to appointments at all.
     let newAppointmentId: string;
     let createdQuote: CheckoutQuoteResponse | null = null;
+    let createdOrder: ({ status: number } & Record<string, unknown>) | null = null;
+    setPayStage("slot");
     try {
       const res = await fetch("/api/appointments/create", {
         method: "POST",
@@ -589,6 +681,9 @@ export default function BookingWizard({
           // can open Razorpay. A code, never an amount.
           withQuote: true,
           quotePromoCode: promoCode,
+          // ...and the Razorpay order too, when the quote says the gateway
+          // is how it settles: one round trip from this tap to the sheet.
+          startPayment: intent,
         }),
       });
       const result = await res.json().catch(() => null);
@@ -599,6 +694,10 @@ export default function BookingWizard({
       }
       newAppointmentId = result.appointmentId as string;
       if (result.quote) createdQuote = result.quote as CheckoutQuoteResponse;
+      if (result.order && typeof result.order.status === "number") {
+        createdOrder = result.order as { status: number } & Record<string, unknown>;
+      }
+      timerRef.current?.mark("create");
     } catch {
       setLoading(false);
       setError("Could not reach the server. Please check your connection and try again.");
@@ -633,7 +732,7 @@ export default function BookingWizard({
       await confirmPayLater(newAppointmentId);
       return;
     }
-    await startPayment(newAppointmentId);
+    await startPayment(newAppointmentId, createdOrder);
   }
 
   /**
@@ -644,6 +743,7 @@ export default function BookingWizard({
    * this is a request to confirm, never a claim that it is free.
    */
   async function confirmFree(id: string) {
+    endTiming("free");
     setError(null);
     setLoading(true);
     try {
@@ -681,6 +781,7 @@ export default function BookingWizard({
    * terms.
    */
   async function confirmPayLater(id: string) {
+    endTiming("pay_later");
     setError(null);
     setLoading(true);
     try {
@@ -785,6 +886,26 @@ export default function BookingWizard({
   async function submitFromPaymentStep(intent: "default" | "pay_now" = "default") {
     setError(null);
     setLoading(true);
+    const needsAccount = !isLoggedIn;
+    setPayIncludesAccount(needsAccount);
+    setPayStage(appointmentId ? "opening" : needsAccount ? "account" : "slot");
+    timerRef.current = startCheckoutTimer({ flow: "online", newAccount: needsAccount });
+    payingRef.current = true;
+    try {
+      await submitFromPaymentStepInner(intent);
+    } finally {
+      payingRef.current = false;
+      // Every path that reached the sheet, or confirmed without one, has
+      // already reported; anything still open here stopped short of both.
+      endTiming("error");
+    }
+  }
+
+  function endTiming(outcome: CheckoutOutcome) {
+    timerRef.current?.finish(outcome);
+  }
+
+  async function submitFromPaymentStepInner(intent: "default" | "pay_now") {
     // No booking yet: `handleSubmit` creates one and gets the quote for the
     // real account back with it, so it needs nothing from here -- and it no
     // longer waits for the anonymous quote still in flight, which was a whole
@@ -805,12 +926,22 @@ export default function BookingWizard({
     await startPayment(appointmentId);
   }
 
-  async function startPayment(id: string) {
+  async function startPayment(
+    id: string,
+    preMintedOrder: ({ status: number } & Record<string, unknown>) | null = null
+  ) {
     setError(null);
     setLoading(true);
+    setPayStage("opening");
     await payForAppointment({
       appointmentId: id,
       promoCode,
+      preMintedOrder: preMintedOrder ?? undefined,
+      onOpen: () => {
+        timerRef.current?.mark("order");
+        endTiming("opened");
+        setPayStage("paying");
+      },
       onFree: () => {
         void confirmFree(id);
       },
@@ -971,7 +1102,10 @@ export default function BookingWizard({
   }
 
   return (
-    <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+    <div className="relative bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+      {loading && payStage && step === 3 && (
+        <CheckoutProgress stage={payStage} includeAccount={payIncludesAccount} />
+      )}
       {header}
       {/* p-5 on phones rather than a flat p-8: Step 1's calendar is a
           7-column grid whose cells are squeezed directly by this padding.
@@ -1023,7 +1157,11 @@ export default function BookingWizard({
               Booking as <strong>{fullName}</strong> ({email})
             </div>
           ) : (
-            <>
+            // Locked while the account is being made in the background --
+            // editing an email that is already being signed up would make a
+            // second account. A disabled fieldset disables every control in
+            // it, including the phone and confirm-password components.
+            <fieldset disabled={signupPending} className="m-0 min-w-0 space-y-5 border-0 p-0">
               <label className="block">
                 <span className="block font-semibold mb-1.5 text-slate-900">
                   Full Name
@@ -1133,7 +1271,7 @@ export default function BookingWizard({
                 </Link>{" "}
                 so this booking links to it.
               </p>
-            </>
+            </fieldset>
           )}
 
           {/* The service was chosen on Step 1, where the price and the

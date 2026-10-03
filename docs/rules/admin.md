@@ -245,12 +245,12 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   advance). Offers carries a note saying where promo codes and goodwill
   live, because "where did the promo screen go" is the question a split
   otherwise creates.
-- **System Health is twelve checks in one shape, and every unhealthy one
+- **System Health is thirteen checks in one shape, and every unhealthy one
   says how to fix it.** They are, in the order the screen draws them:
   **Payment Confirmations**, **Google Connection**, **Session Links**,
   **Waiting Room**, **Books & Sessions Agree**, **Public doors**, **Partner
   attribution**, **Settlement record**, **Refunds**, **Patient files**,
-  **Pay Later**, **Activity log** - the `HealthCheckId` union in `src/lib/systemHealth.ts` is
+  **Pay Later**, **Activity log**, **Checkout speed** - the `HealthCheckId` union in `src/lib/systemHealth.ts` is
   the list. Do **not** number them by ordinal in prose: four passages here
   and in `CLAUDE.md` said "the sixth check", "the seventh", "the ninth",
   "the tenth", and every one of them was wrong within two additions, because
@@ -607,3 +607,15 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   ISR-cached pages under it aren't forced dynamic) and passes it into
   `Navbar`/`Footer` as props - those two components take the strings as
   props rather than hardcoding or fetching their own copy.
+- **Checkout speed is the one check that measures the product rather than
+  a backlog.** The booking wizards time each Pay tap in the browser until the
+  Razorpay sheet opens (`src/lib/checkoutTiming.ts`), report once,
+  best-effort, to `/api/razorpay/checkout-timing` (signed-in only, its own
+  `checkoutTiming` rate-limit scope, every figure re-checked, nothing about
+  the caller stored), and `checkout_timings` holds one row per tap. System
+  Health reads the last seven days of taps that opened a sheet
+  (`readCheckoutSpeed`, isolated, null when unreadable): fewer than ten is
+  *Not checked* rather than a verdict, a 90th percentile over six seconds is
+  *Needs a look* with the median of each stage as evidence. The table is not
+  published to realtime on purpose -- a row per tap would refresh the
+  dashboard for every patient paying.

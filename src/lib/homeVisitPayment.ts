@@ -43,6 +43,8 @@ type PayForHomeVisitArgs = {
   onSuccess: (result: HomeVisitPaymentResult) => void;
   onError: (message: string) => void;
   onDismiss: () => void;
+  /** Fired the moment the Razorpay sheet opens (progress overlay, timing). */
+  onOpen?: () => void;
 };
 
 /**
@@ -67,6 +69,7 @@ export async function payForHomeVisit({
   onSuccess,
   onError,
   onDismiss,
+  onOpen,
 }: PayForHomeVisitArgs) {
   try {
     // Script and order are independent: run together so a cold load costs
@@ -169,6 +172,7 @@ export async function payForHomeVisit({
     });
 
     razorpay.open();
+    onOpen?.();
   } catch {
     onError("Could not load the payment gateway. Please check your connection and try again.");
   }

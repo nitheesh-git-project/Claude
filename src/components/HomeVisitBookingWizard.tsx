@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { preloadRazorpayScript } from "@/lib/razorpay";
 import { revealField } from "@/lib/revealField";
+import { startCheckoutTimer, type CheckoutTimer } from "@/lib/checkoutTiming";
+import CheckoutProgress, { type CheckoutProgressStage } from "@/components/booking/CheckoutProgress";
 import {
   publishBookingPaymentTrouble,
   MAX_ATTEMPTS_BEFORE_ESCAPE,
@@ -105,6 +107,11 @@ export default function HomeVisitBookingWizard({
   const [signedInRole, setSignedInRole] = useState<NonPatientRole | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
+  // The Pay tap's progress overlay and its tap-to-sheet timing (see
+  // checkoutTiming). Drawn only while `loading`.
+  const [payStage, setPayStage] = useState<CheckoutProgressStage | null>(null);
+  const [payIncludesAccount, setPayIncludesAccount] = useState(false);
+  const timerRef = useRef<CheckoutTimer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [paymentResult, setPaymentResult] = useState<HomeVisitPaymentResult | null>(null);
@@ -432,6 +439,25 @@ export default function HomeVisitBookingWizard({
     if (!selectedPackage) return;
     setLoading(true);
     setError(null);
+    // Timed and staged only on the gateway path: cash at the door opens no
+    // sheet, so there is nothing to measure against and nothing to wait for.
+    const viaGateway = paymentMode !== "cash";
+    const needsAccount = !isLoggedIn;
+    timerRef.current = viaGateway
+      ? startCheckoutTimer({ flow: "home_visit", newAccount: needsAccount })
+      : null;
+    setPayIncludesAccount(needsAccount);
+    setPayStage(viaGateway ? (needsAccount ? "account" : "opening") : null);
+    try {
+      await handleSubmitInner();
+    } finally {
+      // Anything that reached the sheet has already reported "opened".
+      timerRef.current?.finish("error");
+    }
+  }
+
+  async function handleSubmitInner() {
+    if (!selectedPackage) return;
 
     if (!isLoggedIn) {
       const { data, error: signUpError } = await supabase.auth.signUp({
@@ -502,7 +528,14 @@ export default function HomeVisitBookingWizard({
       return;
     }
 
+    if (!isLoggedIn) timerRef.current?.mark("signup");
+    setPayStage("opening");
     await payForHomeVisit({
+      onOpen: () => {
+        timerRef.current?.mark("order");
+        timerRef.current?.finish("opened");
+        setPayStage("paying");
+      },
       packageId: selectedPackage.id,
       address: { ...address, pincode: normalizePincode(address.pincode) },
       name: fullName,
@@ -615,7 +648,10 @@ export default function HomeVisitBookingWizard({
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+    <div className="relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+      {loading && payStage && step === 4 && (
+        <CheckoutProgress stage={payStage} includeAccount={payIncludesAccount} />
+      )}
       <p className="mb-6 text-xs font-semibold uppercase tracking-wide text-slate-500">
         Step {step} of 4
       </p>

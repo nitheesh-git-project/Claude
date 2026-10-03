@@ -1,8 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { readPatientCheckoutStanding, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
+import {
+  readPatientCheckoutStanding,
+  profileCheckUnavailable,
+  approvePatientForGenuinePaymentAttempt,
+} from "@/lib/supabase/requireActiveProfile";
+import { mintAppointmentOrder } from "@/lib/appointmentOrderServer";
 import { buildCheckoutQuoteBody } from "@/lib/checkoutQuoteServer";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -50,6 +55,11 @@ type Body = {
    *  An identifier, never an amount. */
   quotePromoCode?: string | null;
   withQuote?: boolean;
+  /** With `withQuote`: also mint the Razorpay order for the new booking when
+   *  the quote says the gateway is how it settles, so the wizard opens the
+   *  sheet straight from this response. `"pay_now"` is a patient on terms
+   *  who would rather pay -- the same intent the wizard has always passed. */
+  startPayment?: "default" | "pay_now";
 };
 
 export async function POST(request: NextRequest) {
@@ -311,5 +321,47 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, appointmentId: created.id, quote });
+  // The order, minted here when the quote says the gateway is how this
+  // booking settles -- one round trip from the Pay tap to the sheet instead
+  // of create, then create-order. Through `mintAppointmentOrder`, the same
+  // function create-order uses, so nothing about claiming, free bookings or
+  // what is written back differs between the two doors. Free and pay-later
+  // bookings are never minted (Razorpay refuses nothing, and terms are not a
+  // checkout); a failed quote is not guessed at -- the wizard falls back to
+  // create-order, which decides for itself.
+  //
+  // `order` carries create-order's own body plus its status, so the wizard
+  // handles it exactly as it handles that route's answer.
+  let order: Record<string, unknown> | null = null;
+  const wantsGateway =
+    quote !== null &&
+    (quote.settlement === "gateway" ||
+      (quote.settlement === "pay_later" && body.startPayment === "pay_now" && quote.canPayNow));
+  if (body.startPayment && wantsGateway) {
+    // A genuine payment attempt: the same vetting create-order grants, and
+    // scheduled the same way.
+    after(() => approvePatientForGenuinePaymentAttempt(user.id));
+    try {
+      const minted = await mintAppointmentOrder({
+        supabase,
+        appointment: {
+          id: created.id,
+          patient_id: user.id,
+          category_id: categoryId,
+          razorpay_order_id: null,
+          visit_mode: "online",
+          travel_fee_paise: null,
+        },
+        appointmentId: created.id,
+        promoCode: typeof body.quotePromoCode === "string" ? body.quotePromoCode : "",
+      });
+      order = { ...minted.body, status: minted.status };
+    } catch (err) {
+      // The booking exists either way; the wizard retries through
+      // create-order, which re-attaches to anything that did get written.
+      console.error("Order mint after booking create failed", created.id, err);
+    }
+  }
+
+  return NextResponse.json({ success: true, appointmentId: created.id, quote, order });
 }

@@ -42,6 +42,12 @@ const ALL_WELL: SystemHealthInput = {
   settlementsRecorded: 3,
   storage: { filesWithNoRow: 0, rowsWithNoFile: 0, truncated: false },
   activityLog: { gapsLast30Days: 0, latestGapAt: null },
+  checkoutSpeed: {
+    samples: 40,
+    p50Ms: 1400,
+    p90Ms: 2600,
+    stageP50Ms: { signup: null, create: 700, order: 600 },
+  },
 };
 
 describe("buildSystemHealth", () => {
@@ -101,7 +107,7 @@ describe("buildSystemHealth", () => {
 
   it("reports every check healthy when nothing is wrong", () => {
     const checks = buildSystemHealth(ALL_WELL);
-    expect(checks).toHaveLength(12);
+    expect(checks).toHaveLength(13);
     expect(checks.every((c) => c.status === "healthy")).toBe(true);
     // A healthy check must not ask the reader to do anything.
     expect(checks.every((c) => c.fix.length === 0)).toBe(true);
@@ -506,7 +512,7 @@ describe("summarizeHealth", () => {
     const summary = summarizeHealth(buildSystemHealth(ALL_WELL));
     expect(summary.needsPerson).toBe(0);
     expect(summary.worst).toBe("healthy");
-    expect(summary.headline).toBe("All 12 checks healthy");
+    expect(summary.headline).toBe("All 13 checks healthy");
     expect(summary.attention).toHaveLength(0);
   });
 
@@ -782,5 +788,42 @@ describe("activity log check", () => {
 
   it("never reads an unreadable gap list as healthy", () => {
     expect(check(null).status).toBe("unknown");
+  });
+});
+
+describe("checkout speed", () => {
+  const speed = (checkoutSpeed: SystemHealthInput["checkoutSpeed"]) =>
+    buildSystemHealth({ ...ALL_WELL, checkoutSpeed }).find((c) => c.id === "checkout_speed")!;
+
+  it("says how fast the payment window opens when it is quick", () => {
+    const check = speed(ALL_WELL.checkoutSpeed);
+    expect(check.status).toBe("healthy");
+    expect(check.headline).toContain("1.4s");
+  });
+
+  it("asks for a look when one patient in ten waits too long, and says where the time goes", () => {
+    const check = speed({
+      samples: 30,
+      p50Ms: 3000,
+      p90Ms: 9000,
+      stageP50Ms: { signup: 1800, create: 900, order: 2500 },
+    });
+    expect(check.status).toBe("attention");
+    expect(check.fix.length).toBeGreaterThan(0);
+    expect(check.evidence.join(" ")).toContain("creating a new account");
+  });
+
+  it("does not judge from a handful of payments", () => {
+    const check = speed({
+      samples: 3,
+      p50Ms: 9000,
+      p90Ms: 9000,
+      stageP50Ms: { signup: null, create: null, order: null },
+    });
+    expect(check.status).toBe("unknown");
+  });
+
+  it("reads an unreadable table as not checked, never as fast", () => {
+    expect(speed(null).status).toBe("unknown");
   });
 });

@@ -10199,6 +10199,8 @@ begin
     admin_activity_log,
     -- Its gaps go with it: a reset empties the history they are missing from.
     admin_activity_gaps,
+    -- Measurements of bookings the reset removes.
+    checkout_timings,
     admin_impersonation_sessions,
     session_suggestions,
     appointment_reassignment_log,
@@ -15258,3 +15260,38 @@ begin
   alter publication supabase_realtime add table admin_activity_gaps;
 exception when duplicate_object then null;
 end $$;
+
+-- How long the Pay tap takes to reach the Razorpay sheet.
+--
+-- The booking wizards time the tap in the browser (src/lib/checkoutTiming.ts)
+-- and report once, best-effort, to /api/razorpay/checkout-timing; System
+-- Health's Checkout speed check reads the last seven days back. One row per
+-- tap. Deliberately nothing that identifies a patient -- the figure is about
+-- the product, not about anybody -- so no foreign keys and nothing for
+-- clean-e2e-residue to unpick. Not evidence, so no append-only guard: a
+-- measurement is allowed to be deleted.
+--
+-- Not published to realtime on purpose: a row lands on every Pay tap, and
+-- refreshing the whole admin dashboard for each one would be noise. System
+-- Health reads it at render, like the rest of that screen.
+create table if not exists checkout_timings (
+  id uuid primary key default gen_random_uuid(),
+  flow text not null check (flow in ('online', 'home_visit')),
+  new_account boolean not null default false,
+  outcome text not null check (outcome in ('opened', 'error', 'free', 'pay_later')),
+  total_ms integer not null check (total_ms >= 0 and total_ms <= 120000),
+  signup_ms integer check (signup_ms is null or signup_ms >= 0),
+  create_ms integer check (create_ms is null or create_ms >= 0),
+  order_ms integer check (order_ms is null or order_ms >= 0),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists checkout_timings_created_at_idx
+  on checkout_timings (created_at desc);
+
+alter table checkout_timings enable row level security;
+
+-- Written only by the route, with the service-role client; read by admins.
+drop policy if exists "checkout_timings_select_admin" on checkout_timings;
+create policy "checkout_timings_select_admin" on checkout_timings
+  for select using (is_admin());
