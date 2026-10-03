@@ -281,10 +281,22 @@ test.describe("Therapist-suggested sessions", () => {
     const responses = await Promise.all(
       Array.from({ length: 6 }, () => suggest({ purchaseId, slotTime: sharedSlot }))
     );
-    const ok = responses.filter((r) => r.status() === 200);
-    const conflicts = responses.filter((r) => r.status() === 409);
-    expect(ok, "exactly one suggestion should be created").toHaveLength(1);
-    expect(conflicts, "the rest are refused as duplicates").toHaveLength(5);
+    // Printed on failure: this case once failed under full-suite load with
+    // "5 refusals expected, 4 received" and nothing saying what the sixth
+    // was. It was a read inside the route failing and being reported as a
+    // refusal of a different kind ("Forbidden", "no longer exists"); the
+    // route now answers those with an explicit 503 instead.
+    const statuses = responses.map((r) => r.status());
+    const ok = statuses.filter((s) => s === 200);
+    expect(ok, `exactly one suggestion should be created; statuses ${statuses.join(",")}`).toHaveLength(1);
+    // Every other tap is refused without writing anything: a duplicate
+    // (409), or -- under load -- a read the route could not complete (503,
+    // which says so and writes nothing). Anything else is a wrong answer.
+    const others = responses.filter((r) => r.status() !== 200);
+    for (const r of others) {
+      expect([409, 503], `unexpected status; all statuses ${statuses.join(",")}`).toContain(r.status());
+      if (r.status() === 503) expect((await r.json()).retryable).toBe(true);
+    }
 
     const { count } = await admin
       .from("session_suggestions")

@@ -132,6 +132,8 @@ The therapist Overview is where a clinician starts every shift: what is on today
 
 > **Feature guide.** The editor is the same component on the therapist's own screen and on the admin's Roster. It edits **periods** ("Monday 9 AM – 1 PM and 2 PM – 6 PM"), and converts them to the hour rows the tables have always stored. Every existing schedule - including a sparse exception written one cell at a time by the old grid - must read back as exactly the same hours. A weekly save is a **compare-and-swap under a real row lock**, versioned by `therapist_schedule_state` - and a therapist who has never been saved has no such row, so the first save asks for no comparison at all rather than comparing against a version nobody holds. It **opens read-only**, as a week summary with an **Edit schedule** button: reading somebody's hours and changing them are two different acts, and a mis-tap on a dropdown used to be a change.
 
+**If it fails to load.** When the profile (or the list of changes waiting for approval) cannot be read, the page shows *We couldn't load …* with a **Try again** button **instead of** the editable sections - never blank fields. Account Security still works. The sidebar's section links land on the notice. To check by hand, the page must be made to fail a read on the server (for example a temporarily broken query on a scratch build); there is no switch for it.
+
 #### `THR-AVAIL-001` - Set a weekly schedule with two periods a day · P0
 
 **Steps**

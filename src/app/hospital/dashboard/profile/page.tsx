@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ProfileLoadFailed from "@/components/profile/ProfileLoadFailed";
 import { createClient } from "@/lib/supabase/server";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
 import AvatarUpload from "@/components/profile/AvatarUpload";
@@ -86,19 +87,11 @@ export default async function HospitalProfilePage() {
     >
       <div className="max-w-2xl mx-auto">
         {profileUnreadable ? (
-          <div
-            role="alert"
-            className="bg-white rounded-2xl border border-amber-200 shadow-sm p-6 mb-6"
-          >
-            <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
-              We couldn&apos;t load your organisation&apos;s details
-            </h2>
-            <p className="text-sm text-slate-600">
-              Nothing is shown rather than blank fields that aren&apos;t really yours, and no
-              change can be sent from here until they load. Your details and any change waiting
-              for approval are unchanged. Refresh the page to try again.
-            </p>
-          </div>
+          <ProfileLoadFailed
+            title="We couldn't load your organisation's details"
+            anchorIds={["profile-photo", "organisation-details", "contact-details"]}
+            body="Your organisation's details and any change waiting for approval are safe - they just didn't load this time. Nothing can be edited or sent from here until they do."
+          />
         ) : (
         <>
         <div id="profile-photo" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">

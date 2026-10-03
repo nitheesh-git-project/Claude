@@ -282,7 +282,17 @@ Availability as periods over hour rows, specialisation as a value, what readines
      is read. `status` records explicit human actions only.
   At most one pending suggestion per purchase, enforced by a partial unique
   index rather than a route check, because a double tap defeats
-  SELECT-then-INSERT. Both dashboards' controls guard submits with a
+  SELECT-then-INSERT. **Every read in the suggest route answers a failure
+  with 503 ("we couldn't check ... nothing was sent"), never with a
+  refusal.** It used to fall through: a dropped profile read said
+  "Forbidden", the feature-switch read said "switched off", the purchase read
+  said "no longer exists" -- each a false statement, and the cause of
+  `session-suggestions` SS-003 failing intermittently under load (one of six
+  simultaneous taps came back as neither a suggestion nor a duplicate; 96
+  taps in bursts of 12 never produced two suggestions). SS-003 now prints
+  every status and accepts only 409 or that explicit 503 beside the single
+  200. The advisory calendar check (`findTherapistConflict`) still reads a
+  failure as "no conflict"; acceptance re-checks it. Both dashboards' controls guard submits with a
   synchronous ref (a `disabled` attribute lands a render too late) and never
   clear optimistically, so a request that dies on a bad connection leaves the
   person exactly where they were. Gated by
