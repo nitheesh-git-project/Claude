@@ -26,22 +26,35 @@ export default function CollectCashButton({
   async function handleConfirm() {
     setLoading(true);
     setError(null);
-    const res = await fetch("/api/therapist/record-cash-collection", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // The amount is not sent: the server derives it from the purchase.
-      // The prop below is what to show on the button, not what to record.
-      body: JSON.stringify({ appointmentId }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/therapist/record-cash-collection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // The amount is not sent: the server derives it from the purchase.
+        // The prop below is what to show on the button, not what to record.
+        body: JSON.stringify({ appointmentId }),
+      });
+    } catch {
+      // A request that never got an answer may still have landed. Refresh
+      // rather than invite a second tap: the server refuses a second
+      // collection, and the card will say which way it went.
+      setLoading(false);
+      setConfirming(false);
+      setError("Couldn't reach the server. Refresh to see whether the cash was recorded before trying again.");
+      return;
+    }
     setLoading(false);
     setConfirming(false);
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Could not record this. Please try again.");
       if (res.status === 409) router.refresh();
       return;
     }
     show("Cash collection recorded. It comes off your next payout.");
+    // Recorded, but the programme's history entry could not be written.
+    if (typeof data.warning === "string") show(data.warning, "error");
     router.refresh();
   }
 

@@ -353,6 +353,20 @@ client is the only writer and the log is append-only from any session.
   that action and doing it deliberately, with its own audit row. That
   separation is what makes a heuristic over clinical data safe to run at
   all, and the Risk tab deliberately carries no action buttons.
+  **"Nothing waiting" is said only after a complete sweep.** The sweep used
+  to swallow everything: a detector whose read failed returned "no
+  findings", rules the time budget did not reach were skipped, and a read
+  that hit its row cap looked complete. Every detector read now goes through
+  `checkRead()` (a failed read throws, so the rule counts as failed; a read
+  at its cap marks the rule truncated), and each sweep stores its outcome in
+  the one-row `risk_sweep_runs` (admin-readable, written by the service role)
+  -- failed, unreached and truncated rules and findings that could not be
+  written. The Risk tab reads it through `summariseRiskSweep()` and shows
+  the all-clear only when it was complete; otherwise it names the rules.
+  The budget is 8 seconds: the sweep runs in `after()` and the scheduled
+  job, not in the render, and at 2.5s a real sweep with every rule on left
+  three unreached. Open signals are read in full; only the closed history
+  and the two evidence trails show a newest-200 window, and say so.
   `risk_signals.evidence` stores the ids of the rows that fired a rule
   rather than a score, because an admin who can only see a verdict cannot
   disagree with it. A partial unique index gives at most one **open or
@@ -661,6 +675,23 @@ line describing nothing but carelessness. Before real patients exist, remove
   hide the shared Navbar all call the one helper. At real launch, **delete**
   the bar rather than flipping the flag - it is a public flag, and the bar
   names every route including `/admin/login` and `/admin/dashboard`.
+- **The simulated clock moves one server gate, and only behind a server
+  flag.** The debug bar's clock is a browser-side offset (`debugNow.ts`), so
+  on its own it only moved what the UI offered: a therapist simulated "an
+  hour after the session", saw Done, tapped it, and was told the session had
+  not started, because `complete-session` judged the join window against the
+  real clock. The two completion buttons now send the offset as
+  `x-debug-now-offset-ms` (`debugNowHeaders()`), and the route reads "now"
+  through `serverNowMs()` (`src/lib/debugClock.ts`), which honours it
+  **whenever the debug bar is on** (`isDebugNavVisible()`) - there is no
+  separate setting, because a bar that offers to simulate time has to do it
+  end to end. The cost is knowing what that means: completion is what makes a
+  therapist's share payable, the bar is on in every environment, and so while
+  it is on any signed-in therapist can send the header and complete a session
+  early. That is acceptable only while there are no real patients, and it
+  goes away with the bar - **delete the bar before launch** and the header is
+  ignored. The offset is bounded to a year either way. Every other
+  server-side time check stays on the real clock.
 - **No `.env` file that arms the reset is committed, and two have been.**
   `.env.production` armed both the public debug nav and the whole-database
   reset on the live site. `.env.development` then did the same thing one

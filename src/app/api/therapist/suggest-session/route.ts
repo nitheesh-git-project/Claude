@@ -17,6 +17,16 @@ import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 
 const MAX_NOTE_LENGTH = 500;
 
+// What a read that failed answers -- never "Forbidden", "switched off" or
+// "no longer exists", which are claims about the world the route could not
+// check. Nothing was written, so trying again is always safe.
+function couldNotCheck(what: string) {
+  return NextResponse.json(
+    { error: `We couldn't check ${what} just now. Nothing was sent - please try again.`, retryable: true },
+    { status: 503 }
+  );
+}
+
 // A therapist proposing a time to one of their programme patients.
 //
 // This creates a suggestion, never an appointment: nothing is scheduled and
@@ -51,11 +61,19 @@ export async function POST(request: NextRequest) {
   if (parseError) return parseError;
 
   const admin = createAdminClient();
-  const { data: profile } = await admin
+  // Every read below answers 503 when it fails rather than falling through
+  // to a refusal. Under load a dropped read used to tell a therapist
+  // "Forbidden" (profile), "Suggesting sessions is switched off" (the
+  // switch) or "That programme no longer exists" (the purchase) -- three
+  // false statements, and the cause of the intermittent SS-003 failure: one
+  // of six simultaneous taps came back as neither a suggestion nor a
+  // duplicate.
+  const { data: profile, error: profileError } = await admin
     .from("profiles")
     .select("role, active, approved")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
+  if (profileError) return couldNotCheck("your account");
   if (profile?.role !== "therapist") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -63,19 +81,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Your account is not active." }, { status: 403 });
   }
 
-  const { data: settingsRow } = await admin
+  const { data: settingsRow, error: settingsError } = await admin
     .from("site_settings")
     .select(SITE_SETTINGS_SELECT)
     .maybeSingle();
+  // The lead time comes from here; a default standing in for an unread
+  // setting could accept a slot the clinic's rule refuses.
+  if (settingsError) return couldNotCheck("the clinic's booking rules");
   const settings = parseAdminSettings(settingsRow);
   // Read in its own call rather than through SITE_SETTINGS_SELECT so a
   // database that has not run the latest schema.sql fails closed (the
   // column is missing, the feature is off) instead of failing the whole
   // settings read.
-  const { data: toggleRow } = await admin
+  const { data: toggleRow, error: toggleError } = await admin
     .from("site_settings")
     .select("therapist_suggestions_enabled")
     .maybeSingle();
+  // A missing column (42703) is a database without the feature, which is
+  // "switched off" honestly. Any other failure is "couldn't check".
+  if (toggleError && toggleError.code !== "42703") return couldNotCheck("whether suggestions are on");
   if (toggleRow?.therapist_suggestions_enabled !== true) {
     return NextResponse.json(
       { error: "Suggesting sessions is switched off." },
@@ -118,13 +142,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: purchase } = await admin
+  const { data: purchase, error: purchaseError } = await admin
     .from("patient_package_purchases")
     .select(
       "id, patient_id, package_id, category_id, locked_therapist_id, session_count, sessions_used, status, expires_at, payment_status"
     )
     .eq("id", purchaseId)
     .maybeSingle();
+  if (purchaseError) return couldNotCheck("this programme");
   if (!purchase) {
     return NextResponse.json({ error: "That programme no longer exists." }, { status: 404 });
   }
@@ -160,11 +185,12 @@ export async function POST(request: NextRequest) {
   const terms = await readPackageTerms(admin, purchase.id, purchase.package_id);
   let durationMinutes = terms.sessionDurationMinutes;
   if (!durationMinutes && purchase.category_id) {
-    const { data: category } = await admin
+    const { data: category, error: categoryError } = await admin
       .from("treatment_categories")
       .select("duration_minutes")
       .eq("id", purchase.category_id)
       .maybeSingle();
+    if (categoryError) return couldNotCheck("this programme's session length");
     durationMinutes = category?.duration_minutes ?? null;
   }
 

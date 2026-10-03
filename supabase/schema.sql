@@ -10197,6 +10197,8 @@ begin
     marketing_campaigns,
     balance_sheet_entries,
     admin_activity_log,
+    -- Its gaps go with it: a reset empties the history they are missing from.
+    admin_activity_gaps,
     admin_impersonation_sessions,
     session_suggestions,
     appointment_reassignment_log,
@@ -14928,3 +14930,331 @@ update patient_admin_notes set temp_password = null where temp_password is not n
 update therapist_admin_notes set temp_password = null where temp_password is not null;
 update hospital_admin_notes set temp_password = null where temp_password is not null;
 update admin_account_notes set temp_password = null where temp_password is not null;
+
+-- The clinic's social profiles, shown as icons in the website footer.
+--
+-- One optional column per network, edited on Settings -> Brand & Contact
+-- through /api/admin/update-setting. Null means the clinic has no profile
+-- there and the footer draws no icon for it -- there is no default to fall
+-- back to, which is the point. src/lib/socialLinks.ts is the rule (https
+-- only, on that network's own domain) and the route refuses anything else
+-- with a sentence; the CHECK here is the floor under it, so a value written
+-- straight into the table still cannot put a `javascript:` URL into an
+-- `href` on every public page. The length matches MAX_SOCIAL_URL_LENGTH.
+--
+-- Read by the root layout and the admin dashboard in their own call, never
+-- folded into a shared select, so a database that has not run this block
+-- yet loses the icons and nothing else. `debug_reset_all_data()` leaves
+-- site_settings alone, so these survive a reset like the rest of the brand.
+alter table site_settings add column if not exists social_instagram_url text;
+alter table site_settings add column if not exists social_facebook_url text;
+alter table site_settings add column if not exists social_linkedin_url text;
+alter table site_settings add column if not exists social_youtube_url text;
+alter table site_settings add column if not exists social_whatsapp_url text;
+
+alter table site_settings drop constraint if exists site_settings_social_urls_https_check;
+alter table site_settings add constraint site_settings_social_urls_https_check check (
+  (social_instagram_url is null or (social_instagram_url like 'https://%' and char_length(social_instagram_url) <= 300))
+  and (social_facebook_url is null or (social_facebook_url like 'https://%' and char_length(social_facebook_url) <= 300))
+  and (social_linkedin_url is null or (social_linkedin_url like 'https://%' and char_length(social_linkedin_url) <= 300))
+  and (social_youtube_url is null or (social_youtube_url like 'https://%' and char_length(social_youtube_url) <= 300))
+  and (social_whatsapp_url is null or (social_whatsapp_url like 'https://%' and char_length(social_whatsapp_url) <= 300))
+);
+
+-- A weekly save with no expected version is a first save, or it is refused.
+--
+-- `p_expected_version is null` meant "no compare-and-swap asked for", and
+-- that was correct for the case it was written for: a therapist with no
+-- therapist_schedule_state row has never saved, so there is nothing to
+-- compare against (see roster.md, rule 3). But null is also what a client
+-- sends when it never read the schedule at all -- a screen whose read
+-- failed and drew an empty week -- and that save went straight through and
+-- replaced the real roster with nothing.
+--
+-- So null is now a claim: "there is no state row yet". It holds only when
+-- that is true at the moment of the write. If the row already exists,
+-- somebody has saved (or written an exception) since, and null is treated
+-- exactly like a stale version: a no-op if the hours asked for are already
+-- what is stored, a conflict otherwise. A therapist who genuinely has no row
+-- is unaffected -- the lock creates it and the save goes through, as before.
+create or replace function public.save_therapist_weekly_schedule(
+  p_therapist_id uuid,
+  p_slots jsonb,
+  p_expected_version bigint,
+  p_actor uuid
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_existed boolean;
+  v_version bigint;
+  v_current jsonb;
+  v_incoming jsonb;
+begin
+  -- Read before the lock creates the row. Two first-ever saves racing each
+  -- other can both see "absent" -- both are first saves, and the second
+  -- wins, which is what the version check allowed before this.
+  select exists (
+    select 1 from therapist_schedule_state where therapist_id = p_therapist_id
+  ) into v_existed;
+
+  v_version := lock_therapist_schedule_state(p_therapist_id, p_actor);
+
+  select coalesce(jsonb_agg(k order by k), '[]'::jsonb) into v_current
+  from (
+    select day_of_week::text || '-' || hour::text as k
+    from therapist_availability_template
+    where therapist_id = p_therapist_id
+  ) c;
+
+  select coalesce(jsonb_agg(distinct k order by k), '[]'::jsonb) into v_incoming
+  from (
+    select (e->>'day_of_week') || '-' || (e->>'hour') as k
+    from jsonb_array_elements(coalesce(p_slots, '[]'::jsonb)) e
+  ) i;
+
+  if (p_expected_version is not null and p_expected_version <> v_version)
+     or (p_expected_version is null and v_existed) then
+    if v_current = v_incoming then
+      return jsonb_build_object('status', 'noop', 'version', v_version);
+    end if;
+    return jsonb_build_object('status', 'conflict', 'version', v_version);
+  end if;
+
+  delete from therapist_availability_template where therapist_id = p_therapist_id;
+
+  insert into therapist_availability_template (therapist_id, day_of_week, hour)
+  select p_therapist_id, (e->>'day_of_week')::smallint, (e->>'hour')::smallint
+  from jsonb_array_elements(coalesce(p_slots, '[]'::jsonb)) e
+  on conflict (therapist_id, day_of_week, hour) do nothing;
+
+  update therapist_schedule_state
+     set version = v_version + 1, updated_at = now(), updated_by = p_actor
+   where therapist_id = p_therapist_id;
+
+  return jsonb_build_object('status', 'ok', 'version', v_version + 1);
+end;
+$$;
+
+revoke all on function public.save_therapist_weekly_schedule(uuid, jsonb, bigint, uuid) from public, anon, authenticated;
+
+-- One open referral per patient per partner, held by the database.
+--
+-- /api/hospital/submit-referral checked for an open referral and then
+-- inserted in a separate statement, so two submissions for the same phone
+-- arriving together both passed the check and both landed -- duplicate
+-- calls, duplicate therapist assignments and two registration links, the
+-- very outcome the check was written to stop. The route keeps its check
+-- (it is what gives the friendly sentence), and this partial unique index is
+-- what makes the second insert fail; the route reads that 23505 as the same
+-- "already referred" answer. The statuses match OPEN_REFERRAL_STATUSES in
+-- src/lib/referralLimits.ts -- a declined, withdrawn or converted referral
+-- does not block a new one.
+--
+-- If this ever fails to build against a live database, that failure is the
+-- finding: there are duplicate open referrals to reconcile first.
+create unique index if not exists patient_referrals_one_open_per_phone
+  on patient_referrals (hospital_id, patient_phone)
+  where status in ('pending_review', 'therapist_assigned', 'invite_sent');
+
+-- Declining a pending signup is one statement against a locked row.
+--
+-- /api/admin/decline-account read "is this account still pending?" and then
+-- deleted the auth user in a separate call. An approve landing between the
+-- two was erased: another admin had just let this person in, and the
+-- decline deleted the account anyway.
+--
+-- Here the profile row is locked FOR UPDATE, its pending state is checked
+-- under that lock, and the auth user is deleted in the same transaction
+-- (profiles.id cascades from auth.users, exactly as the admin API's delete
+-- did). An approve racing it either commits first -- and this sees
+-- approved = true and refuses -- or blocks on the lock and then finds no
+-- row to approve. Never both.
+--
+-- Returns 'declined', 'not_pending' (it exists but is not a pending
+-- therapist or patient -- approved meanwhile, or an admin or hospital row),
+-- or 'not_found'.
+create or replace function public.decline_pending_account(p_user_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_role text;
+  v_approved boolean;
+begin
+  select role, approved into v_role, v_approved
+  from public.profiles
+  where id = p_user_id
+  for update;
+
+  if not found then
+    return 'not_found';
+  end if;
+  if v_approved or v_role not in ('therapist', 'patient') then
+    return 'not_pending';
+  end if;
+
+  delete from auth.users where id = p_user_id;
+  return 'declined';
+end;
+$$;
+
+revoke all on function public.decline_pending_account(uuid) from public, anon, authenticated;
+
+-- Approving a recommendation is one transaction: claim, offer window, record.
+--
+-- approveCarePlan() used to do these as three separate writes. The plan was
+-- claimed (status 'active') first and its version's offer window stamped
+-- second, with a failed stamp only logged -- leaving a published offer with
+-- no expiry, purchasable for ever. A failed review record then put the plan
+-- back in the queue, but the version keeps a first expires_at for good (the
+-- append-only trigger allows exactly one), so the retry skipped the stamp
+-- and published with the window from the failed attempt.
+--
+-- Here the plan row is locked, its pending state checked under the lock,
+-- the window stamped (only if the version has none), the plan published and
+-- the review recorded -- all or nothing. A version whose window was already
+-- stamped and has run out is refused rather than published already lapsed.
+--
+-- Returns 'approved', 'not_found', 'not_pending' or 'window_passed'.
+create or replace function public.approve_care_plan(
+  p_care_plan_id uuid,
+  p_reviewer_id uuid,
+  p_expiry_days integer,
+  p_reason text
+) returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_status text;
+  v_version_id uuid;
+  v_expires timestamptz;
+begin
+  select status, current_version_id into v_status, v_version_id
+  from care_plans
+  where id = p_care_plan_id
+  for update;
+
+  if not found then
+    return 'not_found';
+  end if;
+  if v_status <> 'pending_review' then
+    return 'not_pending';
+  end if;
+
+  if v_version_id is not null then
+    select expires_at into v_expires
+    from care_plan_versions
+    where id = v_version_id
+    for update;
+
+    if v_expires is null then
+      update care_plan_versions
+         set expires_at = now() + make_interval(days => greatest(p_expiry_days, 1))
+       where id = v_version_id;
+    elsif v_expires <= now() then
+      return 'window_passed';
+    end if;
+  end if;
+
+  update care_plans
+     set status = 'active',
+         reviewed_by = p_reviewer_id,
+         reviewed_at = now(),
+         updated_at = now()
+   where id = p_care_plan_id;
+
+  insert into care_plan_reviews (care_plan_id, version_id, reviewer_id, decision, reason)
+  values (p_care_plan_id, v_version_id, p_reviewer_id, 'approved', nullif(btrim(coalesce(p_reason, '')), ''));
+
+  return 'approved';
+end;
+$$;
+
+revoke all on function public.approve_care_plan(uuid, uuid, integer, text) from public, anon, authenticated;
+
+-- How the last risk sweep actually went.
+--
+-- runRiskSweep swallowed every failure: a detector whose read failed
+-- returned "no findings", a rule the time budget did not reach was skipped
+-- without a word, and a read that hit its row cap looked complete. The Risk
+-- screen then said "Nothing waiting" -- a clean bill of health from a scan
+-- that had not run. One row, overwritten by each sweep (it runs from the
+-- scheduled job and from the dashboard, on different server instances, so
+-- it cannot live in memory), read by the Risk screen to say whether its
+-- empty state can be trusted.
+--
+-- Written only by the service role inside runRiskSweep; readable by an
+-- admin, the same posture as risk_signals.
+create table if not exists risk_sweep_runs (
+  id smallint primary key default 1 check (id = 1),
+  finished_at timestamptz not null default now(),
+  complete boolean not null,
+  failed_rules text[] not null default '{}',
+  unreached_rules text[] not null default '{}',
+  truncated_rules text[] not null default '{}',
+  unrecorded_count integer not null default 0 check (unrecorded_count >= 0)
+);
+
+alter table risk_sweep_runs enable row level security;
+
+drop policy if exists "risk_sweep_runs_select_admin" on risk_sweep_runs;
+create policy "risk_sweep_runs_select_admin" on risk_sweep_runs
+  for select using (is_admin());
+
+-- Admin actions the activity log could not record.
+--
+-- recordAdminActivity is best-effort by design -- the action has already
+-- happened, and refusing to refund a patient because the log table is
+-- unhappy is the worse outcome -- and it retries once. But after the second
+-- failure the entry existed only in a server log nobody reads, while Logs ->
+-- All Activity went on presenting itself as the complete history. This
+-- table is where such an entry goes instead: deliberately minimal (no
+-- foreign keys, no check on the action) so that whatever refused the main
+-- log is unlikely to refuse it too. System Health counts it and the
+-- activity screen lists it, so the history says what it is missing.
+--
+-- Append-only, the same guard as the communication evidence (a gap record
+-- that could be quietly deleted would defeat the point). No foreign key on
+-- actor_id on purpose: an `on delete set null` would be an UPDATE the guard
+-- refuses, and deleting the admin would then fail.
+create table if not exists admin_activity_gaps (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid,
+  action text not null,
+  target_id text,
+  target_label text,
+  amount_paise bigint,
+  details jsonb,
+  error text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists admin_activity_gaps_created_at_idx
+  on admin_activity_gaps (created_at desc);
+
+alter table admin_activity_gaps enable row level security;
+
+drop policy if exists "admin_activity_gaps_select_admin" on admin_activity_gaps;
+create policy "admin_activity_gaps_select_admin" on admin_activity_gaps
+  for select using (is_admin());
+
+drop trigger if exists admin_activity_gaps_no_change on admin_activity_gaps;
+create trigger admin_activity_gaps_no_change
+  before update or delete on admin_activity_gaps
+  for each row execute function communication_evidence_is_append_only();
+
+-- The dashboard reads admin_activity_gaps (System Health and the activity
+-- screens), so it refreshes when one is written -- the rule every table the
+-- dashboard reads follows (e2e admin-multi-admin H-006).
+do $$
+begin
+  alter publication supabase_realtime add table admin_activity_gaps;
+exception when duplicate_object then null;
+end $$;

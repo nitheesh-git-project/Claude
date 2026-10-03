@@ -3,8 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
-import { parseDateKey, parseExceptionRangesBody } from "@/lib/availabilityRequest";
-import { exceptionRowsForRanges, formatRanges } from "@/lib/availabilityRanges";
+import { parseDateExceptionBody, writeDateException } from "@/lib/dateException";
 
 /**
  * One date's exception to a therapist's weekly hours: unavailable all day,
@@ -17,10 +16,8 @@ import { exceptionRowsForRanges, formatRanges } from "@/lib/availabilityRanges";
  * per request, so two admins answering the same date cannot end up with half
  * of each other's answer.
  *
- * `mode`:
- *   "unavailable"  -- the whole date is closed
- *   "custom_hours" -- exactly `ranges` are open, everything else closed
- *   "clear"        -- the date goes back to following the weekly schedule
+ * The parsing and the write live in src/lib/dateException.ts, shared with
+ * the therapist's own route (/api/therapist/set-availability-exception).
  */
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("sessions");
@@ -42,76 +39,44 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing therapistId" }, { status: 400 });
   }
 
-  const date = parseDateKey(body.date);
-  if ("error" in date) {
-    return NextResponse.json({ error: date.error }, { status: 400 });
-  }
-
-  const mode = body.mode;
-  if (mode !== "unavailable" && mode !== "custom_hours" && mode !== "clear") {
-    return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
-  }
-
-  const note = typeof body.note === "string" ? body.note.slice(0, 200) : null;
-
-  let rows: { hour: number; available: boolean }[] = [];
-  let description = "Back to the weekly schedule";
-  if (mode === "unavailable") {
-    rows = exceptionRowsForRanges([]);
-    description = "Unavailable all day";
-  } else if (mode === "custom_hours") {
-    const parsed = parseExceptionRangesBody(body.ranges);
-    if ("error" in parsed) {
-      return NextResponse.json({ error: parsed.error }, { status: 400 });
-    }
-    if (parsed.ranges.length === 0) {
-      return NextResponse.json(
-        { error: "Add at least one set of hours, or mark the day unavailable." },
-        { status: 400 }
-      );
-    }
-    rows = exceptionRowsForRanges(parsed.ranges);
-    description = `Available ${formatRanges(parsed.ranges)}`;
+  const parsed = parseDateExceptionBody(body);
+  if ("error" in parsed) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
   const admin = createAdminClient();
-  const { data: therapist } = await admin
+  const { data: therapist, error: therapistError } = await admin
     .from("profiles")
     .select("id, full_name")
     .eq("id", therapistId)
     .eq("role", "therapist")
     .maybeSingle();
+  // A failed read is not a therapist who does not exist.
+  if (therapistError) {
+    return NextResponse.json(
+      { error: "We couldn't check that therapist just now. Nothing was changed - please try again." },
+      { status: 503 }
+    );
+  }
   if (!therapist) {
     return NextResponse.json({ error: "Therapist not found" }, { status: 404 });
   }
 
-  const { error } = await admin.rpc("set_therapist_date_exception", {
-    p_therapist_id: therapistId,
-    p_date: date.dateKey,
-    p_rows: rows,
-    p_note: note,
-    p_actor: adminUser.id,
+  const written = await writeDateException(admin, {
+    therapistId,
+    exception: parsed,
+    actorId: adminUser.id,
   });
-  if (error) {
-    const missing =
-      error.code === "PGRST202" ||
-      error.code === "42883" ||
-      /set_therapist_date_exception/.test(error.message ?? "");
-    return NextResponse.json(
-      {
-        error: missing
-          ? "The roster database update hasn't been applied yet. Ask an admin to re-run supabase/schema.sql."
-          : error.message,
-      },
-      { status: 500 }
-    );
+  if (!written.ok) {
+    return NextResponse.json({ error: written.message }, { status: 500 });
   }
 
   await recordAdminActivity(admin, adminUser.id, {
-    action: mode === "clear" ? "therapist.clear_schedule_exception" : "therapist.set_schedule_exception",
+    action:
+      parsed.mode === "clear" ? "therapist.clear_schedule_exception" : "therapist.set_schedule_exception",
     targetId: therapistId,
     targetLabel: therapist.full_name ?? "Therapist",
-    details: { date: date.dateKey, change: description },
+    details: { date: parsed.dateKey, change: parsed.description },
   });
 
   return NextResponse.json({ success: true });

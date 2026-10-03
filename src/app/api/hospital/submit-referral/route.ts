@@ -58,6 +58,9 @@ const VISIT_MODES = ["online", "home_visit"] as const;
  * The policy and the insert grant are dropped at the end of `schema.sql`,
  * the same move `appointments_insert_own` and `b2b_leads_insert_public` got.
  */
+const ALREADY_REFERRED =
+  "You've already referred this patient and the clinic is still working on it. You can follow it under Your Referrals.";
+
 export async function POST(request: NextRequest) {
   // Who is asking, before anything they sent is read.
   const supabase = await createClient();
@@ -211,7 +214,10 @@ export async function POST(request: NextRequest) {
 
   // One open referral per patient per partner. A second for the same phone
   // number while the first is still with the clinic meant duplicate calls,
-  // duplicate therapist assignments and two registration links.
+  // duplicate therapist assignments and two registration links. This check
+  // gives the sentence; the partial unique index
+  // `patient_referrals_one_open_per_phone` is what holds it when two
+  // submissions race past the check together (see the insert below).
   const { data: open, error: openError } = await admin
     .from("patient_referrals")
     .select("id")
@@ -228,8 +234,7 @@ export async function POST(request: NextRequest) {
   if ((open ?? []).length > 0) {
     return NextResponse.json(
       {
-        error:
-          "You've already referred this patient and the clinic is still working on it. You can follow it under Your Referrals.",
+        error: ALREADY_REFERRED,
       },
       { status: 409 }
     );
@@ -262,6 +267,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
+    // Two submissions raced past the check above and the index refused the
+    // second -- the same answer the check would have given it.
+    if (error.code === "23505") {
+      return NextResponse.json({ error: ALREADY_REFERRED }, { status: 409 });
+    }
     console.error("Could not record a patient referral", error.message);
     return NextResponse.json(
       { error: "Could not submit the referral. Please try again." },

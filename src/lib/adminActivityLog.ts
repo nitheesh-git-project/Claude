@@ -240,6 +240,7 @@ export async function recordAdminActivity(
   // be the whole of that effort, and the history is what an owner reads to
   // find out who did what. A second attempt costs nothing on the success
   // path and closes the transient failures.
+  let lastError = "unknown error";
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const { error } = await admin.from("admin_activity_log").insert({
@@ -251,10 +252,34 @@ export async function recordAdminActivity(
         details: entry.details ?? null,
       });
       if (!error) return true;
+      lastError = error.message;
       console.error("admin activity log write failed", entry.action, attempt, error.message);
     } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
       console.error("admin activity log write threw", entry.action, attempt, err);
     }
+  }
+
+  // Both attempts failed. The entry used to exist only in the server log
+  // above, while All Activity went on reading as the complete history. It
+  // goes to admin_activity_gaps instead -- a deliberately minimal table, so
+  // whatever refused the main log is unlikely to refuse this -- where System
+  // Health counts it and the activity screen lists it. Still best-effort:
+  // if even this fails, the console line is all that is left, and the
+  // caller still gets `false`.
+  try {
+    const { error } = await admin.from("admin_activity_gaps").insert({
+      actor_id: actorId,
+      action: entry.action,
+      target_id: entry.targetId ?? null,
+      target_label: entry.targetLabel ?? null,
+      amount_paise: entry.amountPaise ?? null,
+      details: entry.details ?? null,
+      error: lastError.slice(0, 500),
+    });
+    if (error) console.error("admin activity gap could not be recorded either", entry.action, error.message);
+  } catch (err) {
+    console.error("admin activity gap could not be recorded either", entry.action, err);
   }
   return false;
 }

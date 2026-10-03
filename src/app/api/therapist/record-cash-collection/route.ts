@@ -185,19 +185,37 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // The purchase's timeline entry. supabase-js does not throw on a failed
+  // insert -- it returns `{ error }` -- so the try/catch this used to sit
+  // in never caught anything, and the route reported success with the
+  // event missing from the history an admin reconciles cash against.
+  // Checked, retried once (a dropped connection is the usual cause), and if
+  // it still fails the response says so: the cash IS recorded on the visit,
+  // which is the authoritative fact, so this is a warning rather than a
+  // failure -- and a failure would invite a second collection the claim
+  // above would refuse anyway.
+  let warning: string | undefined;
   if (appointment.home_visit_purchase_id) {
-    try {
-      await admin.from("home_visit_purchase_events").insert({
-        purchase_id: appointment.home_visit_purchase_id,
-        event_type: "cash_collected",
-        actor_id: user.id,
-        appointment_id: appointmentId,
-        detail: { amountPaise },
-      });
-    } catch (eventError) {
-      console.error("Failed to log cash_collected event", appointmentId, eventError);
+    const event = {
+      purchase_id: appointment.home_visit_purchase_id,
+      event_type: "cash_collected",
+      actor_id: user.id,
+      appointment_id: appointmentId,
+      detail: { amountPaise },
+    };
+    let { error: eventError } = await admin.from("home_visit_purchase_events").insert(event);
+    if (eventError) {
+      ({ error: eventError } = await admin.from("home_visit_purchase_events").insert(event));
+    }
+    if (eventError) {
+      console.error(
+        "[record-cash-collection] cash recorded but the purchase timeline event was not written",
+        { appointmentId, purchaseId: appointment.home_visit_purchase_id, code: eventError.code, message: eventError.message }
+      );
+      warning =
+        "The cash is recorded on this visit, but the programme's history entry couldn't be written. Let the clinic know so they can note it.";
     }
   }
 
-  return NextResponse.json({ success: true, amountPaise });
+  return NextResponse.json({ success: true, amountPaise, ...(warning ? { warning } : {}) });
 }

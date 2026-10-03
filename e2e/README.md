@@ -1,6 +1,6 @@
 # The end-to-end suite
 
-54 spec files, ~390 cases, one worker. `npm run test:e2e` runs all of them;
+58 spec files, ~390 cases, one worker. `npm run test:e2e` runs all of them;
 `npx playwright test e2e/<name>.spec.ts` runs one.
 
 This file is the **inventory** - what exists and what each file is for. The
@@ -80,7 +80,7 @@ total, which moves with every spec added.
 | --- | --- | --- |
 | `admin-authz` | 5 | admin route authorization for every role |
 | `admin-scoped-dashboard` | 6 | each scope's own landing screen, and Logs refusing all three limited desks at the screen *and* both routes |
-| `admin-multi-admin` | 3 | two admins acting at once |
+| `admin-multi-admin` | 4 | two admins acting at once; an approve and a decline racing on one signup (H-021) |
 | `admin-exposure` | 6 | the back office is not named to anyone outside it |
 | `admin-account-delete` | 3 | a delete that can only succeed on an account with no history |
 | `admin-validation` | 10 | input validation |
@@ -93,6 +93,7 @@ total, which moves with every spec added.
 
 | Spec | Cases | Covers |
 | --- | --- | --- |
+| `footer-social-links` | 3 | the footer's social icons: only filled-in links drawn, each opening in a new tab, the WhatsApp number too; the save route refusing a non-https or wrong-network link |
 | `admin-dashboard-ui` | 11 | the dashboard in a real browser |
 | `admin-refresh-badge` | 4 | the badge counting other people's changes, not the admin's own taps |
 | `admin-detail-overlay` | 4 | the overlay and the real route behind it rendering identically |
@@ -114,17 +115,20 @@ total, which moves with every spec added.
 | `splash-screen` | 8 | the brand splash's cold-open, reload and long-absence rules |
 | `journey-pace` | 16 | the home walkthrough's admin-configured rotation pace |
 | `session-completed-cutoff` | 11 | the cutoff on every surface that lists a session |
+| `debug-clock` | 2 | the debug bar's simulated clock moving the completion gate while the debug bar is on; asserts refusals only, since a successful completion writes append-only settlement rows |
 | `admin-login` | 4 | the real login form. Needs the relay (see `docs/rules/testing.md`); skips itself otherwise |
 
 ### Clinical, roster and catalogue
 
 | Spec | Cases | Covers |
 | --- | --- | --- |
-| `health-profile` | 28 | the per-specialty intake, the Pain Map, the double-submit no-op, and clinical access following live or delivered care |
+| `health-profile` | 29 | the per-specialty intake, the Pain Map, a free-text answer typed key by key (focus must stay in the field), the double-submit no-op, and clinical access following live or delivered care |
 | `mobile-smoke` | 8 | public pages and every role's dashboard at phone width (Pixel 7) - no sideways scroll, navigation reachable; runs in the `mobile` project only |
-| `admin-care-plans` | 21 | who may write a recommendation on a therapist's behalf, and the whole review step |
+| `admin-care-plans` | 22 | who may write a recommendation on a therapist's behalf, and the whole review step |
 | `session-suggestions` | 18 | therapist-suggested sessions, including button spam, concurrent answers and a dropped connection |
-| `therapist-roster` | 16 | ranges, exceptions, leave, authorization, stale and double-clicked saves, and that no roster change moved a booking |
+| `risk-sweep-report` | 3 | the Risk screen naming the rules an incomplete sweep missed instead of saying "Nothing waiting", no warning after a complete one, and the report hidden from the anon key |
+| `hospital-referrals` | 3 | one open referral per patient under five simultaneous submissions, a withdrawn one freeing the number, and the withdraw control saying so when the connection drops |
+| `therapist-roster` | 21 | ranges, exceptions (the admin's and the therapist's own, today onwards), leave, authorization, stale and double-clicked saves, a versionless save refused once a schedule exists, and that no roster change moved a booking |
 | `roster-read-write-day` | 7 | the read-only gate, the day view, and the **first** save for a therapist with no state row |
 | `therapist-readiness` | 4 | the five things a therapist needs before live patients |
 | `therapist-specialty` | 3 | a specialisation as a value rather than a sentence |

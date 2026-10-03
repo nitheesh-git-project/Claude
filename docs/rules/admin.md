@@ -245,12 +245,12 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   advance). Offers carries a note saying where promo codes and goodwill
   live, because "where did the promo screen go" is the question a split
   otherwise creates.
-- **System Health is eleven checks in one shape, and every unhealthy one
+- **System Health is twelve checks in one shape, and every unhealthy one
   says how to fix it.** They are, in the order the screen draws them:
   **Payment Confirmations**, **Google Connection**, **Session Links**,
   **Waiting Room**, **Books & Sessions Agree**, **Public doors**, **Partner
   attribution**, **Settlement record**, **Refunds**, **Patient files**,
-  **Pay Later** - the `HealthCheckId` union in `src/lib/systemHealth.ts` is
+  **Pay Later**, **Activity log** - the `HealthCheckId` union in `src/lib/systemHealth.ts` is
   the list. Do **not** number them by ordinal in prose: four passages here
   and in `CLAUDE.md` said "the sixth check", "the seventh", "the ninth",
   "the tenth", and every one of them was wrong within two additions, because
@@ -494,11 +494,17 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   entry now on screen would open a different record's history. An entry
   opened from the table clears it, so no back button points at a timeline
   nobody came from.
-- **An audit write is tried twice.** `recordAdminActivity` stays
-  best-effort - the action it records has already happened - but a single
-  dropped insert used to be the whole of that effort; it now retries once
-  and still reports `false` so a money route can return
-  `ACTIVITY_LOG_WARNING`. Changes made while impersonating are recorded under
+- **An audit write is tried twice, and a write that still fails is not
+  lost.** `recordAdminActivity` stays best-effort - the action it records
+  has already happened - but a single dropped insert used to be the whole of
+  that effort; it now retries once and still reports `false` so a money
+  route can return `ACTIVITY_LOG_WARNING`. After the second failure the
+  entry goes to `admin_activity_gaps` (minimal, no foreign keys, append-only
+  by trigger, cleared by the data reset with the log itself) instead of only
+  a server log: System Health's **Activity log** check counts the last 30
+  days, and both activity screens list them at the top
+  (`ActivityGapsNotice`), so the history says what it is missing rather
+  than reading as complete. Changes made while impersonating are recorded under
   the admin as `impersonation.action` (see the impersonation rule in
   `ops-security.md`).
 - **An audit entry is read months later, so it says what changed from what.**
@@ -547,6 +553,15 @@ The seven sections, scopes and levels, User Access, the Settings information arc
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.
+- **Approving and declining a signup cannot both land.** Decline deletes the
+  account, so it must not read "still pending?" and delete in two steps: an
+  approval between them was erased. `decline_pending_account()` locks the
+  profile row, checks it is a pending therapist or patient under the lock,
+  and deletes the auth user in the same transaction; the route answers 409
+  when it was approved meanwhile and never falls back to the old two-step
+  path. Approve flips only `approved = false` rows, reports a repeat as
+  success, and a declined account as gone. `admin-multi-admin` H-021 races
+  the pair in both orders.
 - **Admin-configurable behavior** (Meet on/off, join window, the Session
   Completed cutoff - minutes after slot time at which every "Tap to Join"
   control reads "Session Completed" instead, admin's own included, since a
@@ -563,7 +578,10 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   lead time, cancellation refund window, default validity, bulk-scheduler
   limit, travel buffer minutes, and the public page's heading/subheading -
   and Brand & Contact Details - site name, tagline, description, contact
-  email, WhatsApp number, contact phone, footer copyright text - and the
+  email, WhatsApp number, contact phone, footer copyright text, and the five
+  optional social links (`social_*_url`, see `src/lib/socialLinks.ts`, where
+  blank means "no icon" rather than a default, and which are read in their
+  own guarded call, never through `SITE_SETTINGS_SELECT`) - and the
   Home page walkthrough's per-step rotation seconds, where 0 means "don't
   rotate" - and the mission and vision lines on Settings -> Public Site, where
   blank means "use the wording in `src/lib/mission.ts`", and the promises and

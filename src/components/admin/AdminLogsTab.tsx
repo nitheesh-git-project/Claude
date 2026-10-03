@@ -1,5 +1,6 @@
 "use client";
 
+import ActivityGapsNotice, { type ActivityGap } from "@/components/admin/ActivityGapsNotice";
 import { useMemo, useRef, useState } from "react";
 import DataExportButtons from "@/components/admin/DataExportButtons";
 import ListPager from "@/components/dashboard/ListPager";
@@ -38,10 +39,15 @@ const LOADED_NOTE =
 export default function AdminLogsTab({
   rows,
   actors,
+  gaps = [],
+  gapsTotal = 0,
 }: {
   /** The newest entries, from the dashboard's own render. */
   rows: ActivityRow[];
   actors: { id: string; name: string }[];
+  /** Actions the log could not record -- see ActivityGapsNotice. */
+  gaps?: ActivityGap[];
+  gapsTotal?: number;
 }) {
   const [filters, setFilters] = useState<ActivityFilters>(EMPTY_ACTIVITY_FILTERS);
   const [older, setOlder] = useState<ActivityRow[]>([]);
@@ -152,6 +158,7 @@ export default function AdminLogsTab({
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <ActivityGapsNotice gaps={gaps} total={gapsTotal} />
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-bold text-slate-800">All Activity</h2>

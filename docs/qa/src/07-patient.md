@@ -674,6 +674,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 #### `PAT-PROF-001` - Edit Profile sections · P2
 **Steps.** Open `/patient/dashboard/profile`. Walk the five sub-sections: **Photo**, **Personal Details**, **Contact Details**, **My Addresses**, **Account Security**.
 **Expected Result.** Each is reachable from the sidebar's child list. Instant fields (photo, some details) save immediately; **gated** fields (the ones an admin must approve) submit a profile change request instead of writing directly, and say so. The request appears in Admin → Today → Approvals.
+**If it fails to load.** When the profile (or the list of changes waiting for approval) cannot be read, the page shows *We couldn't load …* with a **Try again** button **instead of** the editable sections - never blank fields. Account Security still works. The sidebar's section links land on the notice. To check by hand, the page must be made to fail a read on the server (for example a temporarily broken query on a scratch build); there is no switch for it. If only the saved addresses fail to load, only **My Addresses** shows the notice (no **Add an address**, which would create a duplicate) and the rest of the page stays editable.
 
 #### `PAT-ADDR-001` - Address book · P2
 **Steps.** In **My Addresses**, add the Patient A address, then add a second, then remove the second.

@@ -362,6 +362,16 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   It takes an `active` flag because `Modal.tsx` stays mounted and toggles
   `open` -- a hook that locked body scroll while closed is the bug that flag
   exists to prevent.
+- **A dialog's open/close effect never depends on something that changes
+  per keystroke.** The effect that records the opener, moves focus in and
+  restores it on cleanup must run once per open: key it on a handler rebuilt
+  each render (an inline `onClose`, or a `close` that closes over the form's
+  values) and every keystroke re-runs it, the cleanup hands focus back to the
+  opener, and only one letter lands at a time. That is what the health
+  profile's intake wizard did. Hold the handler in a ref, as
+  `useDialogChrome` does; the six hand-rolled dialogs (intake wizard,
+  session note, the two package dialogs, the two home-visit dialogs) now do
+  the same.
 - **A row you can tap spreads `rowActivationProps`** (`src/lib/rowActivation.ts`),
   never a bare `onClick`. Nine `<tr>`/`<li>` rows shipped with a click handler
   and nothing else -- no tab stop, no key handler, and in every one of the nine

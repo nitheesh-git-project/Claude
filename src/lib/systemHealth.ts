@@ -46,7 +46,8 @@ export type HealthCheckId =
   | "referral_attribution"
   | "refunds"
   | "settlements"
-  | "patient_files";
+  | "patient_files"
+  | "activity_log";
 
 export type HealthCheck = {
   id: HealthCheckId;
@@ -181,6 +182,15 @@ export type SystemHealthInput = {
    * being counted is a medical record.
    */
   storage?: StorageHealth | null;
+  /** Admin actions the activity log could not record (admin_activity_gaps)
+   *  in the last 30 days. `null` when the table could not be read. */
+  activityLog?: ActivityLogHealth | null;
+};
+
+export type ActivityLogHealth = {
+  gapsLast30Days: number;
+  /** ISO time of the most recent one, or null when there are none. */
+  latestGapAt: string | null;
 };
 
 export type StorageHealth = {
@@ -993,6 +1003,55 @@ function refundsCheck(health: RefundHealth | null): HealthCheck {
  * the failure. A file with no row is amber -- nothing is broken for anybody,
  * but a scan report the patient believes they deleted is still in a bucket.
  */
+/**
+ * Whether Logs -> All Activity is the complete history it presents itself
+ * as. recordAdminActivity retries a failed write once and then records the
+ * entry in admin_activity_gaps; this counts those. Amber, never red: the
+ * actions themselves happened and nothing is being lost now -- but who did
+ * them is missing from the one screen that is meant to say.
+ */
+function activityLogCheck(health: ActivityLogHealth | null): HealthCheck {
+  const base = {
+    id: "activity_log" as const,
+    label: "Activity log",
+    icon: "fa-clipboard-list",
+    what: "Whether every admin action was written to Logs -> All Activity. A write that fails twice is kept in a separate list so the history can say what it is missing.",
+    example:
+      "An admin issues a refund while the database is struggling. The refund goes through, but its activity entry cannot be written - so the history shows no refund and nobody who authorised it. This counts those, and the activity screen lists them.",
+  };
+  if (!health) {
+    return {
+      ...base,
+      status: "unknown",
+      headline: "Cannot be checked right now - the list of unrecorded actions could not be read.",
+      fix: ["Reload this page. If it persists, apply `supabase/schema.sql` to this project."],
+      count: 0,
+      evidence: [],
+    };
+  }
+  if (health.gapsLast30Days === 0) {
+    return {
+      ...base,
+      status: "healthy",
+      headline: "Every admin action in the last 30 days is in the activity log.",
+      fix: [],
+      count: 0,
+      evidence: [],
+    };
+  }
+  return {
+    ...base,
+    status: "attention",
+    headline: `${plural(health.gapsLast30Days, "admin action", "admin actions")} in the last 30 days could not be written to the activity log.`,
+    fix: [
+      "Open Logs -> All Activity: the missing entries are listed at the top, with who, what and when.",
+      "Note anything that moved money somewhere you keep records - the log will not show it.",
+    ],
+    count: health.gapsLast30Days,
+    evidence: [],
+  };
+}
+
 function patientFilesCheck(health: StorageHealth | null): HealthCheck {
   const base = {
     id: "patient_files" as const,
@@ -1322,6 +1381,7 @@ export function buildSystemHealth(input: SystemHealthInput): HealthCheck[] {
     refundsCheck(input.refunds ?? null),
     settlementsCheck(input.settlementDisagreements ?? null, input.settlementsRecorded ?? null),
     patientFilesCheck(input.storage ?? null),
+    activityLogCheck(input.activityLog ?? null),
   ];
 }
 

@@ -57,6 +57,16 @@ Availability as periods over hour rows, specialisation as a value, what readines
      two admins editing a therapist who already has a state row still get the 409
      and the reload offer. Never default a missing version to a number -- `0` is
      a version somebody could hold, and absence is not.
+     **Null is a claim, and the database checks it.** Null also used to be what
+     a screen sent when its read *failed* and it drew an empty week -- and that
+     save wrote straight through, replacing the real roster with nothing. The
+     newest `save_therapist_weekly_schedule` reads whether a state row exists
+     *before* the lock creates one: null with no row is a first save, as above;
+     null with a row is treated like a stale version (no-op if identical,
+     otherwise the 409). And the therapist's screen never offers the editor on
+     a failed read in the first place: `availabilityLoadFailed` swaps it for an
+     error card (`therapistDashboardData.ts`), because an empty week from a
+     read that never happened is indistinguishable from "no hours set".
   4. **The editor opens read-only, with an Edit button.** Every day row used to
      render live `<select>`s and a Working/Off switch from the moment the screen
      opened, so reading somebody's hours and changing them were the same act and
@@ -98,9 +108,17 @@ Availability as periods over hour rows, specialisation as a value, what readines
   planning record and it does not filter the patient's own picker. A free hour
   there means "nobody has it and she works then", never "sell it" --
   `e2e/therapist-roster.spec.ts` R-B02 is the guard and stays exactly as it is.
-  Writing a date exception is an admin capability and stays one: a therapist
-  reads theirs. Widening that is its own decision, not a side effect of a
-  screen.
+  **A therapist writes their own date exceptions**, the way they already set
+  their weekly hours and their leave -- the owner's decision, made explicitly
+  (it used to be admin-only, and the screen said so). Both doors go through
+  `src/lib/dateException.ts` and the same locked `set_therapist_date_exception`:
+  `/api/admin/set-availability-exception` (scope `sessions`, any date, logged
+  to admin activity) and `/api/therapist/set-availability-exception`, which
+  takes **no therapist id** (it writes the signed-in therapist's own),
+  requires an active, approved therapist like the weekly and leave routes, and
+  refuses a date before the therapist's own local today -- a past date is
+  history the clinic planned against; an admin can still correct one. Like
+  everything else on the roster, an exception never touches a booked session.
 - **A specialisation is a value, not a sentence.** `profiles.specialization`
   was free text: one line of prose written on the therapist's own profile
   screen and printed raw on /team. That was enough until an admin needed to
@@ -264,7 +282,17 @@ Availability as periods over hour rows, specialisation as a value, what readines
      is read. `status` records explicit human actions only.
   At most one pending suggestion per purchase, enforced by a partial unique
   index rather than a route check, because a double tap defeats
-  SELECT-then-INSERT. Both dashboards' controls guard submits with a
+  SELECT-then-INSERT. **Every read in the suggest route answers a failure
+  with 503 ("we couldn't check ... nothing was sent"), never with a
+  refusal.** It used to fall through: a dropped profile read said
+  "Forbidden", the feature-switch read said "switched off", the purchase read
+  said "no longer exists" -- each a false statement, and the cause of
+  `session-suggestions` SS-003 failing intermittently under load (one of six
+  simultaneous taps came back as neither a suggestion nor a duplicate; 96
+  taps in bursts of 12 never produced two suggestions). SS-003 now prints
+  every status and accepts only 409 or that explicit 503 beside the single
+  200. The advisory calendar check (`findTherapistConflict`) still reads a
+  failure as "no conflict"; acceptance re-checks it. Both dashboards' controls guard submits with a
   synchronous ref (a `disabled` attribute lands a render too late) and never
   clear optimistically, so a request that dies on a bad connection leaves the
   person exactly where they were. Gated by

@@ -294,7 +294,16 @@ begin
   -- an address, so the order below is the order the foreign keys allow.
   delete from appointments where id = any (v_appointments);
   delete from appointments where referral_id = any (v_referrals);
+  -- payments gained its own guard (trg_payments_not_deletable: a captured
+  -- payment is the record money moved) after this script was written, and
+  -- --apply then failed on its first fixture payment and deleted nothing.
+  -- These are the race spec's uncapturable fixture payments
+  -- ('pay_e2erace%'), not money; the guard is lifted for this statement and
+  -- nothing else, and restored before the transaction commits, the same way
+  -- as the ledger and refund guards above.
+  alter table payments disable trigger trg_payments_not_deletable;
   delete from payments where target_home_visit_purchase_id = any (v_purchases);
+  alter table payments enable trigger trg_payments_not_deletable;
   delete from home_visit_package_purchases where id = any (v_purchases);
   delete from patient_referrals where id = any (v_referrals);
   delete from patient_addresses where id = any (v_addresses);
@@ -329,9 +338,11 @@ begin
     delete from session_settlements where appointment_id = any (v_pl_appointments);
     alter table session_settlements enable trigger session_settlements_append_only_trg;
     delete from appointments where id = any (v_pl_appointments);
+    alter table payments disable trigger trg_payments_not_deletable;
     delete from payments where target_pay_later_payment_id in (
       select id from pay_later_payments where patient_id = v_pl_patient
     );
+    alter table payments enable trigger trg_payments_not_deletable;
 
     alter table pay_later_payments disable trigger trg_pay_later_payments_append_only;
     delete from pay_later_payments where patient_id = v_pl_patient;

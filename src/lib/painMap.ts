@@ -13,6 +13,21 @@
 export type PainMapView = "front" | "back";
 export type PainMapSide = "left" | "right" | "na";
 
+/**
+ * Which way a patient's side sits from the figure's centreline, in the
+ * reader's coordinates: -1 is the reader's left, +1 the reader's right, 0 the
+ * midline. The front figure faces the reader, so the patient's left is on
+ * the reader's right; the back figure is seen from behind, so it is not.
+ * Both views used to put "left" on the reader's left, which made the front
+ * figure behave like a back one -- tapping its left shoulder recorded the
+ * patient's right.
+ */
+export function painMapSideDirection(view: PainMapView, side: PainMapSide): -1 | 0 | 1 {
+  if (side === "na") return 0;
+  const readerLeft = view === "back" ? side === "left" : side === "right";
+  return readerLeft ? -1 : 1;
+}
+
 export type PainMapRegionKey =
   | "neck"
   | "shoulder"

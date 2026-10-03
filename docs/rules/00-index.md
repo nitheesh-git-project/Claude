@@ -13,7 +13,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## The admin back office
 
-`docs/rules/admin.md` -- 17 rules
+`docs/rules/admin.md` -- 18 rules
 
 - The admin dashboard's information architecture lives in `src/lib/adminNav.ts`
 - A scope that could not be read is refused, never promoted, and a screen outside the scope never leaves the server
@@ -21,16 +21,17 @@ rg -i "<the thing you are seeing>" docs/rules/
 - User Access is where the access model is read, and it is derived
 - Settings is ten screens under four captions, and the captions are part of the definition
 - A settings screen says what it is and gives an example
-- System Health is eleven checks in one shape, and every unhealthy one says how to fix it
+- System Health is twelve checks in one shape, and every unhealthy one says how to fix it
 - A count links to the rows it counted, never to the whole table
 - A session is listed once
 - A person's session list is ordered by the session, not by the booking
 - Every admin export offers CSV and PDF, from one column definition
 - The log is a section of its own, and clearing it is the one thing that takes evidence away
-- An audit write is tried twice
+- An audit write is tried twice, and a write that still fails is not lost
 - An audit entry is read months later, so it says what changed from what
 - A profile change is checked by value, and approving it is claimed before it is applied
 - Approvals are a queue, not a person
+- Approving and declining a signup cannot both land
 - Admin-configurable behavior
 
 ## Booking a session
@@ -104,7 +105,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## Writing the UI
 
-`docs/rules/frontend.md` -- 21 rules
+`docs/rules/frontend.md` -- 22 rules
 
 - Copy that two roles read needs a `voice`, not a compromise
 - Never tell someone they did something they did not do
@@ -118,6 +119,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - `text-slate-400` is a dark-surface token
 - Every control carries an accessible name, and an icon-only one carries it explicitly
 - A dialog opened by a tap uses `useDialogChrome`
+- A dialog's open/close effect never depends on something that changes per keystroke
 - A row you can tap spreads `rowActivationProps`
 - No browser default ever speaks to a person
 - A number box takes digits, and the browser does not enforce that
@@ -160,7 +162,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## Roles, security and operations
 
-`docs/rules/ops-security.md` -- 19 rules
+`docs/rules/ops-security.md` -- 20 rules
 
 - Rate limiting is Postgres, not Redis, and it fails open
 - A flag is never an accusation, and never carries a penalty
@@ -169,6 +171,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - An admin can sign in as somebody, and that is a session swap rather than a preview
 - Don't name the back office to anyone outside it
 - The debug bar is on in every environment, on purpose
+- The simulated clock moves one server gate, and only behind a server flag
 - No `.env` file that arms the reset is committed, and two have been
 - `.env.production` stays deleted
 - The page behind an intercepted overlay is the dashboard, not a frame that looks like it
@@ -213,7 +216,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## The public site
 
-`docs/rules/public-site.md` -- 26 rules
+`docs/rules/public-site.md` -- 27 rules
 
 - The splash greets a cold open, and nothing else
 - The eight public pages are one template, not eight layouts
@@ -241,6 +244,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - The promises and the limits are rows, and an empty table is not an empty band
 - Testimonials are the one place the site quotes a person, so treat them as evidence
 - A public catalog card opens a dialog; booking is its own button
+- The footer's social icons are only the ones an admin filled in, and each opens in a new tab
 
 ## Therapists: roster, readiness and assignment
 
@@ -256,7 +260,8 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## Verifying a change
 
-`docs/rules/testing.md` -- 2 rules
+`docs/rules/testing.md` -- 3 rules
 
+- The QA accounts are never empty, so a spec that seeds a row and looks for it must not assume the row is on page one, or in a free slot
 - A spec that needs the *browser* to reach Supabase cannot pass here
 - Three specs guard this batch, and all three are screen-driven for the same reason

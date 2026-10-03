@@ -132,7 +132,12 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   (`lookupServiceArea`) - a pincode alone used to be enough, and
   conversion then booked a visit at "Address on file with referring
   hospital". And one partner cannot hold two open referrals
-  (`OPEN_REFERRAL_STATUSES`) for the same phone number.
+  (`OPEN_REFERRAL_STATUSES`) for the same phone number -- held by the
+  partial unique index `patient_referrals_one_open_per_phone`, not only by
+  the route's check. The check then insert were two statements, so
+  simultaneous submissions all passed the check; the route now reads the
+  index's 23505 as the same "already referred" 409. Keep the index's status
+  list in step with `OPEN_REFERRAL_STATUSES`.
 - **Converting a referral either completes or leaves nothing behind.**
   `/api/patient/register-via-referral` checks everything that can refuse
   it (a home visit's address and a served area) *before* writing

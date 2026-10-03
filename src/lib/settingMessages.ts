@@ -1,3 +1,5 @@
+import { SOCIAL_LINKS } from "@/lib/socialLinks";
+
 // What a saved setting says back to the owner.
 //
 // The confirmation has to name the thing that changed and its new state --
@@ -274,6 +276,20 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
   contact_phone: { kind: "text", describe: () => "Your contact phone number is updated." },
   whatsapp_number: { kind: "text", describe: () => "Your WhatsApp number is updated." },
   footer_copyright_text: { kind: "text", describe: () => "The footer text is updated." },
+  // The footer's social links. Blank is how an admin takes one down, so the
+  // sentence says the icon is gone rather than that a link was "updated".
+  ...Object.fromEntries(
+    SOCIAL_LINKS.map((link) => [
+      link.column,
+      {
+        kind: "text" as const,
+        describe: (v: string) =>
+          v.trim()
+            ? `Your ${link.label} link is updated in the website footer.`
+            : `The ${link.label} icon is removed from the website footer.`,
+      },
+    ])
+  ),
   journey_step_seconds: {
     kind: "number",
     describe: (v) =>

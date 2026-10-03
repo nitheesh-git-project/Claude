@@ -10,7 +10,7 @@ Every setting below is read through one shared settings module with defaults. **
 
 #### `ADM-SET-001` - Brand & Contact Details · P1
 
-**What it controls.** `site_name`, `site_tagline`, `site_description`, `contact_email`, `whatsapp_number`, `contact_phone`, `footer_copyright_text`.
+**What it controls.** `site_name`, `site_tagline`, `site_description`, `contact_email`, `whatsapp_number`, `contact_phone`, `footer_copyright_text`. The social links on the same screen are `ADM-SET-001b`.
 **What depends on it.** The **root layout** is the one place these are read (through a public/anon client, so ISR-cached pages under it are not forced dynamic) and it passes them into `Navbar` and `Footer` **as props**. Those two components must never fetch their own copy or hardcode a string.
 
 **Steps**
@@ -24,6 +24,21 @@ Every setting below is read through one shared settings module with defaults. **
 
 **Expected Result.** Step 4: the navbar and the page title/description show `QA Physio Clinic`. Step 5: the footer shows the new line. Step 6: refused with a validation message (`Enter a valid email address.`). Step 3 and every reload: values persist. Existing records are unaffected - this is presentation only.
 **Interaction worth checking:** the **splash** brand line is **blank by default and falls back to the site name**, so changing the site name also changes the splash greeting until an admin deliberately parts them.
+
+#### `ADM-SET-001b` - Social media links · P2
+
+**What it controls.** `social_instagram_url`, `social_facebook_url`, `social_linkedin_url`, `social_youtube_url`, `social_whatsapp_url` - the icon row under the clinic's name in the website footer.
+
+**Steps**
+1. Open **Settings → Brand & Contact → Social Media Links**. With nothing set, each row reads *Not set - no icon in the footer*, and `/` shows **no** icon row in the footer.
+2. Set **Instagram** to `instagram.com/yourclinic` (no `https://`). Save.
+3. Set **Facebook** to `https://www.youtube.com/@clinic`. Save.
+4. Set **YouTube** to `javascript:alert(1)`. Save.
+5. Open `/` and scroll to the footer. Click the Instagram icon.
+6. Back on Settings, edit **Instagram**, clear the box, Save. Reload `/`.
+7. In the footer's **Contact** column, click the WhatsApp number (needs a real number set above).
+
+**Expected Result.** Step 2: saved, and the row shows `https://instagram.com/yourclinic`. Step 3: refused - *That link isn't on Facebook (facebook.com).* Step 4: refused - *Enter a web link starting with https://*. Step 5: only the Instagram icon shows; it opens the profile **in a new tab** and the site stays open in the original one. Step 6: the toast says the icon is removed, and the footer has no icon row. Step 7: WhatsApp opens **in a new tab**; the website page is not replaced.
 
 ---
 
@@ -504,7 +519,7 @@ This tab also surfaces the `communication_flags` and `contact_reveal_log` eviden
 #### `ADM-SET-030` - System Health · P0
 
 **Steps.** Open **Settings → System Health**. Read the verdict strip at the top, then tap the **i** button on each check.
-**Expected Result.** A verdict strip naming how many checks need a person (`All 11 checks healthy`, `2 checks need you`, or `Nothing is broken` when a check is switched off or could not be run), with a jump chip per failing check, followed by eleven cards in a fixed shape: **Payment Confirmations**, **Google Connection**, **Session Links**, **Waiting Room**, **Books & Sessions Agree**, **Public doors**, **Pay Later**, **Refunds**, **Settlement record**, **Patient files**, and the accounting check. Every card carries a status **word** as well as a colour - `Healthy`, `Needs a look`, `Needs you now`, `Not set up`, `Not checked` - a one-line plain-words headline, and, whenever it is not healthy, a numbered **How to fix it yourself**. The **i** button expands *What this watches* and *For example* inside the same card and nothing else moves. **Books & Sessions Agree** reports where the entitlement **cache**, the **ledger** and the **legacy counter** disagree, plus captured payments attached to nothing and delivered sessions with nothing behind them. **It reports and never repairs** - a silent auto-fix on a money record is how a discrepancy becomes permanent, and that card deliberately has no fix button. The badge on this tab is the number of **checks** needing a person, and it matches the strip's own count and its chips exactly.
+**Expected Result.** A verdict strip naming how many checks need a person (`All 12 checks healthy`, `2 checks need you`, or `Nothing is broken` when a check is switched off or could not be run), with a jump chip per failing check, followed by twelve cards in a fixed shape: **Payment Confirmations**, **Google Connection**, **Session Links**, **Waiting Room**, **Books & Sessions Agree**, **Public doors**, **Pay Later**, **Refunds**, **Settlement record**, **Patient files**, **Activity log**, and the accounting check. **Activity log** reads *Needs a look* when any admin action in the last 30 days could not be written to the log; Logs → All Activity then lists those actions at the top (who, what, when) instead of reading as a complete history. Every card carries a status **word** as well as a colour - `Healthy`, `Needs a look`, `Needs you now`, `Not set up`, `Not checked` - a one-line plain-words headline, and, whenever it is not healthy, a numbered **How to fix it yourself**. The **i** button expands *What this watches* and *For example* inside the same card and nothing else moves. **Books & Sessions Agree** reports where the entitlement **cache**, the **ledger** and the **legacy counter** disagree, plus captured payments attached to nothing and delivered sessions with nothing behind them. **It reports and never repairs** - a silent auto-fix on a money record is how a discrepancy becomes permanent, and that card deliberately has no fix button. The badge on this tab is the number of **checks** needing a person, and it matches the strip's own count and its chips exactly.
 **Negative:** a missing `RAZORPAY_WEBHOOK_SECRET` and a dead Google credential both badged **0** before this, because the badge counted rows and those two failures have no rows.
 
 #### `ADM-SET-030b` - Public doors · P1

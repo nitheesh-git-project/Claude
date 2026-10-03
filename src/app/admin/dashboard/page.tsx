@@ -121,7 +121,9 @@ import MissionStatementForm from "@/components/admin/MissionStatementForm";
 import MissionPrincipleManager, {
   type MissionPrincipleRecord,
 } from "@/components/admin/MissionPrincipleManager";
+import { readLastRiskSweep } from "@/lib/riskDetectors";
 import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm";
+import { SOCIAL_LINKS_SELECT, SOCIAL_LINK_COLUMNS } from "@/lib/socialLinks";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import PagedList from "@/components/dashboard/PagedList";
@@ -873,6 +875,8 @@ export default async function AdminDashboardPage({
     appointmentPromoRows,
     financeSettings,
     missionCopyRow,
+    socialLinksRow,
+    activityGapsRead,
     missionPrincipleRows,
     payLaterAgeSetting,
     payLaterFeatureEnabled,
@@ -1088,6 +1092,30 @@ export default async function AdminDashboardPage({
         ).data,
       null as { mission_statement: string | null; vision_statement: string | null } | null
     ),
+    // The footer's social links (Settings -> Brand & Contact). Newest
+    // columns on site_settings, so their own guarded read: a database that
+    // has not run that part of schema.sql shows them blank, nothing else.
+    guard(
+      async () =>
+        (await supabase.from("site_settings").select(SOCIAL_LINKS_SELECT).maybeSingle())
+          .data as Record<string, string | null> | null,
+      null as Record<string, string | null> | null
+    ),
+    // Admin actions the activity log could not record (see
+    // recordAdminActivity). Read on its own and never swallowed into an
+    // empty list: `null` means "couldn't tell", which System Health shows as
+    // not checked rather than as a complete history.
+    (async () => {
+      const since = new Date(nowTimestamp() - 30 * 86_400_000).toISOString();
+      const { data, count, error } = await admin
+        .from("admin_activity_gaps")
+        .select("id, actor_id, action, target_label, amount_paise, error, created_at", { count: "exact" })
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) return null;
+      return { rows: data ?? [], count: count ?? (data ?? []).length };
+    })(),
     // The promises and the limits. Read with the admin client rather than the
     // page's own, because the public policy shows active rows only and an
     // admin who hides one has to still be able to find it. Isolated for the
@@ -3302,6 +3330,9 @@ export default async function AdminDashboardPage({
           whatsappNumber: adminSettings.whatsappNumber,
           contactPhone: adminSettings.contactPhone,
           footerCopyrightText: adminSettings.footerCopyrightText,
+          socialLinks: Object.fromEntries(
+            SOCIAL_LINK_COLUMNS.map((column) => [column, socialLinksRow?.[column] ?? ""])
+          ),
         }}
       />
     </div>
@@ -3716,21 +3747,42 @@ export default async function AdminDashboardPage({
   // the "isolated is not the same as sequential" rule, in the block where it
   // cost the most. Each one keeps its own guard and its own empty fallback,
   // so the isolation is unchanged and only the waiting is gone.
+  // Open signals are read in full and only the closed history is capped:
+  // one newest-200 read across every status hid an older open signal behind
+  // two hundred decided ones -- the queue said less was waiting than was.
+  // The two evidence trails keep their newest-200 window, and the screen
+  // says when it is showing a window rather than everything (see
+  // RiskSignalsTab). Every read's error is kept: a failed read is said,
+  // never drawn as an empty list.
+  const RISK_SIGNAL_COLUMNS =
+    "id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at";
+  const RISK_TRAIL_WINDOW = 200;
   const [
-    { data: riskSignalRows },
+    { data: openRiskSignalRows, error: openRiskSignalsError },
+    { data: closedRiskSignalRows, error: closedRiskSignalsError },
     { data: riskRuleRows },
-    { data: flagRows },
-    { data: revealRows },
+    { data: flagRows, error: flagRowsError },
+    { data: revealRows, error: revealRowsError },
+    lastRiskSweep,
   ] = await Promise.all([
+    viewerCanSeeRisk
+      ? readAllRowsAsData<RiskSignalQueryRow>(() =>
+          admin
+            .from("risk_signals")
+            .select(RISK_SIGNAL_COLUMNS)
+            .in("status", ["open", "reviewing"])
+            .order("detected_at", { ascending: false })
+            .order("id", { ascending: true })
+        )
+      : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
     viewerCanSeeRisk
       ? admin
           .from("risk_signals")
-          .select(
-            "id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at"
-          )
+          .select(RISK_SIGNAL_COLUMNS)
+          .in("status", ["dismissed", "actioned"])
           .order("detected_at", { ascending: false })
-          .limit(200)
-      : Promise.resolve({ data: [] as RiskSignalQueryRow[] }),
+          .limit(RISK_TRAIL_WINDOW)
+      : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
     viewerCanSeeRisk
       ? admin
           .from("risk_rules")
@@ -3747,16 +3799,23 @@ export default async function AdminDashboardPage({
             "id, surface, author_id, patient_id, tier, findings, blocked, content, created_at"
           )
           .order("created_at", { ascending: false })
-          .limit(200)
-      : Promise.resolve({ data: [] as CommunicationFlagQueryRow[] }),
+          .limit(RISK_TRAIL_WINDOW)
+      : Promise.resolve({ data: [] as CommunicationFlagQueryRow[], error: null }),
     viewerCanSeeRisk
       ? admin
           .from("contact_reveal_log")
           .select("id, therapist_id, patient_id, field, reason, created_at")
           .order("created_at", { ascending: false })
-          .limit(200)
-      : Promise.resolve({ data: [] as ContactRevealQueryRow[] }),
+          .limit(RISK_TRAIL_WINDOW)
+      : Promise.resolve({ data: [] as ContactRevealQueryRow[], error: null }),
+    viewerCanSeeRisk
+      ? readLastRiskSweep(admin)
+      : Promise.resolve({ report: null, readFailed: false }),
   ]);
+  const riskSignalRows: RiskSignalQueryRow[] = [
+    ...((openRiskSignalRows ?? []) as RiskSignalQueryRow[]),
+    ...((closedRiskSignalRows ?? []) as RiskSignalQueryRow[]),
+  ];
 
   // A signal names a subject by id and kind. Resolving that to something an
   // admin recognises needs the admin client, since a therapist's or a
@@ -3917,6 +3976,17 @@ export default async function AdminDashboardPage({
       flags={riskFlags}
       reveals={riskReveals}
       detectorsEnabled={adminSettings.riskSignalsEnabled}
+      sweep={lastRiskSweep}
+      readIssues={{
+        openSignals: !!openRiskSignalsError,
+        closedSignals: !!closedRiskSignalsError,
+        closedSignalsWindowed: (closedRiskSignalRows ?? []).length >= RISK_TRAIL_WINDOW,
+        flags: !!flagRowsError,
+        flagsWindowed: (flagRows ?? []).length >= RISK_TRAIL_WINDOW,
+        reveals: !!revealRowsError,
+        revealsWindowed: (revealRows ?? []).length >= RISK_TRAIL_WINDOW,
+        windowSize: RISK_TRAIL_WINDOW,
+      }}
       canReview
       canSeeTrails={canSeeRiskTrails}
       scopeNote={
@@ -3930,15 +4000,47 @@ export default async function AdminDashboardPage({
   // Every recommendation, on its own call for the usual
   // migration-tolerance reason. Sessions scope, matching the withdraw route
   // and the section it sits in.
-  const { data: adminCarePlanRows } = canSeeCarePlans
-    ? await admin
-        .from("care_plans")
-        .select(
-          "id, patient_id, therapist_id, status, category_id, current_version_id, created_at"
-        )
-        .order("created_at", { ascending: false })
-        .limit(200)
-    : { data: [] as AdminCarePlanQueryRow[] };
+  //
+  // Two reads, not one. This was the newest 200 across every status, so a
+  // recommendation still waiting for review but older than the 200th
+  // decided one simply vanished from the review queue -- nobody could
+  // approve what nobody could see. Everything waiting is read in full
+  // (paged); the decided history keeps its window of the newest 200.
+  const CARE_PLAN_COLUMNS =
+    "id, patient_id, therapist_id, status, category_id, current_version_id, created_at";
+  const [pendingCarePlans, recentCarePlans] = canSeeCarePlans
+    ? await Promise.all([
+        readAllRowsAsData<AdminCarePlanQueryRow>(() =>
+          admin
+            .from("care_plans")
+            .select(CARE_PLAN_COLUMNS)
+            .eq("status", "pending_review")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        ),
+        admin
+          .from("care_plans")
+          .select(CARE_PLAN_COLUMNS)
+          .neq("status", "pending_review")
+          .order("created_at", { ascending: false })
+          .limit(200),
+      ])
+    : [
+        { data: [] as AdminCarePlanQueryRow[], error: null },
+        { data: [] as AdminCarePlanQueryRow[], error: null },
+      ];
+  if (pendingCarePlans.error) {
+    console.error("Admin dashboard: failed to load care plans waiting for review", pendingCarePlans.error);
+    failedCoreReads.push("recommendations waiting for review");
+  }
+  if (recentCarePlans.error) {
+    console.error("Admin dashboard: failed to load decided care plans", recentCarePlans.error);
+    failedCoreReads.push("decided recommendations");
+  }
+  const adminCarePlanRows: AdminCarePlanQueryRow[] = [
+    ...((pendingCarePlans.data ?? []) as AdminCarePlanQueryRow[]),
+    ...((recentCarePlans.data ?? []) as AdminCarePlanQueryRow[]),
+  ].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
 
   const adminPlanVersionIds = (adminCarePlanRows ?? [])
     .map((p) => p.current_version_id)
@@ -4166,6 +4268,17 @@ export default async function AdminDashboardPage({
     />
   );
 
+  // The same rows, named, for the two activity screens -- a history that is
+  // missing entries says which, at the top, rather than reading as complete.
+  const activityGaps = (activityGapsRead?.rows ?? []).map((g) => ({
+    id: g.id as string,
+    actorName: adminRows.find((a) => a.id === g.actor_id)?.fullName ?? "An admin",
+    action: g.action as string,
+    targetLabel: (g.target_label as string | null) ?? null,
+    createdAt: g.created_at as string,
+  }));
+  const activityGapsTotal = activityGapsRead?.count ?? 0;
+
   // The whole log, for a Master Admin. Fed the same rows as the desk screen
   // below -- unfiltered, since `filterActivityForViewer` leaves a full
   // scope's list untouched -- plus a search, a category filter, and older
@@ -4173,6 +4286,8 @@ export default async function AdminDashboardPage({
   const logsTab = (
     <AdminLogsTab
       rows={activityRows}
+      gaps={activityGaps}
+      gapsTotal={activityGapsTotal}
       actors={adminRows.map((a) => ({ id: a.id, name: a.fullName ?? "Unnamed admin" }))}
     />
   );
@@ -4180,6 +4295,8 @@ export default async function AdminDashboardPage({
   const activityLogTab = (
     <AdminActivityLogTab
       rows={activityRows}
+      gaps={activityGaps}
+      gapsTotal={activityGapsTotal}
       actors={adminRows.map((a) => ({ id: a.id, name: a.fullName ?? "Unnamed admin" }))}
       // Null for a Master Admin, who is reading everything. For the other
       // three the screen says so, because a filtered list that looks
@@ -4642,7 +4759,14 @@ export default async function AdminDashboardPage({
     settlementDisagreements: settlementDisagreements,
     settlementsRecorded: settlementsRecorded,
     storage: storageHealth,
+    activityLog: activityGapsRead
+      ? {
+          gapsLast30Days: activityGapsRead.count,
+          latestGapAt: activityGapsRead.rows[0]?.created_at ?? null,
+        }
+      : null,
   });
+
 
   const home = buildAdminHome(viewerScope, {
     sessionsToday: sessionsToday.length,
