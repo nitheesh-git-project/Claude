@@ -118,7 +118,7 @@ The public site and shared UI: navigation, splash, catalog, form controls, mobil
 
 | Flow | Status | Req. | Level(s) | Specs / scripts | Limitation |
 | --- | --- | --- | --- | --- | --- |
-| `platform.public-navigation` The public pages' section rail, scroll arrow, and a tap acknowledged on real navigation | covered | yes | browser | `section-nav.spec.ts`, `navigation-feedback.spec.ts` | - |
+| `platform.public-navigation` The public pages' section rail, scroll arrow, and a tap acknowledged on real navigation | covered | yes | browser | `section-nav.spec.ts`, `navigation-feedback.spec.ts`, `health-profile-showcase.spec.ts` | - |
 | `platform.splash` The brand splash's cold-open, reload and long-absence rules and its admin settings | covered | yes | browser | `splash-screen.spec.ts` | - |
 | `platform.catalog` The public catalog's dialogs and covers render the same on card, dialog and booking screen | covered | yes | browser | `catalog-detail.spec.ts`, `catalog-cover-image.spec.ts` | - |
 | `platform.journey-pace` The home walkthrough's admin-configured rotation pace | covered | yes | browser | `journey-pace.spec.ts` | - |
@@ -126,7 +126,7 @@ The public site and shared UI: navigation, splash, catalog, form controls, mobil
 | `platform.dev-reachout-and-footer` The footer's developer credit end to end and the footer's social links | covered | yes | browser | `dev-reachout.spec.ts`, `footer-social-links.spec.ts` | - |
 | `platform.mobile-smoke` Public pages and every role's dashboard fit a phone | covered | yes | browser | `mobile-smoke.spec.ts` | - |
 
-Specs owned (12): `catalog-cover-image.spec.ts` (browser/api/db, desktop, local), `catalog-detail.spec.ts` (browser/db, desktop, local), `date-field.spec.ts` (browser, desktop, local), `dev-reachout.spec.ts` (browser/api/db, desktop, local), `footer-social-links.spec.ts` (browser/api/db, desktop, local), `form-validation-chrome.spec.ts` (browser, desktop, local), `journey-pace.spec.ts` (browser/api/db, desktop, local), `mobile-smoke.spec.ts` (browser, mobile, local), `navigation-feedback.spec.ts` (browser, desktop, local), `numeric-input.spec.ts` (browser, desktop, local), `section-nav.spec.ts` (browser, desktop, local), `splash-screen.spec.ts` (browser/api/db, desktop, local)
+Specs owned (13): `catalog-cover-image.spec.ts` (browser/api/db, desktop, local), `catalog-detail.spec.ts` (browser/db, desktop, local), `date-field.spec.ts` (browser, desktop, local), `dev-reachout.spec.ts` (browser/api/db, desktop, local), `footer-social-links.spec.ts` (browser/api/db, desktop, local), `form-validation-chrome.spec.ts` (browser, desktop, local), `health-profile-showcase.spec.ts` (browser, desktop, local), `journey-pace.spec.ts` (browser/api/db, desktop, local), `mobile-smoke.spec.ts` (browser, mobile, local), `navigation-feedback.spec.ts` (browser, desktop, local), `numeric-input.spec.ts` (browser, desktop, local), `section-nav.spec.ts` (browser, desktop, local), `splash-screen.spec.ts` (browser/api/db, desktop, local)
 
 ## integrity
 

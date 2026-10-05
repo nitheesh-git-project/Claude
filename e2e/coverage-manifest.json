@@ -820,6 +820,17 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "health-profile-showcase.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -1864,6 +1875,14 @@
             "NAV-001",
             "NAV-002",
             "NAV-003"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "health-profile-showcase.spec.ts",
+          "tests": [
+            "HPS-001",
+            "HPS-002"
           ],
           "level": "browser"
         }

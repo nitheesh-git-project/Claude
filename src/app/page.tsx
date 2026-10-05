@@ -15,6 +15,9 @@ import Section from "@/components/marketing/Section";
 import SplitFeature from "@/components/marketing/SplitFeature";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
 import MissionPreview from "@/components/marketing/MissionPreview";
+import HealthProfileBand from "@/components/marketing/HealthProfileBand";
+import { enabledShowcaseProfiles } from "@/lib/healthProfileShowcase";
+import { readEnabledIntakeSpecialties } from "@/lib/homeVisitFlag";
 import { RealBenefitsList, SubHeading, WhyChooseUsGrid } from "@/components/marketing/WhyChooseUs";
 import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
 import Testimonials, {
@@ -183,9 +186,14 @@ export default async function Home() {
   // testimonials), so a nav item pointing at a section that isn't on the
   // page would just do nothing when clicked. Order must match the DOM: the
   // scroll arrow walks this list top to bottom.
+  const showcaseProfiles = enabledShowcaseProfiles(await readEnabledIntakeSpecialties());
+
   const sectionNavItems: SectionNavItem[] = [
     { id: "two-ways", label: "Two Ways to Start", icon: "fa-video" },
     { id: "how-it-works", label: "How It Works", icon: "fa-route" },
+    ...(showcaseProfiles.length > 0
+      ? [{ id: "health-profile", label: "Your Health Profile", icon: "fa-notes-medical" }]
+      : []),
     ...(categories && categories.length > 0
       ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }]
       : []),
@@ -336,6 +344,20 @@ export default async function Home() {
           </MotionButton>
         </Reveal>
       </Section>
+
+      {/* The specialty health profiles, one card each, linking to the full
+          showcase on /how-it-works. */}
+      {showcaseProfiles.length > 0 && (
+        <Section
+          id="health-profile"
+          tone={bandTone("health-profile")}
+          eyebrow="Built for your kind of care"
+          title="A health profile that follows your recovery"
+          lede="Orthopaedic, neurological and paediatric care each track what matters for them."
+        >
+          <HealthProfileBand profiles={showcaseProfiles} />
+        </Section>
+      )}
 
       {/* CONDITIONS - admin-controlled content, so the layout stays generic
           and simply adapts to whatever categories are configured. */}

@@ -442,6 +442,18 @@ Eight pages from one design system, the word budgets, why every photograph carri
   surface for an admin-editable table means adding its path to those routes
   in the same change; the ISR window is a cache, not a publishing delay
   anyone chose.
+- **The health profile is shown, never described, and never with a real
+  patient's data.** `/how-it-works#health-profile` puts each enabled
+  specialty (`site_settings.enabled_intake_specialties`) in a tab: the
+  intake's own questions on the left -- read from `intakeOrtho` /
+  `intakeNeuro` / `intakePediatrics`, so rewording one rewords the showcase
+  -- and the real `PainMapView`, `PainTrendChart` and `IntakeTrendChart` on
+  the right, fed sample data from `src/lib/healthProfileShowcase.ts` and
+  labelled "Example - sample data" on the panel. The home page's "Built for
+  your kind of care" band quotes each sample's headline change, and its
+  test holds those figures to what the charts draw, so the home card
+  cannot say 7 -> 3 over a chart that says 6.5 -> 2.5. A card links to
+  `?profile=<specialty>#health-profile`, which opens that tab.
 - **The home page's mission band steps from the concrete to the why: Why
   choose us, then The real benefits, then mission and vision.** Six reasons
   as icon cards and six numbered outcomes, one line each on the home page

@@ -7,7 +7,9 @@ import IconCard from "@/components/marketing/IconCard";
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { Stagger, StaggerItem } from "@/components/motion/primitives";
-import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import { readEnabledIntakeSpecialties, readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import HealthProfileShowcase from "@/components/marketing/HealthProfileShowcase";
+import { enabledShowcaseProfiles } from "@/lib/healthProfileShowcase";
 
 // No per-user content, and createPublicClient() never touches cookies(), so
 // this caches and revalidates on a timer rather than hitting Supabase on
@@ -110,6 +112,7 @@ function objectionsFor(homeVisitEnabled: boolean) {
 const SECTION_NAV_ITEMS: SectionNavItem[] = [
   { id: "the-steps", label: "The Four Steps", icon: "fa-route" },
   { id: "after-the-first", label: "After Session One", icon: "fa-layer-group" },
+  { id: "health-profile", label: "Your Health Profile", icon: "fa-notes-medical" },
   { id: "common-questions", label: "Common Questions", icon: "fa-circle-question" },
   { id: "explore", label: "Explore the Site", icon: "fa-compass" },
   { id: "book-now", label: "Book Now", icon: "fa-calendar-check" },
@@ -119,11 +122,21 @@ export default async function HowItWorksPage() {
   // Every mention of home visits on this page is gated on the same flag the
   // booking route reads: describing a mode the clinic has switched off sends
   // people to a 404.
-  const homeVisitEnabled = await readHomeVisitEnabled();
+  const [homeVisitEnabled, enabledSpecialties] = await Promise.all([
+    readHomeVisitEnabled(),
+    readEnabledIntakeSpecialties(),
+  ]);
+  const showcaseProfiles = enabledShowcaseProfiles(enabledSpecialties);
 
   return (
     <>
-      <SectionNav items={SECTION_NAV_ITEMS} />
+      <SectionNav
+        items={
+          showcaseProfiles.length > 0
+            ? SECTION_NAV_ITEMS
+            : SECTION_NAV_ITEMS.filter((item) => item.id !== "health-profile")
+        }
+      />
 
       <PageHero
         eyebrow="How it works"
@@ -163,8 +176,23 @@ export default async function HowItWorksPage() {
         </Stagger>
       </Section>
 
+      {/* The profile a patient fills in, per specialty, and what it watches
+          over a course -- shown through the real components with sample
+          data. Only the specialties the clinic has switched on. */}
+      {showcaseProfiles.length > 0 && (
+        <Section
+          id="health-profile"
+          eyebrow="Your health profile"
+          title="Built for your kind of care, and tracked every session"
+          lede="Each specialty asks its own questions, then measures the thing that matters for it."
+        >
+          <HealthProfileShowcase profiles={showcaseProfiles} />
+        </Section>
+      )}
+
       <Section
         id="common-questions"
+        tone="tint"
         eyebrow="Before you book"
         title="The things people hesitate over"
       >
