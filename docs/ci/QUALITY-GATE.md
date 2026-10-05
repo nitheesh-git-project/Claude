@@ -79,7 +79,13 @@ Playwright runs once per spec file, and between files the runner restarts
 dev server to 6.5–8.5 GB resident. On the first full local run, one
 long-lived server stopped answering partway through the patient runner,
 with nothing failing in the app. A restart never happens in the middle of
-a file, and the job log records each one as a notice.
+a file, and the job log records each one as a notice that names its cause
+(exited, over the limit, or the probe's error). The health probe opens a
+fresh connection every time: a reused keep-alive socket once failed with
+`UND_ERR_SOCKET` against a healthy server and restarted it for nothing. A
+restart waits for the old process group and the port to be gone (SIGKILL
+after 20 s) before it starts the next server, because two dev servers
+sharing `.next/dev` answered existing routes with 404s.
 
 `scripts/debug-reset-sql-checks.sql` is never run: it takes
 `AccessExclusiveLock` on every table, and `ALLOW_DEBUG_DATA_RESET` stays
@@ -190,17 +196,21 @@ Per runner, uploaded whether it passed or failed:
 | Artifact | Contents | Retention |
 | --- | --- | --- |
 | `summary-<runner>` | `summary.json` (what the gate reads) and `summary.md` | 14 days |
-| `reports-<runner>` | Playwright JSON, JUnit and HTML; logs for `next dev`, provisioning and each integrity script; `egress-denied.log` | 7 days |
-| `traces-<runner>` (on failure) | Playwright traces and screenshots | 7 days |
+| `reports-<runner>` | Playwright JSON and JUnit; logs for `next dev`, Playwright, provisioning and each integrity script; `egress-denied.log` | 7 days |
+| `traces-<runner>` (on failure) | Playwright traces, screenshots and the HTML report (not sanitised; see below) | 7 days |
 | `failure-bundle-<runner>` (on failure) | `failure-bundle.md`; see `docs/ci/INVESTIGATE.md` | 14 days |
 
 `summary.json`, `summary.md`, the bundle and every log pass through
 `scripts/ci/lib/sanitize.mjs`. It removes JWTs, Supabase, Razorpay and
 Google credentials, `KEY=value` secrets, Bearer and Cookie headers, auth
 cookies, signed-URL tokens, database passwords, non-fixture email addresses
-and Indian mobile numbers. **Traces and screenshots are binary and are not
-rewritten.** They hold only synthetic fixtures and the CLI's public demo
-keys, which is why they have the shortest retention. Every summary carries
+and Indian mobile numbers. Playwright's console output goes through it
+line by line, and the JSON and JUnit reports are rewritten through it after
+each run, since a failed request's call log prints its cookie header.
+**Traces, screenshots and the HTML report are binary and are not
+rewritten.** They hold only synthetic fixtures, the CLI's public demo keys
+and short-lived local session cookies, which is why they are uploaded only
+on failure and have the shortest retention. Every summary carries
 the commit SHA, the run id, the machine name, the stack version and the
 runner's known limitations from the manifest.
 

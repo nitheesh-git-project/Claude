@@ -164,21 +164,23 @@ jobs:
           path: |
             e2e-artifacts/${{ matrix.runner }}/**/report.json
             e2e-artifacts/${{ matrix.runner }}/**/junit.xml
-            e2e-artifacts/${{ matrix.runner }}/**/html/**
             e2e-artifacts/${{ matrix.runner }}/logs/**
             e2e-artifacts/${{ matrix.runner }}/provision/**
             e2e-artifacts/${{ matrix.runner }}/egress-denied.log
           if-no-files-found: ignore
           retention-days: 7
-      # Traces and screenshots are binary and are not rewritten by the
-      # sanitiser. They hold only synthetic fixtures and the CLI's public demo
-      # keys, and are kept for the shortest useful window.
-      - name: Upload traces and screenshots
+      # Traces, screenshots and the HTML report are binary (the report embeds
+      # its data in a zip) and are not rewritten by the sanitiser. They hold
+      # only synthetic fixtures, the CLI's public demo keys and short-lived
+      # local session cookies, and are kept for the shortest useful window.
+      - name: Upload traces, screenshots and the HTML report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: traces-${{ matrix.runner }}
-          path: e2e-artifacts/${{ matrix.runner }}/**/test-results/**
+          path: |
+            e2e-artifacts/${{ matrix.runner }}/**/test-results/**
+            e2e-artifacts/${{ matrix.runner }}/**/html/**
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload failure bundle

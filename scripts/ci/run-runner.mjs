@@ -24,6 +24,7 @@
 // scripts/ci/provision-local-stack.sh exported.
 
 import { spawn, spawnSync } from "node:child_process";
+import http from "node:http";
 import { appendFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -96,26 +97,63 @@ function runScript(script) {
   return { script, exitCode: result.status ?? (result.error ? -1 : null) };
 }
 
+// Playwright's own output is not printed raw: on a failure the list reporter
+// echoes the request's headers, cookie included, so every line goes through
+// the sanitiser on its way to the job log and to logs/playwright-*.log.
+// Lines are scrubbed whole; a secret split across two chunks would slip past
+// a per-chunk scrub.
 function runPlaywright(project, phase, files) {
   const dir = path.join(artifacts, `${project}-${phase}`);
   console.log(`::group::Playwright ${project} (${phase}): ${files.length} spec(s)`);
-  const result = spawnSync("npx", ["playwright", "test", `--project=${project}`, ...files.map((f) => `e2e/${f}`)], {
-    cwd: root,
-    env: { ...childEnv, E2E_ARTIFACT_DIR: dir },
-    stdio: "inherit",
-    timeout: 90 * 60_000,
-  });
-  console.log("::endgroup::");
-  const reportFile = path.join(dir, "report.json");
-  let report = null;
-  if (existsSync(reportFile)) {
-    try {
-      report = JSON.parse(readFileSync(reportFile, "utf8"));
-    } catch {
-      report = null;
+  mkdirSync(path.join(artifacts, "logs"), { recursive: true });
+  const logFile = path.join(artifacts, "logs", `playwright-${project}-${phase}.log`);
+  writeFileSync(logFile, "");
+  return new Promise((resolve) => {
+    const child = spawn("npx", ["playwright", "test", `--project=${project}`, ...files.map((f) => `e2e/${f}`)], {
+      cwd: root,
+      env: { ...childEnv, E2E_ARTIFACT_DIR: dir },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const pending = { stdout: "", stderr: "" };
+    const emit = (line) => {
+      const clean = sanitize(line);
+      console.log(clean);
+      appendFileSync(logFile, `${clean}\n`);
+    };
+    for (const stream of ["stdout", "stderr"]) {
+      child[stream].setEncoding("utf8");
+      child[stream].on("data", (chunk) => {
+        const lines = (pending[stream] + chunk).split("\n");
+        pending[stream] = lines.pop();
+        for (const line of lines) emit(line);
+      });
     }
-  }
-  return { project, phase, exitCode: result.status, report };
+    const timer = setTimeout(() => child.kill("SIGKILL"), 90 * 60_000);
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      for (const stream of ["stdout", "stderr"]) if (pending[stream]) emit(pending[stream]);
+      console.log("::endgroup::");
+      // The JSON and JUnit reports carry the same call logs, headers
+      // included, and are uploaded as "sanitised", so they are rewritten
+      // here. The JSON one is scrubbed value by value: a text-level scrub
+      // could eat an escaped quote and leave a file the verdict cannot read.
+      // The HTML report embeds them in a zip and cannot be scrubbed; the
+      // workflow uploads it only with the traces.
+      const junitFile = path.join(dir, "junit.xml");
+      if (existsSync(junitFile)) writeFileSync(junitFile, sanitize(readFileSync(junitFile, "utf8")));
+      const reportFile = path.join(dir, "report.json");
+      let report = null;
+      if (existsSync(reportFile)) {
+        try {
+          report = sanitizeDeep(JSON.parse(readFileSync(reportFile, "utf8")));
+          writeFileSync(reportFile, JSON.stringify(report));
+        } catch {
+          report = null;
+        }
+      }
+      resolve({ project, phase, exitCode: code, report });
+    });
+  });
 }
 
 // The dev server's output goes straight to disk as it is written, so a crash
@@ -124,6 +162,10 @@ function runPlaywright(project, phase, files) {
 const devLogFile = path.join(artifacts, "logs", "next-dev.log");
 
 async function startDevServer() {
+  if (!(await portFree())) {
+    console.error(`::error title=Port busy::something still answers on ${baseUrl}; not starting a second dev server over it`);
+    return { child: null, log: { file: devLogFile } };
+  }
   mkdirSync(path.dirname(devLogFile), { recursive: true });
   const out = openSync(devLogFile, "a");
   const log = { file: devLogFile };
@@ -133,15 +175,13 @@ async function startDevServer() {
     stdio: ["ignore", out, out],
     detached: true,
   });
+  child.on("exit", (code, signal) => {
+    child.exitInfo = { code, signal, at: new Date().toISOString() };
+  });
   const deadline = Date.now() + 180_000;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) break;
-    try {
-      const res = await fetch(baseUrl, { redirect: "manual" });
-      if (res.status > 0) return { child, log };
-    } catch {
-      // not up yet
-    }
+    if ((await probe()).ok && child.exitCode === null && !child.exitInfo) return { child, log };
     await new Promise((r) => setTimeout(r, 1000));
   }
   try {
@@ -157,13 +197,40 @@ function scrubDevLog() {
   if (existsSync(devLogFile)) writeFileSync(devLogFile, sanitize(readFileSync(devLogFile, "utf8")));
 }
 
-function stopDevServer(server) {
+// SIGTERM to the whole process group (npx, next dev and its next-server
+// worker), then wait until the group is gone AND the port has stopped
+// answering, escalating to SIGKILL. A new server started while the old one
+// is still shutting down either loses the port to it -- and the old one
+// answers the readiness check -- or shares .next/dev with it, and on the
+// first GitHub run that is what turned existing routes into 404s.
+async function stopDevServer(server) {
   if (!server?.child) return;
-  try {
-    process.kill(-server.child.pid, "SIGTERM");
-  } catch {
-    // already gone
+  const pgid = server.child.pid;
+  const alive = () => {
+    try {
+      process.kill(-pgid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const signal = (sig) => {
+    try {
+      process.kill(-pgid, sig);
+    } catch {
+      // already gone
+    }
+  };
+  signal("SIGTERM");
+  const deadline = Date.now() + 20_000;
+  while (alive() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 250));
+  if (alive()) {
+    console.log("::notice title=Dev server stop::still running 20s after SIGTERM; sending SIGKILL");
+    signal("SIGKILL");
+    const killDeadline = Date.now() + 10_000;
+    while (alive() && Date.now() < killDeadline) await new Promise((r) => setTimeout(r, 250));
   }
+  await portFree();
   scrubDevLog();
 }
 
@@ -244,20 +311,50 @@ function devServerRssMb() {
   );
 }
 
-async function answers() {
-  try {
-    const res = await fetch(baseUrl, { redirect: "manual", signal: AbortSignal.timeout(30_000) });
-    return res.status > 0;
-  } catch {
-    return false;
+// A health probe on a fresh connection every time. Node's fetch keeps the
+// previous probe's socket alive, and reusing one the server has just closed
+// fails with UND_ERR_SOCKET ("other side closed") against a server that is
+// perfectly healthy -- which restarted it after nearly every spec file.
+function probe(timeoutMs = 30_000) {
+  return new Promise((resolve) => {
+    const req = http.get(baseUrl, { agent: false, timeout: timeoutMs }, (res) => {
+      res.resume();
+      resolve({ ok: res.statusCode > 0, error: null });
+    });
+    req.on("timeout", () => req.destroy(new Error(`no answer in ${timeoutMs} ms`)));
+    req.on("error", (error) => resolve({ ok: false, error: String(error?.code ?? error?.message ?? error) }));
+  });
+}
+
+/** Resolves true once nothing answers on the port (up to 20s). */
+async function portFree() {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    if (!(await probe(2_000)).ok) return true;
+    await new Promise((r) => setTimeout(r, 500));
   }
+  return false;
+}
+
+let lastAnswerError = null;
+async function answers() {
+  const result = await probe();
+  lastAnswerError = result.error;
+  return result.ok;
 }
 
 async function healthyServer() {
-  if (current?.child && devServerRssMb() < RSS_LIMIT_MB && (await answers())) return true;
-  console.log(`::notice title=Dev server restart::${devServerRssMb()} MB resident or not answering; restarting between spec files`);
-  stopDevServer(current);
-  await new Promise((r) => setTimeout(r, 2_000));
+  const rss = devServerRssMb();
+  if (current?.child && rss < RSS_LIMIT_MB && (await answers())) return true;
+  const why = !current?.child
+    ? "no server"
+    : current.child.exitInfo
+      ? `exited (code ${current.child.exitInfo.code}, signal ${current.child.exitInfo.signal}) at ${current.child.exitInfo.at}`
+      : rss >= RSS_LIMIT_MB
+        ? `${rss} MB resident, over ${RSS_LIMIT_MB}`
+        : `not answering (${lastAnswerError})`;
+  console.log(`::notice title=Dev server restart::${why}; restarting between spec files`);
+  await stopDevServer(current);
   current = await startDevServer();
   restarts += 1;
   return Boolean(current.child);
@@ -270,7 +367,7 @@ async function runFiles(project, phase, files) {
       playwright.push({ project, phase: `${phase}-${stem}`, exitCode: null, report: null });
       continue;
     }
-    playwright.push(runPlaywright(project, `${phase}-${stem}`, [file]));
+    playwright.push(await runPlaywright(project, `${phase}-${stem}`, [file]));
   }
 }
 
@@ -281,7 +378,7 @@ try {
   // Destructive specs last, after every other check has read the schema.
   for (const p of plan.projects) await runFiles(p.project, "destructive", p.destructive);
 } finally {
-  stopDevServer(current);
+  await stopDevServer(current);
 }
 if (restarts > 0) console.log(`dev server restarted ${restarts} time(s) between spec files`);
 

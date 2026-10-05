@@ -17,10 +17,11 @@ this file is the whole integration.
    - `failure-bundle-<runner>`: the failed tests, the sanitised errors, the
      files the change touched, the guides to read, and the commands that
      reproduce each failure.
-   - `reports-<runner>`: the JSON, JUnit and HTML reports, plus the sanitised
-     logs (`logs/next-dev.log`, one log per integrity script).
-   - `traces-<runner>`: Playwright traces and screenshots. These are binary
-     and not sanitised. They hold only synthetic fixtures, so keep them local
+   - `reports-<runner>`: the sanitised JSON and JUnit reports and logs
+     (`logs/next-dev.log`, `logs/playwright-*.log`, one log per integrity
+     script).
+   - `traces-<runner>`: Playwright traces, screenshots and the HTML report.
+     These are binary and not sanitised. They hold only synthetic fixtures, so keep them local
      and don't paste them anywhere.
 2. Check out the PR's head commit.
 
