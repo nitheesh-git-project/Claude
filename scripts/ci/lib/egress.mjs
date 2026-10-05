@@ -25,6 +25,22 @@ export const FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 
 export const RAZORPAY_API_HOST = "api.razorpay.com";
 
+/** Exact URLs the guard answers itself, with no network, because the tool
+ *  that asks has no switch to stop asking and handles a failed answer.
+ *  `next dev` checks the registry for a newer Next on every start
+ *  (server/dev/hot-reloader-shared-utils.js) and treats a non-OK response
+ *  as "staleness unknown". The request carries nothing about anyone; it is
+ *  stubbed rather than allowed so the gate still makes no outbound call. */
+export const LOCAL_STUBS = {
+  "https://registry.npmjs.org/-/package/next/dist-tags": { status: 404, reason: "next dev's version check, answered locally" },
+};
+
+/** The stub for a request URL, or null. Query strings never match. */
+export function stubFor(url) {
+  if (typeof url !== "string") return null;
+  return Object.prototype.hasOwnProperty.call(LOCAL_STUBS, url) ? LOCAL_STUBS[url] : null;
+}
+
 export function isLoopbackAddress(host) {
   if (typeof host !== "string" || host === "") return false;
   const h = host.toLowerCase();

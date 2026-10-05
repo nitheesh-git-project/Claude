@@ -17,15 +17,16 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { snapshotBaseline, validateManifest } from "./lib/manifest.mjs";
+import { renderCoverageDoc, snapshotBaseline, validateManifest } from "./lib/manifest.mjs";
 
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 function parseArgs(argv) {
-  const args = { root: defaultRoot, updateBaseline: false, manifest: null, baseline: null };
+  const args = { root: defaultRoot, updateBaseline: false, writeDoc: false, manifest: null, baseline: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--update-baseline") args.updateBaseline = true;
+    else if (arg === "--write-doc") args.writeDoc = true;
     else if (arg === "--root") args.root = path.resolve(argv[++i]);
     else if (arg === "--manifest") args.manifest = path.resolve(argv[++i]);
     else if (arg === "--baseline") args.baseline = path.resolve(argv[++i]);
@@ -77,6 +78,18 @@ const result = validateManifest(manifest, specFiles, baseline, {
 if (!result.ok) {
   console.error(`check:coverage FAILED (${result.errors.length}):`);
   for (const message of result.errors) console.error(`  - ${message}`);
+  process.exit(1);
+}
+
+// docs/ci/COVERAGE.md is generated from the manifest; a stale copy would be
+// a coverage claim nobody re-checked.
+const docPath = path.join(args.root, "docs", "ci", "COVERAGE.md");
+const doc = renderCoverageDoc(manifest);
+if (args.writeDoc) {
+  writeFileSync(docPath, doc);
+  console.log(`check:coverage: wrote ${path.relative(args.root, docPath)}`);
+} else if (!existsSync(docPath) || readFileSync(docPath, "utf8") !== doc) {
+  console.error("check:coverage FAILED: docs/ci/COVERAGE.md is missing or stale -- run node scripts/ci/check-coverage-manifest.mjs --write-doc");
   process.exit(1);
 }
 

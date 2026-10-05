@@ -254,3 +254,20 @@ describe("selection", () => {
     expect(flowsCoveredBySpec(manifest, "ghost.spec.ts")).toEqual([]);
   });
 });
+
+describe("allowedSkips", () => {
+  it("accepts a declared skip with a reason, and refuses one without", () => {
+    const { manifest, files, sources } = good();
+    const file = files[0];
+    manifest.specs[file].allowedSkips = [{ test: "T-001", reason: "needs a relay" }];
+    expect(validateManifest(manifest, files, null, { specSources: sources }).ok).toBe(true);
+    manifest.specs[file].allowedSkips = [{ test: "T-001" }];
+    expect(validateManifest(manifest, files, null, { specSources: sources }).errors.join()).toMatch(/needs a test id and a reason/);
+  });
+
+  it("refuses a declared skip for a test that is gone", () => {
+    const { manifest, files, sources } = good();
+    manifest.specs[files[0]].allowedSkips = [{ test: "T-404", reason: "x" }];
+    expect(validateManifest(manifest, files, null, { specSources: sources }).errors.join()).toMatch(/no longer appears/);
+  });
+});

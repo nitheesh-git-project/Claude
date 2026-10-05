@@ -13,7 +13,7 @@ import http from "node:http";
 import https from "node:https";
 import path from "node:path";
 import { syncBuiltinESMExports } from "node:module";
-import { evaluateDestination, hostFromRequestArgs } from "./lib/egress.mjs";
+import { evaluateDestination, hostFromRequestArgs, stubFor } from "./lib/egress.mjs";
 
 const logFile = path.join(process.env.ARTIFACT_DIR || process.env.E2E_ARTIFACT_DIR || "e2e-artifacts", "egress-denied.log");
 
@@ -45,6 +45,10 @@ if (!globalThis.__gateEgressGuard) {
   const realFetch = globalThis.fetch;
   if (typeof realFetch === "function") {
     globalThis.fetch = function guardedFetch(...args) {
+      const first = args[0];
+      const url = typeof first === "string" ? first : first?.href ?? first?.url;
+      const stub = stubFor(url);
+      if (stub) return Promise.resolve(new Response(null, { status: stub.status }));
       try {
         check("fetch", args);
       } catch (error) {

@@ -140,6 +140,21 @@ export function validateManifest(manifest, specFiles, baseline, options = {}) {
     if (typeof entry?.destructive !== "boolean") {
       fail(`spec "${file}": destructive must be true or false`);
     }
+    // A skip the gate tolerates must be written down here, with why; any
+    // other skip fails the runner (lib/runner.mjs).
+    if (entry?.allowedSkips !== undefined) {
+      if (!Array.isArray(entry.allowedSkips)) {
+        fail(`spec "${file}": allowedSkips must be an array of {test, reason}`);
+      } else {
+        for (const skip of entry.allowedSkips) {
+          if (!isNonEmptyString(skip?.test) || !isNonEmptyString(skip?.reason)) {
+            fail(`spec "${file}": every allowedSkips entry needs a test id and a reason`);
+          } else if (options.specSources && typeof options.specSources[file] === "string" && !options.specSources[file].includes(skip.test)) {
+            fail(`spec "${file}": allowedSkips names "${skip.test}", which no longer appears there`);
+          }
+        }
+      }
+    }
   }
 
   // ---- runners: none may select nothing -----------------------------------
@@ -280,4 +295,49 @@ export function snapshotBaseline(manifest) {
       .map((flow) => flow.id)
       .sort(),
   };
+}
+
+/** docs/ci/COVERAGE.md, generated from the manifest so the two cannot drift
+ *  (check:coverage fails when the committed file differs from this). */
+export function renderCoverageDoc(manifest) {
+  const flows = manifest.flows ?? [];
+  const specs = manifest.specs ?? {};
+  const lines = [
+    "# Quality-gate coverage",
+    "",
+    "<!-- Generated from e2e/coverage-manifest.json by `node scripts/ci/check-coverage-manifest.mjs --write-doc`. Do not edit by hand. -->",
+    "",
+    "What each runner's specs exercise, at which level, and what nothing proves yet.",
+    "`browser` is a real Chromium page. `api` is the app's HTTP routes from Node.",
+    "`db` is SQL or the service-role client directly. A flow listed only at",
+    "`api` or `db` level has no browser journey behind it.",
+    "",
+    "Statuses:",
+    "- **covered**: specs exercise the flow as described.",
+    "- **partial**: specs exercise some of it. The limitation says which part is missing.",
+    "- **gap**: nothing exercises it.",
+    "- **blocked**: it cannot be exercised without infrastructure or an owner decision.",
+    "",
+    "A green gate means these tests passed. It does not prove the application has no bugs.",
+    "",
+  ];
+  for (const runner of RUNNERS) {
+    const own = flows.filter((f) => f.runner === runner);
+    const ownedSpecs = Object.keys(specs).filter((f) => specs[f].runner === runner).sort();
+    lines.push(`## ${runner}`, "", manifest.runners?.[runner] ?? "", "");
+    lines.push("| Flow | Status | Req. | Level(s) | Specs / scripts | Limitation |", "| --- | --- | --- | --- | --- | --- |");
+    for (const f of own) {
+      const levels = [...new Set((f.coverage ?? []).map((c) => c.level))].join(", ") || (f.scripts?.length ? "db" : "-");
+      const cites = [...(f.coverage ?? []).map((c) => `\`${c.spec}\``), ...(f.scripts ?? []).map((s) => `\`${s.replace(/^scripts\//, "")}\``)];
+      const esc = (t) => String(t ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+      lines.push(
+        `| \`${f.id}\` ${esc(f.title)} | ${f.status} | ${f.required ? "yes" : "no"} | ${levels} | ${cites.join(", ") || "-"} | ${esc(f.limitation) || "-"} |`
+      );
+    }
+    lines.push("", `Specs owned (${ownedSpecs.length}): ${ownedSpecs.map((s) => {
+      const e = specs[s];
+      return `\`${s}\` (${e.levels.join("/")}, ${e.projects.join("/")}, ${e.integration}${e.destructive ? ", destructive" : ""})`;
+    }).join(", ")}`, "");
+  }
+  return `${lines.join("\n")}\n`;
 }

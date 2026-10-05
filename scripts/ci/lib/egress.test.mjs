@@ -64,3 +64,14 @@ describe("hostFromRequestArgs", () => {
     expect(hostFromRequestArgs([undefined, { hostname: "abc.supabase.co" }])).toBe("abc.supabase.co");
   });
 });
+
+describe("stubFor", () => {
+  it("answers next dev's version check locally and nothing else", async () => {
+    const { stubFor } = await import("./egress.mjs");
+    expect(stubFor("https://registry.npmjs.org/-/package/next/dist-tags")?.status).toBe(404);
+    expect(stubFor("https://registry.npmjs.org/-/package/next/dist-tags?x=1")).toBeNull();
+    expect(stubFor("https://registry.npmjs.org/next")).toBeNull();
+    expect(stubFor("https://api.razorpay.com/v1/orders")).toBeNull();
+    expect(stubFor(undefined)).toBeNull();
+  });
+});
