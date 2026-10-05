@@ -20,7 +20,12 @@
 // plain pages rather than shells, and are covered deliberately: they carry
 // their own "Back to Dashboard" link, and the marketing nav is not what an
 // admin mid-task needs.
-const DASHBOARD_ROUTE = /^\/[a-z-]+\/dashboard(\/|$)/;
+//
+// The bare `/dashboard` is included too: it is the server-side hop that
+// sends "Go to Dashboard" to whichever dashboard is the caller's own, and
+// while it resolved the public Navbar and Footer were drawn round an empty
+// page for about a second before the dashboard's skeleton replaced them.
+const DASHBOARD_ROUTE = /^(\/[a-z-]+)?\/dashboard(\/|$)/;
 
 export function isDashboardShellRoute(pathname: string | null): boolean {
   return pathname !== null && DASHBOARD_ROUTE.test(pathname);

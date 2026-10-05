@@ -17,6 +17,10 @@ export type BookingPaymentTrouble = {
   /** The wizard is offering its own way to the dashboard: the account is
    *  unlocked and paying here has failed often enough. */
   escapeOpen: boolean;
+  /** The booking is confirmed: the wizard's own confirmation screen carries
+   *  the way to the dashboard, so the page-level link would be a second
+   *  button saying the same thing. */
+  done?: boolean;
 };
 
 const IDLE: BookingPaymentTrouble = { onPaymentStep: false, escapeOpen: false };
@@ -26,7 +30,8 @@ const listeners = new Set<() => void>();
 export function publishBookingPaymentTrouble(next: BookingPaymentTrouble) {
   if (
     next.onPaymentStep === current.onPaymentStep &&
-    next.escapeOpen === current.escapeOpen
+    next.escapeOpen === current.escapeOpen &&
+    !!next.done === !!current.done
   ) {
     return;
   }
@@ -36,6 +41,7 @@ export function publishBookingPaymentTrouble(next: BookingPaymentTrouble) {
 
 /** Pure, so the rule is testable without rendering. */
 export function exitLinkHidden(state: BookingPaymentTrouble): boolean {
+  if (state.done) return true;
   return state.onPaymentStep && !state.escapeOpen;
 }
 

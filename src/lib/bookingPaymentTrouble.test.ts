@@ -11,4 +11,7 @@ describe("exitLinkHidden", () => {
   it("brings it back once the wizard does", () => {
     expect(exitLinkHidden({ onPaymentStep: true, escapeOpen: true })).toBe(false);
   });
+  it("hides it on the confirmation screen, which has its own button", () => {
+    expect(exitLinkHidden({ onPaymentStep: false, escapeOpen: false, done: true })).toBe(true);
+  });
 });

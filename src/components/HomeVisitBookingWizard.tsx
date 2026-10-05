@@ -239,6 +239,7 @@ export default function HomeVisitBookingWizard({
     publishBookingPaymentTrouble({
       onPaymentStep: step === 4 && !done,
       escapeOpen,
+      done,
     });
     return () => publishBookingPaymentTrouble({ onPaymentStep: false, escapeOpen: false });
   }, [step, done, escapeOpen]);

@@ -353,6 +353,7 @@ export default function BookingWizard({
     publishBookingPaymentTrouble({
       onPaymentStep: step === 3 && !done,
       escapeOpen,
+      done,
     });
     return () => publishBookingPaymentTrouble({ onPaymentStep: false, escapeOpen: false });
   }, [step, done, escapeOpen]);

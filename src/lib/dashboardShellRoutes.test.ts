@@ -16,3 +16,11 @@ describe("isDeveloperRoute", () => {
     expect(isNavHiddenRoute("/faq")).toBe(false);
   });
 });
+
+describe("the /dashboard hop", () => {
+  it("hides the public chrome while it resolves, like the dashboards it leads to", () => {
+    expect(isNavHiddenRoute("/dashboard")).toBe(true);
+    expect(isNavHiddenRoute("/dashboards")).toBe(false);
+    expect(isNavHiddenRoute("/how-it-works")).toBe(false);
+  });
+});

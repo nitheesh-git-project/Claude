@@ -554,7 +554,15 @@ client is the only writer and the log is append-only from any session.
   and the admin path never reaches a public bundle. A `hash` param on that
   route becomes a real fragment (the anchor-based shells need it) and is
   pattern-checked, since it is the one input that could otherwise smuggle a
-  host into the redirect. Link new "go to my dashboard" affordances at
+  host into the redirect. A signed-in caller with a dashboard is handed on
+  from the browser (`DashboardHop`, `router.replace`) rather than with a
+  server `redirect()`: the server redirect ended `/dashboard`'s loading
+  screen and made the browser fetch the dashboard's own, which left the
+  page blank for about half a second. The hop keeps the same skeleton up
+  throughout, and `/dashboard` counts as a dashboard route for hiding the
+  public Navbar and Footer. The path still goes only to the person it
+  belongs to; a signed-out caller is still a server redirect.
+  Link new "go to my dashboard" affordances at
   `/dashboard` rather than adding a fifth role map. The debug bar is the
   deliberate exception -- it still lists the admin routes, and is switched
   off before release.
