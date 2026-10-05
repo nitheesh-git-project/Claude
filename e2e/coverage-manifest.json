@@ -261,6 +261,17 @@
       "integration": "local",
       "destructive": false
     },
+    "realtime-reconnect.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "assign-availability.spec.ts": {
       "runner": "therapist",
       "levels": [
@@ -1615,6 +1626,13 @@
             "RB-001",
             "RB-002",
             "RB-003"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "realtime-reconnect.spec.ts",
+          "tests": [
+            "RT-001"
           ],
           "level": "browser"
         }

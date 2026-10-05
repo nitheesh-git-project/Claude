@@ -131,6 +131,7 @@ total, which moves with every spec added.
 | `form-validation-chrome` | 2 | the app's own message in place of the OS tooltip |
 | `numeric-input` | 1 | a number box refusing `e`, `E` and `+` |
 | `navigation-feedback` | 3 | a tap acknowledged, and a screen already rendered not fetched again |
+| `realtime-reconnect` | 1 | "Live updates paused" draws once and its Refresh reconnects every channel and clears it (the realtime server is stood in for, since sandbox egress cannot carry the socket) |
 | `section-nav` | 7 | the public pages' section rail and scroll arrow |
 | `catalog-detail` | 8 | the public catalog's detail dialogs |
 | `catalog-cover-image` | 11 | a cover uploaded, positioned and rendering the same on card, dialog and dashboard |
