@@ -216,19 +216,72 @@ if (!server.child) {
   );
 }
 
+// One Playwright invocation per spec file, with the dev server checked in
+// between. `next dev` compiles every route a runner touches into one
+// long-lived process: measured on the admin runner, it passed 10 GB resident
+// in twelve minutes, and the first full patient run stopped answering
+// altogether at test 77 with nothing failing in the app. On a 16 GB CI
+// machine that is shared with Postgres and Chromium, it is restarted when it
+// grows past GATE_DEV_RSS_LIMIT_MB (default 9216) or stops answering --
+// 6144 was tried first and restarted it after almost every file, since one
+// browser spec alone takes it to 6.5-8.5 GB, doubling the patient runner's
+// time for nothing --
+// between files, never inside one, so no test sees a restart. Each file also
+// gets its own report, which is what the verdict counts.
+const RSS_LIMIT_MB = Number(process.env.GATE_DEV_RSS_LIMIT_MB) > 0 ? Number(process.env.GATE_DEV_RSS_LIMIT_MB) : 9216;
+let current = server;
+let restarts = 0;
+
+function devServerRssMb() {
+  const ps = spawnSync("ps", ["-eo", "rss=,args="], { encoding: "utf8" });
+  return Math.round(
+    (ps.stdout ?? "")
+      .split("\n")
+      .filter((line) => line.includes("next-server (v"))
+      .reduce((kb, line) => kb + (Number.parseInt(line.trim(), 10) || 0), 0) / 1024
+  );
+}
+
+async function answers() {
+  try {
+    const res = await fetch(baseUrl, { redirect: "manual", signal: AbortSignal.timeout(30_000) });
+    return res.status > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function healthyServer() {
+  if (current?.child && devServerRssMb() < RSS_LIMIT_MB && (await answers())) return true;
+  console.log(`::notice title=Dev server restart::${devServerRssMb()} MB resident or not answering; restarting between spec files`);
+  stopDevServer(current);
+  await new Promise((r) => setTimeout(r, 2_000));
+  current = await startDevServer();
+  restarts += 1;
+  return Boolean(current.child);
+}
+
+async function runFiles(project, phase, files) {
+  for (const file of files) {
+    const stem = file.replace(/\.spec\.ts$/, "");
+    if (!(await healthyServer())) {
+      playwright.push({ project, phase: `${phase}-${stem}`, exitCode: null, report: null });
+      continue;
+    }
+    playwright.push(runPlaywright(project, `${phase}-${stem}`, [file]));
+  }
+}
+
 try {
   for (const script of plan.scriptsBeforeSpecs) scripts.push(runScript(script));
-  for (const p of plan.projects) {
-    if (p.files.length) playwright.push(runPlaywright(p.project, "specs", p.files));
-  }
+  for (const p of plan.projects) await runFiles(p.project, "specs", p.files);
   for (const script of plan.scriptsAfterSpecs) scripts.push(runScript(script));
   // Destructive specs last, after every other check has read the schema.
-  for (const p of plan.projects) {
-    if (p.destructive.length) playwright.push(runPlaywright(p.project, "destructive", p.destructive));
-  }
+  for (const p of plan.projects) await runFiles(p.project, "destructive", p.destructive);
 } finally {
-  stopDevServer(server);
+  stopDevServer(current);
 }
+if (restarts > 0) console.log(`dev server restarted ${restarts} time(s) between spec files`);
 
 const denials = existsSync(egressLog) ? readFileSync(egressLog, "utf8").split("\n").filter(Boolean) : [];
 finish(summarize({ runner, manifest, preflight, plan, playwright, scripts, egressDenials: denials, identity: id }));

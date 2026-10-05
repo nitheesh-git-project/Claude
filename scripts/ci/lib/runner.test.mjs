@@ -242,3 +242,27 @@ describe("flattenReport / isDeclaredSkip", () => {
     expect(isDeclaredSkip(m, "a.spec.ts", "M-009 relay")).toBe(false);
   });
 });
+
+describe("stripAnsi", () => {
+  it("removes Playwright's colour codes and leaves the text", async () => {
+    const { stripAnsi } = await import("./runner.mjs");
+    expect(stripAnsi("\u001b[31mTest timeout\u001b[39m of \u001b[2m30000ms\u001b[22m")).toBe("Test timeout of 30000ms");
+    expect(stripAnsi(null)).toBeNull();
+  });
+});
+
+describe("notes", () => {
+  it("carries a spec's own annotations into the summary without failing it", async () => {
+    const { summarize, planRunner } = await import("./runner.mjs");
+    const m = {
+      specs: { "a.spec.ts": { runner: "admin", levels: ["api"], projects: ["desktop"], integration: "local", destructive: false } },
+      flows: [],
+    };
+    const r = {
+      suites: [{ title: "a.spec.ts", file: "a.spec.ts", specs: [{ title: "C-1", file: "a.spec.ts", tests: [{ status: "expected", annotations: [{ type: "race-not-overlapped", description: "A->B, B->C" }], results: [] }] }] }],
+    };
+    const s = summarize({ runner: "admin", manifest: m, preflight: { unsafe: false, blocked: false, reasons: [] }, plan: planRunner(m, "admin"), playwright: [{ project: "desktop", phase: "specs-a", exitCode: 0, report: r }] });
+    expect(s.passed).toBe(true);
+    expect(s.notes).toEqual([{ file: "a.spec.ts", title: "C-1", type: "race-not-overlapped", description: "A->B, B->C" }]);
+  });
+});

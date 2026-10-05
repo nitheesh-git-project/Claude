@@ -72,6 +72,12 @@ export function planRunner(manifest, runner) {
   };
 }
 
+/** Playwright colours its error messages; a summary is read as text. */
+export function stripAnsi(text) {
+  // eslint-disable-next-line no-control-regex
+  return typeof text === "string" ? text.replace(/\u001b\[[0-9;]*m/g, "") : text;
+}
+
 /**
  * Flattens a Playwright JSON report into one entry per test.
  * `outcome` is Playwright's own: expected | unexpected | flaky | skipped.
@@ -88,9 +94,10 @@ export function flattenReport(report) {
           title: [...here.slice(1), spec.title].filter(Boolean).join(" > "),
           project: test.projectName ?? "",
           outcome: test.status,
-          error: last?.error?.message ?? last?.errors?.[0]?.message ?? null,
+          error: stripAnsi(last?.error?.message ?? last?.errors?.[0]?.message ?? null),
           step: (last?.steps ?? []).filter((s) => s.error).map((s) => s.title).at(-1) ?? null,
           attachments: (last?.attachments ?? []).map((a) => a.path).filter(Boolean),
+          annotations: [...(test.annotations ?? []), ...(last?.annotations ?? [])].filter((a) => a?.type),
         });
       }
     }
@@ -151,7 +158,8 @@ export function summarize(input) {
       problems.push(`Playwright (${run.project}, ${run.phase}) exited ${run.exitCode} with no failed test to show for it`);
     }
   }
-  const expectedRuns = (plan?.projects ?? []).reduce((n, p) => n + (p.files.length ? 1 : 0) + (p.destructive.length ? 1 : 0), 0);
+  // One Playwright invocation per spec file (run-runner.mjs).
+  const expectedRuns = plan?.total ?? 0;
   if (playwright.length < expectedRuns) problems.push(`only ${playwright.length} of ${expectedRuns} Playwright runs happened`);
 
   const scriptFailures = scripts.filter((s) => s.exitCode !== 0);
@@ -173,10 +181,20 @@ export function summarize(input) {
   // A blocked preflight is never a pass, whatever the tests did.
   if (status === "passed" && preflight?.blocked) status = "blocked";
 
+  // Annotations a spec leaves on itself (e.g. "race-not-overlapped": a
+  // concurrency case whose requests did not overlap, so its lock was not
+  // exercised that run). Not failures; shown so a pass is not overread.
+  const notes = tests.flatMap((t) =>
+    (t.annotations ?? [])
+      .filter((a) => a.type !== "skip")
+      .map((a) => ({ file: t.file, title: t.title, type: a.type, description: a.description ?? "" }))
+  );
+
   return {
     runner,
     status,
     passed: status === "passed",
+    notes,
     counts,
     failures,
     skips,
@@ -217,6 +235,10 @@ export function renderSummaryMarkdown(summary) {
       lines.push(`- \`${f.file}\` ${f.title} (${f.project}): ${f.reason}${f.step ? ` at step "${f.step}"` : ""}`);
       if (f.error) lines.push(`  \`\`\`\n  ${String(f.error).split("\n").slice(0, 6).join("\n  ")}\n  \`\`\``);
     }
+  }
+  if ((summary.notes ?? []).length) {
+    lines.push("", "### Notes from the specs (not failures)");
+    for (const n of summary.notes) lines.push(`- \`${n.file}\` ${n.title}: ${n.type}${n.description ? ` -- ${n.description}` : ""}`);
   }
   if (summary.scripts.length) {
     lines.push("", "### Integrity scripts");

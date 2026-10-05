@@ -1,6 +1,6 @@
 # The end-to-end suite
 
-61 spec files, ~395 cases, one worker. `npm run test:e2e` runs all of them;
+65 spec files, ~415 cases, one worker. `npm run test:e2e` runs all of them;
 `npx playwright test e2e/<name>.spec.ts` runs one.
 
 This file is the **inventory** - what exists and what each file is for. The
@@ -58,6 +58,12 @@ total, which moves with every spec added.
   append-only trigger asks for. `--apply` deletes outright and is the only
   mode that can clear pay later's fixture money.
 - `npm run seed:qa` recreates the fixture accounts after a data reset.
+- **In CI the suite runs as seven runners**, each on its own disposable local
+  Supabase stack (`.github/workflows/quality-gate.yml`). Which runner owns
+  which spec is `e2e/coverage-manifest.json`; a new spec must be added there
+  in the same commit or `check:coverage` fails. On that stack the browser
+  reaches Supabase, so the no-egress cases above run for real. How to
+  reproduce a runner locally: `docs/ci/QUALITY-GATE.md`.
 
 ## The inventory
 
@@ -88,6 +94,8 @@ total, which moves with every spec added.
 | `admin-degraded-schema` | 4 | columns and tables dropped and restored. **Point it at a throwaway project only** |
 | `admin-debug-reset` | 5 | all four gates on the reset, and what survives it |
 | `booking-account-role` | 8 | only a patient account can book; each dashboard's way home |
+| `patient-isolation` | 5 | a report uploaded through the real route, typed by its bytes and opened through a short-lived signed link; another patient refused it at the route, at RLS and at Storage, and refused every clinical and money row |
+| `hospital-isolation` | 5 | a second partner hospital cannot read, enumerate, withdraw or see on its screen another partner's referral, while the owner can |
 
 ### What a person reads
 
@@ -126,6 +134,7 @@ total, which moves with every spec added.
 | --- | --- | --- |
 | `health-profile` | 29 | the per-specialty intake, the Pain Map, a free-text answer typed key by key (focus must stay in the field), the double-submit no-op, and clinical access following live or delivered care |
 | `mobile-smoke` | 8 | public pages and every role's dashboard at phone width (Pixel 7) - no sideways scroll, navigation reachable; runs in the `mobile` project only |
+| `clinical-continuity` | 5 | one patient's record across all three roles: the first fill, the session note (never patient-visible), a recommendation invisible and unbuyable until approved, the approval attributed, and a reopen losing nothing. **Disposable stack only** (`assertDisposableStack`) |
 | `admin-care-plans` | 22 | who may write a recommendation on a therapist's behalf, and the whole review step |
 | `session-suggestions` | 18 | therapist-suggested sessions, including button spam, concurrent answers and a dropped connection |
 | `risk-sweep-report` | 3 | the Risk screen naming the rules an incomplete sweep missed instead of saying "Nothing waiting", no warning after a complete one, and the report hidden from the anon key |
