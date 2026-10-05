@@ -6,6 +6,9 @@
 //
 //   node scripts/ci/preflight.mjs                    safe + test keys present
 //   node scripts/ci/preflight.mjs --no-razorpay      do not require test keys
+//   node scripts/ci/preflight.mjs --static-only      environment rules only, no
+//                                                    database probe (before the
+//                                                    schema and marker exist)
 //   node scripts/ci/preflight.mjs --tolerate-blocked a missing-keys finding
 //                                                    (only) exits 0; the run
 //                                                    still reports it BLOCKED
@@ -43,7 +46,7 @@ export function probeDatabase(env = process.env) {
 /** Static rules first, so a hostile URL is rejected before anything connects to it. */
 export function runPreflight(env = process.env, options = {}) {
   const staticResult = assessTarget(env, undefined, options);
-  if (staticResult.unsafe) return { ...staticResult, probed: false };
+  if (staticResult.unsafe || options.staticOnly) return { ...staticResult, probed: false };
   const probe = probeDatabase(env);
   return { ...assessTarget(env, probe, options), probed: true, probe };
 }
@@ -58,7 +61,7 @@ export function reportPreflight(result, write = console.error) {
 
 function main() {
   const argv = process.argv.slice(2);
-  const options = { requireRazorpay: !argv.includes("--no-razorpay") };
+  const options = { requireRazorpay: !argv.includes("--no-razorpay"), staticOnly: argv.includes("--static-only") };
   const tolerateBlocked = argv.includes("--tolerate-blocked");
   const result = runPreflight(process.env, options);
   reportPreflight(result);

@@ -28,7 +28,6 @@ max_rows = 1000
 [db]
 port = 54322
 shadow_port = 54320
-health_timeout = "3m"
 major_version = 17
 
 [db.pooler]
@@ -46,7 +45,7 @@ enabled = true
 [studio]
 enabled = false
 
-[local_smtp]
+[inbucket]
 enabled = true
 port = 54324
 
@@ -54,14 +53,8 @@ port = 54324
 enabled = true
 file_size_limit = "50MiB"
 
-[storage.s3_protocol]
-enabled = false
 
-[storage.analytics]
-enabled = false
 
-[storage.vector]
-enabled = false
 
 [auth]
 enabled = true

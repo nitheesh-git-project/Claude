@@ -82,3 +82,4 @@ devserver.log
 /supabase/.env
 # quality gate output
 /e2e-artifacts/
+/.gate.env
