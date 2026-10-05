@@ -69,6 +69,21 @@ export default function BookingCalendar({
     return { year: base.getFullYear(), month: base.getMonth() };
   });
 
+  // And follow it when it changes from outside -- a picker's Today button, a
+  // wizard re-selecting the earliest date. The view used to be set once, so
+  // Today pressed while another month was showing selected a date the grid
+  // never moved to. A selection inside the month on screen leaves it alone.
+  const [followedKey, setFollowedKey] = useState(selectedDateKey);
+  if (selectedDateKey !== followedKey) {
+    setFollowedKey(selectedDateKey);
+    if (selectedDateKey) {
+      const target = fromDateKey(selectedDateKey);
+      if (target.getFullYear() !== view.year || target.getMonth() !== view.month) {
+        setView({ year: target.getFullYear(), month: target.getMonth() });
+      }
+    }
+  }
+
   const calendar = buildCalendarMonth(view.year, view.month, nowMs, leadTimeMs, bounds);
 
   function shiftMonth(delta: number) {

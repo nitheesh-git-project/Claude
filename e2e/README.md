@@ -125,7 +125,7 @@ total, which moves with every spec added.
 | `booking-exit-link` | 2 | the way out of the wizard following the account - and never offering `/pending-approval` mid-booking |
 | `checkout-speed` | 5 | create answering with the quote and the Razorpay order in one trip, and the tap-to-sheet timing route |
 | `service-picker` | 11 | the service chosen before the slot, on both wizards |
-| `date-field` | 5 | the clinic's own month grid in place of the browser's panel, including a past date |
+| `date-field` | 6 | the clinic's own month grid in place of the browser's panel, including a past date, and Today bringing the grid back to this month |
 | `form-validation-chrome` | 2 | the app's own message in place of the OS tooltip |
 | `numeric-input` | 1 | a number box refusing `e`, `E` and `+` |
 | `navigation-feedback` | 3 | a tap acknowledged, and a screen already rendered not fetched again |

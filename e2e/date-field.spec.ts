@@ -162,4 +162,32 @@ test.describe("date fields are the clinic's own", () => {
     await expect(page.locator('input[type="date"]')).toHaveCount(0);
     await page.screenshot({ path: "/tmp/datefield-03-roster.png", fullPage: true });
   });
+
+  test("DF-006: Today takes the grid back to this month, not only the selection", async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(SLOW);
+    await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+    await openScreen(page, "sessions", "schedule");
+
+    const trigger = page.getByRole("button", { name: "Jump to date" }).filter({ visible: true });
+    await expect(trigger).toBeVisible({ timeout: 60_000 });
+    await trigger.click();
+    const dialog = page.getByRole("dialog").last();
+    await expect(dialog).toBeVisible({ timeout: 30_000 });
+    const monthLabel = dialog.locator("[aria-live=polite]").first();
+    const thisMonth = await monthLabel.textContent();
+
+    await dialog.getByRole("button", { name: "Previous month" }).click();
+    await dialog.getByRole("button", { name: "Previous month" }).click();
+    await expect(monthLabel).not.toHaveText(thisMonth ?? "");
+
+    // Today is already the selection here, which is the case that failed:
+    // nothing changed, so the grid stayed on the earlier month.
+    await dialog.getByRole("button", { name: "Today" }).click();
+    await expect(monthLabel).toHaveText(thisMonth ?? "");
+    await expect(dialog.getByRole("group").getByRole("button", { pressed: true })).toHaveCount(1);
+    await page.screenshot({ path: "e2e/screenshots/date-field/df-006-today.png" });
+  });
 });
