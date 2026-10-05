@@ -18,6 +18,19 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   every inserting route maps that to a 409 in words. The same purchase at
   the same instant is exempt - that is a retried booking, and the unique
   indexes' `23505` already answers it as "that visit exists".
+  **The patient's own unpaid draft does not count.** The wizard creates the
+  booking on the first Pay tap; a patient who closed the sheet and then went
+  Back, reloaded or reopened `/book` was refused their own slot by that
+  abandoned row. `/api/appointments/create` now replaces it: an overlapping
+  row that `isReplaceableDraft` (`src/lib/bookingDraft.ts`) accepts --
+  `requested`, unpaid, prepaid, online, unassigned, no package / home-visit
+  purchase / referral / pay-later outcome -- is cancelled through
+  `cancelAppointmentAndRefund` ("Replaced by a new booking before it was
+  paid") before the insert, as is the draft the wizard names in
+  `replacesAppointmentId` after a Back. A draft with a Razorpay order is
+  asked about first (`razorpayOrderIsPaid`): paid is a 409 saying so, and a
+  lookup that fails is a 503, never "not paid". Anything else that overlaps
+  still blocks. `e2e/booking-retry-after-cancel.spec.ts` holds it.
 - **Booking lead time** is `site_settings.online_booking_lead_time_hours`,
   defaulting to the 12 hours `src/lib/bookingSlots.ts` still holds as
   `BOOKING_LEAD_TIME_HOURS`, and shared by the picker and the validator so

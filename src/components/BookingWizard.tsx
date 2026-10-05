@@ -134,6 +134,9 @@ export default function BookingWizard({
   const [done, setDone] = useState(false);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  // The unpaid draft a Back from the payment step left behind, so the next
+  // booking replaces it rather than leaving a second unpaid session behind.
+  const replacedDraftRef = useRef<string | null>(null);
   // The code the patient applied, if any. Held as a string and sent to
   // checkout as one -- the amount it is worth is never in this component.
   const [promoCode, setPromoCode] = useState<string | null>(null);
@@ -684,6 +687,7 @@ export default function BookingWizard({
           // ...and the Razorpay order too, when the quote says the gateway
           // is how it settles: one round trip from this tap to the sheet.
           startPayment: intent,
+          replacesAppointmentId: replacedDraftRef.current,
         }),
       });
       const result = await res.json().catch(() => null);
@@ -704,6 +708,7 @@ export default function BookingWizard({
       return;
     }
 
+    replacedDraftRef.current = null;
     setAppointmentId(newAppointmentId);
 
     // Re-quoted against the real account and the real booking before
@@ -1565,9 +1570,11 @@ export default function BookingWizard({
               onClick={() => {
                 // Going back to change details abandons the current unpaid
                 // draft rather than silently retrying payment against the
-                // old (possibly now-stale) booking -- it stays in the
-                // patient's dashboard as a normal unpaid session either way,
-                // same as if they'd just closed the tab here.
+                // old (possibly now-stale) booking. The next booking names
+                // it, and /api/appointments/create replaces it while it is
+                // still only a draft -- so the patient neither collides with
+                // their own slot nor ends up with a second unpaid session.
+                if (appointmentId) replacedDraftRef.current = appointmentId;
                 setAppointmentId(null);
                 setFailedAttempts(0);
                 setError(null);

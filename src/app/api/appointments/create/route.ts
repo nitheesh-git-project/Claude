@@ -8,6 +8,9 @@ import {
   approvePatientForGenuinePaymentAttempt,
 } from "@/lib/supabase/requireActiveProfile";
 import { mintAppointmentOrder } from "@/lib/appointmentOrderServer";
+import { isReplaceableDraft, overlapsSlot } from "@/lib/bookingDraft";
+import { cancelAppointmentAndRefund } from "@/lib/cancelAppointment";
+import { razorpayOrderIsPaid } from "@/lib/razorpayOrderStatus";
 import { buildCheckoutQuoteBody } from "@/lib/checkoutQuoteServer";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -60,6 +63,10 @@ type Body = {
    *  sheet straight from this response. `"pay_now"` is a patient on terms
    *  who would rather pay -- the same intent the wizard has always passed. */
   startPayment?: "default" | "pay_now";
+  // The unpaid draft this same wizard created earlier (Back, then a changed
+  // detail). Replaced by this booking when it is still only a draft; any
+  // other id, or a real booking, is ignored.
+  replacesAppointmentId?: string | null;
 };
 
 export async function POST(request: NextRequest) {
@@ -141,7 +148,9 @@ export async function POST(request: NextRequest) {
       : Promise.resolve(null),
     admin
       .from("appointments")
-      .select("slot_time, duration_minutes")
+      .select(
+        "id, slot_time, duration_minutes, status, payment_status, therapist_id, visit_mode, payment_terms, package_purchase_id, home_visit_purchase_id, referral_id, pay_later_outcome, razorpay_order_id"
+      )
       .eq("patient_id", user.id)
       .in("status", ["requested", "confirmed"]),
     requestedTherapistId
@@ -196,7 +205,10 @@ export async function POST(request: NextRequest) {
   // A patient double-booking *themselves* is checked in the wizard too, for
   // immediate feedback before the last step; this is the copy that actually
   // binds, since the wizard's is a browser check like any other.
-  const newEndMs = slotMs + durationMinutes * 60_000;
+  //
+  // The patient's own unpaid *draft* -- the booking this wizard created on an
+  // earlier Pay tap that was then cancelled -- does not count: it is replaced
+  // by this one (see src/lib/bookingDraft.ts). Only a real booking blocks.
   const { data: existing, error: existingError } = existingRes;
   if (existingError) {
     return NextResponse.json(
@@ -204,13 +216,22 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
-  const overlaps = (existing ?? []).some((a) => {
-    if (!a.slot_time) return false;
-    const startMs = new Date(a.slot_time).getTime();
-    const endMs = startMs + (a.duration_minutes ?? BASE_DURATION_MINUTES) * 60_000;
-    return startMs < newEndMs && slotMs < endMs;
-  });
-  if (overlaps) {
+  const overlapping = (existing ?? []).filter(
+    (a) =>
+      !!a.slot_time &&
+      overlapsSlot(
+        slotMs,
+        durationMinutes,
+        new Date(a.slot_time).getTime(),
+        a.duration_minutes ?? BASE_DURATION_MINUTES
+      )
+  );
+  const replaceable = (existing ?? []).filter(
+    (a) =>
+      isReplaceableDraft(a) &&
+      (overlapping.includes(a) || (!!body.replacesAppointmentId && a.id === body.replacesAppointmentId))
+  );
+  if (overlapping.some((a) => !replaceable.includes(a))) {
     return NextResponse.json(
       {
         error:
@@ -218,6 +239,43 @@ export async function POST(request: NextRequest) {
       },
       { status: 409 }
     );
+  }
+
+  // A draft with a Razorpay order is asked about first: a payment completed in
+  // another tab must not be cancelled out from under the patient. A check
+  // that could not run is "try again", never "not paid".
+  for (const draft of replaceable) {
+    if (!draft.razorpay_order_id) continue;
+    const paid = await razorpayOrderIsPaid(draft.razorpay_order_id);
+    if (paid === null) {
+      return NextResponse.json(
+        { error: "We couldn't check your earlier booking just now. Please try again." },
+        { status: 503 }
+      );
+    }
+    if (paid) {
+      return NextResponse.json(
+        {
+          error:
+            "Your earlier payment for this time has already gone through, so that session is booked. Check your dashboard, or pick a different slot.",
+        },
+        { status: 409 }
+      );
+    }
+  }
+  for (const draft of replaceable) {
+    const result = await cancelAppointmentAndRefund(admin, {
+      appointmentId: draft.id,
+      cancelledBy: user.id,
+      reason: "Replaced by a new booking before it was paid",
+    });
+    if ("error" in result) {
+      console.error("Could not replace unpaid draft", draft.id, result.error);
+      return NextResponse.json(
+        { error: "We couldn't update your earlier booking just now. Please try again." },
+        { status: 503 }
+      );
+    }
   }
 
   // A *preference*, not an assignment -- therapist_id stays null until an

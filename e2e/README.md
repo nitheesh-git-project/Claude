@@ -17,6 +17,15 @@ Node-minted session cookie, which covers authentication but not data: a page
 that resolves something with the browser-side client still needs the network
 from Chromium.
 
+In a sandbox whose egress goes through a TLS-inspecting proxy, that network is
+usually there and only the trust is missing: Chromium reads `~/.pki/nssdb`, not
+the system bundle, and fails every Supabase call with
+`ERR_CERT_AUTHORITY_INVALID`. Add the proxy's CA certificates to that store
+with `certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n <name> -i <cert.pem>`
+(package `libnss3-tools`) and run with `PLAYWRIGHT_CHROMIUM_PATH` set, which
+also routes Chromium through `HTTPS_PROXY`. That is trusting the proxy, never
+disabling verification.
+
 | Case | Fails as | Why |
 | --- | --- | --- |
 | `therapist-request` TR-002 | the requested-specialist chip never renders | `BookingWizard` resolves `?therapist=` against `public_therapist_profiles` from the browser, because the page is ISR-cached |
@@ -112,6 +121,7 @@ total, which moves with every spec added.
 | `logs-subject-timeline` | 1 | tapping a log entry's subject, and the way back |
 | `account-created-stamp` | 8 | every account saying when it was created, with the time on it |
 | `booking-pay-button-live` | 3 | the pay button tappable while its price loads, with the wait stated rather than enforced |
+| `booking-retry-after-cancel` | 1 | closing the payment sheet, then Back + Pay or a reload, books again at the same slot: the unpaid draft is replaced, never "You already have a session scheduled around this time" (needs browser egress) |
 | `booking-exit-link` | 2 | the way out of the wizard following the account - and never offering `/pending-approval` mid-booking |
 | `checkout-speed` | 5 | create answering with the quote and the Razorpay order in one trip, and the tap-to-sheet timing route |
 | `service-picker` | 11 | the service chosen before the slot, on both wizards |
