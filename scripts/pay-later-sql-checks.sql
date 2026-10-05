@@ -56,11 +56,29 @@ begin
   -- Fixtures. Built here rather than found, so a database with no promo
   -- campaign does not skip the whole file silently.
   -- ---------------------------------------------------------------------
-  select id into v_patient from profiles where role = 'patient' limit 1;
-  select id into v_other_patient from profiles where role = 'patient' and id <> v_patient limit 1;
+  --
+  -- The two patients are minted here too. They used to be the first two
+  -- patient rows found, and one later check asserts that a cancelled
+  -- pay-later booking leaves its patient "new" -- which is only true of a
+  -- patient with no other history. On a database where the first patient
+  -- found had ever booked anything, that check failed on a working
+  -- function. Everything below rolls back with the rest.
+  v_patient := gen_random_uuid();
+  v_other_patient := gen_random_uuid();
+  insert into auth.users (id, email) values
+    (v_patient, 'paylaterchk.a@example.test'),
+    (v_other_patient, 'paylaterchk.b@example.test');
+  insert into profiles (id, role, full_name, approved, active, email)
+    values (v_patient, 'patient', 'PAYLATERCHK patient A', true, true, 'paylaterchk.a@example.test')
+    on conflict (id) do update set role = 'patient', approved = true, active = true;
+  insert into profiles (id, role, full_name, approved, active, email)
+    values (v_other_patient, 'patient', 'PAYLATERCHK patient B', true, true, 'paylaterchk.b@example.test')
+    on conflict (id) do update set role = 'patient', approved = true, active = true;
   select id into v_category from treatment_categories limit 1;
-  if v_patient is null or v_other_patient is null or v_category is null then
-    raise exception 'Needs two patients and one treatment category to run against';
+  if v_category is null then
+    insert into treatment_categories (title, points, price_paise, duration_minutes, active)
+      values ('PAYLATERCHK category', '[]'::jsonb, 120000, 60, true)
+      returning id into v_category;
   end if;
 
   insert into promo_codes (code, kind, value, active, max_redemptions, max_per_patient)

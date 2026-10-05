@@ -9,7 +9,7 @@
 // click that was not written through ProgressLink or useRouter, so the wait
 // itself was silent.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
+import { BASE, browserCookiesFor, markDashboardTourSeen, QA_EMAILS, waitForSplashToClear } from "./helpers";
 
 test("NAV-001: an admin screen link switches in place, with no server round trip", async ({
   page,
@@ -109,9 +109,15 @@ test("NAV-002: a real navigation draws the bar while it is in flight", async ({
   page,
   context,
 }) => {
+  // The first-run tour would cover the sidebar link this clicks.
+  await markDashboardTourSeen(QA_EMAILS.patientA);
   await context.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
   await page.goto(`${BASE}/patient/dashboard`);
   await page.waitForLoadState("networkidle");
+  // A cold open shows the brand splash first, and it takes every click until
+  // it clears; whether it is still up here depended on how long the page
+  // took to compile, so this case passed or timed out on the same code.
+  await waitForSplashToClear(page);
 
   // The patient shell moves between sections with plain anchors, so the bar
   // lives on the *outgoing* document and is gone by the time the new one

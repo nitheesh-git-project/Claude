@@ -13,7 +13,7 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { BASE, QA_EMAILS, browserCookiesFor, localDatabaseUrl } from "./helpers";
+import { BASE, QA_EMAILS, browserCookiesFor, localDatabaseUrl, localSchemaApplyUrl } from "./helpers";
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -47,7 +47,7 @@ function sql(statement: string) {
 function restoreSchema() {
   const local = localDatabaseUrl();
   if (local) {
-    psql(local, ["-f", path.join(ROOT, "supabase", "schema.sql")]);
+    psql(localSchemaApplyUrl() ?? local, ["-f", path.join(ROOT, "supabase", "schema.sql")]);
     return;
   }
   execFileSync("node", ["scripts/run-schema.mjs"], { cwd: ROOT, encoding: "utf8" });
@@ -158,8 +158,16 @@ test.describe("Suite J: degraded schema", () => {
       // migration must never lock the only admin out of their own
       // dashboard. Any other failed read is refused, never promoted.
       await page.goto(`${BASE}/admin/dashboard?section=settings&tab=access`);
-      await expect(page.getByRole("heading", { name: "Admins" })).toBeVisible({ timeout: 30_000 });
-      await expect(page.getByText("Create an account")).toBeVisible();
+      // The list's heading reads "Back office" since User Access was
+      // reworded; "Admins" had not existed for some time, and this case only
+      // ever ran where the degraded-schema spec was pointed at a throwaway
+      // project. The property itself is read off the rows: every admin --
+      // the seeded operations, finance and clinical ones included -- is
+      // described at full access.
+      await expect(page.getByRole("heading", { name: "Back office" })).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByRole("heading", { name: "Create an account" })).toBeVisible();
+      const ops = page.getByRole("list", { name: "Back office accounts" }).getByRole("listitem").filter({ hasText: "qa.admin.ops@example.test" });
+      await expect(ops.getByText("Everything, including money, settings and managing other admins.")).toBeVisible();
     } finally {
       restoreSchema();
     }

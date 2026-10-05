@@ -135,6 +135,9 @@ endstep
   echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
   echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
   echo "DATABASE_URL=$DB_URL"
+  # Only for re-applying schema.sql (admin-degraded-schema's restore); see
+  # localSchemaApplyUrl in e2e/helpers.ts for why it cannot be postgres.
+  echo "SCHEMA_APPLY_DATABASE_URL=$ADMIN_DB_URL"
   echo "CI_LOCAL_STACK=1"
 } >> "$GITHUB_ENV"
 

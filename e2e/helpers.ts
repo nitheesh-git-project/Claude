@@ -2,7 +2,7 @@
 // the app's own HTTP API directly (via Node/Playwright's request context,
 // never a browser page) -- this suite is scoped to money-moving server
 // logic, not UI rendering, per the QA plan's "lightweight" scope decision.
-import { test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 
@@ -136,6 +136,29 @@ export function localDatabaseUrl(): string | null {
     }
   };
   return loopback(database) && loopback(SUPABASE_URL) ? database : null;
+}
+
+/**
+ * The connection to re-apply schema.sql with on the gate's local stack.
+ *
+ * The local image's supautils stops the postgres role dropping
+ * storage.objects policies for the rest of a session once a caught
+ * `duplicate_object` from `alter publication` has fired -- which every
+ * re-application of schema.sql does -- so a restore run as postgres fails
+ * part-way and leaves the schema degraded. provision-local-stack.sh exports
+ * SCHEMA_APPLY_DATABASE_URL (the stack's superuser, loopback only) for
+ * exactly this; everything else keeps using DATABASE_URL.
+ */
+export function localSchemaApplyUrl(): string | null {
+  const local = localDatabaseUrl();
+  if (!local) return null;
+  const apply = process.env.SCHEMA_APPLY_DATABASE_URL;
+  try {
+    if (apply && ["127.0.0.1", "localhost", "::1", "[::1]"].includes(new URL(apply).hostname.toLowerCase())) return apply;
+  } catch {
+    // fall through to the ordinary connection
+  }
+  return local;
 }
 
 /**
@@ -404,4 +427,85 @@ export async function countAcrossPages(page: Page, nounPlural: string, target: L
     total += await target.count();
   }
   return total;
+}
+
+/**
+ * Makes sure Step 1 of the booking wizard has a service chosen, whichever of
+ * its two shapes it renders.
+ *
+ * `ServicePicker` shows a dashed "What would you like help with?" trigger
+ * when there is a choice to make, and **no dialog at all** when exactly one
+ * service is on offer -- that one is stated as chosen, with a Change button
+ * (see the component's own header). A walk that only knew the trigger timed
+ * out on a working funnel the moment it ran against a catalogue with one
+ * service, which is what a freshly provisioned stack has, and read as a
+ * broken pay button or a missing cancellation notice. Which service is
+ * chosen never matters to the callers; that one is, is what Step 1 needs.
+ */
+export async function chooseAnyServiceOnStepOne(page: Page): Promise<void> {
+  const trigger = page.getByRole("button", { name: /What would you like help with/ }).first();
+  const chosen = page.getByRole("button", { name: "Change" }).first();
+  await expect(trigger.or(chosen).first()).toBeVisible({ timeout: 60_000 });
+  if (await trigger.isVisible()) {
+    await trigger.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Choose this session" }).first().click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  }
+}
+
+/**
+ * Waits for the brand splash to hand the page over. The splash paints over
+ * everything on a cold open (docs/rules/public-site.md) and intercepts every
+ * click until its own script removes `data-splash` from <html>; a click sent
+ * before that lands on the splash and retries until the test times out,
+ * which reads as a dead link rather than as a splash still showing.
+ */
+export async function waitForSplashToClear(page: Page): Promise<void> {
+  await page.waitForFunction(() => !document.documentElement.hasAttribute("data-splash"), null, {
+    timeout: 30_000,
+  });
+}
+
+/**
+ * Narrows (or restores) an admin's scope and fails loudly if the database
+ * refused it.
+ *
+ * `profiles_keep_one_master_admin` refuses to narrow the last Master Admin
+ * who can sign in -- correctly. On staging the owner's account is a second
+ * one, so narrowing `qa.admin` always worked; on a fresh stack it was the
+ * only one, every narrowing was refused, and because nobody checked the
+ * update's error each spec went on as a *full* admin and reported that a
+ * limited scope had reached a money route. seed:qa now seeds a second
+ * Master Admin fixture (qa.admin.backup) for exactly this, and this helper
+ * makes the next refusal say what it is instead of reading as an
+ * authorization hole.
+ */
+export async function setQaAdminScope(admin: SupabaseClient, adminId: string, scope: string): Promise<void> {
+  const { data, error } = await admin
+    .from("profiles")
+    .update({ admin_scope: scope })
+    .eq("id", adminId)
+    .select("admin_scope")
+    .single();
+  if (error || data?.admin_scope !== scope) {
+    throw new Error(
+      `could not set the QA admin's scope to "${scope}": ${error?.message ?? `it reads "${data?.admin_scope}"`}. ` +
+        "If this is the keep-one-Master-Admin guard, run npm run seed:qa so qa.admin.backup exists."
+    );
+  }
+}
+
+/**
+ * Marks a patient's first-run dashboard tour as seen. The tour opens over
+ * the dashboard for any patient who has never dismissed it -- every patient
+ * on a fresh stack -- and takes every click. For a case that is about
+ * something else, mark it seen first (pay-later and session-suggestions did
+ * this by hand).
+ */
+export async function markDashboardTourSeen(email: string): Promise<void> {
+  const { error } = await adminClient()
+    .from("profiles")
+    .update({ onboarding_seen_at: new Date().toISOString() })
+    .eq("email", email);
+  if (error) throw new Error(`could not mark the dashboard tour seen for ${email}: ${error.message}`);
 }
