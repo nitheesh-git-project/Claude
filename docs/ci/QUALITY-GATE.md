@@ -174,8 +174,9 @@ These steps are not automated, and nothing in this change performs them.
 3. **Optional: staging smoke.** Set repository *variables* (not secrets)
    `STAGING_URL`, and `PRODUCTION_URL` so the smoke check can refuse it.
    Then `.github/workflows/staging-smoke.yml` runs anonymous GETs against
-   staging on a successful deployment-status event, or by hand. It is not
-   a required check.
+   staging when a deployment of the `staging` branch succeeds, or by hand.
+   Pull-request previews never trigger it. It does not run automatically
+   until `STAGING_URL` is set, and it is not a required check.
 
 **Pull requests from forks** get no secrets, so their runners report
 BLOCKED and the gate is red. Run them by pushing the branch to this

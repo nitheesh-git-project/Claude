@@ -3,10 +3,11 @@
 # nobody and writes nothing, so it is safe against any deployment.
 #
 # Runs on a deployment-status event from a hosting integration that reports
-# one, and by hand. It needs the repository *variable* STAGING_URL (not a
-# secret -- it is a public origin); PRODUCTION_URL, if set, is refused as a
-# target. With STAGING_URL unset it says so and fails, because "nothing was
-# checked" is not a pass. It is not part of the pre-merge gate and not a
+# one for the staging branch, and by hand. It needs the repository
+# *variable* STAGING_URL (not a secret -- it is a public origin);
+# PRODUCTION_URL, if set, is refused as a target. Until STAGING_URL is set
+# the automatic trigger does not run; a manual run without it fails, because
+# "nothing was checked" is not a pass. It is not part of the pre-merge gate and not a
 # required check: no deployment is triggered from this repository.
 name: Staging smoke
 
@@ -19,12 +20,19 @@ permissions:
 
 jobs:
   smoke:
-    # Only a successful deployment of the staging environment, or a manual run.
+    # A manual run, or a successful deployment *of the staging branch* once
+    # STAGING_URL is configured. Matching on the environment name was not
+    # enough: Vercel reports every pull request's preview as a non-Production
+    # deployment, so this fired on each one and, with STAGING_URL unset, put a
+    # red check on every PR. A manual run with no STAGING_URL still fails --
+    # someone asked for a check and nothing was checked.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.ref == 'staging' &&
        github.event.deployment.environment != 'Production' &&
-       github.event.deployment.environment != 'production')
+       github.event.deployment.environment != 'production' &&
+       vars.STAGING_URL != '')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
