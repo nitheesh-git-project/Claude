@@ -338,10 +338,14 @@ Eight pages from one design system, the word budgets, why every photograph carri
   3. **More ticked than the limit is not an error**, and the cap is stated on
      the screen that sets it rather than discovered on the live site.
   4. **The two pages differ because their lists do.** `/` links on to
-     `/conditions`, which still shows everything; `/home-visit` reveals the
-     rest in place, because it *is* its own full list and has nowhere to send
-     anybody. `hasMore` gates both -- a control opening a list identical to
-     the one above it is a dead end with a label on it.
+     `/conditions`, which still shows everything; `/home-visit` shows every
+     package, featured ones first, because it *is* its own full list and has
+     nowhere to send anybody. (It used to lead with four and reveal the rest,
+     and the revealed cards never appeared: `Stagger` animates its children
+     once, so cards added later stayed hidden. `HomeVisitPackages` keys it on
+     the reveal for any caller that still passes `leadCount`.) `hasMore`
+     gates the home page's link -- a control opening a list identical to the
+     one above it is a dead end with a label on it.
   5. **`featured` is not `highlight`.** The home-visit form already had a
      control labelled "Feature this package" that drew the teal ring; it
      reads "Highlight with a ring" now. Two controls called Feature, meaning
