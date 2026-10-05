@@ -179,6 +179,7 @@ task spans two, read both - they are short.
 | `supabase/schema.sql`, a Supabase client, RLS, a grant, the credit ledger, a sweep | `docs/rules/data-schema.md` |
 | `src/proxy.ts`, a guard, rate limiting, impersonation, risk signals, the data reset | `docs/rules/ops-security.md` |
 | Running tests, adding a spec, the SQL checks, the QA plan | `docs/rules/testing.md` |
+| `.github/workflows/`, the pre-merge quality gate, a red CI runner | `docs/ci/QUALITY-GATE.md` |
 
 Not sure which? `docs/rules/00-index.md` lists every rule by its own
 sentence, so `grep` finds the file from a symptom. `rg -l "<the thing>"

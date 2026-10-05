@@ -72,7 +72,7 @@ summary names them. The old script collapsed all of it into a row count: it
 passed on `admin_activity_log` because that table had rows and failed on
 `appointments` because it had none, so its verdict moved with how much data
 happened to be lying around -- a false alarm on a database whose policies
-were perfect, which is exactly how a red line stops being read. **`e2e/README.md` is the inventory** -- all 61 spec files, what each covers,
+were perfect, which is exactly how a red line stops being read. **`e2e/README.md` is the inventory** -- all 65 spec files, what each covers,
 how to run them, and the nine cases that cannot pass without browser egress.
 Read it to find a spec; read this section for the rules behind it. A new spec
 adds its row there in the same commit.
@@ -314,7 +314,12 @@ on a machine set up for it.
 
 `scripts/seed-qa-accounts.mjs` (`npm run seed:qa`) recreates every account
 the manual plan names -- four admins, four patients, three therapists, two
-hospitals -- with the fixture password, straight after a data reset. The
+hospitals -- with the fixture password, straight after a data reset. It
+also seeds `qa.admin.backup`, a second Master Admin the plan does not name:
+the schema refuses to narrow the last Master Admin, and the scope specs
+narrow `qa.admin` (through `setQaAdminScope`, which fails loudly when
+refused) -- on a database with no other Master Admin every narrowing was
+refused silently and the specs ran as a full admin. The
 fourth patient is `qa.patient.e`, which the manual plan does not name:
 `e2e/pay-later.spec.ts` deletes its patient's appointments in its own
 `beforeAll`, so it needs one of its own rather than destroying the journey
@@ -519,6 +524,74 @@ one, suspect leftover state before suspecting the app.
   Access's back-office list now carry `aria-label`s they should have had anyway.
   `getByRole` also skips hidden elements, so a role query that finds *nothing*
   on this page usually means the wrong `?tab=` rather than a missing control.
+## The pre-merge quality gate
+
+**A pull request into `staging` runs the whole suite in CI now, on a stack
+that cannot be a real one.** `.github/workflows/quality-gate.yml` splits the
+specs across seven runners (owner of each spec: `e2e/coverage-manifest.json`),
+and each one builds its own disposable Supabase stack on its own machine
+(`scripts/ci/provision-local-stack.sh`). `quality-gate` is the one check to
+require. Architecture, setup and reproduction are in
+`docs/ci/QUALITY-GATE.md`; the per-runner coverage and its gaps are in
+`docs/ci/COVERAGE.md` (generated); investigating a red run is
+`docs/ci/INVESTIGATE.md`. Four rules from building it:
+
+- **The preflight is the safety, not the variable name.**
+  `scripts/ci/preflight.mjs` refuses a non-loopback target, a Management API
+  token, Google credentials, a live Razorpay key, `ALLOW_DEBUG_DATA_RESET`,
+  a database without the gate's marker row, and any auth user that is not an
+  `@example.test` fixture. On its first run in a sandbox it refused the
+  sandbox's own ambient `SUPABASE_ACCESS_TOKEN` and `GOOGLE_CALENDAR_*`, which
+  is the case it exists for.
+- **A fresh stack is not staging, and running the whole suite on one found
+  a dozen stale checks and no product bug.** Each was fixed in the check,
+  never in the rule:
+  - **Storage layer.** `roster-sql-checks.sql` sent a second null expected
+    version after the weekly save learned that null means "no state row
+    yet". `therapist-slot-sql-checks.sql` and `concurrency-checks.mjs`
+    booked one patient into two overlapping slots, which
+    `appointments_patient_no_overlap` refuses. `pay-later-sql-checks.sql`
+    borrowed the first patients it found and assumed they had no history;
+    it now mints its own.
+  - **Specs that assumed staging's data.** `booking-pay-button-live` and
+    BR-CANCEL assumed the service picker's dialog, which a one-service
+    catalogue does not have, by design (`chooseAnyServiceOnStepOne`).
+    `unscheduled-purchases` skipped when no package existed; it now makes
+    one. BH-002 clicked into the first-run tour and the brand splash.
+    The scope specs narrowed the only Master Admin, which
+    `profiles_keep_one_master_admin` refuses. Nobody checked the update, so
+    they ran as a full admin and reported a limited scope reaching money.
+    seed:qa now seeds `qa.admin.backup`, and `setQaAdminScope` fails loudly.
+  - **Specs asserting a product that has moved.** PAY-003 asserted the
+    "Please wait..." label that `CheckoutProgress` replaced. `admin-login`
+    asserted the bounce back to `/admin/login` that the don't-name-the-back-
+    office rule replaced with `/get-started`. J-008 looked for an "Admins"
+    heading that User Access no longer has. All three had only ever been seen
+    failing, or skipping, for want of browser egress or a throwaway
+    project, so nobody noticed.
+    On the local stack the browser reaches Supabase and they ran for the
+    first time.
+  - **Timing.** SC-004/008 clicked a filter before hydration. The spec now
+    clicks until the filter reports `aria-pressed`. NAV-002 clicked through
+    the splash. The concurrent home-visit reassign could arrive serialised
+    behind a cold compile, so the race never ran; the route is now warmed
+    before the race, and a failure prints the reassignment log, which shows
+    whether two moves both started from A (the bug) or chained A->B->C (no
+    race ran).
+- **A skip is a failure unless the manifest declares it**, with the test id
+  and the reason (`allowedSkips`). So is a flaky pass, a refused outbound
+  request, an empty runner and a blocked preflight.
+- **`schema.sql` is applied twice per runner**, the first pass as `postgres`
+  and the second as the local superuser. The local image's supautils loses the
+  `postgres` role's right to drop `storage.objects` policies, for the rest of
+  the session, after a caught `duplicate_object` from `alter publication`.
+  The hosted Management API never hits this.
+
+`npm run check:context-budget` is the gate's first job: it fails when
+`CLAUDE.md` or `AGENTS.md` outgrows its byte budget, gains an `@`-import, or
+the project settings add a SessionStart hook. It measures the repository's
+entry files, nothing more.
+
 ## The lint's schema and asset checks
 
 `npm run lint` runs five checks before eslint, and they exist for the same
