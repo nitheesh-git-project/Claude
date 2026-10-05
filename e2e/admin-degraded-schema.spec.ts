@@ -13,11 +13,24 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { BASE, QA_EMAILS, browserCookiesFor } from "./helpers";
+import { BASE, QA_EMAILS, browserCookiesFor, localDatabaseUrl } from "./helpers";
 
 const ROOT = path.resolve(__dirname, "..");
 
+/** psql against the quality gate's own stack; notices (schema.sql prints hundreds) are muted. */
+function psql(databaseUrl: string, args: string[]) {
+  return execFileSync("psql", [databaseUrl, "-X", "-q", "-v", "ON_ERROR_STOP=1", ...args], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: { ...process.env, PGOPTIONS: "-c client_min_messages=warning" },
+  });
+}
+
 function sql(statement: string) {
+  // The gate's disposable stack has no Management API; its database is reached
+  // directly. A hosted project takes the path below, unchanged.
+  const local = localDatabaseUrl();
+  if (local) return psql(local, ["-c", statement]);
   const ref = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split(".")[0];
   const res = execFileSync(
     "node",
@@ -32,6 +45,11 @@ function sql(statement: string) {
 }
 
 function restoreSchema() {
+  const local = localDatabaseUrl();
+  if (local) {
+    psql(local, ["-f", path.join(ROOT, "supabase", "schema.sql")]);
+    return;
+  }
   execFileSync("node", ["scripts/run-schema.mjs"], { cwd: ROOT, encoding: "utf8" });
 }
 
@@ -67,6 +85,17 @@ let restorable: { ok: boolean; why: string } | null = null;
 
 async function canRestoreSchema(): Promise<{ ok: boolean; why: string }> {
   if (restorable) return restorable;
+  const local = localDatabaseUrl();
+  if (local) {
+    // Spent, not assumed: the undo is psql on the stack's own Postgres.
+    try {
+      psql(local, ["-c", "select 1"]);
+      restorable = { ok: true, why: "" };
+    } catch (err) {
+      restorable = { ok: false, why: `psql cannot reach the local stack (${err instanceof Error ? err.message : String(err)})` };
+    }
+    return restorable;
+  }
   const token = process.env.SUPABASE_ACCESS_TOKEN;
   if (!token) {
     restorable = { ok: false, why: "SUPABASE_ACCESS_TOKEN is not set" };

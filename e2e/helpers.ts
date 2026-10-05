@@ -114,6 +114,46 @@ export async function browserCookiesFor(email: string) {
   });
 }
 
+/**
+ * The database URL when this run is on the quality gate's own disposable
+ * stack, otherwise null.
+ *
+ * scripts/ci/provision-local-stack.sh declares such a run with
+ * CI_LOCAL_STACK=1 and exports DATABASE_URL for the stack's Postgres. Both
+ * URLs must be loopback as well, so a stray DATABASE_URL in a developer's
+ * shell can never make a hosted project look local. (Mirrors
+ * `usesLocalDatabase` in scripts/lib/sqlTarget.mjs, which Playwright's CJS
+ * loader cannot import.)
+ */
+export function localDatabaseUrl(): string | null {
+  const database = process.env.DATABASE_URL;
+  if (process.env.CI_LOCAL_STACK !== "1" || !database) return null;
+  const loopback = (value: string) => {
+    try {
+      return ["127.0.0.1", "localhost", "::1", "[::1]"].includes(new URL(value).hostname.toLowerCase());
+    } catch {
+      return false;
+    }
+  };
+  return loopback(database) && loopback(SUPABASE_URL) ? database : null;
+}
+
+/**
+ * Refuses to run a spec that writes things a real project must never hold
+ * (an append-only settlement row, a completed session) anywhere but the
+ * gate's disposable stack. Call it in `beforeAll`; a developer who
+ * deliberately runs such a spec against their own scratch project sets
+ * E2E_ALLOW_APPEND_ONLY_WRITES=1 and takes responsibility for that project.
+ */
+export function assertDisposableStack(why: string): void {
+  if (localDatabaseUrl() || process.env.E2E_ALLOW_APPEND_ONLY_WRITES === "1") return;
+  throw new Error(
+    `${why} -- this spec writes rows that can never be removed, so it only runs on the quality gate's ` +
+      "disposable local stack (CI_LOCAL_STACK=1 with a loopback DATABASE_URL). " +
+      "Set E2E_ALLOW_APPEND_ONLY_WRITES=1 only for a scratch project that holds no real people."
+  );
+}
+
 export const QA_EMAILS = {
   admin: "qa.admin@example.test",
   therapistA: "qa.therapist.a@example.test",
