@@ -567,7 +567,17 @@ test("PL-UI-007 writing a session off is a cost, and it can be undone", async ({
   const confirmYes = page.getByRole("button", { name: /^Yes$/i });
   await expect(confirmYes).toBeVisible();
   await shot(page, "17b-write-off-confirm");
+  // The route writes twice, in a deliberate order (the session first, its
+  // cost row second; the undo mirrors it), so the session's own column says
+  // the first write landed, not that the request finished. Reading the
+  // costs table off that poll raced the second write and failed
+  // intermittently on the gate. The response is the request finishing.
+  const writtenOff = page.waitForResponse(
+    (r) => r.url().endsWith("/api/admin/write-off-pay-later-session") && r.request().method() === "POST"
+  );
   await confirmYes.click();
+  const writeOffRes = await writtenOff;
+  expect(writeOffRes.status(), await writeOffRes.text()).toBe(200);
 
   await expect
     .poll(async () => {
@@ -608,7 +618,12 @@ test("PL-UI-007 writing a session off is a cost, and it can be undone", async ({
   // Reversing re-imposes a debt somebody was told was forgiven, so it asks too.
   const reverseYes = page.getByRole("button", { name: /^Yes$/i });
   await expect(reverseYes).toBeVisible();
+  const reversed = page.waitForResponse(
+    (r) => r.url().endsWith("/api/admin/write-off-pay-later-session") && r.request().method() === "POST"
+  );
   await reverseYes.click();
+  const reverseRes = await reversed;
+  expect(reverseRes.status(), await reverseRes.text()).toBe(200);
 
   await expect
     .poll(async () => {

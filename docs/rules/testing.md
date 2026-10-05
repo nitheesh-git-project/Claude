@@ -576,7 +576,10 @@ require. Architecture, setup and reproduction are in
     the splash, and it assumed a navigation outlasts the bar's 220 ms
     appear delay: once a warm server streamed the page inside it, no bar
     was the correct answer and the case failed. It now holds the document
-    request open for 1.5 s. The concurrent home-visit reassign could arrive serialised
+    request open for 1.5 s. PL-UI-007 read the costs table as soon as the
+    session's outcome changed, but the write-off route writes the session
+    first and its cost row second (on purpose), so it raced the second
+    write; it now waits for the route's response and asserts a 200. The concurrent home-visit reassign could arrive serialised
     behind a cold compile, so the race never ran; the route is now warmed
     before the race, and a failure prints the reassignment log, which shows
     whether two moves both started from A (the bug) or chained A->B->C (no
