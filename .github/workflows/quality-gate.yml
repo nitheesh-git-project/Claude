@@ -1,4 +1,6 @@
-# The pre-merge quality gate for pull requests into `staging`.
+# The pre-merge quality gate for pull requests into `staging` and `main`.
+# (`main` is the owner's release PR from staging; the gate is for
+# proving what is about to go live, not for releasing it.)
 #
 #   context-budget ─┐
 #   coverage-manifest ─┼─> runner (7, matrix) ─> quality-gate   <- the one required check
@@ -34,7 +36,7 @@ name: Quality gate
 
 on:
   pull_request:
-    branches: [staging]
+    branches: [staging, main]
   workflow_dispatch:
 
 permissions:

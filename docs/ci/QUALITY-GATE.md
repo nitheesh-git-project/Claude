@@ -1,7 +1,8 @@
 # The pre-merge quality gate
 
 `.github/workflows/quality-gate.yml` runs on every pull request into
-`staging`. It is the one check that should block a merge. This file covers
+`staging` and into `main` (the owner's release PR). It is the one check
+that should block a merge. This file covers
 how it works, what it proves and what it does not, how to set it up as
 required, and how to reproduce a red run. It is read on demand: nothing
 loads it into a session automatically.
@@ -14,7 +15,7 @@ proves yet.
 ## Pipeline
 
 ```
-pull request -> staging
+pull request -> staging | main
   ├─ context-budget      CLAUDE.md / AGENTS.md byte budgets, no @-imports, no SessionStart hooks
   ├─ coverage-manifest   every e2e spec owned by a runner; no runner empty; no silent coverage loss
   └─ verify              npm run lint + npm test + npm run build (stub Supabase), as in ci.yml
@@ -26,7 +27,7 @@ pull request -> staging
   quality-gate           if: always(); green only if every job above succeeded
                          AND every runner uploaded a `passed` summary with tests in it
         ▼
-  human review, then merge to staging (never automated, never to main)
+  human review, then merge (never automated; a release to main is the owner's, by hand)
 ```
 
 `ci.yml` keeps running `verify` on pushes to `staging` and `main`. The
@@ -177,6 +178,16 @@ These steps are not automated, and nothing in this change performs them.
    `context-budget`. `quality-gate` already depends on all of them, so
    requiring it alone is enough. Workflow success alone does not block a
    merge; only the ruleset does.
+
+   **`main` too, in this order.** The workflow triggers on pull requests
+   into `main` as well, so the release PR (staging -> main) runs the whole
+   gate against the code about to go live. It touches only its own
+   disposable stacks, never the production Supabase project or the live
+   site. Add `quality-gate` to the `main` ruleset only **after** the
+   trigger is on `main` (this change has merged) and you have seen it pass
+   on a release PR: a required check that no workflow produces leaves the
+   PR waiting on "Expected" forever. A workflow edit made in a PR runs from
+   that PR's own head, so the release PR carries the trigger with it.
 3. **Optional: staging smoke.** Set repository *variables* (not secrets)
    `STAGING_URL`, and `PRODUCTION_URL` so the smoke check can refuse it.
    Then `.github/workflows/staging-smoke.yml` runs anonymous GETs against
