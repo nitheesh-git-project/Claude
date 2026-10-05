@@ -573,7 +573,10 @@ require. Architecture, setup and reproduction are in
     first time.
   - **Timing.** SC-004/008 clicked a filter before hydration. The spec now
     clicks until the filter reports `aria-pressed`. NAV-002 clicked through
-    the splash. The concurrent home-visit reassign could arrive serialised
+    the splash, and it assumed a navigation outlasts the bar's 220 ms
+    appear delay: once a warm server streamed the page inside it, no bar
+    was the correct answer and the case failed. It now holds the document
+    request open for 1.5 s. The concurrent home-visit reassign could arrive serialised
     behind a cold compile, so the race never ran; the route is now warmed
     before the race, and a failure prints the reassignment log, which shows
     whether two moves both started from A (the bug) or chained A->B->C (no

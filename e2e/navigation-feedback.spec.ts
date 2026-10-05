@@ -130,7 +130,21 @@ test("NAV-002: a real navigation draws the bar while it is in flight", async ({
     }).observe(document.body, { childList: true, subtree: true });
   });
 
-  await page.locator('a[href^="/patient/dashboard/"]:visible').first().click({ noWaitAfter: true });
+  // The bar waits APPEAR_AFTER_MS (220 ms) before drawing, on purpose: a
+  // navigation that lands inside it must not flash one. Against a warm dev
+  // server the target streams its first bytes well inside that, so whether
+  // this case saw a bar depended on whether an earlier spec had already
+  // compiled the page (on the gate it had: /patient/dashboard/book, 415 ms
+  // in all). Holding the document open makes the wait provably longer than
+  // the delay -- the state this rule is about -- instead of a race.
+  const link = page.locator('a[href^="/patient/dashboard/"]:visible').first();
+  const target = new URL((await link.getAttribute("href"))!, BASE).toString();
+  await page.route((url) => url.href === target, async (route) => {
+    if (route.request().resourceType() === "document") await new Promise((r) => setTimeout(r, 1500));
+    await route.continue();
+  });
+
+  await link.click({ noWaitAfter: true });
   await page.waitForURL("**/patient/dashboard/**", { timeout: 20000 });
   await page.waitForLoadState("domcontentloaded");
 
