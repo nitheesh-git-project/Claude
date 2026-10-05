@@ -442,6 +442,17 @@ Eight pages from one design system, the word budgets, why every photograph carri
   surface for an admin-editable table means adding its path to those routes
   in the same change; the ISR window is a cache, not a publishing delay
   anyone chose.
+- **The home page's mission band steps from the concrete to the why: Why
+  choose us, then The real benefits, then mission and vision.** Six reasons
+  as icon cards and six numbered outcomes, one line each on the home page
+  (`WhyChooseUsGrid compact` / `RealBenefitsList compact`), and in full on
+  `/mission` in the same order, each card adding how the platform does it.
+  The copy is `src/lib/whyChooseUs.ts`, and every line is something the
+  product keeps (a profile per specialty, the Pain Map, the language picked
+  at booking, the price before paying) -- distinct from "What we promise",
+  which are rules the platform enforces. No admin-set figure is written
+  into it: the refund window and lead time live in `site_settings`, and a
+  number in marketing copy is the first thing to go stale.
 - **A connector shows the whole of what is short and the headline of what is
   long.** The home page's mission band gives the mission and vision in full -
   they are two sentences, and paraphrasing them into a teaser would leave the

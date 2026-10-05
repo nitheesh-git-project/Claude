@@ -15,6 +15,7 @@ import Section from "@/components/marketing/Section";
 import SplitFeature from "@/components/marketing/SplitFeature";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
 import MissionPreview from "@/components/marketing/MissionPreview";
+import { RealBenefitsList, SubHeading, WhyChooseUsGrid } from "@/components/marketing/WhyChooseUs";
 import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
 import Testimonials, {
   type PublicTestimonial,
@@ -401,8 +402,19 @@ export default async function Home() {
         id="our-mission"
         tone={bandTone("our-mission")}
         eyebrow="Our mission"
-        title="Why we do this"
+        title="Why patients choose us"
       >
+        {/* Three steps down from the concrete to the why: what we do, what
+            changes for you, and then the mission and vision behind both.
+            Each card is one line here; /mission has them in full. */}
+        <WhyChooseUsGrid compact />
+        <div className="mt-14 sm:mt-16">
+          <SubHeading eyebrow="The real benefits" title="What changes for you" />
+          <RealBenefitsList compact />
+        </div>
+        <div className="mt-14 sm:mt-16">
+          <SubHeading eyebrow="Mission and vision" title="Why we do this" />
+        </div>
         <MissionPreview
           mission={missionCopy.mission}
           vision={missionCopy.vision}
