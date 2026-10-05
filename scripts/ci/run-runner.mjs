@@ -61,7 +61,9 @@ function identity() {
   const git = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" });
   const supa = spawnSync("supabase", ["--version"], { encoding: "utf8" });
   return {
-    commit: process.env.GITHUB_SHA ?? git.stdout?.trim() ?? "unknown",
+    // On a pull_request run GITHUB_SHA is the temporary merge commit, which
+    // nobody can check out later; the workflow passes the PR's own head.
+    commit: process.env.GATE_HEAD_SHA || process.env.GITHUB_SHA || git.stdout?.trim() || "unknown",
     ref: process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || "",
     runId: process.env.GITHUB_RUN_ID ?? "local",
     attempt: process.env.GITHUB_RUN_ATTEMPT ?? "",

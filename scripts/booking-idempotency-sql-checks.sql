@@ -93,12 +93,29 @@ declare
   v_slot timestamptz := date_trunc('hour', now()) + interval '31 days';
   v_raised boolean;
 begin
+  -- Built here when absent rather than skipped. On a database with no
+  -- session package this half used to print "SKIPPED" and the file still
+  -- exited 0, so the quality gate's fresh stack reported the whole check as
+  -- passing while half of it had never run. Everything rolls back.
   select id into v_patient from profiles where role = 'patient' limit 1;
+  if v_patient is null then
+    v_patient := gen_random_uuid();
+    insert into auth.users (id, email) values (v_patient, 'idemchk.patient@example.test');
+    insert into profiles (id, role, full_name, approved, active, email)
+      values (v_patient, 'patient', 'IDEMCHK patient', true, true, 'idemchk.patient@example.test')
+      on conflict (id) do update set role = 'patient', approved = true, active = true;
+  end if;
   select id into v_category from treatment_categories limit 1;
-  select id into v_package from treatment_category_packages limit 1;
+  if v_category is null then
+    insert into treatment_categories (title, points, price_paise, duration_minutes, active)
+      values ('IDEMCHK category', '[]'::jsonb, 120000, 60, true)
+      returning id into v_category;
+  end if;
+  select id into v_package from treatment_category_packages where category_id = v_category limit 1;
   if v_package is null then
-    raise notice 'SKIPPED: no session package on this database';
-    return;
+    insert into treatment_category_packages (category_id, title, session_count, price_paise, active)
+      values (v_category, 'IDEMCHK programme', 4, 400000, true)
+      returning id into v_package;
   end if;
 
   insert into patient_package_purchases

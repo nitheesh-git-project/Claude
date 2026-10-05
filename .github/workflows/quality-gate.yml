@@ -134,6 +134,7 @@ jobs:
       - name: Run the ${{ matrix.runner }} runner
         run: node scripts/ci/run-runner.mjs ${{ matrix.runner }}
         env:
+          GATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NEXT_PUBLIC_RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_TEST_KEY_ID }}
           RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_TEST_KEY_SECRET }}
 

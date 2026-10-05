@@ -34,7 +34,12 @@ done
 
 step "Start the local Supabase stack"
 # `supabase start` is idempotent; a second call on a running stack is a no-op.
-supabase start 2>&1 | grep -vE "Pulling|Download|Waiting|Verifying|Extracting|fs layer|Digest|Status: " || die "supabase start failed"
+# The key lines are dropped from the log: they are the CLI's public demo
+# keys, but a habit of printing keys is how a real one ends up in a log, and
+# ::add-mask:: below only applies from the moment it runs.
+supabase start 2>&1 \
+  | grep -vE "Pulling|Download|Waiting|Verifying|Extracting|fs layer|Digest|Status: |[Kk]ey:|Database URL" \
+  || die "supabase start failed"
 
 # The local gateway reuses pooled keep-alive connections to PostgREST that
 # PostgREST has already closed, and under a burst (the specs fire ten
