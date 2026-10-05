@@ -181,6 +181,18 @@ test("reassign-home-visit-therapist: concurrent reassigns to different therapist
       body: JSON.stringify({ purchaseId: purchase!.id, therapistId }),
     }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
 
+  // Warm the route first. On a cold dev server the first request spends
+  // seconds compiling it while the second waits behind it, so the two arrive
+  // one after the other: the second then reads B as the current owner and
+  // moves it B -> C, legitimately, and this race is never run at all -- seen
+  // once in the gate as reassignedCount 2. A refused call compiles it
+  // without touching anything.
+  await fetch(`${BASE}/api/admin/reassign-home-visit-therapist`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: adminCookie },
+    body: JSON.stringify({ purchaseId: "00000000-0000-4000-8000-000000000000", therapistId: therapistBId }),
+  });
+
   // Race to B and C, deliberately not A (the appointment's current owner)
   // -- racing "reassign to the value it already has" is a no-op UPDATE
   // that trivially "succeeds" under the CAS guard regardless of real
@@ -189,10 +201,36 @@ test("reassign-home-visit-therapist: concurrent reassigns to different therapist
 
   const reassignedCount = [rB, rC].filter((r) => r.body?.reassigned?.length > 0).length;
   const skippedCount = [rB, rC].filter((r) => r.body?.skipped?.length > 0).length;
-  expect(
-    { reassignedCount, skippedCount, rB, rC },
-    "exactly one concurrent reassign should move the appointment, the other should report it skipped"
-  ).toMatchObject({ reassignedCount: 1, skippedCount: 1 });
+  const name = (id: string) => ({ [therapistAId]: "A", [therapistBId]: "B", [therapistCId]: "C" })[id] ?? "?";
+  const moved = [...(rB.body?.reassigned ?? []), ...(rC.body?.reassigned ?? [])];
+  const { data: chain } = await admin
+    .from("appointment_reassignment_log")
+    .select("old_therapist_id, new_therapist_id")
+    .in("appointment_id", moved.length ? moved : ["00000000-0000-4000-8000-000000000000"]);
+  const story = (chain ?? []).map((c) => `${name(c.old_therapist_id)}->${name(c.new_therapist_id)}`);
+  const evidence = `log [${story.join(", ")}]; B: ${rB.status} ${JSON.stringify(rB.body)}; C: ${rC.status} ${JSON.stringify(rC.body)}`;
+
+  // The property: the appointment is never assigned twice from the same
+  // starting point. The lock inside claim_therapist_slot makes the second of
+  // two overlapping calls re-read the owner and refuse ("skipped"); proven
+  // deterministically at the RPC by scripts/concurrency-checks.mjs section 1.
+  //
+  // What this route-level race cannot do is force the two requests to
+  // overlap. When they arrive one after the other, the second correctly
+  // finds B and moves it to C -- two legitimate reassignments, A->B then
+  // B->C -- and the old assertion ("exactly one moved, one skipped") failed
+  // on that working behaviour (seen twice in the quality gate, log
+  // [A->B, B->C]). So it asserts the property itself: never two moves out
+  // of A, every request answered, and the row agreeing with the log. A run
+  // where the requests did not overlap is annotated, not passed silently.
+  expect(reassignedCount + skippedCount, `every request answered: ${evidence}`).toBe(2);
+  expect(story.filter((s) => s.startsWith("A->")).length, `double assignment from A: ${evidence}`).toBe(1);
+  const { data: row } = await admin.from("appointments").select("therapist_id").eq("visit_address_line1", E2E_MARKERS.visitAddressLine1).single();
+  expect(name(row!.therapist_id), `the row's owner is the last move in the log: ${evidence}`).toBe(story.at(-1)?.split("->")[1]);
+  if (reassignedCount === 2) {
+    expect(story, `two moves must chain, not fork: ${evidence}`).toEqual([`A->${story[0].split("->")[1]}`, `${story[0].split("->")[1]}->${story[1].split("->")[1]}`]);
+    test.info().annotations.push({ type: "race-not-overlapped", description: `the two requests arrived one after the other (${story.join(", ")}); the lock was not exercised on this run` });
+  }
 });
 
 test("assign-referral: concurrent assignment of two referrals to the same therapist/slot doesn't double-book", async () => {

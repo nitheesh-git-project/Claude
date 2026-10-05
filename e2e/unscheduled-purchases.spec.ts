@@ -37,12 +37,30 @@ test.describe("Suite UP: purchases with nothing booked", () => {
     const admin = adminClient();
     const patientId = await profileIdFor(admin, QA_EMAILS.patientA);
 
-    const { data: pkg } = await admin
+    // Any package will do, so an existing one is used; with none (a fresh
+    // database) the suite makes its own rather than skipping. A skip that
+    // depends on what happens to be lying around is a suite that silently
+    // never runs on a clean stack.
+    let { data: pkg } = await admin
       .from("treatment_category_packages")
       .select("id, category_id, session_count, price_paise")
       .limit(1)
       .maybeSingle();
-    test.skip(!pkg, "no treatment package in this database to buy");
+    if (!pkg) {
+      const { data: category, error: categoryError } = await admin
+        .from("treatment_categories")
+        .insert({ title: "QA Unscheduled Condition", points: [], price_paise: 120000, duration_minutes: 60, active: true })
+        .select("id")
+        .single();
+      expect(categoryError, `seeding a category: ${categoryError?.message}`).toBeNull();
+      const { data: created, error: packageError } = await admin
+        .from("treatment_category_packages")
+        .insert({ category_id: category!.id, title: "QA Unscheduled Programme", session_count: 4, price_paise: 400000, active: true })
+        .select("id, category_id, session_count, price_paise")
+        .single();
+      expect(packageError, `seeding a package: ${packageError?.message}`).toBeNull();
+      pkg = created;
+    }
 
     // Two days old with nothing booked -- the row that must be found -- and
     // one bought an hour ago, which must not be: a purchase on its way to

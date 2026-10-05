@@ -81,6 +81,19 @@ const ACCOUNTS = [
     fullName: "QA Master Admin",
     profile: { role: "admin", admin_scope: "full", approved: true, active: true },
   },
+  // A second Master Admin, which the manual plan does not name. The schema
+  // refuses to narrow the last Master Admin who can sign in
+  // (profiles_keep_one_master_admin), and the e2e specs that prove a scope
+  // is enforced narrow qa.admin for one test and restore it. On staging the
+  // owner's own account is the other Master Admin; on a freshly provisioned
+  // stack nothing was, every narrowing was refused, and the specs went on as
+  // a full admin and reported scoped access that never happened.
+  {
+    label: "Admin Full (backup Master Admin)",
+    email: "qa.admin.backup@example.test",
+    fullName: "QA Backup Master Admin",
+    profile: { role: "admin", admin_scope: "full", approved: true, active: true },
+  },
   {
     label: "Admin Ops",
     email: "qa.admin.ops@example.test",

@@ -1,0 +1,2365 @@
+{
+  "version": 1,
+  "description": "Who owns which Playwright spec, and which product flows those specs prove. Validated by scripts/ci/check-coverage-manifest.mjs (npm run check:coverage); human-readable gap list in docs/ci/COVERAGE.md.",
+  "runners": {
+    "patient": "Patient booking, intake, checkout, discounts, pay later, isolation and the patient's phone view",
+    "therapist": "Therapist roster, readiness, specialty and the therapist's phone view",
+    "session": "Session lifecycle: scheduling, suggestions, completion, clinical continuity, care-plan review",
+    "admin": "The back office: authorization, exposure, money screens, validation, navigation, lifecycle",
+    "hospital": "Hospital (B2B) referrals and tenant isolation",
+    "platform": "The public site and shared UI: navigation, splash, catalog, form controls, mobile smoke",
+    "integrity": "Storage-layer and destructive checks: SQL check files, authorization and concurrency scripts, live grants, refund ledger, degraded schema"
+  },
+  "specs": {
+    "account-created-stamp.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "acquisition-codes.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "provider-sandbox",
+      "destructive": false
+    },
+    "admin-account-delete.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-authz.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-care-plans.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-dashboard-ui.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-debug-reset.spec.ts": {
+      "runner": "integrity",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-degraded-schema.spec.ts": {
+      "runner": "integrity",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "admin-detail-overlay.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-exposure.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false,
+      "allowedSkips": [
+        {
+          "test": "AE-002",
+          "reason": "Skips itself while the pre-launch debug bar is on -- the bar lists the admin routes by design and is on in every environment until release (src/lib/debugNavVisible.ts). debug-clock and the admin specs need the bar, so the gate keeps it on; AE-001 still proves a non-admin is never sent to the back office. Remove this entry when the bar is switched off."
+        }
+      ]
+    },
+    "admin-login.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-money.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-multi-admin.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-network.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-partners-and-credentials.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-profile-session-order.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-refresh-badge.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-scoped-dashboard.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-settings-ia.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-validation.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "booking-account-role.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "booking-exit-link.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "booking-pay-button-live.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "booking-rules.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "catalog-cover-image.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "catalog-detail.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "checkout-speed.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "provider-sandbox",
+      "destructive": false
+    },
+    "concurrency.spec.ts": {
+      "runner": "integrity",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "provider-sandbox",
+      "destructive": false
+    },
+    "consultation-first.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "date-field.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "debug-clock.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "dev-reachout.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "discounts.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "provider-sandbox",
+      "destructive": false
+    },
+    "footer-social-links.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "form-validation-chrome.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "health-profile.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "home-visit-disabled.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "hospital-referrals.spec.ts": {
+      "runner": "hospital",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "journey-pace.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "logs-subject-timeline.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "mobile-smoke.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "mobile"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "navigation-feedback.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "numeric-input.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "package-category-picker.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "package-form-flags.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "patient-registration.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "pay-later.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "refund-attempts.spec.ts": {
+      "runner": "integrity",
+      "levels": [
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "risk-sweep-report.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "roster-read-write-day.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "section-nav.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "service-picker.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "session-completed-cutoff.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "session-scheduling.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "session-suggestions.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "splash-screen.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "therapist-readiness.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "therapist-request.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "therapist-roster.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "therapist-specialty.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "unscheduled-purchases.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "waitlist-serve-area.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "patient-isolation.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "hospital-isolation.spec.ts": {
+      "runner": "hospital",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "clinical-continuity.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    }
+  },
+  "flows": [
+    {
+      "id": "patient.registration",
+      "runner": "patient",
+      "title": "Self-signup returns a session with no email step, lands unapproved, and waits on the admin",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-registration.spec.ts",
+          "tests": [
+            "PR-001",
+            "PR-002",
+            "PR-003",
+            "PR-004",
+            "PR-005",
+            "PR-006",
+            "PR-007"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "patient.health-profile",
+      "runner": "patient",
+      "title": "Per-specialty intake, Pain Map, re-triage, and clinical access following live or delivered care",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "health-profile.spec.ts",
+          "tests": [
+            "ON-004/005/006",
+            "LK-006",
+            "LK-007",
+            "SP-004",
+            "RT-001/002",
+            "SEC-003",
+            "SEC-007",
+            "SPAM-001",
+            "INT-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md"
+      ]
+    },
+    {
+      "id": "patient.booking-rules",
+      "runner": "patient",
+      "title": "Lead time, bulk-schedule limit, cancellation window and the unserviceable-pincode refusal",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "booking-rules.spec.ts",
+          "tests": [
+            "a slot inside the configured lead-time window is rejected",
+            "a batch larger than the admin-configured max",
+            "BR-CANCEL-001",
+            "BR-CANCEL-002",
+            "create-order rejects a pincode"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/booking.md"
+      ]
+    },
+    {
+      "id": "patient.booking-account-role",
+      "runner": "patient",
+      "title": "Only a patient account can book; every other role is told why and offered its way home",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "booking-account-role.spec.ts",
+          "tests": [
+            "BR-001",
+            "BR-002",
+            "BR-003",
+            "BR-004",
+            "BR-005",
+            "BR-006",
+            "BH-001",
+            "BH-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/booking.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "patient.booking-wizard",
+      "runner": "patient",
+      "title": "The booking wizard: service picker, deep links, named specialist, exit link, a pay button that stays tappable",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "service-picker.spec.ts",
+          "tests": [
+            "SP-001",
+            "SP-006",
+            "SP-008",
+            "SP-011"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "therapist-request.spec.ts",
+          "tests": [
+            "TR-001",
+            "TR-002",
+            "TR-003",
+            "TR-004"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "booking-exit-link.spec.ts",
+          "tests": [
+            "BX-001",
+            "BX-002"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "booking-pay-button-live.spec.ts",
+          "tests": [
+            "PAY-001",
+            "PAY-002",
+            "PAY-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/booking.md",
+        "docs/rules/frontend.md"
+      ]
+    },
+    {
+      "id": "patient.consultation-first",
+      "runner": "patient",
+      "title": "Consultation first: direct programme purchase is gone and a stale link is answered",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "consultation-first.spec.ts",
+          "tests": [
+            "CF-001",
+            "CF-002",
+            "CF-003",
+            "CF-004"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/programmes.md"
+      ]
+    },
+    {
+      "id": "patient.checkout-quote",
+      "runner": "patient",
+      "title": "Checkout answers with the quote and the Razorpay order in one trip, and records timing without identity",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "checkout-speed.spec.ts",
+          "tests": [
+            "CS-001",
+            "CS-002",
+            "CS-003",
+            "CS-004",
+            "CS-005"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Needs Razorpay test keys (RAZORPAY_TEST_KEY_ID/SECRET): CS-001 creates a real test-mode order.",
+      "rules": [
+        "docs/rules/payments.md"
+      ]
+    },
+    {
+      "id": "patient.promo-and-invite",
+      "runner": "patient",
+      "title": "Promo codes quote with no amount in the request, caps hold, paused codes do nothing, invites cannot be self-claimed",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "acquisition-codes.spec.ts",
+          "tests": [
+            "PRC-001",
+            "PRC-003",
+            "PRC-005",
+            "INV-002",
+            "INV-003",
+            "INV-005"
+          ],
+          "level": "api"
+        },
+        {
+          "spec": "discounts.spec.ts",
+          "tests": [
+            "DSC-001",
+            "DSC-002",
+            "DSC-003",
+            "DSC-004",
+            "DSC-005",
+            "DSC-006",
+            "DSC-007"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/discounts.md"
+      ]
+    },
+    {
+      "id": "patient.free-booking",
+      "runner": "patient",
+      "title": "A 100%-off booking resolves to zero, confirms with no payment row, and refuses anything still owed",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "acquisition-codes.spec.ts",
+          "tests": [
+            "FREE-001",
+            "FREE-002",
+            "FREE-003",
+            "FREE-004",
+            "FREE-005",
+            "FREE-006"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/discounts.md",
+        "docs/rules/payments.md"
+      ]
+    },
+    {
+      "id": "patient.pay-later",
+      "runner": "patient",
+      "title": "Pay later end to end: grant, a booking with no payment screen, completion, declaration, settlement, write-off",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "pay-later.spec.ts",
+          "tests": [
+            "PL-UI-001",
+            "PL-UI-002",
+            "PL-UI-003",
+            "PL-UI-004",
+            "PL-UI-005",
+            "PL-UI-006",
+            "PL-UI-007"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/pay-later.md"
+      ]
+    },
+    {
+      "id": "patient.unscheduled-purchases",
+      "runner": "patient",
+      "title": "A paid purchase nobody booked against is counted and opens exactly the rows it counted",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "unscheduled-purchases.spec.ts",
+          "tests": [
+            "UP-001",
+            "UP-002",
+            "UP-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/programmes.md"
+      ]
+    },
+    {
+      "id": "patient.home-visit-switch",
+      "runner": "patient",
+      "title": "The home-visit master switch and the serve-area waitlist",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "home-visit-disabled.spec.ts",
+          "tests": [
+            "HV-OFF-001",
+            "HV-OFF-002"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "waitlist-serve-area.spec.ts",
+          "tests": [
+            "WAIT-AREA-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/home-visit.md"
+      ]
+    },
+    {
+      "id": "patient.payment-capture",
+      "runner": "patient",
+      "title": "A patient pays through Razorpay Checkout and the capture is verified (signature, webhook, idempotent re-delivery)",
+      "required": false,
+      "status": "blocked",
+      "coverage": [],
+      "limitation": "No spec drives the hosted Checkout sheet or posts a signed verify/webhook payload. Needs Razorpay test-mode checkout automation or a signed-webhook fixture built from a generated RAZORPAY_WEBHOOK_SECRET; neither exists yet.",
+      "rules": [
+        "docs/rules/payments.md"
+      ]
+    },
+    {
+      "id": "patient.cancellation-refund",
+      "runner": "patient",
+      "title": "A patient cancels and the automatic refund (outside the window) or no refund (inside it) reaches the gateway",
+      "required": false,
+      "status": "gap",
+      "coverage": [],
+      "limitation": "The cancellation window copy and setting are covered (booking-rules); a cancellation that triggers a gateway refund is not exercised because it needs a captured test-mode payment.",
+      "rules": [
+        "docs/rules/payments.md"
+      ]
+    },
+    {
+      "id": "patient.document-upload",
+      "runner": "patient",
+      "title": "A patient uploads a report through the route; it is typed by its bytes, stored in a private bucket and opened through a short-lived signed link",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-isolation.spec.ts",
+          "tests": [
+            "PI-001",
+            "PI-002"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md"
+      ]
+    },
+    {
+      "id": "therapist.roster",
+      "runner": "therapist",
+      "title": "Roster: ranges, exceptions, leave, authorization, stale and double-clicked saves, first save, day view",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-roster.spec.ts",
+          "tests": [
+            "R-A03/R-A04",
+            "R-A07/R-A08/R-A09",
+            "R-A10/R-A11",
+            "R-T06",
+            "R-S01",
+            "R-C02",
+            "R-B01"
+          ],
+          "level": "api"
+        },
+        {
+          "spec": "roster-read-write-day.spec.ts",
+          "tests": [
+            "RWD-001",
+            "RWD-003",
+            "RWD-004",
+            "RWD-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/roster.md"
+      ]
+    },
+    {
+      "id": "therapist.readiness-and-specialty",
+      "runner": "therapist",
+      "title": "A therapist's readiness checklist and specialisation as a value",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-readiness.spec.ts",
+          "tests": [
+            "TRR-001",
+            "TRR-002",
+            "TRR-003",
+            "TRR-004"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "therapist-specialty.spec.ts",
+          "tests": [
+            "TS-001",
+            "TS-002",
+            "TS-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/roster.md"
+      ]
+    },
+    {
+      "id": "therapist.earnings-and-payouts",
+      "runner": "therapist",
+      "title": "A therapist's own earnings and payout history match the admin's figures",
+      "required": false,
+      "status": "gap",
+      "coverage": [],
+      "limitation": "Payout arithmetic is covered from the admin side (admin.money-maths) and in payout-atomicity-sql-checks.sql; the therapist's own earnings screen has no spec.",
+      "rules": [
+        "docs/rules/money.md"
+      ]
+    },
+    {
+      "id": "session.scheduling",
+      "runner": "session",
+      "title": "Booking the sessions a patient paid for: five in one request, programme rules, lead time, expiry, ownership",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "session-scheduling.spec.ts",
+          "tests": [
+            "SCH-001",
+            "SCH-002",
+            "SCH-003",
+            "SCH-004",
+            "SCH-005",
+            "SCH-006"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/booking.md",
+        "docs/rules/programmes.md"
+      ]
+    },
+    {
+      "id": "session.suggestions",
+      "runner": "session",
+      "title": "Therapist-suggested sessions: suggesting spends nothing, accepting books once, races settle on one answer",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "session-suggestions.spec.ts",
+          "tests": [
+            "SS-001",
+            "SS-003",
+            "SS-004",
+            "SS-005",
+            "SS-007",
+            "SS-008",
+            "SS-015",
+            "SS-016"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/roster.md",
+        "docs/rules/programmes.md"
+      ]
+    },
+    {
+      "id": "session.completion-cutoff",
+      "runner": "session",
+      "title": "The Session Completed cutoff on every surface that lists a session",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "session-completed-cutoff.spec.ts",
+          "tests": [
+            "SC-001",
+            "SC-004",
+            "SC-005",
+            "SC-006",
+            "SC-007",
+            "SC-009",
+            "SC-010"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/roster.md"
+      ]
+    },
+    {
+      "id": "session.debug-clock",
+      "runner": "session",
+      "title": "The debug clock moves the completion gate only while the debug bar is on",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "debug-clock.spec.ts",
+          "tests": [
+            "DC-001",
+            "DC-002"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Asserts refusals only: a successful completion writes append-only settlement rows (those are exercised by clinical-continuity on the disposable stack).",
+      "rules": [
+        "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "session.care-plan-review",
+      "runner": "session",
+      "title": "A therapist's recommendation is queued and invisible, refused at checkout, then approved, declined or approved with changes",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-care-plans.spec.ts",
+          "tests": [
+            "ACP-001",
+            "ACP-008",
+            "ACP-009",
+            "ACP-013",
+            "ACP-014",
+            "ACP-016",
+            "ACP-017",
+            "ACP-018",
+            "ACP-019",
+            "ACP-022"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md"
+      ]
+    },
+    {
+      "id": "session.meet-link",
+      "runner": "session",
+      "title": "A confirmed session gets a Google Calendar event and Meet link",
+      "required": false,
+      "status": "blocked",
+      "coverage": [],
+      "limitation": "GOOGLE_CALENDAR_* must be unset in CI, so the app runs in its 'not configured' mode and no event is created. Real Meet creation needs a provider-sandbox check done by hand.",
+      "rules": [
+        "docs/rules/home-visit.md"
+      ]
+    },
+    {
+      "id": "session.notifications",
+      "runner": "session",
+      "title": "Reminders, confirmations and other outbound messages",
+      "required": false,
+      "status": "gap",
+      "coverage": [],
+      "limitation": "The codebase has no email, SMS or WhatsApp provider; GoTrue mail goes to the local Mailpit only. Nothing to test until a provider exists.",
+      "rules": []
+    },
+    {
+      "id": "admin.route-authorization",
+      "runner": "admin",
+      "title": "Every admin route refuses anonymous and non-admin callers; a limited scope cannot cross sections; scoped landing screens",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-authz.spec.ts",
+          "tests": [
+            "F-001",
+            "F-002/F-003",
+            "F-004",
+            "F-005",
+            "F-009"
+          ],
+          "level": "api"
+        },
+        {
+          "spec": "admin-scoped-dashboard.spec.ts",
+          "tests": [
+            "opens on their own work",
+            "S-004",
+            "S-007",
+            "S-008"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.exposure",
+      "runner": "admin",
+      "title": "The back office is not named to anyone outside it",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-exposure.spec.ts",
+          "tests": [
+            "AE-001",
+            "AE-003",
+            "AE-004",
+            "AE-005",
+            "AE-006"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "AE-002 skips itself while the debug bar is on (it lists admin routes by design).",
+      "rules": [
+        "docs/rules/admin.md",
+        "CLAUDE.md"
+      ]
+    },
+    {
+      "id": "admin.money-maths",
+      "runner": "admin",
+      "title": "Payout and refund arithmetic: travel fee, cash netting, unconfigured share, refund window setting, activity-log attribution",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-money.spec.ts",
+          "tests": [
+            "G-002",
+            "G-003",
+            "G-004",
+            "G-009",
+            "G-010"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/money.md"
+      ]
+    },
+    {
+      "id": "admin.input-validation",
+      "runner": "admin",
+      "title": "Admin routes answer malformed bodies with a 400, never leak a stack, and bound every setting",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-validation.spec.ts",
+          "tests": [
+            "E-041",
+            "E-045",
+            "E-012",
+            "E-023/E-024",
+            "E-043",
+            "E-017",
+            "E-016",
+            "E-010",
+            "E-010b",
+            "E-018/C-008"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.dashboard-navigation",
+      "runner": "admin",
+      "title": "Dashboard sections, deep links, overlays, failure handling and the refresh badge",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-dashboard-ui.spec.ts",
+          "tests": [
+            "B-001",
+            "B-002/B-004",
+            "B-003",
+            "A-045",
+            "C-001/C-002"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "admin-detail-overlay.spec.ts",
+          "tests": [
+            "AD-001",
+            "AD-002",
+            "AD-003",
+            "AD-004"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "admin-network.spec.ts",
+          "tests": [
+            "D-002",
+            "D-003",
+            "D-006",
+            "D-007",
+            "D-008"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "admin-refresh-badge.spec.ts",
+          "tests": [
+            "RB-000",
+            "RB-001",
+            "RB-002",
+            "RB-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/dashboards.md",
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.multi-admin",
+      "runner": "admin",
+      "title": "Two admins at once: realtime coverage, inbox removal, racing approve/decline, double assignment",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-multi-admin.spec.ts",
+          "tests": [
+            "H-006",
+            "H-003",
+            "H-021",
+            "H-020"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "admin.account-lifecycle",
+      "runner": "admin",
+      "title": "Account creation stamps, deletion only with no history, partner layouts and credential reset",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-account-delete.spec.ts",
+          "tests": [
+            "AD-DEL-001",
+            "AD-DEL-002",
+            "AD-DEL-003"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "account-created-stamp.spec.ts",
+          "tests": [
+            "ACS-001",
+            "ACS-002",
+            "ACS-003",
+            "ACS-004",
+            "ACS-005",
+            "ACS-006",
+            "ACS-007",
+            "ACS-008"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "admin-partners-and-credentials.spec.ts",
+          "tests": [
+            "PC-001",
+            "PC-002",
+            "PC-004",
+            "PC-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md",
+        "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "admin.settings-and-catalogue",
+      "runner": "admin",
+      "title": "Settings information architecture, the booking lead time reaching the patient picker, package form switches",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-settings-ia.spec.ts",
+          "tests": [
+            "CFG-001",
+            "CFG-002",
+            "CFG-003",
+            "CFG-004",
+            "CFG-005",
+            "CFG-006",
+            "CFG-007"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "package-category-picker.spec.ts",
+          "tests": [
+            "PKG-CAT-001"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "package-form-flags.spec.ts",
+          "tests": [
+            "PKG-FLAG-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.session-order-and-logs",
+      "runner": "admin",
+      "title": "A person's sessions ordered by session date, and the log's subject timeline",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-profile-session-order.spec.ts",
+          "tests": [
+            "PSO-001",
+            "PSO-002",
+            "PSO-003"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "logs-subject-timeline.spec.ts",
+          "tests": [
+            "LOG-BACK"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.risk-report",
+      "runner": "admin",
+      "title": "The Risk screen names the rules an incomplete sweep missed and the report is admin-only",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "risk-sweep-report.spec.ts",
+          "tests": [
+            "RSK-001",
+            "RSK-002",
+            "RSK-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "admin.login-form",
+      "runner": "admin",
+      "title": "The real admin login form: valid, wrong password, a patient's credentials",
+      "required": false,
+      "status": "partial",
+      "coverage": [
+        {
+          "spec": "admin-login.spec.ts",
+          "tests": [
+            "valid admin credentials reach the dashboard",
+            "a wrong password is reported",
+            "a patient's credentials cannot open the admin dashboard"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Runs only when the app answers at E2E_LOGIN_BASE_URL; the admin runner points it at the same dev server because the CI browser reaches the local stack directly. If that variable is dropped the spec skips itself.",
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.refund-gateway",
+      "runner": "admin",
+      "title": "An admin refund reaches Razorpay and the result is recorded against the right session",
+      "required": false,
+      "status": "gap",
+      "coverage": [],
+      "limitation": "Refund arithmetic and the attempt record are covered (admin.money-maths, integrity.refund-attempt-ledger); a refund that actually calls the gateway needs a captured test-mode payment.",
+      "rules": [
+        "docs/rules/payments.md"
+      ]
+    },
+    {
+      "id": "admin.maintenance-sweeps",
+      "runner": "admin",
+      "title": "The scheduled maintenance sweeps (risk, retention, balance verification) run on a cron",
+      "required": false,
+      "status": "gap",
+      "coverage": [],
+      "limitation": "maintenance.yml calls the sweeps on a schedule against the hosted project; no spec drives the sweep routes with CRON_SECRET.",
+      "rules": [
+        "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "hospital.referrals",
+      "runner": "hospital",
+      "title": "One open referral per patient under five simultaneous submissions; a withdrawn one frees the number; a dropped connection is said",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "hospital-referrals.spec.ts",
+          "tests": [
+            "REF-001",
+            "REF-002",
+            "REF-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/programmes.md"
+      ]
+    },
+    {
+      "id": "hospital.referral-revenue",
+      "runner": "hospital",
+      "title": "A referred patient's paid session accrues the hospital's revenue share and the figure matches the admin's",
+      "required": false,
+      "status": "gap",
+      "coverage": [],
+      "limitation": "Needs a captured payment on a referred patient; the share arithmetic is in admin-money and the SQL checks but not driven through a referral end to end.",
+      "rules": [
+        "docs/rules/programmes.md",
+        "docs/rules/money.md"
+      ]
+    },
+    {
+      "id": "platform.public-navigation",
+      "runner": "platform",
+      "title": "The public pages' section rail, scroll arrow, and a tap acknowledged on real navigation",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "section-nav.spec.ts",
+          "tests": [
+            "SN-001",
+            "SN-002",
+            "SN-003",
+            "SN-004",
+            "SN-005",
+            "SN-006",
+            "SN-007"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "navigation-feedback.spec.ts",
+          "tests": [
+            "NAV-001",
+            "NAV-002",
+            "NAV-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md",
+        "docs/rules/frontend.md"
+      ]
+    },
+    {
+      "id": "platform.splash",
+      "runner": "platform",
+      "title": "The brand splash's cold-open, reload and long-absence rules and its admin settings",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "splash-screen.spec.ts",
+          "tests": [
+            "SP-001",
+            "SP-002",
+            "SP-003",
+            "SP-004",
+            "SP-005",
+            "SP-006",
+            "SP-007",
+            "SP-008"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "platform.catalog",
+      "runner": "platform",
+      "title": "The public catalog's dialogs and covers render the same on card, dialog and booking screen",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "catalog-detail.spec.ts",
+          "tests": [
+            "CD-001",
+            "CD-002",
+            "CD-003",
+            "CD-004",
+            "CD-005",
+            "CD-006",
+            "CD-007",
+            "CD-008"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "catalog-cover-image.spec.ts",
+          "tests": [
+            "CI-001",
+            "CI-002",
+            "CI-003",
+            "CI-004",
+            "CI-005",
+            "CI-006",
+            "CI-007",
+            "CI-008",
+            "CI-009",
+            "CI-010",
+            "CI-011"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "platform.journey-pace",
+      "runner": "platform",
+      "title": "The home walkthrough's admin-configured rotation pace",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "journey-pace.spec.ts",
+          "tests": [
+            "JP-001",
+            "JP-006",
+            "JP-007",
+            "JP-008",
+            "JP-009",
+            "JP-011",
+            "JP-014",
+            "JP-015",
+            "JP-016"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "platform.form-controls",
+      "runner": "platform",
+      "title": "The clinic's own date field, numeric box and validation messages in place of the browser's",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "date-field.spec.ts",
+          "tests": [
+            "DF-001",
+            "DF-002",
+            "DF-003",
+            "DF-004",
+            "DF-005"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "numeric-input.spec.ts",
+          "tests": [
+            "NUM-001"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "form-validation-chrome.spec.ts",
+          "tests": [
+            "FORM-VAL-001",
+            "FORM-VAL-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/frontend.md"
+      ]
+    },
+    {
+      "id": "platform.dev-reachout-and-footer",
+      "runner": "platform",
+      "title": "The footer's developer credit end to end and the footer's social links",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "dev-reachout.spec.ts",
+          "tests": [
+            "DEV-001",
+            "DEV-002",
+            "DEV-003",
+            "DEV-004"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "footer-social-links.spec.ts",
+          "tests": [
+            "SOC-001",
+            "SOC-002",
+            "SOC-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "platform.mobile-smoke",
+      "runner": "platform",
+      "title": "Public pages and every role's dashboard fit a phone",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "mobile-smoke.spec.ts",
+          "tests": [
+            "MOB-001",
+            "MOB-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/frontend.md"
+      ]
+    },
+    {
+      "id": "integrity.refund-attempt-ledger",
+      "runner": "integrity",
+      "title": "The refund attempt is written before the gateway is called and cannot be rewritten from the service-role client",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "refund-attempts.spec.ts",
+          "tests": [
+            "RA-001",
+            "RA-002",
+            "RA-003",
+            "RA-004",
+            "RA-005",
+            "RA-006",
+            "RA-007"
+          ],
+          "level": "db"
+        }
+      ],
+      "scripts": [
+        "scripts/refund-attempt-sql-checks.sql"
+      ],
+      "rules": [
+        "docs/rules/payments.md",
+        "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "integrity.concurrency-routes",
+      "runner": "integrity",
+      "title": "CAS-guarded races at the routes: one refund reaches the gateway, one reassignment wins, one referral books the slot",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "concurrency.spec.ts",
+          "tests": [
+            "refund-home-visit-package: at most one",
+            "reassign-home-visit-therapist",
+            "assign-referral"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "The refund race calls Razorpay with a fake payment id, so it needs Razorpay test keys.",
+      "rules": [
+        "docs/rules/payments.md",
+        "docs/rules/roster.md"
+      ]
+    },
+    {
+      "id": "integrity.debug-reset-unarmed",
+      "runner": "integrity",
+      "title": "With ALLOW_DEBUG_DATA_RESET unset the reset is refused to everyone and cannot leave no admin",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-debug-reset.spec.ts",
+          "tests": [
+            "an anonymous caller gets nothing",
+            "a patient session gets nothing",
+            "a full admin without the confirmation phrase is refused",
+            "a narrowed admin is refused",
+            "the reset function refuses to leave no admin behind"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/ops-security.md",
+        "CLAUDE.md"
+      ]
+    },
+    {
+      "id": "integrity.degraded-schema",
+      "runner": "integrity",
+      "title": "A missing migration-dependent column or table empties its own panel and nothing else",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-degraded-schema.spec.ts",
+          "tests": [
+            "J-005",
+            "J-006",
+            "J-008",
+            "J-009"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "integrity.storage-guards",
+      "runner": "integrity",
+      "title": "Append-only triggers, the ledger, settlements, payouts, rate limits, promo caps, roster payloads and slot claims at the storage layer",
+      "required": true,
+      "status": "covered",
+      "coverage": [],
+      "scripts": [
+        "scripts/append-only-sql-checks.sql",
+        "scripts/audit-fix-sql-checks.sql",
+        "scripts/booking-idempotency-sql-checks.sql",
+        "scripts/care-plan-review-sql-checks.sql",
+        "scripts/clinical-access-sql-checks.sql",
+        "scripts/pay-later-sql-checks.sql",
+        "scripts/payout-atomicity-sql-checks.sql",
+        "scripts/promo-invite-sql-checks.sql",
+        "scripts/rate-limit-sql-checks.sql",
+        "scripts/refund-attempt-sql-checks.sql",
+        "scripts/roster-sql-checks.sql",
+        "scripts/session-settlement-sql-checks.sql",
+        "scripts/therapist-slot-sql-checks.sql"
+      ],
+      "rules": [
+        "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "integrity.authorization-below-routes",
+      "runner": "integrity",
+      "title": "Cross-tenant isolation, IDOR, enumeration and suspension asserted below the routes with real user tokens",
+      "required": true,
+      "status": "covered",
+      "coverage": [],
+      "scripts": [
+        "scripts/authorization-checks.mjs"
+      ],
+      "rules": [
+        "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "integrity.concurrency-rpc",
+      "runner": "integrity",
+      "title": "Parallel RPCs at claim_therapist_slot, the rate limiter and the invite cap return exactly one winner",
+      "required": true,
+      "status": "covered",
+      "coverage": [],
+      "scripts": [
+        "scripts/concurrency-checks.mjs"
+      ],
+      "limitation": "Guards the verdicts, not serialisation (see the caveat at the top of the script).",
+      "rules": [
+        "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "integrity.live-grants",
+      "runner": "integrity",
+      "title": "The live database's function grants and RLS agree with schema.sql (three outcomes: pass, fail, not proven)",
+      "required": true,
+      "status": "covered",
+      "coverage": [],
+      "scripts": [
+        "scripts/check-live-grants.mjs"
+      ],
+      "rules": [
+        "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "integrity.debug-reset-armed",
+      "runner": "integrity",
+      "title": "The armed reset truncates only what it should and keeps the admin",
+      "required": false,
+      "status": "gap",
+      "coverage": [],
+      "limitation": "ALLOW_DEBUG_DATA_RESET must stay unset everywhere, including CI, and debug-reset-sql-checks.sql takes AccessExclusiveLock on every table. It is deliberately not run by the gate.",
+      "rules": [
+        "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "patient.isolation",
+      "runner": "patient",
+      "title": "Another patient can neither open nor delete a patient's report, and their own RLS client reads none of the patient's clinical or money rows or export",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-isolation.spec.ts",
+          "tests": [
+            "PI-003",
+            "PI-004",
+            "PI-005"
+          ],
+          "level": "db"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "session.clinical-continuity",
+      "runner": "session",
+      "title": "Health profile, session note and recommendation carried across therapist, admin and patient: access limited to the treating therapist, notes never patient-visible, a queued plan invisible and unbuyable until approved, approval attributed, and a reopen losing nothing",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "clinical-continuity.spec.ts",
+          "tests": [
+            "CC-001",
+            "CC-002",
+            "CC-003",
+            "CC-004"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "clinical-continuity.spec.ts",
+          "tests": [
+            "CC-005"
+          ],
+          "level": "db"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md"
+      ]
+    },
+    {
+      "id": "hospital.org-isolation",
+      "runner": "hospital",
+      "title": "A second partner hospital cannot read, enumerate, withdraw or see on its screen another partner's referral; the owning hospital can",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "hospital-isolation.spec.ts",
+          "tests": [
+            "HI-001",
+            "HI-002",
+            "HI-003",
+            "HI-004",
+            "HI-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/programmes.md"
+      ]
+    },
+    {
+      "id": "patient.saved-addresses",
+      "runner": "patient",
+      "title": "Saved addresses: save, remove, and another patient refused",
+      "required": false,
+      "status": "gap",
+      "limitation": "No spec drives /api/patient/addresses/save or /remove yet. Feasible on the local stack; not yet written."
+    },
+    {
+      "id": "patient.feedback-ratings",
+      "runner": "patient",
+      "title": "A patient rates a completed session and leaves feedback",
+      "required": false,
+      "status": "gap",
+      "limitation": "No spec drives the rating/feedback write; admin-money only reads rating exclusions. Feasible; not yet written."
+    },
+    {
+      "id": "patient.meet-join-rules",
+      "runner": "patient",
+      "title": "The Meet link is shown only inside the join window",
+      "required": false,
+      "status": "gap",
+      "limitation": "Meet links need GOOGLE_CALENDAR_* (forbidden in CI); the join-window rule has unit tests in src/lib but no browser journey."
+    },
+    {
+      "id": "patient.package-purchase",
+      "runner": "patient",
+      "title": "A patient buys a programme through Razorpay and receives session credits",
+      "required": false,
+      "status": "gap",
+      "limitation": "Needs the Razorpay test checkout sheet driven in a browser or a signed verify payload; consultation-first only proves the refusal path. Needs a provider-sandbox decision."
+    },
+    {
+      "id": "therapist.session-assignment",
+      "runner": "therapist",
+      "title": "Assignment, reassignment and no-show handling through the admin and therapist routes",
+      "required": false,
+      "status": "gap",
+      "limitation": "claim_therapist_slot is proven at the RPC (therapist-slot-sql-checks.sql, concurrency-checks.mjs) but no spec drives the assignment or no-show routes."
+    },
+    {
+      "id": "therapist.cash-and-payout-requests",
+      "runner": "therapist",
+      "title": "A therapist records cash collected at the door and requests a payout",
+      "required": false,
+      "status": "gap",
+      "limitation": "No spec drives /api/therapist/record-cash-collection or /request-payout; payout atomicity is proven in SQL only. Feasible; not yet written."
+    },
+    {
+      "id": "therapist.leave",
+      "runner": "therapist",
+      "title": "Going on leave blocks new bookings without moving existing ones",
+      "required": false,
+      "status": "gap",
+      "limitation": "therapist-roster covers leave on the roster screen; /api/therapist/set-on-leave itself has no spec."
+    },
+    {
+      "id": "admin.impersonation",
+      "runner": "admin",
+      "title": "Support impersonation: who may start it, what it may do, and the audit row it leaves",
+      "required": false,
+      "status": "gap",
+      "limitation": "No spec drives /api/admin/start-impersonation or /stop-impersonation. Needs the impersonation rules in docs/rules/ops-security.md turned into cases; not yet written."
+    },
+    {
+      "id": "session.payment-webhook-recovery",
+      "runner": "session",
+      "title": "A captured payment whose verify call was lost is recovered by the webhook, exactly once",
+      "required": false,
+      "status": "gap",
+      "limitation": "Needs signed Razorpay webhook payloads (RAZORPAY_WEBHOOK_SECRET) posted to the local app; the idempotency is proven in booking-idempotency-sql-checks.sql only. Needs an owner decision on a webhook test secret."
+    }
+  ],
+  "removed": []
+}

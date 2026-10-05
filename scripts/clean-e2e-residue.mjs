@@ -42,23 +42,17 @@
 // patients; nothing they match can exist in one, since every marker is a
 // literal string only the e2e suite writes.
 
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
+import { loadEnvFile, localSql, usesLocalDatabase } from "./lib/sqlTarget.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function loadEnvLocal() {
-  try {
-    const text = readFileSync(path.join(rootDir, ".env.local"), "utf8");
-    for (const line of text.split("\n")) {
-      const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
-      if (match && !process.env[match[1]]) process.env[match[1]] = match[2];
-    }
-  } catch {
-    // .env.local may not exist -- rely on real env vars instead.
-  }
+  // .env.local may not exist -- rely on real env vars instead. On the quality
+  // gate's local stack (CI_LOCAL_STACK=1) it is never read at all.
+  loadEnvFile(path.join(rootDir, ".env.local"));
 }
 
 loadEnvLocal();
@@ -413,6 +407,12 @@ async function runReconcile(appointments) {
 }
 
 async function runDelete() {
+  // The gate's disposable stack has no Management API; its database is reached
+  // directly. A hosted project takes the path below, unchanged.
+  if (usesLocalDatabase()) {
+    localSql(DELETE_SQL);
+    return;
+  }
   const projectRef = new URL(url).hostname.split(".")[0];
   const res = await fetch(
     `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
@@ -493,7 +493,7 @@ async function main() {
   if (reconcile) {
     await runReconcile(found.appointments);
   } else {
-    if (!accessToken) {
+    if (!accessToken && !usesLocalDatabase()) {
       console.error(
         "\nMissing SUPABASE_ACCESS_TOKEN, which the delete needs (the counting above did not).\n" +
           "Generate one at https://supabase.com/dashboard/account/tokens and set it in .env.local,\n" +

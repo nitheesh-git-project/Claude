@@ -28,6 +28,26 @@ process.env.TZ = "Asia/Kolkata";
 // (Node-level fetch, no browser), so this runs the same way in CI as it
 // does locally. Needs a real (test/staging, never production) Supabase
 // project + Razorpay test-mode keys in the environment -- see README.md.
+// The quality gate (scripts/ci/run-runner.mjs) sets E2E_ARTIFACT_DIR per
+// runner and project. Then, and only then, the run also writes machine-
+// readable reports (JSON for the gate's verdict, JUnit, HTML) and keeps a
+// trace and a screenshot of every failed test as evidence. A local
+// `npx playwright test` is unchanged: list output, nothing retained.
+const artifactDir = process.env.E2E_ARTIFACT_DIR;
+
+// In the gate the *browser* must not reach anything but the app, the local
+// stack and Razorpay's test checkout (plus the font CDN): Chromium resolves
+// every other host to nothing. The Node-side egress guard
+// (scripts/ci/egress-guard.mjs) cannot see the browser's own traffic, so
+// this is its counterpart. Off outside the gate.
+const gateResolverRules =
+  process.env.E2E_GATE === "1"
+    ? [
+        "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1, " +
+          "EXCLUDE *.razorpay.com, EXCLUDE razorpay.com, EXCLUDE fonts.googleapis.com, EXCLUDE fonts.gstatic.com",
+      ]
+    : [];
+
 export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.ts",
@@ -48,9 +68,21 @@ export default defineConfig({
   // slower one - this roughly doubles the runtime and makes it deterministic.
   workers: 1,
   retries: 0,
-  reporter: [["list"]],
+  reporter: artifactDir
+    ? [
+        ["list"],
+        ["json", { outputFile: `${artifactDir}/report.json` }],
+        ["junit", { outputFile: `${artifactDir}/junit.xml` }],
+        ["html", { outputFolder: `${artifactDir}/html`, open: "never" }],
+      ]
+    : [["list"]],
+  ...(artifactDir ? { outputDir: `${artifactDir}/test-results` } : {}),
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    ...(artifactDir ? { trace: "retain-on-failure" as const, screenshot: "only-on-failure" as const } : {}),
+    ...(gateResolverRules.length && !process.env.PLAYWRIGHT_CHROMIUM_PATH
+      ? { launchOptions: { args: gateResolverRules } }
+      : {}),
     // Most specs never open a browser, but admin-dashboard-ui.spec.ts does.
     // PLAYWRIGHT_CHROMIUM_PATH lets an environment that already ships a
     // Chromium (a sandbox with no network to fetch one, typically) point at
@@ -64,9 +96,12 @@ export default defineConfig({
                   args: [
                     `--proxy-server=${process.env.HTTPS_PROXY}`,
                     "--proxy-bypass-list=<-loopback>",
+                    ...gateResolverRules,
                   ],
                 }
-              : {}),
+              : gateResolverRules.length
+                ? { args: gateResolverRules }
+                : {}),
           },
         }
       : {}),

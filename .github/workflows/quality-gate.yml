@@ -1,0 +1,217 @@
+# The pre-merge quality gate for pull requests into `staging`.
+#
+#   context-budget ─┐
+#   coverage-manifest ─┼─> runner (7, matrix) ─> quality-gate   <- the one required check
+#   verify ─────────┘
+#
+# Every runner builds its own disposable Supabase stack on its own machine
+# (scripts/ci/provision-local-stack.sh): its own Postgres, Auth, Storage and
+# Realtime on loopback, schema.sql applied twice, synthetic QA fixtures, its
+# own app instance and artifact directory. Nothing here can reach the hosted
+# staging or production projects: the preflight rejects any non-loopback
+# target, a Management API token, Google credentials and live Razorpay keys
+# before anything is written, and the egress guard refuses every server-side
+# call except loopback, the Razorpay *test* API and the font CDN.
+#
+# `quality-gate` runs with `if: always()` and passes only when every job it
+# needs reported `success` AND every runner uploaded a `passed` summary with
+# tests in it (scripts/ci/lib/gate.mjs). Skipped, cancelled, timed out,
+# empty or blocked is red. No step uses continue-on-error.
+#
+# Secrets: only RAZORPAY_TEST_KEY_ID / RAZORPAY_TEST_KEY_SECRET (rzp_test_
+# only), and only into the runner steps. A pull request from a fork gets no
+# secrets, so its runners report BLOCKED and the gate is red -- by design: a
+# run that could not exercise checkout has not proven checkout. Never switch
+# this to pull_request_target, which would run untrusted code with secrets.
+#
+# No AI is called here, on success or on failure. A failed runner uploads a
+# sanitised failure bundle; docs/ci/INVESTIGATE.md is the prompt the owner
+# can run in Claude Code against it, by hand.
+#
+# Details, required-check names and the owner's setup steps:
+# docs/ci/QUALITY-GATE.md.
+name: Quality gate
+
+on:
+  pull_request:
+    branches: [staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  SUPABASE_CLI_VERSION: "2.54.11"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  context-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Entry-file budget (CLAUDE.md, AGENTS.md), no auto-imports
+        run: node scripts/ci/check-context-budget.mjs
+
+  coverage-manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Every spec owned, every runner non-empty, no silent coverage loss
+        run: node scripts/ci/check-coverage-manifest.mjs
+
+  # The same checks as ci.yml's `verify` (lint + unit tests + build against
+  # the stub). ci.yml keeps running them on pushes; this copy exists so the
+  # gate can depend on them -- a job in another workflow cannot be `needs`ed.
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Lint (schema checks + eslint)
+        run: npm run lint
+      - name: Unit tests (src/lib + the gate's own plumbing)
+        run: npm test
+      - name: Production build (against a stub Supabase)
+        run: |
+          node scripts/ci-stub-supabase.mjs 54321 &
+          npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-key
+          NEXT_PUBLIC_RAZORPAY_KEY_ID: rzp_test_placeholder
+
+  runner:
+    name: runner (${{ matrix.runner }})
+    needs: [context-budget, coverage-manifest, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [patient, therapist, session, admin, hospital, platform, integrity]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The failure bundle diffs against the base branch.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - run: npm ci --no-audit --no-fund
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Provision the disposable local stack
+        run: scripts/ci/provision-local-stack.sh
+        env:
+          ARTIFACT_DIR: e2e-artifacts/${{ matrix.runner }}/provision
+          NEXT_PUBLIC_RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_TEST_KEY_ID }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_TEST_KEY_SECRET }}
+
+      - name: Run the ${{ matrix.runner }} runner
+        run: node scripts/ci/run-runner.mjs ${{ matrix.runner }}
+        env:
+          GATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          NEXT_PUBLIC_RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_TEST_KEY_ID }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_TEST_KEY_SECRET }}
+
+      - name: Build the failure bundle
+        if: failure()
+        run: node scripts/ci/make-failure-bundle.mjs ${{ matrix.runner }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+      # Uploaded whatever happened. summary.json is what the gate reads; a
+      # runner that never wrote one is counted as not finished.
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: summary-${{ matrix.runner }}
+          path: |
+            e2e-artifacts/${{ matrix.runner }}/summary.json
+            e2e-artifacts/${{ matrix.runner }}/summary.md
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload reports and sanitised logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ matrix.runner }}
+          path: |
+            e2e-artifacts/${{ matrix.runner }}/**/report.json
+            e2e-artifacts/${{ matrix.runner }}/**/junit.xml
+            e2e-artifacts/${{ matrix.runner }}/logs/**
+            e2e-artifacts/${{ matrix.runner }}/provision/**
+            e2e-artifacts/${{ matrix.runner }}/egress-denied.log
+          if-no-files-found: ignore
+          retention-days: 7
+      # Traces, screenshots and the HTML report are binary (the report embeds
+      # its data in a zip) and are not rewritten by the sanitiser. They hold
+      # only synthetic fixtures, the CLI's public demo keys and short-lived
+      # local session cookies, and are kept for the shortest useful window.
+      - name: Upload traces, screenshots and the HTML report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: traces-${{ matrix.runner }}
+          path: |
+            e2e-artifacts/${{ matrix.runner }}/**/test-results/**
+            e2e-artifacts/${{ matrix.runner }}/**/html/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload failure bundle
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-bundle-${{ matrix.runner }}
+          path: e2e-artifacts/${{ matrix.runner }}/failure-bundle.md
+          if-no-files-found: ignore
+          retention-days: 14
+
+  quality-gate:
+    needs: [context-budget, coverage-manifest, verify, runner]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Collect runner summaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: summary-*
+          path: gate-summaries
+      # always(): if the download failed the job is already red; this still
+      # writes the table saying which rows are missing. gate.mjs counts a
+      # missing summary as a failed row, so nothing here can turn it green.
+      - name: Verdict
+        if: always()
+        run: node scripts/ci/gate.mjs gate-summaries
+        env:
+          GATE_NEEDS: ${{ toJSON(needs) }}

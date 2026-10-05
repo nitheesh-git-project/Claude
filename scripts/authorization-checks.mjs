@@ -21,17 +21,19 @@
 //   node scripts/authorization-checks.mjs
 //
 // Needs SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY and
-// SUPABASE_ACCESS_TOKEN in .env.local. It creates its own accounts, tags them
+// SUPABASE_ACCESS_TOKEN in .env.local (against a hosted project), or the
+// quality gate's local stack, where DATABASE_URL replaces the access token. It creates its own accounts, tags them
 // AUTHCHK, and removes them at the end including on the asserting paths.
 //
 // NEVER point this at a database with real patients.
 
-import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { loadEnvFile, localSql, usesLocalDatabase } from "./lib/sqlTarget.mjs";
 
-for (const line of readFileSync(new URL("../.env.local", import.meta.url), "utf8").split("\n")) {
-  const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-  if (m) process.env[m[1]] = m[2];
-}
+// .env.local wins over the ambient environment, as it always has -- except on
+// the quality gate's own local stack (CI_LOCAL_STACK=1), where the file is
+// never read and `sql()` below goes to psql instead of the Management API.
+loadEnvFile(fileURLToPath(new URL("../.env.local", import.meta.url)), { override: true, required: true });
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -47,6 +49,7 @@ function assert(ok, msg) {
 }
 
 async function sql(query) {
+  if (usesLocalDatabase()) return localSql(query);
   const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
     method: "POST",
     headers: {

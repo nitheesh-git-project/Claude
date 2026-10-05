@@ -52,10 +52,12 @@
 // test that depends on a sleep to find a bug reports a different thing every
 // time it runs.
 
-import { readFileSync } from "node:fs";
-for (const line of readFileSync("/home/user/Claude/.env.local","utf8").split("\n")) {
-  const m = line.match(/^([A-Z0-9_]+)=(.*)$/); if (m) process.env[m[1]] = m[2];
-}
+import { fileURLToPath } from "node:url";
+import { loadEnvFile, localSql, usesLocalDatabase } from "./lib/sqlTarget.mjs";
+// The repo's own .env.local (this used to be a hardcoded absolute path). On the
+// quality gate's local stack (CI_LOCAL_STACK=1) the file is never read and
+// `sql()` below goes to psql instead of the Management API.
+loadEnvFile(fileURLToPath(new URL("../.env.local", import.meta.url)), { override: true, required: true });
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const H = { apikey: KEY, Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" };
@@ -67,6 +69,7 @@ async function rpc(fn, args) {
 
 const ref = process.env.NEXT_PUBLIC_SUPABASE_URL.split("//")[1].split(".")[0];
 async function sql(q) {
+  if (usesLocalDatabase()) return localSql(q);
   const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.SUPABASE_ACCESS_TOKEN}`, "Content-Type": "application/json" },
@@ -85,6 +88,7 @@ const ids = await sql(`
   with u as (
     insert into auth.users (id, email) values
       (gen_random_uuid(), '${TAG.toLowerCase()}.p@example.test'),
+      (gen_random_uuid(), '${TAG.toLowerCase()}.p2@example.test'),
       (gen_random_uuid(), '${TAG.toLowerCase()}.t@example.test')
     returning id, email
   )
@@ -92,11 +96,19 @@ const ids = await sql(`
 `);
 const rows = ids[0].rows;
 const patient = rows.find(r => r.email.includes(".p@")).id;
+// A second patient for the paired bookings in sections 2 and 3. One patient
+// cannot hold two overlapping sessions since appointments_patient_no_overlap
+// landed, so the old single-patient fixture was refused before either race
+// ran -- and both races are about the *therapist's* lock anyway.
+const patient2 = rows.find(r => r.email.includes(".p2@")).id;
 const therapist = rows.find(r => r.email.includes(".t@")).id;
 
 await sql(`
   insert into profiles (id, role, full_name, approved, active, email)
     values ('${patient}', 'patient', '${TAG} patient', true, true, '${TAG.toLowerCase()}.p@example.test')
+    on conflict (id) do update set role='patient', approved=true, active=true;
+  insert into profiles (id, role, full_name, approved, active, email)
+    values ('${patient2}', 'patient', '${TAG} patient 2', true, true, '${TAG.toLowerCase()}.p2@example.test')
     on conflict (id) do update set role='patient', approved=true, active=true;
   insert into profiles (id, role, full_name, approved, active, email)
     values ('${therapist}', 'therapist', '${TAG} therapist', true, true, '${TAG.toLowerCase()}.t@example.test')
@@ -137,7 +149,7 @@ console.log("\n2. Two concurrent claims on overlapping slots, same therapist");
   const a = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
     values ('${patient}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
   const b = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
-    values ('${patient}', ${base} + interval '30 minutes', 60, 'requested', '${TAG}') returning id;`))[0].id;
+    values ('${patient2}', ${base} + interval '30 minutes', 60, 'requested', '${TAG}') returning id;`))[0].id;
 
   const [ra, rb] = await Promise.all([
     rpc("claim_therapist_slot", { p_appointment_id: a, p_therapist_id: therapist, p_expect_unassigned: true }),
@@ -171,7 +183,7 @@ console.log("\n3. Concurrent claims for the SAME slot on different therapists do
   const a = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
     values ('${patient}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
   const b = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
-    values ('${patient}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
+    values ('${patient2}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
 
   const [ra, rb] = await Promise.all([
     rpc("claim_therapist_slot", { p_appointment_id: a, p_therapist_id: therapist, p_expect_unassigned: true }),

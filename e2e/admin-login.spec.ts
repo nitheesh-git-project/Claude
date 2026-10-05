@@ -60,10 +60,16 @@ test.describe("Admin login", () => {
 
     // Supabase accepts the credentials -- they are a real user -- so the
     // guard that matters is the proxy's role check, which sends them
-    // straight back out.
-    await page.waitForTimeout(8_000);
-    expect(page.url()).toContain("/admin/login");
-    await expect(page.getByRole("heading", { name: "Admin Login" })).toBeVisible();
+    // straight back out. Out to /get-started, not back to /admin/login:
+    // "A signed-in non-admin reaching /admin/dashboard is redirected to
+    // /get-started, never to /admin/login, which would confirm the back
+    // office exists and name its door" (docs/rules/ops-security.md). This
+    // case asserted the old bounce and, since it skips itself wherever the
+    // login relay is not running, never ran against the rule that replaced
+    // it until the quality gate's local stack.
+    await page.waitForURL((url) => !url.pathname.startsWith("/admin"), { timeout: 30_000 });
+    expect(new URL(page.url()).pathname).toBe("/get-started");
+    await expect(page.getByRole("heading", { name: "Admin Login" })).toHaveCount(0);
   });
 
   test("the form is reachable by label, for a screen reader as much as a test", async ({

@@ -75,3 +75,11 @@ graphify-out/*
 # Local QA run artifacts (a dev-server log, Playwright's per-run output).
 devserver.log
 /test-results/
+
+# supabase CLI local state (the stack is disposable; only config.toml is tracked)
+/supabase/.temp/
+/supabase/.branches/
+/supabase/.env
+# quality gate output
+/e2e-artifacts/
+/.gate.env

@@ -9,7 +9,7 @@
 // click that was not written through ProgressLink or useRouter, so the wait
 // itself was silent.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
+import { BASE, browserCookiesFor, markDashboardTourSeen, QA_EMAILS, waitForSplashToClear } from "./helpers";
 
 test("NAV-001: an admin screen link switches in place, with no server round trip", async ({
   page,
@@ -109,9 +109,15 @@ test("NAV-002: a real navigation draws the bar while it is in flight", async ({
   page,
   context,
 }) => {
+  // The first-run tour would cover the sidebar link this clicks.
+  await markDashboardTourSeen(QA_EMAILS.patientA);
   await context.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
   await page.goto(`${BASE}/patient/dashboard`);
   await page.waitForLoadState("networkidle");
+  // A cold open shows the brand splash first, and it takes every click until
+  // it clears; whether it is still up here depended on how long the page
+  // took to compile, so this case passed or timed out on the same code.
+  await waitForSplashToClear(page);
 
   // The patient shell moves between sections with plain anchors, so the bar
   // lives on the *outgoing* document and is gone by the time the new one
@@ -124,7 +130,21 @@ test("NAV-002: a real navigation draws the bar while it is in flight", async ({
     }).observe(document.body, { childList: true, subtree: true });
   });
 
-  await page.locator('a[href^="/patient/dashboard/"]:visible').first().click({ noWaitAfter: true });
+  // The bar waits APPEAR_AFTER_MS (220 ms) before drawing, on purpose: a
+  // navigation that lands inside it must not flash one. Against a warm dev
+  // server the target streams its first bytes well inside that, so whether
+  // this case saw a bar depended on whether an earlier spec had already
+  // compiled the page (on the gate it had: /patient/dashboard/book, 415 ms
+  // in all). Holding the document open makes the wait provably longer than
+  // the delay -- the state this rule is about -- instead of a race.
+  const link = page.locator('a[href^="/patient/dashboard/"]:visible').first();
+  const target = new URL((await link.getAttribute("href"))!, BASE).toString();
+  await page.route((url) => url.href === target, async (route) => {
+    if (route.request().resourceType() === "document") await new Promise((r) => setTimeout(r, 1500));
+    await route.continue();
+  });
+
+  await link.click({ noWaitAfter: true });
   await page.waitForURL("**/patient/dashboard/**", { timeout: 20000 });
   await page.waitForLoadState("domcontentloaded");
 
