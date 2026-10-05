@@ -85,6 +85,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001`, `ADM-PEOP-010` |
 | People | `therapists` | Therapists | `ADM-PEOP-005`, `ADM-PEOP-010` |
 | People | `partners` | Partners | `ADM-PEOP-008`, `ADM-PEOP-010` |
+| People | `abandoned` | Abandoned checkouts - signed up while booking, not paid | `ADM-PEOP-012` |
 | Money | `summary` | Summary | `FIN-SUM-001`, `FIN-SUM-004`, `FIN-SUM-005`, `FIN-NAV-001` |
 | Money | `health` | Business Health | `FIN-BH-001` … `FIN-BH-006` |
 | Money | `transactions` | Transactions | `FIN-TXN-001` |

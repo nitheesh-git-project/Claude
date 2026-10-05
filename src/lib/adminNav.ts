@@ -159,6 +159,10 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       { key: "patients", label: "Patients" },
       { key: "therapists", label: "Therapists" },
       { key: "partners", label: "Partners" },
+      // People who signed up while booking and have not paid: their account
+      // is locked, and is deleted after a few days if it stays that way.
+      // Leads worth a call, never an approval decision.
+      { key: "abandoned", label: "Abandoned checkouts" },
     ],
   },
   {

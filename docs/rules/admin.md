@@ -23,6 +23,22 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
+- **People -> Abandoned checkouts is a list of leads, never approvals.** It
+  reads `abandoned_booking_accounts()` (service role only): patients who
+  signed up inside a booking wizard and have not paid, so their account is
+  locked (`booking.md`). Each card names the contact details, the session
+  they wanted, tries used of `payment_tries_before_access`, and the date
+  `purge_abandoned_booking_accounts` (the maintenance sweep) removes the
+  account if it stays unpaid -- `abandoned_booking_account_days` after
+  signup, both set under Settings -> Booking Rules. **The same ids are
+  filtered out of Today -> Approvals**: nobody reviews these accounts, and
+  approving one would hand a dashboard to somebody who has not paid. A
+  failed read is said ("couldn't be loaded") and leaves the approvals queue
+  unfiltered rather than empty. Read-only on purpose. The purge deletes only
+  accounts carrying the wizard's `signup_source: 'booking'` signup
+  metadata, older than the window, below the try limit, with no payment,
+  purchase, or session past an unpaid `requested` draft -- a
+  `/patient/register` signup is never touched.
 - **A scope that could not be read is refused, never promoted, and a
   screen outside the scope never leaves the server.** `resolveAdminScope`
   answers the guard: a real value passes, a failed read or an unknown value

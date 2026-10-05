@@ -974,7 +974,8 @@
           "tests": [
             "RETRY-001",
             "RETRY-002",
-            "RETRY-003"
+            "RETRY-003",
+            "RETRY-004"
           ],
           "level": "browser"
         }

@@ -472,7 +472,8 @@ before.
 - **Time-based work runs lazily on render AND on a schedule, and never
   depends on either alone.** `src/lib/maintenanceSweep.ts` gathers the
   sweeps (programme and home-visit expiry, Meet sync retries, Meet waiting
-  rooms, the risk scan, the credential purge); the admin dashboard runs it
+  rooms, the risk scan, the credential purge, and deleting abandoned booking
+  accounts via `purge_abandoned_booking_accounts`); the admin dashboard runs it
   in `after()`, and `/api/cron/maintenance` (bearer `CRON_SECRET`) runs it
   every 30 minutes from `.github/workflows/maintenance.yml` once a person
   sets the `MAINTENANCE_URL` and `CRON_SECRET` repository secrets. Before

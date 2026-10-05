@@ -361,6 +361,23 @@ The screen warns you to turn it on only once System Health has been clean.
 
 **Critical check.** A direct load pays for a whole dashboard render as well as the detail's own, which is the deliberate cost of there being one design rather than two. Tapping a name from inside the dashboard must **not** pay it twice - the dashboard behind the overlay is the one already rendered.
 
+#### `ADM-PEOP-012` - Abandoned checkouts are leads, not approvals · P1
+
+**Feature.** Someone who signs up inside a booking wizard and does not pay has a **locked** account (see §4.3). They are listed under **People → Abandoned checkouts** with their contact details, the session they wanted, how many payment tries they have used, and the date the account is removed if it stays unpaid. They never appear in **Today → Approvals**: nobody reviews these accounts, and approving one would hand a dashboard to somebody who has not paid.
+
+**Steps**
+1. Signed out, open `/book`, fill Steps 1 and 2 with a new email, reach Step 3 and tap **Pay**. Close the payment window once.
+2. As the Master Admin, open **People → Abandoned checkouts**.
+3. Open **Today → Approvals**.
+4. In **Settings → Booking Rules → New patients at checkout**, set **Delete unpaid booking accounts after** to `0`, then to `91`, then back to `3`.
+
+**Expected Result**
+* Step 2: the new person is listed with name, `mailto:` email, `tel:` phone, the session they wanted (in the clinic's zone), **1 of 3 payment tries**, and **Removed on** a date three days after they signed up. The tab's badge counts them.
+* Step 3: they are **not** in Pending Approvals. A `/patient/register` signup still is.
+* Step 4: `0` and `91` are refused with "Choose a whole number from 1 to 90."; `3` saves with a toast naming the new value.
+* After the window passes (or on the next maintenance sweep once it has), the account and its unpaid booking are gone; one that paid, used up its tries, or registered at `/patient/register` is never removed.
+
+
 #### `ADM-SET-025d` - Delete an account, and be refused when it has history · P0
 
 **Feature.** Delete account sits on all four roles' screens - the Back office rows, and a patient's, therapist's and partner hospital's own page - for a **Master Admin only**. It can only ever succeed on an account with no history at all. That is the database's rule: thirty-five tables reference `profiles(id)` with no delete behaviour, so removing an account that has done anything would mean removing the books and the audit trail with it.

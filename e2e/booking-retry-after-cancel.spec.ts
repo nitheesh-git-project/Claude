@@ -250,3 +250,41 @@ test.describe("signing in to a locked booking account", () => {
     }
   });
 });
+
+/**
+ * A locked booking account is a lead, not an approval: listed under People ->
+ * Abandoned checkouts and kept out of Pending Approvals.
+ */
+test.describe("abandoned checkouts in the back office", () => {
+  test("RETRY-004 lists the locked account under People and not in Pending Approvals", async ({ page }) => {
+    test.setTimeout(240_000);
+    const email = `e2e.abandoned.${Date.now()}@example.test`;
+    const { data, error } = await adminClient().auth.admin.createUser({
+      email,
+      password: "QaTest!2024pass",
+      email_confirm: true,
+      user_metadata: { role: "patient", full_name: "E2E Abandoned Lead", signup_source: "booking" },
+    });
+    expect(error).toBeNull();
+    const id = data.user!.id;
+    try {
+      await page.context().addCookies(await browserCookiesFor(QA_EMAILS.admin));
+      await page.goto(`${BASE}/admin/dashboard?section=people&tab=abandoned`, {
+        waitUntil: "domcontentloaded",
+      });
+      const list = page.getByRole("region", { name: "Abandoned checkouts" }).filter({ visible: true });
+      await expect(list.getByText("E2E Abandoned Lead")).toBeVisible({ timeout: 90_000 });
+      await expect(list.getByText(/payment tr(y|ies)/).first()).toBeVisible();
+      await expect(list.getByText(/Removed on/).first()).toBeVisible();
+
+      await page.goto(`${BASE}/admin/dashboard?section=today&tab=approvals`, {
+        waitUntil: "domcontentloaded",
+      });
+      await expect(page.getByRole("heading", { name: /Pending Approvals/ })).toBeVisible({ timeout: 90_000 });
+      // Every screen stays mounted behind `hidden`, so only what is shown counts.
+      await expect(page.getByText("E2E Abandoned Lead").filter({ visible: true })).toHaveCount(0);
+    } finally {
+      await adminClient().auth.admin.deleteUser(id);
+    }
+  });
+});

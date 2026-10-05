@@ -44,6 +44,7 @@ import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import { readCheckoutSpeed } from "@/lib/checkoutSpeedServer";
 import AdminAdvancedTab from "@/components/admin/AdminAdvancedTab";
 import DevReachoutsTab, { type DevReachoutRow } from "@/components/admin/DevReachoutsTab";
+import AbandonedCheckoutsTab, { type AbandonedCheckoutRow } from "@/components/admin/AbandonedCheckoutsTab";
 import { groupDevReachoutNotes, type DevReachoutNoteRow } from "@/lib/devReachout";
 import SettingsJumpNav, { SettingsSection } from "@/components/admin/SettingsJumpNav";
 import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
@@ -329,8 +330,19 @@ export default async function AdminDashboardPage({
     )
     .order("created_at", { ascending: false });
 
+  // The locked accounts the booking wizards made (People -> Abandoned
+  // checkouts). Read beside the batch below because the approvals queue is
+  // narrowed by it: nobody reviews these accounts -- they open on a payment
+  // or when their tries run out -- so they never belong in Pending Approvals.
+  // `null` is a read that failed, which leaves the queue unfiltered rather
+  // than empty.
+  const abandonedCheckoutsPromise: Promise<AbandonedCheckoutRow[] | null> = (async () => {
+    const { data, error } = await admin.rpc("abandoned_booking_accounts");
+    return error ? null : ((data ?? []) as AbandonedCheckoutRow[]);
+  })().catch(() => null);
+
   const [
-    { data: pendingAccounts },
+    { data: pendingAccountsAll },
     { data: pendingProfileChanges },
     { data: approvedTherapists },
     { data: appointments, error: appointmentsError, truncated: appointmentsTruncated },
@@ -803,6 +815,12 @@ export default async function AdminDashboardPage({
         .order("id", { ascending: true })
     ),
   ]);
+
+  const abandonedCheckouts = await abandonedCheckoutsPromise;
+  const abandonedIds = new Set((abandonedCheckouts ?? []).map((a) => a.id));
+  const pendingAccounts = pendingAccountsAll
+    ? pendingAccountsAll.filter((p) => !abandonedIds.has(p.id))
+    : pendingAccountsAll;
 
   // Resolved here rather than beside the admin-team list further down,
   // because the screens built below gate their own money controls on it. A
@@ -4961,6 +4979,13 @@ export default async function AdminDashboardPage({
     ),
     "people:therapists": therapistsTab,
     "people:partners": b2bPartners,
+    "people:abandoned": (
+      <AbandonedCheckoutsTab
+        rows={scopeCanOpen(viewerScope, "people") ? abandonedCheckouts : []}
+        deleteAfterDays={adminSettings.abandonedBookingAccountDays}
+        tryLimit={adminSettings.paymentTriesBeforeAccess}
+      />
+    ),
     // Every Money screen ends with the same glossary. It used to sit on
     // Summary alone, which is the one screen whose labels are self-evident
     // -- an admin reading "Net payable" on Payouts or "Session revenue" on
@@ -5123,6 +5148,7 @@ export default async function AdminDashboardPage({
     "today:risk": openRiskCount,
     "people:patients": conditionsBadgeCount,
     "people:partners": b2bBadgeCount,
+    "people:abandoned": abandonedCheckouts?.length ?? 0,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
     "catalog:areas": homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,
     // Checks asking for a person, not rows -- so the badge, the verdict at
