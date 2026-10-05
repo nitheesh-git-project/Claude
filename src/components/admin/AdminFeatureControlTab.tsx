@@ -1,5 +1,6 @@
 "use client";
 
+import CheckoutAccessSection from "@/components/admin/CheckoutAccessSection";
 import { useOptimistic, useState, useTransition } from "react";
 import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
@@ -417,6 +418,11 @@ export default function AdminFeatureControlTab({
       <BookingLanguagesSection
         languages={settings.bookingLanguages}
         onSave={(languages) => saveSetting("booking_languages", languages)}
+      />
+
+      <CheckoutAccessSection
+        paymentTriesBeforeAccess={settings.paymentTriesBeforeAccess}
+        abandonedBookingAccountDays={settings.abandonedBookingAccountDays}
       />
 
       <div>

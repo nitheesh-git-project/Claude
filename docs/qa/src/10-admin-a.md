@@ -78,7 +78,7 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 
 **Expected Result.** The row leaves the queue and the badge decreases by one. `profiles.approved` becomes true. Patient B can now sign in and reach `/patient/dashboard` instead of `/pending-approval`. An `admin_activity_log` row records the approval with the actor, the target and the timestamp.
 **Approvals live under Today, beside the inbox that counts them - never on the patients directory.** A queue is not a person.
-**The screen states what it is deciding**, because the two halves are not the same decision: a therapist here is a credentials check, while a patient here registered *without* booking - anyone who genuinely attempts a payment is approved automatically at that moment. Approving a patient from this list changes what they can see, never whether they can pay. Confirm that line is present; without it a new admin cannot tell what they are being asked to judge.
+**The screen states what it is deciding**, because the two halves are not the same decision: a therapist here is a credentials check, while a patient here registered at `/patient/register` *without* booking - a patient who starts a booking is unlocked by paying (or by running out of payment tries, see §4.3) and is listed under People -> Abandoned checkouts until then, never here. Approving a patient from this list changes what they can see, never whether they can pay. Confirm that line is present; without it a new admin cannot tell what they are being asked to judge.
 
 #### `ADM-APPR-002` - Approve a therapist · P0
 Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign in and reach the dashboard, and their availability routes stop returning 403.

@@ -1858,14 +1858,16 @@ export default async function AdminDashboardPage({
         {/* What this queue is actually deciding, since the two halves of it
             are not the same decision. A therapist is a credential check --
             that is the real judgement here. A patient in this list is
-            someone who registered without paying: anyone who genuinely
-            attempts a payment is approved automatically at that moment (see
-            approvePatientForGenuinePaymentAttempt), so nobody is waiting
-            here to be allowed to buy their first session. */}
+            someone who registered at /patient/register without booking. A
+            patient who starts a booking is never here: their account is
+            unlocked by a payment or by running out of tries (see
+            approvePatientAfterPayment and /api/patient/payment-try), and
+            until then it is listed under People -> Abandoned checkouts. */}
         <p className="-mt-2 mb-4 max-w-2xl text-xs leading-relaxed text-slate-500">
           Therapists here are waiting on a credentials check. Patients here registered without
-          booking - a patient who starts a payment is approved automatically, so approving one
-          from this list only affects what they can see, never whether they can pay.
+          booking. A patient who starts a booking is unlocked by paying (or after their payment
+          tries run out) and is never listed here; approving one from this list only affects what
+          they can see, never whether they can pay.
         </p>
         {!pendingAccounts || pendingAccounts.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">

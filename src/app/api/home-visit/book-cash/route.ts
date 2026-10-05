@@ -4,7 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
-import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
+import {
+  approvePatientAfterPayment,
+  isProfileActive,
+  isPatientProfile,
+  profileCheckUnavailable,
+} from "@/lib/supabase/requireActiveProfile";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
@@ -306,6 +311,10 @@ export async function POST(request: NextRequest) {
       ...(addressNotSaved ? { addressNotSaved: true } : {}),
     });
   }
+
+  // A booked cash visit is a commitment to pay at the door, so a new
+  // patient's account opens now, as it would after an online payment.
+  await approvePatientAfterPayment(user.id);
 
   return NextResponse.json({
     success: true,

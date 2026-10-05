@@ -210,9 +210,12 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   the page-level `BookingExitLink` sits outside the wizard, so it showed
   "Back to Dashboard" beside the Pay button of a patient who had not yet tried
   to pay. `src/lib/bookingPaymentTrouble.ts` carries the two facts across
-  (`onPaymentStep`, `failedAttempts`); `exitLinkHidden()` hides the link on the
-  payment step until `MAX_ATTEMPTS_BEFORE_ESCAPE` (3) failures, which is also
-  when the wizard's own dashboard escape appears. Keep both on that one constant.
+  (`onPaymentStep`, `escapeOpen`); `exitLinkHidden()` hides the link on the
+  payment step until the wizard's own dashboard escape appears, which
+  `escapeOffered()` (`src/lib/paymentTries.ts`) decides: only for an account
+  that can open its dashboard, and only on the try that unlocked it or after
+  `site_settings.payment_tries_before_access` failures in this visit. Keep
+  both on that one function.
   **The first tap is now two round trips for a signed-in patient** (create,
   then create-order), down from five. `/api/appointments/create` takes
   `withQuote` + `quotePromoCode` and returns the new booking's quote in its own
@@ -243,9 +246,20 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   a success signs the wizard in and re-quotes for the real account, and a
   failure -- an email already registered -- returns the patient to Step 2
   with that field revealed. The consequence to know: an account now exists
-  for somebody who reached Step 3 and left without paying; it is unapproved
-  and holds no booking, the same as a bare `/patient/register`. The home-visit
-  wizard still signs up on the tap. `CheckoutProgress`
+  for somebody who reached Step 3 and left without paying. **It is locked**
+  (`approved = false`, marked `signup_source: 'booking'` in the signup
+  metadata) until a payment is captured or the patient has failed
+  `payment_tries_before_access` times (Settings -> Booking Rules, default 3,
+  1-10). Every try that ends without a payment counts -- the sheet closed,
+  a payment failed, or our own route answered 5xx -- and is reported to
+  `/api/patient/payment-try`, which counts it in `checkout_payment_tries`
+  and unlocks the account on the limit; a refusal the patient can fix (a
+  slot, a lead time) is not a try. Until then the wizard never offers the
+  dashboard and its copy never promises one ("your slot is still held");
+  the try that unlocks it says "Your account is ready" with Go to
+  Dashboard. Both wizards follow this; the home-visit wizard still signs up
+  on the tap. A locked account that does neither is deleted after
+  `abandoned_booking_account_days` -- see `admin.md`. `CheckoutProgress`
   (`src/components/booking/`) covers the card from the tap until the sheet
   opens, naming each stage (account, slot, payment); it is a status, not a
   dialog. Both wizards report the tap's timing -- see the Checkout speed

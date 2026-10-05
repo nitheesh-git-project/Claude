@@ -5,7 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import {
   isProfileActive,
   isPatientProfile,
-  approvePatientForGenuinePaymentAttempt,
+  approvePatientAfterPayment,
   profileCheckUnavailable,
 } from "@/lib/supabase/requireActiveProfile";
 import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
   // Reaching here means a signed-in patient is genuinely completing their own
   // real booking, which is the vetting -- the same reason create-order
   // approves on the attempt rather than on a completed payment.
-  await approvePatientForGenuinePaymentAttempt(user.id);
+  await approvePatientAfterPayment(user.id);
 
   const admin = createAdminClient();
   const quote = await resolveCheckoutQuote(admin, {

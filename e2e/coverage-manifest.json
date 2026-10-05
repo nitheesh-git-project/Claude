@@ -296,6 +296,18 @@
       "integration": "local",
       "destructive": false
     },
+    "booking-retry-after-cancel.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "provider-sandbox",
+      "destructive": false
+    },
     "booking-rules.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -916,7 +928,7 @@
     {
       "id": "patient.booking-wizard",
       "runner": "patient",
-      "title": "The booking wizard: service picker, deep links, named specialist, exit link, a pay button that stays tappable",
+      "title": "The booking wizard: service picker, deep links, named specialist, exit link, a pay button that stays tappable, a cancelled payment retried at the same slot, and a new account locked until it pays or runs out of tries",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -956,11 +968,20 @@
             "PAY-003"
           ],
           "level": "browser"
+        },
+        {
+          "spec": "booking-retry-after-cancel.spec.ts",
+          "tests": [
+            "RETRY-001",
+            "RETRY-002"
+          ],
+          "level": "browser"
         }
       ],
       "rules": [
         "docs/rules/booking.md",
-        "docs/rules/frontend.md"
+        "docs/rules/frontend.md",
+        "docs/rules/payments.md"
       ]
     },
     {

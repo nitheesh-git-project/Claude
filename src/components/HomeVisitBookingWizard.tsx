@@ -10,8 +10,9 @@ import { startCheckoutTimer, type CheckoutTimer } from "@/lib/checkoutTiming";
 import CheckoutProgress, { type CheckoutProgressStage } from "@/components/booking/CheckoutProgress";
 import {
   publishBookingPaymentTrouble,
-  MAX_ATTEMPTS_BEFORE_ESCAPE,
 } from "@/lib/bookingPaymentTrouble";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { escapeOffered, type PaymentTryAnswer, type PaymentTryOutcome } from "@/lib/paymentTries";
 import {
   isDirectlyPurchasable,
   PROGRAMME_NEEDS_RECOMMENDATION,
@@ -85,6 +86,7 @@ export default function HomeVisitBookingWizard({
   packages,
   leadTimeHours,
   cashEnabled = false,
+  paymentTriesBeforeAccess = DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess,
 }: {
   packages: WizardPackage[];
   leadTimeHours: number;
@@ -92,6 +94,9 @@ export default function HomeVisitBookingWizard({
   // offers "pay at the door" and behaves exactly as it did before this
   // option existed.
   cashEnabled?: boolean;
+  /** Unsuccessful payment tries before a new patient's locked account opens
+   *  (`site_settings.payment_tries_before_access`, see paymentTries.ts). */
+  paymentTriesBeforeAccess?: number;
 }) {
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -116,6 +121,16 @@ export default function HomeVisitBookingWizard({
   const [done, setDone] = useState(false);
   const [paymentResult, setPaymentResult] = useState<HomeVisitPaymentResult | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  // Same lock as the online wizard: a new patient's dashboard opens on a
+  // payment, or once their tries run out (/api/patient/payment-try).
+  const [accountUnlocked, setAccountUnlocked] = useState(false);
+  const [justUnlocked, setJustUnlocked] = useState(false);
+  const escapeOpen = escapeOffered({
+    unlocked: accountUnlocked,
+    justUnlocked,
+    failuresThisVisit: failedAttempts,
+    limit: paymentTriesBeforeAccess,
+  });
 
   // Step 1 -- serviceability, then the address.
   const [pincode, setPincode] = useState("");
@@ -223,10 +238,10 @@ export default function HomeVisitBookingWizard({
   useEffect(() => {
     publishBookingPaymentTrouble({
       onPaymentStep: step === 4 && !done,
-      failedAttempts,
+      escapeOpen,
     });
-    return () => publishBookingPaymentTrouble({ onPaymentStep: false, failedAttempts: 0 });
-  }, [step, done, failedAttempts]);
+    return () => publishBookingPaymentTrouble({ onPaymentStep: false, escapeOpen: false });
+  }, [step, done, escapeOpen]);
 
   useEffect(() => {
     // The browser's detected timezone is only knowable once mounted on the
@@ -246,10 +261,11 @@ export default function HomeVisitBookingWizard({
         setIsLoggedIn(true);
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name, email, phone, role")
+          .select("full_name, email, phone, role, approved")
           .eq("id", data.user.id)
           .single();
         if (!active) return;
+        setAccountUnlocked(profile?.approved === true);
         setFullName(profile?.full_name ?? "");
         setEmail(profile?.email ?? data.user.email ?? "");
         setPhone(profile?.phone ?? "");
@@ -456,6 +472,24 @@ export default function HomeVisitBookingWizard({
     }
   }
 
+  /** One try that did not end in a payment -- see the online wizard's twin. */
+  async function noteFailedTry(outcome: PaymentTryOutcome) {
+    setFailedAttempts((n) => n + 1);
+    try {
+      const res = await fetch("/api/patient/payment-try", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flow: "home_visit", outcome }),
+      });
+      if (!res.ok) return;
+      const answer = (await res.json()) as PaymentTryAnswer;
+      if (answer.unlocked) setAccountUnlocked(true);
+      if (answer.justUnlocked) setJustUnlocked(true);
+    } catch {
+      // The try still counts here; the next one reports.
+    }
+  }
+
   async function handleSubmitInner() {
     if (!selectedPackage) return;
 
@@ -469,6 +503,9 @@ export default function HomeVisitBookingWizard({
             full_name: fullName,
             phone,
             referral_code: referralCode.trim() || undefined,
+            // Locked until it pays or runs out of tries; deleted if it does
+            // neither (see purge_abandoned_booking_accounts).
+            signup_source: "booking",
           },
         },
       });
@@ -510,7 +547,7 @@ export default function HomeVisitBookingWizard({
         setLoading(false);
         if (!res.ok) {
           setError(data.error ?? "Could not book this visit. Please try again.");
-          setFailedAttempts((n) => n + 1);
+          if (res.status >= 500) void noteFailedTry("server_error");
           return;
         }
         setPaymentResult({
@@ -523,7 +560,7 @@ export default function HomeVisitBookingWizard({
       } catch {
         setLoading(false);
         setError("Could not book this visit. Please check your connection and try again.");
-        setFailedAttempts((n) => n + 1);
+        void noteFailedTry("server_error");
       }
       return;
     }
@@ -553,12 +590,12 @@ export default function HomeVisitBookingWizard({
       onError: (message) => {
         setLoading(false);
         setError(message);
-        setFailedAttempts((n) => n + 1);
+        void noteFailedTry("failed");
       },
       onDismiss: () => {
         setLoading(false);
         setError("Payment was not completed. You can try again below.");
-        setFailedAttempts((n) => n + 1);
+        void noteFailedTry("dismissed");
       },
     });
   }
@@ -1122,14 +1159,18 @@ export default function HomeVisitBookingWizard({
             </p>
           )}
 
-          {failedAttempts >= MAX_ATTEMPTS_BEFORE_ESCAPE && (
-            <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-              {paymentMode === "cash" ? "Something's not going through." : "Payment isn't going through."}{" "}
+          {escapeOpen && (
+            <p role="status" className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+              {justUnlocked
+                ? "Your account is ready."
+                : paymentMode === "cash"
+                  ? "Something's not going through."
+                  : "Payment isn't going through."}{" "}
               Your details are saved - you can{" "}
               <Link href="/patient/dashboard" className="font-semibold underline">
                 try again from your dashboard
               </Link>{" "}
-              later.
+              whenever you&apos;re ready.
             </p>
           )}
 

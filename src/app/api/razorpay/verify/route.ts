@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
 import { confirmPaidAppointment } from "@/lib/confirmPaidAppointment";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
-import { approvePatientForGenuinePaymentAttempt } from "@/lib/supabase/requireActiveProfile";
+import { approvePatientAfterPayment } from "@/lib/supabase/requireActiveProfile";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
 export async function POST(request: NextRequest) {
@@ -164,12 +164,10 @@ export async function POST(request: NextRequest) {
   // this route and the webhook race each other by design.
   await settleInvitesOnCapture(admin, appointment.id);
 
-  // Belt-and-suspenders: /api/razorpay/create-order already approves the
-  // patient the moment they genuinely attempt this payment, so this is
-  // normally a no-op by the time a payment actually verifies. Kept here too
-  // in case that earlier write ever fails silently -- a successful,
-  // signature-verified payment should never leave a patient unapproved.
-  await approvePatientForGenuinePaymentAttempt(user.id);
+  // A successful, signature-verified payment unlocks a new patient's
+  // account: this is the moment the booking wizard promised them access.
+  // The webhook does the same for a patient who paid and closed the tab.
+  await approvePatientAfterPayment(user.id);
 
   return NextResponse.json({ success: true });
 }

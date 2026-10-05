@@ -121,3 +121,58 @@ test.describe("retrying payment after closing the sheet", () => {
     expect((await openDrafts(id)).map((d) => d.id)).toContain(third);
   });
 });
+
+/**
+ * A new patient's account stays locked -- no dashboard -- until they pay or
+ * have failed `payment_tries_before_access` times; then the wizard opens the
+ * dashboard and says why.
+ */
+test.describe("a new patient's payment tries", () => {
+  test("RETRY-002 the account unlocks on the limit, not on the first cancelled sheet", async ({ page }) => {
+    test.setTimeout(300_000);
+    const { data: settings } = await adminClient()
+      .from("site_settings")
+      .select("payment_tries_before_access")
+      .single();
+    const limit = settings?.payment_tries_before_access ?? 3;
+    const email = `e2e.newpatient.${Date.now()}@example.test`;
+    await stubRazorpayThatIsClosed(page);
+    await page.goto(`${BASE}/book`);
+    await page.waitForLoadState("networkidle");
+    await chooseAnyServiceOnStepOne(page);
+    await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
+    await page.getByLabel("Full Name").fill("E2E New Patient");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Phone number", { exact: false }).first().fill("9876543210");
+    await page.getByLabel(/Create Password/).fill("QaTest!2024pass");
+    await page.getByLabel("Confirm Password").fill("QaTest!2024pass");
+    await page.getByRole("checkbox").first().check();
+    await page.getByRole("button", { name: /Review Booking/i }).click();
+
+    const profile = async () =>
+      (await adminClient().from("profiles").select("id, approved").eq("email", email).maybeSingle()).data;
+    try {
+      for (let i = 1; i <= limit; i++) {
+        const recorded = page.waitForResponse((r) => r.url().includes("/api/patient/payment-try"));
+        await payButton(page).click();
+        const answer = await (await recorded).json();
+        expect(answer.tries).toBe(i);
+        await expect(page.getByText(NOT_COMPLETED)).toBeVisible({ timeout: 60_000 });
+        if (i < limit) {
+          // Still locked: no way to the dashboard, and the copy does not
+          // promise one.
+          expect((await profile())?.approved).toBe(false);
+          await expect(page.getByRole("link", { name: /Go to Dashboard/i })).toHaveCount(0);
+          await expect(page.getByText(/slot is still held/i)).toBeVisible();
+        }
+      }
+      expect((await profile())?.approved).toBe(true);
+      await expect(page.getByText("Your account is ready.")).toBeVisible();
+      await page.getByRole("link", { name: /Go to Dashboard/i }).click();
+      await expect(page).toHaveURL(/\/patient\/dashboard/, { timeout: 60_000 });
+    } finally {
+      const row = await profile();
+      if (row?.id) await adminClient().auth.admin.deleteUser(row.id);
+    }
+  });
+});

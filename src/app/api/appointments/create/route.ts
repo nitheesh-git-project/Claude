@@ -1,11 +1,10 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import {
   readPatientCheckoutStanding,
   profileCheckUnavailable,
-  approvePatientForGenuinePaymentAttempt,
 } from "@/lib/supabase/requireActiveProfile";
 import { mintAppointmentOrder } from "@/lib/appointmentOrderServer";
 import { isReplaceableDraft, overlapsSlot } from "@/lib/bookingDraft";
@@ -102,7 +101,8 @@ export async function POST(request: NextRequest) {
   // isProfileActive, not isProfileActiveAndApproved: a patient who just
   // signed up in the wizard is unapproved by definition, and this row is
   // the thing they have to have before they can attempt the payment that
-  // vets them (see approvePatientForGenuinePaymentAttempt). The row this
+  // unlocks them (see approvePatientAfterPayment and
+  // /api/patient/payment-try). The row this
   // creates is always unpaid, unassigned and 'requested', so it grants
   // nothing on its own. Suspension is still enforced.
   // One read for both checks (see readPatientCheckoutStanding).
@@ -396,9 +396,6 @@ export async function POST(request: NextRequest) {
     (quote.settlement === "gateway" ||
       (quote.settlement === "pay_later" && body.startPayment === "pay_now" && quote.canPayNow));
   if (body.startPayment && wantsGateway) {
-    // A genuine payment attempt: the same vetting create-order grants, and
-    // scheduled the same way.
-    after(() => approvePatientForGenuinePaymentAttempt(user.id));
     try {
       const minted = await mintAppointmentOrder({
         supabase,

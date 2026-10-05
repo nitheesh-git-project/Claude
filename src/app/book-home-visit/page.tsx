@@ -36,10 +36,15 @@ export const dynamic = "force-dynamic";
 export default async function BookHomeVisitPage() {
   const supabase = createPublicClient();
 
-  const { data: settingsRow } = await supabase
-    .from("site_settings")
-    .select("home_visit_enabled, home_visit_lead_time_hours, home_visit_cash_enabled")
-    .maybeSingle();
+  const [{ data: settingsRow }, { data: triesRow }] = await Promise.all([
+    supabase
+      .from("site_settings")
+      .select("home_visit_enabled, home_visit_lead_time_hours, home_visit_cash_enabled")
+      .maybeSingle(),
+    // Its own query, so a database without the column yet keeps the default
+    // rather than losing the page.
+    supabase.from("site_settings").select("payment_tries_before_access").maybeSingle(),
+  ]);
 
   if (settingsRow?.home_visit_enabled !== true) {
     notFound();
@@ -102,6 +107,11 @@ export default async function BookHomeVisitPage() {
             packages={wizardPackages}
             leadTimeHours={leadTimeHours}
             cashEnabled={cashEnabled}
+            paymentTriesBeforeAccess={
+              typeof triesRow?.payment_tries_before_access === "number"
+                ? triesRow.payment_tries_before_access
+                : DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess
+            }
           />
         </Suspense>
         {/* This route hides the site nav (see NAV_HIDDEN_ROUTES) so a stray

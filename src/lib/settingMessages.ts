@@ -123,6 +123,16 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     describe: (v) =>
       `A session cancelled more than ${plural(v, "hour", "hours")} ahead is now refunded in full.`,
   },
+  payment_tries_before_access: {
+    kind: "number",
+    describe: (v) =>
+      `A new patient's account now unlocks after ${plural(v, "unsuccessful payment try", "unsuccessful payment tries")}.`,
+  },
+  abandoned_booking_account_days: {
+    kind: "number",
+    describe: (v) =>
+      `Unpaid booking accounts are now deleted after ${plural(v, "day", "days")}.`,
+  },
   join_window_minutes: {
     kind: "number",
     describe: (v) => `Patients can now join ${plural(v, "minute", "minutes")} before their session.`,

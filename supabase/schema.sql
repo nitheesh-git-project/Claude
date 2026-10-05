@@ -15415,3 +15415,159 @@ update dev_reachouts
 set admin_note = null, note_updated_at = null
 where admin_note is not null
   and (id in (select reachout_id from moved) or btrim(admin_note) = '');
+
+-- ===========================================================================
+-- Booking checkout: payment tries, the access they unlock, and abandoned
+-- accounts
+-- ===========================================================================
+-- A patient who signs up inside a booking wizard gets an account before they
+-- pay (a Razorpay order must belong to somebody), but it stays locked --
+-- `approved = false`, no dashboard -- until either a payment is captured or
+-- they have tried and failed to pay `payment_tries_before_access` times.
+-- Then the account is unlocked and the dashboard asks them to pay there.
+-- A locked account that never paid and never used up its tries is deleted
+-- after `abandoned_booking_account_days` by purge_abandoned_booking_accounts().
+--
+-- Which accounts the wizards made is read from the signup's own metadata
+-- (`raw_user_meta_data.signup_source = 'booking'`), never from a profile
+-- column a later write could set: a /patient/register signup, also
+-- unapproved while it waits on an admin, must never be deleted by this.
+
+alter table site_settings add column if not exists payment_tries_before_access integer not null default 3;
+alter table site_settings add column if not exists abandoned_booking_account_days integer not null default 3;
+
+do $$
+begin
+  alter table site_settings add constraint site_settings_payment_tries_before_access_range
+    check (payment_tries_before_access between 1 and 10);
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter table site_settings add constraint site_settings_abandoned_booking_account_days_range
+    check (abandoned_booking_account_days between 1 and 90);
+exception when duplicate_object then null;
+end $$;
+
+-- One row per try that did not end in a payment. Written only by
+-- /api/patient/payment-try with the service-role client; read by admins.
+-- `cascade` on the patient: the rows describe the account and go with it.
+create table if not exists checkout_payment_tries (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  flow text not null check (flow in ('online', 'home_visit')),
+  outcome text not null check (outcome in ('dismissed', 'failed', 'server_error')),
+  appointment_id uuid references appointments(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists checkout_payment_tries_patient_idx
+  on checkout_payment_tries (patient_id, created_at);
+
+alter table checkout_payment_tries enable row level security;
+
+drop policy if exists "checkout_payment_tries_select_admin" on checkout_payment_tries;
+create policy "checkout_payment_tries_select_admin" on checkout_payment_tries
+  for select using (is_admin());
+
+revoke insert, update, delete on checkout_payment_tries from anon, authenticated;
+
+-- The locked accounts the booking wizards made, for People -> Abandoned
+-- checkouts. A function rather than a view because the marker lives in
+-- auth.users, which no API role may read directly.
+create or replace function public.abandoned_booking_accounts()
+returns table (
+  id uuid,
+  full_name text,
+  email text,
+  phone text,
+  created_at timestamptz,
+  tries integer,
+  next_slot timestamptz,
+  next_concern text
+)
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select
+    p.id,
+    p.full_name,
+    p.email,
+    p.phone,
+    u.created_at,
+    (select count(*)::integer from public.checkout_payment_tries t where t.patient_id = p.id),
+    d.slot_time,
+    d.concern
+  from public.profiles p
+  join auth.users u on u.id = p.id
+  left join lateral (
+    select a.slot_time, a.concern
+    from public.appointments a
+    where a.patient_id = p.id and a.status = 'requested' and a.payment_status = 'unpaid'
+    order by a.created_at desc
+    limit 1
+  ) d on true
+  where p.role = 'patient'
+    and p.approved = false
+    and u.raw_user_meta_data->>'signup_source' = 'booking'
+  order by u.created_at desc;
+$$;
+
+revoke all on function public.abandoned_booking_accounts() from public, anon, authenticated;
+
+-- Deletes the locked booking accounts that have nothing worth keeping:
+-- older than p_days, never approved, below the try limit, no payment of any
+-- kind, no purchase, and no session that is paid, assigned or past
+-- `requested`. One account at a time, so one that cannot be deleted (a
+-- foreign key somebody added later) is skipped rather than failing the rest.
+-- Returns how many were deleted.
+create or replace function public.purge_abandoned_booking_accounts(p_days integer, p_try_limit integer)
+returns integer
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_id uuid;
+  v_deleted integer := 0;
+begin
+  if p_days is null or p_days < 1 or p_try_limit is null or p_try_limit < 1 then
+    raise exception 'purge_abandoned_booking_accounts: p_days and p_try_limit must be at least 1';
+  end if;
+
+  for v_id in
+    select p.id
+    from public.profiles p
+    join auth.users u on u.id = p.id
+    where p.role = 'patient'
+      and p.approved = false
+      and u.raw_user_meta_data->>'signup_source' = 'booking'
+      and u.created_at < now() - make_interval(days => p_days)
+      and (select count(*) from public.checkout_payment_tries t where t.patient_id = p.id) < p_try_limit
+      and not exists (select 1 from public.payments pay where pay.patient_id = p.id)
+      and not exists (select 1 from public.patient_package_purchases pp where pp.patient_id = p.id)
+      and not exists (select 1 from public.home_visit_package_purchases hp where hp.patient_id = p.id)
+      and not exists (
+        select 1 from public.appointments a
+        where a.patient_id = p.id
+          and (a.payment_status <> 'unpaid' or a.therapist_id is not null
+               or a.status not in ('requested', 'cancelled'))
+      )
+    limit 200
+  loop
+    begin
+      delete from auth.users where id = v_id;
+      v_deleted := v_deleted + 1;
+    exception when others then
+      raise warning 'purge_abandoned_booking_accounts: kept % (%)', v_id, sqlerrm;
+    end;
+  end loop;
+
+  return v_deleted;
+end;
+$$;
+
+revoke all on function public.purge_abandoned_booking_accounts(integer, integer) from public, anon, authenticated;

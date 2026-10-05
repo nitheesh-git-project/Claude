@@ -88,15 +88,17 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   investigating.
   For a single online session, `/api/razorpay/create-order` -- or
   `/api/appointments/create` when it mints the order in the same request,
-  through the same `mintAppointmentOrder` -- flips the paying
-  patient's `profiles.approved` to `true` the moment they genuinely attempt
-  checkout (`approvePatientForGenuinePaymentAttempt` in
-  `requireActiveProfile.ts`, scheduled with `after()` so the patient does not
-  wait on it) - deliberately on the attempt, not a completed
-  payment, so a patient who fails or abandons checkout after repeated tries
-  still lands straight in their dashboard via BookingWizard's escape hatch,
-  appointment showing pending, rather than being bounced to
-  `/pending-approval`. The pre-payment appointment row that order is minted
+  through the same `mintAppointmentOrder` -- **no longer approves anybody.**
+  It used to flip `profiles.approved` on the first Pay tap, which handed a
+  new patient the dashboard after one cancelled payment sheet. A self-signup
+  patient's account is now unlocked by a captured payment
+  (`approvePatientAfterPayment` in `requireActiveProfile.ts`, from both
+  verify routes, `confirm-free` and a booked cash visit;
+  `unlockPayerAfterCapture` from the webhook, for a patient who paid and
+  closed the tab) or by `/api/patient/payment-try` once
+  `payment_tries_before_access` tries have failed (`booking.md`). A home
+  visit's verify route did not approve at all before this, so a new patient
+  who paid for one landed on `/pending-approval`. The pre-payment appointment row that order is minted
   against is created by `/api/appointments/create`, which gates on plain
   `isProfileActive` for the same reason - a self-signup patient is
   unapproved by definition, and that row (always unpaid, unassigned,
