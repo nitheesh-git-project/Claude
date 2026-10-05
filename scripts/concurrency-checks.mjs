@@ -88,6 +88,7 @@ const ids = await sql(`
   with u as (
     insert into auth.users (id, email) values
       (gen_random_uuid(), '${TAG.toLowerCase()}.p@example.test'),
+      (gen_random_uuid(), '${TAG.toLowerCase()}.p2@example.test'),
       (gen_random_uuid(), '${TAG.toLowerCase()}.t@example.test')
     returning id, email
   )
@@ -95,11 +96,19 @@ const ids = await sql(`
 `);
 const rows = ids[0].rows;
 const patient = rows.find(r => r.email.includes(".p@")).id;
+// A second patient for the paired bookings in sections 2 and 3. One patient
+// cannot hold two overlapping sessions since appointments_patient_no_overlap
+// landed, so the old single-patient fixture was refused before either race
+// ran -- and both races are about the *therapist's* lock anyway.
+const patient2 = rows.find(r => r.email.includes(".p2@")).id;
 const therapist = rows.find(r => r.email.includes(".t@")).id;
 
 await sql(`
   insert into profiles (id, role, full_name, approved, active, email)
     values ('${patient}', 'patient', '${TAG} patient', true, true, '${TAG.toLowerCase()}.p@example.test')
+    on conflict (id) do update set role='patient', approved=true, active=true;
+  insert into profiles (id, role, full_name, approved, active, email)
+    values ('${patient2}', 'patient', '${TAG} patient 2', true, true, '${TAG.toLowerCase()}.p2@example.test')
     on conflict (id) do update set role='patient', approved=true, active=true;
   insert into profiles (id, role, full_name, approved, active, email)
     values ('${therapist}', 'therapist', '${TAG} therapist', true, true, '${TAG.toLowerCase()}.t@example.test')
@@ -140,7 +149,7 @@ console.log("\n2. Two concurrent claims on overlapping slots, same therapist");
   const a = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
     values ('${patient}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
   const b = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
-    values ('${patient}', ${base} + interval '30 minutes', 60, 'requested', '${TAG}') returning id;`))[0].id;
+    values ('${patient2}', ${base} + interval '30 minutes', 60, 'requested', '${TAG}') returning id;`))[0].id;
 
   const [ra, rb] = await Promise.all([
     rpc("claim_therapist_slot", { p_appointment_id: a, p_therapist_id: therapist, p_expect_unassigned: true }),
@@ -174,7 +183,7 @@ console.log("\n3. Concurrent claims for the SAME slot on different therapists do
   const a = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
     values ('${patient}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
   const b = (await sql(`insert into appointments (patient_id, slot_time, duration_minutes, status, concern)
-    values ('${patient}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
+    values ('${patient2}', ${base}, 60, 'requested', '${TAG}') returning id;`))[0].id;
 
   const [ra, rb] = await Promise.all([
     rpc("claim_therapist_slot", { p_appointment_id: a, p_therapist_id: therapist, p_expect_unassigned: true }),
