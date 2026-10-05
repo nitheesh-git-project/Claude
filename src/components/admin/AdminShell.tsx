@@ -46,6 +46,8 @@ const ADMIN_REALTIME_TABLES = [
   // The developer's own inbox (Settings -> Dev Reachouts): a new message
   // should show up without a reload, like a new B2B lead does.
   "dev_reachouts",
+  // ...and the notes on those messages, so a second admin's note appears too.
+  "dev_reachout_notes",
   "profiles",
   "profile_change_requests",
   "patient_package_purchases",

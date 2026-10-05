@@ -509,3 +509,43 @@ export async function markDashboardTourSeen(email: string): Promise<void> {
     .eq("email", email);
   if (error) throw new Error(`could not mark the dashboard tour seen for ${email}: ${error.message}`);
 }
+
+/**
+ * A whole hour in the clinic's zone (IST), `daysAhead` from today, at
+ * `hour` (6-23, the bookable range). Admin assignment now refuses a
+ * therapist who is not working that hour (src/lib/therapistAssignability.ts),
+ * so a spec that assigns needs a slot it can also open on the roster.
+ */
+export function clinicSlot(daysAhead: number, hour: number): string {
+  const ist = new Date(Date.now() + 5.5 * 3_600_000 + daysAhead * 86_400_000);
+  const dateKey = ist.toISOString().slice(0, 10);
+  return new Date(`${dateKey}T${String(hour).padStart(2, "0")}:00:00+05:30`).toISOString();
+}
+
+/**
+ * Opens one hour on a therapist's roster for a spec (a one-off exception,
+ * the same thing an admin adds on the Roster), and returns its cleanup. The
+ * hour is read in the clinic's zone, as the roster is.
+ */
+export async function openTherapistHour(
+  admin: SupabaseClient,
+  therapistId: string,
+  slotIso: string
+): Promise<() => Promise<void>> {
+  const ist = new Date(new Date(slotIso).getTime() + 5.5 * 3_600_000);
+  const date = ist.toISOString().slice(0, 10);
+  const hour = ist.getUTCHours();
+  const { error } = await admin
+    .from("therapist_availability_override")
+    .upsert({ therapist_id: therapistId, date, hour, available: true, note: "e2e" }, { onConflict: "therapist_id,date,hour" });
+  if (error) throw new Error(`openTherapistHour: ${error.message}`);
+  return async () => {
+    await admin
+      .from("therapist_availability_override")
+      .delete()
+      .eq("therapist_id", therapistId)
+      .eq("date", date)
+      .eq("hour", hour)
+      .eq("note", "e2e");
+  };
+}

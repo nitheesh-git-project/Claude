@@ -1,5 +1,6 @@
 "use client";
 
+import { useTherapistUnavailable } from "@/components/admin/TherapistUnavailableDialog";
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
@@ -23,6 +24,7 @@ export default function AssignTherapistForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { showIfUnavailable, dialog: unavailableDialog } = useTherapistUnavailable();
   useUnloadWarning(loading);
 
   async function handleAssign() {
@@ -43,6 +45,7 @@ export default function AssignTherapistForm({
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
+      if (showIfUnavailable(data)) return;
       setError(data.error ?? "Could not assign. Please try again.");
     }
   }
@@ -96,6 +99,7 @@ export default function AssignTherapistForm({
         )}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {unavailableDialog}
     </div>
   );
 }

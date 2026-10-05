@@ -261,6 +261,18 @@
       "integration": "local",
       "destructive": false
     },
+    "assign-availability.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "booking-account-role.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -2368,8 +2380,17 @@
       "runner": "therapist",
       "title": "Assignment, reassignment and no-show handling through the admin and therapist routes",
       "required": false,
-      "status": "gap",
-      "limitation": "claim_therapist_slot is proven at the RPC (therapist-slot-sql-checks.sql, concurrency-checks.mjs) but no spec drives the assignment or no-show routes."
+      "status": "partial",
+      "limitation": "assign-availability.spec.ts drives the admin assign route (availability refusal and the assignment it allows); reassignment and no-show handling are still proven only at the RPC (therapist-slot-sql-checks.sql, concurrency-checks.mjs).",
+      "coverage": [
+        {
+          "spec": "assign-availability.spec.ts",
+          "tests": [
+            "AV-001"
+          ],
+          "level": "api"
+        }
+      ]
     },
     {
       "id": "therapist.cash-and-payout-requests",

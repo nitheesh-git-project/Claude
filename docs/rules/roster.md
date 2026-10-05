@@ -248,10 +248,21 @@ Availability as periods over hour rows, specialisation as a value, what readines
      code already requires. A genuine clinic policy -- insurance, a signed
      contract, a qualification check -- is deliberately absent and wants a
      note on the account rather than a gate here.
-  2. **Advisory for a person, binding for the machine.** Nothing disables a
-     control: an admin assigning has the therapist in front of them, and a
-     gate on a field nobody was told about is worse than the state it
-     replaces. The automatic assigner is the opposite case, above.
+  2. **Advisory for a person, binding for the machine -- except
+     availability.** Readiness (revenue share, specialisation) still
+     disables nothing for an admin. **Availability is now binding for a
+     person too** (owner's decision): `/api/admin/assign-appointment`,
+     `update-appointment` (when the therapist or the time changes) and
+     `assign-referral` refuse, 409 `therapist_unavailable`, a therapist who
+     is on leave, has no weekly schedule, is not working that hour (template
+     plus that date's exceptions), or is already booked then -- every reason
+     at once, from `checkTherapistAssignable` /
+     `assignabilityReasons` (`src/lib/therapistAssignability.ts`). The forms
+     open `TherapistUnavailableDialog` ("Unable to assign this therapist",
+     the reasons, a link to the Roster). A roster that could not be read is
+     a 503 "try again", never "free". The way round it is the roster itself:
+     a one-off exception opens the hour. A spec that assigns opens the hour
+     with `openTherapistHour` (`e2e/helpers.ts`).
   3. **A ready therapist gets no panel at all.** A green "all set" card on
      every profile is a row a reader learns to scroll past, and then misses
      the one profile that is not -- the same reason an unrefunded session

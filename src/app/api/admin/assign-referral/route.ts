@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkTherapistAssignable, unassignableBody } from "@/lib/therapistAssignability";
 import crypto from "crypto";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -146,6 +147,20 @@ export async function POST(request: NextRequest) {
   // reconstructing -- so it is gone, and so is the revert beside it, which
   // restored four columns with no compare-and-set and could undo a third
   // admin's assignment.
+  // Working that hour, not on leave, not already booked -- every reason at
+  // once, for the "Unable to assign this therapist" dialog. A roster that
+  // could not be read is "try again", never "free".
+  const assignable = await checkTherapistAssignable(admin, therapistId, new Date(slotDateTime).toISOString(), BASE_DURATION_MINUTES, { excludeReferralId: referralId, bufferMinutes: travelBufferMinutes });
+  if (assignable.ok === null) {
+    return NextResponse.json(
+      { error: "We couldn't check this therapist's schedule just now. Please try again." },
+      { status: 503 }
+    );
+  }
+  if (!assignable.ok) {
+    return NextResponse.json(unassignableBody(assignable.reasons), { status: 409 });
+  }
+
   const claim = await claimReferralSlot(admin, {
     referralId,
     therapistId,

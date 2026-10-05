@@ -1,5 +1,6 @@
 "use client";
 
+import { useTherapistUnavailable } from "@/components/admin/TherapistUnavailableDialog";
 import { useEffect, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
@@ -57,6 +58,7 @@ export default function AssignReferralForm({
   const [error, setError] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const router = useRouter();
+  const { showIfUnavailable, dialog: unavailableDialog } = useTherapistUnavailable();
 
   async function handleAssign(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -90,6 +92,7 @@ export default function AssignReferralForm({
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
+      if (showIfUnavailable(data)) return;
       setError(data.error ?? "Could not assign. Please try again.");
       return;
     }
@@ -179,6 +182,7 @@ export default function AssignReferralForm({
           disabled={loading}
         />
       )}
+      {unavailableDialog}
     </form>
   );
 }

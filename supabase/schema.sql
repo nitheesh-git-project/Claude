@@ -15400,6 +15400,14 @@ create policy "dev_reachout_notes_select_admin" on dev_reachout_notes
 
 revoke insert, update, delete on dev_reachout_notes from anon, authenticated;
 
+-- In the realtime publication because the Dev Reachouts screen subscribes to
+-- it (ADMIN_REALTIME_TABLES): a second admin's note arrives without a reload.
+do $$
+begin
+  alter publication supabase_realtime add table dev_reachout_notes;
+exception when duplicate_object then null;
+end $$;
+
 -- Carry each existing single note over as that message's first note, dated
 -- when it was last saved, then clear the old column so a re-run finds nothing
 -- left to move (and a note deleted from the thread is not resurrected).
