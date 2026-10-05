@@ -21,7 +21,8 @@
     "check:search-path": "node scripts/check-search-path.mjs",
     "check:rls-initplan": "node scripts/check-rls-initplan.mjs",
     "check:icon-styles": "node scripts/check-icon-styles.mjs",
-    "build:rules-index": "node scripts/build-rules-index.mjs"
+    "build:rules-index": "node scripts/build-rules-index.mjs",
+    "check:coverage": "node scripts/ci/check-coverage-manifest.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.3.1",
