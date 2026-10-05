@@ -259,7 +259,17 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   the try that unlocks it says "Your account is ready" with Go to
   Dashboard. Both wizards follow this; the home-visit wizard still signs up
   on the tap. A locked account that does neither is deleted after
-  `abandoned_booking_account_days` -- see `admin.md`. `CheckoutProgress`
+  `abandoned_booking_account_days` -- see `admin.md`. **Signing in while
+  locked shows "Finish your booking", not "Approval Pending"**:
+  `/pending-approval` reads the signup marker and renders
+  `FinishBookingCard` -- the newest future unpaid online draft with **Pay
+  now** (the same `payForAppointment`, tries counted the same way) and
+  **Pick another time** (`/book?replaces=<draft id>`, which seeds the
+  wizard's `replacesAppointmentId`), plus the date the account is removed
+  if it stays unpaid. Nobody is reviewing such an account, so a review
+  screen would never end. And a patient who comes back signed out and
+  types the same email and password into Step 2 is signed in with them
+  (`beginSignup`), rather than told the address is taken. `CheckoutProgress`
   (`src/components/booking/`) covers the card from the tap until the sheet
   opens, naming each stage (account, slot, payment); it is a status, not a
   dialog. Both wizards report the tap's timing -- see the Checkout speed

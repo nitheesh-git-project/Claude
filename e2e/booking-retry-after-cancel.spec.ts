@@ -1,5 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
-import { QA_EMAILS, BASE, adminClient, browserCookiesFor, chooseAnyServiceOnStepOne } from "./helpers";
+import {
+  QA_EMAILS,
+  BASE,
+  adminClient,
+  browserCookiesFor,
+  chooseAnyServiceOnStepOne,
+  waitForSplashToClear,
+} from "./helpers";
 
 /**
  * A patient who closes the payment sheet and tries again is never refused
@@ -173,6 +180,73 @@ test.describe("a new patient's payment tries", () => {
     } finally {
       const row = await profile();
       if (row?.id) await adminClient().auth.admin.deleteUser(row.id);
+    }
+  });
+});
+
+/**
+ * A locked booking account that signs in is shown the booking it left
+ * unpaid, not "Approval Pending" -- nobody is reviewing it. A /patient/register
+ * signup (no booking marker) still gets the review screen.
+ */
+test.describe("signing in to a locked booking account", () => {
+  test("RETRY-003 shows Finish your booking with Pay now and Pick another time", async ({ page }) => {
+    test.setTimeout(180_000);
+    const stamp = Date.now();
+    const lockedEmail = `e2e.locked.${stamp}@example.test`;
+    const registeredEmail = `e2e.registered.${stamp}@example.test`;
+    const make = async (email: string, signupSource?: string) => {
+      const { data, error } = await adminClient().auth.admin.createUser({
+        email,
+        password: "QaTest!2024pass",
+        email_confirm: true,
+        user_metadata: { role: "patient", full_name: "E2E Locked", ...(signupSource ? { signup_source: signupSource } : {}) },
+      });
+      expect(error).toBeNull();
+      return data.user!.id;
+    };
+    const lockedId = await make(lockedEmail, "booking");
+    const registeredId = await make(registeredEmail);
+    try {
+      const slot = new Date(Date.now() + 5 * 86_400_000);
+      slot.setUTCMinutes(30, 0, 0); // 30 past in UTC is on the hour in IST
+      const { data: draft, error } = await adminClient()
+        .from("appointments")
+        .insert({
+          patient_id: lockedId,
+          slot_time: slot.toISOString(),
+          timezone: "Asia/Kolkata",
+          concern: "General Consultation",
+          duration_minutes: 45,
+          status: "requested",
+          payment_status: "unpaid",
+          visit_mode: "online",
+        })
+        .select("id")
+        .single();
+      expect(error).toBeNull();
+
+      await page.context().addCookies(await browserCookiesFor(lockedEmail));
+      await page.goto(`${BASE}/patient/dashboard`);
+      await expect(page).toHaveURL(/\/pending-approval/, { timeout: 60_000 });
+      await expect(page.getByRole("heading", { name: "Finish your booking" })).toBeVisible();
+      await expect(page.getByText(/is waiting for payment/)).toBeVisible();
+      await expect(page.getByRole("button", { name: "Pay now" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Pick another time" })).toHaveAttribute(
+        "href",
+        `/book?replaces=${draft!.id}`
+      );
+      await expect(page.getByText(/removed after/)).toBeVisible();
+      await waitForSplashToClear(page);
+      await page.screenshot({ path: "e2e/screenshots/booking-retry/finish-booking.png" });
+
+      await page.context().clearCookies();
+      await page.context().addCookies(await browserCookiesFor(registeredEmail));
+      await page.goto(`${BASE}/pending-approval`);
+      await expect(page.getByRole("heading", { name: "Approval Pending" })).toBeVisible({ timeout: 60_000 });
+    } finally {
+      await adminClient().auth.admin.deleteUser(lockedId);
+      await adminClient().auth.admin.deleteUser(registeredId);
     }
   });
 });

@@ -973,7 +973,8 @@
           "spec": "booking-retry-after-cancel.spec.ts",
           "tests": [
             "RETRY-001",
-            "RETRY-002"
+            "RETRY-002",
+            "RETRY-003"
           ],
           "level": "browser"
         }

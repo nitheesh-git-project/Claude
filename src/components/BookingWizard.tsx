@@ -154,7 +154,9 @@ export default function BookingWizard({
   });
   // The unpaid draft a Back from the payment step left behind, so the next
   // booking replaces it rather than leaving a second unpaid session behind.
-  const replacedDraftRef = useRef<string | null>(null);
+  // Seeded from `?replaces=` when the finish-booking screen sends a locked
+  // patient here to pick another time for the draft they left unpaid.
+  const replacedDraftRef = useRef<string | null>(searchParams.get("replaces"));
   // The code the patient applied, if any. Held as a string and sent to
   // checkout as one -- the amount it is worth is never in this component.
   const [promoCode, setPromoCode] = useState<string | null>(null);
@@ -522,6 +524,23 @@ export default function BookingWizard({
             },
           },
         });
+        if (signUpError && /already registered|already exists/i.test(signUpError.message)) {
+          // Somebody coming back to finish a booking they started: the
+          // email and password they just typed are their own, so sign them
+          // in with them rather than refusing the address. A wrong password
+          // still reads as the address being taken.
+          const { data: signedIn, error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (!signInError && signedIn.session) return { ok: true };
+          return {
+            ok: false,
+            message:
+              "This email already has an account. Sign in with it to book, or use a different email.",
+            fieldId: "bw-email",
+          };
+        }
         if (signUpError) {
           const message = signUpError.message;
           return {
