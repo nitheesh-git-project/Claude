@@ -13,7 +13,7 @@
 // visible from the browser: a scope that must not upload has to be refused at
 // the route, not merely have its button hidden.
 import { test, expect } from "@playwright/test";
-import { adminClient, cookieHeaderFor, BASE, QA_EMAILS, profileIdFor } from "./helpers";
+import { adminClient, cookieHeaderFor, BASE, QA_EMAILS, profileIdFor, setQaAdminScope } from "./helpers";
 import { FOCAL_DEFAULT } from "../src/lib/catalogImage";
 
 const CATEGORY_TITLE = "QA Cover Category";
@@ -152,7 +152,7 @@ test.describe("Catalog cover images", () => {
     const admin = adminClient();
     const adminId = await profileIdFor(admin, QA_EMAILS.admin);
     try {
-      await admin.from("profiles").update({ admin_scope: "finance" }).eq("id", adminId);
+      await setQaAdminScope(admin, adminId, "finance");
       const cookie = await cookieHeaderFor(QA_EMAILS.admin);
       const body = new FormData();
       body.append("kind", "category");

@@ -15,6 +15,7 @@ import {
   browserCookiesFor,
   cookieHeaderFor,
   profileIdFor,
+  setQaAdminScope,
 } from "./helpers";
 
 const ADMIN_ROUTES_DIR = path.resolve(__dirname, "../src/app/api/admin");
@@ -121,7 +122,7 @@ test.describe("Suite F: admin route authorization", () => {
 
     try {
       // 'operations' covers sessions/people/catalog and deliberately not money.
-      await admin.from("profiles").update({ admin_scope: "operations" }).eq("id", adminId);
+      await setQaAdminScope(admin, adminId, "operations");
       const cookie = await cookieHeaderFor(QA_EMAILS.admin);
 
       const moneyRoute = await fetch(`${BASE}/api/admin/refund-session-partial`, {
@@ -158,7 +159,7 @@ test.describe("Suite F: admin route authorization", () => {
 
     const context = await browser.newContext();
     try {
-      await admin.from("profiles").update({ admin_scope: "clinical" }).eq("id", adminId);
+      await setQaAdminScope(admin, adminId, "clinical");
       await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
       const page = await context.newPage();
 

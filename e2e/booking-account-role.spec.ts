@@ -17,6 +17,8 @@ import {
   browserCookiesFor,
   cookieHeaderFor,
   skipWithoutBrowserEgress,
+  markDashboardTourSeen,
+  waitForSplashToClear,
 } from "./helpers";
 
 // A well-formed uuid that does not resolve to anything -- the role check
@@ -162,8 +164,16 @@ test.describe("Back to Home on the dashboards", () => {
     // needs the browser to reach Supabase. BH-001 above does not -- it only
     // looks for the link -- which is why that one still runs here.
     await skipWithoutBrowserEgress(page);
+    // The first-run tour opens over the dashboard for a patient who has never
+    // dismissed it -- which is every patient on a fresh stack -- and takes the
+    // click. This case is about the way home, not the tour, so mark it seen,
+    // as pay-later and session-suggestions do.
+    await markDashboardTourSeen(QA_EMAILS.patientA);
     await signInAs(page, QA_EMAILS.patientA);
     await page.goto(`${BASE}/patient/dashboard`);
+    // A cold open shows the brand splash over the dashboard first, and it
+    // takes every click until it clears.
+    await waitForSplashToClear(page);
     await page.locator('nav a[href="/"]', { hasText: "Back to Home" }).first().click();
     await page.waitForURL(`${BASE}/`);
     // Still signed in: the nav offers the dashboard rather than Sign In,

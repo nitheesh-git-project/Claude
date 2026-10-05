@@ -94,7 +94,16 @@ async function findSession(page: Page, sessionCode: string, timeout: number) {
 
 async function showAllSessions(page: Page) {
   const all = page.getByRole("button", { name: /^All/ });
-  if (await all.count()) await all.first().click();
+  // The page is opened at domcontentloaded, so on a cold server the first
+  // click can land before React has hydrated the filter and be dropped,
+  // leaving the list on Upcoming -- where a session ten minutes into its
+  // call is not listed, which reads exactly like a missing card. Click until
+  // the filter says it is pressed.
+  await expect(all.first()).toBeVisible({ timeout: 60_000 });
+  await expect(async () => {
+    await all.first().click();
+    await expect(all.first()).toHaveAttribute("aria-pressed", "true", { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   // The list pages at ten by default, and this patient carries rows every
   // other spec in the suite has left on it -- so the seeded session sits on
   // page two as soon as the total crosses that line, and a card that is

@@ -54,10 +54,20 @@ begin
   end if;
 
   -- 2. A duplicated slot collapses to one row.
+  --
+  -- It passes the version step 1 returned. Null was right here until the
+  -- weekly save learned that null means "there is no state row yet" (the
+  -- read-failed-and-drew-an-empty-week fix at the end of schema.sql): step 1
+  -- created that row, so a second null is now, correctly, a conflict, and
+  -- this check reported "a duplicated slot wrote 0 rows" against a function
+  -- that was doing its job.
   v_result := save_therapist_weekly_schedule(
     v_therapist,
     '[{"day_of_week":1,"hour":9},{"day_of_week":1,"hour":9}]'::jsonb,
-    null, v_actor);
+    (v_result->>'version')::bigint, v_actor);
+  if v_result->>'status' <> 'ok' then
+    raise exception 'a duplicated slot save at the current version gave %', v_result;
+  end if;
   select count(*) into v_count from therapist_availability_template
    where therapist_id = v_therapist;
   if v_count <> 1 then

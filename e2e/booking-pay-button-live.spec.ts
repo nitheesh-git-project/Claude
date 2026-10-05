@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { QA_EMAILS, BASE, browserCookiesFor } from "./helpers";
+import { QA_EMAILS, BASE, browserCookiesFor, chooseAnyServiceOnStepOne } from "./helpers";
 
 /**
  * The payment step's primary button is never dead while a price loads.
@@ -43,20 +43,11 @@ test.describe("the pay button on Step 3", () => {
     await page.goto(`${BASE}/book`);
     await page.waitForLoadState("networkidle");
 
-    // Step 1 asks for the service first, from its own picker dialog -- it
-    // used to be a dropdown on Step 2. Continue is not offered until one is
-    // chosen. Which service does not matter here: every case below is about
-    // the button on Step 3, not about what was picked.
-    await page
-      .getByRole("button", { name: /What would you like help with/ })
-      .first()
-      .click();
-    await page
-      .getByRole("dialog")
-      .getByRole("button", { name: "Choose this session" })
-      .first()
-      .click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    // Step 1 asks for the service first -- from its picker dialog when there
+    // is a choice, stated as chosen when there is only one. Continue is not
+    // offered until one is chosen. Which service does not matter here: every
+    // case below is about the button on Step 3, not about what was picked.
+    await chooseAnyServiceOnStepOne(page);
 
     await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
     await page.waitForTimeout(1200);
@@ -121,8 +112,15 @@ test.describe("the pay button on Step 3", () => {
     // Tapping while the price is in flight has to do something visible at
     // once. Refusing the tap is the bug; accepting it and showing nothing
     // until the read lands would be the same bug wearing a different hat.
+    //
+    // The acknowledgement is CheckoutProgress (#88): a polite status panel
+    // naming the stage it is on, which replaced the old "Please wait..."
+    // label swap. This used to assert that label, and only ever failed here
+    // for want of browser egress, so it never noticed the label had gone.
     await button.click();
-    await expect(button).toHaveText(/Please wait/i, { timeout: 3_000 });
+    await expect(
+      page.getByRole("status").filter({ hasText: /Creating your account|Securing your slot|Opening secure payment/ })
+    ).toBeVisible({ timeout: 3_000 });
     await page.screenshot({ path: `${SHOTS}/03-tap-acknowledged.png`, fullPage: true });
   });
 });

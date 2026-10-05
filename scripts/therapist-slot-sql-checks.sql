@@ -19,6 +19,7 @@ begin;
 do $$
 declare
   v_patient uuid;
+  v_patient_2 uuid;
   v_therapist_a uuid;
   v_therapist_b uuid;
   v_appt_1 uuid;
@@ -36,6 +37,7 @@ begin
   -- account -- and because going through GoTrue would make a storage-layer
   -- check depend on an HTTP service.
   v_patient := gen_random_uuid();
+  v_patient_2 := gen_random_uuid();
   v_therapist_a := gen_random_uuid();
   v_therapist_b := gen_random_uuid();
   v_hospital := gen_random_uuid();
@@ -45,6 +47,7 @@ begin
   -- trigger fail rather than this statement.
   insert into auth.users (id, email) values
     (v_patient,     'slotchk.patient@example.test'),
+    (v_patient_2,   'slotchk.patient2@example.test'),
     (v_therapist_a, 'slotchk.a@example.test'),
     (v_therapist_b, 'slotchk.b@example.test'),
     (v_hospital,    'slotchk.hospital@example.test');
@@ -67,8 +70,17 @@ begin
 
   insert into appointments (patient_id, slot_time, duration_minutes, status)
     values (v_patient, v_slot, 60, 'requested') returning id into v_appt_1;
+  -- A second patient for the overlapping booking. One patient cannot hold
+  -- two overlapping sessions at all since appointments_patient_no_overlap
+  -- landed, which refused this fixture before a single check ran; CHECK 2
+  -- is about the *therapist's* calendar, so two patients is the honest
+  -- shape for it anyway.
+  insert into profiles (id, role, full_name, approved, active, email)
+    values (v_patient_2, 'patient', 'SLOTCHK patient 2', true, true, 'slotchk.patient2@example.test')
+    on conflict (id) do update
+      set role = 'patient', approved = true, active = true;
   insert into appointments (patient_id, slot_time, duration_minutes, status)
-    values (v_patient, v_slot + interval '30 minutes', 60, 'requested')
+    values (v_patient_2, v_slot + interval '30 minutes', 60, 'requested')
     returning id into v_appt_2;
   insert into appointments (patient_id, slot_time, duration_minutes, status)
     values (v_patient, v_slot + interval '4 hours', 60, 'requested')

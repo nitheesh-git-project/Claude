@@ -21,6 +21,7 @@ import {
   browserCookiesFor,
   cookieHeaderFor,
   profileIdFor,
+  setQaAdminScope,
 } from "./helpers";
 
 /** The ?section= a link on the dashboard points at -- the only part of a
@@ -114,7 +115,7 @@ test.describe("Suite S: scoped admin dashboards", () => {
       const context = await browser.newContext();
 
       try {
-        await admin.from("profiles").update({ admin_scope: scope }).eq("id", adminId);
+        await setQaAdminScope(admin, adminId, scope);
         await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
         const page = await context.newPage();
         await page.goto(`${BASE}/admin/dashboard`);
@@ -199,7 +200,7 @@ test.describe("Suite S: scoped admin dashboards", () => {
 
     const consoleErrors: string[] = [];
     try {
-      await admin.from("profiles").update({ admin_scope: "operations" }).eq("id", adminId);
+      await setQaAdminScope(admin, adminId, "operations");
       await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
       const page = await context.newPage();
       // A duplicate React key -- two stat cells sharing a label, two quick
@@ -325,7 +326,7 @@ test.describe("Suite S: scoped admin dashboards", () => {
     const context = await browser.newContext();
 
     try {
-      await admin.from("profiles").update({ admin_scope: "finance" }).eq("id", adminId);
+      await setQaAdminScope(admin, adminId, "finance");
       await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
       const page = await context.newPage();
       await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all`);
@@ -380,7 +381,7 @@ test.describe("Suite S: scoped admin dashboards", () => {
 
     try {
       for (const scope of ["operations", "finance", "clinical"] as const) {
-        await admin.from("profiles").update({ admin_scope: scope }).eq("id", adminId);
+        await setQaAdminScope(admin, adminId, scope);
         await context.clearCookies();
         await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
         const page = await context.newPage();

@@ -611,7 +611,14 @@ test("SPAM-003: spamming the access request leaves exactly one open grant", asyn
       post(request, "/api/therapist/condition-access/request", therapistCookie, { patientId })
     )
   );
-  expect(responses.every((r) => r.status() < 500)).toBe(true);
+  // The statuses (and the first 5xx body) go on the line, so a lost race is
+  // diagnosable from the report rather than only from a rerun.
+  const statuses = responses.map((r) => r.status());
+  const firstServerError = responses.find((r) => r.status() >= 500);
+  expect(
+    statuses.every((s) => s < 500),
+    `statuses ${statuses.join(",")}${firstServerError ? `; first 5xx said ${await firstServerError.text()}` : ""}`
+  ).toBe(true);
   const { count } = await admin
     .from("condition_access_grants")
     .select("id", { count: "exact", head: true })

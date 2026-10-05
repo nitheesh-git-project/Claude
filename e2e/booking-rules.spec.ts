@@ -15,6 +15,7 @@ import {
   E2E_MARKERS,
   deleteHomeVisitFixturePurchases,
   browserCookiesFor,
+  chooseAnyServiceOnStepOne,
 } from "./helpers";
 
 test.describe("home-visit lead time (regression for the bulk scheduler bug)", () => {
@@ -359,20 +360,12 @@ test.describe("online single-session booking (/api/appointments/create)", () => 
 test.describe("the cancellation notice a patient is shown before paying", () => {
   const SHOTS = "e2e/screenshots/booking-rules";
 
-  /** Opens the Step 1 service picker and takes the first thing on offer.
-   *  Which one does not matter to any case here -- what matters is that a
-   *  service is chosen, since Step 1 does not offer Continue without one. */
+  /** Makes sure Step 1 has a service chosen. Which one does not matter to
+   *  any case here -- what matters is that one is, since Step 1 does not
+   *  offer Continue without it. Both of the picker's shapes are handled by
+   *  the shared helper (a one-service catalogue has no dialog at all). */
   async function chooseFirstService(page: import("@playwright/test").Page) {
-    await page
-      .getByRole("button", { name: /What would you like help with/ })
-      .first()
-      .click();
-    await page
-      .getByRole("dialog")
-      .getByRole("button", { name: "Choose this session" })
-      .first()
-      .click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await chooseAnyServiceOnStepOne(page);
   }
 
   /** Sign in and walk an ordinary prepaid patient to Step 3. */

@@ -6,7 +6,7 @@
 // and only runs when RUN_DESTRUCTIVE_RESET_TEST=true, so a normal `npm run
 // test:e2e` can never wipe the project it is pointed at.
 import { test, expect } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, cookieHeaderFor, profileIdFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, cookieHeaderFor, profileIdFor, setQaAdminScope } from "./helpers";
 
 async function post(body: unknown, cookie?: string) {
   const res = await fetch(`${BASE}/api/admin/debug-reset`, {
@@ -46,7 +46,7 @@ test.describe("debug reset guards", () => {
     const admin = adminClient();
     const adminId = await profileIdFor(admin, QA_EMAILS.admin);
     try {
-      await admin.from("profiles").update({ admin_scope: "operations" }).eq("id", adminId);
+      await setQaAdminScope(admin, adminId, "operations");
       const res = await post(
         { confirm: "RESET ALL DATA" },
         await cookieHeaderFor(QA_EMAILS.admin)
