@@ -15365,3 +15365,53 @@ end $$;
 -- form still works.
 alter table site_settings add column if not exists dev_contact_enabled boolean not null default true;
 alter table site_settings add column if not exists dev_contact_email text not null default '';
+
+-- ===========================================================================
+-- Dev Reachouts: a thread of notes per message
+-- ===========================================================================
+-- One row per note, so the inbox keeps a dated history instead of the single
+-- overwritten `dev_reachouts.admin_note`. Written only by
+-- /api/admin/dev-reachout-note with the service-role client; read by admins.
+--
+-- Like `dev_reachouts` itself, NOT truncated by debug_reset_all_data(), and
+-- nothing reaches it through CASCADE: its two foreign keys point at
+-- `dev_reachouts` and `profiles`, neither of which the reset truncates
+-- (src/lib/devReachoutResetGuard.test.ts holds this). `cascade` on the
+-- reachout because a note means nothing without its message; `set null` on
+-- the author so deleting an admin account is not blocked by a note they wrote.
+create table if not exists dev_reachout_notes (
+  id uuid primary key default gen_random_uuid(),
+  reachout_id uuid not null references dev_reachouts(id) on delete cascade,
+  body text not null check (char_length(body) between 1 and 2000),
+  author_id uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  -- Null until the note is changed, so "edited" is shown only when it was.
+  edited_at timestamptz
+);
+
+create index if not exists dev_reachout_notes_reachout_created_idx
+  on dev_reachout_notes (reachout_id, created_at);
+
+alter table dev_reachout_notes enable row level security;
+
+drop policy if exists "dev_reachout_notes_select_admin" on dev_reachout_notes;
+create policy "dev_reachout_notes_select_admin" on dev_reachout_notes
+  for select using (is_admin());
+
+revoke insert, update, delete on dev_reachout_notes from anon, authenticated;
+
+-- Carry each existing single note over as that message's first note, dated
+-- when it was last saved, then clear the old column so a re-run finds nothing
+-- left to move (and a note deleted from the thread is not resurrected).
+-- `admin_note` / `note_updated_at` stay as columns but are no longer read.
+with moved as (
+  insert into dev_reachout_notes (reachout_id, body, created_at)
+  select id, admin_note, coalesce(note_updated_at, created_at)
+  from dev_reachouts
+  where admin_note is not null and btrim(admin_note) <> ''
+  returning reachout_id
+)
+update dev_reachouts
+set admin_note = null, note_updated_at = null
+where admin_note is not null
+  and (id in (select reachout_id from moved) or btrim(admin_note) = '');

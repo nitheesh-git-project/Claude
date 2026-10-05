@@ -106,7 +106,7 @@ total, which moves with every spec added.
 | `admin-refresh-badge` | 4 | the badge counting other people's changes, not the admin's own taps |
 | `admin-detail-overlay` | 4 | the overlay and the real route behind it rendering identically |
 | `admin-settings-ia` | 7 | Settings' four captions and per-screen blurbs |
-| `dev-reachout` | 4 | the footer's developer credit end to end: Contact me → Say hello → Let's talk → a row, a filled honeypot writing nothing, a Master Admin marking it contacted and keeping a note, and the switch asking on **both** directions with cancel changing nothing and the credit, the pages and the route following it |
+| `dev-reachout` | 4 | the footer's developer credit end to end: Contact me → Say hello → Let's talk → a row, a filled honeypot writing nothing, a Master Admin marking it contacted and keeping a dated thread of notes (add, edit, delete), and the switch asking on **both** directions with cancel changing nothing and the credit, the pages and the route following it |
 | `admin-partners-and-credentials` | 6 | the three partner layouts, and a credential still readable after the refresh its own write triggers |
 | `admin-profile-session-order` | 3 | a person's sessions ordered by when they are, not when they were booked |
 | `logs-subject-timeline` | 1 | tapping a log entry's subject, and the way back |

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useOptimistic, useState, useTransition } from "react";
+import { useId, useOptimistic, useRef, useState, useTransition } from "react";
 import PagedList from "@/components/dashboard/PagedList";
 import { useConfirm } from "@/lib/useConfirm";
 import { useRouter } from "@/lib/useRouter";
@@ -11,6 +11,9 @@ import {
   EMAIL_RE,
   MAX_DEV_REACHOUT_EMAIL_LENGTH,
   MAX_DEV_REACHOUT_NOTE_LENGTH,
+  groupDevReachoutNotes,
+  type DevReachoutNote,
+  type DevReachoutNoteRow,
   type DevReachoutStatus,
 } from "@/lib/devReachout";
 
@@ -21,8 +24,9 @@ export type DevReachoutRow = {
   phone: string | null;
   message: string;
   status: DevReachoutStatus;
-  admin_note: string | null;
-  note_updated_at: string | null;
+  /** Oldest first. `null` when the notes could not be read -- never shown as
+   *  an empty thread, which would invite a duplicate. */
+  notes: DevReachoutNote[] | null;
   contacted_at: string | null;
   created_at: string;
 };
@@ -210,15 +214,10 @@ function ContactSettingsCard({ enabled, email }: { enabled: boolean; email: stri
 function ReachoutCard({ row }: { row: DevReachoutRow }) {
   const router = useRouter();
   const { show } = useToast();
-  const noteId = useId();
 
   const [optimisticStatus, setOptimisticStatus] = useOptimistic<DevReachoutStatus>(row.status);
   const [isStatusPending, startStatusTransition] = useTransition();
   const [statusError, setStatusError] = useState<string | null>(null);
-
-  const [note, setNote] = useState(row.admin_note ?? "");
-  const [isNoteSaving, setIsNoteSaving] = useState(false);
-  const [noteError, setNoteError] = useState<string | null>(null);
 
   const contacted = optimisticStatus === "contacted";
 
@@ -249,31 +248,6 @@ function ReachoutCard({ row }: { row: DevReachoutRow }) {
         );
       }
     });
-  }
-
-  async function handleSaveNote() {
-    setNoteError(null);
-    setIsNoteSaving(true);
-    try {
-      const res = await fetch("/api/admin/update-dev-reachout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: row.id, note }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Could not save the note. Please try again.");
-      show(`Note saved for ${row.name}`);
-    } catch (e) {
-      setNoteError(
-        e instanceof Error && e.message
-          ? e.message
-          : "Could not reach the server. Nothing was saved."
-      );
-      return;
-    } finally {
-      setIsNoteSaving(false);
-    }
-    router.refresh();
   }
 
   return (
@@ -317,21 +291,7 @@ function ReachoutCard({ row }: { row: DevReachoutRow }) {
         <dd className="whitespace-pre-wrap break-words text-slate-800">{row.message}</dd>
       </dl>
 
-      <div>
-        <label htmlFor={noteId} className="block font-semibold text-slate-500 mb-1">
-          Your note
-        </label>
-        <textarea
-          id={noteId}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          rows={2}
-          maxLength={MAX_DEV_REACHOUT_NOTE_LENGTH}
-          placeholder="Only you can see this."
-          className="w-full p-2.5 rounded-lg border border-slate-300"
-        />
-        {noteError && <p className="text-[11px] text-red-600 mt-1">{noteError}</p>}
-      </div>
+      <NotesThread reachoutId={row.id} name={row.name} notes={row.notes} />
 
       <div className="flex items-center gap-3 flex-wrap">
         <button
@@ -346,16 +306,260 @@ function ReachoutCard({ row }: { row: DevReachoutRow }) {
         >
           {isStatusPending ? "Saving…" : contacted ? "Move back to new" : "Mark as contacted"}
         </button>
-        <button
-          type="button"
-          onClick={handleSaveNote}
-          disabled={isNoteSaving || note.trim() === (row.admin_note ?? "")}
-          className="font-semibold px-3 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-60 text-slate-800 transition"
-        >
-          {isNoteSaving ? "Saving…" : "Save note"}
-        </button>
         {statusError && <span className="text-[11px] text-red-600">{statusError}</span>}
       </div>
     </div>
+  );
+}
+
+async function postNote(payload: Record<string, unknown>): Promise<DevReachoutNote | null> {
+  const res = await fetch("/api/admin/dev-reachout-note", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? "Could not save the note. Please try again.");
+  const row = data.note as DevReachoutNoteRow | undefined;
+  return row ? (groupDevReachoutNotes([row])?.get(row.reachout_id)?.[0] ?? null) : null;
+}
+
+function errorText(e: unknown) {
+  return e instanceof Error && e.message ? e.message : "Could not reach the server. Nothing was saved.";
+}
+
+// A dated thread of notes under one message, oldest first, with a box to add
+// the next one. A saved note is drawn at once from the route's answer; the
+// dashboard's refresh then brings the same rows, which replace these.
+function NotesThread({
+  reachoutId,
+  name,
+  notes,
+}: {
+  reachoutId: string;
+  name: string;
+  notes: DevReachoutNote[] | null;
+}) {
+  const router = useRouter();
+  const { show } = useToast();
+  const composerId = useId();
+
+  const [shown, setShown] = useState(notes);
+  const [prevNotes, setPrevNotes] = useState(notes);
+  if (notes !== prevNotes) {
+    setPrevNotes(notes);
+    setShown(notes);
+  }
+
+  const [draft, setDraft] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const addingRef = useRef(false);
+
+  async function handleAdd() {
+    if (addingRef.current || draft.trim() === "") return;
+    addingRef.current = true;
+    setAddError(null);
+    setIsAdding(true);
+    try {
+      const note = await postNote({ action: "add", reachoutId, body: draft });
+      if (note) setShown((list) => [...(list ?? []), note]);
+      setDraft("");
+      show(`Note added for ${name}`);
+    } catch (e) {
+      setAddError(errorText(e));
+      return;
+    } finally {
+      addingRef.current = false;
+      setIsAdding(false);
+    }
+    router.refresh();
+  }
+
+  if (shown === null) {
+    return (
+      <p className="text-[11px] text-slate-500">
+        Notes could not be loaded. Refresh the page to try again.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {shown.length > 0 && (
+        <div>
+          <p className="font-semibold text-slate-500 mb-1">Notes</p>
+          <ol aria-label={`Notes on ${name}`} className="rounded-lg border border-slate-200 divide-y divide-slate-200">
+            {shown.map((note) => (
+              <NoteItem
+                key={note.id}
+                note={note}
+                onSaved={(saved) =>
+                  setShown((list) => (list ?? []).map((n) => (n.id === saved.id ? saved : n)))
+                }
+                onDeleted={() => setShown((list) => (list ?? []).filter((n) => n.id !== note.id))}
+              />
+            ))}
+          </ol>
+        </div>
+      )}
+      <div>
+        <label htmlFor={composerId} className="block font-semibold text-slate-500 mb-1">
+          Add a note
+        </label>
+        <textarea
+          id={composerId}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={2}
+          maxLength={MAX_DEV_REACHOUT_NOTE_LENGTH}
+          placeholder="Only admins can see this."
+          className="w-full p-2.5 rounded-lg border border-slate-300"
+        />
+        {addError && <p className="text-[11px] text-red-600 mt-1">{addError}</p>}
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={isAdding || draft.trim() === ""}
+          className="mt-2 font-semibold px-3 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 disabled:opacity-60 text-slate-800 transition"
+        >
+          {isAdding ? "Saving…" : "Save note"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NoteItem({
+  note,
+  onSaved,
+  onDeleted,
+}: {
+  note: DevReachoutNote;
+  onSaved: (note: DevReachoutNote) => void;
+  onDeleted: () => void;
+}) {
+  const router = useRouter();
+  const { show } = useToast();
+  const { confirm, dialog } = useConfirm();
+  const editId = useId();
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note.body);
+  const [busy, setBusy] = useState<"save" | "delete" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const busyRef = useRef(false);
+
+  async function run(kind: "save" | "delete") {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setError(null);
+    setBusy(kind);
+    try {
+      if (kind === "save") {
+        const saved = await postNote({ action: "edit", noteId: note.id, body: draft });
+        if (saved) onSaved(saved);
+        setEditing(false);
+        show("Note updated");
+      } else {
+        await postNote({ action: "delete", noteId: note.id });
+        onDeleted();
+        show("Note deleted");
+      }
+    } catch (e) {
+      setError(errorText(e));
+      return;
+    } finally {
+      busyRef.current = false;
+      setBusy(null);
+    }
+    router.refresh();
+  }
+
+  // The decision is awaited before anything is sent, never inside a transition.
+  async function handleDelete() {
+    if (!(await confirm("Delete this note? This cannot be undone."))) return;
+    await run("delete");
+  }
+
+  const meta = [
+    formatClinicDateTime(note.createdAt),
+    note.authorName,
+    note.editedAt ? `edited ${formatClinicDateTime(note.editedAt)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <li className="p-2.5 space-y-1.5">
+      {editing ? (
+        <>
+          <label htmlFor={editId} className="sr-only">
+            Edit note
+          </label>
+          <textarea
+            id={editId}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={2}
+            maxLength={MAX_DEV_REACHOUT_NOTE_LENGTH}
+            autoFocus
+            className="w-full p-2.5 rounded-lg border border-slate-300"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => run("save")}
+              disabled={busy !== null || draft.trim() === "" || draft.trim() === note.body}
+              className="font-semibold px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white transition"
+            >
+              {busy === "save" ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(note.body);
+                setError(null);
+                setEditing(false);
+              }}
+              disabled={busy !== null}
+              className="font-semibold px-3 py-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="whitespace-pre-wrap break-words text-slate-800">{note.body}</p>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-[11px] text-slate-500">{meta}</p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft(note.body);
+                  setEditing(true);
+                }}
+                disabled={busy !== null}
+                className="font-semibold px-2 py-1 rounded-md text-teal-700 hover:bg-teal-50 transition"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={busy !== null}
+                className="font-semibold px-2 py-1 rounded-md text-red-700 hover:bg-red-50 disabled:opacity-60 transition"
+              >
+                {busy === "delete" ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      {dialog}
+    </li>
   );
 }

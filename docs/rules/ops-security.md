@@ -666,7 +666,10 @@ one foreign key, `contacted_by`, points at `profiles`, which is never truncated
 (and is `on delete set null` regardless). **Do not add it to the `TRUNCATE`
 list**; `src/lib/devReachoutResetGuard.test.ts` reads the *last*
 `debug_reset_all_data` body and fails if its list names `dev_reachouts` or any
-statement touches `dev_contact_`.
+statement touches `dev_contact_`. **`dev_reachout_notes` is kept for the same
+reason**, and CASCADE cannot reach it either: its foreign keys point at
+`dev_reachouts` and `profiles`, neither truncated; the same test fails if the
+body names it or the `TRUNCATE` list gains `profiles`.
 
 **`faqs`, `testimonials` and `mission_principles` are kept for the same
 reason**, one table at a time with its own reason, as

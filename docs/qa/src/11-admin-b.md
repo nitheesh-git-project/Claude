@@ -658,18 +658,18 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 **Steps**
 1. Complete `PUB-DEV-001` so there is at least one message, then sign in as the Master Admin and open **Settings → Dev Reachouts** (`?section=settings&tab=reachouts`). Check the sidebar badge counts the **new** messages.
 2. On the message, confirm the name, a `mailto:` email link, a `tel:` number link (when one was given), the message with its line breaks kept, and the received time **in the clinic's zone**.
-3. Type a note and tap **Save note**. Then tap **Mark as contacted**. Then tap **Move back to new**.
+3. Under **Add a note**, type a note and tap **Save note**. Add a second note the same way. On the first note tap **Edit**, change the text and tap **Save**. On the second tap **Delete**, then **No**; tap **Delete** again, then **Yes**. Then tap **Mark as contacted**. Then tap **Move back to new**.
 4. In **Show the developer credit and contact page**, tap the switch. Read the dialog, tap **No**. Tap it again and tap **Yes**. Open `/developer`, then switch it back on the same way (dialog again, **No**, then **Yes**).
 5. In **Email shown on the Let's talk page**, type `not an email` and tap **Save**. Then enter a real address and **Save**. Open `/developer/lets-talk`. Clear the box, **Save**, and open it again.
 6. Sign in as each of the three scoped admins and try `?section=settings&tab=reachouts`.
 
 **Expected Result**
 * Step 1: the badge shows the number of **new** messages and the filter chips read New / Contacted / All. A new message appears without a reload.
-* Step 3: the toast reads `Note saved for <name>`; the status pill reads **Contacted** with the date and time, then returns to **New**. Moving back clears who and when. Each action appears in Logs → All Activity as *Saved a note on a developer reachout* / *Moved a developer reachout*, and **the note's text is never in the log** - only that one was saved.
+* Step 3: each saved note appears at once **below the previous one** under **Notes**, with its date and time **in the clinic's zone** and the admin's name; the box clears for the next note and the toast reads `Note added for <name>`. **Save note** stays disabled while the box is blank. The edited note keeps its place and time and adds `· edited <date, time>`; **Save** stays disabled until the text changes, and **Cancel** restores it. **No** on the delete dialog keeps the note; **Yes** removes it. The status pill reads **Contacted** with the date and time, then returns to **New**. Moving back clears who and when. Each action appears in Logs → All Activity as *Added a note to* / *Edited a note on* / *Deleted a note on a developer reachout* / *Moved a developer reachout*, and **a note's text is never in the log** - only its length.
 * Step 4: **both** directions open a confirm dialog before anything is saved; **No** leaves the switch exactly where it was and writes nothing. After **Yes** the toast names the new state (`Developer credit is now hidden` / `shown`), the switch reads **Saving…** while in flight, the footer's credit line disappears or returns on a public page, and `/developer` and `/developer/lets-talk` are **404** while it is off. Messages already received are still listed.
 * Step 5: an invalid address is refused with a sentence and nothing is saved. A saved address shows as a `mailto:` link under **Prefer email?**; a blank one **hides that line entirely** while the form still works. No address ships in the code - a fresh database shows the box empty.
-* Step 6: a scoped admin never gets the tab, the rows or the controls, and a direct call to `/api/admin/update-dev-reachout` answers **403**.
-**Negative:** the debug **Reset data** button must **not** remove these messages or change either setting - they are the developer's own leads, not test data.
+* Step 6: a scoped admin never gets the tab, the rows or the controls, and a direct call to `/api/admin/update-dev-reachout` or `/api/admin/dev-reachout-note` answers **403**.
+**Negative:** the debug **Reset data** button must **not** remove these messages or their notes, or change either setting - they are the developer's own leads, not test data.
 
 #### `ADM-SET-035` - Sign-in & Security · P2
 **Steps.** Open **Settings → Sign-in & Security** and change the admin's own password. Check the screen carries two headed blocks: *Your own sign-in* (the reset button) and *Everybody else's sign-in* (the inactivity timeout and the sign-out message).

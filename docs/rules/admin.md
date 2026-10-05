@@ -203,7 +203,13 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   `people` scope the clinic's own lead pipelines use: a scoped admin must not
   receive a stranger's name, email and number, so the dashboard reads the
   table only when `scopeCanOpen(viewerScope, "settings")` and
-  `/api/admin/update-dev-reachout` is `requireAdminScope("settings")`. Three
+  `/api/admin/update-dev-reachout` (status) and `/api/admin/dev-reachout-note`
+  (add / edit / delete a note) are `requireAdminScope("settings")`. Notes are
+  a dated thread, one `dev_reachout_notes` row each, oldest first, with author
+  and an `edited_at` that stays null until a note changes; the old single
+  `dev_reachouts.admin_note` was carried into it and is no longer read. The
+  notes are a second read, so a failed one shows "could not be loaded", never
+  an empty thread that invites a duplicate. Three
   rules are easy to undo. **The credit switch asks on BOTH directions** and
   saves nothing until the dialog is confirmed -- cancelling leaves the switch
   where it was -- because turning it off closes `/developer` for every
@@ -213,9 +219,10 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   blank the "Prefer email?" row is hidden and the form still works (blank is
   the one email value `update-setting` accepts, since it is how an address is
   taken back down). And **the audit log never carries the note's text** --
-  `dev_reachout.update_note` records only `noteLength`; the note is free text
+  `dev_reachout.add_note` / `edit_note` record only `noteLength` (and
+  `delete_note` only the note's id); a note is free text
   about a person. `dev_reachouts` is in `ADMIN_REALTIME_TABLES`, so a new
-  message arrives without a reload. The table and both `dev_contact_*`
+  message arrives without a reload. Both tables and both `dev_contact_*`
   settings survive the debug data reset (see `ops-security.md`).
   **A settings screen taller than a couple of screens carries a map of
   itself.** `SettingsJumpNav` + `SettingsSection`

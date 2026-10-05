@@ -44,6 +44,7 @@ import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import { readCheckoutSpeed } from "@/lib/checkoutSpeedServer";
 import AdminAdvancedTab from "@/components/admin/AdminAdvancedTab";
 import DevReachoutsTab, { type DevReachoutRow } from "@/components/admin/DevReachoutsTab";
+import { groupDevReachoutNotes, type DevReachoutNoteRow } from "@/lib/devReachout";
 import SettingsJumpNav, { SettingsSection } from "@/components/admin/SettingsJumpNav";
 import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
 import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
@@ -156,7 +157,7 @@ import {
 } from "@/lib/retryDueMeetSyncs";
 import { checkGoogleConnection } from "@/lib/googleConnectionHealth";
 import { describeCalendarSync, sessionNeedsCalendarSync } from "@/lib/meetSyncState";
-import { readAllRows, readAllRowsAsData } from "@/lib/supabase/readAllRows";
+import { readAllRows, readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
 import { runMaintenanceSweep } from "@/lib/maintenanceSweep";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
@@ -1286,21 +1287,34 @@ export default async function AdminDashboardPage({
     // are a stranger's name, email and number. Guarded for the usual reason --
     // a database that has not applied the table yet loses this screen, not the
     // dashboard. Newest first, capped: the screen pages what it is given.
-    guard(
-      async () =>
-        scopeCanOpen(viewerScope, "settings")
-          ? ((
-              await admin
-                .from("dev_reachouts")
-                .select(
-                  "id, name, email, phone, message, status, admin_note, note_updated_at, contacted_at, created_at"
-                )
-                .order("created_at", { ascending: false })
-                .limit(500)
-            ).data as DevReachoutRow[] | null)
-          : null,
-      null as DevReachoutRow[] | null
-    ),
+    // The notes thread is a second read, so a database that has not applied
+    // `dev_reachout_notes` yet still shows the inbox; a failed notes read is
+    // `notes: null` ("could not load"), never an empty thread.
+    guard(async () => {
+      if (!scopeCanOpen(viewerScope, "settings")) return null;
+      const rows = (
+        await admin
+          .from("dev_reachouts")
+          .select("id, name, email, phone, message, status, contacted_at, created_at")
+          .order("created_at", { ascending: false })
+          .limit(500)
+      ).data as Omit<DevReachoutRow, "notes">[] | null;
+      if (!rows) return null;
+      const notes = await readAllRowsByIds(
+        rows.map((r) => r.id),
+        (chunk) =>
+          admin
+            .from("dev_reachout_notes")
+            .select("id, reachout_id, body, created_at, edited_at, author:profiles(full_name)")
+            .in("reachout_id", chunk)
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true })
+      ).catch(() => null);
+      const byReachout = groupDevReachoutNotes(
+        notes && !notes.error ? (notes.rows as unknown as DevReachoutNoteRow[]) : null
+      );
+      return rows.map((r) => ({ ...r, notes: byReachout ? (byReachout.get(r.id) ?? []) : null }));
+    }, null as DevReachoutRow[] | null),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
