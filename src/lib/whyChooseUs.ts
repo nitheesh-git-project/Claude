@@ -24,6 +24,7 @@ export type WhyItem = {
 
 export type BenefitItem = {
   key: string;
+  icon: string;
   title: string;
   line: string;
   detail: string;
@@ -83,6 +84,7 @@ export const WHY_CHOOSE_US: WhyItem[] = [
 export const REAL_BENEFITS: BenefitItem[] = [
   {
     key: "no-travel",
+    icon: "fa-couch",
     title: "No travel, no waiting room",
     line: "Nothing to drive to on the days it hurts to move.",
     detail:
@@ -90,6 +92,7 @@ export const REAL_BENEFITS: BenefitItem[] = [
   },
   {
     key: "your-time",
+    icon: "fa-clock",
     title: "Times that fit your day",
     line: "Book a slot that suits you, in your own timezone.",
     detail:
@@ -97,6 +100,7 @@ export const REAL_BENEFITS: BenefitItem[] = [
   },
   {
     key: "expert-eyes",
+    icon: "fa-eye",
     title: "Expert eyes on your form",
     line: "A physiotherapist watches you move and corrects it as you go.",
     detail:
@@ -104,6 +108,7 @@ export const REAL_BENEFITS: BenefitItem[] = [
   },
   {
     key: "clear-price",
+    icon: "fa-indian-rupee-sign",
     title: "Clear, upfront pricing",
     line: "You see the full price before you pay, with nothing added later.",
     detail:
@@ -111,6 +116,7 @@ export const REAL_BENEFITS: BenefitItem[] = [
   },
   {
     key: "adapts",
+    icon: "fa-arrows-rotate",
     title: "A plan that keeps up with you",
     line: "Your plan changes as you do, session to session.",
     detail:
@@ -118,6 +124,7 @@ export const REAL_BENEFITS: BenefitItem[] = [
   },
   {
     key: "keep-going",
+    icon: "fa-fire",
     title: "Easier to keep going",
     line: "Sessions, plan and notes live in one dashboard.",
     detail:

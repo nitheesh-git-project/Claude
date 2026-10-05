@@ -1,5 +1,5 @@
 import { createPublicClient } from "@/lib/supabase/public";
-import { parseEnabledIntakeSpecialties } from "@/lib/adminSettings";
+import { parseBookingLanguages, parseEnabledIntakeSpecialties } from "@/lib/adminSettings";
 import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
 
 /**
@@ -36,4 +36,14 @@ export async function readEnabledIntakeSpecialties(): Promise<ConditionSpecialty
     .select("enabled_intake_specialties")
     .maybeSingle();
   return parseEnabledIntakeSpecialties(data?.enabled_intake_specialties);
+}
+
+/** The languages a patient may ask for at booking, for the public pages that
+ *  name them (Why choose us). Same fallback rule as the booking form. */
+export async function readBookingLanguages(): Promise<string[]> {
+  const { data } = await createPublicClient()
+    .from("site_settings")
+    .select("booking_languages")
+    .maybeSingle();
+  return parseBookingLanguages(data?.booking_languages);
 }

@@ -4,17 +4,13 @@
 // patient's own dashboard uses, so the showcase cannot drift from the
 // product.
 //
-// The questions are read from the intake definitions themselves
-// (intakeOrtho / intakeNeuro / intakePediatrics), so rewording one there
-// rewords it here. Which specialties appear follows
+// The milestone list is read from the paediatric intake itself, so
+// rewording it there rewords it here. Which specialties appear follows
 // `site_settings.enabled_intake_specialties`: a profile the clinic has
 // switched off is not advertised. Dependency-free apart from those
 // definitions, so the sample shapes are testable.
 
 import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
-import type { IntakeQuestion } from "@/lib/conditionIntake";
-import { ORTHO_INTAKE_QUESTIONS } from "@/lib/intakeOrtho";
-import { NEURO_INTAKE_QUESTIONS } from "@/lib/intakeNeuro";
 import { PEDS_INTAKE_QUESTIONS } from "@/lib/intakePediatrics";
 import type { PainAssessmentRow } from "@/lib/painMap";
 import type { IntakeTrendPoint } from "@/lib/healthProfileSummary";
@@ -27,18 +23,9 @@ export type ShowcaseProfile = {
   forWho: string;
   /** The headline change the sample shows, for the home page card. */
   headline: { metric: string; from: string; to: string };
-  /** The intake questions shown under "What we ask" (short labels). */
-  asks: string[];
   /** What the profile watches over the course, one line each. */
   tracks: string[];
 };
-
-function shortLabels(questions: IntakeQuestion[], limit = 6): string[] {
-  return questions
-    .filter((q) => !q.excludeFromCount)
-    .slice(0, limit)
-    .map((q) => q.label);
-}
 
 export const SHOWCASE_PROFILES: ShowcaseProfile[] = [
   {
@@ -47,7 +34,6 @@ export const SHOWCASE_PROFILES: ShowcaseProfile[] = [
     icon: "fa-bone",
     forWho: "Joints, muscles and the back - a sore knee, a stiff shoulder, post-surgery rehab.",
     headline: { metric: "Pain", from: "7/10", to: "3/10" },
-    asks: shortLabels(ORTHO_INTAKE_QUESTIONS),
     tracks: [
       "Each painful area on the Pain Map, scored 0-10 at every exam",
       "One line for whether the pain is coming down",
@@ -60,7 +46,6 @@ export const SHOWCASE_PROFILES: ShowcaseProfile[] = [
     icon: "fa-brain",
     forWho: "Stroke, Parkinson's, MS, nerve injuries - getting function back.",
     headline: { metric: "Independence", from: "3/10", to: "7/10" },
-    asks: shortLabels(NEURO_INTAKE_QUESTIONS),
     tracks: [
       "Day-to-day independence, 0-10, at every review",
       "How you move indoors, from bed to walking unaided",
@@ -73,7 +58,6 @@ export const SHOWCASE_PROFILES: ShowcaseProfile[] = [
     icon: "fa-child",
     forWho: "Children's development and movement - told by the parent or caregiver.",
     headline: { metric: "Milestones", from: "4", to: "7" },
-    asks: shortLabels(PEDS_INTAKE_QUESTIONS),
     tracks: [
       "Milestones your child does on their own, ticked over time",
       "The hardest part of a normal day, and your goal for them",
@@ -146,3 +130,76 @@ export const PROGRESS_STEPS: { icon: string; title: string; body: string }[] = [
   { icon: "fa-chart-line", title: "Reviews", body: "Today set beside your first visit, side by side." },
   { icon: "fa-file-pdf", title: "Your record", body: "The whole chart, as a PDF you keep." },
 ];
+
+// ---- The sample dashboard --------------------------------------------------
+// What the showcase draws inside its dashboard frame, per specialty. Every
+// figure here is consistent with the sample charts above (the unit test
+// holds the headline ones), and every timeline entry is a kind of event the
+// product really records.
+
+export type DashboardStat = { label: string; value: string; note: string; tone: "good" | "neutral" };
+export type TimelineEntry = { date: string; icon: string; text: string };
+
+export type SampleDashboard = {
+  patient: string;
+  condition: string;
+  stats: DashboardStat[];
+  plan: { title: string; done: number; total: number };
+  timeline: TimelineEntry[];
+};
+
+const at = (day: string) => `${day}T12:30:00.000Z`;
+
+export const SAMPLE_DASHBOARDS: Record<ConditionSpecialty, SampleDashboard> = {
+  ortho: {
+    patient: "Riya",
+    condition: "Right knee pain, lower back",
+    stats: [
+      { label: "Pain now", value: "3.0/10", note: "down 4.0 since first exam", tone: "good" },
+      { label: "Sessions", value: "4 of 6", note: "in your course", tone: "neutral" },
+      { label: "Next session", value: "Mon", note: "same physiotherapist", tone: "neutral" },
+    ],
+    plan: { title: "Knee strength and back mobility", done: 4, total: 6 },
+    timeline: [
+      { date: at("2026-02-16"), icon: "fa-notes-medical", text: "Session 4 notes added by your physiotherapist" },
+      { date: at("2026-02-16"), icon: "fa-person-rays", text: "Knee re-scored on the Pain Map: 3.5/10" },
+      { date: at("2026-02-09"), icon: "fa-dumbbell", text: "Home exercise updated: step-ups added" },
+      { date: at("2026-01-19"), icon: "fa-file-medical", text: "Knee MRI report uploaded and read" },
+      { date: at("2026-01-05"), icon: "fa-clipboard-check", text: "Health profile completed before session 1" },
+    ],
+  },
+  neuro: {
+    patient: "Arun",
+    condition: "Recovery after stroke, left side",
+    stats: [
+      { label: "Independence", value: "7/10", note: "up 4 since first review", tone: "good" },
+      { label: "Moving indoors", value: "Stick", note: "was: holding on to someone", tone: "good" },
+      { label: "Falls", value: "0", note: "since starting", tone: "good" },
+    ],
+    plan: { title: "Balance, gait and left-hand function", done: 6, total: 10 },
+    timeline: [
+      { date: at("2026-02-16"), icon: "fa-notes-medical", text: "Review 4: independence scored 7/10" },
+      { date: at("2026-02-09"), icon: "fa-notes-medical", text: "Session note: walked to the gate with a stick" },
+      { date: at("2026-02-02"), icon: "fa-dumbbell", text: "Home exercise updated: more sit-to-stands" },
+      { date: at("2026-01-19"), icon: "fa-shield-heart", text: "Review 2: no falls since starting" },
+      { date: at("2026-01-05"), icon: "fa-clipboard-check", text: "Health profile completed with his daughter" },
+    ],
+  },
+  pediatrics: {
+    patient: "Meera",
+    condition: "Gross motor delay, age 2",
+    stats: [
+      { label: "Milestones", value: "7 of 11", note: "up 3 since first review", tone: "good" },
+      { label: "Sessions", value: "5 of 8", note: "with the same therapist", tone: "neutral" },
+      { label: "Next review", value: "Mon", note: "milestones re-checked", tone: "neutral" },
+    ],
+    plan: { title: "Standing, walking and balance through play", done: 5, total: 8 },
+    timeline: [
+      { date: at("2026-02-16"), icon: "fa-star", text: "New milestone: walks steadily" },
+      { date: at("2026-02-16"), icon: "fa-notes-medical", text: "Review 4 notes shared with her parents" },
+      { date: at("2026-02-02"), icon: "fa-puzzle-piece", text: "Home exercise updated: cruising games added" },
+      { date: at("2026-01-19"), icon: "fa-star", text: "New milestone: pulls to stand" },
+      { date: at("2026-01-05"), icon: "fa-clipboard-check", text: "Health profile completed by her mother" },
+    ],
+  },
+};

@@ -11,7 +11,7 @@ import Testimonials, {
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
-import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import { readBookingLanguages, readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
 
 export const metadata: Metadata = {
@@ -58,7 +58,10 @@ export default async function MissionPage() {
     .single();
   const hasRealRatings = !!ratingSummary && ratingSummary.rating_count > 0;
 
-  const homeVisitEnabled = await readHomeVisitEnabled();
+  const [homeVisitEnabled, bookingLanguages] = await Promise.all([
+    readHomeVisitEnabled(),
+    readBookingLanguages(),
+  ]);
 
   // The two lines this page is built around. Read on its own like the flag
   // above, and falling back to the wording in mission.ts, so a database that
@@ -116,7 +119,7 @@ export default async function MissionPage() {
         eyebrow="Why choose us"
         title="Six reasons patients pick us"
       >
-        <WhyChooseUsGrid />
+        <WhyChooseUsGrid languages={bookingLanguages} />
       </Section>
 
       <Section

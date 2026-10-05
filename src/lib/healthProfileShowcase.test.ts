@@ -26,8 +26,7 @@ describe("health profile showcase", () => {
     expect(sampleMilestones().filter((m) => m.done)).toHaveLength(SAMPLE_MILESTONE_COUNTS.at(-1)!.value);
   });
 
-  it("asks the real intake questions, and only for enabled specialties", () => {
-    for (const p of SHOWCASE_PROFILES) expect(p.asks.length).toBeGreaterThan(3);
+  it("shows only the enabled specialties", () => {
     expect(enabledShowcaseProfiles(["neuro"]).map((p) => p.specialty)).toEqual(["neuro"]);
     expect(enabledShowcaseProfiles([])).toEqual([]);
   });

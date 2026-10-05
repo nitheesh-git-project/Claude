@@ -15,9 +15,9 @@ import Section from "@/components/marketing/Section";
 import SplitFeature from "@/components/marketing/SplitFeature";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
 import MissionPreview from "@/components/marketing/MissionPreview";
-import HealthProfileBand from "@/components/marketing/HealthProfileBand";
+import HealthProfileShowcase from "@/components/marketing/HealthProfileShowcase";
 import { enabledShowcaseProfiles } from "@/lib/healthProfileShowcase";
-import { readEnabledIntakeSpecialties } from "@/lib/homeVisitFlag";
+import { readBookingLanguages, readEnabledIntakeSpecialties } from "@/lib/homeVisitFlag";
 import { RealBenefitsList, SubHeading, WhyChooseUsGrid } from "@/components/marketing/WhyChooseUs";
 import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
 import Testimonials, {
@@ -186,7 +186,11 @@ export default async function Home() {
   // testimonials), so a nav item pointing at a section that isn't on the
   // page would just do nothing when clicked. Order must match the DOM: the
   // scroll arrow walks this list top to bottom.
-  const showcaseProfiles = enabledShowcaseProfiles(await readEnabledIntakeSpecialties());
+  const [enabledSpecialties, bookingLanguages] = await Promise.all([
+    readEnabledIntakeSpecialties(),
+    readBookingLanguages(),
+  ]);
+  const showcaseProfiles = enabledShowcaseProfiles(enabledSpecialties);
 
   const sectionNavItems: SectionNavItem[] = [
     { id: "two-ways", label: "Two Ways to Start", icon: "fa-video" },
@@ -345,17 +349,17 @@ export default async function Home() {
         </Reveal>
       </Section>
 
-      {/* The specialty health profiles, one card each, linking to the full
-          showcase on /how-it-works. */}
+      {/* The specialty dashboards with sample data, beside a short pitch and
+          the booking button -- the full tour is on /how-it-works. */}
       {showcaseProfiles.length > 0 && (
         <Section
           id="health-profile"
           tone={bandTone("health-profile")}
-          eyebrow="Built for your kind of care"
-          title="A health profile that follows your recovery"
-          lede="Orthopaedic, neurological and paediatric care each track what matters for them."
+          eyebrow="Your recovery, tracked"
+          title="See every step of your recovery"
+          lede="Orthopaedic, neurological and paediatric care - each with a dashboard of its own."
         >
-          <HealthProfileBand profiles={showcaseProfiles} />
+          <HealthProfileShowcase profiles={showcaseProfiles} variant="home" />
         </Section>
       )}
 
@@ -429,7 +433,7 @@ export default async function Home() {
         {/* Three steps down from the concrete to the why: what we do, what
             changes for you, and then the mission and vision behind both.
             Each card is one line here; /mission has them in full. */}
-        <WhyChooseUsGrid compact />
+        <WhyChooseUsGrid compact languages={bookingLanguages} />
         <div className="mt-14 sm:mt-16">
           <SubHeading eyebrow="The real benefits" title="What changes for you" />
           <RealBenefitsList compact />

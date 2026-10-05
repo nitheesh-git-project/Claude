@@ -183,8 +183,8 @@ export default async function HowItWorksPage() {
         <Section
           id="health-profile"
           eyebrow="Your health profile"
-          title="Built for your kind of care, and tracked every session"
-          lede="Each specialty asks its own questions, then measures the thing that matters for it."
+          title="Everything is tracked. All of it is yours to see."
+          lede="A sample dashboard for each kind of care - the same one you get from your first session."
         >
           <HealthProfileShowcase profiles={showcaseProfiles} />
         </Section>
