@@ -10,9 +10,10 @@ import {
   normalizeInviteCode,
   type InviteSettings,
 } from "@/lib/inviteRewards";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 /**

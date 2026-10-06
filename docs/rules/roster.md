@@ -194,7 +194,10 @@ Availability as periods over hour rows, specialisation as a value, what readines
   card. The route enforces it, not the dialog: a therapist's Done is refused
   409 `note_required` without a `session_notes` row for the appointment, and
   409 `pain_map_required` without a pain assessment this therapist recorded
-  since an hour before the slot (`e2e/finish-session.spec.ts`). Admins and
+  since an hour before the slot - for an **orthopaedic** patient only, since
+  only that chart has a Pain Map; a neuro or paediatric patient's session
+  finishes on the note alone, and the dialog's Pain Map step stands aside
+  (`e2e/finish-session.spec.ts`). Admins and
   No-show are exempt. The "not started yet" line wraps under the buttons
   (`basis-full`) so No-show stays beside Done.
   **The admin half of it is a Sessions write, and asks for `manage`.** This

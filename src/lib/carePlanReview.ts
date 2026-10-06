@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { readCarePlanSettings } from "@/lib/carePlanAuthoring";
 import { resolveCourseRate, resolveRecommendablePackage } from "@/lib/carePlanServer";
 import { buildCourseSnapshot, parseOfferSnapshot, type CarePlanOfferKind } from "@/lib/carePlans";
+import { formatRupees } from "@/lib/formatMoney";
 
 type AdminClient = SupabaseClient;
 
@@ -353,7 +354,7 @@ export async function describeOfferDrift(
       return `This was written for ${was.sessionCount} sessions and the programme now has ${resolved.snapshot.sessionCount}. Approving it would offer the patient a plan checkout then refuses. Turn it down and ask for a fresh recommendation.`;
     }
     if (was.pricePaise !== resolved.snapshot.pricePaise) {
-      const inr = (p: number) => `₹${(p / 100).toLocaleString("en-IN")}`;
+      const inr = (p: number) => `₹${formatRupees(p)}`;
       return `This was written at ${inr(was.pricePaise)} and it now costs ${inr(resolved.snapshot.pricePaise)}. Approving it would quote one figure and charge another. Turn it down and ask for a fresh recommendation.`;
     }
     return null;

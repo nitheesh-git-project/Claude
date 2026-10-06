@@ -45,6 +45,7 @@ import { rateLimitNotice } from "@/lib/rateLimit";
 import ServicePicker from "@/components/booking/ServicePicker";
 import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
 import { homeVisitServiceOption } from "@/lib/serviceOptions";
+import { formatRupees } from "@/lib/formatMoney";
 
 // The six fields this wizard has always read, plus what the service picker
 // shows. The optional ones are optional for two different reasons: the focal
@@ -745,7 +746,7 @@ export default function HomeVisitBookingWizard({
                   <span>
                     {" "}
                     Travel to this area is ₹
-                    {(areaCheck.travelFeePaise / 100).toLocaleString("en-IN")} per visit.
+                    {formatRupees(areaCheck.travelFeePaise)} per visit.
                   </span>
                 )}
                 {selectedPackage?.travel_fee_included && <span> Travel is included.</span>}
@@ -1092,7 +1093,7 @@ export default function HomeVisitBookingWizard({
             <div className="flex justify-between gap-4">
               <dt className="text-slate-500">Package price</dt>
               <dd className="text-slate-900">
-                ₹{(total.packagePricePaise / 100).toLocaleString("en-IN")}
+                ₹{formatRupees(total.packagePricePaise)}
               </dd>
             </div>
             <div className="flex justify-between gap-4">
@@ -1107,13 +1108,13 @@ export default function HomeVisitBookingWizard({
                   ? "Included"
                   : total.travelLabel === "none"
                     ? "Free"
-                    : `₹${((total.totalPaise - total.packagePricePaise) / 100).toLocaleString("en-IN")}`}
+                    : `₹${formatRupees((total.totalPaise - total.packagePricePaise))}`}
               </dd>
             </div>
             <div className="flex justify-between gap-4 border-t border-slate-200 pt-2">
               <dt className="font-bold text-slate-900">Total</dt>
               <dd className="font-display text-lg font-bold text-slate-900">
-                ₹{(total.totalPaise / 100).toLocaleString("en-IN")}
+                ₹{formatRupees(total.totalPaise)}
               </dd>
             </div>
           </dl>
@@ -1195,8 +1196,8 @@ export default function HomeVisitBookingWizard({
                   ? "Booking..."
                   : "Opening payment..."
                 : paymentMode === "cash"
-                  ? `Book - pay ₹${(total.totalPaise / 100).toLocaleString("en-IN")} at the door`
-                  : `Pay ₹${(total.totalPaise / 100).toLocaleString("en-IN")}`}
+                  ? `Book - pay ₹${formatRupees(total.totalPaise)} at the door`
+                  : `Pay ₹${formatRupees(total.totalPaise)}`}
             </button>
           </div>
         </div>

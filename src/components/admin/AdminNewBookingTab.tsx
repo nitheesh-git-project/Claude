@@ -6,6 +6,7 @@ import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
+import { formatRupees } from "@/lib/formatMoney";
 
 // Booking on someone's behalf -- the phone call the dashboard could not
 // answer before this. Every field here is a decision only the person on the
@@ -186,7 +187,7 @@ export default function AdminNewBookingTab({
             <option value="">Choose a treatment…</option>
             {bookableCategories.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.title} · ₹{(c.price_paise / 100).toLocaleString("en-IN")} ·{" "}
+                {c.title} · ₹{formatRupees(c.price_paise)} ·{" "}
                 {c.duration_minutes} min
               </option>
             ))}
@@ -274,7 +275,7 @@ export default function AdminNewBookingTab({
               <span>
                 <strong>Already paid offline</strong> - records{" "}
                 {selectedCategory
-                  ? `₹${(selectedCategory.price_paise / 100).toLocaleString("en-IN")}`
+                  ? `₹${formatRupees(selectedCategory.price_paise)}`
                   : "the category price"}{" "}
                 as collected. There is no Razorpay payment behind it, so no automatic refund is
                 possible later.

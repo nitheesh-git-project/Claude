@@ -1,4 +1,5 @@
 import { SOCIAL_LINKS } from "@/lib/socialLinks";
+import { formatRupees } from "@/lib/formatMoney";
 
 // What a saved setting says back to the owner.
 //
@@ -63,7 +64,7 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     describe: (v) =>
       v === null || v === 0
         ? "There is no limit on what a trusted patient may owe."
-        : `A patient is now asked to pay now once they would owe more than ₹${(v / 100).toLocaleString("en-IN")}.`,
+        : `A patient is now asked to pay now once they would owe more than ₹${formatRupees(v)}.`,
   },
   home_visit_lead_time_hours: {
     kind: "number",
@@ -239,11 +240,11 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
   },
   invite_welcome_paise: {
     kind: "number",
-    describe: (v) => `An invited friend now gets ₹${(v / 100).toLocaleString("en-IN")} off.`,
+    describe: (v) => `An invited friend now gets ₹${formatRupees(v)} off.`,
   },
   invite_reward_paise: {
     kind: "number",
-    describe: (v) => `An inviter now gets ₹${(v / 100).toLocaleString("en-IN")} off their next session.`,
+    describe: (v) => `An inviter now gets ₹${formatRupees(v)} off their next session.`,
   },
   invite_max_rewards_per_patient: {
     kind: "number",
@@ -381,14 +382,14 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     describe: (v) =>
       v === 0
         ? "Break-even is back to using what your own sessions actually sold for."
-        : `Break-even now assumes a session sells for ₹${(v / 100).toLocaleString("en-IN")}.`,
+        : `Break-even now assumes a session sells for ₹${formatRupees(v)}.`,
   },
   finance_break_even_variable_cost_paise: {
     kind: "number",
     describe: (v) =>
       v === 0
         ? "Break-even is back to using what your own sessions actually cost to deliver."
-        : `Break-even now assumes a session costs ₹${(v / 100).toLocaleString("en-IN")} to deliver.`,
+        : `Break-even now assumes a session costs ₹${formatRupees(v)} to deliver.`,
   },
   finance_run_rate_basis: {
     kind: "text",

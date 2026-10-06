@@ -13,9 +13,10 @@ import {
   CARE_PLAN_STATE_LABELS,
   type CarePlanStatus,
 } from "@/lib/carePlans";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 export type CarePlanOffer = {

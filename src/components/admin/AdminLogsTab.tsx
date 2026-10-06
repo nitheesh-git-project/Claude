@@ -23,6 +23,7 @@ import {
 } from "@/lib/activityLog";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
+import { formatRupees } from "@/lib/formatMoney";
 
 // The whole log, for the one reader entitled to all of it.
 //
@@ -320,7 +321,7 @@ export default function AdminLogsTab({
                     <td className="py-2 pr-3 text-slate-500">{r.targetLabel ?? "-"}</td>
                     <td className="whitespace-nowrap py-2 pr-3 text-right font-semibold tabular-nums text-slate-800">
                       {r.amountPaise != null
-                        ? `₹${(r.amountPaise / 100).toLocaleString("en-IN")}`
+                        ? `₹${formatRupees(r.amountPaise)}`
                         : "-"}
                     </td>
                   </tr>

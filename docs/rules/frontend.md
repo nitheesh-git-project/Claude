@@ -673,3 +673,19 @@ is invisible to any tooling here.
   when it appears within ~1.5s of a tap/key/submit and is outside the viewport.
   A new form's validator should name the field, not rely on the safety net;
   `data-no-autoscroll` opts a region out.
+- **Money prints through `src/lib/formatMoney.ts`, never a local
+  `(paise / 100).toLocaleString()`.** Thirty components had their own copy
+  and disagreed - one screen read ₹3,118.8, the next ₹3,118.80. Whole rupees
+  print with no decimals (₹499); anything with paise always prints two. A
+  deliberate whole-rupee rounding (`Math.round(x / 100)`) is the only other
+  form, and says so where it is used.
+- **Every page fits every screen shape the owner named.** `e2e/layout-audit.spec.ts`
+  loads every public, patient, therapist, hospital and admin page and resizes
+  it through 17 viewports covering 20:9, 19.5:9, 22:9, 16:9, 16:10, 5:3, 7:5,
+  5:4 and the 12.9" iPad, checking for sideways scroll (page or panel),
+  anything off the edge, silently clipped text and text or controls drawn
+  over each other (`e2e/layout/layoutProbe.ts`). A new page is added to its
+  list; a long unbroken string (an ID, a URL) gets `[overflow-wrap:anywhere]`;
+  a segmented control is full-width with equal tabs below `sm`; a fixed pill
+  centred with `left-1/2` needs `w-max max-w-[calc(100vw-2rem)]` or it wraps
+  into half the screen.

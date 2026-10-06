@@ -1,3 +1,4 @@
+import { formatRupees } from "@/lib/formatMoney";
 type ProfitSession = {
   id: string;
   label: string;
@@ -16,7 +17,7 @@ const PAYOUT_COLOR = "#4f46e5"; // indigo-600
 const PROFIT_COLOR = "#0d9488"; // teal-600
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 export default function PatientProfitChart({

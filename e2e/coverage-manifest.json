@@ -535,6 +535,34 @@
       "integration": "local",
       "destructive": false
     },
+    "layout-audit.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/frontend.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "layout-states.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/frontend.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "debug-clock.spec.ts": {
       "runner": "session",
       "levels": [
@@ -1629,6 +1657,30 @@
       "limitation": "Reproduces the original failure only against a server not running in India time; the gate's webServer inherits TZ=Asia/Kolkata from playwright.config.ts. The zone maths is unit-tested in src/lib/resolveSlotInstant.test.ts."
     },
     {
+      "id": "admin.layout-every-screen-shape",
+      "runner": "admin",
+      "title": "Every page fits every screen shape the owner named, with nothing overlapping or off the edge",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "layout-audit.spec.ts",
+          "tests": [
+            "LAYOUT"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "layout-states.spec.ts",
+          "tests": [
+            "LAYOUT-STATE"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Pages are checked as they first render; the interactive states covered are the public menu, both dashboard drawers, booking step 2, the programme scheduler, the therapist's finish dialog with a recommendation open, and the admin session drawer. Other dialogs are not yet in the sweep."
+    },
+    {
       "id": "session.finish-with-note",
       "runner": "session",
       "title": "A therapist's Done opens the session note with the Pain Map and needs both",
@@ -1640,7 +1692,9 @@
           "tests": [
             "FS-001",
             "FS-002",
-            "FS-003"
+            "FS-003",
+            "FS-004",
+            "FS-005"
           ],
           "level": "browser"
         }

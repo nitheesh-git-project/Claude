@@ -19,6 +19,7 @@ import { formatSlotRange, istDateKey, istMinutesOfDay } from "@/lib/formatSlotRa
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
+import { formatRupees } from "@/lib/formatMoney";
 
 // The one list of sessions.
 //
@@ -761,7 +762,7 @@ export default function AdminAllSessionsTab({
                   <td className="py-2 pr-3 text-slate-600">{patientName}</td>
                   <td className="py-2 pr-3 text-slate-500">{categoryTitle}</td>
                   <td className="py-2 pr-3 text-slate-700 font-semibold whitespace-nowrap tabular-nums">
-                    ₹{(price / 100).toLocaleString("en-IN")}
+                    ₹{formatRupees(price)}
                     {a.payment_status !== "paid" && (
                       <span className="text-slate-500 font-normal"> (est.)</span>
                     )}

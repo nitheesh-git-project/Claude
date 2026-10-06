@@ -16,6 +16,7 @@
 // so both are unit-tested; activityTimelineServer.ts does the reads.
 
 import { formatClinicDateTime } from "@/lib/formatDateTime";
+import { formatRupees } from "@/lib/formatMoney";
 
 export const ACTIVITY_CATEGORIES = [
   "booking",
@@ -107,7 +108,7 @@ export type NameLookup = (id: string | null | undefined) => { name: string | nul
 
 function rupees(paise: number | null | undefined): string | null {
   if (typeof paise !== "number") return null;
-  return `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 function who(lookup: NameLookup, id: string | null | undefined, fallback: ActivityActorRole) {

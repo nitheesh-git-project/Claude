@@ -29,6 +29,7 @@ import {
   visitAddressFromAppointment,
 } from "@/lib/formatAddress";
 import { describeSessionPayment } from "@/lib/sessionPaymentState";
+import { formatRupees } from "@/lib/formatMoney";
 
 const PAYMENT_CHIP_TONE: Record<string, string> = {
   good: "text-green-700 bg-green-50",
@@ -486,7 +487,7 @@ export default function SessionDetailDrawer({
             <div>
               <p className="text-slate-500">Price</p>
               <p className="font-semibold text-slate-800">
-                ₹{(feePaise / 100).toLocaleString("en-IN")}
+                ₹{formatRupees(feePaise)}
                 {a.payment_status !== "paid" && (
                   <span className="text-slate-500 font-normal"> (estimated)</span>
                 )}
@@ -517,7 +518,7 @@ export default function SessionDetailDrawer({
                 <p className="text-slate-500">Cancellation</p>
                 <p className="text-slate-700">
                   {a.refund_status === "processed" && a.refund_amount_paise
-                    ? `₹${(a.refund_amount_paise / 100).toLocaleString("en-IN")} refunded`
+                    ? `₹${formatRupees(a.refund_amount_paise)} refunded`
                     : a.refund_status === "not_eligible"
                     ? a.therapist_payout_paid_at
                       ? "No refund (this session's payout was already settled - cancelled as an admin correction, not a late cancellation)"
@@ -734,7 +735,7 @@ export default function SessionDetailDrawer({
                     <p className="text-slate-500">Travel fee</p>
                     <p className="font-semibold text-slate-700">
                       {homeVisit.travel_fee_paise
-                        ? `₹${(homeVisit.travel_fee_paise / 100).toLocaleString("en-IN")}`
+                        ? `₹${formatRupees(homeVisit.travel_fee_paise)}`
                         : "-"}
                     </p>
                     <p className="text-slate-500">Paid to the therapist in full.</p>
@@ -743,7 +744,7 @@ export default function SessionDetailDrawer({
                     <p className="text-slate-500">Cash</p>
                     <p className="font-semibold text-slate-700">
                       {homeVisit.cash_collected_at
-                        ? `Collected ₹${((homeVisit.cash_collected_amount_paise ?? 0) / 100).toLocaleString("en-IN")}`
+                        ? `Collected ₹${formatRupees((homeVisit.cash_collected_amount_paise ?? 0))}`
                         : homeVisit.payment_status === "paid"
                           ? "Prepaid"
                           : "Cash on visit, not yet collected"}

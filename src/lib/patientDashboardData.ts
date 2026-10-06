@@ -807,6 +807,30 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ...(hubCategoryFocalById.get(c.id) ?? {}),
   }));
 
+  // Everything paid for and not yet in the diary (feed items and the
+  // Overview headline both read it).
+  const unscheduled = ownedPackagesForDisplay.flatMap((p) => {
+      if (p.status !== "active") return [];
+      const counts = computePackageCounts({
+        sessionCount: p.session_count,
+        sessionsUsed: p.sessions_used,
+        completedCount: completedCountByPurchase.get(p.id) ?? 0,
+        scheduledCount: scheduledCountByPurchase.get(p.id) ?? 0,
+      });
+      if (counts.pending <= 0) return [];
+      return [
+        {
+          purchaseId: p.id,
+          title:
+            ownedPackageInfoMap.get(p.package_id)?.title ??
+            activeCategoryMap.get(p.category_id) ??
+            "Your programme",
+          pending: counts.pending,
+          since: p.paid_at ?? p.created_at ?? new Date(nowMs).toISOString(),
+        },
+      ];
+    });
+
   const patientFeed = buildPatientFeed({
     appointments: appointments.map((a) => ({
       id: a.id,
@@ -848,27 +872,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // loader already has -- no extra query, and the same counter every
     // other surface reads, so the feed cannot claim a balance the Packages
     // screen disagrees with.
-    unscheduled: ownedPackagesForDisplay.flatMap((p) => {
-      if (p.status !== "active") return [];
-      const counts = computePackageCounts({
-        sessionCount: p.session_count,
-        sessionsUsed: p.sessions_used,
-        completedCount: completedCountByPurchase.get(p.id) ?? 0,
-        scheduledCount: scheduledCountByPurchase.get(p.id) ?? 0,
-      });
-      if (counts.pending <= 0) return [];
-      return [
-        {
-          purchaseId: p.id,
-          title:
-            ownedPackageInfoMap.get(p.package_id)?.title ??
-            activeCategoryMap.get(p.category_id) ??
-            "Your programme",
-          pending: counts.pending,
-          since: p.paid_at ?? p.created_at ?? new Date(nowMs).toISOString(),
-        },
-      ];
-    }),
+    unscheduled,
   });
 
   const overviewCells: StatCell[] = [
@@ -1058,6 +1062,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ownedHomeVisitPackageInfoMap,
     purchaseCodeById,
     pendingSuggestions,
+    unbookedSessionCount: unscheduled.reduce((n, u) => n + u.pending, 0),
     completedCountByPurchase,
     scheduledCountByPurchase,
     completedCountByHomeVisitPurchase,

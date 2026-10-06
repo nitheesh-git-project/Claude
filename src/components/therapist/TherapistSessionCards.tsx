@@ -12,6 +12,7 @@ import { isNoteEditable, noteEditHoursLeft } from "@/lib/sessionNotes";
 import type { TherapistDashboardData } from "@/lib/therapistDashboardData";
 import RevealContactButton from "@/components/therapist/RevealContactButton";
 import { maskPhone } from "@/lib/contactMasking";
+import { formatRupees } from "@/lib/formatMoney";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -317,7 +318,7 @@ export function renderTherapistHomeVisitCard(
             <i className="fa-solid fa-circle-check mr-1.5" />
             Cash collected
             {visit.cash_collected_amount_paise
-              ? ` - ₹${(visit.cash_collected_amount_paise / 100).toLocaleString("en-IN")}`
+              ? ` - ₹${formatRupees(visit.cash_collected_amount_paise)}`
               : ""}
           </p>
         )}

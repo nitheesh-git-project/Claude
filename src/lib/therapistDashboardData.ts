@@ -18,6 +18,7 @@ import { loadCarePlanReviews, loadRecommendableRates } from "@/lib/carePlanServe
 import { readCarePlanRequiresApproval } from "@/lib/carePlanAuthoring";
 import { maskPhone } from "@/lib/contactMasking";
 import { parseOfferSnapshot } from "@/lib/carePlans";
+import { formatRupees } from "@/lib/formatMoney";
 
 // Everything the therapist dashboard's screens read, loaded once per
 // request -- the same split as the patient's loader, and for the same
@@ -703,7 +704,27 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
             }))
         : [],
   }).concat(
-    notesOwed.slice(0, 4).map((s) => ({
+    // One line for several notes rather than one per session -- on a phone
+    // a stack of "Session note needed" rows was a long scroll of the same
+    // sentence. A single note keeps its own line with the patient's name.
+    notesOwed.length > 1
+      ? [
+          {
+            id: "notes-owed",
+            at:
+              notesOwed
+                .map((s) => s.slot_time ?? "")
+                .sort()
+                .at(-1) || new Date(nowMsForOverview).toISOString(),
+            icon: "fa-file-pen",
+            tone: "warn" as const,
+            title: `${notesOwed.length} session notes to write`,
+            detail: `${[...new Set(notesOwed.map((s) => patientNameById.get(s.patient_id) ?? "a patient"))].join(", ")} - write them while they're fresh.`,
+            href: "/therapist/dashboard/sessions",
+            needsYou: true,
+          },
+        ]
+      : notesOwed.map((s) => ({
       id: `note-${s.id}`,
       at: s.slot_time ?? new Date(nowMsForOverview).toISOString(),
       icon: "fa-file-pen",
@@ -748,7 +769,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     },
     {
       label: "Owed to you",
-      value: `₹${(pendingOwedPaise / 100).toLocaleString("en-IN")}`,
+      value: `₹${formatRupees(pendingOwedPaise)}`,
       note:
         requestStatus === "none"
           ? "Not yet requested"

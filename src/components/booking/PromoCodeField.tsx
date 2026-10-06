@@ -2,9 +2,10 @@
 
 import { useRef, useState } from "react";
 import { isWellFormedPromoCode, normalizePromoCode } from "@/lib/promoCodes";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 /**

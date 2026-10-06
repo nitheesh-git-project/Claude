@@ -16,6 +16,7 @@ import CarePlanFields, {
   type CarePlanDraft,
   type RecommendableOption,
 } from "@/components/therapist/CarePlanFields";
+import { formatRupees } from "@/lib/formatMoney";
 
 /** A completed session with nobody's recommendation against it yet. */
 export type AuthorableSession = {
@@ -82,7 +83,7 @@ const STATE_STYLE: Record<CarePlanState, string> = {
 const MIN_REASON_LENGTH = 10;
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 /**

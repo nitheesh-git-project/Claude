@@ -10,6 +10,7 @@ import {
   succeedRefundAttempt,
   failRefundAttempt,
 } from "@/lib/refundAttempt";
+import { formatRupees } from "@/lib/formatMoney";
 
 // A discretionary refund on one session, for an amount an admin chooses.
 //
@@ -155,7 +156,7 @@ export async function POST(request: NextRequest) {
   if (amountPaise > remaining) {
     return NextResponse.json(
       {
-        error: `That is more than the ₹${(remaining / 100).toLocaleString("en-IN")} still refundable on this session.`,
+        error: `That is more than the ₹${formatRupees(remaining)} still refundable on this session.`,
       },
       { status: 400 }
     );

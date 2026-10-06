@@ -6,6 +6,7 @@ import { ADMIN_ACTIVITY_LABELS } from "@/lib/adminActivityLog";
 import { isFirstValue, readableDetails } from "@/lib/activityDetails";
 import { MIN_RETENTION_DAYS } from "@/lib/activityLog";
 import type { ActivityRow } from "@/components/admin/AdminActivityLogTab";
+import { formatRupees } from "@/lib/formatMoney";
 
 /** How an entry's timestamp reads, everywhere one is shown. */
 export function formatWhen(iso: string) {
@@ -92,7 +93,7 @@ export default function ActivityDetailDialog({
             label="Amount"
             value={
               row.amountPaise != null
-                ? `₹${(row.amountPaise / 100).toLocaleString("en-IN")}`
+                ? `₹${formatRupees(row.amountPaise)}`
                 : "-"
             }
           />

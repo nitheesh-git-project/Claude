@@ -38,6 +38,7 @@ import ServicePicker from "@/components/booking/ServicePicker";
 import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
 import { categoryServiceOption, defaultCategoryId } from "@/lib/serviceOptions";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
+import { formatRupees } from "@/lib/formatMoney";
 
 // The four fields this wizard has always read, plus what the service picker
 // shows. Everything after `duration_minutes` is optional because it arrives
@@ -57,7 +58,7 @@ type Category = {
 
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 type CheckoutQuoteResponse = {
@@ -1132,13 +1133,14 @@ export default function BookingWizard({
               <>
                 Your session is booked and there&apos;s nothing to pay now. It&apos;s added to
                 what you owe once the session has happened, and you can settle whenever suits
-                you. We&apos;ll confirm your exact slot and send the video call link by email
-                or WhatsApp shortly.
+                you. We&apos;ll confirm your exact slot, then email you a calendar invite with
+                the video call link - it also shows on your dashboard.
               </>
             ) : (
               <>
-                Your session is booked and paid. We&apos;ll confirm your exact slot and send
-                the video call link by email or WhatsApp shortly.
+                Your session is booked and paid. We&apos;ll confirm your exact slot, then email
+                you a calendar invite with the video call link - it also shows on your
+                dashboard.
               </>
             )}
           </p>

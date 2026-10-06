@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { SuggestedTeaser } from "@/lib/suggestedTeaser";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 /**

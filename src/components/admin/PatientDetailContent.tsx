@@ -40,6 +40,7 @@ import {
   sessionTherapistCutPaise,
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
+import { formatRupees } from "@/lib/formatMoney";
 
 // A module-level helper rather than an inline `Date.now()` in the component
 // body: `react-hooks/purity` refuses a clock read during render, and the rule
@@ -378,10 +379,10 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     >
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             <AvatarThumbnail url={patient.avatar_url} name={patient.full_name ?? "P"} size={64} />
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900">{patient.full_name}</h1>
                 {patientCodeRow?.patient_code && (
                   <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
@@ -614,7 +615,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-sm text-slate-800">Payment History</h2>
           <p className="text-xs text-slate-500">
-            Total Paid: <strong className="text-teal-700">₹{(totalPaidPaise / 100).toLocaleString("en-IN")}</strong>
+            Total Paid: <strong className="text-teal-700">₹{formatRupees(totalPaidPaise)}</strong>
           </p>
         </div>
         {paidAppointments.length === 0 ? (
@@ -635,7 +636,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                       )}
                     </strong>
                     <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
-                      ₹{((a.amount_paid_paise ?? SESSION_FEE_PAISE) / 100).toLocaleString("en-IN")}
+                      ₹{formatRupees((a.amount_paid_paise ?? SESSION_FEE_PAISE))}
                     </span>
                   </div>
                   <p className="text-slate-500">

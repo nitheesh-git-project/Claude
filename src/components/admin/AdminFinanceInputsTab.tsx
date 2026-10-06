@@ -22,6 +22,7 @@ import {
   type RunRateBasis,
 } from "@/lib/financeMetrics";
 import DateField from "@/components/system/DateField";
+import { formatRupees } from "@/lib/formatMoney";
 
 // Your Numbers: the four things Business Health cannot work out on its own.
 //
@@ -38,7 +39,7 @@ import DateField from "@/components/system/DateField";
 // one is sat down with once a month.
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 function formatDate(value: string | null) {

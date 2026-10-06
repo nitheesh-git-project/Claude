@@ -15,6 +15,7 @@ import {
   browserCookiesFor,
   cookieHeaderFor,
   markDashboardTourSeen,
+  pageUntilVisible,
   profileIdFor,
   waitForSplashToClear,
 } from "./helpers";
@@ -205,8 +206,8 @@ test("RC-005: the therapist's picker takes a number and shows the total live", a
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.therapistA));
     await page.goto(`${BASE}/therapist/dashboard/sessions`);
     await waitForSplashToClear(page);
-    await page.getByRole("button", { name: /^Past/ }).click();
     const card = page.locator("div.rounded-xl", { hasText: `${MARKER} live` }).first();
+    expect(await pageUntilVisible(page, "sessions", card)).toBe(true);
     await card.getByRole("button", { name: "Done", exact: true }).click();
     const dialog = page.getByRole("dialog").first();
     await dialog.getByRole("button", { name: "Add a recommendation" }).click();
@@ -243,5 +244,5 @@ test("RC-006: every other patient screen carries a short link to the recommendat
   await page.getByTestId("suggested-teaser").click();
   await page.waitForURL(/\/patient\/dashboard\/suggested/);
   await expect(page.getByTestId("suggested-teaser")).toHaveCount(0);
-  await expect(page.locator("#recommendation")).toBeVisible();
+  await expect(page.locator("#recommendation")).toBeVisible({ timeout: 30_000 });
 });

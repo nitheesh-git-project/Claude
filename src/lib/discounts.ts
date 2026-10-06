@@ -1,3 +1,4 @@
+import { formatRupees } from "@/lib/formatMoney";
 // Acquisition discounting: what a patient is charged when the clinic is
 // buying a first appointment, and what an admin can take off one booking by
 // hand.
@@ -334,7 +335,7 @@ export function describeDiscount(
   discountPaise: number
 ): string | null {
   if (!source || discountPaise <= 0) return null;
-  const rupees = `₹${(discountPaise / 100).toLocaleString("en-IN")}`;
+  const rupees = `₹${formatRupees(discountPaise)}`;
   return `${DISCOUNT_SOURCE_LABELS[source]} - ${rupees} off`;
 }
 

@@ -86,35 +86,18 @@ export default async function PatientDashboardPage() {
         </Link>
       )}
 
-      {/* Above the overview: something is waiting on the patient's answer.
-          The cards themselves live on Suggested Sessions -- rendering them
-          here too would be two copies of the same decision, and the one on
-          Overview had no history and was invisible from every other screen.
-          This is the pointer; that is the place. */}
-      {(d.activeCarePlan?.version || d.pendingSuggestions.length > 0) && (
-        <Link
-          href="/patient/dashboard/suggested"
-          className="mb-6 block rounded-2xl border border-teal-200 bg-teal-50/60 p-4 transition hover:bg-teal-50"
-        >
-          <p className="text-sm font-bold text-slate-900">
-            {d.activeCarePlan?.version
-              ? "Your therapist has recommended a programme"
-              : "Your therapist has proposed a time"}
-          </p>
-          <p className="mt-1 text-xs text-slate-600">
-            {d.activeCarePlan?.version
-              ? "Read what they suggested and decide whether to go ahead."
-              : "Accept it to book the session, or let them know another time suits you better."}
-          </p>
-        </Link>
-      )}
+      {/* Something waiting on the patient's answer is named by the shell's
+          "Suggested for you" bar (SuggestedTeaserBar), on this screen and
+          every other -- this page used to carry a second, plainer copy. */}
 
       <DashboardOverview
         greeting="Your care at a glance"
         headline={
           d.nextSession?.slot_time
             ? `Your next session is ${formatSlotTime(d.nextSession.slot_time, d.nextSession.timezone)}.`
-            : "Nothing booked yet - pick a time that suits you and your therapist takes it from there."
+            : d.unbookedSessionCount > 0
+              ? `You have ${d.unbookedSessionCount} paid session${d.unbookedSessionCount === 1 ? "" : "s"} still to book - pick times that suit you.`
+              : "Nothing booked yet - pick a time that suits you and your therapist takes it from there."
         }
         cells={d.overviewCells}
         stripFooter={

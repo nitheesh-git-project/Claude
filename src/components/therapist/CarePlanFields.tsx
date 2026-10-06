@@ -8,6 +8,7 @@ import {
   offerKindFor,
   type RecommendableRate,
 } from "@/lib/carePlans";
+import { formatRupees } from "@/lib/formatMoney";
 
 /** One condition at one delivery mode's per-session price. Loaded on the
  *  server (`loadRecommendableRates`) so every number here is the catalog's. */
@@ -40,7 +41,7 @@ const MAX_INSTRUCTIONS = 800;
 const DEFAULT_SESSIONS = 6;
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 /**

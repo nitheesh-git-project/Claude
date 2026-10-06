@@ -14,6 +14,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { readAllRows } from "@/lib/supabase/readAllRows";
 import { isTherapistShareEarned } from "@/lib/therapistPayouts";
 import { linkOpenPayoutRequest } from "@/lib/payoutRequestLink";
+import { formatRupees } from "@/lib/formatMoney";
 
 type SettleRow = {
   id: string;
@@ -31,13 +32,9 @@ function payoutNote(
   net: ReturnType<typeof computeNetPayout>
 ): string | null {
   if (net.cashHeldPaise <= 0) return note || null;
-  return `${note ? `${note} - ` : ""}Gross owed ₹${(grossPaise / 100).toLocaleString(
-    "en-IN"
-  )}, netted against ₹${(net.cashHeldPaise / 100).toLocaleString("en-IN")} cash already held.${
+  return `${note ? `${note} - ` : ""}Gross owed ₹${formatRupees(grossPaise)}, netted against ₹${formatRupees(net.cashHeldPaise)} cash already held.${
     net.stillOwedToBusinessPaise > 0
-      ? ` ₹${(net.stillOwedToBusinessPaise / 100).toLocaleString(
-          "en-IN"
-        )} of that cash is still owed back to the clinic and stays on the Cash Ledger.`
+      ? ` ₹${formatRupees(net.stillOwedToBusinessPaise)} of that cash is still owed back to the clinic and stays on the Cash Ledger.`
       : " That cash is now recorded as remitted."
   }`;
 }
@@ -317,11 +314,7 @@ export async function POST(request: NextRequest) {
       .eq("id", batch.id);
     if (batchAmountError) {
       console.error("Failed to correct amount on payout batch", batch.id, batchAmountError);
-      receiptWarning = `The sessions were settled, but this payout's receipt still shows ₹${(
-        planned.netPayablePaise / 100
-      ).toLocaleString("en-IN")} instead of ₹${(net.netPayablePaise / 100).toLocaleString(
-        "en-IN"
-      )}. Note it before closing this screen.`;
+      receiptWarning = `The sessions were settled, but this payout's receipt still shows ₹${formatRupees(planned.netPayablePaise)} instead of ₹${formatRupees(net.netPayablePaise)}. Note it before closing this screen.`;
     }
   }
 

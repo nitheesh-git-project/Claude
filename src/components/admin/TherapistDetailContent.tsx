@@ -42,6 +42,7 @@ function nowTimestamp() {
 import SpecialtyChip from "@/components/SpecialtyChip";
 import TherapistReadinessPanel from "@/components/admin/TherapistReadinessPanel";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
+import { formatRupees } from "@/lib/formatMoney";
 
 // Shared body for both the standalone /admin/dashboard/therapists/[id] page
 // (hard navigation, shareable link) and the @modal intercepted route that
@@ -317,10 +318,12 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       />
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             <AvatarThumbnail url={therapist.avatar_url} name={therapist.full_name ?? "T"} size={64} />
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              {/* Wraps: the name, code and status chips ran 15px off a
+                  360px phone as one unbreakable row. */}
+              <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900">{therapist.full_name}</h1>
                 {therapistCodeRow?.therapist_code && (
                   <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
@@ -550,7 +553,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
               <p className="text-xs text-slate-500 mt-1">
                 Owed:{" "}
                 <strong className="text-teal-700">
-                  ₹{(owedPaise / 100).toLocaleString("en-IN")}
+                  ₹{formatRupees(owedPaise)}
                 </strong>
               </p>
             )}
@@ -603,7 +606,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                     )}
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
-                        ₹{(payoutPaise / 100).toLocaleString("en-IN")}
+                        ₹{formatRupees(payoutPaise)}
                       </span>
                       {isSettled ? (
                         <span className="font-semibold text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
@@ -617,9 +620,9 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                     </div>
                   </div>
                   <p className="text-slate-500">
-                    Session fee ₹{(feePaise / 100).toLocaleString("en-IN")} × {rowShare}%
+                    Session fee ₹{formatRupees(feePaise)} × {rowShare}%
                     {travelPaise > 0 && (
-                      <> + ₹{(travelPaise / 100).toLocaleString("en-IN")} travel</>
+                      <> + ₹{formatRupees(travelPaise)} travel</>
                     )}{" "}
                     • Paid {a.paid_at ? formatClinicDate(a.paid_at) : "date unknown"}
                   </p>

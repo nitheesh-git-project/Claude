@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
+import { sessionBucket } from "@/lib/sessionBucket";
 
 export type FilterableSession = {
   id: string;
@@ -66,12 +67,8 @@ export default function SessionFilterList({
   const counts = useMemo(() => {
     const now = nowMs;
     return {
-      upcoming: sessions.filter(
-        (s) => s.status !== "cancelled" && !!s.slotTime && new Date(s.slotTime).getTime() >= now
-      ).length,
-      past: sessions.filter(
-        (s) => s.status !== "cancelled" && (!s.slotTime || new Date(s.slotTime).getTime() < now)
-      ).length,
+      upcoming: sessions.filter((s) => sessionBucket(s, now) === "upcoming").length,
+      past: sessions.filter((s) => sessionBucket(s, now) === "past").length,
       cancelled: sessions.filter((s) => s.status === "cancelled").length,
       all: sessions.length,
     };
@@ -84,10 +81,9 @@ export default function SessionFilterList({
         if (mode === "online" && s.isHomeVisit) return false;
         if (mode === "home_visit" && !s.isHomeVisit) return false;
         if (when === "all") return true;
-        if (when === "cancelled") return s.status === "cancelled";
-        if (s.status === "cancelled") return false;
-        const at = s.slotTime ? new Date(s.slotTime).getTime() : 0;
-        return when === "upcoming" ? at >= now : at < now;
+        // An open session that has started stays under Upcoming -- see
+        // sessionBucket.ts.
+        return sessionBucket(s, now) === when;
       })
       .sort((a, b) => {
         const at = a.slotTime ? new Date(a.slotTime).getTime() : 0;
@@ -106,25 +102,29 @@ export default function SessionFilterList({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-xl bg-slate-100 p-1">
+        {/* Full width on a phone, each tab an equal share: as an
+            inline-flex it ran off a 360px screen once the counts grew. */}
+        <div className="flex w-full rounded-xl bg-slate-100 p-1 sm:inline-flex sm:w-auto">
           {(["upcoming", "past", "cancelled", "all"] as When[]).map((key) => (
             <button
               key={key}
               type="button"
               aria-pressed={when === key}
               onClick={() => setWhen(key)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              className={`flex flex-1 flex-col items-center whitespace-nowrap rounded-lg px-1 py-1.5 text-xs font-semibold transition sm:flex-none sm:flex-row sm:px-3 ${
                 when === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              {WHEN_LABEL[key]}
-              <span className="ml-1.5 text-[10px] font-bold text-slate-600">{counts[key]}</span>
+              {/* The count sits under the label on a phone, so four tabs
+                  with three-digit counts still fit a 360px screen. */}
+              <span>{WHEN_LABEL[key]}</span>
+              <span className="text-[10px] font-bold text-slate-600 sm:ml-1.5">{counts[key]}</span>
             </button>
           ))}
         </div>
 
         {hasBothModes && (
-          <div className="inline-flex rounded-xl bg-slate-100 p-1">
+          <div className="flex w-full rounded-xl bg-slate-100 p-1 sm:inline-flex sm:w-auto">
             {(
               [
                 ["all", "Both"],
@@ -137,7 +137,7 @@ export default function SessionFilterList({
                 type="button"
                 aria-pressed={mode === key}
                 onClick={() => setMode(key)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                className={`flex-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-semibold transition sm:flex-none sm:px-3 ${
                   mode === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
                 }`}
               >

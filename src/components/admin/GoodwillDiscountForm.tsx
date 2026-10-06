@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
+import { formatRupees } from "@/lib/formatMoney";
 
 const MIN_REASON_LENGTH = 10;
 
@@ -76,7 +77,7 @@ export default function GoodwillDiscountForm({
     });
   }
 
-  const inr = (p: number) => `₹${(p / 100).toLocaleString("en-IN")}`;
+  const inr = (p: number) => `₹${formatRupees(p)}`;
 
   if (existingDiscountPaise > 0) {
     return (

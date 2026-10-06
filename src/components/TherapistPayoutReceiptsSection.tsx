@@ -6,9 +6,10 @@ import { useState } from "react";
 import Modal from "@/components/admin/Modal";
 import type { PayoutReceipt } from "@/lib/receipts";
 import { formatSlotTime } from "@/lib/formatSlotTime";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 function formatDateTime(iso: string) {

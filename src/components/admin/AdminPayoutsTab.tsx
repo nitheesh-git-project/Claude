@@ -12,6 +12,7 @@ import {
   computeTherapistPayoutSummary,
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
+import { formatRupees } from "@/lib/formatMoney";
 
 type Therapist = {
   id: string;
@@ -23,7 +24,7 @@ type Patient = { id: string; full_name: string | null };
 type Category = { id: string; title: string };
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 function RatingStars({ rating }: { rating: number | null }) {

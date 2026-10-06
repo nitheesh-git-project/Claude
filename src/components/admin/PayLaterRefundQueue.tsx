@@ -6,9 +6,10 @@ import { useToast } from "@/lib/toast";
 import Spinner from "@/components/system/Spinner";
 import { formatClinicDate, formatClinicDateShort } from "@/lib/formatDateTime";
 import type { PayLaterRefundRow } from "@/lib/payLaterSettlementServer";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 // Money the clinic has agreed to give back to a trusted patient and has not

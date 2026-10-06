@@ -94,19 +94,21 @@ export default function Navbar({
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between gap-6 h-16 items-center">
-          <Link href="/" className="flex shrink-0 items-center space-x-3 group">
+          {/* Shrinks rather than shoving the menu button off a 360px phone:
+              the name and tagline never wrap, so they truncate instead. */}
+          <Link href="/" className="flex min-w-0 items-center space-x-3 group">
             <motion.div
               whileHover={{ rotate: -6, scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
-              className="flex"
+              className="flex shrink-0"
             >
               <BrandMark size={44} variant="flat" />
             </motion.div>
-            <div>
-              <span className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight whitespace-nowrap">
+            <div className="min-w-0">
+              <span className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight truncate">
                 {siteName}
               </span>
-              <span className="text-[10px] font-semibold text-teal-700 uppercase tracking-widest block whitespace-nowrap">
+              <span className="text-[10px] font-semibold text-teal-700 uppercase tracking-wider sm:tracking-widest block truncate">
                 {siteTagline}
               </span>
             </div>
@@ -175,7 +177,7 @@ export default function Navbar({
 
           <button
             onClick={() => setOpen(!open)}
-            className="xl:hidden text-slate-700 text-xl p-2"
+            className="xl:hidden shrink-0 text-slate-700 text-xl p-2"
             aria-label="Toggle menu"
           >
             <i className={`fa-solid ${open ? "fa-xmark" : "fa-bars"}`}></i>

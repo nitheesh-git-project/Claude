@@ -6,6 +6,7 @@ import Spinner from "@/components/system/Spinner";
 import type { ActivityRow } from "@/components/admin/AdminActivityLogTab";
 import { describeAction, formatWhen } from "@/components/admin/ActivityDetailDialog";
 import { activityCategory, activityCategoryLabel } from "@/lib/activityLog";
+import { formatRupees } from "@/lib/formatMoney";
 
 // Everything the back office did to one subject, oldest at the bottom.
 //
@@ -122,7 +123,7 @@ export default function SubjectTimelineDialog({
                 <p className="mt-0.5 text-[11px] text-slate-500">
                   {r.actorName} · {formatWhen(r.createdAt)}
                   {r.amountPaise != null && (
-                    <> · ₹{(r.amountPaise / 100).toLocaleString("en-IN")}</>
+                    <> · ₹{formatRupees(r.amountPaise)}</>
                   )}
                 </p>
               </button>
