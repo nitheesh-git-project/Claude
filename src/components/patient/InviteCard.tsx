@@ -10,11 +10,8 @@ import {
   normalizeInviteCode,
   type InviteSettings,
 } from "@/lib/inviteRewards";
-import { formatRupees } from "@/lib/formatMoney";
+import { usePricing } from "@/components/pricing/PricingProvider";
 
-function formatInr(paise: number) {
-  return `₹${formatRupees(paise)}`;
-}
 
 /**
  * A patient's own invite code, and the box for entering somebody else's.
@@ -50,6 +47,9 @@ export default function InviteCard({
 }) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+  // An invite's value is a rupee amount off a session; shown in the
+  // visitor's currency like every other price on their screens.
+  const { formatAmount } = usePricing();
   const [entry, setEntry] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
@@ -86,7 +86,7 @@ export default function InviteCard({
       }
       setMessage(
         data.welcomePaise > 0
-          ? `Done - ${formatInr(data.welcomePaise)} comes off your first session.`
+          ? `Done - ${formatAmount(data.welcomePaise)} comes off your first session.`
           : "Done."
       );
       setEntry("");
@@ -131,7 +131,7 @@ export default function InviteCard({
           {rewardWaitingPaise > 0 && (
             <span className="font-semibold text-teal-800">
               {" "}
-              {formatInr(rewardWaitingPaise)} comes off your next session.
+              {formatAmount(rewardWaitingPaise)} comes off your next session.
             </span>
           )}
         </p>

@@ -125,6 +125,7 @@ export default function HomeVisitPackages({
                 meta,
                 points: benefits,
                 pricePaise: pkg.price_paise,
+                rupeesOnly: true,
                 compareAtPaise: savings.compareAtPaise,
                 savingsPaise:
                   savings.compareAtPaise === null

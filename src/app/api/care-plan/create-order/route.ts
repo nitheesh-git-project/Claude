@@ -3,6 +3,8 @@ import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { pricingForRequest } from "@/lib/countryPricingServer";
+import { HOME_VISIT_OUTSIDE_INDIA_ERROR, priceForCountry } from "@/lib/countryPricing";
 import { computeHomeVisitTotal } from "@/lib/homeVisitPricing";
 import {
   resolveHomeVisitAddress,
@@ -202,8 +204,18 @@ export async function POST(request: NextRequest) {
   // after paying), and the second is what the therapist is reimbursed for
   // travelling. It survived Phase 6 because a multi-visit programme could
   // still be bought the old way; it cannot now, so it is fixed here.
+  // The visitor's country: an online programme is priced for it, and a home
+  // visit is refused outside India unless an admin has allowed it.
+  const requestPricing = await pricingForRequest(admin, request);
+
   let resolvedAddress: ResolvedHomeVisitAddress | null = null;
   if (offerKind === "home_visit_package") {
+    if (!requestPricing.homeVisitsOffered) {
+      return NextResponse.json(
+        { error: HOME_VISIT_OUTSIDE_INDIA_ERROR },
+        { status: 403 }
+      );
+    }
     // The master switch, checked here as it is on the direct route. An
     // admin who turns home visits off has stopped the service; a
     // recommendation written before that must not stay purchasable, or the
@@ -255,7 +267,13 @@ export async function POST(request: NextRequest) {
         visitCount: live.snapshot.sessionCount,
       })
     : null;
-  const amountPaise = live.snapshot.pricePaise;
+  // Outside India an online programme costs the rupee equal of its local
+  // price (raised, converted, rounded up to .99) -- the figure the card
+  // showed. A home-visit programme is delivered in India and stays in rupees.
+  const amountPaise =
+    offerKind === "session_package" && requestPricing.pricing
+      ? priceForCountry(live.snapshot.pricePaise, requestPricing.pricing).chargePaise
+      : live.snapshot.pricePaise;
   const chargePaise = total ? total.totalPaise : amountPaise;
 
   const table =

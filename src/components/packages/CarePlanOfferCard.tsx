@@ -14,6 +14,7 @@ import {
   type CarePlanStatus,
 } from "@/lib/carePlans";
 import { formatRupees } from "@/lib/formatMoney";
+import { usePricing } from "@/components/pricing/PricingProvider";
 
 function formatInr(paise: number) {
   return `₹${formatRupees(paise)}`;
@@ -190,6 +191,12 @@ export default function CarePlanOfferCard({
     ? snapshot.pricePaise + (snapshot.travelFeeIncluded ? 0 : travelPaise)
     : null;
   const totalKnown = !offer.isHomeVisit || quote.state === "ready";
+  // Video sessions follow the visitor's currency (the server charges the
+  // rupee equal of the same figure); a home visit is delivered and charged
+  // in India, so it stays in rupees.
+  const { formatList, formatAmount, homeVisitsOffered } = usePricing();
+  const priceText = (paise: number) => (offer.isHomeVisit ? formatInr(paise) : formatList(paise));
+  const perSessionText = (paise: number) => (offer.isHomeVisit ? formatInr(paise) : formatAmount(paise));
   const state = carePlanState(
     { status: offer.planStatus as CarePlanStatus },
     { expires_at: offer.expiresAt },
@@ -277,7 +284,8 @@ export default function CarePlanOfferCard({
   // could never succeed. Same rule as the Pay Now button a pay-later session
   // stopped offering -- a control the server refuses outright must not
   // render.
-  const homeVisitWithdrawn = offer.isHomeVisit && !homeVisitEnabled;
+  // Paused by the master switch, or not offered where this patient is.
+  const homeVisitWithdrawn = offer.isHomeVisit && (!homeVisitEnabled || !homeVisitsOffered);
   const actionable = state === "awaiting_patient" && !homeVisitWithdrawn;
 
   // What the patient sees the instant the payment clears, in place of the
@@ -334,12 +342,12 @@ export default function CarePlanOfferCard({
           </div>
           <div>
             <dt className="text-[11px] text-slate-500">Price</dt>
-            <dd className="text-sm font-bold text-slate-900">
-              {formatInr(snapshot.pricePaise)}
+            <dd className="text-sm font-bold text-slate-900" data-price="">
+              {priceText(snapshot.pricePaise)}
             </dd>
             {snapshot.perSessionPaise ? (
-              <dd className="text-[11px] text-slate-500">
-                {snapshot.sessionCount} × {formatInr(snapshot.perSessionPaise)}
+              <dd className="text-[11px] text-slate-500" data-price="">
+                {snapshot.sessionCount} × {perSessionText(snapshot.perSessionPaise)}
               </dd>
             ) : null}
           </div>
@@ -490,8 +498,9 @@ export default function CarePlanOfferCard({
 
       {homeVisitWithdrawn && state === "awaiting_patient" && (
         <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800">
-          Visits at home are paused at the moment, so this cannot be booked
-          just now. Your therapist will be in touch about what to do instead.
+          {homeVisitsOffered
+            ? "Visits at home are paused at the moment, so this cannot be booked just now. Your therapist will be in touch about what to do instead."
+            : "Home visits are only available in India, so this cannot be booked from where you are. Your therapist can suggest video sessions instead."}
         </p>
       )}
 
@@ -507,7 +516,7 @@ export default function CarePlanOfferCard({
               {paying
                 ? "Opening payment…"
                 : chargeablePaise !== null && totalKnown
-                  ? `Accept & pay ${formatInr(chargeablePaise)}`
+                  ? `Accept & pay ${priceText(chargeablePaise)}`
                   : "Accept & pay"}
             </button>
             {!decliningOpen && (

@@ -684,3 +684,21 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   *Needs a look* with the median of each stage as evidence. The table is not
   published to realtime on purpose -- a row per tap would refresh the
   dashboard for every patient paying.
+
+- **Countries & currency lives under Catalog, because it decides what a
+  patient is charged.** `catalog` scope, logged as `catalog.update`. Three
+  switches save on their own (local prices on/off, visitors may choose their
+  country, home visits outside India); the country table saves as one
+  "N countries changed" bar. Each row shows the whole sum the owner asked
+  for - the Indian price after the increase, the converted figure, what they
+  see (rounded up to .99) and what Razorpay charges - previewed against any
+  active condition's price, with search and an On/Off filter.
+  - **A rate only ever comes from Refresh rates** (`/api/admin/country-pricing/refresh-rates`,
+    open.er-api.com, INR base). Nothing typed on the screen can set the rate
+    a charge is made with, and a failed refresh keeps the rates already in
+    use and says so. Rates older than a week turn the bar amber.
+  - A country cannot be switched on without a rate - the route names it, and
+    the table's own check (`country_pricing_enabled_needs_rate`) agrees.
+  - Visitor-chosen countries are a convenience, not a fence: with the picker
+    on, a visitor abroad can choose India and pay the Indian price. Turning
+    the picker off leaves location alone in charge.

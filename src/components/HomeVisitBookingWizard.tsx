@@ -214,6 +214,7 @@ export default function HomeVisitBookingWizard({
   // written before the thing it describes had been picked.
   const servicePicker = (
     <ServicePicker
+      rupeesOnly
       options={serviceOptions}
       value={selectedPackage?.id ?? ""}
       onChange={setPackageId}
@@ -905,6 +906,7 @@ export default function HomeVisitBookingWizard({
               screen never having seen what they were buying. */}
           {selectedOption && (
             <ChosenServiceSummary
+              rupeesOnly
               option={selectedOption}
               compact
               actions={

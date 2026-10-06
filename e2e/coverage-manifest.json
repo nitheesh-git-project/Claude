@@ -274,6 +274,19 @@
       "integration": "local",
       "destructive": false
     },
+    "country-pricing.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "realtime-reconnect.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -2783,6 +2796,29 @@
         }
       ],
       "limitation": "Leaves a completed session behind (completed sessions cannot be deleted); the pick round trip is unit-tested in src/lib/feedbackPicks.test.ts."
+    },
+    {
+      "id": "patient.country-pricing",
+      "runner": "patient",
+      "title": "Prices outside India: local currency shown, rupee equal charged, home visits off abroad",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "country-pricing.spec.ts",
+          "tests": [
+            "CP-001",
+            "CP-002",
+            "CP-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/payments.md",
+        "docs/rules/home-visit.md",
+        "docs/rules/admin.md"
+      ]
     }
   ],
   "removed": []

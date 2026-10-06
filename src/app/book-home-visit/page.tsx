@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import HomeVisitOnly, { HomeVisitUnavailable } from "@/components/pricing/HomeVisitOnly";
 import BookingExitLink from "@/components/booking/BookingExitLink";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -96,6 +97,7 @@ export default async function BookHomeVisitPage() {
   return (
     <section className="min-h-screen bg-gradient-to-b from-teal-50/50 to-slate-100 px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl">
+        <HomeVisitOnly fallback={<HomeVisitUnavailable />}>
         <Reveal className="mb-8 text-center">
           <h1 className="font-display text-2xl font-extrabold text-slate-900 sm:text-3xl">
             Book a Home Visit
@@ -116,6 +118,7 @@ export default async function BookHomeVisitPage() {
             }
           />
         </Suspense>
+        </HomeVisitOnly>
         {/* This route hides the site nav (see NAV_HIDDEN_ROUTES) so a stray
             link can't lose someone's progress mid-payment -- same reasoning
             as /book, and the same single deliberate exit, placed clear of

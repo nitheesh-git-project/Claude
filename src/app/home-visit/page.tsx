@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import HomeVisitOnly, { HomeVisitUnavailable } from "@/components/pricing/HomeVisitOnly";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
 import { pickFeatured } from "@/lib/catalogFeatured";
@@ -177,8 +178,12 @@ export default async function HomeVisitPage() {
     { id: "check-pincode", label: "Check My Pincode", icon: "fa-map-pin" },
   ];
 
+  // Outside India the page says so instead -- unless an admin has allowed
+  // home visits abroad (Catalog -> Countries & currency). The page stays
+  // statically cached for everybody; the visitor's country is read in the
+  // browser, and the routes that sell a visit refuse one by themselves.
   return (
-    <>
+    <HomeVisitOnly fallback={<HomeVisitUnavailable />}>
       <SectionNav items={sectionNavItems} />
 
       {/* Heading and subheading stay admin-editable -- this page's copy is a
@@ -265,6 +270,6 @@ export default async function HomeVisitPage() {
         photoId="cta-home-visit"
         photoAlt="An older couple side by side in their front room, smiling at the tablet they are booking on"
       />
-    </>
+    </HomeVisitOnly>
   );
 }

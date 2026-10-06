@@ -136,6 +136,14 @@ html[data-splash] body {
   overflow: hidden;
 }
 
+/* Local prices: a visitor outside India gets prices hidden for the moment
+   between first paint and PricingProvider formatting them, so the cached
+   rupee figure never flashes. The head script in the root layout sets the
+   attribute and clears it after 3s whatever happens. */
+html[data-pricing-pending] [data-price] {
+  visibility: hidden;
+}
+
 .splash-screen__glow {
   position: absolute;
   width: 60rem;

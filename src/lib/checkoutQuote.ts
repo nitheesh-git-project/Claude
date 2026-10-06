@@ -37,6 +37,7 @@ import { claimInviteHalf, readInviteHalves } from "@/lib/inviteRewardsServer";
 import { readPromoCodesEnabled } from "@/lib/acquisitionSettings";
 import { readAppointmentServicePrice } from "@/lib/appointmentPriceServer";
 import { countPriorCommittedSessions } from "@/lib/priorSessionsServer";
+import { priceForCountry, type CountryPricing } from "@/lib/countryPricing";
 
 type AdminClient = SupabaseClient;
 
@@ -70,6 +71,10 @@ export type CheckoutQuote = {
   promoError: string | null;
   /** Whether the clinic is running any campaign at all. */
   promoCodesEnabled: boolean;
+  /** The country row the list price was made with, or null for rupees. The
+   *  screen formats every figure above with it, so what it prints is what
+   *  this quote charged. */
+  pricing: CountryPricing | null;
 };
 
 /**
@@ -98,6 +103,9 @@ export async function resolveCheckoutQuote(
     promoCode?: string | null;
     /** True at the moment of payment, false while the patient is deciding. */
     claim: boolean;
+    /** The visitor's country row (countryPricingServer.pricingForRequest),
+     *  resolved by the caller from the request -- never from the body. */
+    pricing?: CountryPricing | null;
   }
 ): Promise<CheckoutQuote> {
   const { appointment } = args;
@@ -107,7 +115,15 @@ export async function resolveCheckoutQuote(
   // without a patient is a bug, not a request to invent an identity.
   const claim = args.claim && Boolean(patientId);
 
-  const listPricePaise = await readAppointmentServicePrice(admin, appointment.category_id);
+  // Outside India the list price is the local price's rupee equal: raised by
+  // the country's markup, converted, rounded up to .99 and converted back --
+  // so Razorpay (rupees only) takes exactly what the patient was shown. A
+  // home visit is delivered in India and stays in rupees wherever the
+  // patient is browsing from. Discounts below then work on the figure being
+  // charged, exactly as they do for rupees.
+  const pricing = appointment.visit_mode === "home_visit" ? null : args.pricing ?? null;
+  const basePricePaise = await readAppointmentServicePrice(admin, appointment.category_id);
+  const listPricePaise = pricing ? priceForCountry(basePricePaise, pricing).chargePaise : basePricePaise;
 
   // A home-visit referral appointment carries its own travel fee on top of
   // the session price. Charged to the patient, added back after the
@@ -220,6 +236,7 @@ export async function resolveCheckoutQuote(
     label: describeDiscount(discount.source, discount.discountPaise),
     promoError,
     promoCodesEnabled,
+    pricing,
   };
 }
 

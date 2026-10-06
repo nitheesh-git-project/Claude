@@ -11,6 +11,7 @@ import { isReplaceableDraft, overlapsSlot } from "@/lib/bookingDraft";
 import { cancelAppointmentAndRefund } from "@/lib/cancelAppointment";
 import { razorpayOrderIsPaid } from "@/lib/razorpayOrderStatus";
 import { buildCheckoutQuoteBody } from "@/lib/checkoutQuoteServer";
+import { pricingForRequest } from "@/lib/countryPricingServer";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import {
@@ -359,6 +360,12 @@ export async function POST(request: NextRequest) {
   // wizard goes straight to create-order. A failure here is not a failed
   // booking -- the row exists -- so the quote is simply left out and the
   // wizard falls back to asking /api/appointments/quote.
+  // The visitor's country, from the request -- both the quote and the order
+  // below price with it, so they cannot disagree.
+  const needsPricing = body.withQuote === true || Boolean(body.startPayment);
+  const { pricing } = needsPricing
+    ? await pricingForRequest(admin, request)
+    : { pricing: null };
   let quote = null;
   if (body.withQuote === true) {
     try {
@@ -373,6 +380,7 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         hasProgramme: false,
         promoCode: typeof body.quotePromoCode === "string" ? body.quotePromoCode : null,
+        pricing,
       });
     } catch (err) {
       console.error("Quote after booking create failed", created.id, err);
@@ -409,6 +417,7 @@ export async function POST(request: NextRequest) {
         },
         appointmentId: created.id,
         promoCode: typeof body.quotePromoCode === "string" ? body.quotePromoCode : "",
+        pricing,
       });
       order = { ...minted.body, status: minted.status };
     } catch (err) {

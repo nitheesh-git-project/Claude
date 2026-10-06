@@ -9,6 +9,7 @@ import {
   profileCheckUnavailable,
 } from "@/lib/supabase/requireActiveProfile";
 import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
+import { pricingForRequest } from "@/lib/countryPricingServer";
 import { isGatewayPayable } from "@/lib/discounts";
 import { confirmPaidAppointment } from "@/lib/confirmPaidAppointment";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
@@ -98,10 +99,14 @@ export async function POST(request: NextRequest) {
   await approvePatientAfterPayment(user.id);
 
   const admin = createAdminClient();
+  // Priced as the quote was, for the request's country -- a fixed discount
+  // that clears a rupee price may not clear the same service priced abroad.
+  const { pricing } = await pricingForRequest(admin, request);
   const quote = await resolveCheckoutQuote(admin, {
     appointment,
     promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
     claim: true,
+    pricing,
   });
 
   if (quote.promoError) {

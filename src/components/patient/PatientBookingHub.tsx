@@ -1,4 +1,5 @@
 import { computeHomeVisitSavings } from "@/lib/homeVisitProgress";
+import HomeVisitOnly from "@/components/pricing/HomeVisitOnly";
 import CatalogCard from "@/components/catalog/CatalogCard";
 
 export type HubCategory = {
@@ -153,6 +154,7 @@ export default function PatientBookingHub({
       )}
 
       {homeVisitPackages.length > 0 && (
+        <HomeVisitOnly>
         <Group
           title="Home visits"
           blurb="A therapist comes to you. We'll check your pincode before anything is charged."
@@ -189,6 +191,7 @@ export default function PatientBookingHub({
                   ].filter(Boolean),
                   points: benefits,
                   pricePaise: p.price_paise,
+                  rupeesOnly: true,
                   compareAtPaise: savings.compareAtPaise,
                   savingsPaise:
                     savings.compareAtPaise === null
@@ -203,6 +206,7 @@ export default function PatientBookingHub({
             );
           })}
         </Group>
+        </HomeVisitOnly>
       )}
     </div>
   );

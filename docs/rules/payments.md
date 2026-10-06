@@ -339,3 +339,32 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   regressions here (a fused "24hours", a constant quoted in place of the
   setting, a false promise of free cancellation) produces an error, a failed
   request or a wrong row.
+
+- **Outside India the visitor reads a local price and Razorpay takes its
+  rupee equal - worked out on the server, from the request.** Catalog ->
+  Countries & currency (`country_pricing`, three `site_settings` switches)
+  gives each listed country an on/off, an "increase by %" and a stored rate.
+  For a priced country `priceForCountry` (`src/lib/countryPricing.ts`,
+  dependency-free and unit-tested) raises the rupee price by the markup,
+  converts it, **rounds up** to .99 (a currency without cents ends in 9, a
+  three-decimal one in .990 - never down), then converts that shown figure
+  back to the paise Razorpay is asked for, rounded up so the charge never
+  reads as less than the price. The owner's example is the test: ₹499,
+  +100% -> ₹998 -> $10.35 -> **$10.99** -> 105,979 paise.
+  - The country is the request's own (`countryPricingServer.pricingForRequest`):
+    the debug bar's `mr_debug_country` while the bar exists, else the
+    visitor's choice (`mr_country`, only while the picker is allowed), else
+    the host's geo header or the `mr_geo` cookie the proxy copies it into,
+    else India. Never a body field. Every route that prices a booking threads
+    it into `resolveCheckoutQuote` - quote, create, create-order,
+    confirm-free, confirm-pay-later, and the promo preview - so the quote,
+    the order and a free confirmation cannot disagree; the online care-plan
+    order prices the same way.
+  - Discounts work on the figure being charged, exactly as for rupees. The
+    quote returns its `pricing` row and the wizard formats every figure with
+    it, plus one line naming the rupee amount the card will show.
+  - **A home visit is priced in rupees wherever the patient is** - it is
+    delivered and charged in India. Receipts, pay-later balances and every
+    staff screen stay in rupees: they are records of what was taken.
+  - A failed read of the switches or the rows is "rupees for everyone",
+    which is how the app behaved before any of this existed.

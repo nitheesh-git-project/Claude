@@ -5,6 +5,8 @@ import {
   profileCheckUnavailable,
 } from "@/lib/supabase/requireActiveProfile";
 import { mintAppointmentOrder } from "@/lib/appointmentOrderServer";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { pricingForRequest } from "@/lib/countryPricingServer";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
@@ -116,11 +118,15 @@ export async function POST(request: NextRequest) {
   // round trip from the Pay tap to the Razorpay sheet instead of two). One
   // function, so the two doors cannot grow different rules about prior
   // orders, claims, free bookings or what is written back.
+  // Priced for the request's own country, re-derived here rather than taken
+  // from anything the wizard sent.
+  const { pricing } = await pricingForRequest(createAdminClient(), request);
   const minted = await mintAppointmentOrder({
     supabase,
     appointment,
     appointmentId,
     promoCode: typedPromoCode,
+    pricing,
   });
   return NextResponse.json(minted.body, { status: minted.status });
 }

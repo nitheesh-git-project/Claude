@@ -238,3 +238,18 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   completed - identical rule to `sessions_used`, see the counter-semantics
   comment beside `home_visit_package_purchases` in `schema.sql`. See the
   "Home Visit" section in README.md for the full flow.
+
+- **Outside India home visits are not offered, unless an admin allows it.**
+  One switch on Catalog -> Countries & currency (`home_visit_outside_india`,
+  default off) decides it for every country but India. The routes that sell
+  a visit refuse on their own - `home-visit/create-order`, `home-visit/book-cash`
+  and a home-visit care plan in `care-plan/create-order` answer 403 with
+  `HOME_VISIT_OUTSIDE_INDIA_ERROR` - using the request's country
+  (`pricingForRequest`, see `payments.md`). The pages follow: the nav, footer
+  and phone book bar drop the link, `/home-visit` and `/book-home-visit`
+  render `HomeVisitUnavailable` (pointing to a video session), the booking
+  hub hides its Home visits group, and a recommended home-visit plan says
+  why it cannot be booked. The public pages stay statically cached; the
+  country is read in the browser by `PricingProvider` and the server
+  re-checks it at the point of sale. When allowed abroad, a home visit is
+  still priced in rupees.

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { SuggestedTeaser } from "@/lib/suggestedTeaser";
 import { formatRupees } from "@/lib/formatMoney";
+import Price from "@/components/pricing/Price";
 
 function formatInr(paise: number) {
   return `₹${formatRupees(paise)}`;
@@ -40,8 +41,12 @@ export default function SuggestedTeaserBar({ teaser }: { teaser: SuggestedTeaser
                 teaser.isHomeVisit
                   ? teaser.sessionCount === 1 ? "home visit" : "home visits"
                   : teaser.sessionCount === 1 ? "session" : "sessions"
-              } · ${formatInr(teaser.pricePaise)}`
+              } · `
             : `Your therapist proposed ${teaser.count} ${teaser.count === 1 ? "time" : "times"} for your sessions`}
+          {/* Video sessions in the visitor's currency; a home visit is
+              charged in India, in rupees. */}
+          {teaser.kind === "plan" &&
+            (teaser.isHomeVisit ? formatInr(teaser.pricePaise) : <Price paise={teaser.pricePaise} />)}
         </span>
       </span>
       <span className="shrink-0 text-xs font-semibold text-teal-700">

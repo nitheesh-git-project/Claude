@@ -40,6 +40,8 @@ import { readInviteSettings, readPromoCodesEnabled } from "@/lib/acquisitionSett
 import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable";
 import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
+import AdminCountryPricingTab from "@/components/admin/AdminCountryPricingTab";
+import { readCountryPricingAdmin } from "@/lib/countryPricingServer";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import { readCheckoutSpeed } from "@/lib/checkoutSpeedServer";
@@ -870,6 +872,11 @@ export default async function AdminDashboardPage({
   // and awaited where the checks are built -- a new table, so isolated, and
   // a failed read is null ("could not check"), never "fast".
   const checkoutSpeedRead = guard(() => readCheckoutSpeed(admin, nowTimestamp()), null);
+
+  // Catalog -> Countries & currency. Its own read beside the batch, like
+  // checkout speed: a new table, so a failure costs this screen and nothing
+  // else, and says so rather than showing every country switched off.
+  const countryPricingRead = guard(() => readCountryPricingAdmin(admin), null);
 
   const [
     accountingHealth,
@@ -3323,6 +3330,30 @@ export default async function AdminDashboardPage({
   // was only answerable by opening all four tabs and counting.
   const activeCategoryCount = (treatmentCategories ?? []).filter((c) => c.active).length;
   const visiblePackageCount = (packages ?? []).filter((p) => p.active).length;
+  const countryPricing = await countryPricingRead;
+  const catalogCountriesTab = countryPricing ? (
+    <AdminCountryPricingTab
+      rows={countryPricing.rows.map((r) => ({
+        code: r.code,
+        enabled: r.enabled,
+        markupPercent: r.markupPercent,
+        unitsPerInr: r.unitsPerInr,
+      }))}
+      settings={countryPricing.settings}
+      ratesFetchedAt={countryPricing.ratesFetchedAt}
+      samples={(treatmentCategories ?? [])
+        .filter((c) => c.active && typeof c.price_paise === "number" && c.price_paise > 0)
+        .map((c) => ({ id: c.id, title: c.title, pricePaise: c.price_paise as number }))}
+      canManage={workableSections.includes("catalog")}
+      nowMs={nowTimestamp()}
+    />
+  ) : (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+      Countries &amp; currency couldn&apos;t be loaded. Nothing has changed - every visitor is still
+      priced as before. Try Refresh in a moment.
+    </div>
+  );
+
   const catalogStrip = (
     <div className="mb-5">
       <StatStrip
@@ -5105,6 +5136,12 @@ export default async function AdminDashboardPage({
       <>
         {catalogStrip}
         {catalogAreasTab}
+      </>
+    ),
+    "catalog:countries": (
+      <>
+        {catalogStrip}
+        {catalogCountriesTab}
       </>
     ),
     "catalog:purchases": (

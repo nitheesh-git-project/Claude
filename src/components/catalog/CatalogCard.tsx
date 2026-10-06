@@ -7,6 +7,7 @@ import Link from "@/components/system/ProgressLink";
 import CatalogImage from "@/components/catalog/CatalogImage";
 import type { CareIllustrationId } from "@/components/visuals/CareIllustration";
 import { rupees } from "@/components/catalog/CatalogVisuals";
+import Price, { PriceSaving } from "@/components/pricing/Price";
 
 /**
  * The one card for everything this clinic sells.
@@ -58,6 +59,10 @@ export type CatalogCardData = {
   priceUnit: string;
   /** Shown beside a struck-through compare-at price. */
   savingsPaise?: number | null;
+  /** Keep the price in rupees whatever the visitor's country -- a home
+   *  visit is delivered (and charged) in India. Everything else follows the
+   *  visitor's currency. */
+  rupeesOnly?: boolean;
   /** Where booking this goes. Required in link mode; a card in select mode
    *  does not navigate at all, so it has none - see the props union below. */
   bookHref?: string;
@@ -223,16 +228,21 @@ export default function CatalogCard({
 
         <div className="mt-auto flex flex-wrap items-baseline gap-x-1.5 gap-y-1 pt-3.5">
           <span className="font-display text-lg font-bold text-slate-900">
-            {rupees(data.pricePaise)}
+            {data.rupeesOnly ? rupees(data.pricePaise) : <Price paise={data.pricePaise} />}
           </span>
           {data.compareAtPaise != null && data.compareAtPaise > data.pricePaise && (
             <span className="text-xs text-slate-500 line-through">
-              {rupees(data.compareAtPaise)}
+              {data.rupeesOnly ? rupees(data.compareAtPaise) : <Price paise={data.compareAtPaise} />}
             </span>
           )}
           {data.savingsPaise != null && data.savingsPaise > 0 && (
             <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-teal-800">
-              Save {rupees(data.savingsPaise)}
+              Save{" "}
+              {data.rupeesOnly || data.compareAtPaise == null ? (
+                rupees(data.savingsPaise)
+              ) : (
+                <PriceSaving comparePaise={data.compareAtPaise} pricePaise={data.pricePaise} />
+              )}
             </span>
           )}
           <span className="text-[11.5px] text-slate-500">{data.priceUnit}</span>

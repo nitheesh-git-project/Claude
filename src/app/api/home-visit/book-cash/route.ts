@@ -3,6 +3,8 @@ import { lookupServiceArea } from "@/lib/serviceAreaServer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { pricingForRequest } from "@/lib/countryPricingServer";
+import { HOME_VISIT_OUTSIDE_INDIA_ERROR } from "@/lib/countryPricing";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import {
   approvePatientAfterPayment,
@@ -145,6 +147,11 @@ export async function POST(request: NextRequest) {
       { error: "Home visits aren't available right now." },
       { status: 403 }
     );
+  }
+  // Outside India home visits are off unless an admin has allowed them
+  // (Catalog -> Countries & currency). The country is the request's own.
+  if (!(await pricingForRequest(admin, request)).homeVisitsOffered) {
+    return NextResponse.json({ error: HOME_VISIT_OUTSIDE_INDIA_ERROR }, { status: 403 });
   }
   // Defaults to true (DEFAULT_ADMIN_SETTINGS.homeVisitCashEnabled) -- only
   // an explicit false turns it off, same convention as every other toggle

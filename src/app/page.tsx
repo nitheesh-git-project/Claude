@@ -26,7 +26,7 @@ import Testimonials, {
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
 import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
-import { formatRupees } from "@/lib/formatMoney";
+import Price from "@/components/pricing/Price";
 
 // This page has no per-user content - it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
@@ -266,7 +266,7 @@ export default async function Home() {
         stats={[
           { value: "60 min", label: "One-to-one assessment" },
           {
-            value: `₹${formatRupees(startingPricePaise)}`,
+            value: <Price paise={startingPricePaise} />,
             label: "Starting per session",
           },
           ...(hasRealRatings

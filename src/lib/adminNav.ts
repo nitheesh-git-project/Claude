@@ -266,6 +266,14 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       { key: "conditions", label: "Conditions" },
       { key: "packages", label: "Packages" },
       { key: "areas", label: "Service Areas" },
+      // Prices for visitors outside India. In Catalog because it decides
+      // what a patient is charged, the same as every other screen here.
+      {
+        key: "countries",
+        label: "Countries & currency",
+        blurb: "What visitors outside India see and pay, in their own currency.",
+        example: "Charge visitors in the US 100% more, shown in dollars and rounded up to .99.",
+      },
       { key: "purchases", label: "Purchases" },
     ],
   },

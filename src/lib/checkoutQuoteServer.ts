@@ -17,6 +17,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveCheckoutQuote, type QuotedAppointment } from "@/lib/checkoutQuote";
 import { isGatewayPayable } from "@/lib/discounts";
 import { readPayLaterBookingEligibility } from "@/lib/payLaterSettingsServer";
+import type { CountryPricing } from "@/lib/countryPricing";
 
 export type CheckoutQuoteBody = {
   listPricePaise: number;
@@ -30,6 +31,10 @@ export type CheckoutQuoteBody = {
   promoCodesEnabled: boolean;
   settlement: "free" | "pay_later" | "gateway";
   canPayNow: boolean;
+  /** The country the figures were priced for, or null for rupees. Every
+   *  figure above is the rupee amount Razorpay takes; the screen formats
+   *  them with this row, so a visitor abroad reads the local price. */
+  pricing: CountryPricing | null;
 };
 
 export async function buildCheckoutQuoteBody(
@@ -40,6 +45,9 @@ export async function buildCheckoutQuoteBody(
     userId: string | null;
     hasProgramme: boolean;
     promoCode: string | null;
+    /** From countryPricingServer.pricingForRequest -- the request's own
+     *  country, never one the body names. */
+    pricing: CountryPricing | null;
   }
 ): Promise<CheckoutQuoteBody> {
   const { appointment, userId, hasProgramme } = args;
@@ -50,6 +58,7 @@ export async function buildCheckoutQuoteBody(
     appointment,
     promoCode: args.promoCode,
     claim: false,
+    pricing: args.pricing,
   });
 
   // Whether this patient may settle afterwards, re-derived rather than
@@ -85,5 +94,6 @@ export async function buildCheckoutQuoteBody(
         : "gateway",
     // Paying now stays possible for a patient on terms.
     canPayNow: isGatewayPayable(quote.totalPaise),
+    pricing: quote.pricing,
   };
 }

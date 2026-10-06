@@ -2,7 +2,9 @@ import Image from "next/image";
 import { Reveal, MotionButton } from "@/components/motion/primitives";
 import { photo, type PhotoId } from "@/lib/marketingPhotos";
 
-export type HeroStat = { value: string; label: string };
+/** `value` is a node so a price can be a `<Price>`, which follows the
+ *  visitor's currency. */
+export type HeroStat = { value: React.ReactNode; label: string };
 export type HeroCta = { href: string; label: string; icon?: string };
 
 /**

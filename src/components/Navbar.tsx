@@ -4,6 +4,7 @@
 // reaches `useRouter`, so nothing told PendingWorkProvider a page change had
 // started -- ProgressLink reports it from inside the link, which is the only
 // place Next's own `useLinkStatus` can be read.
+import { usePricing } from "@/components/pricing/PricingProvider";
 import Link from "@/components/system/ProgressLink";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -23,13 +24,16 @@ export default function Navbar({
   offsetTop = false,
   siteName,
   siteTagline,
-  homeVisitEnabled = false,
+  homeVisitEnabled: homeVisitSwitch = false,
 }: {
   offsetTop?: boolean;
   siteName: string;
   siteTagline: string;
   homeVisitEnabled?: boolean;
 }) {
+  // Off outside India unless an admin allows it (Countries & currency).
+  const { homeVisitsOffered } = usePricing();
+  const homeVisitEnabled = homeVisitSwitch && homeVisitsOffered;
   // Derived from marketingNav.ts rather than written out here, so the header,
   // the home page's connector grid and every page's "where to go next" strip
   // can never disagree about what pages exist or what they are called. Home

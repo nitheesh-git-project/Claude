@@ -39,6 +39,8 @@ import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
 import { categoryServiceOption, defaultCategoryId } from "@/lib/serviceOptions";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
 import { formatRupees } from "@/lib/formatMoney";
+import { usePricing } from "@/components/pricing/PricingProvider";
+import { formatPaiseForCountry, type CountryPricing } from "@/lib/countryPricing";
 
 // The four fields this wizard has always read, plus what the service picker
 // shows. Everything after `duration_minutes` is optional because it arrives
@@ -76,6 +78,10 @@ type CheckoutQuoteResponse = {
   /** Whether paying now is possible at all. A different question: a patient
    *  on terms may still prefer to pay and not owe. */
   canPayNow: boolean;
+  /** The country the server priced this for, or null for rupees. Every
+   *  figure above is the rupee amount Razorpay takes; this is how they are
+   *  printed, so the screen shows what the server charged. */
+  pricing?: CountryPricing | null;
 };
 
 type SignupOutcome =
@@ -166,6 +172,20 @@ export default function BookingWizard({
   // reads from this rather than from the category price, because printing
   // one figure and opening Razorpay at another is the bug this replaced.
   const [quote, setQuote] = useState<CheckoutQuoteResponse | null>(null);
+  // Prices in the visitor's currency. Before a quote, the catalog price is
+  // formatted on this device; once the server has quoted, its own country
+  // row formats every figure -- the screen never prints a price the server
+  // did not charge.
+  const { formatList } = usePricing();
+  const quotePricing = quote?.pricing ?? null;
+  const quoteMoney = (paise: number) =>
+    quotePricing ? formatPaiseForCountry(paise, quotePricing) : `${formatInr(paise)} INR`;
+  const quoteMoneyShort = (paise: number) =>
+    quotePricing ? formatPaiseForCountry(paise, quotePricing) : formatInr(paise);
+  const listMoney = (paise: number) => {
+    const shown = formatList(paise);
+    return shown.startsWith("₹") ? `${shown} INR` : shown;
+  };
   // Which ending the confirmation screen describes. A booking settled later
   // is not a completed payment, and a screen that reads as one would be
   // telling somebody they did something they did not do.
@@ -1049,7 +1069,7 @@ export default function BookingWizard({
       <h1 className="text-xl font-bold">Book Virtual Physical Therapy Session</h1>
       <p className="text-xs text-slate-300 mt-1">
         {selectedCategory
-          ? `${formatInr(selectedCategory.price_paise)} INR • ${
+          ? `${listMoney(selectedCategory.price_paise)} • ${
               selectedCategory.duration_minutes
             }-Min HD Video Call & Custom Rehab Plan`
           : "HD Video Call & Custom Rehab Plan - pricing shown once you pick a concern"}
@@ -1536,9 +1556,9 @@ export default function BookingWizard({
               <span className="text-slate-500">Session Fee</span>
               <span className={`font-bold text-slate-900 ${quote && quote.discountPaise > 0 ? "line-through opacity-60" : ""}`}>
                 {quote
-                  ? `${formatInr(quote.listPricePaise)} INR`
+                  ? quoteMoney(quote.listPricePaise)
                   : selectedCategory
-                    ? `${formatInr(selectedCategory.price_paise)} INR`
+                    ? listMoney(selectedCategory.price_paise)
                     : "-"}
               </span>
             </div>
@@ -1546,7 +1566,7 @@ export default function BookingWizard({
               <div className="flex justify-between text-xs">
                 <span className="text-teal-700">{quote.discountLabel ?? "Discount"}</span>
                 <span className="font-bold text-teal-700">
-                  −{formatInr(quote.discountPaise)}
+                  −{quoteMoneyShort(quote.discountPaise)}
                 </span>
               </div>
             )}
@@ -1557,7 +1577,7 @@ export default function BookingWizard({
                     own line rather than folded into a price. */}
                 <span className="text-slate-500">Travel</span>
                 <span className="font-bold text-slate-900">
-                  {formatInr(quote.travelFeePaise)}
+                  {quoteMoneyShort(quote.travelFeePaise)}
                 </span>
               </div>
             )}
@@ -1565,9 +1585,18 @@ export default function BookingWizard({
               <div className="flex justify-between text-sm pt-3 border-t border-teal-100">
                 <span className="font-semibold text-slate-700">Total</span>
                 <span className="font-extrabold text-slate-900">
-                  {quote.settlement === "free" ? "Free" : `${formatInr(quote.totalPaise)} INR`}
+                  {quote.settlement === "free" ? "Free" : quoteMoney(quote.totalPaise)}
                 </span>
               </div>
+            )}
+            {/* Razorpay takes rupees only, so a visitor priced abroad is told
+                the exact rupee figure their card will show -- their bank
+                converts it, and may round or add its own fee. */}
+            {quote && quotePricing && quote.settlement !== "free" && (
+              <p className="pt-1 text-[11px] leading-snug text-slate-500" data-testid="charged-in-inr">
+                Charged as {formatInr(quote.totalPaise)} INR. Your bank converts it, so the amount on
+                your statement may differ slightly.
+              </p>
             )}
             {/* The wait is stated instead of being enforced. The button stays
                 tappable throughout -- a tap simply waits for this answer --
@@ -1682,7 +1711,11 @@ export default function BookingWizard({
                   : quote?.settlement === "pay_later"
                     ? "Confirm booking - pay later"
                     : appointmentId
-                      ? `Pay ${formatInr(quote?.totalPaise ?? selectedCategory?.price_paise ?? 0)} Now`
+                      ? `Pay ${
+                          quote
+                            ? quoteMoneyShort(quote.totalPaise)
+                            : formatList(selectedCategory?.price_paise ?? 0)
+                        } Now`
                       : "Request Booking"}
             </button>
           </div>
@@ -1706,7 +1739,7 @@ export default function BookingWizard({
               disabled={loading}
               className="w-full text-center text-xs font-semibold text-teal-700 underline underline-offset-2 disabled:opacity-60"
             >
-              Or pay {formatInr(quote.totalPaise)} now instead
+              Or pay {quoteMoneyShort(quote.totalPaise)} now instead
             </button>
           )}
           {/* One failure is enough to want reassurance. A patient whose card

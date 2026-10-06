@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { readAppointmentServicePrice } from "@/lib/appointmentPriceServer";
+import { pricingForRequest } from "@/lib/countryPricingServer";
+import { priceForCountry } from "@/lib/countryPricing";
 import { previewPromoCode } from "@/lib/promoCodesServer";
 import { readPromoCodesEnabled } from "@/lib/acquisitionSettings";
 import { isWellFormedPromoCode } from "@/lib/promoCodes";
@@ -121,7 +123,11 @@ export async function POST(request: NextRequest) {
     priceCategoryId = appointment.category_id;
   }
 
-  const listPricePaise = await readAppointmentServicePrice(admin, priceCategoryId);
+  // Priced for the request's country exactly as the checkout quote is, so a
+  // percentage code previews the same discount the quote will then show.
+  const { pricing } = await pricingForRequest(admin, request);
+  const basePricePaise = await readAppointmentServicePrice(admin, priceCategoryId);
+  const listPricePaise = pricing ? priceForCountry(basePricePaise, pricing).chargePaise : basePricePaise;
   const result = await previewPromoCode(admin, {
     code,
     patientId: user?.id ?? null,
@@ -140,5 +146,6 @@ export async function POST(request: NextRequest) {
     listPricePaise,
     discountPaise: result.outcome.discountPaise,
     payablePaise: result.outcome.payablePaise,
+    pricing,
   });
 }

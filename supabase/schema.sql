@@ -15620,3 +15620,47 @@ create unique index if not exists treatment_category_packages_one_course_per_cat
   on treatment_category_packages (category_id) where care_plan_course;
 create unique index if not exists home_visit_packages_one_course_per_category
   on home_visit_packages (category_id) where care_plan_course;
+
+-- ===========================================================================
+-- Prices for visitors outside India.
+--
+-- Catalog -> Countries & currency. One row per country the clinic may price
+-- for: a percentage above the Indian price, and the exchange rate the
+-- admin last refreshed (units of that currency per rupee). The maths is
+-- src/lib/countryPricing.ts: raise, convert, round up to .99, and charge the
+-- INR equal of the rounded figure -- so every amount stored anywhere is
+-- still INR paise, and Razorpay is still charged INR.
+--
+-- A rate is never fetched on a visitor's request: the admin refreshes it,
+-- and the stored figure is what every price uses until the next refresh,
+-- so a quote and the order minted from it cannot straddle a rate change.
+--
+-- Configuration, so the debug data reset leaves it alone (it is not in the
+-- reset's TRUNCATE list). Read by the server with the service role; the
+-- public read policy only states that nothing here is secret.
+
+create table if not exists country_pricing (
+  country_code text primary key check (country_code ~ '^[A-Z]{2}$' and country_code <> 'IN'),
+  currency_code text not null check (currency_code ~ '^[A-Z]{3}$'),
+  enabled boolean not null default false,
+  markup_percent numeric(6, 2) not null default 0 check (markup_percent between 0 and 500),
+  units_per_inr numeric(20, 10) check (units_per_inr is null or units_per_inr > 0),
+  rate_fetched_at timestamptz,
+  updated_at timestamptz not null default now(),
+  -- A country cannot be switched on without a rate to price it with.
+  constraint country_pricing_enabled_needs_rate check (not enabled or units_per_inr is not null)
+);
+
+alter table country_pricing enable row level security;
+
+drop policy if exists "country_pricing_select_all" on country_pricing;
+create policy "country_pricing_select_all" on country_pricing
+  for select using (true);
+
+revoke insert, update, delete on country_pricing from anon, authenticated;
+
+-- The three switches beside the list. All off-safe: with the master switch
+-- off every visitor sees rupees, exactly as before this section existed.
+alter table site_settings add column if not exists international_pricing_enabled boolean not null default false;
+alter table site_settings add column if not exists country_picker_enabled boolean not null default true;
+alter table site_settings add column if not exists home_visit_outside_india boolean not null default false;

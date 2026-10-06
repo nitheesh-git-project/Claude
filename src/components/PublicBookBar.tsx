@@ -1,5 +1,6 @@
 "use client";
 
+import { usePricing } from "@/components/pricing/PricingProvider";
 import Link from "@/components/system/ProgressLink";
 import { usePathname } from "next/navigation";
 import { isBookBarRoute } from "@/lib/dashboardShellRoutes";
@@ -18,8 +19,15 @@ import { BOOK_CONNECTOR } from "@/lib/marketingNav";
  * --app-bottom-inset in globals.css), and the in-flow spacer stops it
  * covering the end of the footer.
  */
-export default function PublicBookBar({ homeVisitEnabled }: { homeVisitEnabled: boolean }) {
+export default function PublicBookBar({
+  homeVisitEnabled: homeVisitSwitch,
+}: {
+  homeVisitEnabled: boolean;
+}) {
   const pathname = usePathname();
+  // Off outside India unless an admin allows it (Countries & currency).
+  const { homeVisitsOffered } = usePricing();
+  const homeVisitEnabled = homeVisitSwitch && homeVisitsOffered;
   if (!isBookBarRoute(pathname)) return null;
 
   return (

@@ -23,6 +23,9 @@ import NumericInputGuard from "@/components/system/NumericInputGuard";
 import ToastViewport from "@/components/system/ToastViewport";
 import { ToastProvider } from "@/lib/toast";
 import { PendingWorkProvider } from "@/lib/pendingWork";
+import { PricingProvider, type PricingConfig } from "@/components/pricing/PricingProvider";
+import { pricingPendingScript } from "@/lib/pricingPendingScript";
+import { rowToPricing } from "@/lib/countryPricingServer";
 import {
   DEFAULT_SPLASH_CONFIG,
   splashBootScript,
@@ -93,6 +96,7 @@ export default async function RootLayout({
     farewell: farewellRow,
     splash: splashRow,
     devContact: devContactRow,
+    pricing: pricingRow,
   } = await getLayoutSettings();
   // The developer credit under the footer's copyright. On unless an admin
   // switched it off -- and an unreadable row is "could not check", not "off".
@@ -138,6 +142,19 @@ export default async function RootLayout({
         : DEFAULT_SPLASH_CONFIG.revisitAwayMs,
   };
 
+  // Prices for visitors outside India (Catalog -> Countries & currency).
+  // The same for everybody, so it can live in this cached layout; the
+  // browser picks the visitor's own row. Rupees for everyone until the
+  // master switch is on.
+  const pricingConfig: PricingConfig = {
+    internationalEnabled: pricingRow.settings?.international_pricing_enabled === true,
+    pickerEnabled: pricingRow.settings?.country_picker_enabled !== false,
+    homeVisitOutsideIndia: pricingRow.settings?.home_visit_outside_india === true,
+    rows: pricingRow.rows.map(rowToPricing),
+    debug: showDebugNav,
+  };
+  const pricingScript = pricingPendingScript(pricingConfig.internationalEnabled);
+
   return (
     // suppressHydrationWarning covers this one element's own attributes:
     // the splash boot script below writes data-splash onto <html> before
@@ -161,6 +178,10 @@ export default async function RootLayout({
         {splash.enabled && (
           <script dangerouslySetInnerHTML={{ __html: splashBootScript(splash) }} />
         )}
+        {/* Hides prices until PricingProvider has formatted them in the
+            visitor's currency, so a foreign visitor never sees the rupee
+            figure the cached HTML carries. Only when local prices are on. */}
+        {pricingScript && <script dangerouslySetInnerHTML={{ __html: pricingScript }} />}
       </head>
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
         {/* Always in the HTML, painted only when the script above says so -
@@ -177,6 +198,7 @@ export default async function RootLayout({
               survives the router.refresh() that control fires -- the tree
               underneath re-renders, this does not unmount. */}
           <ToastProvider>
+          <PricingProvider config={pricingConfig}>
           <RouteProgress />
           {/* Every link reports itself, not only the ones written through
               ProgressLink or useRouter. useSearchParams inside it makes this
@@ -228,6 +250,7 @@ export default async function RootLayout({
           <ScrollHint />
           <PublicBookBar homeVisitEnabled={homeVisitEnabled} />
         </SectionNavProvider>
+          </PricingProvider>
           </ToastProvider>
         </PendingWorkProvider>
       </body>

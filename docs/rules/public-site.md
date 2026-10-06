@@ -596,3 +596,14 @@ Eight pages from one design system, the word budgets, why every photograph carri
   then Sign In and the Book button; from `2xl` every page is in the row and
   Get Started joins them. Home is the logo at every width. The Book label is
   `BOOK_CONNECTOR.label`, so it names the mode wherever it appears.
+
+- **A public price is a `<Price>`, never a formatted string.** The public
+  pages are statically cached for everybody, so their HTML carries rupees.
+  `PricingProvider` (root layout) reads the visitor's country from cookies
+  after mount and every `<Price>` / `usePricing()` re-renders in the local
+  currency; a head script hides `[data-price]` for a non-Indian cookie until
+  then (3 s backstop), so a foreign visitor never sees the rupee figure
+  flash. Display only - the checkout prices the request again on the server
+  (`payments.md`). Home-visit prices pass `rupeesOnly`. The footer's
+  country picker shows only when local prices and the picker are both on;
+  the debug bar's Country dropdown forces any country while the bar exists.
