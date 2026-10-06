@@ -26,7 +26,7 @@ test("CHROME-001: the sign-in page keeps Sign In, Get Started and Book in the na
   await page.screenshot({ path: `${SHOT}/chrome-login-nav.png` });
 });
 
-test("CHROME-002: a slow dashboard tab shows the spine loader with the sidebar still in place", async ({
+test("CHROME-002: a slow dashboard tab shows the word-roll loader with the sidebar still in place", async ({
   page,
   context,
 }) => {
@@ -62,7 +62,11 @@ test("CHROME-002: a slow dashboard tab shows the spine loader with the sidebar s
       if (document.querySelector("[data-testid=navigation-loader]")) {
         const nav = document.querySelector('nav[aria-label="Patient Panel navigation"]:not([data-tabbar])');
         const visible = nav ? nav.getBoundingClientRect().width > 0 : false;
-        console.log(`LOADER after=${Math.round(performance.now() - t0)} rail=${visible} bg=${nav ? getComputedStyle(nav).backgroundColor : "none"}`);
+        const words = [...document.querySelectorAll("[data-testid=navigation-loader] .word-roll__row")]
+          .slice(0, 5)
+          .map((w) => w.textContent)
+          .join(",");
+        console.log(`LOADER after=${Math.round(performance.now() - t0)} rail=${visible} bg=${nav ? getComputedStyle(nav).backgroundColor : "none"} words=${words}`);
         return;
       }
       setTimeout(tick, 50);
@@ -76,6 +80,8 @@ test("CHROME-002: a slow dashboard tab shows the spine loader with the sidebar s
   // The sidebar never left, and nothing dark stands in for it.
   expect(report).toContain("rail=true");
   expect(report).toContain("bg=rgb(255, 255, 255)");
+  // The loader is the word roll: the five steps, in order.
+  expect(report).toContain("words=Move,Stretch,Strengthen,Recover,Restore");
   await page.screenshot({ path: `${SHOT}/chrome-loader.png` }).catch(() => {});
 
   await expect(page).toHaveURL(/\/patient\/dashboard\/sessions/, { timeout: 30_000 });

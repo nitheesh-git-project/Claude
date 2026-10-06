@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { usePendingWork } from "@/lib/pendingWork";
 import { isDashboardShellRoute } from "@/lib/dashboardShellRoutes";
-import SpineLoader from "@/components/system/SpineLoader";
+import WordRollLoader from "@/components/system/WordRollLoader";
 
 /** Below this a page change reads as instant, and a loader would only flash. */
 const APPEAR_AFTER_MS = 300;
 
 /**
- * The spine loader over the page while the next page is on its way.
+ * The word-roll loader over the page while the next page is on its way.
  *
  * Drawn under the chrome rather than instead of it: it sits at z-20, and the
  * public nav, every dashboard's sidebar, rail, top bar and phone tab bar are
@@ -54,9 +54,9 @@ export default function NavigationLoader({ offsetTop = false }: { offsetTop?: bo
   return (
     <div
       data-testid="navigation-loader"
-      className={`navigation-loader fixed inset-0 z-20 flex items-center justify-center bg-slate-50/75 backdrop-blur-[2px] ${top} ${side}`}
+      className={`navigation-loader fixed inset-0 z-20 flex items-center justify-center bg-slate-50/90 backdrop-blur-sm ${top} ${side}`}
     >
-      <SpineLoader />
+      <WordRollLoader label="Loading the next page…" />
     </div>
   );
 }

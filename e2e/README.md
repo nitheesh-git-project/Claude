@@ -174,7 +174,7 @@ total, which moves with every spec added.
 | `package-form-flags` | 1 | the placement switches that decided nothing are gone |
 | `booking-rules` | 9 | lead time, the cancellation window, and the bulk-scheduler regression |
 | `home-visit-disabled` | 2 | the master switch off, flipped in the **database** rather than through the route - the case the cache could not survive |
-| `chrome-and-loader` | 4 | the sign-in nav keeps its buttons, a slow dashboard tab shows the spine loader with the sidebar still in place, the admin sidebar is light, and /conditions puts programmes first |
+| `chrome-and-loader` | 4 | the sign-in nav keeps its buttons, a slow dashboard tab shows the word-roll loader with the sidebar still in place, the admin sidebar is light, and /conditions puts programmes first |
 | `impersonation-exit` | 1 | "Exit and go back to admin" restores the admin's own session and lands on the dashboard, not the login page |
 | `country-pricing` | 3 | Countries & currency: the screen and its search, a US visitor reading dollars rounded up to .99 while the quote charges the rupee equal, no home visit offered abroad, and no country switched on without a rate |
 | `waitlist-serve-area` | 1 | marking an out-of-area request served, both answers |

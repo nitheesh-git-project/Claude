@@ -542,29 +542,90 @@ html[data-pricing-pending] [data-price] {
   .fb-draw { animation: none; stroke-dashoffset: 0; }
 }
 
-/* The spine loader (src/components/system/SpineLoader.tsx). Each vertebra
-   drifts to its own offset and settles back into line, neck first, so the
-   column visibly straightens from the top down; then holds, then drifts. */
-.spine-loader__vertebra {
-  animation: spine-align 2400ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
-  animation-delay: calc(var(--spine-i) * 90ms);
-  transform: translateX(var(--spine-offset));
+/* The word-roll loader (src/components/system/WordRollLoader.tsx).
+   Five words, each on screen for one 1.3s beat: the track holds for 60% of
+   a beat, then eases up one row. Rows are the five words three times over
+   and the track travels exactly one set per cycle, so the loop is seamless.
+   Each word's own highlight runs on the same 6.5s cycle, offset by a
+   negative delay so word N is lit while it sits in the middle row. */
+.word-roll {
+  --row: 42px;
+  --font: 28px;
+  --beat: 1300ms;
+  --cycle: calc(var(--beat) * 5);
+  position: relative;
+  height: calc(var(--row) * 7);
+  width: 15.5rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(transparent 4%, #000 38%, #000 62%, transparent 96%);
+  mask-image: linear-gradient(transparent 4%, #000 38%, #000 62%, transparent 96%);
 }
-@keyframes spine-align {
-  0%,
-  8% {
-    transform: translateX(var(--spine-offset));
-    opacity: 0.55;
-  }
-  38%,
-  78% {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(var(--spine-offset));
-    opacity: 0.55;
-  }
+.word-roll--sm {
+  --row: 26px;
+  --font: 17px;
+  width: 9.5rem;
+}
+.word-roll__track {
+  position: absolute;
+  left: calc(var(--font) * 1.45);
+  top: calc(var(--row) * 3);
+  display: flex;
+  flex-direction: column;
+  /* Starts with the second set's first word in the middle row. */
+  transform: translateY(calc(var(--row) * -5));
+  animation: word-roll-track var(--cycle) infinite;
+}
+.word-roll__row {
+  height: var(--row);
+  line-height: var(--row);
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--font);
+  letter-spacing: -0.01em;
+  color: var(--color-teal-700);
+  opacity: 0.16;
+  animation: word-roll-lit var(--cycle) infinite;
+  animation-delay: calc((var(--word-i) - 5) * var(--beat));
+}
+@keyframes word-roll-track {
+  0%, 12% { transform: translateY(calc(var(--row) * -5)); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  20%, 32% { transform: translateY(calc(var(--row) * -6)); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  40%, 52% { transform: translateY(calc(var(--row) * -7)); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  60%, 72% { transform: translateY(calc(var(--row) * -8)); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  80%, 92% { transform: translateY(calc(var(--row) * -9)); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  100% { transform: translateY(calc(var(--row) * -10)); }
+}
+/* Lit for its own beat (and easing in over the move that brings it in). */
+@keyframes word-roll-lit {
+  0%, 12% { opacity: 1; color: var(--color-slate-900); }
+  20%, 92% { opacity: 0.16; color: var(--color-teal-700); }
+  100% { opacity: 1; color: var(--color-slate-900); }
+}
+.word-roll__dots {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: calc(var(--font) * 1.1);
+  height: calc(var(--font) * 0.45);
+  transform: translateY(-50%);
+}
+.word-roll__dots > span {
+  position: absolute;
+  bottom: 0;
+  width: calc(var(--font) * 0.25);
+  height: calc(var(--font) * 0.25);
+  border-radius: 9999px;
+  background: var(--color-teal-600);
+  animation: word-roll-dot 1300ms cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.word-roll__dots > span:nth-child(1) { left: 0; }
+.word-roll__dots > span:nth-child(2) { left: 38%; animation-delay: 120ms; }
+.word-roll__dots > span:nth-child(3) { left: 76%; animation-delay: 240ms; }
+@keyframes word-roll-dot {
+  0%, 100% { transform: translateY(0) scale(0.8); opacity: 0.5; }
+  35% { transform: translateY(calc(var(--font) * -0.32)) scale(1); opacity: 1; }
+  60% { transform: translateY(0) scale(1); opacity: 1; }
 }
 /* Fades in rather than snapping: it only ever appears after a 300ms wait,
    and a hard cut at that point reads as the page breaking. */
@@ -580,9 +641,17 @@ html[data-pricing-pending] [data-price] {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .spine-loader__vertebra {
+  .word-roll__track,
+  .word-roll__dots > span {
     animation: none;
-    transform: none;
+  }
+  .word-roll__row {
+    animation: none;
+  }
+  /* Standing still on "Move", the first word of the middle set. */
+  .word-roll__row:nth-child(6) {
+    opacity: 1;
+    color: var(--color-slate-900);
   }
   .navigation-loader {
     animation: none;

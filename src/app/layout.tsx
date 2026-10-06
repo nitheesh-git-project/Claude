@@ -201,7 +201,7 @@ export default async function RootLayout({
           <ToastProvider>
           <PricingProvider config={pricingConfig}>
           <RouteProgress />
-          {/* The spine loader over the content while the next page loads;
+          {/* The word-roll loader over the content while the next page loads;
               under every nav and sidebar, so they stay in place. */}
           <NavigationLoader offsetTop={showDebugNav} />
           {/* Every link reports itself, not only the ones written through

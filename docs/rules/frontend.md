@@ -255,17 +255,19 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
     for real `<Link>` navigations, which the public Navbar uses. Next's
     `useLinkStatus` only works *inside* a Link, so the reporter is a child
     component rendering nothing rather than a hook the wrapper could call.
-  **And the wait is the spine loader, over the old page - never a
+  **And the wait is the word-roll loader, over the old page - never a
   `loading.tsx` in a dashboard.** Each dashboard draws its sidebar inside its
   own page, so a loading boundary replaced the sidebar with the content: every
   tab tap showed a placeholder rail (it was dark, the old design) until the
   page arrived. So the dashboards have none. Both reporters above call
   `begin("navigation")`, and `NavigationLoader` (root layout) draws
-  `SpineLoader` - seven vertebrae settling into line - over the content area
+  `WordRollLoader` - Move, Stretch, Strengthen, Recover, Restore scrolling
+  past one a beat, the current word dark with three teal dots hopping in
+  front of it - over the content area
   after 300 ms, at `z-20`, **under** every nav, sidebar, rail and tab bar
   (`z-30`+), with the old page faintly behind it. A refresh after a button
   press is `begin()` and gets the teal bar only: the page is staying put.
-  `RouteLoading` is the spine loader too, for the one boundary left with no
+  `RouteLoading` is the same loader, for the one boundary left with no
   chrome to keep (the `/dashboard` role hop). **The admin `@modal`
   slot keeps its own `loading.tsx`**, and it is the case both loading signals miss: tapping a
   patient name is a `<Link>` into a parallel-route slot, which is not a
@@ -275,7 +277,7 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   fallback mirrors `DetailOverlayModal`'s own sheet rather than reusing
   `RouteLoading`: what is arriving is an overlay over the dashboard, and a
   full-page skeleton there would read as the dashboard itself being
-  replaced; its wait is the small `SpineLoader`. On a hard navigation the
+  replaced; its wait is the small `WordRollLoader`. On a hard navigation the
   browser keeps the old document - loader included - on screen until the
   new one is ready, so the chrome never blanks. The public pages work the
   same way: no boundary, the loader over the page below the nav.

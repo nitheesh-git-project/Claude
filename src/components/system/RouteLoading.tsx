@@ -1,8 +1,8 @@
-import SpineLoader from "@/components/system/SpineLoader";
+import WordRollLoader from "@/components/system/WordRollLoader";
 
 /**
  * What a route with a loading boundary shows while its server work is in
- * flight: the spine loader, centred.
+ * flight: the word-roll loader, centred.
  *
  * The dashboards deliberately have no loading boundary any more. Each one
  * draws its sidebar inside its own page, so a `loading.tsx` replaced the
@@ -13,7 +13,7 @@ import SpineLoader from "@/components/system/SpineLoader";
  * role hop, and anything else that adds a boundary later.
  */
 export default function RouteLoading({
-  label = "Getting things ready…",
+  label = "Loading…",
   fullScreen = false,
 }: {
   label?: string;
@@ -26,7 +26,7 @@ export default function RouteLoading({
       aria-busy="true"
       className={`flex items-center justify-center ${fullScreen ? "min-h-screen bg-slate-50" : "min-h-[50vh] py-16"}`}
     >
-      <SpineLoader label={label} />
+      <WordRollLoader label={label} />
     </div>
   );
 }
