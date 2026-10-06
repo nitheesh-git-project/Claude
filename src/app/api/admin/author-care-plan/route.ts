@@ -4,7 +4,6 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { authorCarePlanVersion } from "@/lib/carePlanAuthoring";
-import type { CarePlanOfferKind } from "@/lib/carePlans";
 
 const MIN_REASON_LENGTH = 10;
 
@@ -36,8 +35,8 @@ export async function POST(request: NextRequest) {
   const { data: body, error: parseError } = await parseJsonBody<{
     patientId?: string;
     appointmentId?: string;
-    offerKind?: string;
-    packageId?: string;
+    categoryId?: string;
+    sessionCount?: number;
     handsOnRequired?: boolean;
     frequencyPerWeek?: number | null;
     clinicalRationale?: string;
@@ -48,18 +47,20 @@ export async function POST(request: NextRequest) {
 
   const patientId = body.patientId?.trim();
   const appointmentId = body.appointmentId?.trim();
-  const packageId = body.packageId?.trim();
-  const offerKind = body.offerKind as CarePlanOfferKind | undefined;
+  const categoryId = body.categoryId?.trim();
+  const sessionCount = body.sessionCount;
   const reason = (body.reason ?? "").trim();
 
-  if (!patientId || !appointmentId || !packageId) {
+  if (!patientId || !appointmentId || !categoryId) {
     return NextResponse.json(
-      { error: "Choose the session this follows and the programme to recommend." },
+      { error: "Choose the session this follows and the condition to recommend for." },
       { status: 400 }
     );
   }
-  if (offerKind !== "session_package" && offerKind !== "home_visit_package") {
-    return NextResponse.json({ error: "Unknown programme type." }, { status: 400 });
+  // The count is checked by authorCarePlanVersion with every other rule;
+  // only "nothing sent" is answered here.
+  if (typeof sessionCount !== "number") {
+    return NextResponse.json({ error: "Say how many sessions to recommend." }, { status: 400 });
   }
   // Mandatory, for the same reason every other override lane requires one:
   // this puts words in a clinician's mouth, and "why" is the part with any
@@ -95,8 +96,8 @@ export async function POST(request: NextRequest) {
   const result = await authorCarePlanVersion(admin, {
     patientId,
     appointmentId,
-    offerKind,
-    packageId,
+    categoryId,
+    sessionCount,
     handsOnRequired: body.handsOnRequired === true,
     frequencyPerWeek:
       typeof body.frequencyPerWeek === "number" ? body.frequencyPerWeek : null,

@@ -12,7 +12,6 @@ import { isNoteEditable, noteEditHoursLeft } from "@/lib/sessionNotes";
 import type { TherapistDashboardData } from "@/lib/therapistDashboardData";
 import RevealContactButton from "@/components/therapist/RevealContactButton";
 import { maskPhone } from "@/lib/contactMasking";
-import { narrowToCategory } from "@/lib/carePlans";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -38,7 +37,8 @@ function finishProps(d: TherapistDashboardData, a: TherapistDashboardData["appoi
     editable: !note || isNoteEditable(note, d.nowMs),
     hoursLeft: note ? noteEditHoursLeft(note, d.nowMs) : null,
     patientId: a.patient_id,
-    recommendable: narrowToCategory(d.recommendablePackages, a.category_id ?? null),
+    recommendable: d.recommendableRates,
+    recommendationCategoryId: a.category_id ?? null,
     recommendationNeedsApproval: d.carePlanRequiresApproval,
     recommendationAwaitingClinic: d.patientsAwaitingClinic.has(a.patient_id),
   };
@@ -56,7 +56,7 @@ export function renderTherapistSessionCard(
     patientMap,
     noteByAppointmentId,
     nowMs: nowMsForOverview,
-    recommendablePackages,
+    recommendableRates,
     patientsAwaitingClinic,
     carePlanRequiresApproval,
   } = d;
@@ -146,12 +146,10 @@ export function renderTherapistSessionCard(
                 }
                 patientId={a.patient_id}
                 sessionCompleted={a.status === "completed"}
-                // Narrowed to this session's own condition. The dashboard
-                // loads every recommendable package once because it covers
-                // all of this therapist's patients, so the narrowing has to
-                // happen per card -- and scanning the whole catalog is how
-                // the wrong programme gets picked.
-                recommendable={narrowToCategory(recommendablePackages, a.category_id ?? null)}
+                // Every condition the clinic prices, starting on this
+                // session's own.
+                recommendable={recommendableRates}
+                recommendationCategoryId={a.category_id ?? null}
                 recommendationNeedsApproval={carePlanRequiresApproval}
                 recommendationAwaitingClinic={patientsAwaitingClinic.has(a.patient_id)}
               />

@@ -14,8 +14,13 @@ import {
   isPatientProfile,
   profileCheckUnavailable,
 } from "@/lib/supabase/requireActiveProfile";
-import { resolveRecommendablePackage } from "@/lib/carePlanServer";
-import { parseOfferSnapshot, carePlanState } from "@/lib/carePlans";
+import { resolveCourseRate, resolveRecommendablePackage } from "@/lib/carePlanServer";
+import {
+  buildCourseSnapshot,
+  parseOfferSnapshot,
+  carePlanState,
+  type CarePlanOfferSnapshot,
+} from "@/lib/carePlans";
 
 // Buying the plan a therapist recommended.
 //
@@ -144,22 +149,31 @@ export async function POST(request: NextRequest) {
   }
 
   const offerKind = version.offer_kind as "session_package" | "home_visit_package";
-  const live = await resolveRecommendablePackage(admin, offerKind, packageId);
+  // A per-session recommendation is re-priced from the condition's live
+  // per-session rate; an older one written against an admin programme is
+  // re-read from that programme. Either way the patient is charged what the
+  // catalog says now, and refused rather than charged a different figure
+  // than the card they read.
+  const snapshot = parseOfferSnapshot(version.offer_snapshot);
+  let live: { snapshot: CarePlanOfferSnapshot; categoryId: string | null } | null;
+  if (snapshot?.course && snapshot.categoryId) {
+    const rate = await resolveCourseRate(admin, offerKind, snapshot.categoryId);
+    live = rate
+      ? { snapshot: buildCourseSnapshot(rate, snapshot.sessionCount), categoryId: rate.categoryId }
+      : null;
+  } else {
+    live = await resolveRecommendablePackage(admin, offerKind, packageId);
+  }
   if (!live) {
     return NextResponse.json(
       {
         error:
-          "The programme your therapist recommended is no longer available. They'll need to send a new recommendation.",
+          "The treatment your therapist recommended is no longer available. They'll need to send a new recommendation.",
       },
       { status: 409 }
     );
   }
 
-  // The snapshot is what the patient was shown; the live row is what they
-  // would be charged. If those have parted company since the therapist
-  // wrote the plan, nobody is charged a different amount quietly -- the
-  // recommendation goes back to the clinician to re-confirm.
-  const snapshot = parseOfferSnapshot(version.offer_snapshot);
   if (
     snapshot &&
     (snapshot.pricePaise !== live.snapshot.pricePaise ||
@@ -168,7 +182,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "This programme has changed since your therapist recommended it. We've asked them to confirm it before you pay.",
+          "The price of this treatment has changed since your therapist recommended it. We've asked them to confirm it before you pay.",
       },
       { status: 409 }
     );

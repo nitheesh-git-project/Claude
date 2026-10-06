@@ -26,6 +26,7 @@ export default function FinishSessionButton({
   hoursLeft,
   patientId,
   recommendable = [],
+  recommendationCategoryId = null,
   recommendationNeedsApproval = true,
   recommendationAwaitingClinic = false,
 }: {
@@ -38,6 +39,8 @@ export default function FinishSessionButton({
   hoursLeft: number | null;
   patientId: string;
   recommendable?: RecommendableOption[];
+  /** The session's own condition, which a recommendation starts on. */
+  recommendationCategoryId?: string | null;
   recommendationNeedsApproval?: boolean;
   recommendationAwaitingClinic?: boolean;
 }) {
@@ -79,6 +82,7 @@ export default function FinishSessionButton({
           patientId={patientId}
           sessionCompleted={false}
           recommendable={recommendable}
+          recommendationCategoryId={recommendationCategoryId}
           recommendationNeedsApproval={recommendationNeedsApproval}
           recommendationAwaitingClinic={recommendationAwaitingClinic}
           completeOnSave

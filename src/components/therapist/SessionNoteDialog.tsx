@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useToast } from "@/lib/toast";
 import { debugNowHeaders } from "@/lib/debugNow";
+import { MAX_COURSE_SESSIONS, MIN_COURSE_SESSIONS } from "@/lib/carePlans";
 import { useRouter } from "@/lib/useRouter";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -40,6 +41,7 @@ export default function SessionNoteDialog({
   patientId,
   sessionCompleted,
   recommendable,
+  recommendationCategoryId = null,
   recommendationNeedsApproval,
   recommendationAwaitingClinic,
   completeOnSave = false,
@@ -57,6 +59,8 @@ export default function SessionNoteDialog({
   /** The programmes admin has cleared for recommendation. Empty means the
    *  section stays hidden rather than showing an empty picker. */
   recommendable: RecommendableOption[];
+  /** The session's own condition, which the recommendation starts on. */
+  recommendationCategoryId?: string | null;
   recommendationNeedsApproval: boolean;
   recommendationAwaitingClinic: boolean;
   /** When the session was, for the dialog's own subtitle. */
@@ -131,6 +135,17 @@ export default function SessionNoteDialog({
       setError("Fill in what you treated, how they responded, and the plan for next time.");
       return;
     }
+    // Checked before anything is saved: a bad count found after the note
+    // (and the session) went through would leave a half-done finish.
+    if (
+      plan &&
+      (!Number.isInteger(plan.sessionCount) ||
+        plan.sessionCount < MIN_COURSE_SESSIONS ||
+        plan.sessionCount > MAX_COURSE_SESSIONS)
+    ) {
+      setError(`Recommend between ${MIN_COURSE_SESSIONS} and ${MAX_COURSE_SESSIONS} sessions, or remove the recommendation.`);
+      return;
+    }
     if (completeOnSave && !painRecorded) {
       setError("Update the Pain Map for this session before finishing it.");
       return;
@@ -187,8 +202,8 @@ export default function SessionNoteDialog({
           body: JSON.stringify({
             patientId,
             appointmentId,
-            offerKind: plan.offerKind,
-            packageId: plan.packageId,
+            categoryId: plan.categoryId,
+            sessionCount: plan.sessionCount,
             handsOnRequired: plan.handsOnRequired,
             frequencyPerWeek: plan.frequencyPerWeek,
             clinicalRationale: plan.clinicalRationale,
@@ -377,6 +392,7 @@ export default function SessionNoteDialog({
             {!locked && canRecommend && recommendable.length > 0 && (
               <CarePlanFields
                 options={recommendable}
+                defaultCategoryId={recommendationCategoryId}
                 needsApproval={recommendationNeedsApproval}
                 awaitingClinic={recommendationAwaitingClinic}
                 value={plan}

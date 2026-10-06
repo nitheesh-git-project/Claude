@@ -15595,3 +15595,28 @@ begin
     check (patient_cancel_cutoff_minutes between 0 and 1440);
 exception when duplicate_object then null;
 end $$;
+
+-- ===========================================================================
+-- Recommendations are priced per session.
+--
+-- A therapist now recommends a condition and a number of sessions, and the
+-- price is that condition's per-session price times the count: the online
+-- consultation price for video sessions, the single home-visit price when
+-- the plan needs hands-on treatment. Admin programmes are no longer what a
+-- recommendation sells.
+--
+-- A purchase still points at a catalog row (`package_id` is not null on both
+-- purchase tables, and the booking rules are read through it), so each
+-- condition gets one hidden "course" row per delivery mode, created on
+-- demand by src/lib/carePlanServer.ts. `care_plan_course` marks it so no
+-- catalog screen lists it; the count and the amount live on the purchase,
+-- never on this row. The partial unique indexes make the on-demand create
+-- safe against two therapists writing at once.
+
+alter table treatment_category_packages add column if not exists care_plan_course boolean not null default false;
+alter table home_visit_packages add column if not exists care_plan_course boolean not null default false;
+
+create unique index if not exists treatment_category_packages_one_course_per_category
+  on treatment_category_packages (category_id) where care_plan_course;
+create unique index if not exists home_visit_packages_one_course_per_category
+  on home_visit_packages (category_id) where care_plan_course;

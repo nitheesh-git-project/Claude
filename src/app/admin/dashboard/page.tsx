@@ -166,7 +166,7 @@ import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import AdminCarePlansTab from "@/components/admin/AdminCarePlansTab";
 import type { AdminCarePlanRow, AuthorableSession } from "@/components/admin/AdminCarePlansTab";
 import type { RecommendableOption } from "@/components/therapist/CarePlanFields";
-import { loadRecommendablePackages } from "@/lib/carePlanServer";
+import { loadRecommendableRates } from "@/lib/carePlanServer";
 import { readCarePlanRequiresApproval } from "@/lib/carePlanAuthoring";
 import AdminBusinessHealthTab from "@/components/admin/AdminBusinessHealthTab";
 import AdminFinanceInputsTab from "@/components/admin/AdminFinanceInputsTab";
@@ -634,6 +634,9 @@ export default async function AdminDashboardPage({
       .select(
         "id, package_code, category_id, title, subtitle, description, image_url, promises, session_count, price_paise, compare_at_paise, display_order, therapist_rate_basis, validity_days, session_duration_minutes, therapist_locked, min_gap_hours, max_sessions_per_week, max_purchases_per_patient, recommendable, active"
       )
+      // Course rows are the hidden anchors per-session recommendations
+      // hang off (carePlanServer.ts), not programmes anyone edits.
+      .eq("care_plan_course", false)
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),
 
@@ -704,6 +707,7 @@ export default async function AdminDashboardPage({
       .select(
         "id, package_code, title, subtitle, description, image_url, benefits, badge_label, highlight, terms, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked, min_gap_hours, max_visits_per_week, max_purchases_per_patient, category_id, display_order, visible_on_home_visit_page, visible_in_dashboard, recommendable, active"
       )
+      .eq("care_plan_course", false)
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),
     admin
@@ -3112,7 +3116,13 @@ export default async function AdminDashboardPage({
     patientName: profileMap.get(p.patient_id)?.full_name ?? "Unknown patient",
     patientCode: roleCodeMap.get(p.patient_id)?.patient_code ?? null,
     packageId: p.package_id,
-    packageTitle: packageTitleMap.get(p.package_id) ?? "Session Package",
+    // A purchase made from a per-session recommendation hangs off a hidden
+    // course row the catalog list leaves out, so it is named for its condition.
+    packageTitle:
+      packageTitleMap.get(p.package_id) ??
+      (categoryTitleMap.get(p.category_id)
+        ? `${categoryTitleMap.get(p.category_id)} - recommended course`
+        : "Session Package"),
     categoryId: p.category_id,
     categoryTitle: categoryTitleMap.get(p.category_id) ?? "-",
     therapistId: p.locked_therapist_id,
@@ -3214,7 +3224,7 @@ export default async function AdminDashboardPage({
       patientName: profileMap.get(p.patient_id)?.full_name ?? "Unknown patient",
       patientCode: roleCodeMap.get(p.patient_id)?.patient_code ?? null,
       packageId: p.package_id,
-      packageTitle: homeVisitPackageTitleMap.get(p.package_id)?.title ?? "Home Visit Package",
+      packageTitle: homeVisitPackageTitleMap.get(p.package_id)?.title ?? "Recommended home visits",
       therapistId: p.locked_therapist_id,
       therapistName: p.locked_therapist_id
         ? profileMap.get(p.locked_therapist_id)?.full_name ?? "Unknown therapist"
@@ -3780,7 +3790,7 @@ export default async function AdminDashboardPage({
               category_id: string | null;
             }[],
           }),
-      canSeeCarePlans ? loadRecommendablePackages(admin) : Promise.resolve([]),
+      canSeeCarePlans ? loadRecommendableRates(admin) : Promise.resolve([]),
     ]);
     // The one lookup that has to wait, since it is keyed on ids the query
     // above returns.
@@ -4272,7 +4282,8 @@ export default async function AdminDashboardPage({
           : "session_package",
       packageId:
         version?.session_package_id ?? version?.home_visit_package_id ?? null,
-      categoryId: p.category_id ?? null,
+      categoryId: snapshot?.categoryId ?? p.category_id ?? null,
+      perSessionPaise: snapshot?.perSessionPaise ?? null,
       // What the queue is ordered and aged by. Falls back to the row's own
       // creation time for a plan written before the column existed, so an
       // old row sorts sensibly rather than to one end.
@@ -4312,15 +4323,7 @@ export default async function AdminDashboardPage({
       categoryId: a.category_id ?? null,
     }));
 
-  const adminPackageOptions: RecommendableOption[] = recommendablePackages.map((p) => ({
-    id: p.id,
-    kind: p.kind,
-    title: p.title,
-    snapshot: p.snapshot,
-    categoryId: p.categoryId,
-    categoryTitle: p.categoryTitle,
-    specialty: p.specialty,
-  }));
+  const adminPackageOptions: RecommendableOption[] = recommendablePackages;
 
   const sessionsRecommendationsTab = (
     <AdminCarePlansTab

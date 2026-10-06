@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
-import { type CarePlanOfferKind } from "@/lib/carePlans";
 import {
   authorCarePlanVersion,
   readCarePlanRequiresApproval,
@@ -46,8 +45,8 @@ export async function POST(request: NextRequest) {
     patientId?: string;
     appointmentId?: string;
     sessionNoteId?: string;
-    offerKind?: string;
-    packageId?: string;
+    categoryId?: string;
+    sessionCount?: number;
     handsOnRequired?: boolean;
     frequencyPerWeek?: number | null;
     clinicalRationale?: string;
@@ -70,17 +69,19 @@ export async function POST(request: NextRequest) {
 
   const patientId = body.patientId?.trim();
   const appointmentId = body.appointmentId?.trim();
-  const packageId = body.packageId?.trim();
-  const offerKind = body.offerKind as CarePlanOfferKind | undefined;
+  const categoryId = body.categoryId?.trim();
+  const sessionCount = body.sessionCount;
 
-  if (!patientId || !appointmentId || !packageId) {
+  if (!patientId || !appointmentId || !categoryId) {
     return NextResponse.json(
-      { error: "Choose a programme for this patient." },
+      { error: "Choose the condition this recommendation is for." },
       { status: 400 }
     );
   }
-  if (offerKind !== "session_package" && offerKind !== "home_visit_package") {
-    return NextResponse.json({ error: "Unknown programme type." }, { status: 400 });
+  // The count is checked by authorCarePlanVersion with every other rule;
+  // only "nothing sent" is answered here.
+  if (typeof sessionCount !== "number") {
+    return NextResponse.json({ error: "Say how many sessions to recommend." }, { status: 400 });
   }
 
   if (!(await isTherapistAssignedToPatient(admin, user.id, patientId))) {
@@ -93,8 +94,8 @@ export async function POST(request: NextRequest) {
   const result = await authorCarePlanVersion(admin, {
     patientId,
     appointmentId,
-    offerKind,
-    packageId,
+    categoryId,
+    sessionCount,
     handsOnRequired: body.handsOnRequired === true,
     frequencyPerWeek:
       typeof body.frequencyPerWeek === "number" ? body.frequencyPerWeek : null,

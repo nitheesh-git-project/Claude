@@ -141,6 +141,7 @@ total, which moves with every spec added.
 | `session-completed-cutoff` | 11 | the cutoff on every surface that lists a session |
 | `debug-clock` | 2 | the debug bar's simulated clock moving the completion gate while the debug bar is on; asserts refusals only, since a successful completion writes append-only settlement rows |
 | `finish-session` | 3 | a therapist's Done opening the session note with the Pain Map step; the route refusing Done without a note; the not-started line keeping No-show beside Done |
+| `recommendation-course` | 5 | a recommendation priced as the condition's per-session price x the count; hands-on making it home visits; the patient's card with the condition photo and no address on a video plan; a new address with a pincode reaching checkout; the therapist's number field and live total. Append-only writes - disposable project only |
 | `meet-link-note` | 2 | the note on a patient's and a therapist's online tile saying, as a clock time, when the Meet link shows |
 | `patient-cancel-cutoff` | 3 | the online cancel cut-off: the route refusing inside it, the setting moving it (and its range check), the Cancel button hidden inside it |
 | `therapist-patient-chart` | 1 | a patient's chart inside the therapist dashboard: no back link, the sidebar keeps My Patients lit |

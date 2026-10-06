@@ -55,6 +55,7 @@ let outsiderId = "";
 let adminId = "";
 let appointmentId = "";
 let packageId = "";
+let categoryId = "";
 let carePlanId = "";
 let versionId = "";
 
@@ -134,7 +135,7 @@ test.beforeAll(async () => {
   await db.from("site_settings").update({ care_plan_requires_approval: true }).eq("id", true);
 
   const { data: category } = await db.from("treatment_categories").select("id").eq("title", CATEGORY_TITLE).limit(1).maybeSingle();
-  const categoryId =
+  categoryId =
     category?.id ??
     (
       await db
@@ -274,9 +275,9 @@ test("CC-003: a recommendation waits for the clinic; the patient can neither see
   const res = await post("/api/therapist/care-plan/submit", THERAPIST, {
     patientId,
     appointmentId,
-    offerKind: "session_package",
-    packageId,
-    handsOnRequired: true,
+    categoryId,
+    sessionCount: 6,
+    handsOnRequired: false,
     frequencyPerWeek: 2,
     clinicalRationale: RATIONALE,
     instructions: INSTRUCTIONS,

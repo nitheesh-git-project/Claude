@@ -62,6 +62,8 @@ export default async function BookHomeVisitPage() {
     // prettier-ignore
     .select("id, title, visit_count, price_paise, visit_duration_minutes, travel_fee_included, subtitle, description, terms, badge_label, highlight, benefits, compare_at_paise, validity_days, therapist_locked, image_url")
     .eq("active", true)
+    // Not a course row: those exist only for recommendations (carePlanServer.ts).
+    .eq("care_plan_course", false)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
 

@@ -386,7 +386,7 @@ The first band **renders even when empty**, saying so. A section that disappears
 
 **Feature.** The middle case, and the one whose honesty is in the plumbing rather than the button.
 
-**Steps.** On a queued recommendation, tap **Approve with changes**. Change the session count chip and the frequency. Submit with the reason `Frequency reduced to match what this patient can attend.`
+**Steps.** On a queued recommendation, tap **Approve with changes**. Change **How many sessions** and the frequency. Submit with the reason `Frequency reduced to match what this patient can attend.`
 
 **Expected Result**
 * The plan becomes `active` and the patient is offered the **new** numbers.

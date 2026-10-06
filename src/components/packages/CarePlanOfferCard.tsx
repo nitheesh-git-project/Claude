@@ -198,8 +198,12 @@ export default function CarePlanOfferCard({
   function handlePay() {
     if (inFlight.current) return;
     if (offer.isHomeVisit) {
-      if (usingNewAddress && (!newAddress.line1.trim() || !newAddress.pincode.trim())) {
+      if (usingNewAddress && !newAddress.line1.trim()) {
         setError("Add the address these visits should come to.");
+        return;
+      }
+      if (usingNewAddress && !/^\d{6}$/.test(newAddress.pincode.trim())) {
+        setError("Add the 6-digit pincode for this address.");
         return;
       }
       if (quote.state === "unserviceable") {
@@ -294,7 +298,19 @@ export default function CarePlanOfferCard({
   }
 
   return (
-    <div className="rounded-2xl border border-teal-200 bg-white p-6 shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-teal-200 bg-white shadow-sm">
+      {snapshot?.imageUrl && (
+        // The condition's own photograph, the same one its card on /conditions
+        // carries, so the recommendation reads as that treatment at a glance.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={snapshot.imageUrl}
+          alt=""
+          data-testid="care-plan-image"
+          className="h-36 w-full object-cover sm:h-44"
+        />
+      )}
+      <div className="p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">
@@ -320,6 +336,11 @@ export default function CarePlanOfferCard({
             <dd className="text-sm font-bold text-slate-900">
               {formatInr(snapshot.pricePaise)}
             </dd>
+            {snapshot.perSessionPaise ? (
+              <dd className="text-[11px] text-slate-500">
+                {snapshot.sessionCount} × {formatInr(snapshot.perSessionPaise)}
+              </dd>
+            ) : null}
           </div>
           <div>
             <dt className="text-[11px] text-slate-500">How often</dt>
@@ -396,7 +417,25 @@ export default function CarePlanOfferCard({
             </div>
           )}
           {usingNewAddress && (
-            <div className="mt-3">
+            <div className="mt-3 space-y-4">
+              {/* The shared AddressForm leaves the pincode to the wizard's
+                  area step, which this card does not have -- so without this
+                  field a new address could never be complete, and every pay
+                  attempt said "Add the address these visits should come to". */}
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-700">Pincode</span>
+                <input
+                  value={newAddress.pincode}
+                  onChange={(e) =>
+                    setNewAddress({ ...newAddress, pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })
+                  }
+                  disabled={paying}
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  placeholder="6 digits"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                />
+              </label>
               <AddressForm value={newAddress} onChange={setNewAddress} disabled={paying} />
             </div>
           )}
@@ -419,7 +458,9 @@ export default function CarePlanOfferCard({
           {snapshot && quote.state === "ready" && (
             <dl className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-xs">
               <div className="flex justify-between">
-                <dt className="text-slate-500">Programme</dt>
+                <dt className="text-slate-500">
+                  {snapshot.sessionCount} {snapshot.sessionCount === 1 ? "visit" : "visits"}
+                </dt>
                 <dd className="font-semibold text-slate-800">
                   {formatInr(snapshot.pricePaise)}
                 </dd>
@@ -526,6 +567,7 @@ export default function CarePlanOfferCard({
               : "No longer open."}
         </p>
       )}
+      </div>
     </div>
   );
 }

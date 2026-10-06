@@ -5,10 +5,13 @@
 // authoring route, the therapist's dialog, the patient's screen and the
 // Health Profile history all read one definition.
 //
-// The rule that shapes the whole feature: a therapist picks a *package*,
-// never a price. Session count, price, validity, session duration and the
-// gap rules come from an admin-configured catalog row. The only fields a
-// clinician chooses are the four below, and none of them is money.
+// The rule that shapes the whole feature: a therapist picks a condition and
+// a number of sessions, never a price. The price is that condition's own
+// per-session price times the count -- the online consultation price for
+// video sessions, the single home-visit price when the plan needs hands-on
+// treatment -- resolved on the server from the catalog. Whether it is video
+// or home visits is not a separate choice either: "needs hands-on
+// treatment" decides it (`offerKindFor`).
 
 export const CARE_PLAN_STATUSES = [
   "pending_review",
@@ -24,10 +27,11 @@ export type CarePlanStatus = (typeof CARE_PLAN_STATUSES)[number];
 
 export type CarePlanOfferKind = "session_package" | "home_visit_package";
 
-/** What a therapist actually fills in. Everything else is the package's. */
+/** What a therapist actually fills in. Everything else is the catalog's. */
 export type CarePlanAuthorInput = {
   offerKind: CarePlanOfferKind;
-  packageId: string;
+  categoryId: string;
+  sessionCount: number;
   handsOnRequired: boolean;
   frequencyPerWeek: number | null;
   clinicalRationale: string;
@@ -35,6 +39,82 @@ export type CarePlanAuthorInput = {
 };
 
 export const MAX_RATIONALE_LENGTH = 800;
+export const MIN_COURSE_SESSIONS = 1;
+export const MAX_COURSE_SESSIONS = 30;
+
+/** Hands-on treatment is delivered at home; everything else by video. One
+ *  switch, so a plan can never say "hands-on" and sell video sessions. */
+export function offerKindFor(handsOnRequired: boolean): CarePlanOfferKind {
+  return handsOnRequired ? "home_visit_package" : "session_package";
+}
+
+/**
+ * What one session of a condition costs, by delivery mode -- the unit a
+ * recommendation is priced in. Resolved server-side (carePlanServer.ts) from
+ * the condition's own price (video) or the single home-visit price (hands-on).
+ */
+export type CourseRate = {
+  kind: CarePlanOfferKind;
+  categoryId: string;
+  categoryTitle: string;
+  imageUrl: string | null;
+  perSessionPaise: number;
+  sessionDurationMinutes: number | null;
+  validityDays: number | null;
+  travelFeeIncluded: boolean;
+};
+
+/**
+ * One thing a clinician may recommend: a condition, delivered by video or
+ * (when it needs hands-on treatment) at home, at that condition's
+ * per-session price. The picker asks for a condition and a number; the
+ * price is this rate times the number (`buildCourseSnapshot`).
+ */
+export type RecommendableRate = CourseRate & {
+  id: string;
+  /** Which of the three condition types the condition belongs to, for
+   *  grouping the picker. Null where an admin has not tagged it. */
+  specialty: "ortho" | "neuro" | "pediatrics" | null;
+};
+
+export function validateSessionCount(count: unknown): string | null {
+  if (
+    typeof count !== "number" ||
+    !Number.isInteger(count) ||
+    count < MIN_COURSE_SESSIONS ||
+    count > MAX_COURSE_SESSIONS
+  ) {
+    return `Choose between ${MIN_COURSE_SESSIONS} and ${MAX_COURSE_SESSIONS} sessions.`;
+  }
+  return null;
+}
+
+/** The total a patient is asked to pay for `count` sessions, before any
+ *  home-visit travel. Integer paise. */
+export function coursePricePaise(perSessionPaise: number, count: number): number {
+  return Math.max(0, Math.round(perSessionPaise)) * count;
+}
+
+/** The snapshot a per-session recommendation is frozen with. */
+export function buildCourseSnapshot(rate: CourseRate, count: number): CarePlanOfferSnapshot {
+  return {
+    title: rate.categoryTitle,
+    sessionCount: count,
+    pricePaise: coursePricePaise(rate.perSessionPaise, count),
+    comparePaise: null,
+    validityDays: rate.validityDays,
+    sessionDurationMinutes: rate.sessionDurationMinutes,
+    minGapHours: null,
+    maxPerWeek: null,
+    therapistLocked: true,
+    terms: null,
+    travelFeeIncluded: rate.kind === "home_visit_package" && rate.travelFeeIncluded,
+    course: true,
+    perSessionPaise: rate.perSessionPaise,
+    categoryId: rate.categoryId,
+    imageUrl: rate.imageUrl,
+  };
+}
 export const MAX_INSTRUCTIONS_LENGTH = 800;
 
 /**
@@ -63,6 +143,14 @@ export type CarePlanOfferSnapshot = {
    *  it means travel is shown as a separate line rather than silently
    *  assumed to be covered. */
   travelFeeIncluded: boolean;
+  /** Per-session recommendations (count x the condition's per-session
+   *  price). False on versions written against an admin programme, which
+   *  keep that older checkout path. */
+  course: boolean;
+  perSessionPaise: number | null;
+  /** The condition, and its photograph for the patient's card. */
+  categoryId: string | null;
+  imageUrl: string | null;
 };
 
 /** Builds the snapshot from a catalog row of either kind. */
@@ -91,6 +179,10 @@ export function buildOfferSnapshot(
     // field stays on the type because versions already written carry it.
     terms: typeof row.terms === "string" ? row.terms : null,
     travelFeeIncluded: isHomeVisit && row.travel_fee_included === true,
+    course: false,
+    perSessionPaise: null,
+    categoryId: typeof row.category_id === "string" ? row.category_id : null,
+    imageUrl: typeof row.image_url === "string" ? row.image_url : null,
   };
 }
 
@@ -113,6 +205,13 @@ export function parseOfferSnapshot(value: unknown): CarePlanOfferSnapshot | null
     therapistLocked: r.therapistLocked !== false,
     terms: typeof r.terms === "string" ? r.terms : null,
     travelFeeIncluded: r.travelFeeIncluded === true,
+    course: r.course === true,
+    perSessionPaise:
+      typeof r.perSessionPaise === "number" && Number.isFinite(r.perSessionPaise)
+        ? r.perSessionPaise
+        : null,
+    categoryId: typeof r.categoryId === "string" ? r.categoryId : null,
+    imageUrl: typeof r.imageUrl === "string" ? r.imageUrl : null,
   };
 }
 
@@ -130,6 +229,8 @@ export function validateCarePlanInput(
   snapshot: CarePlanOfferSnapshot,
   { maxFrequencyPerWeek }: { maxFrequencyPerWeek: number }
 ): { ok: true } | { ok: false; error: string } {
+  const countError = validateSessionCount(input.sessionCount);
+  if (countError) return { ok: false, error: countError };
   if (input.frequencyPerWeek !== null) {
     if (
       !Number.isInteger(input.frequencyPerWeek) ||

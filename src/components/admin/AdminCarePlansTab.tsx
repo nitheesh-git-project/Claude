@@ -9,7 +9,6 @@ import {
   CARE_PLAN_STATE_LABELS,
   formatWaitingFor,
   isQueueStale,
-  narrowToCategory,
   type CarePlanOfferKind,
   type CarePlanState,
 } from "@/lib/carePlans";
@@ -39,6 +38,9 @@ export type AdminCarePlanRow = {
   title: string;
   sessionCount: number;
   pricePaise: number;
+  /** Per-session recommendations only: the unit price the total is built
+   *  from, so the card can say "8 sessions x ₹499". */
+  perSessionPaise: number | null;
   isHomeVisit: boolean;
   state: CarePlanState;
   status: string;
@@ -257,8 +259,7 @@ function PlanCard({ plan, canWithdraw }: { plan: AdminCarePlanRow; canWithdraw: 
 
       <p className="mt-2 font-semibold text-slate-800">{plan.title}</p>
       <p className="mt-0.5 text-slate-500">
-        {plan.sessionCount} {plan.isHomeVisit ? "visits" : "sessions"} ·{" "}
-        {formatInr(plan.pricePaise)}
+        <SessionCountPrice plan={plan} />
         {plan.isHomeVisit && " + travel"} · written{" "}
         {formatClinicDate(plan.authoredAt)}
         {plan.expiresAt && ` · holds until ${formatClinicDate(plan.expiresAt)}`}
@@ -372,16 +373,17 @@ function ReviewCard({
   // Narrowed to the session's own condition by the same helper both
   // authoring doors use, so an admin changing a recommendation cannot reach
   // a programme for somebody else's condition.
-  const narrowed = narrowToCategory(options, plan.categoryId);
+  // Every priced condition, starting on the one the therapist chose.
+  const narrowed = options;
 
   // Seeded from what the therapist actually wrote. An empty form would make
   // "approve with a small change" mean retyping their reasoning, which is
   // how the reasoning ends up being the admin's.
   const [draft, setDraft] = useState<CarePlanDraft | null>(() =>
-    plan.packageId
+    plan.categoryId
       ? {
-          offerKind: plan.offerKind,
-          packageId: plan.packageId,
+          categoryId: plan.categoryId,
+          sessionCount: plan.sessionCount,
           handsOnRequired: plan.handsOnRequired,
           frequencyPerWeek: plan.frequencyPerWeek,
           clinicalRationale: plan.rationale ?? "",
@@ -464,8 +466,7 @@ function ReviewCard({
 
       <p className="mt-2 font-semibold text-slate-800">{plan.title}</p>
       <p className="mt-0.5 text-slate-500">
-        {plan.sessionCount} {plan.isHomeVisit ? "visits" : "sessions"} ·{" "}
-        {formatInr(plan.pricePaise)}
+        <SessionCountPrice plan={plan} />
         {plan.isHomeVisit && " + travel per visit"}
         {plan.frequencyPerWeek && ` · ${plan.frequencyPerWeek} a week`}
         {plan.handsOnRequired && " · hands-on"}
@@ -545,6 +546,7 @@ function ReviewCard({
                   a queue. */}
               <CarePlanFields
                 options={narrowed}
+                defaultCategoryId={plan.categoryId}
                 value={draft}
                 onChange={setDraft}
                 needsApproval={false}
@@ -656,7 +658,8 @@ function AuthorOnBehalf({
 
   // Narrowed to the session's own condition, by the same helper the
   // therapist's dialog uses.
-  const offered = narrowToCategory(options, session?.categoryId ?? null);
+  // Every priced condition; the picker starts on the session's own.
+  const offered = options;
 
   const reasonReady = reason.trim().length >= MIN_REASON_LENGTH;
 
@@ -678,8 +681,8 @@ function AuthorOnBehalf({
     // drops a patient off this list the moment they have a live plan, and
     // the picker falls back to another one. Sending the draft as it stands
     // would then recommend a programme for somebody else's condition.
-    if (!offered.some((o) => o.id === draft.packageId)) {
-      setError("That programme isn't offered for this session. Pick one again.");
+    if (!offered.some((o) => o.categoryId === draft.categoryId)) {
+      setError("That condition isn't offered any more. Pick one again.");
       return;
     }
     setError(null);
@@ -767,6 +770,7 @@ function AuthorOnBehalf({
           <div className="mt-4">
             <CarePlanFields
               options={offered}
+              defaultCategoryId={session?.categoryId ?? null}
               value={draft}
               onChange={setDraft}
               needsApproval={false}
@@ -832,5 +836,27 @@ function AuthorOnBehalf({
         </>
       )}
     </SurfaceCard>
+  );
+}
+
+/** "8 sessions x ₹499 = ₹3,992" -- the count first and in bold, since it is
+ *  the clinical decision an admin is approving and the line used to bury it
+ *  in a run of small grey text. */
+function SessionCountPrice({
+  plan,
+}: {
+  plan: { sessionCount: number; isHomeVisit: boolean; pricePaise: number; perSessionPaise: number | null };
+}) {
+  const unit = plan.isHomeVisit
+    ? plan.sessionCount === 1 ? "visit" : "visits"
+    : plan.sessionCount === 1 ? "session" : "sessions";
+  return (
+    <>
+      <span className="font-bold text-slate-800" data-testid="care-plan-session-count">
+        {plan.sessionCount} {unit}
+      </span>
+      {plan.perSessionPaise ? ` × ${formatInr(plan.perSessionPaise)} = ` : " · "}
+      <span className="font-semibold text-slate-700">{formatInr(plan.pricePaise)}</span>
+    </>
   );
 }

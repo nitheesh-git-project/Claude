@@ -487,6 +487,23 @@
       "integration": "local",
       "destructive": false
     },
+    "recommendation-course.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/programmes.md"
+      ],
+      "integration": "provider-sandbox",
+      "destructive": true
+    },
     "debug-clock.spec.ts": {
       "runner": "session",
       "levels": [
@@ -1521,6 +1538,27 @@
           "level": "browser"
         }
       ]
+    },
+    {
+      "id": "session.recommendation-course",
+      "runner": "session",
+      "title": "A recommendation is a condition x a session count at the per-session price; hands-on makes it home visits, and its address checkout goes through",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "recommendation-course.spec.ts",
+          "tests": [
+            "RC-001",
+            "RC-002",
+            "RC-003",
+            "RC-004",
+            "RC-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only care-plan rows, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; it opens a Razorpay test order but does not drive the payment window."
     },
     {
       "id": "session.finish-with-note",

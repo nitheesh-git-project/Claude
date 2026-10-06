@@ -14,7 +14,7 @@ import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { sessionsAwaitingNote, type SessionNoteRow } from "@/lib/sessionNotes";
 import type { StatCell } from "@/components/dashboard/StatStrip";
-import { loadCarePlanReviews, loadRecommendablePackages } from "@/lib/carePlanServer";
+import { loadCarePlanReviews, loadRecommendableRates } from "@/lib/carePlanServer";
 import { readCarePlanRequiresApproval } from "@/lib/carePlanAuthoring";
 import { maskPhone } from "@/lib/contactMasking";
 import { parseOfferSnapshot } from "@/lib/carePlans";
@@ -769,7 +769,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // dashboard rather than per session card. Its own call and failure
   // tolerant: `recommendable` is a new column, and losing it must cost the
   // recommend control rather than the dashboard.
-  const recommendablePackages = await loadRecommendablePackages(admin);
+  const recommendableRates = await loadRecommendableRates(admin);
 
   const availabilityLoadFailed =
     needAvailability && (!!scheduleStateError || !!availabilitySlotsError || !!upcomingOverridesError);
@@ -859,7 +859,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     navItems,
     sessionNotes,
     noteByAppointmentId,
-    recommendablePackages,
+    recommendableRates,
     patientsAwaitingClinic,
     carePlanRequiresApproval,
     notesOwed,
