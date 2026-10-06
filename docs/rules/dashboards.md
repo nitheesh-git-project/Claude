@@ -27,6 +27,11 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   which entries exist stays in the always-loaded core, or the nav would
   change shape as you move between screens. Anything rendered by more than one route
   (the session cards) is a real component, not a closure.
+  A detail page under a section (a patient's chart at
+  `/therapist/dashboard/health-profile/[id]`) keeps that section lit in the
+  sidebar (`DashboardShell` matches `href` + `/`, never the base path), so
+  the sidebar is the way back and the page carries no "Back to ..." link
+  (`e2e/therapist-patient-chart.spec.ts`).
 - **A dashboard read that can pass 1,000 rows is paged, and the one every
   screen is built from says when it failed.** The patient and therapist
   loaders read each appointment column group with `readAllRowsAsData`

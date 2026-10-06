@@ -141,6 +141,7 @@ total, which moves with every spec added.
 | `session-completed-cutoff` | 11 | the cutoff on every surface that lists a session |
 | `debug-clock` | 2 | the debug bar's simulated clock moving the completion gate while the debug bar is on; asserts refusals only, since a successful completion writes append-only settlement rows |
 | `finish-session` | 3 | a therapist's Done opening the session note with the Pain Map step; the route refusing Done without a note; the not-started line keeping No-show beside Done |
+| `therapist-patient-chart` | 1 | a patient's chart inside the therapist dashboard: no back link, the sidebar keeps My Patients lit |
 | `admin-login` | 4 | the real login form. Needs the relay (see `docs/rules/testing.md`); skips itself otherwise |
 
 ### Clinical, roster and catalogue

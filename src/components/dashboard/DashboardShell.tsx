@@ -192,7 +192,13 @@ export default function DashboardShell({
   // rather than as <NavItem ... />, so React never treats it as its own
   // component type and there's nothing to remount every render.
   function renderNavItem(item: ShellNavItem, mini: boolean, onNavigate?: () => void) {
-    const active = item.href ? pathname === item.href : onBasePage && activeId === item.id;
+    // A detail page under a section (a patient's chart under My Patients)
+    // keeps that section lit, so the sidebar is the way back. The base path
+    // itself is excluded or Overview would light up on every page.
+    const active = item.href
+      ? pathname === item.href ||
+        (item.href !== basePath && !!pathname?.startsWith(`${item.href}/`))
+      : onBasePage && activeId === item.id;
     const className = `group relative w-full flex items-center gap-3 rounded-xl transition ${
       mini ? "justify-center px-0 py-3" : "px-3.5 py-2.5"
     } ${active ? "bg-teal-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`;
