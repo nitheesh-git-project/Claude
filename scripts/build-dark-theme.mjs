@@ -1,0 +1,127 @@
+// Generates src/app/dark-theme.css -- the dark palette.
+//
+//   node scripts/build-dark-theme.mjs
+//
+// Why a palette rather than `dark:` classes: the app has ~5,000 colour
+// classes across 400 components, written for a light page. Rewriting each
+// one is how a screen gets missed. Tailwind 4 resolves every colour utility
+// from its own namespace first -- `bg-*` from --background-color-*, `text-*`
+// from --text-color-*, `border-*` from --border-color-* -- and only then
+// from the shared --color-*. Declaring those namespaces lets one class name
+// mean two things on purpose: `bg-white` becomes a dark card while
+// `text-white` on a teal button stays white; `bg-teal-700` keeps the brand
+// button while `text-teal-700` lightens enough to read on dark.
+//
+// Light mode is untouched: the @theme block maps every namespaced variable
+// straight back to the colour it always was. Only `html[data-theme="dark"]`
+// (set by the head script in the root layout, and only when an admin has
+// switched "Follow the device's light/dark setting" on) changes anything.
+import fs from "node:fs";
+import path from "node:path";
+
+const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const themeCss = fs.readFileSync(path.join(root, "node_modules/tailwindcss/theme.css"), "utf8");
+const palette = {};
+for (const m of themeCss.matchAll(/--color-([a-z]+)-(\d+):\s*([^;]+);/g)) {
+  (palette[m[1]] ??= {})[m[2]] = m[3].trim();
+}
+
+const STEPS = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"];
+const HUES = [
+  "teal", "red", "amber", "emerald", "blue", "purple", "green", "rose", "violet",
+  "indigo", "orange", "sky", "fuchsia", "yellow", "cyan", "lime", "pink",
+];
+
+// The deep-slate surfaces.
+const PAGE = "#0b1220";
+const CARD = "#111a2e";
+
+const light = [];
+const dark = [];
+const ns = (kind, name, value) => light.push(`  --${kind}-${name}: ${value};`);
+const dk = (name, value) => dark.push(`  --${name}: ${value};`);
+
+// ---- white -------------------------------------------------------------
+ns("background-color", "white", "var(--color-white)");
+ns("border-color", "white", "var(--color-white)");
+ns("ring-color", "white", "var(--color-white)");
+dk("background-color-white", CARD);
+dk("border-color-white", CARD);
+dk("ring-color-white", CARD);
+
+// ---- slate: the neutral scale ------------------------------------------
+const slate = palette.slate;
+const slateBg = { "50": PAGE, "100": "#18233a", "200": "#22304a", "300": "#2e3d58" };
+// Text on a light page lives at 500-950; on dark it mirrors to light. 50-400
+// are already light-on-dark text (the footer, the debug bar) and stay.
+const slateText = {
+  "500": "#94a3b8", "600": "#aab6c8", "700": "#c3cedc", "800": "#dce3ec", "900": "#eef2f7", "950": "#f8fafc",
+};
+const slateBorder = { "50": "#16203a", "100": "#1c2840", "200": "#26334c", "300": "#33425e", "400": "#475569" };
+for (const s of STEPS) {
+  ns("background-color", `slate-${s}`, `var(--color-slate-${s})`);
+  ns("border-color", `slate-${s}`, `var(--color-slate-${s})`);
+  ns("ring-color", `slate-${s}`, `var(--color-slate-${s})`);
+  // Dark chrome (footer, toasts, the dark save bar) keeps its dark fill.
+  dk(`background-color-slate-${s}`, slateBg[s] ?? slate[s]);
+  if (slateText[s]) dk(`color-slate-${s}`, slateText[s]);
+  if (slateBorder[s]) {
+    dk(`border-color-slate-${s}`, slateBorder[s]);
+    dk(`ring-color-slate-${s}`, slateBorder[s]);
+  } else {
+    dk(`border-color-slate-${s}`, slate[s]);
+    dk(`ring-color-slate-${s}`, slate[s]);
+  }
+}
+
+// ---- every hue ---------------------------------------------------------
+// Light tints (50-300) become the same hue washed into the card; solid
+// fills (400+) keep their exact colour so buttons, badges and the brand
+// stay what they are. Text at 600+ mirrors to the light end of its own hue,
+// which is what keeps a teal link or a red error readable on dark.
+const tintMix = { "50": 10, "100": 16, "200": 26, "300": 38 };
+const borderMix = { "50": 14, "100": 20, "200": 30, "300": 42 };
+const textMirror = { "500": "400", "600": "400", "700": "300", "800": "200", "900": "100", "950": "50" };
+const borderSolid = { "600": "500", "700": "500", "800": "600", "900": "700", "950": "700" };
+for (const h of HUES) {
+  const p = palette[h];
+  if (!p) continue;
+  for (const s of STEPS) {
+    ns("background-color", `${h}-${s}`, `var(--color-${h}-${s})`);
+    ns("border-color", `${h}-${s}`, `var(--color-${h}-${s})`);
+    ns("ring-color", `${h}-${s}`, `var(--color-${h}-${s})`);
+    dk(
+      `background-color-${h}-${s}`,
+      tintMix[s] ? `color-mix(in oklab, ${p["500"]} ${tintMix[s]}%, ${CARD})` : p[s]
+    );
+    const border = borderMix[s]
+      ? `color-mix(in oklab, ${p["500"]} ${borderMix[s]}%, ${CARD})`
+      : p[borderSolid[s] ?? s];
+    dk(`border-color-${h}-${s}`, border);
+    dk(`ring-color-${h}-${s}`, border);
+    if (textMirror[s]) dk(`color-${h}-${s}`, p[textMirror[s]]);
+  }
+}
+
+const out = `/* GENERATED by scripts/build-dark-theme.mjs -- edit that, not this.
+ *
+ * The dark palette. The @theme block declares a background, border and ring
+ * variable for every colour the app uses, each pointing at the colour it has
+ * always been -- so in light mode nothing changes. Tailwind then compiles
+ * \`bg-white\` to var(--background-color-white) instead of var(--color-white),
+ * which is what lets the dark block below move a background without moving
+ * the text that shares its name.
+ */
+@theme {
+${light.join("\n")}
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --background: ${PAGE};
+  --foreground: #e2e8f0;
+${dark.join("\n")}
+}
+`;
+fs.writeFileSync(path.join(root, "src/app/dark-theme.css"), out);
+console.log(`dark-theme.css: ${light.length} light mappings, ${dark.length} dark overrides`);

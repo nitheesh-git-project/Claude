@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./dark-theme.css";
 /* Solid only, deliberately -- not all.min.css.
  *
  * `all.min.css` declares @font-face for every Font Awesome style (solid,
