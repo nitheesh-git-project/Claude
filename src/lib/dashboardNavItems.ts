@@ -10,12 +10,18 @@ export function buildPatientNavItems({
   hasHomeVisits,
   hasOwnedHomeVisitPackages,
   hasSuggestions,
+  suggestionsWaiting = 0,
 }: {
   hasOwnedPackages: boolean;
   /** A live recommendation, or a therapist-proposed time. Same rule as the
    *  entries below: a screen that can only ever be empty is not in the
    *  sidebar. Booking stays the deliberate exception. */
   hasSuggestions: boolean;
+  /** How many of those are waiting on the patient's answer: a live plan
+   *  counts once, plus each proposed time. Shown as the entry's badge, and so
+   *  on the phone's More button, where Suggested sits -- the teaser banner
+   *  names the suggestion, the badge says there is somewhere to answer it. */
+  suggestionsWaiting?: number;
   // Two different rules, deliberately kept apart. Booking is always open --
   // "Book a Session" is unconditional, because a patient who has only ever
   // had video calls must still be able to find home visits. History is
@@ -48,6 +54,7 @@ export function buildPatientNavItems({
             id: "suggested",
             label: "Suggested Sessions",
             short: "Suggested",
+            badge: suggestionsWaiting > 0 ? suggestionsWaiting : undefined,
             icon: "fa-lightbulb",
             href: "/patient/dashboard/suggested",
           },

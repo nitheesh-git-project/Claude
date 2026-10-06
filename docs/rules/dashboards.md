@@ -366,3 +366,22 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   scroll hint) adds `--app-bottom-inset`, which a `data-tabbar` element sets
   in `globals.css`, so nothing sits under the bar. The onboarding tour finds
   its targets by `data-tour="nav-<id>"` on whichever copy is visible.
+- **From `2xl` the dashboards use the width by moving blocks, never by adding
+  them.** The Overview's blocks are placed by `.overview-grid` (globals.css):
+  stacked on a phone; feed and Quick actions side by side from `lg`; from
+  `2xl` the headline and Quick actions form a right-hand panel beside the
+  figures and the feed. Sessions (`SessionFilterList`) shows a compact row
+  per session on the left and the chosen session's card on the right
+  (`.session-split`); each card is still rendered exactly once, so nothing
+  in a card -- a half-typed form included -- is ever on the page twice. The
+  row's words come from the caller (`title`, `detail`) and are the ones the
+  card already leads with; its status word is `sessionRowStatus`, which says
+  No-show rather than Completed. The calendar puts the chosen day's cards
+  beside the month (`.calendar-split`) instead of below the fold. Below
+  `2xl` all three are exactly as they were.
+- **The phone's More button carries the Suggested badge.** Suggested
+  Sessions is not on the patient tab bar (Progress is: the teaser banner
+  already names the suggestion on every screen), so the entry's badge --
+  `suggestionsWaiting`, a live plan once plus each proposed time -- is
+  summed onto More, where the entry lives. The sidebar and rail show it on
+  the entry itself.

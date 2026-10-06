@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
-import { EmptyState } from "@/components/dashboard/SurfaceCard";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { EmptyState, StatusPill } from "@/components/dashboard/SurfaceCard";
+import { clinicDayParts, formatClinicTime } from "@/lib/formatDateTime";
+import { sessionRowStatus } from "@/lib/sessionRowStatus";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import { sessionBucket } from "@/lib/sessionBucket";
@@ -12,6 +14,12 @@ export type FilterableSession = {
   status: string;
   noShow?: boolean;
   isHomeVisit: boolean;
+  /** What the desktop list's compact row leads with -- the condition for a
+   *  patient, the patient's name for a therapist -- and the line under it.
+   *  Both are already on the card; the row repeats them so it can be read
+   *  without opening the card. */
+  title?: string;
+  detail?: string;
 };
 
 type When = "upcoming" | "past" | "cancelled" | "all";
@@ -99,6 +107,12 @@ export default function SessionFilterList({
     defaultPageSize: 5,
   });
 
+  // Which session's card the desktop layout shows beside the list. Falls
+  // back to the first on the page, so a filter or page change never leaves
+  // the right-hand side empty while there are rows on the left.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = pageSessions.find((s) => s.id === selectedId) ?? pageSessions[0];
+
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -159,12 +173,54 @@ export default function SessionFilterList({
           }
         />
       ) : (
-        // Two across on a desktop: one card per row left half of a 1920
-        // screen empty and pushed the pager below the fold.
-        <ul className="grid items-start gap-3 2xl:grid-cols-2">
-          {pageSessions.map((s) => (
-            <li key={s.id}>{cardsById[s.id]}</li>
-          ))}
+        // Below 2xl: the cards, one under another. From 2xl: a compact row
+        // per session on the left and the chosen session's card on the
+        // right (`.session-split` in globals.css). Each card is rendered
+        // once either way -- the rows are extra, the cards are not
+        // duplicated -- so a half-filled form in a card is never in the
+        // page twice.
+        <ul
+          className="session-split grid items-start gap-3"
+          style={{ "--rows": pageSessions.length } as CSSProperties}
+        >
+          {pageSessions.map((s) => {
+            const isSelected = s.id === selected?.id;
+            const day = clinicDayParts(s.slotTime);
+            const status = sessionRowStatus(s.status, s.noShow);
+            return (
+              <li key={s.id} className="2xl:contents">
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(s.id)}
+                  aria-pressed={isSelected}
+                  className={`session-split-row hidden w-full items-center gap-3.5 rounded-xl border px-3.5 py-3 text-left transition 2xl:flex ${
+                    isSelected
+                      ? "border-teal-300 bg-teal-50"
+                      : "border-slate-200 bg-white hover:border-teal-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="w-12 shrink-0 text-center leading-tight">
+                    <span className={`block text-[11px] font-bold uppercase ${isSelected ? "text-teal-700" : "text-slate-500"}`}>
+                      {day.weekday}
+                    </span>
+                    <span className="block font-display text-xl font-bold text-slate-900">{day.day}</span>
+                    <span className="block text-[11px] text-slate-500">{day.month}</span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-900">
+                      {s.title ?? (s.isHomeVisit ? "Home visit" : "Video session")}
+                    </span>
+                    <span className="block truncate text-xs text-slate-500">
+                      {formatClinicTime(s.slotTime)} · {s.isHomeVisit ? "Home visit" : "Video"}
+                      {s.detail ? ` · ${s.detail}` : ""}
+                    </span>
+                  </span>
+                  <StatusPill tone={status.tone}>{status.label}</StatusPill>
+                </button>
+                <div className={isSelected ? "session-split-card" : "2xl:hidden"}>{cardsById[s.id]}</div>
+              </li>
+            );
+          })}
         </ul>
       )}
 

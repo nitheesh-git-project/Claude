@@ -935,6 +935,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     hasHomeVisits: homeVisitAppointments.length > 0,
     hasOwnedHomeVisitPackages,
     hasSuggestions: !!activeCarePlan || pendingSuggestions.length > 0,
+    suggestionsWaiting: (activeCarePlan ? 1 : 0) + pendingSuggestions.length,
   });
 
   // What the Book a Session hub offers. Both master switches are honoured

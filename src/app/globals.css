@@ -440,3 +440,72 @@ html[data-splash] body {
     animation: none;
   }
 }
+
+/* DashboardOverview's blocks, placed by width. Column gap only: a block
+   that is absent (no banner, no headline) leaves an empty row, and a row
+   gap there would show as a hole -- each block carries its own space
+   below instead. */
+.overview-grid {
+  display: grid;
+  column-gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "banner" "head" "strip" "feed" "side";
+  align-items: start;
+}
+.overview-grid > * { margin-bottom: 1.25rem; min-width: 0; }
+.overview-grid > .ov-banner { grid-area: banner; }
+.overview-grid > .ov-head { grid-area: head; }
+.overview-grid > .ov-strip { grid-area: strip; }
+.overview-grid > .ov-feed { grid-area: feed; }
+.overview-grid > .ov-side { grid-area: side; }
+@media (min-width: 1024px) {
+  .overview-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    grid-template-areas: "banner banner" "head head" "strip strip" "feed side";
+  }
+}
+@media (min-width: 1536px) {
+  .overview-grid {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-areas: "banner banner" "strip head" "feed side";
+  }
+  /* Stretched so its edges line up with the figures beside it. */
+  .overview-grid > .ov-head { align-self: stretch; }
+}
+
+/* SessionCalendarTab: stacked below 2xl; month beside the chosen day from
+   2xl, the month's motivation card under the month. */
+@media (min-width: 1536px) {
+  .calendar-split {
+    display: grid;
+    grid-template-columns: minmax(0, 720px) minmax(0, 1fr);
+    grid-template-areas: "month day" "motivation day";
+    grid-template-rows: auto 1fr;
+    column-gap: 1.5rem;
+    align-items: start;
+  }
+  .calendar-split > .cal-month { grid-area: month; }
+  .calendar-split > .cal-day { grid-area: day; }
+  .calendar-split > .cal-motivation { grid-area: motivation; }
+}
+
+/* SessionFilterList from 2xl: compact rows in the first column, one per
+   page row, and the chosen card spanning all of them in the second. The
+   trailing 1fr row takes the card's extra height, so a tall card never
+   stretches the rows beside it. */
+@media (min-width: 1536px) {
+  .session-split {
+    grid-template-columns: 440px minmax(0, 1fr);
+    grid-template-rows: repeat(var(--rows, 1), auto) 1fr;
+    column-gap: 1.25rem;
+    row-gap: 0.5rem;
+  }
+  .session-split .session-split-row { grid-column: 1; }
+  .session-split .session-split-card {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    align-self: start;
+    position: sticky;
+    top: 1.5rem;
+  }
+}

@@ -238,6 +238,7 @@ export default async function PatientHealthProfilePage() {
 
   const navItems = buildPatientNavItems({
     hasSuggestions: (activePlanCount ?? 0) > 0 || (pendingSuggestionCount ?? 0) > 0,
+    suggestionsWaiting: ((activePlanCount ?? 0) > 0 ? 1 : 0) + (pendingSuggestionCount ?? 0),
     hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
     hasOnlineSessions: (onlineSessionCount ?? 0) > 0,
     hasHomeVisits: (homeVisitCount ?? 0) > 0,
