@@ -109,6 +109,9 @@ export type AdminSettings = {
   // there is deliberately no way to configure "every time the tab is
   // focused", see splashScreen.ts.
   splashEnabled: boolean;
+  /** Settings -> Public Site -> Appearance. On: the app follows the device's
+   *  light/dark setting (dark-theme.css). Off: light, as it has always been. */
+  followDeviceTheme: boolean;
   /** The splash's own name line. Blank means "use siteName". */
   splashBrandLine: string;
   splashPhrase: string;
@@ -204,6 +207,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   enabledIntakeSpecialties: ["ortho", "neuro", "pediatrics"],
   journeyStepSeconds: 4,
   splashEnabled: true,
+  followDeviceTheme: false,
   splashBrandLine: "",
   splashPhrase: DEFAULT_SPLASH_PHRASE,
   splashHoldSeconds: DEFAULT_SPLASH_HOLD_SECONDS,
@@ -228,7 +232,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 // .select(SITE_SETTINGS_SELECT) call fall back to an unusable
 // GenericStringError result type instead of a real row shape.
 export const SITE_SETTINGS_SELECT =
-  "session_timeout_minutes, google_meet_enabled, meet_open_access_enabled, join_window_minutes, join_window_after_minutes, session_completed_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, dev_contact_enabled, dev_contact_email, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, patient_cancel_cutoff_minutes, payment_tries_before_access, abandoned_booking_account_days, payment_gateway_fee_percent, farewell_banner_seconds, journey_step_seconds, splash_enabled, splash_brand_line, splash_phrase, splash_hold_seconds, splash_revisit_minutes, enabled_intake_specialties, entitlement_ledger_authoritative, care_plan_default_expiry_days, care_plan_max_frequency_per_week, contact_scan_mode, contact_masking_enabled, risk_signals_enabled, auto_assign_therapist_enabled";
+  "session_timeout_minutes, google_meet_enabled, meet_open_access_enabled, join_window_minutes, join_window_after_minutes, session_completed_after_minutes, booking_languages, package_default_validity_days, package_therapist_lock_enabled, package_bulk_schedule_max, package_expiry_reminder_days, site_name, site_tagline, site_description, contact_email, whatsapp_number, contact_phone, footer_copyright_text, dev_contact_enabled, dev_contact_email, home_visit_enabled, home_visit_cash_enabled, home_visit_lead_time_hours, home_visit_cancellation_refund_hours, home_visit_default_validity_days, home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes, home_visit_page_heading, home_visit_page_subheading, online_booking_lead_time_hours, online_cancellation_refund_hours, patient_cancel_cutoff_minutes, payment_tries_before_access, abandoned_booking_account_days, payment_gateway_fee_percent, farewell_banner_seconds, journey_step_seconds, splash_enabled, splash_brand_line, splash_phrase, splash_hold_seconds, splash_revisit_minutes, follow_device_theme, enabled_intake_specialties, entitlement_ledger_authoritative, care_plan_default_expiry_days, care_plan_max_frequency_per_week, contact_scan_mode, contact_masking_enabled, risk_signals_enabled, auto_assign_therapist_enabled";
 
 type SiteSettingsRow = {
   entitlement_ledger_authoritative?: boolean | null;
@@ -267,6 +271,7 @@ type SiteSettingsRow = {
   farewell_banner_seconds?: number | null;
   journey_step_seconds?: number | null;
   splash_enabled?: boolean | null;
+  follow_device_theme?: boolean | null;
   splash_brand_line?: string | null;
   splash_phrase?: string | null;
   splash_hold_seconds?: number | null;
@@ -496,6 +501,7 @@ export function parseAdminSettings(row: SiteSettingsRow | null | undefined): Adm
         ? row.journey_step_seconds
         : DEFAULT_ADMIN_SETTINGS.journeyStepSeconds,
     splashEnabled: row?.splash_enabled ?? DEFAULT_ADMIN_SETTINGS.splashEnabled,
+    followDeviceTheme: row?.follow_device_theme === true,
     // Deliberately not defaulted to the site name here: the admin form has
     // to be able to show this empty, since empty is what "follow the site
     // name" looks like. The root layout does the resolving.

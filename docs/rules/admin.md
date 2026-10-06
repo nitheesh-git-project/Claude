@@ -702,3 +702,9 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   - Visitor-chosen countries are a convenience, not a fence: with the picker
     on, a visitor abroad can choose India and pay the Indian price. Turning
     the picker off leaves location alone in charge.
+
+- **Appearance (Settings -> Public Site) is one switch: follow the device's
+  light/dark setting.** Off, the default, is the app exactly as it has
+  always looked. On, every page follows each visitor's device, live. Saved
+  through `update-setting` (`follow_device_theme`), which revalidates the
+  root layout because the decision is made by a script in `<head>`.

@@ -38,6 +38,23 @@
 :root {
   --app-bottom-inset: 0px;
 }
+
+/* Chart colours. SVG presentation attributes (fill, stroke) are not reached
+   by Tailwind classes, so the charts read these; dark-theme.css swaps them
+   when the app is dark. */
+:root {
+  --chart-ink: #0f172a;
+  --chart-grid: #e2e8f0;
+  --chart-grid-soft: #f1f5f9;
+  --chart-axis: #64748b;
+  --chart-neutral: #475569;
+  --chart-brand: #0f766e;
+  --chart-brand-soft: #0d9488;
+  --chart-indigo: #4f46e5;
+  --chart-amber: #b45309;
+  --chart-rose: #be123c;
+  --chart-pending: #99f6e4;
+}
 @media (max-width: 1023.98px) {
   body:has([data-tabbar]) {
     --app-bottom-inset: calc(4.5rem + env(safe-area-inset-bottom));

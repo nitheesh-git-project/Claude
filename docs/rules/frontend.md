@@ -697,3 +697,27 @@ is invisible to any tooling here.
   a segmented control is full-width with equal tabs below `sm`; a fixed pill
   centred with `left-1/2` needs `w-max max-w-[calc(100vw-2rem)]` or it wraps
   into half the screen.
+
+- **Dark mode is a palette, not a second set of classes - write colours as
+  you always have.** Settings -> Public Site -> Appearance
+  (`site_settings.follow_device_theme`, off by default) lets the app follow
+  the device. When it is on and the device is dark, a head script
+  (`src/lib/deviceTheme.ts`) sets `<html data-theme="dark">` before first
+  paint, and `DeviceThemeFollower` keeps it in step if the device changes.
+  `src/app/dark-theme.css` - **generated** by `node scripts/build-dark-theme.mjs`,
+  so edit the script, never the CSS - declares Tailwind 4's per-utility
+  namespaces (`--background-color-*`, `--border-color-*`, `--ring-color-*`)
+  for every colour in use. That is what lets one class name mean two things
+  on purpose: `bg-white` turns into a dark card while `text-white` on a teal
+  button stays white; `bg-teal-700` keeps the brand fill while
+  `text-teal-700` lightens to read on dark; pale status tints become dark
+  tints of the same hue. Rules that follow from it:
+  - **A surface that must stay white in both modes uses a literal colour**,
+    not `bg-white` (the footer's logo tile, the switch knob, the Appearance
+    preview tiles).
+  - **SVG charts use the `--chart-*` variables** in `globals.css` for ink,
+    grid, axis and brand lines - a `fill="#0f172a"` attribute is invisible on
+    dark. A new hard-coded colour in a chart needs a variable.
+  - **Printing is always light**: the dark block is `@media screen` only.
+  - A new colour family (`lime`, `pink`, ...) is covered once it is in the
+    script's `HUES` list; run the script after adding one.

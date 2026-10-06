@@ -17,6 +17,8 @@ import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
 import RouteProgress from "@/components/system/RouteProgress";
 import NavigationLoader from "@/components/system/NavigationLoader";
+import DeviceThemeFollower from "@/components/system/DeviceThemeFollower";
+import { deviceThemeBootScript } from "@/lib/deviceTheme";
 import FormValidationChrome from "@/components/system/FormValidationChrome";
 import ErrorAutoScroll from "@/components/system/ErrorAutoScroll";
 import LinkProgress from "@/components/system/LinkProgress";
@@ -98,6 +100,7 @@ export default async function RootLayout({
     splash: splashRow,
     devContact: devContactRow,
     pricing: pricingRow,
+    followDeviceTheme,
   } = await getLayoutSettings();
   // The developer credit under the footer's copyright. On unless an admin
   // switched it off -- and an unreadable row is "could not check", not "off".
@@ -155,9 +158,13 @@ export default async function RootLayout({
     debug: showDebugNav,
   };
   const pricingScript = pricingPendingScript(pricingConfig.internationalEnabled);
+  // Light or dark (Settings -> Public Site -> Appearance). Empty, and so
+  // never dark, while the switch is off.
+  const themeScript = deviceThemeBootScript(followDeviceTheme);
 
   return (
-    // suppressHydrationWarning covers this one element's own attributes:
+    // suppressHydrationWarning covers this one element's own attributes
+    // (data-splash, and data-theme from the appearance script):
     // the splash boot script below writes data-splash onto <html> before
     // React hydrates, so the server's markup and the live DOM legitimately
     // differ by that attribute. It does not reach any descendant, so a real
@@ -183,6 +190,10 @@ export default async function RootLayout({
             visitor's currency, so a foreign visitor never sees the rupee
             figure the cached HTML carries. Only when local prices are on. */}
         {pricingScript && <script dangerouslySetInnerHTML={{ __html: pricingScript }} />}
+        {/* Dark before the first paint on a dark device, when the admin has
+            switched "follow the device" on -- an effect would flash the
+            light page first. src/lib/deviceTheme.ts. */}
+        {themeScript && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
       </head>
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
         {/* Always in the HTML, painted only when the script above says so -
@@ -200,6 +211,7 @@ export default async function RootLayout({
               underneath re-renders, this does not unmount. */}
           <ToastProvider>
           <PricingProvider config={pricingConfig}>
+          <DeviceThemeFollower followDevice={followDeviceTheme} />
           <RouteProgress />
           {/* The word-roll loader over the content while the next page loads;
               under every nav and sidebar, so they stay in place. */}

@@ -298,6 +298,19 @@
       "integration": "local",
       "destructive": false
     },
+    "dark-mode.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "impersonation-exit.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -2883,6 +2896,29 @@
       ],
       "rules": [
         "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "platform.dark-mode",
+      "runner": "platform",
+      "title": "Dark mode follows the device when the admin switch is on; light otherwise; printing stays light",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "dark-mode.spec.ts",
+          "tests": [
+            "DARK-001",
+            "DARK-002",
+            "DARK-003",
+            "DARK-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/frontend.md",
+        "docs/rules/admin.md"
       ]
     }
   ],

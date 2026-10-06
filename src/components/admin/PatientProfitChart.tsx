@@ -13,8 +13,8 @@ type ProfitSession = {
 // (both checked with the dataviz skill's palette validator). teal-600 +
 // indigo-600 pass every check: lightness band, chroma floor, CVD separation
 // at the 6-8 floor and above, and contrast against a white card.
-const PAYOUT_COLOR = "#4f46e5"; // indigo-600
-const PROFIT_COLOR = "#0d9488"; // teal-600
+const PAYOUT_COLOR = "var(--chart-indigo)"; // indigo-600
+const PROFIT_COLOR = "var(--chart-brand-soft)"; // teal-600
 
 function formatInr(paise: number) {
   return `₹${formatRupees(paise)}`;
@@ -100,7 +100,7 @@ export default function PatientProfitChart({
             y1={chartHeight}
             x2={svgWidth}
             y2={chartHeight}
-            stroke="#e2e8f0"
+            stroke="var(--chart-grid)"
             strokeWidth={1}
           />
           {sessions.map((s, i) => {
@@ -149,7 +149,7 @@ export default function PatientProfitChart({
                   textAnchor="middle"
                   fontSize={10}
                   fontWeight={700}
-                  fill="#0f172a"
+                  fill="var(--chart-ink)"
                 >
                   {formatInr(s.paidPaise)}
                 </text>

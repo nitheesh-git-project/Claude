@@ -124,6 +124,7 @@ import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
 import HomePageWalkthroughForm from "@/components/admin/HomePageWalkthroughForm";
 import SplashScreenForm from "@/components/admin/SplashScreenForm";
+import AppearanceForm from "@/components/admin/AppearanceForm";
 import MissionStatementForm from "@/components/admin/MissionStatementForm";
 import MissionPrincipleManager, {
   type MissionPrincipleRecord,
@@ -3447,6 +3448,7 @@ export default async function AdminDashboardPage({
           { id: "public-promises", label: "Promises" },
           { id: "public-limits", label: "Limits" },
           { id: "public-splash", label: "Opening splash" },
+          { id: "public-appearance", label: "Appearance" },
           { id: "public-testimonials", label: "Testimonials" },
           { id: "public-faq", label: "FAQ" },
         ]}
@@ -3496,6 +3498,10 @@ export default async function AdminDashboardPage({
           holdSeconds={adminSettings.splashHoldSeconds}
           revisitMinutes={adminSettings.splashRevisitMinutes}
         />
+      </SettingsSection>
+
+      <SettingsSection id="public-appearance">
+        <AppearanceForm enabled={adminSettings.followDeviceTheme} />
       </SettingsSection>
 
       <SettingsSection id="public-testimonials">

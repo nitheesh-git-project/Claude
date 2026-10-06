@@ -15664,3 +15664,13 @@ revoke insert, update, delete on country_pricing from anon, authenticated;
 alter table site_settings add column if not exists international_pricing_enabled boolean not null default false;
 alter table site_settings add column if not exists country_picker_enabled boolean not null default true;
 alter table site_settings add column if not exists home_visit_outside_india boolean not null default false;
+
+-- ===========================================================================
+-- Follow the device's light/dark setting.
+--
+-- Settings -> Public Site -> Appearance. Off (the default) is the app as it
+-- has always looked: light, whatever the device says. On, a visitor whose
+-- phone or computer is set to dark gets the dark palette
+-- (src/app/dark-theme.css), and the page follows the device live if it
+-- changes. Configuration, so the debug data reset leaves it alone.
+alter table site_settings add column if not exists follow_device_theme boolean not null default false;

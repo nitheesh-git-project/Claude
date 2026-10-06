@@ -54,6 +54,10 @@ test.describe("CFG -- Settings information architecture", () => {
   });
 
   test("CFG-001 the sidebar groups the eleven screens under four captions", async ({ page }) => {
+    // The captioned sidebar is the 2xl (1536px+) layout; below that the
+    // admin shell is an icon rail with the section's screens as a strip,
+    // which has no room for captions. Checked where the sidebar exists.
+    await page.setViewportSize({ width: 1600, height: 900 });
     await openSettings(page, "brand");
     // Sentence case in the DOM; the uppercase is CSS, and innerText would
     // report the transformed text -- so match the source casing.

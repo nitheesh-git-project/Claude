@@ -102,6 +102,8 @@ export type LayoutSettingsRow = {
    *  that price locally. The same for every visitor, so it belongs in the
    *  cached layout; the browser picks the visitor's row. Null on a database
    *  without the section yet -- which means rupees for everyone. */
+  /** Settings -> Public Site -> Appearance: follow the device's dark mode. */
+  followDeviceTheme: boolean;
   pricing: {
     settings: {
       international_pricing_enabled?: boolean | null;
@@ -126,7 +128,7 @@ export type DevContactRow = {
 async function readLayoutSettings(): Promise<LayoutSettingsRow> {
   const supabase = createPublicClient();
 
-  const [brand, social, homeVisit, farewell, splash, devContact, pricingSettings, pricingRows] = await Promise.all([
+  const [brand, social, homeVisit, farewell, splash, devContact, pricingSettings, pricingRows, theme] = await Promise.all([
     supabase.from("site_settings").select(BRAND_COLUMNS).maybeSingle(),
     supabase.from("site_settings").select(SOCIAL_LINKS_SELECT).maybeSingle(),
     supabase.from("site_settings").select("home_visit_enabled").maybeSingle(),
@@ -141,6 +143,7 @@ async function readLayoutSettings(): Promise<LayoutSettingsRow> {
       .from("country_pricing")
       .select("country_code, currency_code, enabled, markup_percent, units_per_inr")
       .eq("enabled", true),
+    supabase.from("site_settings").select("follow_device_theme").maybeSingle(),
   ]);
 
   return {
@@ -154,6 +157,9 @@ async function readLayoutSettings(): Promise<LayoutSettingsRow> {
       settings: pricingSettings.error ? null : ((pricingSettings.data as LayoutSettingsRow["pricing"]["settings"]) ?? null),
       rows: pricingRows.error ? [] : ((pricingRows.data ?? []) as LayoutSettingsRow["pricing"]["rows"]),
     },
+    // A failed read is "off": the app stays light, as it was before this
+    // switch existed.
+    followDeviceTheme: !theme.error && (theme.data as { follow_device_theme?: boolean } | null)?.follow_device_theme === true,
   };
 }
 

@@ -93,7 +93,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
                 x2={WIDTH - PAD.right}
                 y1={y(tick)}
                 y2={y(tick)}
-                stroke="#e2e8f0"
+                stroke="var(--chart-grid)"
                 strokeWidth={1}
               />
               <text x={PAD.left - 6} y={y(tick) + 3} textAnchor="end" fontSize={8} fill="#94a3b8">
@@ -102,8 +102,8 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
             </g>
           ))}
 
-          <path d={area} fill="#0d9488" fillOpacity={0.08} />
-          <path d={line} fill="none" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={area} fill="var(--chart-brand-soft)" fillOpacity={0.08} />
+          <path d={line} fill="none" stroke="var(--chart-brand-soft)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
 
           {active && (
             <line
@@ -111,7 +111,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
               x2={x(hover!)}
               y1={PAD.top}
               y2={PAD.top + PLOT_H}
-              stroke="#0d9488"
+              stroke="var(--chart-brand-soft)"
               strokeOpacity={0.35}
               strokeWidth={1}
             />
@@ -123,7 +123,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
               cx={x(i)}
               cy={y(p.percent)}
               r={hover === i ? 5 : 4}
-              fill="#0d9488"
+              fill="var(--chart-brand-soft)"
               stroke="#ffffff"
               strokeWidth={2}
             />
@@ -135,7 +135,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
             textAnchor="end"
             fontSize={9}
             fontWeight={700}
-            fill="#0f766e"
+            fill="var(--chart-brand)"
           >
             {formatPainOutOfTen(latest.percent)}
           </text>

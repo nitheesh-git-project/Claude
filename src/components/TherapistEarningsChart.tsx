@@ -7,8 +7,8 @@ import { formatRupees } from "@/lib/formatMoney";
 // pending to paid on next load. Bucketing stops at "by day"; a wide date
 // range just scrolls horizontally rather than collapsing into weeks/months,
 // the same tradeoff PatientProfitChart already accepts for many sessions.
-const PAID_COLOR = "#0f766e"; // teal-700, this app's own brand accent
-const PENDING_COLOR = "#99f6e4"; // teal-200, same hue family, clearly lighter
+const PAID_COLOR = "var(--chart-brand)"; // teal-700, this app's own brand accent
+const PENDING_COLOR = "var(--chart-pending)"; // teal-200, same hue family, clearly lighter
 
 function formatInr(paise: number) {
   return `₹${formatRupees(paise)}`;
@@ -62,7 +62,7 @@ export default function TherapistEarningsChart({ days }: { days: EarningsDay[] }
             y1={chartHeight}
             x2={svgWidth}
             y2={chartHeight}
-            stroke="#e2e8f0"
+            stroke="var(--chart-grid)"
             strokeWidth={1}
           />
           {days.map((d, i) => {
@@ -90,7 +90,7 @@ export default function TherapistEarningsChart({ days }: { days: EarningsDay[] }
                   textAnchor="middle"
                   fontSize={10}
                   fontWeight={700}
-                  fill="#0f172a"
+                  fill="var(--chart-ink)"
                 >
                   {formatInr(total)}
                 </text>

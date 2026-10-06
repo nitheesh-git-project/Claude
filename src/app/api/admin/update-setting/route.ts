@@ -129,6 +129,8 @@ const ALLOWED_COLUMNS = new Set([
   "splash_phrase",
   "splash_hold_seconds",
   "splash_revisit_minutes",
+  // Appearance: follow the device's light/dark setting.
+  "follow_device_theme",
 ]);
 
 // The home page walkthrough's rotation pace. Neither of the numeric rules
@@ -221,6 +223,7 @@ export async function POST(request: NextRequest) {
       key === "finance_cogs_payment_fees" ||
       key === "finance_include_app_balances" ||
       key === "splash_enabled" ||
+      key === "follow_device_theme" ||
       key === "pay_later_age_warning_enabled" ||
       key === "pay_later_enabled") &&
     typeof value !== "boolean"
@@ -829,7 +832,10 @@ export async function POST(request: NextRequest) {
     key === "splash_brand_line" ||
     key === "splash_phrase" ||
     key === "splash_hold_seconds" ||
-    key === "splash_revisit_minutes"
+    key === "splash_revisit_minutes" ||
+    // The appearance switch is read by the root layout too: its head script
+    // decides light or dark before the first paint of every page.
+    key === "follow_device_theme"
   ) {
     revalidatePath("/", "layout");
   }
