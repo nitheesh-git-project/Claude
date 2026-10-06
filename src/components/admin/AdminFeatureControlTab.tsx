@@ -1,6 +1,6 @@
 "use client";
 
-import CheckoutAccessSection from "@/components/admin/CheckoutAccessSection";
+import CheckoutAccessSection, { NumberSetting } from "@/components/admin/CheckoutAccessSection";
 import { useOptimistic, useState, useTransition } from "react";
 import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
@@ -414,6 +414,17 @@ export default function AdminFeatureControlTab({
         </div>
         {refundHoursError && <p className="text-[11px] text-red-600 mt-2">{refundHoursError}</p>}
       </div>
+
+      <NumberSetting
+        settingKey="patient_cancel_cutoff_minutes"
+        title="Online cancel cut-off"
+        help="Inside this many minutes before an online session starts, the patient's Cancel button disappears and a cancel is refused - the therapist is already getting ready to join. For example, 15 means a 6:00 PM session can be cancelled until 5:45 PM. 0 allows cancelling right up to the start. Home visits are not affected."
+        unit="minutes"
+        label="Minutes before an online session when patients can no longer cancel"
+        min={0}
+        max={1440}
+        initial={settings.patientCancelCutoffMinutes}
+      />
 
       <BookingLanguagesSection
         languages={settings.bookingLanguages}

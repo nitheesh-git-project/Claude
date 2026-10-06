@@ -48,7 +48,7 @@ export default function CheckoutAccessSection({
   );
 }
 
-function NumberSetting({
+export function NumberSetting({
   settingKey,
   title,
   help,
@@ -58,7 +58,10 @@ function NumberSetting({
   max,
   initial,
 }: {
-  settingKey: "payment_tries_before_access" | "abandoned_booking_account_days";
+  settingKey:
+    | "payment_tries_before_access"
+    | "abandoned_booking_account_days"
+    | "patient_cancel_cutoff_minutes";
   title: string;
   help: string;
   unit: string;

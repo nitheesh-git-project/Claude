@@ -274,3 +274,12 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   opens, naming each stage (account, slot, payment); it is a status, not a
   dialog. Both wizards report the tap's timing -- see the Checkout speed
   bullet in `docs/rules/admin.md`.
+- **A patient can't cancel an online session in its last N minutes.**
+  `site_settings.patient_cancel_cutoff_minutes` (default 15, 0-1440,
+  Settings → Booking Rules) decides it through
+  `src/lib/patientCancelCutoff.ts`: `CancelSessionButton` hides itself at the
+  cut-off (one timer, first render on the page's request clock so hydration
+  agrees), and `/api/appointments/cancel` refuses 409 `cancel_cutoff`. The
+  route is the guarantee, the hidden button is the courtesy. Home visits are
+  exempt - they keep their own refund window. An unreadable setting is a 503,
+  not a pass. `e2e/patient-cancel-cutoff.spec.ts` holds it.

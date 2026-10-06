@@ -128,6 +128,13 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     describe: (v) =>
       `A new patient's account now unlocks after ${plural(v, "unsuccessful payment try", "unsuccessful payment tries")}.`,
   },
+  patient_cancel_cutoff_minutes: {
+    kind: "number",
+    describe: (v) =>
+      v === 0
+        ? "Patients can now cancel an online session right up to its start."
+        : `Patients can no longer cancel an online session in the last ${plural(v, "minute", "minutes")} before it starts.`,
+  },
   abandoned_booking_account_days: {
     kind: "number",
     describe: (v) =>

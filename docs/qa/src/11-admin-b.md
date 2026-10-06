@@ -147,6 +147,12 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 **The number must move with the setting.** `CANCELLATION_FULL_REFUND_HOURS` (24) is only the fallback for a database with no value stored; a notice still reading 24 here is the screen quoting a constant instead of the clinic's own window.
 **Independence check:** this must **not** change the **home-visit** refund dialog, which reads its own setting.
 
+#### `ADM-SET-011b` - Online cancel cut-off → the patient's Cancel button · P0
+**Configuration.** `patient_cancel_cutoff_minutes` (Settings → Booking Rules → **Online cancel cut-off**), default **15**, range 0-1440.
+**Steps.** As a patient, open **Sessions** with an online session starting in about 20 minutes, and leave the page open past the 15-minute mark. Then set the cut-off to `0` and reload.
+**Expected Result.** **Cancel Session** shows at 20 minutes out and disappears by itself at 15 minutes out, without a reload; a cancel sent anyway is refused with *"This session starts too soon to cancel online (within 15 minutes). Please contact the clinic."* At `0` the button is back until the session starts. Restore `15`.
+**Independence check:** a **home visit** keeps its Cancel button - the cut-off is online only. Out-of-range values (e.g. `2000`) are refused on save.
+
 #### `ADM-SET-012` - Booking Languages → the Step 1 chips · P1
 **Steps.** Add `Hindi` and `Kannada`. Save. Reload `/book`. Then remove every language and save.
 **Expected Result.** Three chips appear in Step 1 in the configured order; the first is auto-selected. A language not on the list is **dropped server-side** rather than stored as a preference nobody is matched on. Removing all is refused with `Keep at least one language - booking needs something to offer.` - booking must never present an empty language picker. Duplicates that differ only by case are de-duplicated.

@@ -254,6 +254,10 @@ export function renderPatientSessionCard(
                   ? adminSettings.homeVisitCancellationRefundHours
                   : undefined
               }
+              cutoffMinutes={
+                visit?.visit_mode === "home_visit" ? null : adminSettings.patientCancelCutoffMinutes
+              }
+              serverNowMs={data.nowMs}
             />
           )}
         </div>

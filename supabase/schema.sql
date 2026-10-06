@@ -15579,3 +15579,19 @@ end;
 $$;
 
 revoke all on function public.purge_abandoned_booking_accounts(integer, integer) from public, anon, authenticated;
+
+-- ===========================================================================
+-- How close to an online session's start a patient may still cancel it
+-- themselves. Inside the cut-off the Cancel button is gone and
+-- /api/appointments/cancel refuses (src/lib/patientCancelCutoff.ts). Online
+-- only: home visits keep their own refund window. Configuration, so the debug
+-- data reset leaves it alone.
+
+alter table site_settings add column if not exists patient_cancel_cutoff_minutes integer not null default 15;
+
+do $$
+begin
+  alter table site_settings add constraint site_settings_patient_cancel_cutoff_minutes_range
+    check (patient_cancel_cutoff_minutes between 0 and 1440);
+exception when duplicate_object then null;
+end $$;

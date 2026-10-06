@@ -458,6 +458,21 @@
       "integration": "local",
       "destructive": false
     },
+    "patient-cancel-cutoff.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/booking.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "debug-clock.spec.ts": {
       "runner": "session",
       "levels": [
@@ -1453,6 +1468,24 @@
           "spec": "therapist-patient-chart.spec.ts",
           "tests": [
             "PC-001"
+          ],
+          "level": "browser"
+        }
+      ]
+    },
+    {
+      "id": "patient.cancel-cutoff",
+      "runner": "patient",
+      "title": "A patient can't cancel an online session inside the clinic's cut-off",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-cancel-cutoff.spec.ts",
+          "tests": [
+            "PCC-001",
+            "PCC-002",
+            "PCC-003"
           ],
           "level": "browser"
         }
