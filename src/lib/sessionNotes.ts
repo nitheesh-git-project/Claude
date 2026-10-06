@@ -41,7 +41,9 @@ export const SESSION_NOTE_FIELDS: SessionNoteField[] = [
     key: "techniques",
     label: "Techniques and dosage",
     shortLabel: "Techniques",
-    type: "text",
+    // A textarea: a dosage is often several lines (one per technique),
+    // and a one-line input swallowed Enter.
+    type: "textarea",
     placeholder: "e.g. Grade III PA mobilisation ×3 sets, 30s hold",
     help: "What you actually applied, at what dosage - so progression next time is a decision, not a guess.",
   },

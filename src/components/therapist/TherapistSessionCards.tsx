@@ -1,5 +1,5 @@
 import Link from "next/link";
-import CompleteSessionButton from "@/components/CompleteSessionButton";
+import FinishSessionButton from "@/components/therapist/FinishSessionButton";
 import MarkNoShowButton from "@/components/MarkNoShowButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import SessionNoteButton from "@/components/therapist/SessionNoteButton";
@@ -24,6 +24,25 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
 // A completed session with no_show=true is otherwise visually identical to
 // one that actually happened, so it gets its own badge colour.
 const NO_SHOW_STYLE = "text-orange-700 bg-orange-50";
+
+// What the Done button needs to open the finishing note -- the same note
+// props the card's note button gets, shared by both card kinds.
+function finishProps(d: TherapistDashboardData, a: TherapistDashboardData["appointments"][number]) {
+  const note = d.noteByAppointmentId.get(a.id) ?? null;
+  return {
+    appointmentId: a.id,
+    slotTime: a.slot_time,
+    patientName: d.patientMap.get(a.patient_id)?.full_name ?? "Patient",
+    sessionLabel: formatSlotTime(a.slot_time, a.timezone),
+    note,
+    editable: !note || isNoteEditable(note, d.nowMs),
+    hoursLeft: note ? noteEditHoursLeft(note, d.nowMs) : null,
+    patientId: a.patient_id,
+    recommendable: narrowToCategory(d.recommendablePackages, a.category_id ?? null),
+    recommendationNeedsApproval: d.carePlanRequiresApproval,
+    recommendationAwaitingClinic: d.patientsAwaitingClinic.has(a.patient_id),
+  };
+}
 
 // The two session cards a therapist sees -- a video consultation and a
 // home visit. They were closures inside the old single-page dashboard;
@@ -98,18 +117,19 @@ export function renderTherapistSessionCard(
             status={a.status}
             durationMinutes={a.duration_minutes}
           />
+          {/* Done opens the note (with the Pain Map); saving it is what
+              finishes the session, so a confirmed card has no separate
+              note button. */}
           {a.status === "confirmed" && (
             <>
-              <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+              <FinishSessionButton {...finishProps(d, a)} />
               <MarkNoShowButton appointmentId={a.id} />
             </>
           )}
           {/* The note lives on the card, not behind the patient's chart:
               the moment a therapist can write an accurate note is the
               moment they finish and are still looking at the session. */}
-          {!a.no_show &&
-            (a.status === "completed" ||
-              (a.status === "confirmed" && !!a.slot_time && new Date(a.slot_time).getTime() < nowMsForOverview)) && (
+          {!a.no_show && a.status === "completed" && (
               <SessionNoteButton
                 appointmentId={a.id}
                 patientName={patient?.full_name ?? "Patient"}
@@ -308,7 +328,7 @@ export function renderTherapistHomeVisitCard(
             travelling to the address above. */}
         {a.status === "confirmed" && (
           <div className="flex items-center gap-2 flex-wrap">
-            <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+            <FinishSessionButton {...finishProps(d, a)} />
             <MarkNoShowButton appointmentId={a.id} />
           </div>
         )}

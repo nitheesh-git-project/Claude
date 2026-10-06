@@ -429,6 +429,21 @@
       "integration": "local",
       "destructive": false
     },
+    "finish-session.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "api",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/roster.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "debug-clock.spec.ts": {
       "runner": "session",
       "levels": [
@@ -1412,6 +1427,25 @@
       "rules": [
         "docs/rules/roster.md"
       ]
+    },
+    {
+      "id": "session.finish-with-note",
+      "runner": "session",
+      "title": "A therapist's Done opens the session note with the Pain Map and needs both",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "finish-session.spec.ts",
+          "tests": [
+            "FS-001",
+            "FS-002",
+            "FS-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Asserts refusals and the dialog only: a successful completion writes append-only settlement rows."
     },
     {
       "id": "session.debug-clock",
