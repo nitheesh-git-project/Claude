@@ -334,3 +334,12 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   the same clock time. The time is the slot less `join_window_minutes`,
   printed through `formatClinicTime`. Admin surfaces (`alwaysActive`) get
   neither. `e2e/meet-link-note.spec.ts`.
+- **Something waiting in Suggested Sessions is named on every patient
+  screen.** `buildSuggestedTeaser()` (`src/lib/suggestedTeaser.ts`) picks a
+  recommendation awaiting the patient's answer first, then proposed times,
+  and `SuggestedTeaserBar` renders it as one link above every screen's
+  content except Suggested Sessions itself. A plan the clinic has not
+  approved, or one that has lapsed, is not mentioned. So the loader reads
+  the live plan and pending suggestions on **every** screen - which also
+  keeps the sidebar's Suggested entry from appearing and disappearing as the
+  patient moves between tabs. `e2e/recommendation-course.spec.ts` RC-006.

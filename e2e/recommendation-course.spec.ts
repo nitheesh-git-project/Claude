@@ -225,3 +225,23 @@ test("RC-005: the therapist's picker takes a number and shows the total live", a
     await db.from("appointments").delete().eq("id", live!.id);
   }
 });
+
+test("RC-006: every other patient screen carries a short link to the recommendation", async ({ page }) => {
+  test.setTimeout(120_000);
+  await recommendAndApprove({ sessionCount: 4, handsOnRequired: false });
+  await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientB));
+  for (const path of ["/patient/dashboard", "/patient/dashboard/sessions", "/patient/dashboard/payments"]) {
+    await page.goto(`${BASE}${path}`);
+    await waitForSplashToClear(page);
+    const teaser = page.getByTestId("suggested-teaser");
+    await expect(teaser, path).toBeVisible();
+    await expect(teaser).toContainText(`${CONDITION} - 4 sessions`);
+    // The Suggested entry stays in the sidebar on every screen too.
+    await expect(page.getByRole("link", { name: /Suggested/ }).first()).toBeVisible();
+  }
+  await page.screenshot({ path: "test-results/recommendation-teaser.png" });
+  await page.getByTestId("suggested-teaser").click();
+  await page.waitForURL(/\/patient\/dashboard\/suggested/);
+  await expect(page.getByTestId("suggested-teaser")).toHaveCount(0);
+  await expect(page.locator("#recommendation")).toBeVisible();
+});
