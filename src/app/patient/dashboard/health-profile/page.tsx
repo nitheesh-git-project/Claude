@@ -445,7 +445,7 @@ export default async function PatientHealthProfilePage() {
                 <h2 className="font-display text-lg font-bold text-slate-800">Are you getting better?</h2>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {specialty === "ortho"
-                    ? "The average pain your therapist measured at each exam, over time."
+                    ? "Your overall pain after each exam, over time - every exam is its own dot."
                     : specialty === "neuro"
                       ? "How much of the day you can manage on your own, each time it has been asked."
                       : "How many milestones your child has reached, each time this was updated."}

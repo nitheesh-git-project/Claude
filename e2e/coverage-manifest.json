@@ -504,6 +504,21 @@
       "integration": "provider-sandbox",
       "destructive": true
     },
+    "pain-trend.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
     "debug-clock.spec.ts": {
       "runner": "session",
       "levels": [
@@ -1560,6 +1575,23 @@
         }
       ],
       "limitation": "Writes append-only care-plan rows, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; it opens a Razorpay test order but does not drive the payment window."
+    },
+    {
+      "id": "patient.pain-trend-per-exam",
+      "runner": "patient",
+      "title": "The patient's progress line keeps every exam, two on one day included",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "pain-trend.spec.ts",
+          "tests": [
+            "PT-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only pain readings, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; the grouping rules themselves are unit-tested in src/lib/painTrendSeries.test.ts."
     },
     {
       "id": "session.finish-with-note",

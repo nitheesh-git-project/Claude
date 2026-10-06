@@ -491,3 +491,11 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   history. Completion is never blocked on a note - the nudge is a
   `needsYou` feed item plus the "Notes to write" figure on the therapist's
   Overview.
+- **"Are you getting better?" is one point per exam, never per day.**
+  `painTrendSeries()` (`src/lib/healthProfileSummary.ts`) closes an exam at a
+  gap of more than an hour or when an area already scored in it is scored
+  again, and plots the patient's overall pain after it: the average of the
+  latest reading for every area so far, so an area not re-checked keeps its
+  last score. It used to average each calendar day, which folded a second
+  exam that day into the first and erased the earlier value from the line.
+  `src/lib/painTrendSeries.test.ts`, `e2e/pain-trend.spec.ts`.

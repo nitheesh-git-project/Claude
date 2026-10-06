@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PAIN_BAND_LABEL, painBand, formatPainOutOfTen } from "@/lib/painMap";
 import type { PainTrendPoint } from "@/lib/healthProfileSummary";
+import { formatClinicTime } from "@/lib/formatDateTime";
 
 const WIDTH = 320;
 const HEIGHT = 118;
@@ -14,8 +15,8 @@ const formatDay = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata", day: "numeric", month: "short" });
 
 /**
- * "Am I getting better?" as one line: the average pain your therapist
- * recorded on each exam day, oldest to newest. One series, so no legend -
+ * "Am I getting better?" as one line: your overall pain after each exam,
+ * oldest to newest - two exams on one day are two dots, never one. One series, so no legend -
  * the card's own heading names it - and a single direct label on the
  * newest point rather than a number over every dot.
  *
@@ -154,15 +155,20 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
             className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] shadow-lg"
             style={{ left: `${(x(hover!) / WIDTH) * 100}%`, top: `${(y(active.percent) / HEIGHT) * 100}%` }}
           >
-            <p className="font-semibold text-slate-700">{formatDay(active.date)}</p>
+            <p className="font-semibold text-slate-700">
+              {formatDay(active.date)}, {formatClinicTime(active.date)}
+            </p>
             <p className="text-slate-500">
-              {formatPainOutOfTen(active.percent)} · {active.regions} {active.regions === 1 ? "area" : "areas"} checked
+              {formatPainOutOfTen(active.percent)} overall · {active.regions}{" "}
+              {active.regions === 1 ? "area" : "areas"} checked
             </p>
           </div>
         )}
       </div>
 
-      <p className="mt-1 text-[11px] text-slate-500">Lower is better. Each dot is one exam by your therapist.</p>
+      <p className="mt-1 text-[11px] text-slate-500">
+        Lower is better. Each dot is one exam - your overall pain across every area recorded so far.
+      </p>
     </div>
   );
 }
