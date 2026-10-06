@@ -2,6 +2,7 @@ import { describeRefundForPatient } from "@/lib/refundState";
 import { ADMIN_ACTIVITY_LABELS } from "@/lib/adminActivityLog";
 import { adminScreenHref, type AdminSectionKey } from "@/lib/adminNav";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
+import { formatRupees } from "@/lib/formatMoney";
 // The notification feed every dashboard shows, derived rather than stored.
 //
 // The admin already had a real audit trail (admin_activity_log); patients,
@@ -137,7 +138,7 @@ export type FeedReferral = {
   patient_name?: string | null;
 };
 
-const money = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
+const money = (paise: number) => `₹${formatRupees(paise)}`;
 
 /** A patient's own feed: their sessions, their intake submissions, their
  *  package purchases. */
@@ -179,7 +180,23 @@ export function buildPatientFeed({
     });
   }
 
-  for (const u of unscheduled) {
+  // Several programmes with sessions left read as one item, not a stack of
+  // near-identical rows.
+  if (unscheduled.length > 1) {
+    const total = unscheduled.reduce((n, u) => n + u.pending, 0);
+    const titles = [...new Set(unscheduled.map((u) => u.title))];
+    items.push({
+      id: "unscheduled-all",
+      at: unscheduled.map((u) => u.since).sort().at(-1) ?? unscheduled[0].since,
+      icon: "fa-calendar-plus",
+      tone: "warn",
+      needsYou: true,
+      title: `${total} sessions still to book across ${unscheduled.length} programmes`,
+      detail: `${titles.join(", ")} - you've paid for these. Pick your times whenever suits you.`,
+      href: "/patient/dashboard/packages",
+    });
+  }
+  for (const u of unscheduled.length > 1 ? [] : unscheduled) {
     items.push({
       id: `unscheduled-${u.purchaseId}`,
       at: u.since,

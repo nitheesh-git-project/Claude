@@ -155,7 +155,11 @@ export type AdminActivityAction =
   | "home_visit.waitlist_status"
   | "lead.update_status"
   | "dev_reachout.update_status"
+  // Kept so log rows from the single-note era still read; nothing writes it now.
   | "dev_reachout.update_note"
+  | "dev_reachout.add_note"
+  | "dev_reachout.edit_note"
+  | "dev_reachout.delete_note"
   | "referral.set_capacity_note"
   // The clinical layer: who let a therapist into a patient's record, who
   // decided a change to it, and who reworded the questions themselves.
@@ -374,6 +378,9 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "lead.update_status": "Moved a lead",
   "dev_reachout.update_status": "Moved a developer reachout",
   "dev_reachout.update_note": "Saved a note on a developer reachout",
+  "dev_reachout.add_note": "Added a note to a developer reachout",
+  "dev_reachout.edit_note": "Edited a note on a developer reachout",
+  "dev_reachout.delete_note": "Deleted a note on a developer reachout",
   "referral.set_capacity_note": "Edited the referral capacity note",
   "condition_access.decide": "Decided a record-access request",
   "condition_change.decide": "Decided a health-profile change",

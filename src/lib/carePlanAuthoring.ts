@@ -1,6 +1,6 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { resolveRecommendablePackage } from "@/lib/carePlanServer";
-import { validateCarePlanInput, type CarePlanOfferKind } from "@/lib/carePlans";
+import { ensureCourseTemplate, resolveCourseRate } from "@/lib/carePlanServer";
+import { buildCourseSnapshot, offerKindFor, validateCarePlanInput } from "@/lib/carePlans";
 import { guardCommunication } from "@/lib/communicationFlags";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -26,8 +26,11 @@ export const DEFAULT_CARE_PLAN_MAX_FREQUENCY = 5;
 export type CarePlanAuthorRequest = {
   patientId: string;
   appointmentId: string;
-  offerKind: CarePlanOfferKind;
-  packageId: string;
+  /** The condition being treated, and how many sessions. The price is the
+   *  condition's per-session price times the count, resolved here; video or
+   *  home visits follows `handsOnRequired`. */
+  categoryId: string;
+  sessionCount: number;
   handsOnRequired: boolean;
   frequencyPerWeek: number | null;
   clinicalRationale: string;
@@ -65,8 +68,8 @@ export async function authorCarePlanVersion(
   const {
     patientId,
     appointmentId,
-    offerKind,
-    packageId,
+    categoryId,
+    sessionCount,
     authoredBy,
     enteredBy = null,
     actorRole,
@@ -104,14 +107,26 @@ export async function authorCarePlanVersion(
     };
   }
 
-  const resolved = await resolveRecommendablePackage(admin, offerKind, packageId);
-  if (!resolved) {
-    return { ok: false, status: 400, error: "That programme isn't available to recommend." };
+  // Hands-on means home visits; there is no separate choice to disagree with it.
+  const offerKind = offerKindFor(request.handsOnRequired);
+  const rate = await resolveCourseRate(admin, offerKind, categoryId);
+  if (!rate) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        offerKind === "home_visit_package"
+          ? "Home visits can't be recommended right now - the clinic has them switched off or has no visit price set."
+          : "That condition isn't available to recommend.",
+    };
   }
+  const snapshot = buildCourseSnapshot(rate, sessionCount);
+  const resolved = { snapshot, categoryId: rate.categoryId };
 
   const input = {
     offerKind,
-    packageId,
+    categoryId,
+    sessionCount,
     handsOnRequired: request.handsOnRequired,
     frequencyPerWeek: request.frequencyPerWeek,
     clinicalRationale: request.clinicalRationale.trim(),
@@ -124,6 +139,13 @@ export async function authorCarePlanVersion(
   });
   if (!validation.ok) {
     return { ok: false, status: 400, error: validation.error };
+  }
+
+  // The catalog row the purchase will hang off. After validation, so a bad
+  // count never creates one.
+  const packageId = await ensureCourseTemplate(admin, rate);
+  if (!packageId) {
+    return { ok: false, status: 503, error: "Couldn't prepare this recommendation just now. Please try again." };
   }
 
   // Both free-text fields are read by the patient -- they are the offer, not

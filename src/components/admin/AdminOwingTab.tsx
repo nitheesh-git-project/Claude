@@ -34,6 +34,7 @@ import {
   type PayLaterPaymentRow,
 } from "@/lib/patientBalances";
 import type { PayLaterAgeSettings } from "@/lib/payLaterSettingsServer";
+import { formatRupees } from "@/lib/formatMoney";
 
 // Money → Owed by Patients.
 //
@@ -51,7 +52,7 @@ import type { PayLaterAgeSettings } from "@/lib/payLaterSettingsServer";
 // ₹1,200 for four months is what this screen exists to make visible.
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 /**

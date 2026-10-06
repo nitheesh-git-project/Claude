@@ -4,30 +4,34 @@
 // being repeated), which means it cannot see the wizard's state. On the
 // payment step it must stay hidden until paying has plainly stopped working --
 // a patient about to pay is offered no way out that abandons the purchase; the
-// "go to your dashboard" escape belongs to someone who has failed
-// MAX_ATTEMPTS_BEFORE_ESCAPE times. The wizard publishes the two facts that
+// "go to your dashboard" escape belongs to someone whose dashboard is open to
+// them and who has failed `site_settings.payment_tries_before_access` times
+// (see src/lib/paymentTries.ts). The wizard publishes the two facts that
 // decide it; the link subscribes. A tiny external store rather than context,
 // because the two are siblings under a server-rendered page.
 
 import { useSyncExternalStore } from "react";
 
-/** After this many failed or dismissed payment attempts the wizard offers its
- *  own way out, and the page-level exit link is allowed back. */
-export const MAX_ATTEMPTS_BEFORE_ESCAPE = 3;
-
 export type BookingPaymentTrouble = {
   onPaymentStep: boolean;
-  failedAttempts: number;
+  /** The wizard is offering its own way to the dashboard: the account is
+   *  unlocked and paying here has failed often enough. */
+  escapeOpen: boolean;
+  /** The booking is confirmed: the wizard's own confirmation screen carries
+   *  the way to the dashboard, so the page-level link would be a second
+   *  button saying the same thing. */
+  done?: boolean;
 };
 
-const IDLE: BookingPaymentTrouble = { onPaymentStep: false, failedAttempts: 0 };
+const IDLE: BookingPaymentTrouble = { onPaymentStep: false, escapeOpen: false };
 let current: BookingPaymentTrouble = IDLE;
 const listeners = new Set<() => void>();
 
 export function publishBookingPaymentTrouble(next: BookingPaymentTrouble) {
   if (
     next.onPaymentStep === current.onPaymentStep &&
-    next.failedAttempts === current.failedAttempts
+    next.escapeOpen === current.escapeOpen &&
+    !!next.done === !!current.done
   ) {
     return;
   }
@@ -37,7 +41,8 @@ export function publishBookingPaymentTrouble(next: BookingPaymentTrouble) {
 
 /** Pure, so the rule is testable without rendering. */
 export function exitLinkHidden(state: BookingPaymentTrouble): boolean {
-  return state.onPaymentStep && state.failedAttempts < MAX_ATTEMPTS_BEFORE_ESCAPE;
+  if (state.done) return true;
+  return state.onPaymentStep && !state.escapeOpen;
 }
 
 export function useExitLinkHidden(): boolean {

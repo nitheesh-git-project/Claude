@@ -6,9 +6,10 @@ import { useToast } from "@/lib/toast";
 import { useConfirm } from "@/lib/useConfirm";
 import Spinner from "@/components/system/Spinner";
 import { WRITE_OFF_REASON_MIN_CHARS } from "@/lib/payLaterWriteOff";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 // Deciding not to chase one session's money, and taking that back.

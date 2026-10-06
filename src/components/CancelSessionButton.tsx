@@ -1,16 +1,20 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useState, useTransition } from "react";
 import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { usePrompt } from "@/lib/usePrompt";
+import { debugNow, debugNowHeaders } from "@/lib/debugNow";
+import { msUntilCancelCloses, patientCancelClosed } from "@/lib/patientCancelCutoff";
 
 export default function CancelSessionButton({
   appointmentId,
   paid,
   slotTime,
   refundWindowHours = CANCELLATION_FULL_REFUND_HOURS,
+  cutoffMinutes = null,
+  serverNowMs = null,
 }: {
   appointmentId: string;
   paid: boolean;
@@ -21,7 +25,37 @@ export default function CancelSessionButton({
   // warning agrees with what the server will actually decide, rather than
   // hardcoding the online number for every session.
   refundWindowHours?: number;
+  /** Online sessions only: the clinic's cut-off
+   *  (`patient_cancel_cutoff_minutes`). Inside it the button is gone -- the
+   *  route refuses too. Null means no cut-off (home visits). */
+  cutoffMinutes?: number | null;
+  /** The page's request-time clock, for a first render that matches the HTML. */
+  serverNowMs?: number | null;
 }) {
+  // Hidden from the first render once inside the cut-off, and hidden at the
+  // moment it closes for a page left open -- one timer, no polling. Judged on
+  // the debug bar's clock, which the route honours while the bar is on.
+  // The first render uses the server's request clock (`serverNowMs`) so the
+  // HTML and the hydrated tree agree; the effect then re-reads the browser's.
+  const [closed, setClosed] = useState(() =>
+    cutoffMinutes === null || serverNowMs === null
+      ? false
+      : patientCancelClosed({ slotTime, nowMs: serverNowMs, cutoffMinutes })
+  );
+  useEffect(() => {
+    if (cutoffMinutes === null || closed) return;
+    const wait = msUntilCancelCloses({ slotTime, nowMs: debugNow(), cutoffMinutes });
+    if (wait === null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setClosed(true);
+      return;
+    }
+    // setTimeout caps at ~24.8 days; anything further re-checks on the next render.
+    if (wait > 2_000_000_000) return;
+    const t = setTimeout(() => setClosed(true), wait);
+    return () => clearTimeout(t);
+  }, [slotTime, cutoffMinutes, closed]);
+
   // The parent only renders this button for requested/confirmed sessions,
   // so a real success unmounts it via router.refresh() before this
   // optimistic overlay would need to clear on its own -- a failure just
@@ -51,7 +85,7 @@ export default function CancelSessionButton({
       setOptimisticCancelled(true);
       const res = await fetch("/api/appointments/cancel", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...debugNowHeaders() },
         body: JSON.stringify({ appointmentId, reason }),
       });
       const data = await res.json().catch(() => ({}));
@@ -78,6 +112,8 @@ export default function CancelSessionButton({
   if (optimisticCancelled && !error) {
     return <span className="text-[11px] font-semibold text-slate-500">Cancelling...</span>;
   }
+
+  if (closed) return null;
 
   return (
     <div className="flex flex-col items-start gap-1">

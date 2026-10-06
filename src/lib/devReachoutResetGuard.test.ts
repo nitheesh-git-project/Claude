@@ -51,3 +51,17 @@ describe("debug_reset_all_data keeps the developer's reachouts", () => {
     expect(lastResetBody()).toMatch(/NOT truncated[\s\S]*dev_reachouts/);
   });
 });
+
+describe("debug_reset_all_data keeps the notes on those reachouts", () => {
+  const body = code(lastResetBody());
+
+  it("neither truncates, deletes from nor updates dev_reachout_notes", () => {
+    expect(body).not.toMatch(/dev_reachout_notes/);
+  });
+
+  it("reaches no table the notes depend on through CASCADE", () => {
+    const truncate = body.match(/truncate\s+table([\s\S]*?)cascade\s*;/i);
+    expect(truncate![1]).not.toMatch(/\bprofiles\b/);
+    expect(truncate![1]).not.toMatch(/dev_reachouts/);
+  });
+});

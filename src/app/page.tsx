@@ -15,6 +15,10 @@ import Section from "@/components/marketing/Section";
 import SplitFeature from "@/components/marketing/SplitFeature";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
 import MissionPreview from "@/components/marketing/MissionPreview";
+import HealthProfileShowcase from "@/components/marketing/HealthProfileShowcase";
+import { enabledShowcaseProfiles } from "@/lib/healthProfileShowcase";
+import { readBookingLanguages, readEnabledIntakeSpecialties } from "@/lib/homeVisitFlag";
+import { RealBenefitsList, SubHeading, WhyChooseUsGrid } from "@/components/marketing/WhyChooseUs";
 import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
 import Testimonials, {
   type PublicTestimonial,
@@ -22,6 +26,7 @@ import Testimonials, {
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
 import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
+import Price from "@/components/pricing/Price";
 
 // This page has no per-user content - it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
@@ -182,20 +187,37 @@ export default async function Home() {
   // testimonials), so a nav item pointing at a section that isn't on the
   // page would just do nothing when clicked. Order must match the DOM: the
   // scroll arrow walks this list top to bottom.
+  const [enabledSpecialties, bookingLanguages] = await Promise.all([
+    readEnabledIntakeSpecialties(),
+    readBookingLanguages(),
+  ]);
+  const showcaseProfiles = enabledShowcaseProfiles(enabledSpecialties);
+
   const sectionNavItems: SectionNavItem[] = [
     { id: "two-ways", label: "Two Ways to Start", icon: "fa-video" },
-    { id: "our-mission", label: "Our Mission", icon: "fa-bullseye" },
-    { id: "what-we-treat", label: "What We Treat", icon: "fa-bone" },
     { id: "how-it-works", label: "How It Works", icon: "fa-route" },
+    ...(showcaseProfiles.length > 0
+      ? [{ id: "health-profile", label: "Your Health Profile", icon: "fa-notes-medical" }]
+      : []),
     ...(categories && categories.length > 0
       ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }]
       : []),
+    { id: "what-we-treat", label: "What We Treat", icon: "fa-bone" },
     ...(testimonials.length > 0
       ? [{ id: "reviews", label: "Reviews", icon: "fa-star" }]
       : []),
+    { id: "our-mission", label: "Our Mission", icon: "fa-bullseye" },
     { id: "explore", label: "Explore the Site", icon: "fa-compass" },
     { id: "get-started", label: "Get Started", icon: "fa-rocket" },
   ];
+
+  // Bands alternate tinted / plain down the page so the eye can count them
+  // (see Section). Worked out from the sections that actually render, since
+  // Programs and Reviews come and go with admin data and a fixed tone per
+  // section put two grey bands together whenever one was missing. A grey
+  // slot for Mission or Explore takes the floating `panel` card -- the page's
+  // two connector bands.
+  const bandTone = homeBandTones(sectionNavItems.map((item) => item.id));
 
   return (
     <>
@@ -244,7 +266,7 @@ export default async function Home() {
         stats={[
           { value: "60 min", label: "One-to-one assessment" },
           {
-            value: `₹${(startingPricePaise / 100).toLocaleString("en-IN")}`,
+            value: <Price paise={startingPricePaise} />,
             label: "Starting per session",
           },
           ...(hasRealRatings
@@ -272,7 +294,7 @@ export default async function Home() {
           are the same clinicians. */}
       <Section
         id="two-ways"
-        tone="tint"
+        tone={bandTone("two-ways")}
         eyebrow="Two ways to start"
         title="Pick how you want to be seen"
         lede="Same physiotherapists. Screen or doorstep."
@@ -313,40 +335,9 @@ export default async function Home() {
         </div>
       </Section>
 
-      {/* Why the practice exists, before what it treats: someone deciding
-          whether to trust a clinic they cannot walk into asks "who are you"
-          first. Mission and vision in full, the promises as headlines that
-          link through -- see MissionPreview. */}
-      <Section
-        id="our-mission"
-        // A connector band, so it takes the same floating-panel treatment as
-        // the explore grid at the foot of the page - and it keeps this from
-        // running into the white "what we treat" band directly below.
-        tone="panel"
-        eyebrow="Our mission"
-        title="Why we do this"
-      >
-        <MissionPreview
-          mission={missionCopy.mission}
-          vision={missionCopy.vision}
-          promises={promises}
-        />
-      </Section>
-
-      {/* Breadth of care, as six photographs. The old version of this band
-          was six paragraphs of prose, which is exactly the density the
-          redesign exists to remove. */}
-      <Section
-        id="what-we-treat"
-        eyebrow="What we treat"
-        title="Find what hurts"
-      >
-        <CareAreaShowcase href="/book" ctaLabel="Book an assessment" />
-      </Section>
-
       <Section
         id="how-it-works"
-        tone="tint"
+        tone={bandTone("how-it-works")}
         eyebrow="How it works"
         title="Three steps, start to finish"
       >
@@ -359,11 +350,26 @@ export default async function Home() {
         </Reveal>
       </Section>
 
+      {/* The specialty dashboards with sample data, beside a short pitch and
+          the booking button -- the full tour is on /how-it-works. */}
+      {showcaseProfiles.length > 0 && (
+        <Section
+          id="health-profile"
+          tone={bandTone("health-profile")}
+          eyebrow="Your recovery, tracked"
+          title="See every step of your recovery"
+          lede="Orthopaedic, neurological and paediatric care - each with a dashboard of its own."
+        >
+          <HealthProfileShowcase profiles={showcaseProfiles} variant="home" />
+        </Section>
+      )}
+
       {/* CONDITIONS - admin-controlled content, so the layout stays generic
           and simply adapts to whatever categories are configured. */}
       {categories && categories.length > 0 && (
         <Section
           id="programs"
+          tone={bandTone("programs")}
           eyebrow="Structured programmes"
           title="What you can book today"
           lede="Same 60-minute assessment. Different protocol."
@@ -386,11 +392,23 @@ export default async function Home() {
         </Section>
       )}
 
+      {/* Breadth of care, as six photographs. The old version of this band
+          was six paragraphs of prose, which is exactly the density the
+          redesign exists to remove. */}
+      <Section
+        id="what-we-treat"
+        tone={bandTone("what-we-treat")}
+        eyebrow="What we treat"
+        title="Find what hurts"
+      >
+        <CareAreaShowcase href="/book" ctaLabel="Book an assessment" />
+      </Section>
+
 
       {testimonials.length > 0 && (
         <Section
           id="reviews"
-          tone="tint"
+          tone={bandTone("reviews")}
           eyebrow="Patient stories"
           title="Recoveries guided over video"
           lede={
@@ -403,11 +421,39 @@ export default async function Home() {
         </Section>
       )}
 
+      {/* Why the practice exists, just before the connector grid: the page
+          answers "what can I do" first, then "who are you", then "where
+          next". Mission and vision in full, the promises as headlines that
+          link through -- see MissionPreview. */}
+      <Section
+        id="our-mission"
+        tone={bandTone("our-mission")}
+        eyebrow="Our mission"
+        title="Why patients choose us"
+      >
+        {/* Three steps down from the concrete to the why: what we do, what
+            changes for you, and then the mission and vision behind both.
+            Each card is one line here; /mission has them in full. */}
+        <WhyChooseUsGrid compact languages={bookingLanguages} />
+        <div className="mt-14 sm:mt-16">
+          <SubHeading eyebrow="The real benefits" title="What changes for you" />
+          <RealBenefitsList compact />
+        </div>
+        <div className="mt-14 sm:mt-16">
+          <SubHeading eyebrow="Mission and vision" title="Why we do this" />
+        </div>
+        <MissionPreview
+          mission={missionCopy.mission}
+          vision={missionCopy.vision}
+          promises={promises}
+        />
+      </Section>
+
       {/* The connector band: every other page on the site, shown rather than
           listed. See ExploreGrid and marketingNav.ts. */}
       <Section
         id="explore"
-        tone="panel"
+        tone={bandTone("explore")}
         eyebrow="Explore"
         title="The whole site, in one place"
         // Counted rather than written out: this said "six" for one commit
@@ -430,4 +476,15 @@ export default async function Home() {
       />
     </>
   );
+}
+
+const PANEL_BANDS = new Set(["our-mission", "explore"]);
+
+function homeBandTones(ids: string[]): (id: string) => "tint" | "plain" | "panel" {
+  const bands = ids.filter((id) => id !== "get-started");
+  return (id) => {
+    const grey = bands.indexOf(id) % 2 === 0;
+    if (!grey) return "plain";
+    return PANEL_BANDS.has(id) ? "panel" : "tint";
+  };
 }

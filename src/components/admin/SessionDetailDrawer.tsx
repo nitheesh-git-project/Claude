@@ -1,9 +1,11 @@
 "use client";
 
+import ActivityTimeline from "@/components/admin/ActivityTimeline";
 import { useId, useOptimistic, useState, useTransition } from "react";
 import RefundChip from "@/components/admin/RefundChip";
 import { hasRefund } from "@/lib/refundState";
 import OverlayPortal from "@/components/system/OverlayPortal";
+import { FeedbackBody, StarRow } from "@/components/feedback/RatingDisplay";
 import { useDialogChrome } from "@/lib/useDialogChrome";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
@@ -28,6 +30,7 @@ import {
   visitAddressFromAppointment,
 } from "@/lib/formatAddress";
 import { describeSessionPayment } from "@/lib/sessionPaymentState";
+import { formatRupees } from "@/lib/formatMoney";
 
 const PAYMENT_CHIP_TONE: Record<string, string> = {
   good: "text-green-700 bg-green-50",
@@ -119,22 +122,12 @@ type CategoryInfo = {
   active?: boolean;
 };
 
-function Stars({ rating }: { rating: number }) {
-  return (
-    <span className="text-amber-500">
-      {"★".repeat(rating)}
-      <span className="text-slate-300">{"★".repeat(5 - rating)}</span>
-    </span>
-  );
-}
-
 export default function SessionDetailDrawer({
   appointment: a,
   peopleMap,
   categoryMap,
   therapists,
   categories,
-  reassignmentLogs,
   homeVisit,
   canSeeMoney = true,
   canManageSessions = true,
@@ -145,7 +138,6 @@ export default function SessionDetailDrawer({
   categoryMap: Map<string, CategoryInfo>;
   therapists: { id: string; full_name: string; active?: boolean; specialization?: string | null }[];
   categories: CategoryInfo[];
-  reassignmentLogs: ReassignmentLogEntry[];
   // Present only when this session is a home visit. Everything a visit needs
   // that an online session doesn't -- the address it is delivered to, and
   // the cash that may have changed hands there -- rather than a second
@@ -201,19 +193,10 @@ export default function SessionDetailDrawer({
   const patientName = peopleMap.get(a.patient_id) ?? "Unknown";
   const therapistName = a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : null;
   const categoryTitle = a.category_id ? categoryMap.get(a.category_id)?.title ?? null : null;
-  const history = reassignmentLogs
-    .filter((l) => l.appointment_id === a.id)
-    .sort((x, y) => new Date(y.changed_at).getTime() - new Date(x.changed_at).getTime());
 
-  function nameOrUnassigned(id: string | null) {
-    if (!id) return "Unassigned";
-    return peopleMap.get(id) ?? "Unknown";
-  }
 
-  function categoryOrNone(id: string | null) {
-    if (!id) return "No category";
-    return categoryMap.get(id)?.title ?? "Unknown";
-  }
+
+
 
   async function submitReopen(overridePayoutSettled: boolean) {
     setReopening(true);
@@ -368,6 +351,89 @@ export default function SessionDetailDrawer({
   // the row that opened this -- from the one hook every overlay shares.
   const { panelRef, dialogProps } = useDialogChrome({ onClose, labelledBy: titleId });
 
+
+  // One side's rating: who gave it, the stars and the number, the picks and
+  // the note (FeedbackBody splits them back out of the saved text), and the
+  // two actions as real buttons. An excluded rating is drawn in amber so it
+  // reads as set aside at a glance, not only from a small label.
+  function renderRatingSide(role: "patient" | "therapist") {
+    const rating = role === "patient" ? a.patient_rating : a.therapist_rating;
+    const feedback = role === "patient" ? a.patient_feedback : a.therapist_feedback;
+    const excluded = optimisticExcluded[role];
+    const who = role === "patient" ? patientName : therapistName ?? "Not assigned";
+    const label = role === "patient" ? "Patient's rating" : "Therapist's rating";
+    const initials = who
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+    if (rating === null) {
+      return (
+        <div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-300 px-3.5 py-3">
+          <StarRow rating={0} size={14} />
+          <p className="text-slate-500">
+            <span className="font-semibold text-slate-700">{label}:</span> not rated yet.
+          </p>
+        </div>
+      );
+    }
+    return (
+      <div
+        className={`space-y-2.5 rounded-xl border p-3.5 ${
+          excluded ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-100 text-[11px] font-bold text-teal-800">
+              {initials || "?"}
+            </span>
+            <span className="min-w-0">
+              <span className="block font-bold text-slate-800">{label}</span>
+              <span className="block truncate text-[11px] text-slate-500">{who}</span>
+            </span>
+          </div>
+          <span className="flex shrink-0 items-center gap-1.5">
+            <StarRow rating={rating} size={15} />
+            <span className="font-display text-sm font-bold text-slate-900">{rating.toFixed(1)}</span>
+          </span>
+        </div>
+        {excluded && (
+          <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
+            Excluded from the average
+          </span>
+        )}
+        <FeedbackBody feedback={feedback} tone={excluded ? "amber" : "teal"} />
+        {canManageSessions && (
+          <div className={`flex flex-wrap gap-2 border-t pt-2.5 ${excluded ? "border-amber-200" : "border-slate-100"}`}>
+            <button
+              type="button"
+              onClick={() => handleToggleExcluded(role, !excluded)}
+              disabled={isExcludePending && excludingRole === role}
+              className={`min-h-9 rounded-lg border px-3 text-[11px] font-semibold transition disabled:opacity-60 ${
+                excluded
+                  ? "border-amber-300 bg-white text-amber-800 hover:bg-amber-100"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              {excluded ? "Include in average" : "Exclude from average"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleClearRating(role)}
+              disabled={isClearPending && clearingRole === role}
+              className="min-h-9 rounded-lg px-3 text-[11px] font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+            >
+              {isClearPending && clearingRole === role ? "Clearing..." : "Clear so they can rate again"}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <OverlayPortal>
       <div
@@ -496,7 +562,7 @@ export default function SessionDetailDrawer({
             <div>
               <p className="text-slate-500">Price</p>
               <p className="font-semibold text-slate-800">
-                ₹{(feePaise / 100).toLocaleString("en-IN")}
+                ₹{formatRupees(feePaise)}
                 {a.payment_status !== "paid" && (
                   <span className="text-slate-500 font-normal"> (estimated)</span>
                 )}
@@ -527,7 +593,7 @@ export default function SessionDetailDrawer({
                 <p className="text-slate-500">Cancellation</p>
                 <p className="text-slate-700">
                   {a.refund_status === "processed" && a.refund_amount_paise
-                    ? `₹${(a.refund_amount_paise / 100).toLocaleString("en-IN")} refunded`
+                    ? `₹${formatRupees(a.refund_amount_paise)} refunded`
                     : a.refund_status === "not_eligible"
                     ? a.therapist_payout_paid_at
                       ? "No refund (this session's payout was already settled - cancelled as an admin correction, not a late cancellation)"
@@ -540,151 +606,21 @@ export default function SessionDetailDrawer({
               </div>
             )}
 
-            <div className="pt-3 border-t border-slate-100 space-y-2">
-              <p className="font-bold text-slate-800">Ratings &amp; Feedback</p>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-slate-500">Patient</p>
-                  {canManageSessions && a.patient_rating !== null && (
-                    <>
-                      <button
-                        onClick={() => handleToggleExcluded("patient", !optimisticExcluded.patient)}
-                        disabled={isExcludePending && excludingRole === "patient"}
-                        className={`text-[10px] font-semibold hover:underline disabled:opacity-60 ${
-                          optimisticExcluded.patient ? "text-amber-600" : "text-slate-500"
-                        }`}
-                      >
-                        {optimisticExcluded.patient
-                          ? "Excluded from average - include it"
-                          : "Exclude from average"}
-                      </button>
-                      <button
-                        onClick={() => handleClearRating("patient")}
-                        disabled={isClearPending && clearingRole === "patient"}
-                        className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
-                      >
-                        {isClearPending && clearingRole === "patient"
-                          ? "Clearing..."
-                          : "Clear (let them re-rate)"}
-                      </button>
-                    </>
-                  )}
-                </div>
-                {a.patient_rating ? (
-                  <>
-                    <Stars rating={a.patient_rating} />
-                    {optimisticExcluded.patient && (
-                      <span className="ml-2 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                        Excluded from average
-                      </span>
-                    )}
-                    {a.patient_feedback && (
-                      <p className="text-slate-700 mt-0.5">{a.patient_feedback}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-slate-500">Not yet rated.</p>
-                )}
+            <div className="pt-3 border-t border-slate-100 space-y-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="font-bold text-slate-800">Ratings and feedback</p>
+                <p className="text-[11px] text-slate-500">Neither side sees the other&apos;s</p>
               </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-slate-500">Therapist</p>
-                  {canManageSessions && a.therapist_rating !== null && (
-                    <>
-                      <button
-                        onClick={() =>
-                          handleToggleExcluded("therapist", !optimisticExcluded.therapist)
-                        }
-                        disabled={isExcludePending && excludingRole === "therapist"}
-                        className={`text-[10px] font-semibold hover:underline disabled:opacity-60 ${
-                          optimisticExcluded.therapist ? "text-amber-600" : "text-slate-500"
-                        }`}
-                      >
-                        {optimisticExcluded.therapist
-                          ? "Excluded from average - include it"
-                          : "Exclude from average"}
-                      </button>
-                      <button
-                        onClick={() => handleClearRating("therapist")}
-                        disabled={isClearPending && clearingRole === "therapist"}
-                        className="text-[10px] text-red-600 font-semibold hover:underline disabled:opacity-60"
-                      >
-                        {isClearPending && clearingRole === "therapist"
-                          ? "Clearing..."
-                          : "Clear (let them re-rate)"}
-                      </button>
-                    </>
-                  )}
-                </div>
-                {a.therapist_rating ? (
-                  <>
-                    <Stars rating={a.therapist_rating} />
-                    {optimisticExcluded.therapist && (
-                      <span className="ml-2 text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                        Excluded from average
-                      </span>
-                    )}
-                    {a.therapist_feedback && (
-                      <p className="text-slate-700 mt-0.5">{a.therapist_feedback}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-slate-500">Not yet rated.</p>
-                )}
-              </div>
+              {renderRatingSide("patient")}
+              {renderRatingSide("therapist")}
             </div>
 
-            {history.length > 0 && (
-              <div className="pt-3 border-t border-slate-100">
-                <p className="font-bold text-slate-800 mb-2">Reassignment History</p>
-                <ul className="space-y-2">
-                  {history.map((h) => (
-                    <li key={h.id} className="text-slate-500">
-                      <span className="text-slate-500">
-                        {new Date(h.changed_at).toLocaleString("en-IN", {
-                          timeZone: "Asia/Kolkata",
-                        })}{" "}
-                        IST{h.changed_by && ` by ${nameOrUnassigned(h.changed_by)}`} -{" "}
-                      </span>
-                      {h.old_therapist_id !== h.new_therapist_id && (
-                        <span className="block">
-                          Therapist: {nameOrUnassigned(h.old_therapist_id)} →{" "}
-                          <strong className="text-slate-700">
-                            {nameOrUnassigned(h.new_therapist_id)}
-                          </strong>
-                        </span>
-                      )}
-                      {h.old_slot_time !== h.new_slot_time && (
-                        <span className="block">
-                          Time:{" "}
-                          {h.old_slot_time
-                            ? new Date(h.old_slot_time).toLocaleString("en-IN", {
-                                timeZone: "Asia/Kolkata",
-                              })
-                            : "-"}{" "}
-                          →{" "}
-                          <strong className="text-slate-700">
-                            {h.new_slot_time
-                              ? new Date(h.new_slot_time).toLocaleString("en-IN", {
-                                  timeZone: "Asia/Kolkata",
-                                })
-                              : "-"}
-                          </strong>
-                        </span>
-                      )}
-                      {h.old_category_id !== h.new_category_id && (
-                        <span className="block">
-                          Category: {categoryOrNone(h.old_category_id)} →{" "}
-                          <strong className="text-slate-700">
-                            {categoryOrNone(h.new_category_id)}
-                          </strong>
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* Everything done to this session, by anyone, with filters --
+                replaces the reassignment-only history that sat here. See
+                src/lib/activityTimeline.ts. */}
+            <div className="pt-3 border-t border-slate-100">
+              <ActivityTimeline sessionId={a.id} title="Session history" />
+            </div>
 
             {canManageSessions && canReassign && (
               <div className="pt-3 border-t border-slate-100">
@@ -789,7 +725,7 @@ export default function SessionDetailDrawer({
                     <p className="text-slate-500">Travel fee</p>
                     <p className="font-semibold text-slate-700">
                       {homeVisit.travel_fee_paise
-                        ? `₹${(homeVisit.travel_fee_paise / 100).toLocaleString("en-IN")}`
+                        ? `₹${formatRupees(homeVisit.travel_fee_paise)}`
                         : "-"}
                     </p>
                     <p className="text-slate-500">Paid to the therapist in full.</p>
@@ -798,7 +734,7 @@ export default function SessionDetailDrawer({
                     <p className="text-slate-500">Cash</p>
                     <p className="font-semibold text-slate-700">
                       {homeVisit.cash_collected_at
-                        ? `Collected ₹${((homeVisit.cash_collected_amount_paise ?? 0) / 100).toLocaleString("en-IN")}`
+                        ? `Collected ₹${formatRupees((homeVisit.cash_collected_amount_paise ?? 0))}`
                         : homeVisit.payment_status === "paid"
                           ? "Prepaid"
                           : "Cash on visit, not yet collected"}

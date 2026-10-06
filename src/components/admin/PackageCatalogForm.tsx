@@ -5,6 +5,7 @@ import CatalogImageField from "@/components/admin/CatalogImageField";
 import { FOCAL_DEFAULT } from "@/lib/catalogImage";
 import { useRouter } from "@/lib/useRouter";
 import { computePackageSavings } from "@/lib/packageProgress";
+import { formatRupees } from "@/lib/formatMoney";
 
 type Package = {
   id: string;
@@ -199,7 +200,7 @@ export default function PackageCatalogForm({
                       detail of it: every saving figure on this form is
                       computed against it, so picking blind means checking
                       the Conditions screen and coming back. */}
-                  {c.title} — ₹{(c.price_paise / 100).toLocaleString("en-IN")} a session
+                  {c.title} — ₹{formatRupees(c.price_paise)} a session
                   {c.active === false ? " (inactive)" : ""}
                 </option>
               ))}

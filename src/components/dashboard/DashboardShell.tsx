@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
@@ -9,40 +9,52 @@ import RealtimeRefresh from "@/components/RealtimeRefresh";
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import { useLeavingPage } from "@/lib/useLeavingPage";
 import SessionTimeoutDialog from "@/components/SessionTimeoutDialog";
-import { LOGIN_HREF_BY_BASE_PATH } from "@/lib/dashboardNavItems";
+import { LOGIN_HREF_BY_BASE_PATH, TABS_BY_BASE_PATH } from "@/lib/dashboardNavItems";
+import { isMoreActive, isNavItemActive, splitTabs } from "@/lib/dashboardTabs";
 
 // `href` marks a real page navigation (e.g. "Edit Profile") rather than a
 // same-page anchor -- it always renders as a plain link to that page. An
 // anchor item (no `href`) resolves to `${basePath}#id`: a smooth in-page
 // scroll when already on basePath, or a real navigation there (landing on
-// that section) from any other page rendered by this same shell -- this is
-// what lets "Edit Profile" and the dashboard's own sections share one nav
-// no matter which of the two pages you're currently on.
+// that section) from any other page rendered by this same shell.
 export type ShellNavItem = {
   id: string;
   label: string;
   icon: string;
   href?: string;
+  /** The one-word name the tab bar and the icon rail have room for
+   *  ("Sessions" for "Your Sessions"). Falls back to `label`. The full
+   *  label stays the accessible name everywhere, so a link is found by the
+   *  same words whichever of the four navs is on screen. */
+  short?: string;
+  /** A count of things waiting on this person behind the entry. */
+  badge?: number;
   // Sub-tabs shown nested under this item once its own page (`href`) is
   // active -- e.g. Edit Profile's Personal Details / Contact / Security
-  // sections. Always anchor items scoped to the parent's `href` page (never
-  // another `href` of their own), since a sub-tab only ever exists on the
-  // page its parent links to.
+  // sections. Always anchor items scoped to the parent's `href` page.
   children?: { id: string; label: string; icon: string }[];
 };
 
-// Shared with the Admin Dashboard's own AdminTabs shell only in spirit, not
-// in code -- AdminTabs switches between real client-side tabs (11 separate
-// pieces of content, only one mounted-visible at a time), while this shell
-// is for the patient/therapist/hospital dashboards, which are each a single
-// continuous scroll of a few sections. Its "nav" is same-page anchor links
-// with scroll-spy highlighting, not tab state, so forcing both patterns into
-// one component would just hide that real difference behind a prop.
+// Shared with the Admin Dashboard's own AdminShell only in spirit, not in
+// code -- the admin's nav is grouped sections with sub-tabs, these three
+// are a short flat list of screens.
+//
+// One list of entries, four renders, chosen by width:
+//   - below `lg` (phones, small tablets): a bottom tab bar holding the four
+//     screens named in `tabIds`, with a More sheet for the rest, the
+//     person's profile, Back to Home and Log Out;
+//   - `lg` to `2xl` (laptops): an 88px icon rail with a one-word label
+//     under each icon, which gives the content the width it needs at
+//     1280-1440 without a Collapse button somebody has to find;
+//   - `2xl` and up (desktops): the full labelled sidebar.
+// Only one is ever displayed, so only one is ever in the accessibility tree.
 export default function DashboardShell({
   brandLabel,
   brandIcon,
   basePath,
   navItems,
+  tabIds,
+  centerTabId,
   userName,
   userEmail,
   userAvatarUrl,
@@ -57,63 +69,59 @@ export default function DashboardShell({
 }: {
   brandLabel: string;
   brandIcon: string;
-  // The dashboard page's own URL (e.g. "/patient/dashboard") -- every
-  // anchor nav item is really a link to `${basePath}#id`. Other pages this
-  // same shell wraps (Edit Profile) pass this so their anchor items still
-  // point back at the real sections instead of trying (and failing) to
-  // scroll to an id that doesn't exist on the current page.
+  // The dashboard page's own URL (e.g. "/patient/dashboard").
   basePath: string;
   navItems: ShellNavItem[];
+  /** The phone tab bar's entries, in bar order (see splitTabs). Ids whose
+   *  entry is absent are skipped. Omitted: TABS_BY_BASE_PATH's. */
+  tabIds?: string[];
+  /** The raised centre button -- the one action this role comes here to
+   *  take (Book, Refer). */
+  centerTabId?: string;
   userName: string;
   userEmail: string;
   userAvatarUrl: string | null;
-  // This person's own PT0001/TH0001/BB0001-style display ID (see
-  // supabase/schema.sql's "Unique display IDs" section) -- null until the
-  // migration backfilling it has run, or while this page's own isolated
-  // fetch for it hasn't resolved. Shown in the profile card so it's always
-  // visible, not tucked away on a settings page.
+  // This person's own PT0001/TH0001/BB0001-style display ID -- null until
+  // the backfill has run or while it is still loading.
   userCode?: string | null;
   offsetTop: boolean;
   headerTitle: string;
   headerSubtitle?: ReactNode;
   headerActions?: ReactNode;
-  // Admin-configured Session Timeout of Inactivity, in minutes (0/undefined
-  // = disabled) -- see src/lib/useIdleTimeout.ts and Feature 16.
+  // Admin-configured Session Timeout of Inactivity, in minutes (0 = off).
   sessionTimeoutMinutes?: number;
-  // Tables whose changes should trigger a live router.refresh() while this
-  // page is open (e.g. an admin reassigns this therapist's session while
-  // they're looking at their own dashboard) -- see RealtimeRefresh. Omit
-  // for pages with nothing that changes from outside the viewer's own
-  // actions.
+  // Tables whose changes trigger a live router.refresh() -- see
+  // RealtimeRefresh.
   realtimeTables?: string[];
   children: ReactNode;
 }) {
   const pathname = usePathname();
   // Every nav entry below is a hard anchor on purpose (see renderHomeLink),
-  // which means React never learns the navigation happened and the teal bar
-  // never drew on these three dashboards. This marks the page as leaving on
-  // click, so the bar is up for the whole wait on the screen they are still
-  // looking at.
+  // so React never learns the navigation happened. This marks the page as
+  // leaving on click, so the teal bar is up for the whole wait.
   const markLeaving = useLeavingPage();
   const onBasePage = pathname === basePath;
-  // The nav item (if any) whose own page we're currently on and which has
-  // sub-tabs -- e.g. Edit Profile's Personal Details / Contact / Security.
-  // Its children are the sections to scroll-spy/anchor on this page instead
-  // of the main dashboard's own sections.
   const activeParent = navItems.find((item) => item.children && item.href === pathname);
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [activeId, setActiveId] = useState<string | null>(() => {
     if (pathname === basePath) return navItems.find((item) => !item.href)?.id ?? null;
     const parent = navItems.find((item) => item.children && item.href === pathname);
     return parent?.children?.[0]?.id ?? null;
   });
 
+  const { tabs, centerId, more } = splitTabs(
+    navItems,
+    tabIds ?? TABS_BY_BASE_PATH[basePath]?.tabIds ?? navItems.slice(0, 4).map((item) => item.id),
+    centerTabId ?? TABS_BY_BASE_PATH[basePath]?.centerTabId
+  );
+  const moreActive = isMoreActive(pathname, basePath, more);
+
   useEffect(() => {
-    // Highlights whichever section is currently nearest the top of the
-    // viewport -- real scroll-spy over the page's actual sections, not a
-    // fake "current tab" since there's no tab state here to read from.
+    // Scroll-spy over the sub-sections of the page being looked at (Edit
+    // Profile's Personal Details / Contact / Security).
     const anchorItems = onBasePage
       ? navItems.filter((item) => !item.href)
       : activeParent?.children ?? [];
@@ -137,39 +145,44 @@ export default function DashboardShell({
   }, [navItems, onBasePage, activeParent]);
 
   useEffect(() => {
-    // Landing here via a real navigation from another page (e.g. clicking
-    // "Your Sessions" while on Edit Profile, or a sub-tab like "Contact
-    // Details" from the main dashboard) arrives as ...#id -- the browser's
-    // own anchor-jump already gets close, but re-running our own scroll
-    // keeps the offset identical to a same-page click. No-ops harmlessly if
-    // this page doesn't have that id.
+    // Landing here as ...#id from another page: re-run our own scroll so
+    // the offset matches a same-page click.
     const hash = window.location.hash.slice(1);
     if (hash) scrollToSection(hash);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  useEffect(() => {
+    // The More sheet is a modal: Escape closes it, focus moves into it and
+    // back to the button that opened it, and the page under it stays put.
+    if (!sheetOpen) return;
+    const opener = moreButtonRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    sheetRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setSheetOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      opener?.focus();
+    };
+  }, [sheetOpen]);
+
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    // A hard navigation so the browser sends a fresh request guaranteed to
-    // carry the now-cleared auth cookies -- see SignOutButton for the same
-    // reasoning, duplicated here since this sign-out control needs the
-    // sidebar's dark styling rather than that component's light one.
+    // A hard navigation so the next request carries the cleared cookies.
     window.location.href = "/?farewell=1";
   }
 
-  // Signing out on idle takes the same steps as the sidebar's own Log Out,
-  // minus the navigation: the session is cleared immediately (that's the
-  // point of the timeout), but the user is shown SessionTimeoutDialog
-  // explaining what happened and choosing where to go, rather than being
-  // silently dropped on the homepage. Passing 0 once it has fired stops the
-  // timer re-arming behind the dialog -- there's no session left to end.
+  // Signing out on idle clears the session immediately but shows
+  // SessionTimeoutDialog rather than silently dropping them on the home
+  // page. scope "local" ends this device's session only.
   async function handleIdleTimeout() {
     const supabase = createClient();
-    // scope: "local" -- this ends the idle session on this device only. The
-    // default global scope revokes every refresh token the user has, which
-    // for an inactivity timeout would also sign them out of their phone and
-    // any other tab they're actively using.
     await supabase.auth.signOut({ scope: "local" });
     setTimedOut(true);
   }
@@ -181,142 +194,176 @@ export default function DashboardShell({
     if (!el) return;
     const y = el.getBoundingClientRect().top + window.scrollY - (offsetTop ? 96 : 88);
     window.scrollTo({ top: y, behavior: "smooth" });
-    // A same-page click is intercepted (preventDefault) for the custom
-    // offset above, which skips the browser's own hash update too -- set it
-    // by hand so the URL still reflects the section (refresh, share, back
-    // button all keep working).
+    // preventDefault skipped the browser's own hash update -- set it so
+    // refresh, share and Back keep the section.
     history.replaceState(null, "", `#${id}`);
   }
 
-  // A plain render function, not a nested component -- called directly
-  // rather than as <NavItem ... />, so React never treats it as its own
-  // component type and there's nothing to remount every render.
-  function renderNavItem(item: ShellNavItem, mini: boolean, onNavigate?: () => void) {
-    const active = item.href ? pathname === item.href : onBasePage && activeId === item.id;
-    const className = `group relative w-full flex items-center gap-3 rounded-xl transition ${
-      mini ? "justify-center px-0 py-3" : "px-3.5 py-2.5"
-    } ${active ? "bg-teal-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`;
-    const content = (
-      <>
-        <i className={`fa-solid ${item.icon} ${mini ? "text-base" : "w-4 text-center text-sm"}`}></i>
-        {!mini && <span className="flex-1 text-left text-sm font-semibold">{item.label}</span>}
-        {mini && (
-          <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 scale-95 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover:scale-100 group-hover:opacity-100">
-            {item.label}
-          </span>
-        )}
-      </>
-    );
+  function isActive(item: ShellNavItem) {
+    return item.href
+      ? isNavItemActive(pathname, basePath, item.href)
+      : onBasePage && activeId === item.id;
+  }
 
-    // Anchor items resolve to a real URL (`${basePath}#id`) so they work
-    // from any page this shell wraps -- clicking one while already on
-    // basePath intercepts the click for a smooth in-page scroll instead of
-    // a jarring reload; clicking it from elsewhere (Edit Profile) lets the
-    // browser actually navigate there, and the hash-scroll effect above
-    // takes over once it lands. A plain anchor throughout (not next/link)
-    // -- client-side transitions into a differently-chromed route were
-    // silently not completing in this environment, and a hard nav sidesteps
-    // it the same way this codebase's own login handlers already do for
-    // cookie-sensitive navigations.
+  // Anchor items resolve to a real URL so they work from any page this
+  // shell wraps. A plain anchor throughout (not next/link): client-side
+  // transitions into a differently-chromed route were silently not
+  // completing in this environment.
+  function navProps(item: ShellNavItem, onNavigate?: () => void) {
     const targetHref = item.href ?? `${basePath}#${item.id}`;
-    return (
-      <a
-        key={item.id}
-        // Only the expanded (non-mini) render gets this id -- it's a
-        // guided-tour target (OnboardingTour), and the collapsed icon-only
-        // rail and the off-canvas mobile drawer can otherwise coexist with
-        // it in the DOM at once, which would mean duplicate ids.
-        id={!mini ? `nav-${item.id}` : undefined}
-        href={targetHref}
-        onClick={(e) => {
-          if (!item.href && onBasePage) {
-            e.preventDefault();
-            scrollToSection(item.id);
-          } else if (targetHref !== pathname) {
-            // A real navigation, not an in-page scroll and not the screen
-            // they are already on -- both of those finish instantly and a
-            // bar for them would be the flicker the appear delay exists to
-            // prevent.
-            markLeaving();
-          }
-          onNavigate?.();
-        }}
-        title={mini ? item.label : undefined}
-        className={className}
-      >
-        {content}
-      </a>
-    );
-  }
-
-  // Sub-tabs (Edit Profile's Personal Details / Contact / Security) --
-  // rendered only once we've actually landed on the parent's page, so the
-  // click can always intercept for a smooth scroll rather than needing to
-  // know whether it's a same-page or cross-page navigation. Skipped in the
-  // collapsed mini sidebar to keep that view to single-icon rows.
-  function renderChildItem(
-    parentHref: string,
-    child: { id: string; label: string; icon: string },
-    onNavigate?: () => void
-  ) {
-    const active = pathname === parentHref && activeId === child.id;
-    return (
-      <a
-        key={child.id}
-        href={`${parentHref}#${child.id}`}
-        onClick={(e) => {
+    const active = isActive(item);
+    return {
+      href: targetHref,
+      "aria-current": active ? ("page" as const) : undefined,
+      // The guided tour's target (OnboardingTour). Every render carries it
+      // and the tour picks whichever one is on screen, so the tour works at
+      // every width instead of only where the full sidebar shows.
+      "data-tour": `nav-${item.id}`,
+      onClick: (e: MouseEvent) => {
+        if (!item.href && onBasePage) {
           e.preventDefault();
-          scrollToSection(child.id);
-          onNavigate?.();
-        }}
-        className={`flex items-center gap-2.5 rounded-lg py-2 pl-9 pr-3 text-xs font-semibold transition ${
-          active ? "text-teal-400" : "text-slate-500 hover:text-white"
-        }`}
+          scrollToSection(item.id);
+        } else if (targetHref !== pathname) {
+          markLeaving();
+        }
+        onNavigate?.();
+      },
+    };
+  }
+
+  function badge(count: number | undefined, className = "") {
+    if (!count) return null;
+    return (
+      <span
+        className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-700 px-1.5 text-[11px] font-bold leading-none text-white ${className}`}
       >
-        <i className={`fa-solid ${child.icon} w-3.5 text-center text-[11px]`}></i>
-        <span>{child.label}</span>
-      </a>
+        <span className="sr-only">, </span>
+        {count > 99 ? "99+" : count}
+        <span className="sr-only"> waiting</span>
+      </span>
     );
   }
 
-  function renderNavEntry(item: ShellNavItem, mini: boolean, onNavigate?: () => void) {
-    const showChildren = !mini && item.href && item.children && pathname === item.href;
+  // --- the full sidebar (2xl and up) --------------------------------------
+
+  function renderSidebarItem(item: ShellNavItem) {
+    const active = isActive(item);
+    const showChildren = item.href && item.children && pathname === item.href;
     return (
       <div key={item.id}>
-        {renderNavItem(item, mini, onNavigate)}
+        <a
+          {...navProps(item)}
+          className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm transition ${
+            active
+              ? "bg-teal-50 font-bold text-teal-800"
+              : "font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          }`}
+        >
+          <i aria-hidden="true" className={`fa-solid ${item.icon} w-4 text-center text-sm`}></i>
+          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+          {badge(item.badge)}
+        </a>
         {showChildren && (
-          <div className="mt-0.5 space-y-0.5">
-            {item.children!.map((child) => renderChildItem(item.href!, child, onNavigate))}
+          <div className="mb-1 ml-5 mt-1 space-y-0.5 border-l-2 border-slate-100 pl-2">
+            {item.children!.map((child) => {
+              const childActive = activeId === child.id;
+              return (
+                <a
+                  key={child.id}
+                  href={`${item.href}#${child.id}`}
+                  aria-current={childActive ? "location" : undefined}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    scrollToSection(child.id);
+                  }}
+                  className={`flex min-h-9 items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    childActive ? "bg-slate-100 text-teal-800" : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  <i aria-hidden="true" className={`fa-solid ${child.icon} w-3.5 text-center text-[11px]`}></i>
+                  <span>{child.label}</span>
+                </a>
+              );
+            })}
           </div>
         )}
       </div>
     );
   }
 
-  function renderBrand(mini: boolean) {
+  // --- the icon rail (lg to 2xl) ------------------------------------------
+
+  function renderRailItem(item: ShellNavItem) {
+    const active = isActive(item);
+    const short = item.short ?? item.label;
     return (
-      <div className={`flex items-center gap-2.5 px-1 py-2 ${mini ? "justify-center" : ""}`}>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white">
-          <i className={`fa-solid ${brandIcon} text-sm`}></i>
-        </div>
-        {!mini && <span className="text-sm font-bold leading-tight text-white">{brandLabel}</span>}
-      </div>
+      <a
+        key={item.id}
+        {...navProps(item)}
+        aria-label={short !== item.label ? item.label : undefined}
+        title={item.label}
+        className={`relative mx-1.5 flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-2 text-center text-[11px] leading-tight tracking-tight transition ${
+          active
+            ? "bg-teal-50 font-bold text-teal-800"
+            : "font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+        }`}
+      >
+        <i aria-hidden="true" className={`fa-solid ${item.icon} text-base`}></i>
+        <span className="max-w-full">{short}</span>
+        {badge(item.badge, "absolute left-1/2 top-1 ml-2 ring-2 ring-white")}
+      </a>
     );
   }
 
-  // Sits directly under the brand, above the nav, on every page this shell
-  // wraps. The four dashboards are all in NAV_HIDDEN_ROUTES (the public
-  // Navbar is deliberately kept off them), which left a signed-in user with
-  // no way back to the marketing site at all short of editing the URL --
-  // signing out was the only exit, and it took their session with it.
-  function renderHomeLink(mini: boolean, onNavigate?: () => void) {
+  // --- the phone tab bar (below lg) ---------------------------------------
+
+  function renderTab(item: ShellNavItem) {
+    const active = isActive(item);
+    const short = item.short ?? item.label;
+    if (item.id === centerId) {
+      return (
+        <a
+          key={item.id}
+          {...navProps(item)}
+          aria-label={short !== item.label ? item.label : undefined}
+          className="flex min-w-0 flex-col items-center justify-start gap-0.5 text-[11px] font-bold text-slate-900"
+        >
+          <span className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-teal-700 text-white shadow-lg shadow-teal-900/25">
+            <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg`}></i>
+          </span>
+          <span className="max-w-full truncate">{short}</span>
+        </a>
+      );
+    }
     return (
-      // A plain anchor, not next/link, for the same reason every nav entry
-      // below is one: this leaves the dashboard chrome for the public site's
-      // Navbar/Footer layout, and those client-side transitions were
-      // silently not completing in this environment.
-      // The hard navigation is the point here, not an oversight -- see the
-      // comment above this function.
+      <a
+        key={item.id}
+        {...navProps(item)}
+        aria-label={short !== item.label ? item.label : undefined}
+        className={`relative flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] ${
+          active ? "font-bold text-teal-700" : "font-semibold text-slate-500"
+        }`}
+      >
+        <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg`}></i>
+        <span className="max-w-full truncate px-0.5">{short}</span>
+        {badge(item.badge, "absolute left-1/2 top-1 ml-1.5 ring-2 ring-white")}
+      </a>
+    );
+  }
+
+  // Sits with the other ways out of the dashboard in every render. The four
+  // dashboards are all in NAV_HIDDEN_ROUTES (the public Navbar is kept off
+  // them), so without this the only exit is Log Out, which also ends the
+  // session.
+  function renderHomeLink(variant: "sidebar" | "rail" | "sheet", onNavigate?: () => void) {
+    const className =
+      variant === "rail"
+        ? "mx-2 flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-center text-[11px] font-semibold leading-tight text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+        : "flex min-h-11 items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900";
+    return (
+      // A plain anchor on purpose: this leaves the dashboard chrome for the
+      // public site's layout, and client-side transitions there were
+      // silently not completing.
       // eslint-disable-next-line @next/next/no-html-link-for-pages
       <a
         href="/"
@@ -324,149 +371,217 @@ export default function DashboardShell({
           markLeaving();
           onNavigate?.();
         }}
-        title={mini ? "Back to Home" : undefined}
-        className={`mt-2 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
-          mini ? "justify-center px-0" : ""
-        }`}
+        className={className}
       >
-        <i aria-hidden="true" className="fa-solid fa-house text-sm"></i>
-        {!mini && <span>Back to Home</span>}
+        <i aria-hidden="true" className={`fa-solid fa-house ${variant === "rail" ? "text-base" : "w-4 text-center text-sm"}`}></i>
+        <span>Back to Home</span>
       </a>
     );
   }
 
-  function renderFooter(mini: boolean) {
-    return (
-      <div className="mt-auto space-y-1 border-t border-slate-800 pt-3">
-        <div
-          className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2 ${mini ? "justify-center" : ""}`}
-          title={mini && userCode ? `${userName} · ${userCode}` : undefined}
-        >
-          <AvatarThumbnail url={userAvatarUrl} name={userName} size={32} />
-          {!mini && (
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-white">{userName}</p>
-              <p className="truncate text-[11px] text-slate-400">{userEmail}</p>
-              {userCode && (
-                <p className="truncate text-[10px] font-mono font-semibold text-slate-400">{userCode}</p>
-              )}
-            </div>
-          )}
-        </div>
+  function renderSignOut(variant: "sidebar" | "rail" | "sheet") {
+    if (variant === "rail") {
+      return (
         <button
           type="button"
           onClick={handleSignOut}
-          title={mini ? "Log Out" : undefined}
-          className={`group relative flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
-            mini ? "justify-center px-0" : ""
-          }`}
+          aria-label="Log Out"
+          title="Log Out"
+          className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
         >
-          <i className="fa-solid fa-arrow-right-from-bracket text-sm"></i>
-          {!mini && <span>Log Out</span>}
-          {mini && (
-            <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 scale-95 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover:scale-100 group-hover:opacity-100">
-              Log Out
-            </span>
-          )}
+          <i aria-hidden="true" className="fa-solid fa-arrow-right-from-bracket text-sm"></i>
         </button>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={handleSignOut}
+        className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition ${
+          variant === "sheet" ? "text-red-700 hover:bg-red-50" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+        }`}
+      >
+        <i aria-hidden="true" className="fa-solid fa-arrow-right-from-bracket w-4 text-center text-sm"></i>
+        <span>Log Out</span>
+      </button>
+    );
+  }
+
+  function renderIdentity(size: number) {
+    return (
+      <div className="flex min-w-0 items-center gap-2.5">
+        <AvatarThumbnail url={userAvatarUrl} name={userName} size={size} />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-slate-900">{userName}</p>
+          <p className="truncate text-xs text-slate-500">{userEmail}</p>
+          {userCode && <p className="truncate font-mono text-[11px] font-semibold text-slate-500">{userCode}</p>}
+        </div>
       </div>
     );
   }
 
-  const contentPadClass = collapsed ? "lg:pl-[76px]" : "lg:pl-64";
+  function renderBrandMark(size = "h-9 w-9") {
+    return (
+      <span className={`flex ${size} shrink-0 items-center justify-center rounded-xl bg-teal-700 text-white`}>
+        <i aria-hidden="true" className={`fa-solid ${brandIcon} text-sm`}></i>
+      </span>
+    );
+  }
+
+  const top = offsetTop ? "top-[41px] h-[calc(100vh-41px)]" : "top-0 h-screen";
 
   return (
-    // Its own full-height dark app shell (fixed sidebar + a light content
-    // pane), not a card sitting inside the site's normal centered page
-    // column -- Navbar/Footer are hidden on this exact route (see their own
-    // pathname checks) so this component owns the entire viewport, matching
-    // the Admin Dashboard's own shell.
     <div className="min-h-screen bg-slate-50">
       <SessionTimeoutDialog
         open={timedOut}
         loginHref={LOGIN_HREF_BY_BASE_PATH[basePath] ?? "/patient/login"}
       />
-      {realtimeTables && realtimeTables.length > 0 && (
-        <RealtimeRefresh tables={realtimeTables} />
-      )}
-      <div className="flex items-center justify-between bg-slate-900 px-4 py-3 lg:hidden">
-        {renderBrand(false)}
-        {navItems.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-800 hover:text-white"
-          >
-            <i className="fa-solid fa-bars"></i>
-          </button>
-        )}
-      </div>
+      {realtimeTables && realtimeTables.length > 0 && <RealtimeRefresh tables={realtimeTables} />}
 
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)}></div>
-          <nav className="absolute bottom-0 left-0 top-0 flex w-72 max-w-[85vw] flex-col overflow-y-auto bg-slate-900 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              {renderBrand(false)}
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                aria-label="Close menu"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
-              >
-                <i className="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-            <div className="mt-1 flex-1 space-y-1">
-              {navItems.map((item) => renderNavEntry(item, false, () => setMobileOpen(false)))}
-            </div>
-            {/* Same place as the desktop rail's, at the foot of the nav --
-                the drawer has no Collapse button, so it lands directly above
-                the profile/Log Out footer. */}
-            {renderHomeLink(false, () => setMobileOpen(false))}
-            {renderFooter(false)}
-          </nav>
-        </div>
-      )}
-
-      <nav
-        className={`fixed left-0 z-30 hidden flex-col bg-slate-900 p-3 transition-[width] duration-200 lg:flex ${
-          collapsed ? "w-[76px]" : "w-64"
-        } ${offsetTop ? "top-[41px] h-[calc(100vh-41px)]" : "top-0 h-screen"}`}
+      {/* Phone top bar: who this is and the way to everything else. The
+          screen's own title is the page's h1, just below it. */}
+      <header
+        className={`sticky z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 pl-4 pr-2 backdrop-blur lg:hidden ${
+          offsetTop ? "top-[41px]" : "top-0"
+        }`}
       >
-        {renderBrand(collapsed)}
-        <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
-          {navItems.map((item) => renderNavEntry(item, collapsed))}
+        <div className="flex min-w-0 items-center gap-2.5">
+          {renderBrandMark("h-8 w-8")}
+          <span className="truncate text-sm font-bold text-slate-900">{brandLabel}</span>
         </div>
-        {/* Below the nav rather than above it, and directly above Collapse:
-            leaving the dashboard is not one of this person's screens, so it
-            belongs with the other two controls that act on the sidebar
-            itself rather than at the head of the list of places to go. */}
-        {renderHomeLink(collapsed)}
         <button
           type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          className={`mt-2 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
-            collapsed ? "justify-center px-0" : ""
-          }`}
+          onClick={() => setSheetOpen(true)}
+          aria-label="Open menu"
+          aria-haspopup="dialog"
+          aria-expanded={sheetOpen}
+          className="flex h-11 w-11 items-center justify-center rounded-full"
         >
-          <i className={`fa-solid ${collapsed ? "fa-angles-right" : "fa-angles-left"} text-sm`}></i>
-          {!collapsed && <span>Collapse</span>}
+          <AvatarThumbnail url={userAvatarUrl} name={userName} size={34} />
         </button>
-        {renderFooter(collapsed)}
+      </header>
+
+      {/* Laptop icon rail */}
+      <nav
+        aria-label={`${brandLabel} navigation`}
+        className={`fixed left-0 z-30 hidden w-[88px] flex-col border-r border-slate-200 bg-white py-3 lg:flex 2xl:hidden ${top}`}
+      >
+        <div className="mb-3 flex justify-center">{renderBrandMark("h-10 w-10")}</div>
+        <div className="flex-1 space-y-1 overflow-y-auto">{navItems.map(renderRailItem)}</div>
+        <div className="space-y-1 border-t border-slate-100 pt-2">
+          {renderHomeLink("rail")}
+          <div className="flex justify-center pt-1" title={userCode ? `${userName} · ${userCode}` : userName}>
+            <AvatarThumbnail url={userAvatarUrl} name={userName} size={36} />
+          </div>
+          {renderSignOut("rail")}
+        </div>
       </nav>
 
-      <div className={`transition-[padding] duration-200 ${contentPadClass}`}>
-        <div className="px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mb-8 flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">{headerTitle}</h1>
-              {headerSubtitle && <div className="text-xs text-slate-500 mt-1">{headerSubtitle}</div>}
+      {/* Desktop sidebar */}
+      <nav
+        aria-label={`${brandLabel} navigation`}
+        className={`fixed left-0 z-30 hidden w-64 flex-col border-r border-slate-200 bg-white p-4 2xl:flex ${top}`}
+      >
+        <div className="mb-4 flex items-center gap-2.5 px-1">
+          {renderBrandMark("h-10 w-10")}
+          <span className="text-base font-bold leading-tight text-slate-900">{brandLabel}</span>
+        </div>
+        <div className="flex-1 space-y-1 overflow-y-auto">{navItems.map(renderSidebarItem)}</div>
+        <div className="mt-2 space-y-1 border-t border-slate-100 pt-3">
+          {renderHomeLink("sidebar")}
+          <div className="px-2 py-2">{renderIdentity(36)}</div>
+          {renderSignOut("sidebar")}
+        </div>
+      </nav>
+
+      {/* Phone tab bar. data-tabbar lifts anything else pinned to the
+          bottom of the screen (toasts, the live-update banner) above it --
+          see --app-bottom-inset in globals.css. */}
+      <nav
+        aria-label={`${brandLabel} navigation`}
+        data-tabbar=""
+        className="fixed inset-x-0 bottom-0 z-40 grid border-t border-slate-200 bg-white px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 lg:hidden"
+        style={{ gridTemplateColumns: `repeat(${tabs.length + 1}, minmax(0, 1fr))` }}
+      >
+        {tabs.map(renderTab)}
+        <button
+          ref={moreButtonRef}
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          aria-haspopup="dialog"
+          aria-expanded={sheetOpen}
+          aria-current={moreActive ? "page" : undefined}
+          className={`relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 text-[11px] ${
+            moreActive ? "font-bold text-teal-700" : "font-semibold text-slate-500"
+          }`}
+        >
+          <i aria-hidden="true" className="fa-solid fa-bars text-lg"></i>
+          <span>More</span>
+          {badge(more.reduce((n, item) => n + (item.badge ?? 0), 0), "absolute left-1/2 top-1 ml-1.5 ring-2 ring-white")}
+        </button>
+      </nav>
+
+      {sheetOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-slate-900/45" onClick={() => setSheetOpen(false)}></div>
+          <div
+            ref={sheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="More"
+            className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white px-4 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-2 shadow-2xl"
+          >
+            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-300" aria-hidden="true"></div>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              {renderIdentity(44)}
+              <button
+                type="button"
+                onClick={() => setSheetOpen(false)}
+                aria-label="Close menu"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+              >
+                <i aria-hidden="true" className="fa-solid fa-xmark"></i>
+              </button>
             </div>
-            {/* Always rendered, whether or not this screen passes actions of
-                its own -- every dashboard gets the same control in the same
-                place, which is the point of it. */}
+            <nav aria-label="More" className="pt-3">
+              {more.length > 0 && (
+                <div className="grid grid-cols-3 gap-2.5 pb-3">
+                  {more.map((item) => {
+                    const active = isActive(item);
+                    return (
+                      <a
+                        key={item.id}
+                        {...navProps(item, () => setSheetOpen(false))}
+                        className={`relative flex min-h-[84px] flex-col items-center justify-center gap-2 rounded-2xl px-1.5 py-3 text-center text-xs font-bold ${
+                          active ? "bg-teal-50 text-teal-800 ring-1 ring-teal-200" : "bg-slate-50 text-slate-800"
+                        }`}
+                      >
+                        <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg text-teal-700`}></i>
+                        <span className="leading-tight">{item.label}</span>
+                        {badge(item.badge, "absolute right-2 top-2")}
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="space-y-0.5 border-t border-slate-100 pt-2">
+                {renderHomeLink("sheet", () => setSheetOpen(false))}
+                {renderSignOut("sheet")}
+              </div>
+            </nav>
+          </div>
+        </div>
+      )}
+
+      <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[88px] 2xl:pl-64">
+        <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900">{headerTitle}</h1>
+              {headerSubtitle && <div className="mt-1 text-xs text-slate-500">{headerSubtitle}</div>}
+            </div>
+            {/* Always rendered: every dashboard gets the same control in the
+                same place. */}
             <div className="flex flex-wrap items-center gap-4">
               {headerActions}
               <RefreshButton />

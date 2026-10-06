@@ -5,6 +5,7 @@ import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Spinner from "@/components/system/Spinner";
+import { formatRupees } from "@/lib/formatMoney";
 
 // The therapist's own confirmation that they took payment at the door. A
 // single, fairly irreversible action -- see record-cash-collection's CAS
@@ -71,13 +72,13 @@ export default function CollectCashButton({
             <Spinner /> Saving…
           </span>
         ) : (
-          `Collect ₹${(amountPaise / 100).toLocaleString("en-IN")}`
+          `Collect ₹${formatRupees(amountPaise)}`
         )}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
       {confirming && (
         <ConfirmDialog
-          message={`Confirm you collected ₹${(amountPaise / 100).toLocaleString("en-IN")} in cash for this visit? This can't be undone.`}
+          message={`Confirm you collected ₹${formatRupees(amountPaise)} in cash for this visit? This can't be undone.`}
           onConfirm={handleConfirm}
           onCancel={() => setConfirming(false)}
         />

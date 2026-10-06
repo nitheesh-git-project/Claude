@@ -136,23 +136,17 @@ export async function readPatientCheckoutStanding(
   return "ok";
 }
 
-// Grants the same vetting a human admin would, the moment a self-signup
-// patient genuinely tries to pay for a single online session -- reaching
-// /api/razorpay/create-order for their own appointment means a real
-// Razorpay order was minted, not just a form filled in. (Home-visit and
-// package purchases are a separate, stricter judgement -- see
-// isProfileActive's own comment -- and don't call this.) Deliberately fires
-// on the *attempt*, not a completed payment: a patient who fails or
-// abandons checkout after several tries still gets straight into their
-// dashboard (with the appointment sitting there as pending payment) rather
-// than being bounced to /pending-approval for something a standalone
-// /patient/register signup, with no payment intent at all, still has to
-// wait on. That distinction -- attempted-to-pay vs merely-registered -- is
-// the whole point: it keeps a bare signup from being a free way to reach
-// the dashboard while not making a genuinely trying patient wait on a
-// human. Idempotent and best-effort: never let this failing block the
-// payment flow itself.
-export async function approvePatientForGenuinePaymentAttempt(userId: string): Promise<void> {
+// Unlocks a self-signup patient once a payment of theirs has been captured --
+// the vetting a human admin would otherwise give. Called by both verify
+// routes, the webhook (for a patient who paid and closed the tab) and
+// confirm-free. It used to fire on the first Pay tap, which handed a new
+// patient the dashboard after one cancelled payment sheet; now a locked
+// account is unlocked by a payment, or by /api/patient/payment-try once
+// `site_settings.payment_tries_before_access` tries have failed (see
+// src/lib/paymentTries.ts). A standalone /patient/register signup, with no
+// payment at all, still waits on a human. Idempotent and best-effort: never
+// let this failing undo a payment that succeeded.
+export async function approvePatientAfterPayment(userId: string): Promise<void> {
   const admin = createAdminClient();
   const { error } = await admin
     .from("profiles")
@@ -160,7 +154,7 @@ export async function approvePatientForGenuinePaymentAttempt(userId: string): Pr
     .eq("id", userId)
     .eq("approved", false);
   if (error) {
-    console.error("Failed to auto-approve patient after a genuine payment attempt", userId, error);
+    console.error("Failed to unlock patient after a captured payment", userId, error);
   }
 }
 

@@ -238,6 +238,7 @@ export default async function PatientHealthProfilePage() {
 
   const navItems = buildPatientNavItems({
     hasSuggestions: (activePlanCount ?? 0) > 0 || (pendingSuggestionCount ?? 0) > 0,
+    suggestionsWaiting: ((activePlanCount ?? 0) > 0 ? 1 : 0) + (pendingSuggestionCount ?? 0),
     hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
     hasOnlineSessions: (onlineSessionCount ?? 0) > 0,
     hasHomeVisits: (homeVisitCount ?? 0) > 0,
@@ -445,7 +446,7 @@ export default async function PatientHealthProfilePage() {
                 <h2 className="font-display text-lg font-bold text-slate-800">Are you getting better?</h2>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {specialty === "ortho"
-                    ? "The average pain your therapist measured at each exam, over time."
+                    ? "Your overall pain after each exam, over time - every exam is its own dot."
                     : specialty === "neuro"
                       ? "How much of the day you can manage on your own, each time it has been asked."
                       : "How many milestones your child has reached, each time this was updated."}

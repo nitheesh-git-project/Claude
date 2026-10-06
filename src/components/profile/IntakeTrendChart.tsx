@@ -104,7 +104,7 @@ export default function IntakeTrendChart({
                 x2={WIDTH - PAD.right}
                 y1={y(tick)}
                 y2={y(tick)}
-                stroke="#e2e8f0"
+                stroke="var(--chart-grid)"
                 strokeWidth={1}
               />
               <text x={PAD.left - 6} y={y(tick) + 3} textAnchor="end" fontSize={8} fill="#94a3b8">

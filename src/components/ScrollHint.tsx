@@ -75,7 +75,7 @@ export default function ScrollHint() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 14 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed bottom-5 right-5 z-30 sm:bottom-7 sm:right-7"
+          className="fixed bottom-[calc(1.25rem+var(--app-bottom-inset,0px))] right-5 z-30 sm:bottom-[calc(1.75rem+var(--app-bottom-inset,0px))] sm:right-7"
         >
           <motion.button
             type="button"

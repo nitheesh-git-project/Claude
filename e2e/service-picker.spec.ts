@@ -347,7 +347,12 @@ test.describe("Public booking service picker", () => {
     const { data: visits } = await admin
       .from("home_visit_packages")
       .select("title, visit_count, travel_fee_included")
-      .eq("active", true);
+      .eq("active", true)
+      // What the wizard sells: a recommendation's course row is only ever
+      // bought through its care plan, and the page leaves it out the same way.
+      .eq("care_plan_course", false)
+      .order("display_order", { ascending: true })
+      .order("id", { ascending: true });
     const sellable = (visits ?? []).filter((v) => (v.visit_count ?? 0) <= 1);
     test.skip(sellable.length === 0, "no directly bookable home visit in this project");
 

@@ -7,6 +7,8 @@ import {
   devContactFromRow,
   firstName,
   isDevReachoutStatus,
+  groupDevReachoutNotes,
+  parseDevReachoutNoteRequest,
   validateDevReachout,
 } from "./devReachout";
 
@@ -164,5 +166,71 @@ describe("devContactFromRow", () => {
     );
     expect(devContactFromRow({ dev_contact_email: "" }).email).toBe("");
     expect(devContactFromRow({ dev_contact_email: "not an email" }).email).toBe("");
+  });
+});
+
+describe("parseDevReachoutNoteRequest", () => {
+  const ID = "0b6f2a3e-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
+
+  it("adds a trimmed note to a reachout", () => {
+    expect(parseDevReachoutNoteRequest({ action: "add", reachoutId: ID, body: "  Called.  " })).toEqual({
+      ok: true,
+      value: { action: "add", reachoutId: ID, body: "Called." },
+    });
+  });
+
+  it("edits and deletes by note id", () => {
+    expect(parseDevReachoutNoteRequest({ action: "edit", noteId: ID, body: "Booked." })).toEqual({
+      ok: true,
+      value: { action: "edit", noteId: ID, body: "Booked." },
+    });
+    expect(parseDevReachoutNoteRequest({ action: "delete", noteId: ID })).toEqual({
+      ok: true,
+      value: { action: "delete", noteId: ID },
+    });
+  });
+
+  it("refuses a blank note, since removing one is its own action", () => {
+    const result = parseDevReachoutNoteRequest({ action: "add", reachoutId: ID, body: "   " });
+    expect(result.ok).toBe(false);
+  });
+
+  it("refuses a note over the column's limit", () => {
+    const body = "x".repeat(MAX_DEV_REACHOUT_NOTE_LENGTH + 1);
+    expect(parseDevReachoutNoteRequest({ action: "edit", noteId: ID, body }).ok).toBe(false);
+    expect(
+      parseDevReachoutNoteRequest({
+        action: "edit",
+        noteId: ID,
+        body: "x".repeat(MAX_DEV_REACHOUT_NOTE_LENGTH),
+      }).ok
+    ).toBe(true);
+  });
+
+  it("refuses an unknown action, a bad id, and the wrong id for the action", () => {
+    expect(parseDevReachoutNoteRequest({ action: "wipe", noteId: ID }).ok).toBe(false);
+    expect(parseDevReachoutNoteRequest({ action: "delete", noteId: "1" }).ok).toBe(false);
+    expect(parseDevReachoutNoteRequest({ action: "add", noteId: ID, body: "Hi" }).ok).toBe(false);
+    expect(parseDevReachoutNoteRequest({ action: "add", reachoutId: ID, body: 4 }).ok).toBe(false);
+  });
+});
+
+describe("groupDevReachoutNotes", () => {
+  it("groups by message, oldest first, and flattens the author", () => {
+    const grouped = groupDevReachoutNotes([
+      { id: "n2", reachout_id: "r1", body: "Second", created_at: "2026-10-05T10:00:00Z", edited_at: null, author: [{ full_name: "Asha" }] },
+      { id: "n1", reachout_id: "r1", body: "First", created_at: "2026-10-03T10:00:00Z", edited_at: "2026-10-04T10:00:00Z", author: { full_name: " Ravi " } },
+      { id: "n3", reachout_id: "r2", body: "Other", created_at: "2026-10-01T10:00:00Z", edited_at: null, author: null },
+    ]);
+    expect(grouped!.get("r1")!.map((n) => [n.body, n.authorName, n.editedAt])).toEqual([
+      ["First", "Ravi", "2026-10-04T10:00:00Z"],
+      ["Second", "Asha", null],
+    ]);
+    expect(grouped!.get("r2")![0].authorName).toBeNull();
+  });
+
+  it("keeps a failed read distinct from no notes", () => {
+    expect(groupDevReachoutNotes(null)).toBeNull();
+    expect(groupDevReachoutNotes([])!.size).toBe(0);
   });
 });

@@ -27,6 +27,11 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   which entries exist stays in the always-loaded core, or the nav would
   change shape as you move between screens. Anything rendered by more than one route
   (the session cards) is a real component, not a closure.
+  A detail page under a section (a patient's chart at
+  `/therapist/dashboard/health-profile/[id]`) keeps that section lit in the
+  sidebar (`DashboardShell` matches `href` + `/`, never the base path), so
+  the sidebar is the way back and the page carries no "Back to ..." link
+  (`e2e/therapist-patient-chart.spec.ts`).
 - **A dashboard read that can pass 1,000 rows is paged, and the one every
   screen is built from says when it failed.** The patient and therapist
   loaders read each appointment column group with `readAllRowsAsData`
@@ -318,7 +323,83 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an
   explicit link the only exit is Log Out, which also ends the session. Both
   shells (`dashboard/DashboardShell.tsx`, `admin/AdminShell.tsx`) carry a
-  **Back to Home** entry in all three renders
-  (expanded, collapsed rail, mobile drawer). It is a plain `<a>`, not
+  **Back to Home** entry in every render (sidebar, icon rail, phone More
+  sheet / admin menu). It is a plain `<a>`, not
   `next/link`, for the reason the nav entries document: client-side
   transitions into a differently-chromed route were silently not completing.
+- **An online session's tile says when its Meet link shows.** With no link
+  yet, `JoinSessionButton` renders a note in place of the button - "The Meet
+  link will show here - you can join from 5:45 pm" (or "...once a therapist
+  is confirmed..." while requested) - and the greyed button's caption names
+  the same clock time. The time is the slot less `join_window_minutes`,
+  printed through `formatClinicTime`. Admin surfaces (`alwaysActive`) get
+  neither. `e2e/meet-link-note.spec.ts`.
+- **Something waiting in Suggested Sessions is named on every patient
+  screen.** `buildSuggestedTeaser()` (`src/lib/suggestedTeaser.ts`) picks a
+  recommendation awaiting the patient's answer first, then proposed times,
+  and `SuggestedTeaserBar` renders it as one link above every screen's
+  content except Suggested Sessions itself. A plan the clinic has not
+  approved, or one that has lapsed, is not mentioned. So the loader reads
+  the live plan and pending suggestions on **every** screen - which also
+  keeps the sidebar's Suggested entry from appearing and disappearing as the
+  patient moves between tabs. `e2e/recommendation-course.spec.ts` RC-006.
+
+- **Navigation is chosen by width, and only one form is ever displayed.**
+  Below `lg` a dashboard has a **bottom tab bar**: the four screens a role
+  opens most (`TABS_BY_BASE_PATH` in `src/lib/dashboardNavItems.ts`, split by
+  `splitTabs` in `src/lib/dashboardTabs.ts`), with Book / Refer raised in
+  the middle, and **More** opening a sheet with every other entry, the
+  person's identity, Back to Home and Log Out. An entry a person does not
+  have yet (Sessions before their first booking) is skipped, never a gap.
+  From `lg` to `2xl` it is an **88px icon rail** with a one-word label
+  (`short`) under each icon; from `2xl` the **full sidebar**. The full label
+  stays the accessible name in every form, so a link is found by the same
+  words at any width, and the active entry carries `aria-current="page"` --
+  assert on that, not on a colour class. There is no Collapse button: the
+  rail is what a laptop gets. The admin shell follows the same widths: on a
+  phone two shortcuts (`adminShortcuts` in `src/lib/adminMobileNav.ts`,
+  only screens this scope can open), Search and **All sections**, which opens
+  a menu with a **Find a screen** filter (`filterAdminScreens`); the rail
+  keeps the scope label under the logo; below `2xl` a section's screens are a
+  strip above its content instead of nested in the sidebar. Anything else
+  pinned to the bottom of the screen (toasts, the live-update banner, the
+  scroll hint) adds `--app-bottom-inset`, which a `data-tabbar` element sets
+  in `globals.css`, so nothing sits under the bar. The onboarding tour finds
+  its targets by `data-tour="nav-<id>"` on whichever copy is visible.
+- **From `2xl` the dashboards use the width by moving blocks, never by adding
+  them.** The Overview's blocks are placed by `.overview-grid` (globals.css):
+  stacked on a phone; feed and Quick actions side by side from `lg`; from
+  `2xl` the headline and Quick actions form a right-hand panel beside the
+  figures and the feed. Sessions (`SessionFilterList`) shows a compact row
+  per session on the left and the chosen session's card on the right
+  (`.session-split`); each card is still rendered exactly once, so nothing
+  in a card -- a half-typed form included -- is ever on the page twice. The
+  row's words come from the caller (`title`, `detail`) and are the ones the
+  card already leads with; its status word is `sessionRowStatus`, which says
+  No-show rather than Completed. The calendar puts the chosen day's cards
+  beside the month (`.calendar-split`) instead of below the fold. Below
+  `2xl` all three are exactly as they were.
+- **The phone's More button carries the Suggested badge.** Suggested
+  Sessions is not on the patient tab bar (Progress is: the teaser banner
+  already names the suggestion on every screen), so the entry's badge --
+  `suggestionsWaiting`, a live plan once plus each proposed time -- is
+  summed onto More, where the entry lives. The sidebar and rail show it on
+  the entry itself.
+- **A session rating is a card, and its quick picks live in the feedback
+  text.** `SessionFeedbackForm` (patient and therapist) asks for stars
+  first, then offers picks that suit the score (`picksFor` in
+  `src/lib/feedbackPicks.ts`: what went well from 3 stars, what could be
+  better at 1-2), then an optional note. The picks are saved at the front of
+  the ordinary feedback text joined by " · " (`composeFeedback`), so there is
+  no new column, and every screen that shows feedback splits them back out
+  with `splitFeedback` -- only leading recognised phrases count, so an old
+  free-text note stays a note. Sending ends on a short thank-you (a tick
+  that draws itself and a small burst, the `fb-*` keyframes in globals.css;
+  reduced motion lands on the final frame), shown only in the page where it
+  was sent; a later visit shows a still summary. Neither side ever sees the
+  other's rating, and the card says so to the therapist. The admin drawer
+  draws each side as its own card (`FeedbackBody`, amber when excluded,
+  Exclude and Clear as real buttons), tables use `RatingChip` ("★ 4.0", a
+  bubble when there is a note, struck through when excluded), and
+  `RatingManager` shows the average with a bar per star level from
+  `computeRatingAggregate().distribution`. `e2e/session-feedback.spec.ts`.

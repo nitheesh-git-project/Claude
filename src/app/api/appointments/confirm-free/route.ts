@@ -5,10 +5,11 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import {
   isProfileActive,
   isPatientProfile,
-  approvePatientForGenuinePaymentAttempt,
+  approvePatientAfterPayment,
   profileCheckUnavailable,
 } from "@/lib/supabase/requireActiveProfile";
 import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
+import { pricingForRequest } from "@/lib/countryPricingServer";
 import { isGatewayPayable } from "@/lib/discounts";
 import { confirmPaidAppointment } from "@/lib/confirmPaidAppointment";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
@@ -95,13 +96,17 @@ export async function POST(request: NextRequest) {
   // Reaching here means a signed-in patient is genuinely completing their own
   // real booking, which is the vetting -- the same reason create-order
   // approves on the attempt rather than on a completed payment.
-  await approvePatientForGenuinePaymentAttempt(user.id);
+  await approvePatientAfterPayment(user.id);
 
   const admin = createAdminClient();
+  // Priced as the quote was, for the request's country -- a fixed discount
+  // that clears a rupee price may not clear the same service priced abroad.
+  const { pricing } = await pricingForRequest(admin, request);
   const quote = await resolveCheckoutQuote(admin, {
     appointment,
     promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
     claim: true,
+    pricing,
   });
 
   if (quote.promoError) {

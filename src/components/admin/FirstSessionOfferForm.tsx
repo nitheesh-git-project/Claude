@@ -3,6 +3,7 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
+import { formatRupees } from "@/lib/formatMoney";
 
 /**
  * The one standing discount: what a patient pays for their first session.
@@ -93,7 +94,7 @@ export default function FirstSessionOfferForm({
         ? Math.round(raw * 100)
         : Math.floor(sampleListPricePaise * (1 - Math.min(100, raw) / 100));
     if (payable >= sampleListPricePaise) return "That is not less than the session price.";
-    const inr = (p: number) => `₹${(p / 100).toLocaleString("en-IN")}`;
+    const inr = (p: number) => `₹${formatRupees(p)}`;
     return `A ${inr(sampleListPricePaise)} session would cost a new patient ${inr(
       Math.max(100, payable)
     )}.`;

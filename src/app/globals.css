@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./dark-theme.css";
 /* Solid only, deliberately -- not all.min.css.
  *
  * `all.min.css` declares @font-face for every Font Awesome style (solid,
@@ -27,6 +28,37 @@
      system face instead of the self-hosted files. */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Room taken at the bottom of the screen by a pinned bar -- the dashboards'
+   phone tab bar, the public site's phone Book bar. Anything else pinned to
+   the bottom (toasts, the live-update banner, the scroll hint) adds this,
+   so it sits above the bar instead of under it. Set by the bar's own
+   presence, so a page without one pays nothing. */
+:root {
+  --app-bottom-inset: 0px;
+}
+
+/* Chart colours. SVG presentation attributes (fill, stroke) are not reached
+   by Tailwind classes, so the charts read these; dark-theme.css swaps them
+   when the app is dark. */
+:root {
+  --chart-ink: #0f172a;
+  --chart-grid: #e2e8f0;
+  --chart-grid-soft: #f1f5f9;
+  --chart-axis: #64748b;
+  --chart-neutral: #475569;
+  --chart-brand: #0f766e;
+  --chart-brand-soft: #0d9488;
+  --chart-indigo: #4f46e5;
+  --chart-amber: #b45309;
+  --chart-rose: #be123c;
+  --chart-pending: #99f6e4;
+}
+@media (max-width: 1023.98px) {
+  body:has([data-tabbar]) {
+    --app-bottom-inset: calc(4.5rem + env(safe-area-inset-bottom));
+  }
 }
 
 @theme inline {
@@ -120,6 +152,14 @@ html[data-splash="leaving"] .splash-screen {
    just stops a stray wheel event moving it while it cannot be seen. */
 html[data-splash] body {
   overflow: hidden;
+}
+
+/* Local prices: a visitor outside India gets prices hidden for the moment
+   between first paint and PricingProvider formatting them, so the cached
+   rupee figure never flashes. The head script in the root layout sets the
+   attribute and clears it after 3s whatever happens. */
+html[data-pricing-pending] [data-price] {
+  visibility: hidden;
 }
 
 .splash-screen__glow {
@@ -423,6 +463,215 @@ html[data-splash] body {
 
 @media (prefers-reduced-motion: reduce) {
   .form-validation-message {
+    animation: none;
+  }
+}
+
+/* DashboardOverview's blocks, placed by width. Column gap only: a block
+   that is absent (no banner, no headline) leaves an empty row, and a row
+   gap there would show as a hole -- each block carries its own space
+   below instead. */
+.overview-grid {
+  display: grid;
+  column-gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "banner" "head" "strip" "feed" "side";
+  align-items: start;
+}
+.overview-grid > * { margin-bottom: 1.25rem; min-width: 0; }
+.overview-grid > .ov-banner { grid-area: banner; }
+.overview-grid > .ov-head { grid-area: head; }
+.overview-grid > .ov-strip { grid-area: strip; }
+.overview-grid > .ov-feed { grid-area: feed; }
+.overview-grid > .ov-side { grid-area: side; }
+@media (min-width: 1024px) {
+  .overview-grid {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    grid-template-areas: "banner banner" "head head" "strip strip" "feed side";
+  }
+}
+@media (min-width: 1536px) {
+  .overview-grid {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-areas: "banner banner" "strip head" "feed side";
+  }
+  /* Stretched so its edges line up with the figures beside it. */
+  .overview-grid > .ov-head { align-self: stretch; }
+}
+
+/* SessionCalendarTab: stacked below 2xl; month beside the chosen day from
+   2xl, the month's motivation card under the month. */
+@media (min-width: 1536px) {
+  .calendar-split {
+    display: grid;
+    grid-template-columns: minmax(0, 720px) minmax(0, 1fr);
+    grid-template-areas: "month day" "motivation day";
+    grid-template-rows: auto 1fr;
+    column-gap: 1.5rem;
+    align-items: start;
+  }
+  .calendar-split > .cal-month { grid-area: month; }
+  .calendar-split > .cal-day { grid-area: day; }
+  .calendar-split > .cal-motivation { grid-area: motivation; }
+}
+
+/* SessionFilterList from 2xl: compact rows in the first column, one per
+   page row, and the chosen card spanning all of them in the second. The
+   trailing 1fr row takes the card's extra height, so a tall card never
+   stretches the rows beside it. */
+@media (min-width: 1536px) {
+  .session-split {
+    grid-template-columns: 440px minmax(0, 1fr);
+    grid-template-rows: repeat(var(--rows, 1), auto) 1fr;
+    column-gap: 1.25rem;
+    row-gap: 0.5rem;
+  }
+  .session-split .session-split-row { grid-column: 1; }
+  .session-split .session-split-card {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    align-self: start;
+    position: sticky;
+    top: 1.5rem;
+  }
+}
+
+/* Session rating card (SessionFeedbackForm). A star pops when chosen, each
+   one up to it a beat later; the thank-you springs a tick in and fans a
+   few dots out. Reduced motion lands on the final frame at once. */
+@keyframes fb-pop { 0% { transform: scale(1); } 45% { transform: scale(1.32); } 100% { transform: scale(1); } }
+@keyframes fb-ripple { from { transform: scale(0.4); opacity: 0.45; } to { transform: scale(1.9); opacity: 0; } }
+@keyframes fb-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fb-grow { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes fb-draw { to { stroke-dashoffset: 0; } }
+@keyframes fb-burst {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; }
+}
+.fb-pop { animation: fb-pop 340ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.fb-ripple { animation: fb-ripple 520ms ease-out both; }
+.fb-rise { animation: fb-rise 260ms ease-out both; }
+.fb-grow { animation: fb-grow 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.fb-draw { stroke-dasharray: 40; stroke-dashoffset: 40; animation: fb-draw 360ms ease-out 260ms forwards; }
+.fb-burst { animation: fb-burst 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 220ms both; }
+@media (prefers-reduced-motion: reduce) {
+  .fb-pop, .fb-ripple, .fb-rise, .fb-grow, .fb-burst { animation: none; }
+  .fb-ripple, .fb-burst { opacity: 0; }
+  .fb-draw { animation: none; stroke-dashoffset: 0; }
+}
+
+/* The word-roll loader (src/components/system/WordRollLoader.tsx).
+   Five words, each on screen for one 1.3s beat: the track holds for 60% of
+   a beat, then eases up one row. Rows are the five words three times over
+   and the track travels exactly one set per cycle, so the loop is seamless.
+   Each word's own highlight runs on the same 6.5s cycle, offset by a
+   negative delay so word N is lit while it sits in the middle row. */
+.word-roll {
+  --row: 42px;
+  --font: 28px;
+  --beat: 1300ms;
+  --cycle: calc(var(--beat) * 5);
+  position: relative;
+  height: calc(var(--row) * 7);
+  width: 15.5rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(transparent 4%, #000 38%, #000 62%, transparent 96%);
+  mask-image: linear-gradient(transparent 4%, #000 38%, #000 62%, transparent 96%);
+}
+.word-roll--sm {
+  --row: 26px;
+  --font: 17px;
+  width: 9.5rem;
+}
+.word-roll__track {
+  position: absolute;
+  left: calc(var(--font) * 1.45);
+  top: calc(var(--row) * 3);
+  display: flex;
+  flex-direction: column;
+  /* Starts with the second set's first word in the middle row. */
+  transform: translateY(calc(var(--row) * -5));
+  animation: word-roll-track var(--cycle) infinite;
+}
+.word-roll__row {
+  height: var(--row);
+  line-height: var(--row);
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--font);
+  letter-spacing: -0.01em;
+  color: var(--color-teal-700);
+  opacity: 0.16;
+  animation: word-roll-lit var(--cycle) infinite;
+  animation-delay: calc((var(--word-i) - 5) * var(--beat));
+}
+@keyframes word-roll-track {
+  0%, 12% { transform: translateY(calc(var(--row) * -5)); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  20%, 32% { transform: translateY(calc(var(--row) * -6)); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  40%, 52% { transform: translateY(calc(var(--row) * -7)); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  60%, 72% { transform: translateY(calc(var(--row) * -8)); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  80%, 92% { transform: translateY(calc(var(--row) * -9)); animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+  100% { transform: translateY(calc(var(--row) * -10)); }
+}
+/* Lit for its own beat (and easing in over the move that brings it in). */
+@keyframes word-roll-lit {
+  0%, 12% { opacity: 1; color: var(--color-slate-900); }
+  20%, 92% { opacity: 0.16; color: var(--color-teal-700); }
+  100% { opacity: 1; color: var(--color-slate-900); }
+}
+.word-roll__dots {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: calc(var(--font) * 1.1);
+  height: calc(var(--font) * 0.45);
+  transform: translateY(-50%);
+}
+.word-roll__dots > span {
+  position: absolute;
+  bottom: 0;
+  width: calc(var(--font) * 0.25);
+  height: calc(var(--font) * 0.25);
+  border-radius: 9999px;
+  background: var(--color-teal-600);
+  animation: word-roll-dot 1300ms cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.word-roll__dots > span:nth-child(1) { left: 0; }
+.word-roll__dots > span:nth-child(2) { left: 38%; animation-delay: 120ms; }
+.word-roll__dots > span:nth-child(3) { left: 76%; animation-delay: 240ms; }
+@keyframes word-roll-dot {
+  0%, 100% { transform: translateY(0) scale(0.8); opacity: 0.5; }
+  35% { transform: translateY(calc(var(--font) * -0.32)) scale(1); opacity: 1; }
+  60% { transform: translateY(0) scale(1); opacity: 1; }
+}
+/* Fades in rather than snapping: it only ever appears after a 300ms wait,
+   and a hard cut at that point reads as the page breaking. */
+.navigation-loader {
+  animation: navigation-loader-in 220ms ease-out both;
+}
+@keyframes navigation-loader-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .word-roll__track,
+  .word-roll__dots > span {
+    animation: none;
+  }
+  .word-roll__row {
+    animation: none;
+  }
+  /* Standing still on "Move", the first word of the middle set. */
+  .word-roll__row:nth-child(6) {
+    opacity: 1;
+    color: var(--color-slate-900);
+  }
+  .navigation-loader {
     animation: none;
   }
 }

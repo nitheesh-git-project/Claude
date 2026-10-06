@@ -102,3 +102,18 @@ Every one of these is a separate test in Section 15:
 | Double therapist payout | `therapist_payout_paid_at` CAS on settle | `PAY-DUP-005` |
 | Double partner commission | Commission derived from net revenue per appointment, not accumulated | `PAY-DUP-006` |
 | A ledger credit granted twice | Idempotency key derived from the appointment/payment id, never random | `PAY-DUP-007` |
+
+### 9.6 Prices outside India
+
+Configured on **Catalog -> Countries & currency**. Use the debug bar's **Country** dropdown to test as a visitor from anywhere; it is honoured by the browser and by every checkout route while the bar exists.
+
+| Step | Expected | Test |
+| --- | --- | --- |
+| Refresh rates, switch the United States on at +100%, turn local prices on | The row reads ₹499 -> ₹998 -> $10.35 -> **$10.99**, Razorpay charges ₹1,059.79 | `CP-001` |
+| Debug Country = United States, open /conditions | Every price in $, ending .99; no ₹ figure flashes first | `CP-002` |
+| Book a video session as that visitor | The payment screen totals in $ and names the rupee amount the card will show; Razorpay's sheet shows that rupee amount | `CP-002` (quote) |
+| Debug Country = India | Every price back to ₹, unchanged | `CP-002` |
+| As the US visitor, open /home-visit and /book-home-visit | "Home visits are only available in India", with a link to a video session; no Home Visit link in the nav | `CP-002` |
+| Switch on a country that has no rate | Refused, naming the country | `CP-003` |
+| Turn "Home visits outside India" on | Home visits return for the US visitor, still priced in ₹ | manual |
+| Turn "Visitors may choose their country" off | The footer picker disappears and location alone decides | manual |

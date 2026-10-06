@@ -15,7 +15,7 @@ export default function ToastViewport() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[9997] flex flex-col items-center gap-2 px-4 pb-4 sm:items-end sm:px-6 sm:pb-6"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[9997] flex flex-col items-center gap-2 px-4 pb-[calc(1rem+var(--app-bottom-inset,0px))] sm:items-end sm:px-6 sm:pb-[calc(1.5rem+var(--app-bottom-inset,0px))]"
       // One region for the stack, so a screen reader hears the sentence
       // rather than a region change per toast.
       role="status"

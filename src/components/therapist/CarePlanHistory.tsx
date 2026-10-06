@@ -4,9 +4,10 @@ import type {
   CarePlanHistoryVersion as HistoryRow,
   CarePlanReviewRecord,
 } from "@/lib/carePlanServer";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 // Clinician-facing wording. The patient never reads a `pending_review` or

@@ -1,23 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import type { CarePlanOfferKind, CarePlanOfferSnapshot } from "@/lib/carePlans";
+import {
+  coursePricePaise,
+  MAX_COURSE_SESSIONS,
+  MIN_COURSE_SESSIONS,
+  offerKindFor,
+  type RecommendableRate,
+} from "@/lib/carePlans";
+import { formatRupees } from "@/lib/formatMoney";
 
-export type RecommendableOption = {
-  id: string;
-  kind: CarePlanOfferKind;
-  title: string;
-  snapshot: CarePlanOfferSnapshot;
-  /** The condition this package treats, or null for one an admin left
-   *  unattached. */
-  categoryId: string | null;
-  /** The condition's own name, and which of the three condition types it
-   *  belongs to. Both may be null in a database where an admin has not
-   *  tagged the category; the picker then falls back to one ungrouped list,
-   *  which is exactly how it read before. */
-  categoryTitle: string | null;
-  specialty: "ortho" | "neuro" | "pediatrics" | null;
-};
+/** One condition at one delivery mode's per-session price. Loaded on the
+ *  server (`loadRecommendableRates`) so every number here is the catalog's. */
+export type RecommendableOption = RecommendableRate;
 
 /** Clinician-facing names for the three condition types. Kept here rather
  *  than imported from conditionSpecialty.ts because that module is the
@@ -30,11 +25,11 @@ const SPECIALTY_LABELS: Record<string, string> = {
   pediatrics: "Paediatric",
 };
 
-const UNATTACHED = "__unattached__";
-
 export type CarePlanDraft = {
-  offerKind: CarePlanOfferKind;
-  packageId: string;
+  categoryId: string;
+  sessionCount: number;
+  /** Also the delivery mode: hands-on is home visits, otherwise video
+   *  (`offerKindFor`). There is no second switch to disagree with it. */
   handsOnRequired: boolean;
   frequencyPerWeek: number | null;
   clinicalRationale: string;
@@ -43,67 +38,63 @@ export type CarePlanDraft = {
 
 const MAX_RATIONALE = 800;
 const MAX_INSTRUCTIONS = 800;
+const DEFAULT_SESSIONS = 6;
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 /**
- * What a therapist may recommend, and only what they may recommend.
+ * What a therapist recommends: a condition, how many sessions, whether it
+ * needs hands-on treatment, how often, and why.
  *
- * There is no price field here, no session-count field and no discount
- * field, and that is the whole design rather than an oversight: everything
- * financial comes from the admin-configured programme the clinician picks.
- * The four things below are clinical judgement, which is theirs.
+ * The price is never typed. It is the condition's own per-session price --
+ * the online consultation price, or the home-visit price when hands-on is
+ * ticked -- times the number, shown live so the clinician sees what the
+ * patient will be asked to pay. The server re-derives it from the catalog.
  *
  * Collapsed by default. A therapist finishing a note usually has nothing to
- * recommend - most sessions are somewhere in the middle of a plan, not at
- * the point of proposing one - so this stays out of the way until asked
- * for, rather than being another required-looking section between them and
- * the Save button.
+ * recommend, so this stays out of the way until asked for.
  */
 export default function CarePlanFields({
   options,
+  defaultCategoryId = null,
   value,
   onChange,
   needsApproval = true,
   awaitingClinic = false,
 }: {
   options: RecommendableOption[];
+  /** The session's own condition, picked first. Any condition can still be
+   *  chosen -- a clinician may well recommend for a different one. */
+  defaultCategoryId?: string | null;
   value: CarePlanDraft | null;
   onChange: (next: CarePlanDraft | null) => void;
-  /**
-   * Whether the clinic reviews this before the patient sees it.
-   *
-   * Only copy depends on it, and that is the whole reason it is here:
-   * telling a clinician "they see it on their dashboard" while it in fact
-   * goes to a queue is the same class of mistake as telling a patient they
-   * left a draft half-finished when a therapist did. Defaults to the safer
-   * sentence, which is the one that promises less.
-   */
+  /** Whether the clinic reviews this before the patient sees it. Only copy
+   *  depends on it; defaults to the sentence that promises less. */
   needsApproval?: boolean;
-  /**
-   * This patient already has a recommendation sitting in the clinic's
-   * queue.
-   *
-   * Writing another is allowed - it lands as a new version on the same
-   * thread, which is right when a clinician has genuinely changed their
-   * mind - but doing it without being told is how the same plan gets
-   * submitted twice by someone who assumed the first one had failed.
-   */
+  /** This patient already has a recommendation sitting in the clinic's
+   *  queue; writing another replaces it, and they should know that. */
   awaitingClinic?: boolean;
 }) {
   const [open, setOpen] = useState(value !== null);
+  // Kept as text so the field can be cleared while typing; the draft holds
+  // the last whole number.
+  const [countText, setCountText] = useState(String(value?.sessionCount ?? DEFAULT_SESSIONS));
 
-  const selected = value ? options.find((o) => o.id === value.packageId) ?? null : null;
+  // The condition list is the online one: every active condition has a video
+  // price, and the same conditions are what home visits are recommended for.
+  const conditions = options.filter((o) => o.kind === "session_package");
 
   function start() {
     setOpen(true);
-    const first = options[0];
+    const first =
+      conditions.find((o) => o.categoryId === defaultCategoryId) ?? conditions[0];
     if (!first) return;
+    setCountText(String(DEFAULT_SESSIONS));
     onChange({
-      offerKind: first.kind,
-      packageId: first.id,
+      categoryId: first.categoryId,
+      sessionCount: DEFAULT_SESSIONS,
       handsOnRequired: false,
       frequencyPerWeek: null,
       clinicalRationale: "",
@@ -129,13 +120,13 @@ export default function CarePlanFields({
             <p className="text-sm font-semibold text-slate-800">Recommend treatment</p>
             {awaitingClinic ? (
               <p className="mt-1 max-w-md text-xs text-slate-500">
-                You have already recommended a programme for this patient and the clinic
+                You have already recommended treatment for this patient and the clinic
                 has not decided yet - nothing has gone wrong, and your patient has not
                 been asked for anything. Writing another replaces it.
               </p>
             ) : (
               <p className="mt-1 max-w-md text-xs text-slate-500">
-                Optional. Propose a programme for this patient.{" "}
+                Optional. Propose a course of sessions for this patient.{" "}
                 {needsApproval
                   ? "The clinic checks it, then your patient decides whether to go ahead."
                   : "They see it on their dashboard and decide whether to go ahead."}{" "}
@@ -146,88 +137,55 @@ export default function CarePlanFields({
           <button
             type="button"
             onClick={start}
-            className="rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-slate-300"
+            disabled={conditions.length === 0}
+            className="rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-slate-300 disabled:opacity-60"
           >
             {awaitingClinic ? "Replace it" : "Add a recommendation"}
           </button>
         </div>
+        {conditions.length === 0 && (
+          <p className="mt-2 text-[11px] text-slate-500">
+            No condition has a price set yet, so there is nothing to recommend. An admin
+            sets them on Catalog → Conditions.
+          </p>
+        )}
       </div>
     );
   }
 
-  // Everything below is derived from `options` and the current selection --
-  // no second piece of state, so the condition, the delivery mode and the
-  // count cannot disagree about which programme is selected.
-  const conditionKey = selected?.categoryId ?? UNATTACHED;
-
-  const conditionMeta = new Map<
-    string,
-    { key: string; label: string; specialty: string | null }
-  >();
-  for (const o of options) {
-    const key = o.categoryId ?? UNATTACHED;
-    if (conditionMeta.has(key)) continue;
-    conditionMeta.set(key, {
-      key,
-      label: o.categoryTitle ?? (o.categoryId ? o.title : "Any condition"),
-      specialty: o.specialty,
-    });
-  }
+  const handsOn = value?.handsOnRequired ?? false;
+  const kind = offerKindFor(handsOn);
+  const condition = conditions.find((o) => o.categoryId === value?.categoryId) ?? null;
+  const homeRate = options.find(
+    (o) => o.kind === "home_visit_package" && o.categoryId === value?.categoryId
+  );
+  const rate = handsOn ? homeRate ?? null : condition;
+  const unit = handsOn ? "visit" : "session";
+  const units = handsOn ? "visits" : "sessions";
+  const count = value?.sessionCount ?? 0;
+  const countValid =
+    Number.isInteger(count) && count >= MIN_COURSE_SESSIONS && count <= MAX_COURSE_SESSIONS;
+  const total = rate && countValid ? coursePricePaise(rate.perSessionPaise, count) : null;
 
   // Grouped by condition type where an admin has tagged them, and under
-  // **General** where they have not -- a database mid-migration reads as one
-  // flat list rather than as an empty picker.
-  //
-  // "General" rather than "Other", which is what this said first. An
-  // untagged condition is almost always the general consultation every
-  // clinic carries, and "Other" reads as a leftover bin the clinician is
-  // being asked to apologise for picking from. It is also honest about what
-  // the tag is for: `specialty` groups this picker, and it is deliberately
-  // **not** a fourth condition type -- a patient's own health profile is
-  // ortho, neuro or paediatric, decided by the therapist at triage, and
-  // nobody's record should ever be "general".
-  const groupedConditions = (() => {
-    const order = ["ortho", "neuro", "pediatrics", null];
-    const groups: { label: string; conditions: { key: string; label: string }[] }[] = [];
+  // **General** where they have not.
+  const groups = (() => {
+    const order = ["ortho", "neuro", "pediatrics", null] as const;
+    const out: { label: string; items: RecommendableOption[] }[] = [];
     for (const specialty of order) {
-      const conditions = [...conditionMeta.values()]
+      const items = conditions
         .filter((c) => c.specialty === specialty)
-        .sort((a, b) => a.label.localeCompare(b.label));
-      if (conditions.length === 0) continue;
-      groups.push({
-        label: specialty ? SPECIALTY_LABELS[specialty] : "General",
-        conditions,
-      });
+        .sort((a, b) => a.categoryTitle.localeCompare(b.categoryTitle));
+      if (items.length) out.push({ label: specialty ? SPECIALTY_LABELS[specialty] : "General", items });
     }
-    return groups;
+    return out;
   })();
 
-  const forCondition = options.filter(
-    (o) => (o.categoryId ?? UNATTACHED) === conditionKey
-  );
-  const kindsForCondition = [...new Set(forCondition.map((o) => o.kind))];
-  const countChoices = forCondition
-    .filter((o) => o.kind === (value?.offerKind ?? kindsForCondition[0]))
-    .sort((a, b) => a.snapshot.sessionCount - b.snapshot.sessionCount);
-
-  /** Moving condition or delivery mode lands on a real programme rather than
-   *  on nothing: a picker that can sit in a state with no package selected
-   *  is a Save button that fails for a reason nobody can see. */
-  function selectCondition(key: string) {
-    const first = options.find((o) => (o.categoryId ?? UNATTACHED) === key);
-    if (!first) return;
-    patch({ packageId: first.id, offerKind: first.kind, frequencyPerWeek: null });
+  function setCount(text: string) {
+    setCountText(text);
+    const n = Number(text);
+    patch({ sessionCount: text.trim() === "" ? 0 : n });
   }
-
-  function selectKind(kind: CarePlanOfferKind) {
-    const first = forCondition
-      .filter((o) => o.kind === kind)
-      .sort((a, b) => a.snapshot.sessionCount - b.snapshot.sessionCount)[0];
-    if (!first) return;
-    patch({ packageId: first.id, offerKind: first.kind, frequencyPerWeek: null });
-  }
-
-  const cap = Math.min(7, selected?.snapshot.maxPerWeek ?? 7);
 
   return (
     <div className="space-y-4 rounded-xl border border-teal-200 bg-teal-50/40 p-4">
@@ -249,147 +207,90 @@ export default function CarePlanFields({
         </button>
       </div>
 
-      {/* Two questions, in the order a clinician thinks in: what kind of
-          patient is this, and how much treatment do they need. The
-          programme's name never appears, because it is not a decision --
-          the condition and the number of sessions pick exactly one
-          admin-configured row, and every number on it comes from that row.
-          A single list of programme titles asked the clinician to translate
-          their judgement into somebody's product name first, which is how
-          the wrong one gets picked. */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
+      <div className="flex gap-3">
+        {condition?.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={condition.imageUrl}
+            alt=""
+            className="hidden h-16 w-16 shrink-0 rounded-lg object-cover sm:block"
+          />
+        )}
+        <div className="flex-1">
           <label htmlFor="care-plan-condition" className="block text-xs font-semibold text-slate-700">
             Condition
           </label>
           <select
             id="care-plan-condition"
-            value={conditionKey}
-            onChange={(e) => selectCondition(e.target.value)}
+            value={value?.categoryId ?? ""}
+            onChange={(e) => {
+              const nextHome = options.some(
+                (o) => o.kind === "home_visit_package" && o.categoryId === e.target.value
+              );
+              patch({
+                categoryId: e.target.value,
+                // A condition with no home-visit price cannot stay hands-on.
+                handsOnRequired: handsOn && nextHome,
+              });
+            }}
             className="mt-1.5 w-full rounded-xl border border-slate-300 p-2.5 text-sm focus:border-teal-500 focus:outline-none"
           >
-            {groupedConditions.map((group) => (
-              <optgroup key={group.label} label={group.label}>
-                {group.conditions.map((c) => (
-                  <option key={c.key} value={c.key}>
-                    {c.label}
+            {groups.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.items.map((c) => (
+                  <option key={c.categoryId} value={c.categoryId}>
+                    {c.categoryTitle}
                   </option>
                 ))}
               </optgroup>
             ))}
           </select>
         </div>
-
-        {/* Only where the clinic sells both against this condition. A toggle
-            with one option is a decision the clinician does not have. */}
-        {kindsForCondition.length > 1 && (
-          <div>
-            <span className="block text-xs font-semibold text-slate-700">Delivered as</span>
-            <div className="mt-1.5 flex gap-2">
-              {kindsForCondition.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => selectKind(k)}
-                  className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-                    value?.offerKind === k
-                      ? "border-teal-600 bg-teal-700 text-white"
-                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {k === "home_visit_package" ? "Home visits" : "Video sessions"}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       <div>
-        <span className="block text-xs font-semibold text-slate-700">
-          How many {value?.offerKind === "home_visit_package" ? "visits" : "sessions"}
-        </span>
-        <p className="mb-1.5 mt-0.5 text-[11px] text-slate-500">
-          Price, validity and the scheduling rules come with the number - they are set by
-          the clinic, not here.
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+          <input
+            type="checkbox"
+            checked={handsOn}
+            disabled={!homeRate}
+            onChange={(e) => patch({ handsOnRequired: e.target.checked, frequencyPerWeek: null })}
+            className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-500"
+          />
+          Needs hands-on treatment
+        </label>
+        <p className="mt-1 pl-6 text-[11px] text-slate-500">
+          {homeRate
+            ? handsOn
+              ? "Delivered as home visits - your therapist goes to the patient."
+              : "Leave unticked for video sessions. Tick it and the course becomes home visits."
+            : "Home visits aren't offered right now, so this is a course of video sessions."}
         </p>
-        {countChoices.length === 0 ? (
-          <p className="rounded-lg bg-white p-3 text-[11px] text-slate-500">
-            The clinic has nothing configured for this condition yet. An admin adds the
-            programmes on Catalog → Packages.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {countChoices.map((o) => (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() =>
-                  patch({ packageId: o.id, offerKind: o.kind, frequencyPerWeek: null })
-                }
-                className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
-                  value?.packageId === o.id
-                    ? "border-teal-600 bg-teal-700 text-white"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <span className="block font-bold">
-                  {o.snapshot.sessionCount}{" "}
-                  {o.kind === "home_visit_package"
-                    ? o.snapshot.sessionCount === 1
-                      ? "visit"
-                      : "visits"
-                    : o.snapshot.sessionCount === 1
-                      ? "session"
-                      : "sessions"}
-                </span>
-                <span
-                  className={
-                    value?.packageId === o.id ? "text-teal-100" : "text-slate-500"
-                  }
-                >
-                  {formatInr(o.snapshot.pricePaise)}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
-
-      {selected && (
-        <dl className="grid grid-cols-2 gap-3 rounded-lg bg-white p-3 text-[11px] sm:grid-cols-4">
-          <div>
-            <dt className="text-slate-500">Sessions</dt>
-            <dd className="font-semibold text-slate-800">{selected.snapshot.sessionCount}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Price</dt>
-            <dd className="font-semibold text-slate-800">
-              {formatInr(selected.snapshot.pricePaise)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Valid for</dt>
-            <dd className="font-semibold text-slate-800">
-              {selected.snapshot.validityDays ? `${selected.snapshot.validityDays} days` : "-"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Each session</dt>
-            <dd className="font-semibold text-slate-800">
-              {selected.snapshot.sessionDurationMinutes
-                ? `${selected.snapshot.sessionDurationMinutes} min`
-                : "-"}
-            </dd>
-          </div>
-        </dl>
-      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
-          <span className="block text-xs font-semibold text-slate-700">
-            How often, per week
-          </span>
+          <span className="block text-xs font-semibold text-slate-700">How many {units}</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={MIN_COURSE_SESSIONS}
+            max={MAX_COURSE_SESSIONS}
+            step={1}
+            value={countText}
+            onChange={(e) => setCount(e.target.value)}
+            aria-label={`How many ${units}`}
+            className="mt-1.5 w-full rounded-xl border border-slate-300 p-2.5 text-sm focus:border-teal-500 focus:outline-none"
+          />
+          {!countValid && (
+            <span className="mt-1 block text-[11px] text-red-600">
+              Choose between {MIN_COURSE_SESSIONS} and {MAX_COURSE_SESSIONS}.
+            </span>
+          )}
+        </label>
+
+        <label className="block">
+          <span className="block text-xs font-semibold text-slate-700">How often, per week</span>
           <select
             value={value?.frequencyPerWeek ?? ""}
             onChange={(e) =>
@@ -398,26 +299,37 @@ export default function CarePlanFields({
             className="mt-1.5 w-full rounded-xl border border-slate-300 p-2.5 text-sm focus:border-teal-500 focus:outline-none"
           >
             <option value="">Leave open</option>
-            {Array.from({ length: cap }, (_, i) => i + 1).map((n) => (
+            {Array.from({ length: 7 }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
                 {n} a week
               </option>
             ))}
           </select>
         </label>
-
-        <div className="flex items-end">
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={value?.handsOnRequired ?? false}
-              onChange={(e) => patch({ handsOnRequired: e.target.checked })}
-              className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-500"
-            />
-            Needs hands-on treatment
-          </label>
-        </div>
       </div>
+
+      {rate && (
+        <div className="rounded-lg bg-white p-3 text-xs" data-testid="care-plan-total">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-slate-500">
+              {countValid ? count : "-"} {countValid && count === 1 ? unit : units} ×{" "}
+              {formatInr(rate.perSessionPaise)}
+            </span>
+            <span className="text-base font-bold text-slate-900">
+              {total !== null ? formatInr(total) : "-"}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-500">
+            {kind === "home_visit_package"
+              ? rate.travelFeeIncluded
+                ? "Travel is included. "
+                : "Plus travel for the patient's area, shown to them before they pay. "
+              : ""}
+            {rate.sessionDurationMinutes ? `${rate.sessionDurationMinutes} min each. ` : ""}
+            {rate.validityDays ? `Valid ${rate.validityDays} days from payment.` : ""}
+          </p>
+        </div>
+      )}
 
       <div>
         <label className="block text-xs font-semibold text-slate-700">

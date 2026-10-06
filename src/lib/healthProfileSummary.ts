@@ -60,26 +60,58 @@ export function regionStandings(assessments: PainAssessmentRow[]): RegionStandin
 
 export type PainTrendPoint = { date: string; percent: number; regions: number };
 
-/** One point per day a therapist assessed anything, averaged across the
- *  regions examined that day. Averaging rather than plotting every region
- *  separately is deliberate: on a patient's own dashboard the question is
- *  "am I getting better?", which is one line, not seventeen. Per-region
- *  detail stays a tap away on the body map. */
+/** Readings further apart than this belong to different exams. */
+const EXAM_GAP_MS = 60 * 60_000;
+
+/**
+ * One point per exam, oldest to newest: the patient's overall pain after
+ * that exam -- the average of the latest reading for every area recorded so
+ * far, so an area not re-checked this time keeps its last score rather than
+ * dropping out and faking a change.
+ *
+ * It used to be one point per calendar day, averaging that day's readings.
+ * A second exam on the same day then folded into the first: the old value
+ * vanished from the line and the patient saw no change where there was one.
+ * An exam ends when readings are more than an hour apart, or when an area
+ * already scored in it is scored again -- a re-score is a new measurement,
+ * however soon it follows the last.
+ *
+ * Averaging rather than plotting every region separately is deliberate: on
+ * a patient's own dashboard the question is "am I getting better?", which is
+ * one line, not seventeen. Per-region detail stays a tap away on the body map.
+ */
 export function painTrendSeries(assessments: PainAssessmentRow[]): PainTrendPoint[] {
-  const byDay = new Map<string, number[]>();
-  for (const a of assessments) {
-    const day = a.created_at.slice(0, 10);
-    const list = byDay.get(day) ?? [];
-    list.push(a.pain_percent);
-    byDay.set(day, list);
-  }
-  return [...byDay.entries()]
-    .map(([date, values]) => ({
-      date,
+  const sorted = [...assessments].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  const latest = new Map<string, number>();
+  const points: PainTrendPoint[] = [];
+  let examKeys = new Set<string>();
+  let lastMs: number | null = null;
+
+  const close = (at: string) => {
+    const values = [...latest.values()];
+    points.push({
+      date: at,
       percent: Math.round(values.reduce((sum, v) => sum + v, 0) / values.length),
-      regions: values.length,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+      regions: examKeys.size,
+    });
+  };
+
+  for (let i = 0; i < sorted.length; i++) {
+    const a = sorted[i];
+    const ms = new Date(a.created_at).getTime();
+    const key = `${a.region}:${a.side}`;
+    if (lastMs !== null && (ms - lastMs > EXAM_GAP_MS || examKeys.has(key))) {
+      close(sorted[i - 1].created_at);
+      examKeys = new Set();
+    }
+    latest.set(key, a.pain_percent);
+    examKeys.add(key);
+    lastMs = ms;
+  }
+  if (sorted.length > 0) close(sorted[sorted.length - 1].created_at);
+  return points;
 }
 
 /** Completion, the one figure every specialty's snapshot strip needs and

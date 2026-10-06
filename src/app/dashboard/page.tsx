@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import DashboardHop from "@/components/system/DashboardHop";
 // One "take me to my dashboard" URL that resolves the role server-side.
 //
 // The Navbar's Go to Dashboard button and the booking wizard's wrong-account
@@ -68,5 +69,17 @@ export default async function DashboardRedirectPage({
   }
   const query = params.toString();
 
-  redirect(`${base}${query ? `?${query}` : ""}${hash}`);
+  const destination = `${base}${query ? `?${query}` : ""}${hash}`;
+
+  // No dashboard for this role: a plain redirect, nothing to keep on screen.
+  if (base === "/get-started") redirect(destination);
+
+  // Handed on from the browser rather than with redirect(). A server
+  // redirect ended this route's loading screen and then made the browser
+  // ask for the dashboard's own one, so between the two the page was blank
+  // for about half a second. DashboardHop keeps the same skeleton up until
+  // the dashboard replaces it. The path goes only to the signed-in person
+  // it belongs to, so the reason this route exists -- no role-to-path map
+  // in any public bundle -- still holds.
+  return <DashboardHop href={destination} />;
 }

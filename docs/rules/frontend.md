@@ -255,12 +255,21 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
     for real `<Link>` navigations, which the public Navbar uses. Next's
     `useLinkStatus` only works *inside* a Link, so the reporter is a child
     component rendering nothing rather than a hook the wrapper could call.
-  **And every dynamic route has a `loading.tsx`.** A boundary only at each
-  dashboard's root left every sub-route leaning on an ancestor, so the
-  fallback was the wrong shape or absent; all seventeen dashboard
-  sub-routes and the three admin detail routes have their own now, each
-  passing `withSidebar` and a label naming what is coming. **The `@modal`
-  slot has one too**, and it is the case both loading signals miss: tapping a
+  **And the wait is the word-roll loader, over the old page - never a
+  `loading.tsx` in a dashboard.** Each dashboard draws its sidebar inside its
+  own page, so a loading boundary replaced the sidebar with the content: every
+  tab tap showed a placeholder rail (it was dark, the old design) until the
+  page arrived. So the dashboards have none. Both reporters above call
+  `begin("navigation")`, and `NavigationLoader` (root layout) draws
+  `WordRollLoader` - Move, Stretch, Strengthen, Recover, Restore scrolling
+  past one a beat, the current word dark with three teal dots hopping in
+  front of it - over the content area
+  after 300 ms, at `z-20`, **under** every nav, sidebar, rail and tab bar
+  (`z-30`+), with the old page faintly behind it. A refresh after a button
+  press is `begin()` and gets the teal bar only: the page is staying put.
+  `RouteLoading` is the same loader, for the one boundary left with no
+  chrome to keep (the `/dashboard` role hop). **The admin `@modal`
+  slot keeps its own `loading.tsx`**, and it is the case both loading signals miss: tapping a
   patient name is a `<Link>` into a parallel-route slot, which is not a
   `useRouter` transition (so no bar) and is not covered by an ancestor
   `loading.tsx` (which wraps the page tree, not a sibling slot) -- so the row
@@ -268,12 +277,10 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   fallback mirrors `DetailOverlayModal`'s own sheet rather than reusing
   `RouteLoading`: what is arriving is an overlay over the dashboard, and a
   full-page skeleton there would read as the dashboard itself being
-  replaced. On a hard
-  navigation this is what paints first: the server streams the shell and the
-  fallback before the page's own queries resolve, so the new screen arrives
-  as furniture rather than as a wait. The public marketing pages are
-  deliberately left without one -- they are ISR-prerendered, so there is no
-  server wait to cover, and the bar handles the transition.
+  replaced; its wait is the small `WordRollLoader`. On a hard navigation the
+  browser keeps the old document - loader included - on screen until the
+  new one is ready, so the chrome never blanks. The public pages work the
+  same way: no boundary, the loader over the page below the nav.
   **Every dashboard carries one Refresh button**
   (`src/components/dashboard/RefreshButton.tsx`), in the header of both
   shells -- so all four get the same control in the same place. It re-runs
@@ -331,13 +338,14 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   fails WCAG AA for body text, and an axe-core sweep found it on 62 surfaces
   across the public pages and all four dashboards -- every one of them a label,
   a count, a hint or a code somebody actually has to read. The rule is by
-  surface, not by taste: on the dark chrome (the two shells' rails, the
-  footer, the debug bar) `text-slate-400` is correct and `text-slate-500` is
+  surface, not by taste: on the dark chrome (the footer, the debug bar)
+  `text-slate-400` is correct and `text-slate-500` is
   the failure; on a white or `slate-50` card the floor is `text-slate-500`,
   and on a `slate-100` fill -- a segmented-control track, a neutral pill --
   it is `text-slate-600`, since slate-500 there is 4.34:1 and just misses.
-  Sidebar's own active entry is `bg-teal-700`, not `-600`: white on teal-600
-  is 3.66:1. The same split applies to the chart constants in
+  Every dashboard's sidebar and rail - the admin's included - is white:
+  its active entry is `bg-teal-50` with `text-teal-800`, and the brand
+  tile is `bg-teal-700`, not `-600`: white on teal-600 is 3.66:1. The same split applies to the chart constants in
   `src/components/admin/TrendCharts.tsx` (where the Money and Business Health
   screens both read them from) -- they are drawn as lines *and* printed as
   figures, so they take the -700 shades while `PatientProfitChart`, which only
@@ -673,3 +681,43 @@ is invisible to any tooling here.
   when it appears within ~1.5s of a tap/key/submit and is outside the viewport.
   A new form's validator should name the field, not rely on the safety net;
   `data-no-autoscroll` opts a region out.
+- **Money prints through `src/lib/formatMoney.ts`, never a local
+  `(paise / 100).toLocaleString()`.** Thirty components had their own copy
+  and disagreed - one screen read ₹3,118.8, the next ₹3,118.80. Whole rupees
+  print with no decimals (₹499); anything with paise always prints two. A
+  deliberate whole-rupee rounding (`Math.round(x / 100)`) is the only other
+  form, and says so where it is used.
+- **Every page fits every screen shape the owner named.** `e2e/layout-audit.spec.ts`
+  loads every public, patient, therapist, hospital and admin page and resizes
+  it through 17 viewports covering 20:9, 19.5:9, 22:9, 16:9, 16:10, 5:3, 7:5,
+  5:4 and the 12.9" iPad, checking for sideways scroll (page or panel),
+  anything off the edge, silently clipped text and text or controls drawn
+  over each other (`e2e/layout/layoutProbe.ts`). A new page is added to its
+  list; a long unbroken string (an ID, a URL) gets `[overflow-wrap:anywhere]`;
+  a segmented control is full-width with equal tabs below `sm`; a fixed pill
+  centred with `left-1/2` needs `w-max max-w-[calc(100vw-2rem)]` or it wraps
+  into half the screen.
+
+- **Dark mode is a palette, not a second set of classes - write colours as
+  you always have.** Settings -> Public Site -> Appearance
+  (`site_settings.follow_device_theme`, off by default) lets the app follow
+  the device. When it is on and the device is dark, a head script
+  (`src/lib/deviceTheme.ts`) sets `<html data-theme="dark">` before first
+  paint, and `DeviceThemeFollower` keeps it in step if the device changes.
+  `src/app/dark-theme.css` - **generated** by `node scripts/build-dark-theme.mjs`,
+  so edit the script, never the CSS - declares Tailwind 4's per-utility
+  namespaces (`--background-color-*`, `--border-color-*`, `--ring-color-*`)
+  for every colour in use. That is what lets one class name mean two things
+  on purpose: `bg-white` turns into a dark card while `text-white` on a teal
+  button stays white; `bg-teal-700` keeps the brand fill while
+  `text-teal-700` lightens to read on dark; pale status tints become dark
+  tints of the same hue. Rules that follow from it:
+  - **A surface that must stay white in both modes uses a literal colour**,
+    not `bg-white` (the footer's logo tile, the switch knob, the Appearance
+    preview tiles).
+  - **SVG charts use the `--chart-*` variables** in `globals.css` for ink,
+    grid, axis and brand lines - a `fill="#0f172a"` attribute is invisible on
+    dark. A new hard-coded colour in a chart needs a variable.
+  - **Printing is always light**: the dark block is `@media screen` only.
+  - A new colour family (`lime`, `pink`, ...) is covered once it is in the
+    script's `HUES` list; run the script after adding one.

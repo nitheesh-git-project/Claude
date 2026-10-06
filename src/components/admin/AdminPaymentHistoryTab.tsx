@@ -28,13 +28,14 @@ import DataExportButtons from "@/components/admin/DataExportButtons";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import DateField from "@/components/system/DateField";
+import { formatRupees } from "@/lib/formatMoney";
 
 type Patient = { id: string; full_name: string | null; code?: string | null };
 type Therapist = { id: string; full_name: string | null; code?: string | null };
 type Category = { id: string; title: string };
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 // Pinned to Asia/Kolkata -- this tab's summary tables (unlike its Modals,

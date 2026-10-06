@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ActivityLogButton from "@/components/admin/ActivityLogButton";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -39,11 +40,15 @@ import { readInviteSettings, readPromoCodesEnabled } from "@/lib/acquisitionSett
 import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable";
 import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
+import AdminCountryPricingTab from "@/components/admin/AdminCountryPricingTab";
+import { readCountryPricingAdmin } from "@/lib/countryPricingServer";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import { readCheckoutSpeed } from "@/lib/checkoutSpeedServer";
 import AdminAdvancedTab from "@/components/admin/AdminAdvancedTab";
 import DevReachoutsTab, { type DevReachoutRow } from "@/components/admin/DevReachoutsTab";
+import AbandonedCheckoutsTab, { type AbandonedCheckoutRow } from "@/components/admin/AbandonedCheckoutsTab";
+import { groupDevReachoutNotes, type DevReachoutNoteRow } from "@/lib/devReachout";
 import SettingsJumpNav, { SettingsSection } from "@/components/admin/SettingsJumpNav";
 import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
 import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
@@ -119,6 +124,7 @@ import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
 import HomePageWalkthroughForm from "@/components/admin/HomePageWalkthroughForm";
 import SplashScreenForm from "@/components/admin/SplashScreenForm";
+import AppearanceForm from "@/components/admin/AppearanceForm";
 import MissionStatementForm from "@/components/admin/MissionStatementForm";
 import MissionPrincipleManager, {
   type MissionPrincipleRecord,
@@ -156,14 +162,14 @@ import {
 } from "@/lib/retryDueMeetSyncs";
 import { checkGoogleConnection } from "@/lib/googleConnectionHealth";
 import { describeCalendarSync, sessionNeedsCalendarSync } from "@/lib/meetSyncState";
-import { readAllRows, readAllRowsAsData } from "@/lib/supabase/readAllRows";
+import { readAllRows, readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
 import { runMaintenanceSweep } from "@/lib/maintenanceSweep";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import AdminCarePlansTab from "@/components/admin/AdminCarePlansTab";
 import type { AdminCarePlanRow, AuthorableSession } from "@/components/admin/AdminCarePlansTab";
 import type { RecommendableOption } from "@/components/therapist/CarePlanFields";
-import { loadRecommendablePackages } from "@/lib/carePlanServer";
+import { loadRecommendableRates } from "@/lib/carePlanServer";
 import { readCarePlanRequiresApproval } from "@/lib/carePlanAuthoring";
 import AdminBusinessHealthTab from "@/components/admin/AdminBusinessHealthTab";
 import AdminFinanceInputsTab from "@/components/admin/AdminFinanceInputsTab";
@@ -328,8 +334,19 @@ export default async function AdminDashboardPage({
     )
     .order("created_at", { ascending: false });
 
+  // The locked accounts the booking wizards made (People -> Abandoned
+  // checkouts). Read beside the batch below because the approvals queue is
+  // narrowed by it: nobody reviews these accounts -- they open on a payment
+  // or when their tries run out -- so they never belong in Pending Approvals.
+  // `null` is a read that failed, which leaves the queue unfiltered rather
+  // than empty.
+  const abandonedCheckoutsPromise: Promise<AbandonedCheckoutRow[] | null> = (async () => {
+    const { data, error } = await admin.rpc("abandoned_booking_accounts");
+    return error ? null : ((data ?? []) as AbandonedCheckoutRow[]);
+  })().catch(() => null);
+
   const [
-    { data: pendingAccounts },
+    { data: pendingAccountsAll },
     { data: pendingProfileChanges },
     { data: approvedTherapists },
     { data: appointments, error: appointmentsError, truncated: appointmentsTruncated },
@@ -345,7 +362,6 @@ export default async function AdminDashboardPage({
     { data: scheduleStateRows },
     { data: onLeaveRows },
     { data: leaveDetailRows },
-    { data: reassignmentLogs },
     { data: b2bLeads },
     { data: referrals },
     { data: capacityNoteRows },
@@ -556,16 +572,6 @@ export default async function AdminDashboardPage({
         .order("id", { ascending: true })
     ),
 
-    readAllRowsAsData(() =>
-      admin
-        .from("appointment_reassignment_log")
-        .select(
-          "id, appointment_id, changed_at, changed_by, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
-        )
-        .order("changed_at", { ascending: false })
-        .order("id", { ascending: true })
-    ),
-
     admin
       .from("b2b_leads")
       .select("id, name, phone, email, source, org_details, status, created_at")
@@ -631,6 +637,9 @@ export default async function AdminDashboardPage({
       .select(
         "id, package_code, category_id, title, subtitle, description, image_url, promises, session_count, price_paise, compare_at_paise, display_order, therapist_rate_basis, validity_days, session_duration_minutes, therapist_locked, min_gap_hours, max_sessions_per_week, max_purchases_per_patient, recommendable, active"
       )
+      // Course rows are the hidden anchors per-session recommendations
+      // hang off (carePlanServer.ts), not programmes anyone edits.
+      .eq("care_plan_course", false)
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),
 
@@ -701,6 +710,7 @@ export default async function AdminDashboardPage({
       .select(
         "id, package_code, title, subtitle, description, image_url, benefits, badge_label, highlight, terms, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked, min_gap_hours, max_visits_per_week, max_purchases_per_patient, category_id, display_order, visible_on_home_visit_page, visible_in_dashboard, recommendable, active"
       )
+      .eq("care_plan_course", false)
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),
     admin
@@ -803,6 +813,12 @@ export default async function AdminDashboardPage({
     ),
   ]);
 
+  const abandonedCheckouts = await abandonedCheckoutsPromise;
+  const abandonedIds = new Set((abandonedCheckouts ?? []).map((a) => a.id));
+  const pendingAccounts = pendingAccountsAll
+    ? pendingAccountsAll.filter((p) => !abandonedIds.has(p.id))
+    : pendingAccountsAll;
+
   // Resolved here rather than beside the admin-team list further down,
   // because the screens built below gate their own money controls on it. A
   // control a viewer's scope can't call must not render: the routes now
@@ -857,6 +873,11 @@ export default async function AdminDashboardPage({
   // and awaited where the checks are built -- a new table, so isolated, and
   // a failed read is null ("could not check"), never "fast".
   const checkoutSpeedRead = guard(() => readCheckoutSpeed(admin, nowTimestamp()), null);
+
+  // Catalog -> Countries & currency. Its own read beside the batch, like
+  // checkout speed: a new table, so a failure costs this screen and nothing
+  // else, and says so rather than showing every country switched off.
+  const countryPricingRead = guard(() => readCountryPricingAdmin(admin), null);
 
   const [
     accountingHealth,
@@ -1286,21 +1307,34 @@ export default async function AdminDashboardPage({
     // are a stranger's name, email and number. Guarded for the usual reason --
     // a database that has not applied the table yet loses this screen, not the
     // dashboard. Newest first, capped: the screen pages what it is given.
-    guard(
-      async () =>
-        scopeCanOpen(viewerScope, "settings")
-          ? ((
-              await admin
-                .from("dev_reachouts")
-                .select(
-                  "id, name, email, phone, message, status, admin_note, note_updated_at, contacted_at, created_at"
-                )
-                .order("created_at", { ascending: false })
-                .limit(500)
-            ).data as DevReachoutRow[] | null)
-          : null,
-      null as DevReachoutRow[] | null
-    ),
+    // The notes thread is a second read, so a database that has not applied
+    // `dev_reachout_notes` yet still shows the inbox; a failed notes read is
+    // `notes: null` ("could not load"), never an empty thread.
+    guard(async () => {
+      if (!scopeCanOpen(viewerScope, "settings")) return null;
+      const rows = (
+        await admin
+          .from("dev_reachouts")
+          .select("id, name, email, phone, message, status, contacted_at, created_at")
+          .order("created_at", { ascending: false })
+          .limit(500)
+      ).data as Omit<DevReachoutRow, "notes">[] | null;
+      if (!rows) return null;
+      const notes = await readAllRowsByIds(
+        rows.map((r) => r.id),
+        (chunk) =>
+          admin
+            .from("dev_reachout_notes")
+            .select("id, reachout_id, body, created_at, edited_at, author:profiles(full_name)")
+            .in("reachout_id", chunk)
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true })
+      ).catch(() => null);
+      const byReachout = groupDevReachoutNotes(
+        notes && !notes.error ? (notes.rows as unknown as DevReachoutNoteRow[]) : null
+      );
+      return rows.map((r) => ({ ...r, notes: byReachout ? (byReachout.get(r.id) ?? []) : null }));
+    }, null as DevReachoutRow[] | null),
   ]);
 
   const activeApprovedTherapists = (approvedTherapists ?? []).filter(
@@ -1844,14 +1878,16 @@ export default async function AdminDashboardPage({
         {/* What this queue is actually deciding, since the two halves of it
             are not the same decision. A therapist is a credential check --
             that is the real judgement here. A patient in this list is
-            someone who registered without paying: anyone who genuinely
-            attempts a payment is approved automatically at that moment (see
-            approvePatientForGenuinePaymentAttempt), so nobody is waiting
-            here to be allowed to buy their first session. */}
+            someone who registered at /patient/register without booking. A
+            patient who starts a booking is never here: their account is
+            unlocked by a payment or by running out of tries (see
+            approvePatientAfterPayment and /api/patient/payment-try), and
+            until then it is listed under People -> Abandoned checkouts. */}
         <p className="-mt-2 mb-4 max-w-2xl text-xs leading-relaxed text-slate-500">
           Therapists here are waiting on a credentials check. Patients here registered without
-          booking - a patient who starts a payment is approved automatically, so approving one
-          from this list only affects what they can see, never whether they can pay.
+          booking. A patient who starts a booking is unlocked by paying (or after their payment
+          tries run out) and is never listed here; approving one from this list only affects what
+          they can see, never whether they can pay.
         </p>
         {!pendingAccounts || pendingAccounts.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
@@ -2153,9 +2189,12 @@ export default async function AdminDashboardPage({
                         </dd>
                       </dl>
                     </div>
-                    <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
-                      {h.referral_code}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <ActivityLogButton personId={h.id} name={h.full_name ?? "Hospital"} />
+                      <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+                        {h.referral_code}
+                      </span>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
                     {/* Editing a partner's commercial terms is a money
@@ -2605,7 +2644,6 @@ export default async function AdminDashboardPage({
       people={allPeople}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
-      reassignmentLogs={reassignmentLogs ?? []}
       homeVisits={homeVisitRows}
     />
   );
@@ -2619,7 +2657,6 @@ export default async function AdminDashboardPage({
       people={allPeople}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
-      reassignmentLogs={reassignmentLogs ?? []}
     />
   );
 
@@ -3087,7 +3124,13 @@ export default async function AdminDashboardPage({
     patientName: profileMap.get(p.patient_id)?.full_name ?? "Unknown patient",
     patientCode: roleCodeMap.get(p.patient_id)?.patient_code ?? null,
     packageId: p.package_id,
-    packageTitle: packageTitleMap.get(p.package_id) ?? "Session Package",
+    // A purchase made from a per-session recommendation hangs off a hidden
+    // course row the catalog list leaves out, so it is named for its condition.
+    packageTitle:
+      packageTitleMap.get(p.package_id) ??
+      (categoryTitleMap.get(p.category_id)
+        ? `${categoryTitleMap.get(p.category_id)} - recommended course`
+        : "Session Package"),
     categoryId: p.category_id,
     categoryTitle: categoryTitleMap.get(p.category_id) ?? "-",
     therapistId: p.locked_therapist_id,
@@ -3189,7 +3232,7 @@ export default async function AdminDashboardPage({
       patientName: profileMap.get(p.patient_id)?.full_name ?? "Unknown patient",
       patientCode: roleCodeMap.get(p.patient_id)?.patient_code ?? null,
       packageId: p.package_id,
-      packageTitle: homeVisitPackageTitleMap.get(p.package_id)?.title ?? "Home Visit Package",
+      packageTitle: homeVisitPackageTitleMap.get(p.package_id)?.title ?? "Recommended home visits",
       therapistId: p.locked_therapist_id,
       therapistName: p.locked_therapist_id
         ? profileMap.get(p.locked_therapist_id)?.full_name ?? "Unknown therapist"
@@ -3288,6 +3331,30 @@ export default async function AdminDashboardPage({
   // was only answerable by opening all four tabs and counting.
   const activeCategoryCount = (treatmentCategories ?? []).filter((c) => c.active).length;
   const visiblePackageCount = (packages ?? []).filter((p) => p.active).length;
+  const countryPricing = await countryPricingRead;
+  const catalogCountriesTab = countryPricing ? (
+    <AdminCountryPricingTab
+      rows={countryPricing.rows.map((r) => ({
+        code: r.code,
+        enabled: r.enabled,
+        markupPercent: r.markupPercent,
+        unitsPerInr: r.unitsPerInr,
+      }))}
+      settings={countryPricing.settings}
+      ratesFetchedAt={countryPricing.ratesFetchedAt}
+      samples={(treatmentCategories ?? [])
+        .filter((c) => c.active && typeof c.price_paise === "number" && c.price_paise > 0)
+        .map((c) => ({ id: c.id, title: c.title, pricePaise: c.price_paise as number }))}
+      canManage={workableSections.includes("catalog")}
+      nowMs={nowTimestamp()}
+    />
+  ) : (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+      Countries &amp; currency couldn&apos;t be loaded. Nothing has changed - every visitor is still
+      priced as before. Try Refresh in a moment.
+    </div>
+  );
+
   const catalogStrip = (
     <div className="mb-5">
       <StatStrip
@@ -3381,6 +3448,7 @@ export default async function AdminDashboardPage({
           { id: "public-promises", label: "Promises" },
           { id: "public-limits", label: "Limits" },
           { id: "public-splash", label: "Opening splash" },
+          { id: "public-appearance", label: "Appearance" },
           { id: "public-testimonials", label: "Testimonials" },
           { id: "public-faq", label: "FAQ" },
         ]}
@@ -3430,6 +3498,10 @@ export default async function AdminDashboardPage({
           holdSeconds={adminSettings.splashHoldSeconds}
           revisitMinutes={adminSettings.splashRevisitMinutes}
         />
+      </SettingsSection>
+
+      <SettingsSection id="public-appearance">
+        <AppearanceForm enabled={adminSettings.followDeviceTheme} />
       </SettingsSection>
 
       <SettingsSection id="public-testimonials">
@@ -3755,7 +3827,7 @@ export default async function AdminDashboardPage({
               category_id: string | null;
             }[],
           }),
-      canSeeCarePlans ? loadRecommendablePackages(admin) : Promise.resolve([]),
+      canSeeCarePlans ? loadRecommendableRates(admin) : Promise.resolve([]),
     ]);
     // The one lookup that has to wait, since it is keyed on ids the query
     // above returns.
@@ -4247,7 +4319,8 @@ export default async function AdminDashboardPage({
           : "session_package",
       packageId:
         version?.session_package_id ?? version?.home_visit_package_id ?? null,
-      categoryId: p.category_id ?? null,
+      categoryId: snapshot?.categoryId ?? p.category_id ?? null,
+      perSessionPaise: snapshot?.perSessionPaise ?? null,
       // What the queue is ordered and aged by. Falls back to the row's own
       // creation time for a plan written before the column existed, so an
       // old row sorts sensibly rather than to one end.
@@ -4287,15 +4360,7 @@ export default async function AdminDashboardPage({
       categoryId: a.category_id ?? null,
     }));
 
-  const adminPackageOptions: RecommendableOption[] = recommendablePackages.map((p) => ({
-    id: p.id,
-    kind: p.kind,
-    title: p.title,
-    snapshot: p.snapshot,
-    categoryId: p.categoryId,
-    categoryTitle: p.categoryTitle,
-    specialty: p.specialty,
-  }));
+  const adminPackageOptions: RecommendableOption[] = recommendablePackages;
 
   const sessionsRecommendationsTab = (
     <AdminCarePlansTab
@@ -4945,6 +5010,13 @@ export default async function AdminDashboardPage({
     ),
     "people:therapists": therapistsTab,
     "people:partners": b2bPartners,
+    "people:abandoned": (
+      <AbandonedCheckoutsTab
+        rows={scopeCanOpen(viewerScope, "people") ? abandonedCheckouts : []}
+        deleteAfterDays={adminSettings.abandonedBookingAccountDays}
+        tryLimit={adminSettings.paymentTriesBeforeAccess}
+      />
+    ),
     // Every Money screen ends with the same glossary. It used to sit on
     // Summary alone, which is the one screen whose labels are self-evident
     // -- an admin reading "Net payable" on Payouts or "Session revenue" on
@@ -5072,6 +5144,12 @@ export default async function AdminDashboardPage({
         {catalogAreasTab}
       </>
     ),
+    "catalog:countries": (
+      <>
+        {catalogStrip}
+        {catalogCountriesTab}
+      </>
+    ),
     "catalog:purchases": (
       <>
         {catalogStrip}
@@ -5107,6 +5185,7 @@ export default async function AdminDashboardPage({
     "today:risk": openRiskCount,
     "people:patients": conditionsBadgeCount,
     "people:partners": b2bBadgeCount,
+    "people:abandoned": abandonedCheckouts?.length ?? 0,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
     "catalog:areas": homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,
     // Checks asking for a person, not rows -- so the badge, the verdict at

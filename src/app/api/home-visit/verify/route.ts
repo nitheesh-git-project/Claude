@@ -9,8 +9,12 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import { normalizePincode } from "@/lib/homeVisitAreas";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
-import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
-import { isProfileActive, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
+import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR, resolveSlotInstant } from "@/lib/bookingSlots";
+import {
+  approvePatientAfterPayment,
+  isProfileActive,
+  profileCheckUnavailable,
+} from "@/lib/supabase/requireActiveProfile";
 
 const MAX_NOTES_LENGTH = 1000;
 
@@ -80,12 +84,16 @@ export async function POST(request: NextRequest) {
     razorpay_order_id,
     razorpay_payment_id,
     razorpay_signature,
-    slotDateTime,
     timezone,
     notes,
     concern,
     address,
   } = body;
+  // A zone-less wall time is read in the booking's zone, never the server's.
+  const slotDateTime =
+    body.slotDateTime === undefined
+      ? undefined
+      : resolveSlotInstant(body.slotDateTime, timezone) ?? "invalid";
 
   if (
     !homeVisitPurchaseId ||
@@ -212,6 +220,10 @@ export async function POST(request: NextRequest) {
     orderId: razorpay_order_id,
     paymentId: razorpay_payment_id,
   });
+  // A verified payment unlocks a new patient's account, the same as the
+  // online twin -- a home visit used to leave them on /pending-approval
+  // after paying.
+  await approvePatientAfterPayment(user.id);
 
   // Same as the online twin: the entitlement has to exist before visit 1 is
   // booked below, or its reserve has nothing to hold it.

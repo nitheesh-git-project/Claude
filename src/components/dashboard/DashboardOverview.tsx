@@ -57,10 +57,15 @@ export default function DashboardOverview({
   aside?: ReactNode;
 }) {
   return (
-    <section id="overview" className="scroll-mt-24 space-y-5">
-      {banner}
+    // One set of blocks, placed by width (`.overview-grid` in globals.css):
+    // stacked on a phone; on a laptop the feed and the actions side by side
+    // under the figures; on a desktop the headline and the actions become a
+    // panel on the right, so the figures and the feed get the middle
+    // column's full width. Nothing is rendered twice.
+    <section id="overview" className="overview-grid scroll-mt-24">
+      {banner && <div className="ov-banner">{banner}</div>}
       {(greeting || headline) && (
-        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-teal-50/80 via-white to-white p-5 shadow-sm sm:p-6">
+        <div className="ov-head rounded-2xl border border-slate-200 bg-gradient-to-br from-teal-50/80 via-white to-white p-5 shadow-sm sm:p-6">
           {greeting && (
             <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">{greeting}</p>
           )}
@@ -72,56 +77,58 @@ export default function DashboardOverview({
         </div>
       )}
 
-      <StatStrip cells={cells} footer={stripFooter} />
+      <div className="ov-strip">
+        <StatStrip cells={cells} footer={stripFooter} />
+      </div>
 
-      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+      <div className="ov-feed">
         <SurfaceCard title={feedTitle} icon="fa-bell" subtitle="Newest first. Anything waiting on you is pinned to the top.">
           <ActivityFeed items={feed} emptyBody={feedEmptyBody} />
         </SurfaceCard>
+      </div>
 
-        <div className="space-y-5">
-          <SurfaceCard title="Quick actions" icon="fa-bolt">
-            <ul className="space-y-2">
-              {actions.map((action) => (
-                <li key={action.href + action.label}>
-                  <ProgressLink
-                    href={action.href}
-                    className={`flex items-center gap-3 rounded-xl px-3.5 py-3 transition ${
-                      action.primary
-                        ? "bg-teal-700 text-white hover:bg-teal-800"
-                        : "border border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50/40"
+      <div className="ov-side space-y-5">
+        <SurfaceCard title="Quick actions" icon="fa-bolt">
+          <ul className="space-y-2">
+            {actions.map((action) => (
+              <li key={action.href + action.label}>
+                <ProgressLink
+                  href={action.href}
+                  className={`flex items-center gap-3 rounded-xl px-3.5 py-3 transition ${
+                    action.primary
+                      ? "bg-teal-700 text-white hover:bg-teal-800"
+                      : "border border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50/40"
+                  }`}
+                >
+                  <i
+                    aria-hidden
+                    className={`fa-solid ${action.icon} w-4 text-center text-sm ${
+                      action.primary ? "text-white" : "text-teal-600"
                     }`}
-                  >
-                    <i
-                      aria-hidden
-                      className={`fa-solid ${action.icon} w-4 text-center text-sm ${
-                        action.primary ? "text-white" : "text-teal-600"
-                      }`}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold">{action.label}</span>
-                      {action.hint && (
-                        <span
-                          className={`block text-[11px] ${action.primary ? "text-teal-50" : "text-slate-500"}`}
-                        >
-                          {action.hint}
-                        </span>
-                      )}
-                    </span>
-                    <i
-                      aria-hidden
-                      className={`fa-solid fa-arrow-right text-[11px] ${
-                        action.primary ? "text-teal-100" : "text-slate-300"
-                      }`}
-                    />
-                  </ProgressLink>
-                </li>
-              ))}
-            </ul>
-          </SurfaceCard>
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">{action.label}</span>
+                    {action.hint && (
+                      <span
+                        className={`block text-[11px] ${action.primary ? "text-teal-50" : "text-slate-500"}`}
+                      >
+                        {action.hint}
+                      </span>
+                    )}
+                  </span>
+                  <i
+                    aria-hidden
+                    className={`fa-solid fa-arrow-right text-[11px] ${
+                      action.primary ? "text-teal-100" : "text-slate-300"
+                    }`}
+                  />
+                </ProgressLink>
+              </li>
+            ))}
+          </ul>
+        </SurfaceCard>
 
-          {aside}
-        </div>
+        {aside}
       </div>
     </section>
   );

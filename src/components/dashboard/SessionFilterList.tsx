@@ -1,9 +1,12 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
-import { EmptyState } from "@/components/dashboard/SurfaceCard";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { EmptyState, StatusPill } from "@/components/dashboard/SurfaceCard";
+import { clinicDayParts, formatClinicTime } from "@/lib/formatDateTime";
+import { sessionRowStatus } from "@/lib/sessionRowStatus";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
+import { sessionBucket } from "@/lib/sessionBucket";
 
 export type FilterableSession = {
   id: string;
@@ -11,6 +14,12 @@ export type FilterableSession = {
   status: string;
   noShow?: boolean;
   isHomeVisit: boolean;
+  /** What the desktop list's compact row leads with -- the condition for a
+   *  patient, the patient's name for a therapist -- and the line under it.
+   *  Both are already on the card; the row repeats them so it can be read
+   *  without opening the card. */
+  title?: string;
+  detail?: string;
 };
 
 type When = "upcoming" | "past" | "cancelled" | "all";
@@ -66,12 +75,8 @@ export default function SessionFilterList({
   const counts = useMemo(() => {
     const now = nowMs;
     return {
-      upcoming: sessions.filter(
-        (s) => s.status !== "cancelled" && !!s.slotTime && new Date(s.slotTime).getTime() >= now
-      ).length,
-      past: sessions.filter(
-        (s) => s.status !== "cancelled" && (!s.slotTime || new Date(s.slotTime).getTime() < now)
-      ).length,
+      upcoming: sessions.filter((s) => sessionBucket(s, now) === "upcoming").length,
+      past: sessions.filter((s) => sessionBucket(s, now) === "past").length,
       cancelled: sessions.filter((s) => s.status === "cancelled").length,
       all: sessions.length,
     };
@@ -84,10 +89,9 @@ export default function SessionFilterList({
         if (mode === "online" && s.isHomeVisit) return false;
         if (mode === "home_visit" && !s.isHomeVisit) return false;
         if (when === "all") return true;
-        if (when === "cancelled") return s.status === "cancelled";
-        if (s.status === "cancelled") return false;
-        const at = s.slotTime ? new Date(s.slotTime).getTime() : 0;
-        return when === "upcoming" ? at >= now : at < now;
+        // An open session that has started stays under Upcoming -- see
+        // sessionBucket.ts.
+        return sessionBucket(s, now) === when;
       })
       .sort((a, b) => {
         const at = a.slotTime ? new Date(a.slotTime).getTime() : 0;
@@ -103,28 +107,38 @@ export default function SessionFilterList({
     defaultPageSize: 5,
   });
 
+  // Which session's card the desktop layout shows beside the list. Falls
+  // back to the first on the page, so a filter or page change never leaves
+  // the right-hand side empty while there are rows on the left.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = pageSessions.find((s) => s.id === selectedId) ?? pageSessions[0];
+
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-xl bg-slate-100 p-1">
+        {/* Full width on a phone, each tab an equal share: as an
+            inline-flex it ran off a 360px screen once the counts grew. */}
+        <div className="flex w-full rounded-xl bg-slate-100 p-1 sm:inline-flex sm:w-auto">
           {(["upcoming", "past", "cancelled", "all"] as When[]).map((key) => (
             <button
               key={key}
               type="button"
               aria-pressed={when === key}
               onClick={() => setWhen(key)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              className={`flex flex-1 flex-col items-center whitespace-nowrap rounded-lg px-1 py-1.5 text-xs font-semibold transition sm:flex-none sm:flex-row sm:px-3 ${
                 when === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              {WHEN_LABEL[key]}
-              <span className="ml-1.5 text-[10px] font-bold text-slate-600">{counts[key]}</span>
+              {/* The count sits under the label on a phone, so four tabs
+                  with three-digit counts still fit a 360px screen. */}
+              <span>{WHEN_LABEL[key]}</span>
+              <span className="text-[10px] font-bold text-slate-600 sm:ml-1.5">{counts[key]}</span>
             </button>
           ))}
         </div>
 
         {hasBothModes && (
-          <div className="inline-flex rounded-xl bg-slate-100 p-1">
+          <div className="flex w-full rounded-xl bg-slate-100 p-1 sm:inline-flex sm:w-auto">
             {(
               [
                 ["all", "Both"],
@@ -137,7 +151,7 @@ export default function SessionFilterList({
                 type="button"
                 aria-pressed={mode === key}
                 onClick={() => setMode(key)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                className={`flex-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-semibold transition sm:flex-none sm:px-3 ${
                   mode === key ? "bg-white text-slate-800 shadow-sm" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -159,10 +173,54 @@ export default function SessionFilterList({
           }
         />
       ) : (
-        <ul className="space-y-3">
-          {pageSessions.map((s) => (
-            <li key={s.id}>{cardsById[s.id]}</li>
-          ))}
+        // Below 2xl: the cards, one under another. From 2xl: a compact row
+        // per session on the left and the chosen session's card on the
+        // right (`.session-split` in globals.css). Each card is rendered
+        // once either way -- the rows are extra, the cards are not
+        // duplicated -- so a half-filled form in a card is never in the
+        // page twice.
+        <ul
+          className="session-split grid items-start gap-3"
+          style={{ "--rows": pageSessions.length } as CSSProperties}
+        >
+          {pageSessions.map((s) => {
+            const isSelected = s.id === selected?.id;
+            const day = clinicDayParts(s.slotTime);
+            const status = sessionRowStatus(s.status, s.noShow);
+            return (
+              <li key={s.id} className="2xl:contents">
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(s.id)}
+                  aria-pressed={isSelected}
+                  className={`session-split-row hidden w-full items-center gap-3.5 rounded-xl border px-3.5 py-3 text-left transition 2xl:flex ${
+                    isSelected
+                      ? "border-teal-300 bg-teal-50"
+                      : "border-slate-200 bg-white hover:border-teal-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="w-12 shrink-0 text-center leading-tight">
+                    <span className={`block text-[11px] font-bold uppercase ${isSelected ? "text-teal-700" : "text-slate-500"}`}>
+                      {day.weekday}
+                    </span>
+                    <span className="block font-display text-xl font-bold text-slate-900">{day.day}</span>
+                    <span className="block text-[11px] text-slate-500">{day.month}</span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-900">
+                      {s.title ?? (s.isHomeVisit ? "Home visit" : "Video session")}
+                    </span>
+                    <span className="block truncate text-xs text-slate-500">
+                      {formatClinicTime(s.slotTime)} · {s.isHomeVisit ? "Home visit" : "Video"}
+                      {s.detail ? ` · ${s.detail}` : ""}
+                    </span>
+                  </span>
+                  <StatusPill tone={status.tone}>{status.label}</StatusPill>
+                </button>
+                <div className={isSelected ? "session-split-card" : "2xl:hidden"}>{cardsById[s.id]}</div>
+              </li>
+            );
+          })}
         </ul>
       )}
 

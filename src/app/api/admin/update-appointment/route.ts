@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkTherapistAssignable, unassignableBody } from "@/lib/therapistAssignability";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
@@ -151,6 +152,29 @@ export async function POST(request: NextRequest) {
   // The new slot is passed in rather than written first, because the
   // overlap test has to judge the time being moved to. Writing first and
   // testing afterwards is exactly the sequence this removes.
+  // Checked only when who or when changes: re-saving a session as it is
+  // (a category edit, say) must not be refused because the therapist has
+  // since changed their hours.
+  const movingWhoOrWhen =
+    therapistId !== appointment.therapist_id ||
+    !appointment.slot_time ||
+    new Date(appointment.slot_time).getTime() !== new Date(newSlotIso).getTime();
+  if (movingWhoOrWhen) {
+    // Working that hour, not on leave, not already booked -- every reason at
+    // once, for the "Unable to assign this therapist" dialog. A roster that
+    // could not be read is "try again", never "free".
+    const assignable = await checkTherapistAssignable(admin, therapistId, newSlotIso, durationMinutes, { excludeAppointmentId: appointmentId });
+    if (assignable.ok === null) {
+      return NextResponse.json(
+        { error: "We couldn't check this therapist's schedule just now. Please try again." },
+        { status: 503 }
+      );
+    }
+    if (!assignable.ok) {
+      return NextResponse.json(unassignableBody(assignable.reasons), { status: 409 });
+    }
+  }
+
   const claim = await claimTherapistSlot(admin, {
     appointmentId,
     therapistId,

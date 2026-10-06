@@ -98,6 +98,26 @@ export type LayoutSettingsRow = {
    *  newest columns here, so a database that has not applied them yet loses
    *  the credit line and nothing else. */
   devContact: DevContactRow | null;
+  /** Prices for visitors outside India: the three switches and the rows
+   *  that price locally. The same for every visitor, so it belongs in the
+   *  cached layout; the browser picks the visitor's row. Null on a database
+   *  without the section yet -- which means rupees for everyone. */
+  /** Settings -> Public Site -> Appearance: follow the device's dark mode. */
+  followDeviceTheme: boolean;
+  pricing: {
+    settings: {
+      international_pricing_enabled?: boolean | null;
+      country_picker_enabled?: boolean | null;
+      home_visit_outside_india?: boolean | null;
+    } | null;
+    rows: {
+      country_code: string;
+      currency_code: string;
+      enabled: boolean;
+      markup_percent: number | string;
+      units_per_inr: number | string | null;
+    }[];
+  };
 };
 
 export type DevContactRow = {
@@ -108,13 +128,22 @@ export type DevContactRow = {
 async function readLayoutSettings(): Promise<LayoutSettingsRow> {
   const supabase = createPublicClient();
 
-  const [brand, social, homeVisit, farewell, splash, devContact] = await Promise.all([
+  const [brand, social, homeVisit, farewell, splash, devContact, pricingSettings, pricingRows, theme] = await Promise.all([
     supabase.from("site_settings").select(BRAND_COLUMNS).maybeSingle(),
     supabase.from("site_settings").select(SOCIAL_LINKS_SELECT).maybeSingle(),
     supabase.from("site_settings").select("home_visit_enabled").maybeSingle(),
     supabase.from("site_settings").select("farewell_banner_seconds").maybeSingle(),
     supabase.from("site_settings").select(SPLASH_COLUMNS).maybeSingle(),
     supabase.from("site_settings").select(DEV_CONTACT_COLUMNS).maybeSingle(),
+    supabase
+      .from("site_settings")
+      .select("international_pricing_enabled, country_picker_enabled, home_visit_outside_india")
+      .maybeSingle(),
+    supabase
+      .from("country_pricing")
+      .select("country_code, currency_code, enabled, markup_percent, units_per_inr")
+      .eq("enabled", true),
+    supabase.from("site_settings").select("follow_device_theme").maybeSingle(),
   ]);
 
   return {
@@ -124,6 +153,13 @@ async function readLayoutSettings(): Promise<LayoutSettingsRow> {
     farewell: (farewell.data as LayoutSettingsRow["farewell"]) ?? null,
     splash: (splash.data as LayoutSettingsRow["splash"]) ?? null,
     devContact: (devContact.data as LayoutSettingsRow["devContact"]) ?? null,
+    pricing: {
+      settings: pricingSettings.error ? null : ((pricingSettings.data as LayoutSettingsRow["pricing"]["settings"]) ?? null),
+      rows: pricingRows.error ? [] : ((pricingRows.data ?? []) as LayoutSettingsRow["pricing"]["rows"]),
+    },
+    // A failed read is "off": the app stays light, as it was before this
+    // switch existed.
+    followDeviceTheme: !theme.error && (theme.data as { follow_device_theme?: boolean } | null)?.follow_device_theme === true,
   };
 }
 

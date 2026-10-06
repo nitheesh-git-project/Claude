@@ -156,7 +156,7 @@ test.describe("DEV -- the developer credit and its reachouts", () => {
     }
   });
 
-  test("DEV-003: the admin marks a reachout contacted and keeps a note", async ({
+  test("DEV-003: the admin marks a reachout contacted and keeps a dated thread of notes", async ({
     page,
     context,
   }) => {
@@ -196,17 +196,50 @@ test.describe("DEV -- the developer credit and its reachouts", () => {
       );
       await expect(card).toContainText("Please add a dark mode.");
 
-      // A note first, then the status.
-      await card.getByLabel("Your note").fill("Replied by email on the 3rd.");
+      // Notes are a dated thread: each save adds one below the last, with
+      // its own time and author, and each can be edited or deleted.
+      const notes = () =>
+        adminClient()
+          .from("dev_reachout_notes")
+          .select("id, body, author_id, edited_at")
+          .eq("reachout_id", id)
+          .order("created_at", { ascending: true });
+      const thread = card.getByRole("list", { name: `Notes on ${NAME} Triage` });
+
+      await card.getByLabel("Add a note").fill("Replied by email on the 3rd.");
       await card.getByRole("button", { name: "Save note" }).click();
+      await expect(thread.getByRole("listitem")).toHaveCount(1, { timeout: 60_000 });
+      // The composer clears, ready for the next note.
+      await expect(card.getByLabel("Add a note")).toHaveValue("");
+      await card.getByLabel("Add a note").fill("Call booked for Friday.");
+      await card.getByRole("button", { name: "Save note" }).click();
+      await expect(thread.getByRole("listitem")).toHaveCount(2, { timeout: 60_000 });
+      await expect(thread.getByRole("listitem").nth(1)).toContainText("Call booked for Friday.");
+      // Each note carries its date and time, in the clinic's zone.
+      await expect(thread.getByRole("listitem").first()).toContainText(/\d{4}, \d{1,2}:\d{2}/);
       await expect
-        .poll(
-          async () =>
-            (await adminClient().from("dev_reachouts").select("admin_note").eq("id", id).single())
-              .data?.admin_note,
-          { timeout: 60_000 }
-        )
-        .toBe("Replied by email on the 3rd.");
+        .poll(async () => ((await notes()).data ?? []).map((n) => n.body), { timeout: 60_000 })
+        .toEqual(["Replied by email on the 3rd.", "Call booked for Friday."]);
+      expect(((await notes()).data ?? []).every((n) => n.author_id !== null)).toBe(true);
+
+      // Edit the first: it keeps its place and says it was edited.
+      const first = thread.getByRole("listitem").first();
+      await first.getByRole("button", { name: "Edit" }).click();
+      await first.getByLabel("Edit note").fill("Replied by email on the 4th.");
+      await first.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(first).toContainText("Replied by email on the 4th.", { timeout: 60_000 });
+      await expect(first).toContainText("edited");
+      await expect
+        .poll(async () => (await notes()).data?.[0]?.edited_at ?? null, { timeout: 60_000 })
+        .not.toBeNull();
+
+      // Delete the second, behind a confirm.
+      await thread.getByRole("listitem").nth(1).getByRole("button", { name: "Delete" }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "Yes" }).click();
+      await expect(thread.getByRole("listitem")).toHaveCount(1, { timeout: 60_000 });
+      await expect
+        .poll(async () => ((await notes()).data ?? []).length, { timeout: 60_000 })
+        .toBe(1);
 
       await card.getByRole("button", { name: "Mark as contacted" }).click();
       await expect
@@ -254,9 +287,22 @@ test.describe("DEV -- the developer credit and its reachouts", () => {
         .from("admin_activity_log")
         .select("action, details")
         .eq("target_id", id)
-        .in("action", ["dev_reachout.update_status", "dev_reachout.update_note"]);
-      expect((log ?? []).length).toBeGreaterThanOrEqual(2);
-      expect(JSON.stringify(log)).not.toContain("Replied by email");
+        .in("action", [
+          "dev_reachout.update_status",
+          "dev_reachout.add_note",
+          "dev_reachout.edit_note",
+          "dev_reachout.delete_note",
+        ]);
+      const actions = new Set((log ?? []).map((l) => l.action));
+      expect(actions).toEqual(
+        new Set([
+          "dev_reachout.update_status",
+          "dev_reachout.add_note",
+          "dev_reachout.edit_note",
+          "dev_reachout.delete_note",
+        ])
+      );
+      expect(JSON.stringify(log)).not.toMatch(/Replied by email|Call booked/);
     } finally {
       await deleteFixtures();
     }

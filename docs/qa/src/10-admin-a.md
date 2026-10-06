@@ -78,7 +78,7 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 
 **Expected Result.** The row leaves the queue and the badge decreases by one. `profiles.approved` becomes true. Patient B can now sign in and reach `/patient/dashboard` instead of `/pending-approval`. An `admin_activity_log` row records the approval with the actor, the target and the timestamp.
 **Approvals live under Today, beside the inbox that counts them - never on the patients directory.** A queue is not a person.
-**The screen states what it is deciding**, because the two halves are not the same decision: a therapist here is a credentials check, while a patient here registered *without* booking - anyone who genuinely attempts a payment is approved automatically at that moment. Approving a patient from this list changes what they can see, never whether they can pay. Confirm that line is present; without it a new admin cannot tell what they are being asked to judge.
+**The screen states what it is deciding**, because the two halves are not the same decision: a therapist here is a credentials check, while a patient here registered at `/patient/register` *without* booking - a patient who starts a booking is unlocked by paying (or by running out of payment tries, see §4.3) and is listed under People -> Abandoned checkouts until then, never here. Approving a patient from this list changes what they can see, never whether they can pay. Confirm that line is present; without it a new admin cannot tell what they are being asked to judge.
 
 #### `ADM-APPR-002` - Approve a therapist · P0
 Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign in and reach the dashboard, and their availability routes stop returning 403.
@@ -202,7 +202,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 **Feature.** Meet holds anyone it does not recognise in a waiting room until the meeting's owner admits them, and a patient signs in with whatever Google account they have - so without this, every session needed the clinic's own account to let both parties in, one at a time. Each new session's meeting is opened at creation. Settings → Booking Rules → **Join Without Approval** is the switch; Settings → System Health → **Waiting Room** lists the sessions where it did not take.
 
 **Steps.** With the switch **on**, confirm a paid session. Open its Meet link in a browser signed in as a Google account that is *not* on the invite. Then open **Settings → System Health**.
-**Expected Result.** The link goes **straight into the call** - no "asking to be let in", and nobody has to admit anyone. `meet_access_open` is `true` and the session is **not** in the Waiting Room panel. The Join button's caption reads `Opens straight into the call - sign in to Google if asked.` once the join window is open, and `Opens N minutes before your session.` before it.
+**Expected Result.** The link goes **straight into the call** - no "asking to be let in", and nobody has to admit anyone. `meet_access_open` is `true` and the session is **not** in the Waiting Room panel. The Join button's caption reads `Opens straight into the call - sign in to Google if asked.` once the join window is open, and `Opens at <time> - N minutes before the session.` before it. With no link yet, the card says `The Meet link will show here - you can join from <time>.` (or, before a therapist is confirmed, `... once a therapist is confirmed - you can join from <time>.`).
 **Negative:** with a refresh token minted before the `meetings.space.settings` scope (or the Google Meet API not enabled on the Cloud project), the **booking still succeeds and the link still works** - only the waiting room stays on. The session appears under Waiting Room with the 403 explained, is retried a couple of times automatically, then flagged as **needing a person**. **Open the door** re-attempts it and re-arms those attempts; on a session with no Meet link yet it is refused with `This session has no Meet link yet - retry the Calendar sync first`, and on a cancelled one with `This session is cancelled - its Meet space is gone`.
 **Note:** open access removes the **knock**, not the **sign-in**. A meeting organised by a personal Gmail account still requires every participant to be signed in to *some* Google account; only moving the organising account to Google Workspace allows a patient with no Google account at all to join.
 
@@ -386,7 +386,7 @@ The first band **renders even when empty**, saying so. A section that disappears
 
 **Feature.** The middle case, and the one whose honesty is in the plumbing rather than the button.
 
-**Steps.** On a queued recommendation, tap **Approve with changes**. Change the session count chip and the frequency. Submit with the reason `Frequency reduced to match what this patient can attend.`
+**Steps.** On a queued recommendation, tap **Approve with changes**. Change **How many sessions** and the frequency. Submit with the reason `Frequency reduced to match what this patient can attend.`
 
 **Expected Result**
 * The plan becomes `active` and the patient is offered the **new** numbers.

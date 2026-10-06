@@ -24,6 +24,9 @@ export default async function Page() {
     status: a.status,
     noShow: a.no_show,
     isHomeVisit: a.visit?.visit_mode === "home_visit",
+    // The desktop list's row: the same words the card leads with.
+    title: d.patientMap.get(a.patient_id)?.full_name ?? "Unknown patient",
+    detail: a.concern ?? "General Consultation",
   }));
   const cardsById = Object.fromEntries(
     d.appointments.map((a) => [

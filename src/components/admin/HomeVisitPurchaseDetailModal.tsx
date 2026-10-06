@@ -7,6 +7,7 @@ import Modal from "@/components/admin/Modal";
 import { useConfirm } from "@/lib/useConfirm";
 import { usePrompt } from "@/lib/usePrompt";
 import { computeHomeVisitCounts, daysUntilHomeVisitExpiry, HOME_VISIT_EVENT_LABELS } from "@/lib/homeVisitProgress";
+import { formatRupees } from "@/lib/formatMoney";
 
 type AppointmentRow = {
   id: string;
@@ -229,10 +230,10 @@ export default function HomeVisitPurchaseDetailModal({
             <p>
               <span className="text-slate-500">Paid:</span>{" "}
               {data.purchase.amount_paid_paise
-                ? `₹${(data.purchase.amount_paid_paise / 100).toLocaleString("en-IN")}`
+                ? `₹${formatRupees(data.purchase.amount_paid_paise)}`
                 : "-"}
               {!!data.purchase.travel_fee_paise && (
-                <> + ₹{(data.purchase.travel_fee_paise / 100).toLocaleString("en-IN")} travel/visit</>
+                <> + ₹{formatRupees(data.purchase.travel_fee_paise)} travel/visit</>
               )}
             </p>
             <p>

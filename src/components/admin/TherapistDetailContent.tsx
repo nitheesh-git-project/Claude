@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ActivityTimeline from "@/components/admin/ActivityTimeline";
 import { formatClinicDate, formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -19,7 +20,6 @@ import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
-import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawer";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
@@ -42,6 +42,7 @@ function nowTimestamp() {
 import SpecialtyChip from "@/components/SpecialtyChip";
 import TherapistReadinessPanel from "@/components/admin/TherapistReadinessPanel";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
+import { formatRupees } from "@/lib/formatMoney";
 
 // Shared body for both the standalone /admin/dashboard/therapists/[id] page
 // (hard navigation, shareable link) and the @modal intercepted route that
@@ -174,16 +175,6 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     meetLinkRows
   );
 
-  const appointmentIds = (appointments ?? []).map((a) => a.id);
-  const { data: reassignmentLogs } =
-    appointmentIds.length > 0
-      ? await admin
-          .from("appointment_reassignment_log")
-          .select(
-            "id, appointment_id, changed_at, changed_by, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
-          )
-          .in("appointment_id", appointmentIds)
-      : { data: [] as ReassignmentLogEntry[] };
 
   const categoryIds = [
     ...new Set((appointments ?? []).map((a) => a.category_id).filter(Boolean)),
@@ -327,10 +318,12 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       />
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             <AvatarThumbnail url={therapist.avatar_url} name={therapist.full_name ?? "T"} size={64} />
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              {/* Wraps: the name, code and status chips ran 15px off a
+                  360px phone as one unbreakable row. */}
+              <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900">{therapist.full_name}</h1>
                 {therapistCodeRow?.therapist_code && (
                   <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
@@ -500,6 +493,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
         average={ratingAggregate.average}
         count={ratingAggregate.count}
         excludedCount={ratingAggregate.excludedCount}
+        distribution={ratingAggregate.distribution}
         visible={therapist.rating_visible}
         onToggleVisible={{ therapistId: therapist.id }}
       />
@@ -546,7 +540,6 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           categoryMap={categoryMap}
           therapists={approvedTherapists ?? []}
           categories={categories ?? []}
-          reassignmentLogs={reassignmentLogs ?? []}
           emptyMessage="No sessions assigned yet."
         />
       </div>
@@ -561,7 +554,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
               <p className="text-xs text-slate-500 mt-1">
                 Owed:{" "}
                 <strong className="text-teal-700">
-                  ₹{(owedPaise / 100).toLocaleString("en-IN")}
+                  ₹{formatRupees(owedPaise)}
                 </strong>
               </p>
             )}
@@ -614,7 +607,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                     )}
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
-                        ₹{(payoutPaise / 100).toLocaleString("en-IN")}
+                        ₹{formatRupees(payoutPaise)}
                       </span>
                       {isSettled ? (
                         <span className="font-semibold text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
@@ -628,9 +621,9 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                     </div>
                   </div>
                   <p className="text-slate-500">
-                    Session fee ₹{(feePaise / 100).toLocaleString("en-IN")} × {rowShare}%
+                    Session fee ₹{formatRupees(feePaise)} × {rowShare}%
                     {travelPaise > 0 && (
-                      <> + ₹{(travelPaise / 100).toLocaleString("en-IN")} travel</>
+                      <> + ₹{formatRupees(travelPaise)} travel</>
                     )}{" "}
                     • Paid {a.paid_at ? formatClinicDate(a.paid_at) : "date unknown"}
                   </p>
@@ -693,6 +686,12 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             })}
           </ul>
         )}
+      </div>
+
+      {/* Everything done by or to this person, with filters -- see
+          src/lib/activityTimeline.ts. */}
+      <div className="mt-6">
+        <ActivityTimeline personId={id} title="Activity log" />
       </div>
     </JoinWindowProvider>
   );

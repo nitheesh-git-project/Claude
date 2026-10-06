@@ -6,12 +6,12 @@ import { Stagger, StaggerItem } from "@/components/motion/primitives";
 import Modal, { useLastNonNull } from "@/components/Modal";
 import type { CareIllustrationId } from "@/components/visuals/CareIllustration";
 import CatalogCard from "@/components/catalog/CatalogCard";
+import Price from "@/components/pricing/Price";
 import CatalogDialogHeader from "@/components/catalog/CatalogDialogHeader";
 import {
   CheckList,
   ProseSection,
   StatTiles,
-  rupees,
   type StatTile,
 } from "@/components/catalog/CatalogVisuals";
 
@@ -142,7 +142,15 @@ function ProgramDetail({
           value: `${program.duration_minutes ?? 60} minutes, 1-on-1`,
           icon: "fa-video",
         },
-        { label: "Price", value: `${rupees(program.price_paise)} / session`, icon: "fa-tag" },
+        {
+          label: "Price",
+          value: (
+            <>
+              <Price paise={program.price_paise} /> / session
+            </>
+          ),
+          icon: "fa-tag",
+        },
         { label: "Starts with", value: "A full assessment", icon: "fa-clipboard-check" },
       ]
     : [];

@@ -10,6 +10,7 @@ import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
 import { fulfilPaidPurchase } from "@/lib/fulfilPaidPurchase";
+import { unlockPayerAfterCapture } from "@/lib/unlockPayerAfterCapture";
 import { WEBHOOK_RETRYABLE_PREFIX, webhookRetryVerdict } from "@/lib/webhookRetry";
 
 // Razorpay's server-to-server notification that a payment happened.
@@ -217,6 +218,10 @@ export async function POST(request: NextRequest) {
     await markProcessed(`${WEBHOOK_RETRYABLE_PREFIX}record_payment_capture failed`);
     return NextResponse.json({ error: "Could not apply capture" }, { status: 500 });
   }
+
+  // A captured payment unlocks the payer's account, for the patient who paid
+  // and closed the tab before either verify route ran. Idempotent.
+  await unlockPayerAfterCapture(admin, result);
 
   // A package purchase needs more than `payment_status = 'paid'`: its
   // expiry, its credits, and (from a care plan) the plan accepted. The

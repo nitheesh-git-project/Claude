@@ -5,6 +5,7 @@ import CatalogImageField from "@/components/admin/CatalogImageField";
 import { FOCAL_DEFAULT } from "@/lib/catalogImage";
 import { useRouter } from "@/lib/useRouter";
 import { computeHomeVisitSavings } from "@/lib/homeVisitProgress";
+import { formatRupees } from "@/lib/formatMoney";
 
 export type HomeVisitPackage = {
   id: string;
@@ -282,7 +283,7 @@ export default function HomeVisitPackageForm({
       </div>
 
       <p className="text-[11px] text-slate-600 bg-white rounded-lg border border-slate-200 p-2">
-        ₹{(savings.perVisitPaise / 100).toLocaleString("en-IN")} per visit
+        ₹{formatRupees(savings.perVisitPaise)} per visit
         {savings.savingsPercent !== null && (
           <span className="text-teal-700 font-semibold"> · Save {savings.savingsPercent}%</span>
         )}

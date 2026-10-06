@@ -1,3 +1,4 @@
+import { formatRupees } from "@/lib/formatMoney";
 // Turning an audit row's `details` blob into something a person can read.
 //
 // The Activity Log answered "who did what" and stopped there: tapping a row
@@ -103,7 +104,7 @@ export function humaniseValue(key: string, value: unknown): string {
   if (typeof value === "number") {
     // A money column is named as one. Nothing else in these blobs is stored
     // in hundredths, so the suffix is a reliable test.
-    if (/paise$/i.test(key)) return `₹${(value / 100).toLocaleString("en-IN")}`;
+    if (/paise$/i.test(key)) return `₹${formatRupees(value)}`;
     if (/percent$/i.test(key)) return `${value}%`;
     return String(value);
   }

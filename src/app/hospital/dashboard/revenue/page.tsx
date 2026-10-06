@@ -3,14 +3,11 @@ import HospitalDashboardShell from "@/components/hospital/HospitalDashboardShell
 import { loadHospitalDashboard } from "@/lib/hospitalDashboardData";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import { formatSlotTime } from "@/lib/formatSlotTime";
+import { formatInr as formatRupees } from "@/lib/formatMoney";
 
 export const metadata: Metadata = {
   title: "Earnings | MoveRestore",
 };
-
-function formatRupees(paise: number): string {
-  return `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 export default async function Page() {
   const d = await loadHospitalDashboard("revenue");

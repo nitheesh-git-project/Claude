@@ -24,6 +24,9 @@ export default async function Page() {
     status: a.status,
     noShow: a.no_show,
     isHomeVisit: d.visitDetailById.get(a.id)?.visit_mode === "home_visit",
+    // The desktop list's row: the same words the card leads with.
+    title: a.concern ?? "General Consultation",
+    detail: a.therapist_id ? d.therapistMap.get(a.therapist_id) ?? undefined : "Therapist not yet assigned",
   }));
   const cardsById = Object.fromEntries(
     d.appointments.map((a) => [a.id, renderPatientSessionCard(d, a, d.visitDetailById.get(a.id) ?? null)])

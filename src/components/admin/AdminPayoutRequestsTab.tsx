@@ -2,9 +2,10 @@ import Link from "next/link";
 import PagedList from "@/components/dashboard/PagedList";
 import CompletePayoutRequestButton from "@/components/admin/CompletePayoutRequestButton";
 import StartReviewPayoutRequestButton from "@/components/admin/StartReviewPayoutRequestButton";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 function formatDateTime(iso: string) {

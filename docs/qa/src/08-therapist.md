@@ -372,26 +372,26 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 #### `THR-CARE-001` - Write a care plan from the session note dialog · P0
 
-**Preconditions.** A **completed** session that **this therapist ran** for Patient A. Package P1 exists and is recommendable.
+**Preconditions.** A **completed** session that **this therapist ran** for Patient A, or a started one finished through **Done** (the note dialog carries the panel then too). Its condition has a price on Catalog → Conditions.
 
 **Steps**
 1. Open the completed session's note dialog.
 2. In the **Recommend treatment** panel, tap the **Condition** dropdown.
 3. Read the list of conditions offered, and how they are grouped.
-4. Select the session's own condition, then tap the session-count chip for `6 sessions`.
-5. Read the four read-only figures shown beneath.
+4. Check the session's own condition is pre-selected. Enter `8` in **How many sessions**.
+5. Read the total line beneath.
 6. Tap **How often, per week** and select `2 a week`.
-7. Tick **Needs hands-on treatment**.
+7. Tick **Needs hands-on treatment**, read the field label and total again, then untick it.
 8. Tap **Why this, for this patient**. Enter `Your range has improved but the pain returns after a day at your desk. A structured block will hold the gains.`
 9. Tap **Anything they should do or know**. Enter `Keep up the walking between sessions. Book the first one within a fortnight if you can.`
 10. Read the line above the submit button.
 11. Submit.
 
 **Expected Result**
-* Step 3: **conditions are grouped by condition type** - Orthopaedic, Neurological, Paediatric - from `treatment_categories.specialty`. A category an admin has not tagged appears under **General** and still works - that is where the clinic's general consultation sits, and "General" is deliberately **not** a fourth condition type: a patient's own health profile is only ever ortho, neuro or paediatric. The panel **never shows a programme by name**: a clinician answers "which condition" and "how many sessions", and those two pick the catalogue row.
-* Step 3: **only programmes for this session's own condition are offered.** `QA Neuro Rehab 8 Sessions` must not be reachable for a `QA Back & Spine Care` session.
-* Step 4: a **Delivered as** toggle (Video sessions / Home visits) appears **only** where the clinic sells both against that condition. A toggle with one option is not a decision the clinician has.
-* Step 5: **Sessions `6`**, **Price `₹9,999`**, **Valid for `90 days`**, **Each session `60 min`** - all read-only, all from the admin's catalog row. **There is no price field, no session-count field and no discount field anywhere in this panel.** If one exists, that is a P0 defect: "the therapist set their own price" must be a thing the schema cannot express.
+* Step 3: the list is **every active online condition** (the same list `/book` sells), **grouped by condition type** - Orthopaedic, Neurological, Paediatric - from `treatment_categories.specialty`; an untagged one sits under **General**. The session's own condition is selected first, with its photograph beside the picker. No admin programme appears by name - recommendations are no longer built from programmes.
+* Step 4: **How many sessions** is a number field, 1-30 (default 6). Outside that range the field says so and saving is refused.
+* Step 5: the total reads `8 sessions × ₹<the condition's price> = ₹<8 × that price>` and moves as the number changes. **There is no price field and no discount field** - the price is always the condition's own per-session price times the count, re-derived on the server.
+* Step 7: **Needs hands-on treatment is the only switch between video and home visits.** Ticked, the field reads **How many visits**, the per-visit price is the single home-visit price, the line adds "Plus travel for the patient's area", and the plan is a home-visit plan. Unticked, it is video sessions and the patient is never asked for an address. If home visits are off (or have no single-visit price), the box is disabled and says so.
 * Step 6: the frequency dropdown is capped by `care_plan_max_frequency_per_week` (default 5) and offers `Leave open`.
 * Step 10: with `care_plan_requires_approval` **on** (the default), the panel says *"Goes to the clinic first. Your patient sees it once it is approved."* With it off, it says the patient sees it on their dashboard. **The copy must match the setting** - telling a clinician their patient can already see something sitting in a queue is a P0 defect.
 * Step 11: the plan lands `status = 'pending_review'`, append-only and attributed. `care_plan_versions.source_appointment_id` is NOT NULL and is **re-derived from the appointment, not trusted from the body**. `care_plan_versions.expires_at` is **null** - the offer window is stamped at approval, not now.

@@ -120,7 +120,9 @@ export default function SystemHealthCard({
               {check.evidence.map((line, i) => (
                 <li key={i} className="flex gap-2 text-[11px] leading-relaxed text-slate-600">
                   <i aria-hidden className="fa-solid fa-magnifying-glass mt-0.5 text-[9px] text-slate-500" />
-                  <span>{line}</span>
+                  {/* Evidence quotes IDs and URLs with no spaces in them;
+                      they wrap anywhere rather than widen a phone screen. */}
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{line}</span>
                 </li>
               ))}
             </ul>
@@ -152,7 +154,7 @@ export default function SystemHealthCard({
                   <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-600">
                     {i + 1}
                   </span>
-                  <span className="min-w-0 break-words">{step}</span>
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{step}</span>
                 </li>
               ))}
             </ol>

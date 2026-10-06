@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { AnimatePresence, motion } from "motion/react";
 import { computeHomeVisitCounts, daysUntilHomeVisitExpiry, HOME_VISIT_EVENT_LABELS } from "@/lib/homeVisitProgress";
+import { formatRupees } from "@/lib/formatMoney";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -208,9 +209,9 @@ export default function HomeVisitDetailModal({
                   {data.viewerRole === "patient" && data.purchase.amountPaidPaise !== null && (
                     <p>
                       <span className="text-slate-500">Paid:</span> ₹
-                      {(data.purchase.amountPaidPaise / 100).toLocaleString("en-IN")}
+                      {formatRupees(data.purchase.amountPaidPaise)}
                       {!!data.purchase.travelFeePaise && (
-                        <> + ₹{(data.purchase.travelFeePaise / 100).toLocaleString("en-IN")} travel/visit</>
+                        <> + ₹{formatRupees(data.purchase.travelFeePaise)} travel/visit</>
                       )}
                     </p>
                   )}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PAIN_BAND_LABEL, painBand, formatPainOutOfTen } from "@/lib/painMap";
 import type { PainTrendPoint } from "@/lib/healthProfileSummary";
+import { formatClinicTime } from "@/lib/formatDateTime";
 
 const WIDTH = 320;
 const HEIGHT = 118;
@@ -14,8 +15,8 @@ const formatDay = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata", day: "numeric", month: "short" });
 
 /**
- * "Am I getting better?" as one line: the average pain your therapist
- * recorded on each exam day, oldest to newest. One series, so no legend -
+ * "Am I getting better?" as one line: your overall pain after each exam,
+ * oldest to newest - two exams on one day are two dots, never one. One series, so no legend -
  * the card's own heading names it - and a single direct label on the
  * newest point rather than a number over every dot.
  *
@@ -92,7 +93,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
                 x2={WIDTH - PAD.right}
                 y1={y(tick)}
                 y2={y(tick)}
-                stroke="#e2e8f0"
+                stroke="var(--chart-grid)"
                 strokeWidth={1}
               />
               <text x={PAD.left - 6} y={y(tick) + 3} textAnchor="end" fontSize={8} fill="#94a3b8">
@@ -101,8 +102,8 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
             </g>
           ))}
 
-          <path d={area} fill="#0d9488" fillOpacity={0.08} />
-          <path d={line} fill="none" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={area} fill="var(--chart-brand-soft)" fillOpacity={0.08} />
+          <path d={line} fill="none" stroke="var(--chart-brand-soft)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
 
           {active && (
             <line
@@ -110,7 +111,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
               x2={x(hover!)}
               y1={PAD.top}
               y2={PAD.top + PLOT_H}
-              stroke="#0d9488"
+              stroke="var(--chart-brand-soft)"
               strokeOpacity={0.35}
               strokeWidth={1}
             />
@@ -122,7 +123,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
               cx={x(i)}
               cy={y(p.percent)}
               r={hover === i ? 5 : 4}
-              fill="#0d9488"
+              fill="var(--chart-brand-soft)"
               stroke="#ffffff"
               strokeWidth={2}
             />
@@ -134,7 +135,7 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
             textAnchor="end"
             fontSize={9}
             fontWeight={700}
-            fill="#0f766e"
+            fill="var(--chart-brand)"
           >
             {formatPainOutOfTen(latest.percent)}
           </text>
@@ -154,15 +155,20 @@ export default function PainTrendChart({ points }: { points: PainTrendPoint[] })
             className="pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] shadow-lg"
             style={{ left: `${(x(hover!) / WIDTH) * 100}%`, top: `${(y(active.percent) / HEIGHT) * 100}%` }}
           >
-            <p className="font-semibold text-slate-700">{formatDay(active.date)}</p>
+            <p className="font-semibold text-slate-700">
+              {formatDay(active.date)}, {formatClinicTime(active.date)}
+            </p>
             <p className="text-slate-500">
-              {formatPainOutOfTen(active.percent)} · {active.regions} {active.regions === 1 ? "area" : "areas"} checked
+              {formatPainOutOfTen(active.percent)} overall · {active.regions}{" "}
+              {active.regions === 1 ? "area" : "areas"} checked
             </p>
           </div>
         )}
       </div>
 
-      <p className="mt-1 text-[11px] text-slate-500">Lower is better. Each dot is one exam by your therapist.</p>
+      <p className="mt-1 text-[11px] text-slate-500">
+        Lower is better. Each dot is one exam - your overall pain across every area recorded so far.
+      </p>
     </div>
   );
 }

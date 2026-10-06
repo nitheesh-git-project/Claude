@@ -1,5 +1,7 @@
 "use client";
 
+import CountryPicker from "@/components/pricing/CountryPicker";
+import { usePricing } from "@/components/pricing/PricingProvider";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isDashboardShellRoute, isDeveloperRoute } from "@/lib/dashboardShellRoutes";
@@ -31,7 +33,7 @@ export default function Footer({
   contactPhone,
   footerCopyrightText,
   socialLinks = [],
-  homeVisitEnabled = false,
+  homeVisitEnabled: homeVisitSwitch = false,
   devCreditEnabled = true,
 }: {
   siteName: string;
@@ -48,6 +50,9 @@ export default function Footer({
    *  /developer pages off, so the line never links to a page that 404s. */
   devCreditEnabled?: boolean;
 }) {
+  // Off outside India unless an admin allows it (Countries & currency).
+  const { homeVisitsOffered } = usePricing();
+  const homeVisitEnabled = homeVisitSwitch && homeVisitsOffered;
   const pathname = usePathname();
   // Same list the header and the connector grids read, minus Home (the
   // wordmark above already links there). Hardcoding these was how the footer
@@ -57,7 +62,7 @@ export default function Footer({
     (page) => page.key !== "home" && (homeVisitEnabled || !page.requiresHomeVisit)
   );
   // See Navbar's matching check -- each role dashboard is its own
-  // full-height dark app shell with no page scroll, so a footer below it
+  // full-height app shell with no page scroll, so a footer below it
   // would never be reachable/visible anyway.
   if (isDashboardShellRoute(pathname)) {
     return null;
@@ -156,6 +161,7 @@ export default function Footer({
         <p>
           © {new Date().getFullYear()} {footerCopyrightText}
         </p>
+        <CountryPicker />
         {devCreditEnabled && (
           <p className="mt-1 px-4">
             Researched, designed and hand-built to make care easier for patients and therapists — by{" "}

@@ -4,12 +4,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { serverError } from "@/lib/apiError";
-import { MAX_DEV_REACHOUT_NOTE_LENGTH, isDevReachoutStatus } from "@/lib/devReachout";
+import { isDevReachoutStatus } from "@/lib/devReachout";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Marks a developer reachout contacted (or back to new) and keeps a note on
-// it. Settings is Master Admin only, so this is guarded by that scope rather
+// Marks a developer reachout contacted (or back to new). Its notes are a
+// thread of their own, written by /api/admin/dev-reachout-note. Settings is Master Admin only, so this is guarded by that scope rather
 // than the People one the other lead pipelines use: the table is the
 // developer's own inbox, not the clinic's.
 export async function POST(request: NextRequest) {
@@ -21,32 +21,18 @@ export async function POST(request: NextRequest) {
   const { data: body, error: parseError } = await parseJsonBody<{
     id?: unknown;
     status?: unknown;
-    note?: unknown;
   }>(request);
   if (parseError) return parseError;
 
-  const { id, status, note } = body;
+  const { id, status } = body;
   if (typeof id !== "string" || !UUID_RE.test(id)) {
     return NextResponse.json({ error: "Missing or invalid id" }, { status: 400 });
   }
-  const changingStatus = status !== undefined;
-  const changingNote = note !== undefined;
-  if (!changingStatus && !changingNote) {
+  if (status === undefined) {
     return NextResponse.json({ error: "Nothing to change" }, { status: 400 });
   }
-  if (changingStatus && !isDevReachoutStatus(status)) {
+  if (!isDevReachoutStatus(status)) {
     return NextResponse.json({ error: "Unknown status" }, { status: 400 });
-  }
-  if (changingNote) {
-    if (typeof note !== "string") {
-      return NextResponse.json({ error: "note must be text" }, { status: 400 });
-    }
-    if (note.trim().length > MAX_DEV_REACHOUT_NOTE_LENGTH) {
-      return NextResponse.json(
-        { error: `Please keep a note to ${MAX_DEV_REACHOUT_NOTE_LENGTH} characters or fewer.` },
-        { status: 400 }
-      );
-    }
   }
 
   const admin = createAdminClient();
@@ -66,19 +52,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const patch: Record<string, unknown> = {};
-  if (changingStatus) {
-    const now = new Date().toISOString();
-    patch.status = status;
-    patch.contacted_at = status === "contacted" ? now : null;
-    patch.contacted_by = status === "contacted" ? adminUser.id : null;
-  }
-  const trimmedNote = typeof note === "string" ? note.trim() : "";
-  if (changingNote) {
-    // An empty note clears it rather than storing a blank string.
-    patch.admin_note = trimmedNote === "" ? null : trimmedNote;
-    patch.note_updated_at = new Date().toISOString();
-  }
+  const contacted = status === "contacted";
+  const patch = {
+    status,
+    contacted_at: contacted ? new Date().toISOString() : null,
+    contacted_by: contacted ? adminUser.id : null,
+  };
 
   const { data: updated, error } = await admin
     .from("dev_reachouts")
@@ -94,22 +73,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Best-effort, after the write. The note's text is never logged -- it is
-  // free text about a person -- only that one was saved, and how long.
-  if (changingStatus) {
-    await recordAdminActivity(admin, adminUser.id, {
-      action: "dev_reachout.update_status",
-      targetId: id,
-      details: { from: before.status, to: status },
-    });
-  }
-  if (changingNote) {
-    await recordAdminActivity(admin, adminUser.id, {
-      action: "dev_reachout.update_note",
-      targetId: id,
-      details: { noteLength: trimmedNote.length },
-    });
-  }
+  // Best-effort, after the write.
+  await recordAdminActivity(admin, adminUser.id, {
+    action: "dev_reachout.update_status",
+    targetId: id,
+    details: { from: before.status, to: status },
+  });
 
   return NextResponse.json({ success: true });
 }

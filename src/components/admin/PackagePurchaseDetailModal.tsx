@@ -7,6 +7,7 @@ import Modal from "@/components/admin/Modal";
 import { useConfirm } from "@/lib/useConfirm";
 import { usePrompt } from "@/lib/usePrompt";
 import { computePackageCounts, daysUntilExpiry, PACKAGE_EVENT_LABELS } from "@/lib/packageProgress";
+import { formatRupees } from "@/lib/formatMoney";
 
 type AppointmentRow = {
   id: string;
@@ -233,7 +234,7 @@ export default function PackagePurchaseDetailModal({
             <p>
               <span className="text-slate-500">Paid:</span>{" "}
               {data.purchase.amount_paid_paise
-                ? `₹${(data.purchase.amount_paid_paise / 100).toLocaleString("en-IN")}`
+                ? `₹${formatRupees(data.purchase.amount_paid_paise)}`
                 : "-"}{" "}
               ({data.purchase.payment_status})
             </p>

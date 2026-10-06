@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
+import { pricingForRequest } from "@/lib/countryPricingServer";
 import { isGatewayPayable } from "@/lib/discounts";
 import { confirmPayLaterAppointment } from "@/lib/confirmPaidAppointment";
 import { readPayLaterBookingEligibility } from "@/lib/payLaterSettingsServer";
@@ -103,6 +104,9 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  // The same country pricing the quote used, so what is owed is what was
+  // shown. Still a rupee amount, like every debt here.
+  const { pricing } = await pricingForRequest(admin, request);
 
   // Resolved without claiming first, purely so the eligibility check below
   // has a figure: a ceiling on what a patient may owe has to be applied to
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
     appointment,
     promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
     claim: false,
+    pricing,
   });
 
   const eligibility = await readPayLaterBookingEligibility(admin, {
@@ -140,6 +145,7 @@ export async function POST(request: NextRequest) {
     appointment,
     promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
     claim: true,
+    pricing,
   });
 
   if (quote.promoError) {

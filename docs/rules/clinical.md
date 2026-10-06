@@ -160,9 +160,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   which is the same act again rather than an edit. All three call
   `authorCarePlanVersion()` in `src/lib/carePlanAuthoring.ts`, which
   is what stops the later doors growing weaker rules than the first: the
-  package still comes from the admin whitelist, the source still has to be a
-  **completed session that therapist ran**, the text is still scanned, and
-  there is still no price, session-count or discount field for anyone.
+  price is still the condition's per-session price times the count, resolved
+  server-side, the source still has to be a **completed session that
+  therapist ran**, the text is still scanned, and there is still no price or
+  discount field for anyone.
   Attribution is split rather than fudged - `authored_by` stays the clinician
   whose judgement it is, `entered_by` records the admin who typed it. Naming
   only the therapist would be a quiet lie about who was at the keyboard;
@@ -178,15 +179,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   thread whose first version fails to publish is withdrawn, so it neither
   shows empty nor blocks the retry. An open plan belonging to another
   therapist is refused (409) rather than revised under their name.
-  The admin's panel matches the therapist's dialog on the two things that
-  decide what gets picked. The programmes on offer are narrowed to the
-  chosen session's own condition, through `narrowToCategory()` in
-  `CarePlanFields.tsx` - both doors load the whole recommendable catalog in
-  one go (a therapist's dashboard covers all their patients, an admin's
-  screen covers all of them), so neither can narrow at load time and both
-  narrow per session at the point of use; the admin's draft is dropped when
-  the chosen session changes, so a package for someone else's condition
-  cannot be carried across. And whose name it goes out in is stated at the
+  The admin's panel matches the therapist's dialog: both use
+  `CarePlanFields.tsx` over the same `loadRecommendableRates()` list - every
+  active online condition, starting on the chosen session's own - and the
+  admin's draft is dropped when the chosen session changes. And whose name it goes out in is stated at the
   button rather than in a subtitle two screens up. It renders even with no session
   to write against or no recommendable package, saying which of the two is
   missing -- an admin opens this screen because a patient is waiting, and a
@@ -302,14 +298,26 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   (`care_plans` + `care_plan_versions`) is what a therapist proposes after a
   session, and it is the only route by which a patient buys a programme once
   the consultation-first flow is on. Five rules hold it together:
-  1. **A therapist picks a package, never a price.** Session count, price,
-     validity, duration and the gap rules all come from an
-     admin-configured `treatment_category_packages` / `home_visit_packages`
-     row, re-read server-side in
-     `/api/therapist/care-plan/submit`. There is no price column, no session
-     count column and no discount column on a version, so "the therapist set
-     their own price" is not a policy anyone enforces - it is a thing the
-     schema cannot express. The four fields they *do* choose
+  1. **A therapist picks a condition and a number, never a price.** The
+     price is that condition's per-session price times the count
+     (`buildCourseSnapshot()` in `src/lib/carePlans.ts`): the condition's
+     own `treatment_categories.price_paise` for video sessions, the single
+     home-visit price (a one-visit `home_visit_packages` row, the
+     condition's own over a general one) when **Needs hands-on treatment**
+     is ticked - which is the *only* switch between video and home visits
+     (`offerKindFor()`), so a plan can never say hands-on and sell video.
+     The count is 1-30. All of it is resolved by `loadRecommendableRates()` /
+     `resolveCourseRate()` on the server, never taken from the body, and
+     there is no price or discount field anywhere. Admin programmes are no
+     longer what a recommendation sells. A purchase still needs a catalog
+     row behind it, so each condition gets one hidden **course row** per
+     delivery mode (`care_plan_course = true`, created on demand by
+     `ensureCourseTemplate()`, left out of every catalog list); the count and
+     amount live on the purchase. Checkout (`/api/care-plan/create-order`)
+     and approval (`describeOfferDrift()`) re-price a course from the live
+     rate and refuse on a change; a version written against a programme
+     before this keeps the old path. The snapshot carries the condition's
+     photograph, which the patient's card shows. The other fields they choose
      (`hands_on_required`, `frequency_per_week`, `clinical_rationale`,
      `instructions`) are clinical judgement.
   2. **A version needs a completed session that therapist ran.**
@@ -483,3 +491,11 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   history. Completion is never blocked on a note - the nudge is a
   `needsYou` feed item plus the "Notes to write" figure on the therapist's
   Overview.
+- **"Are you getting better?" is one point per exam, never per day.**
+  `painTrendSeries()` (`src/lib/healthProfileSummary.ts`) closes an exam at a
+  gap of more than an hour or when an area already scored in it is scored
+  again, and plots the patient's overall pain after it: the average of the
+  latest reading for every area so far, so an area not re-checked keeps its
+  last score. It used to average each calendar day, which folded a second
+  exam that day into the first and erased the earlier value from the line.
+  `src/lib/painTrendSeries.test.ts`, `e2e/pain-trend.spec.ts`.

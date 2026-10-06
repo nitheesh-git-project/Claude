@@ -13,9 +13,11 @@ import {
   CARE_PLAN_STATE_LABELS,
   type CarePlanStatus,
 } from "@/lib/carePlans";
+import { formatRupees } from "@/lib/formatMoney";
+import { usePricing } from "@/components/pricing/PricingProvider";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 export type CarePlanOffer = {
@@ -189,6 +191,12 @@ export default function CarePlanOfferCard({
     ? snapshot.pricePaise + (snapshot.travelFeeIncluded ? 0 : travelPaise)
     : null;
   const totalKnown = !offer.isHomeVisit || quote.state === "ready";
+  // Video sessions follow the visitor's currency (the server charges the
+  // rupee equal of the same figure); a home visit is delivered and charged
+  // in India, so it stays in rupees.
+  const { formatList, formatAmount, homeVisitsOffered } = usePricing();
+  const priceText = (paise: number) => (offer.isHomeVisit ? formatInr(paise) : formatList(paise));
+  const perSessionText = (paise: number) => (offer.isHomeVisit ? formatInr(paise) : formatAmount(paise));
   const state = carePlanState(
     { status: offer.planStatus as CarePlanStatus },
     { expires_at: offer.expiresAt },
@@ -198,8 +206,12 @@ export default function CarePlanOfferCard({
   function handlePay() {
     if (inFlight.current) return;
     if (offer.isHomeVisit) {
-      if (usingNewAddress && (!newAddress.line1.trim() || !newAddress.pincode.trim())) {
+      if (usingNewAddress && !newAddress.line1.trim()) {
         setError("Add the address these visits should come to.");
+        return;
+      }
+      if (usingNewAddress && !/^\d{6}$/.test(newAddress.pincode.trim())) {
+        setError("Add the 6-digit pincode for this address.");
         return;
       }
       if (quote.state === "unserviceable") {
@@ -272,7 +284,8 @@ export default function CarePlanOfferCard({
   // could never succeed. Same rule as the Pay Now button a pay-later session
   // stopped offering -- a control the server refuses outright must not
   // render.
-  const homeVisitWithdrawn = offer.isHomeVisit && !homeVisitEnabled;
+  // Paused by the master switch, or not offered where this patient is.
+  const homeVisitWithdrawn = offer.isHomeVisit && (!homeVisitEnabled || !homeVisitsOffered);
   const actionable = state === "awaiting_patient" && !homeVisitWithdrawn;
 
   // What the patient sees the instant the payment clears, in place of the
@@ -294,7 +307,19 @@ export default function CarePlanOfferCard({
   }
 
   return (
-    <div className="rounded-2xl border border-teal-200 bg-white p-6 shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-teal-200 bg-white shadow-sm">
+      {snapshot?.imageUrl && (
+        // The condition's own photograph, the same one its card on /conditions
+        // carries, so the recommendation reads as that treatment at a glance.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={snapshot.imageUrl}
+          alt=""
+          data-testid="care-plan-image"
+          className="h-36 w-full object-cover sm:h-44"
+        />
+      )}
+      <div className="p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">
@@ -317,9 +342,14 @@ export default function CarePlanOfferCard({
           </div>
           <div>
             <dt className="text-[11px] text-slate-500">Price</dt>
-            <dd className="text-sm font-bold text-slate-900">
-              {formatInr(snapshot.pricePaise)}
+            <dd className="text-sm font-bold text-slate-900" data-price="">
+              {priceText(snapshot.pricePaise)}
             </dd>
+            {snapshot.perSessionPaise ? (
+              <dd className="text-[11px] text-slate-500" data-price="">
+                {snapshot.sessionCount} × {perSessionText(snapshot.perSessionPaise)}
+              </dd>
+            ) : null}
           </div>
           <div>
             <dt className="text-[11px] text-slate-500">How often</dt>
@@ -396,7 +426,25 @@ export default function CarePlanOfferCard({
             </div>
           )}
           {usingNewAddress && (
-            <div className="mt-3">
+            <div className="mt-3 space-y-4">
+              {/* The shared AddressForm leaves the pincode to the wizard's
+                  area step, which this card does not have -- so without this
+                  field a new address could never be complete, and every pay
+                  attempt said "Add the address these visits should come to". */}
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-700">Pincode</span>
+                <input
+                  value={newAddress.pincode}
+                  onChange={(e) =>
+                    setNewAddress({ ...newAddress, pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })
+                  }
+                  disabled={paying}
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  placeholder="6 digits"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                />
+              </label>
               <AddressForm value={newAddress} onChange={setNewAddress} disabled={paying} />
             </div>
           )}
@@ -419,7 +467,9 @@ export default function CarePlanOfferCard({
           {snapshot && quote.state === "ready" && (
             <dl className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-xs">
               <div className="flex justify-between">
-                <dt className="text-slate-500">Programme</dt>
+                <dt className="text-slate-500">
+                  {snapshot.sessionCount} {snapshot.sessionCount === 1 ? "visit" : "visits"}
+                </dt>
                 <dd className="font-semibold text-slate-800">
                   {formatInr(snapshot.pricePaise)}
                 </dd>
@@ -448,8 +498,9 @@ export default function CarePlanOfferCard({
 
       {homeVisitWithdrawn && state === "awaiting_patient" && (
         <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800">
-          Visits at home are paused at the moment, so this cannot be booked
-          just now. Your therapist will be in touch about what to do instead.
+          {homeVisitsOffered
+            ? "Visits at home are paused at the moment, so this cannot be booked just now. Your therapist will be in touch about what to do instead."
+            : "Home visits are only available in India, so this cannot be booked from where you are. Your therapist can suggest video sessions instead."}
         </p>
       )}
 
@@ -465,7 +516,7 @@ export default function CarePlanOfferCard({
               {paying
                 ? "Opening payment…"
                 : chargeablePaise !== null && totalKnown
-                  ? `Accept & pay ${formatInr(chargeablePaise)}`
+                  ? `Accept & pay ${priceText(chargeablePaise)}`
                   : "Accept & pay"}
             </button>
             {!decliningOpen && (
@@ -526,6 +577,7 @@ export default function CarePlanOfferCard({
               : "No longer open."}
         </p>
       )}
+      </div>
     </div>
   );
 }

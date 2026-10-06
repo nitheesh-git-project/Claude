@@ -82,8 +82,8 @@ export default async function ConditionsPage() {
   // admin-controlled, so a rail item pointing at an absent section would be a
   // dead pill and a skipped stop for the scroll arrow. Order matches the DOM.
   const sectionNavItems: SectionNavItem[] = [
-    { id: "areas", label: "What We Treat", icon: "fa-bone" },
     ...(rows.length > 0 ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }] : []),
+    { id: "areas", label: "What We Treat", icon: "fa-bone" },
     { id: "explore", label: "Explore the Site", icon: "fa-compass" },
     { id: "not-sure", label: "Not Sure?", icon: "fa-circle-question" },
   ];
@@ -102,19 +102,6 @@ export default async function ConditionsPage() {
         alt="A patient holding a balance exercise on her mat at home, laptop open beside her"
       />
 
-      {/* Breadth first, catalog second. The old page opened straight into the
-          admin-configured programme cards, so a visitor whose complaint was
-          not one of the configured programme titles concluded we did not
-          treat it. */}
-      <Section
-        id="areas"
-        eyebrow="Areas of practice"
-        title="Where we can help"
-        lede="Whichever fits, the first step is the same."
-      >
-        <CareAreaShowcase href="/book" ctaLabel="Book an assessment" />
-      </Section>
-
       {rows.length > 0 && (
         <Section
           id="programs"
@@ -127,6 +114,19 @@ export default async function ConditionsPage() {
         </Section>
       )}
 
+      {/* The breadth of practice, below what can be booked. The owner's
+          order: the programmes a visitor can book today come first, and the
+          areas below them answer "what if mine is not one of those" -- the
+          case that, when the page held programmes alone, read as "we do not
+          treat it". */}
+      <Section
+        id="areas"
+        eyebrow="Areas of practice"
+        title="Where we can help"
+        lede="Whichever fits, the first step is the same."
+      >
+        <CareAreaShowcase href="/book" ctaLabel="Book an assessment" />
+      </Section>
 
       <ExploreSection current="conditions" homeVisitEnabled={homeVisitEnabled} />
 

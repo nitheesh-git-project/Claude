@@ -2,6 +2,10 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { SUPPORT_EMAIL } from "@/lib/siteContact";
+import FinishBookingCard, { type FinishBookingDraft } from "@/components/booking/FinishBookingCard";
+import { createPublicClient } from "@/lib/supabase/public";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 
 export const metadata: Metadata = {
   title: "Approval Pending | MoveRestore",
@@ -20,13 +24,66 @@ export default async function PendingApprovalPage() {
   } = await supabase.auth.getUser();
 
   let role: string | null = null;
+  let profileName = "";
+  let profileEmail = "";
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, full_name, email")
       .eq("id", user.id)
       .maybeSingle();
     role = profile?.role ?? null;
+    profileName = profile?.full_name ?? "";
+    profileEmail = profile?.email ?? user.email ?? "";
+  }
+
+  // A patient who signed up inside a booking wizard is not waiting on an
+  // admin: their account opens when they pay (or run out of payment tries).
+  // Show them the booking they left unpaid and the way to finish it, not a
+  // review screen that would never end. A /patient/register signup has no
+  // such marker and keeps the screen below.
+  if (user && role === "patient" && user.user_metadata?.signup_source === "booking") {
+    const nowIso = new Date().toISOString();
+    const [{ data: draftRow }, { data: daysRow }] = await Promise.all([
+      supabase
+        .from("appointments")
+        .select("id, slot_time, concern")
+        .eq("patient_id", user.id)
+        .eq("status", "requested")
+        .eq("payment_status", "unpaid")
+        .eq("visit_mode", "online")
+        .gt("slot_time", nowIso)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      createPublicClient()
+        .from("site_settings")
+        .select("abandoned_booking_account_days")
+        .maybeSingle(),
+    ]);
+    const days =
+      typeof daysRow?.abandoned_booking_account_days === "number"
+        ? daysRow.abandoned_booking_account_days
+        : DEFAULT_ADMIN_SETTINGS.abandonedBookingAccountDays;
+    const keptUntil = user.created_at
+      ? formatClinicDate(new Date(new Date(user.created_at).getTime() + days * 86_400_000))
+      : null;
+    const draft: FinishBookingDraft | null = draftRow
+      ? {
+          appointmentId: draftRow.id,
+          whenLabel: formatClinicDateTime(draftRow.slot_time),
+          concern: draftRow.concern ?? "physiotherapy",
+        }
+      : null;
+    return (
+      <FinishBookingCard
+        draft={draft}
+        name={profileName}
+        email={profileEmail}
+        keptUntilLabel={keptUntil}
+        bookHref={draft ? `/book?replaces=${draft.appointmentId}` : "/book"}
+      />
+    );
   }
 
   const heading = role === "therapist" ? "Application Received" : "Approval Pending";

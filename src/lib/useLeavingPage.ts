@@ -49,6 +49,6 @@ export function useLeavingPage() {
 
   return useCallback(() => {
     if (releaseRef.current) return;
-    releaseRef.current = begin();
+    releaseRef.current = begin("navigation");
   }, [begin]);
 }

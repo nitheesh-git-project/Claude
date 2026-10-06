@@ -1,4 +1,6 @@
 import { createPublicClient } from "@/lib/supabase/public";
+import { parseBookingLanguages, parseEnabledIntakeSpecialties } from "@/lib/adminSettings";
+import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
 
 /**
  * Whether the clinic currently sells home visits.
@@ -20,4 +22,28 @@ export async function readHomeVisitEnabled(): Promise<boolean> {
     .select("home_visit_enabled")
     .maybeSingle();
   return data?.home_visit_enabled === true;
+}
+
+/**
+ * The specialties whose health profile the clinic offers, for the public
+ * showcase on /how-it-works and the home page. Its own query like the flag
+ * above; a read that fails falls back to the default list rather than
+ * hiding the showcase (it describes the product, it grants nothing).
+ */
+export async function readEnabledIntakeSpecialties(): Promise<ConditionSpecialty[]> {
+  const { data } = await createPublicClient()
+    .from("site_settings")
+    .select("enabled_intake_specialties")
+    .maybeSingle();
+  return parseEnabledIntakeSpecialties(data?.enabled_intake_specialties);
+}
+
+/** The languages a patient may ask for at booking, for the public pages that
+ *  name them (Why choose us). Same fallback rule as the booking form. */
+export async function readBookingLanguages(): Promise<string[]> {
+  const { data } = await createPublicClient()
+    .from("site_settings")
+    .select("booking_languages")
+    .maybeSingle();
+  return parseBookingLanguages(data?.booking_languages);
 }

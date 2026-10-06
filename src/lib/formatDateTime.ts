@@ -64,6 +64,17 @@ export function formatClinicTime(value: string | number | Date | null | undefine
   return safe(value, TIME);
 }
 
+const WEEKDAY = formatter({ weekday: "short" });
+const DAY = formatter({ day: "numeric" });
+const MONTH = formatter({ month: "short" });
+
+/** `{ weekday: "Thu", day: "9", month: "Oct" }` -- the stacked date block a
+ *  compact row shows. Dashes for a missing or unreadable date, like the
+ *  rest of these. */
+export function clinicDayParts(value: string | number | Date | null | undefined) {
+  return { weekday: safe(value, WEEKDAY), day: safe(value, DAY), month: safe(value, MONTH) };
+}
+
 /** `12 Sep 2026, 6:00 pm` */
 export function formatClinicDateTime(value: string | number | Date | null | undefined) {
   return safe(value, DATE_TIME);

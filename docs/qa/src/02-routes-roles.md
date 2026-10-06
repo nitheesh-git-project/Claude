@@ -85,6 +85,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001`, `ADM-PEOP-010` |
 | People | `therapists` | Therapists | `ADM-PEOP-005`, `ADM-PEOP-010` |
 | People | `partners` | Partners | `ADM-PEOP-008`, `ADM-PEOP-010` |
+| People | `abandoned` | Abandoned checkouts - signed up while booking, not paid | `ADM-PEOP-012` |
 | Money | `summary` | Summary | `FIN-SUM-001`, `FIN-SUM-004`, `FIN-SUM-005`, `FIN-NAV-001` |
 | Money | `health` | Business Health | `FIN-BH-001` … `FIN-BH-006` |
 | Money | `transactions` | Transactions | `FIN-TXN-001` |
@@ -155,13 +156,16 @@ The application exposes 150+ POST route handlers under `/api`, grouped by audien
 
 A test that only proves the UI hides something has not proved the rule. Every authorization test in this plan has an API-level twin.
 
-### 4.3 The payment-attempt approval rule (important, and easy to mis-report)
+### 4.3 The checkout unlock rule (important, and easy to mis-report)
 
-For a **single online session**, `/api/razorpay/create-order` flips the paying patient's `approved` to `true` the moment they *genuinely attempt* checkout - on the attempt, not on a completed payment. This is deliberate: a patient whose card fails three times still lands in their dashboard with a pending appointment rather than being bounced to `/pending-approval`.
+A patient who signs up **inside a booking wizard** (online session or home visit) has an account at once, but it is **locked** - `approved = false`, no dashboard - until one of two things happens:
 
-It does **not** apply to:
-* home-visit purchases (`/api/home-visit/create-order` - a *completed* payment vets you), or
-* standalone registration at `/patient/register` (always waits for a human admin).
+* **a payment is captured** (online verify, home-visit verify, the webhook, a free booking, or a booked cash visit), or
+* **they have tried and failed to pay** `payment_tries_before_access` times (Settings -> Booking Rules, default 3). A try is the payment window closed, a payment failed, or our own server error; a refusal the patient can fix (slot taken, lead time) is not a try.
+
+Before that, the wizard offers no way to the dashboard and says "your slot is still held". The try that unlocks the account says **Your account is ready** with **Go to Dashboard**. Signing in while locked shows the finish-booking screen, not the generic waiting-approval one. A locked account that never pays and never uses up its tries is **deleted** after `abandoned_booking_account_days` (default 3) and is listed meanwhile under People -> Abandoned checkouts, never in Pending Approvals.
+
+Standalone registration at `/patient/register` is unchanged: it always waits for a human admin, and is never deleted by this.
 
 ### 4.4 Admin scopes
 

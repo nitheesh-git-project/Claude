@@ -7,7 +7,6 @@ import { formatClinicDate } from "@/lib/formatDateTime";
 import { useSearchParams } from "next/navigation";
 import SessionDetailDrawer, {
   type SessionDetailAppointment,
-  type ReassignmentLogEntry,
 } from "@/components/admin/SessionDetailDrawer";
 import type { HomeVisitRow } from "@/components/admin/HomeVisitVisitActions";
 import JoinSessionButton from "@/components/JoinSessionButton";
@@ -16,10 +15,12 @@ import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import StatStrip from "@/components/dashboard/StatStrip";
 import type { CsvColumn } from "@/lib/csvExport";
+import { RatingChip } from "@/components/feedback/RatingDisplay";
 import { formatSlotRange, istDateKey, istMinutesOfDay } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
+import { formatRupees } from "@/lib/formatMoney";
 
 // The one list of sessions.
 //
@@ -52,15 +53,6 @@ const STATUS_STYLES: Record<string, string> = {
   completed: "text-teal-700 bg-teal-50",
   cancelled: "text-red-700 bg-red-50",
 };
-
-function Stars({ rating }: { rating: number }) {
-  return (
-    <span className="text-amber-500">
-      {"★".repeat(rating)}
-      <span className="text-slate-300">{"★".repeat(5 - rating)}</span>
-    </span>
-  );
-}
 
 function SortHeader({
   label,
@@ -112,7 +104,6 @@ export default function AdminAllSessionsTab({
   people,
   categories,
   therapists,
-  reassignmentLogs,
   canSeeMoney,
   canManageSessions,
 }: {
@@ -123,7 +114,6 @@ export default function AdminAllSessionsTab({
   people: Person[];
   categories: Category[];
   therapists: { id: string; full_name: string; active?: boolean }[];
-  reassignmentLogs: ReassignmentLogEntry[];
   // Passed to SessionDetailDrawer, whose discretionary-refund form calls a
   // route guarded by requireAdminScope("money") -- a clinical admin can
   // open Sessions but not Money, so the form must not render for them.
@@ -764,7 +754,7 @@ export default function AdminAllSessionsTab({
                   <td className="py-2 pr-3 text-slate-600">{patientName}</td>
                   <td className="py-2 pr-3 text-slate-500">{categoryTitle}</td>
                   <td className="py-2 pr-3 text-slate-700 font-semibold whitespace-nowrap tabular-nums">
-                    ₹{(price / 100).toLocaleString("en-IN")}
+                    ₹{formatRupees(price)}
                     {a.payment_status !== "paid" && (
                       <span className="text-slate-500 font-normal"> (est.)</span>
                     )}
@@ -796,18 +786,21 @@ export default function AdminAllSessionsTab({
                     {canSeeMoney && <RefundChip row={a} className="mt-1 flex w-fit text-[10px]" />}
                   </td>
                   <td className="py-2 pr-3">
-                    {a.patient_rating ? (
-                      <Stars rating={a.patient_rating} />
-                    ) : (
-                      <span className="text-slate-300">-</span>
-                    )}
+                    {/* A chip, not five glyphs: "★ 4.0" scans down a column,
+                        the bubble says there is a note behind it (hover to
+                        read), and an excluded rating is struck through. */}
+                    <RatingChip
+                      rating={a.patient_rating}
+                      feedback={a.patient_feedback}
+                      excluded={a.patient_rating_excluded}
+                    />
                   </td>
                   <td className="py-2 pr-3">
-                    {a.therapist_rating ? (
-                      <Stars rating={a.therapist_rating} />
-                    ) : (
-                      <span className="text-slate-300">-</span>
-                    )}
+                    <RatingChip
+                      rating={a.therapist_rating}
+                      feedback={a.therapist_feedback}
+                      excluded={a.therapist_rating_excluded}
+                    />
                   </td>
                   <td className="py-2 pr-3" onClick={(e) => e.stopPropagation()}>
                     <JoinSessionButton
@@ -836,7 +829,6 @@ export default function AdminAllSessionsTab({
           categoryMap={categoryMap}
           therapists={therapists}
           categories={categories}
-          reassignmentLogs={reassignmentLogs}
           homeVisit={homeVisitMap.get(selected.id) ?? null}
           onClose={() => setSelectedId(null)}
         />

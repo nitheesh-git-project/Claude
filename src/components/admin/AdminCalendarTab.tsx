@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import SessionDetailDrawer, {
   type SessionDetailAppointment,
-  type ReassignmentLogEntry,
 } from "@/components/admin/SessionDetailDrawer";
 import type { HomeVisitRow } from "@/components/admin/HomeVisitVisitActions";
 import JoinSessionButton from "@/components/JoinSessionButton";
@@ -37,7 +36,6 @@ export default function AdminCalendarTab({
   people,
   categories,
   therapists,
-  reassignmentLogs,
   homeVisits,
   canSeeMoney,
   canManageSessions,
@@ -46,7 +44,6 @@ export default function AdminCalendarTab({
   people: Person[];
   categories: Category[];
   therapists: { id: string; full_name: string; active?: boolean }[];
-  reassignmentLogs: ReassignmentLogEntry[];
   // Home-visit detail for the rows that have it, so a visit opened from the
   // calendar shows the same panel (address, travel fee, cash) it shows when
   // opened from All Sessions -- one session, one detail view, whichever
@@ -299,7 +296,6 @@ export default function AdminCalendarTab({
           categoryMap={categoryMap}
           therapists={therapists}
           categories={categories}
-          reassignmentLogs={reassignmentLogs}
           homeVisit={homeVisitMap.get(selectedAppointment.id) ?? null}
           onClose={() => setSelectedAppointment(null)}
         />

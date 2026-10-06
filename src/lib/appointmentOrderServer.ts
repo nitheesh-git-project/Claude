@@ -18,6 +18,7 @@ import type { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isGatewayPayable } from "@/lib/discounts";
 import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
+import type { CountryPricing } from "@/lib/countryPricing";
 import { confirmPaidAppointment } from "@/lib/confirmPaidAppointment";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
@@ -41,12 +42,15 @@ export async function mintAppointmentOrder({
   appointment,
   appointmentId,
   promoCode,
+  pricing,
 }: {
   supabase: Awaited<ReturnType<typeof createClient>>;
   appointment: OrderableAppointment;
   appointmentId: string;
   /** The code the patient typed, or "" -- an identifier, never an amount. */
   promoCode: string;
+  /** The request's own country row (countryPricingServer), or null. */
+  pricing: CountryPricing | null;
 }): Promise<MintedOrderResponse> {
   const typedPromoCode = promoCode;
   const admin = createAdminClient();
@@ -204,6 +208,7 @@ export async function mintAppointmentOrder({
     },
     promoCode: typedPromoCode,
     claim: true,
+    pricing,
   });
 
   if (typedPromoCode && quote.promoError) {

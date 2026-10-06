@@ -12,9 +12,10 @@ import {
   settlementWaitDays,
   type SettlementMethod,
 } from "@/lib/payLaterSettlement";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 export type QueuedSettlement = {

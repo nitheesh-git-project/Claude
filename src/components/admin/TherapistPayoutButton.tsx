@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
 import Spinner from "@/components/system/Spinner";
+import { formatRupees } from "@/lib/formatMoney";
 
 type PayoutMethod = "cash" | "online";
 type View = "closed" | "choose" | "confirm";
@@ -47,8 +48,8 @@ export default function TherapistPayoutButton({
   async function handleConfirm() {
     const confirmMessage =
       cashHeldPaise > 0
-        ? `Mark ₹${(netPayablePaise / 100).toLocaleString("en-IN")} as paid via ${METHOD_LABEL[method]} to this therapist? (₹${(owedPaise / 100).toLocaleString("en-IN")} owed, minus ₹${(cashHeldPaise / 100).toLocaleString("en-IN")} they're already holding in cash.) This can't be undone.`
-        : `Mark ₹${(netPayablePaise / 100).toLocaleString("en-IN")} as paid via ${METHOD_LABEL[method]} to this therapist? This can't be undone.`;
+        ? `Mark ₹${formatRupees(netPayablePaise)} as paid via ${METHOD_LABEL[method]} to this therapist? (₹${formatRupees(owedPaise)} owed, minus ₹${formatRupees(cashHeldPaise)} they're already holding in cash.) This can't be undone.`
+        : `Mark ₹${formatRupees(netPayablePaise)} as paid via ${METHOD_LABEL[method]} to this therapist? This can't be undone.`;
     if (!(await confirm(confirmMessage))) {
       return;
     }
@@ -99,7 +100,7 @@ export default function TherapistPayoutButton({
   if (settled && owedPaise <= 0) {
     return (
       <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-xs text-teal-900">
-        Paid ₹{(settled.amountPaise / 100).toLocaleString("en-IN")} via {METHOD_LABEL[settled.method]}{" "}
+        Paid ₹{formatRupees(settled.amountPaise)} via {METHOD_LABEL[settled.method]}{" "}
         across {settled.count} session{settled.count > 1 ? "s" : ""}.
         {settled.warning && (
           <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-amber-900">
@@ -127,7 +128,7 @@ export default function TherapistPayoutButton({
         onClick={() => setView("choose")}
         className="text-xs font-semibold px-3 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 text-white transition"
       >
-        Pay ₹{(netPayablePaise / 100).toLocaleString("en-IN")} to Therapist
+        Pay ₹{formatRupees(netPayablePaise)} to Therapist
       </button>
     );
   }
@@ -162,13 +163,13 @@ export default function TherapistPayoutButton({
       {error && <p className="text-red-600">{error}</p>}
       <p className="text-slate-600">
         Confirming pays out{" "}
-        <strong className="text-slate-900">₹{(netPayablePaise / 100).toLocaleString("en-IN")}</strong> via{" "}
+        <strong className="text-slate-900">₹{formatRupees(netPayablePaise)}</strong> via{" "}
         {METHOD_LABEL[method]} and clears the owed balance
         {cashHeldPaise > 0 && (
           <>
             {" "}
-            (₹{(owedPaise / 100).toLocaleString("en-IN")} owed, minus ₹
-            {(cashHeldPaise / 100).toLocaleString("en-IN")} already held in cash)
+            (₹{formatRupees(owedPaise)} owed, minus ₹
+            {formatRupees(cashHeldPaise)} already held in cash)
           </>
         )}
         . This records that the payment already happened - it doesn&apos;t send any money itself.

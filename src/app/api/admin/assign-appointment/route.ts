@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { checkTherapistAssignable, unassignableBody } from "@/lib/therapistAssignability";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
@@ -139,6 +141,22 @@ export async function POST(request: NextRequest) {
   // assignment landing in between was silently overwritten by a request
   // that had already lost its own race. There is nothing to revert now,
   // because there is no window to revert from.
+  if (appointment.slot_time) {
+    // Working that hour, not on leave, not already booked -- every reason at
+    // once, for the "Unable to assign this therapist" dialog. A roster that
+    // could not be read is "try again", never "free".
+    const assignable = await checkTherapistAssignable(admin, therapistId, appointment.slot_time, appointment.duration_minutes ?? BASE_DURATION_MINUTES, { excludeAppointmentId: appointmentId, bufferMinutes: travelBufferMinutes });
+    if (assignable.ok === null) {
+      return NextResponse.json(
+        { error: "We couldn't check this therapist's schedule just now. Please try again." },
+        { status: 503 }
+      );
+    }
+    if (!assignable.ok) {
+      return NextResponse.json(unassignableBody(assignable.reasons), { status: 409 });
+    }
+  }
+
   const claim = await claimTherapistSlot(admin, {
     appointmentId,
     therapistId,

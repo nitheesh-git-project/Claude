@@ -20,7 +20,12 @@
 // plain pages rather than shells, and are covered deliberately: they carry
 // their own "Back to Dashboard" link, and the marketing nav is not what an
 // admin mid-task needs.
-const DASHBOARD_ROUTE = /^\/[a-z-]+\/dashboard(\/|$)/;
+//
+// The bare `/dashboard` is included too: it is the server-side hop that
+// sends "Go to Dashboard" to whichever dashboard is the caller's own, and
+// while it resolved the public Navbar and Footer were drawn round an empty
+// page for about a second before the dashboard's skeleton replaced them.
+const DASHBOARD_ROUTE = /^(\/[a-z-]+)?\/dashboard(\/|$)/;
 
 export function isDashboardShellRoute(pathname: string | null): boolean {
   return pathname !== null && DASHBOARD_ROUTE.test(pathname);
@@ -57,32 +62,41 @@ export function isDeveloperRoute(pathname: string | null): boolean {
 // Routes where the nav keeps its links but drops its auth call-to-action
 // (Sign In / Get Started / Go to Dashboard) entirely.
 //
-// These are the pages where the user is mid-authentication, and the nav's
-// idea of "logged in" is briefly true while the page hasn't caught up yet:
-// signInWithPassword() writes the session and fires onAuthStateChange the
-// instant it resolves, so the nav flipped to "Go to Dashboard" for the
-// whole duration of the auth card's own hard navigation -- a flash of a
-// button that shouldn't exist yet, on every login card. There's nothing
-// useful for the nav to offer on these pages anyway (a Sign In link on the
-// sign-in page, a Get Started button on the registration page), so the
-// cluster is dropped rather than raced.
-//
-// /patient/register is included for a second reason: the invite flow signs
-// the patient in and then keeps them on the page for payment, so the button
-// would otherwise sit there inviting them to abandon a half-paid booking.
+// These are pages a person usually reaches already signed in, mid-way
+// through an account step, where a Sign In button would be wrong and "Go to
+// Dashboard" would lead out of something unfinished. /patient/register in
+// particular: the invite flow signs the patient in and then keeps them on
+// the page for payment, so the button would sit there inviting them to
+// abandon a half-paid booking. (The sign-in pages themselves are handled by
+// AUTH_CTA_SIGNED_OUT_ROUTES below.)
 const AUTH_CTA_HIDDEN_ROUTES = new Set([
-  "/patient/login",
-  "/therapist/login",
-  "/admin/login",
-  "/hospital/login",
   "/patient/register",
-  "/reset-password",
   "/pending-approval",
   "/account-suspended",
 ]);
 
 export function isAuthCtaHiddenRoute(pathname: string | null): boolean {
   return pathname !== null && AUTH_CTA_HIDDEN_ROUTES.has(pathname);
+}
+
+// The sign-in pages keep the nav exactly as every other public page shows it
+// -- Sign In, Get Started, Book -- because a visitor who tapped Sign In and
+// watched two of the three buttons vanish read it as the nav breaking. The
+// race the hidden set exists for is still avoided: on these routes the nav
+// is pinned to its signed-out cluster, so a session landing mid-login cannot
+// flip it to "Go to Dashboard" before the login card's own navigation.
+// Registration and the holding pages stay in the hidden set above: a person
+// there is often already signed in, where a Sign In button would be wrong.
+const AUTH_CTA_SIGNED_OUT_ROUTES = new Set([
+  "/patient/login",
+  "/therapist/login",
+  "/admin/login",
+  "/hospital/login",
+  "/reset-password",
+]);
+
+export function isAuthCtaSignedOutRoute(pathname: string | null): boolean {
+  return pathname !== null && AUTH_CTA_SIGNED_OUT_ROUTES.has(pathname);
 }
 
 // The public marketing site -- home plus the top-level content sections
@@ -105,4 +119,16 @@ export function isFrontPageRoute(pathname: string | null): boolean {
   if (pathname === null) return false;
   if (pathname === "/") return true;
   return FRONT_PAGE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+// Where the phone's sticky "Book a video session" bar shows: the marketing
+// pages, where somebody is reading about the practice and the next step
+// should never be a scroll away. Not on /get-started (it is already the
+// step), not in the booking wizard or on an auth card (mid-task), and not
+// on a dashboard (it has its own tab bar). /mission is a front page in
+// every sense but the scroll hint's, so it is named here rather than added
+// to FRONT_PAGE_PREFIXES and changing that cue's behaviour.
+export function isBookBarRoute(pathname: string | null): boolean {
+  if (pathname === null || pathname === "/get-started" || pathname.startsWith("/get-started/")) return false;
+  return isFrontPageRoute(pathname) || pathname === "/mission" || pathname.startsWith("/mission/");
 }

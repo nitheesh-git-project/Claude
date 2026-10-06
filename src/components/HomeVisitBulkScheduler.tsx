@@ -116,7 +116,14 @@ export default function HomeVisitBulkScheduler({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           homeVisitPurchaseId: purchaseId,
-          slots: selected.map((s) => ({ slotDateTime: slotDateTimeOf(s) })),
+          // A real instant plus the zone it was picked in, the way the
+          // booking wizard sends it. The bare wall time this used to send was
+          // read in the *server's* zone -- on a UTC host every pick landed at
+          // :30 in India and was refused as "not on the hour".
+          slots: selected.map((s) => ({
+            slotDateTime: new Date(slotDateTimeOf(s)).toISOString(),
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          })),
           notes: notes || undefined,
         }),
       });

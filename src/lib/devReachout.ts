@@ -120,3 +120,89 @@ export function devContactFromRow(
         : "",
   };
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** What /api/admin/dev-reachout-note was asked to do, once the body checks
+ *  out. A note is kept trimmed; an empty one is refused rather than stored,
+ *  because removing a note is its own action. */
+export type DevReachoutNoteRequest =
+  | { action: "add"; reachoutId: string; body: string }
+  | { action: "edit"; noteId: string; body: string }
+  | { action: "delete"; noteId: string };
+
+export function parseDevReachoutNoteRequest(
+  input: Record<string, unknown>
+): { ok: true; value: DevReachoutNoteRequest } | { ok: false; error: string } {
+  const { action } = input;
+  if (action !== "add" && action !== "edit" && action !== "delete") {
+    return { ok: false, error: "Unknown action" };
+  }
+  const idKey = action === "add" ? "reachoutId" : "noteId";
+  const id = input[idKey];
+  if (typeof id !== "string" || !UUID_RE.test(id)) {
+    return { ok: false, error: `Missing or invalid ${idKey}` };
+  }
+  if (action === "delete") return { ok: true, value: { action, noteId: id } };
+
+  if (typeof input.body !== "string") return { ok: false, error: "The note must be text." };
+  const body = input.body.trim();
+  if (body === "") return { ok: false, error: "Write something before saving the note." };
+  if (body.length > MAX_DEV_REACHOUT_NOTE_LENGTH) {
+    return {
+      ok: false,
+      error: `Please keep a note to ${MAX_DEV_REACHOUT_NOTE_LENGTH} characters or fewer.`,
+    };
+  }
+  return {
+    ok: true,
+    value: action === "add" ? { action, reachoutId: id, body } : { action, noteId: id, body },
+  };
+}
+
+/** One note as the dashboard reads it. PostgREST embeds the author as an
+ *  object or, depending on how it reads the foreign key, a one-row array. */
+export type DevReachoutNoteRow = {
+  id: string;
+  reachout_id: string;
+  body: string;
+  created_at: string;
+  edited_at: string | null;
+  author: { full_name: string | null } | { full_name: string | null }[] | null;
+};
+
+/** One note as the screen draws it. `authorName` is null when the author's
+ *  account is gone, or the note was carried over from the single-note era. */
+export type DevReachoutNote = {
+  id: string;
+  body: string;
+  createdAt: string;
+  editedAt: string | null;
+  authorName: string | null;
+};
+
+/** Notes grouped by message, oldest first within each. `null` in, `null`
+ *  out: a read that failed is "could not load", never an empty thread. */
+export function groupDevReachoutNotes(
+  rows: DevReachoutNoteRow[] | null
+): Map<string, DevReachoutNote[]> | null {
+  if (!rows) return null;
+  const byReachout = new Map<string, DevReachoutNote[]>();
+  for (const row of rows) {
+    const author = Array.isArray(row.author) ? row.author[0] : row.author;
+    const note: DevReachoutNote = {
+      id: row.id,
+      body: row.body,
+      createdAt: row.created_at,
+      editedAt: row.edited_at,
+      authorName: author?.full_name?.trim() || null,
+    };
+    const list = byReachout.get(row.reachout_id);
+    if (list) list.push(note);
+    else byReachout.set(row.reachout_id, [note]);
+  }
+  for (const list of byReachout.values()) {
+    list.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  }
+  return byReachout;
+}
