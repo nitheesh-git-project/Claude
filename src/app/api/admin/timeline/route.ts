@@ -17,14 +17,16 @@ export async function POST(request: NextRequest) {
   }>(request);
   if (parseError) return parseError;
 
+  // Who is asking comes before what they asked: a caller who is not an admin
+  // is refused whatever the body says, rather than told how to shape it.
+  const adminUser = await requireAdminScope(body.sessionId !== undefined ? "sessions" : "people");
+  if (!adminUser) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const sessionId = typeof body.sessionId === "string" && UUID_RE.test(body.sessionId) ? body.sessionId : null;
   const personId = typeof body.personId === "string" && UUID_RE.test(body.personId) ? body.personId : null;
   if (!sessionId === !personId) {
     return NextResponse.json({ error: "Give one sessionId or one personId." }, { status: 400 });
   }
-
-  const adminUser = await requireAdminScope(sessionId ? "sessions" : "people");
-  if (!adminUser) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const admin = createAdminClient();
   const events = sessionId ? await loadSessionTimeline(admin, sessionId) : await loadPersonTimeline(admin, personId!);

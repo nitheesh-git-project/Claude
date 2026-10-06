@@ -363,7 +363,13 @@ export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt,
 
                 <label className="flex items-center gap-2">
                   <span className="text-[11px] font-semibold text-slate-500 xl:hidden">Increase by</span>
-                  <span className="relative">
+                  {/* The box is the border; the input and its % sit side by
+                      side inside it, so the sign never lies on the figure. */}
+                  <span
+                    className={`flex h-10 w-24 items-center rounded-lg border bg-white pr-2.5 focus-within:ring-2 focus-within:ring-teal-500 ${
+                      markupOk ? "border-slate-300" : "border-red-400"
+                    }`}
+                  >
                     <input
                       type="number"
                       inputMode="decimal"
@@ -375,11 +381,9 @@ export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt,
                       onChange={(e) => edit(c.code, { markup: e.target.value })}
                       aria-label={`Increase for ${c.name}, percent`}
                       aria-invalid={!markupOk}
-                      className={`h-10 w-24 rounded-lg border bg-white pl-3 pr-7 text-sm ${
-                        markupOk ? "border-slate-300" : "border-red-400"
-                      }`}
+                      className="h-full min-w-0 flex-1 rounded-lg bg-transparent pl-3 text-sm outline-none"
                     />
-                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
+                    <span aria-hidden="true" className="shrink-0 text-xs text-slate-500">%</span>
                   </span>
                 </label>
 

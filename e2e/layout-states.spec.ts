@@ -9,7 +9,15 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { BASE, QA_EMAILS, adminClient, browserCookiesFor, pageUntilVisible, profileIdFor } from "./helpers";
+import {
+  BASE,
+  QA_EMAILS,
+  adminClient,
+  browserCookiesFor,
+  markDashboardTourSeen,
+  pageUntilVisible,
+  profileIdFor,
+} from "./helpers";
 import { probeLayout, type LayoutIssue } from "./layout/layoutProbe";
 import { LAYOUT_VIEWPORTS } from "./layout/viewports";
 
@@ -67,6 +75,7 @@ const STATES: State[] = [
     name: "programme scheduler open",
     email: QA_EMAILS.patientB,
     path: "/patient/dashboard/packages",
+    seed: seedOwnedProgramme,
     open: async (page) => {
       await page.getByRole("button", { name: "Schedule sessions" }).first().click();
       await expect(page.getByRole("dialog")).toBeVisible();
@@ -98,6 +107,75 @@ const STATES: State[] = [
 ];
 
 let seededId: string | null = null;
+let seededPurchaseId: string | null = null;
+
+/** A paid, active programme for patient B with sessions left to schedule --
+ *  the gate's stack starts with an empty catalog, where there was no
+ *  "Schedule sessions" button to press. Found-or-made, the same rows the
+ *  programme-scheduling spec uses; never sold or shown to anyone. */
+async function seedOwnedProgramme() {
+  const CATEGORY = "QA Scheduling Condition";
+  const PACKAGE = "QA Scheduling Programme";
+  let { data: cat } = await db.from("treatment_categories").select("id").eq("title", CATEGORY).limit(1).maybeSingle();
+  if (!cat) {
+    const { data, error } = await db
+      .from("treatment_categories")
+      .insert({
+        title: CATEGORY,
+        description: "A condition seeded by the programme-scheduling spec.",
+        points: ["Scheduling"],
+        price_paise: 100000,
+        duration_minutes: 60,
+        active: true,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(`could not seed "${CATEGORY}": ${error.message}`);
+    cat = data;
+  }
+  let { data: pkg } = await db
+    .from("treatment_category_packages")
+    .select("id")
+    .eq("title", PACKAGE)
+    .eq("category_id", cat!.id)
+    .limit(1)
+    .maybeSingle();
+  if (!pkg) {
+    const { data, error } = await db
+      .from("treatment_category_packages")
+      .insert({
+        category_id: cat!.id,
+        title: PACKAGE,
+        session_count: 3,
+        price_paise: 300000,
+        active: true,
+        recommendable: false,
+        therapist_locked: false,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(`could not seed "${PACKAGE}": ${error.message}`);
+    pkg = data;
+  }
+  const { data, error } = await db
+    .from("patient_package_purchases")
+    .insert({
+      patient_id: await profileIdFor(db, QA_EMAILS.patientB),
+      package_id: pkg!.id,
+      category_id: cat!.id,
+      session_count: 3,
+      sessions_used: 0,
+      amount_paid_paise: 300000,
+      payment_status: "paid",
+      status: "active",
+      paid_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 120 * 86_400_000).toISOString(),
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`could not seed a programme purchase: ${error.message}`);
+  seededPurchaseId = data.id;
+}
 
 /** A confirmed, started session for the finish dialog, in an hour therapist A
  *  is free (the per-therapist slot index refuses a clash). */
@@ -136,6 +214,10 @@ test.beforeAll(() => {
 
 test.afterAll(async () => {
   if (seededId) await db.from("appointments").delete().eq("id", seededId);
+  // Spent rather than deleted, as the programme-scheduling spec leaves its own.
+  if (seededPurchaseId) {
+    await db.from("patient_package_purchases").update({ status: "cancelled" }).eq("id", seededPurchaseId);
+  }
 });
 
 for (const state of STATES) {
@@ -146,7 +228,12 @@ for (const state of STATES) {
       viewport: { width: state.openWidth ?? 390, height: 844 },
     });
     if (state.seed) await state.seed();
-    if (state.email) await context.addCookies(await browserCookiesFor(state.email));
+    if (state.email) {
+      // The first-visit tour is a modal over the dashboard: left up, it
+      // takes the tap meant for the menu.
+      await markDashboardTourSeen(state.email);
+      await context.addCookies(await browserCookiesFor(state.email));
+    }
     const page = await context.newPage();
     await page.goto(`${BASE}${state.path}`, { waitUntil: "domcontentloaded" });
     await settle(page);

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { BASE, QA_EMAILS, browserCookiesFor } from "./helpers";
+import { BASE, QA_EMAILS, browserCookiesFor, waitForSplashToClear } from "./helpers";
 
 /**
  * "Live updates paused" clears when Refresh reconnects. Refresh used to
@@ -50,11 +50,16 @@ test("RT-001 the paused banner's Refresh reconnects and clears it", async ({ pag
   await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   await page.goto(`${BASE}/admin/dashboard`, { waitUntil: "domcontentloaded" });
 
+  // The splash lies over the page while it loads and takes any tap; the
+  // socket is let through only once Refresh can actually be pressed --
+  // otherwise the client's own retry reconnects first, the banner clears by
+  // itself, and the tap waits on a button that is gone.
+  await waitForSplashToClear(page);
   const banner = page.getByRole("status").filter({ hasText: "Live updates paused" });
-  await expect(banner).toBeVisible({ timeout: 90_000 });
+  const refresh = banner.getByRole("button", { name: /Refresh/ });
+  await expect(refresh).toBeVisible({ timeout: 90_000 });
 
   refuse = false;
-  await expect(banner).toHaveCount(1);
-  await banner.getByRole("button", { name: /Refresh/ }).click();
+  await refresh.click();
   await expect(banner).toHaveCount(0, { timeout: 60_000 });
 });
