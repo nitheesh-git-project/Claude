@@ -18,7 +18,7 @@ import {
   isDirectlyPurchasable,
   PROGRAMME_NEEDS_RECOMMENDATION,
 } from "@/lib/consultationFirst";
-import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
+import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR, resolveSlotInstant } from "@/lib/bookingSlots";
 
 const MAX_LINE_LENGTH = 300;
 const MAX_NOTES_LENGTH = 1000;
@@ -51,7 +51,9 @@ export async function POST(request: NextRequest) {
   }>(request);
   if (parseError) return parseError;
 
-  const { packageId, address, slotDateTime, timezone, notes, concern } = body;
+  const { packageId, address, timezone, notes, concern } = body;
+  // A zone-less wall time is read in the booking's zone, never the server's.
+  const slotDateTime = body.slotDateTime ? resolveSlotInstant(body.slotDateTime, timezone) ?? "invalid" : undefined;
   if (!packageId) {
     return NextResponse.json({ error: "Missing packageId" }, { status: 400 });
   }

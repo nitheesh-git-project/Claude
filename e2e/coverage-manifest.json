@@ -519,6 +519,22 @@
       "integration": "local",
       "destructive": true
     },
+    "programme-scheduling-timezone.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/booking.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "debug-clock.spec.ts": {
       "runner": "session",
       "levels": [
@@ -1592,6 +1608,25 @@
         }
       ],
       "limitation": "Writes append-only pain readings, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; the grouping rules themselves are unit-tested in src/lib/painTrendSeries.test.ts."
+    },
+    {
+      "id": "patient.programme-scheduling-timezone",
+      "runner": "patient",
+      "title": "A patient schedules programme sessions from the dashboard, whatever zone the server runs in",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "programme-scheduling-timezone.spec.ts",
+          "tests": [
+            "PST-001",
+            "PST-002",
+            "PST-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Reproduces the original failure only against a server not running in India time; the gate's webServer inherits TZ=Asia/Kolkata from playwright.config.ts. The zone maths is unit-tested in src/lib/resolveSlotInstant.test.ts."
     },
     {
       "id": "session.finish-with-note",

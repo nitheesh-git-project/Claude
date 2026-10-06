@@ -141,6 +141,7 @@ total, which moves with every spec added.
 | `session-completed-cutoff` | 11 | the cutoff on every surface that lists a session |
 | `debug-clock` | 2 | the debug bar's simulated clock moving the completion gate while the debug bar is on; asserts refusals only, since a successful completion writes append-only settlement rows |
 | `finish-session` | 3 | a therapist's Done opening the session note with the Pain Map step; the route refusing Done without a note; the not-started line keeping No-show beside Done |
+| `programme-scheduling-timezone` | 3 | scheduling an owned programme: a zone-less time read in India not the server's zone, an off-the-hour time still refused, and the dashboard scheduler booking a tapped time. Run against a UTC server to reproduce the original bug |
 | `pain-trend` | 1 | "Are you getting better?" keeping two same-day exams as two points. Append-only writes - disposable project only |
 | `recommendation-course` | 6 | a recommendation priced as the condition's per-session price x the count; hands-on making it home visits; the patient's card with the condition photo and no address on a video plan; a new address with a pincode reaching checkout; the therapist's number field and live total; the Suggested teaser on every other patient screen. Append-only writes - disposable project only |
 | `meet-link-note` | 2 | the note on a patient's and a therapist's online tile saying, as a clock time, when the Meet link shows |

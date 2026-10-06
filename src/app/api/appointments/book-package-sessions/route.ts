@@ -8,6 +8,7 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import {
   leadTimeMsFromHours,
   isWholeHourSlot,
+  resolveSlotInstant,
   NOT_WHOLE_HOUR_ERROR,
 } from "@/lib/bookingSlots";
 import { clinicWeekKey } from "@/lib/clinicWeek";
@@ -74,8 +75,11 @@ export async function POST(request: NextRequest) {
     if (!s.slotDateTime) {
       return NextResponse.json({ error: "Every slot needs a slotDateTime." }, { status: 400 });
     }
-    const ms = new Date(s.slotDateTime).getTime();
-    if (Number.isNaN(ms)) {
+    // A zone-less wall time is read in the slot's own zone (the clinic's by
+    // default), never the server's -- see resolveSlotInstant.
+    const slotIso = resolveSlotInstant(s.slotDateTime, s.timezone);
+    const ms = slotIso ? new Date(slotIso).getTime() : NaN;
+    if (!slotIso || Number.isNaN(ms)) {
       return NextResponse.json({ error: `Invalid slotDateTime: ${s.slotDateTime}` }, { status: 400 });
     }
     if (ms <= Date.now()) {
@@ -84,10 +88,10 @@ export async function POST(request: NextRequest) {
     // Slots start on the hour, everywhere -- checked in each slot's own
     // timezone, since 6 PM IST is 12:30 UTC and reading the minute off the
     // instant would refuse every correct booking in the clinic.
-    if (!isWholeHourSlot(s.slotDateTime, s.timezone)) {
+    if (!isWholeHourSlot(slotIso, s.timezone)) {
       return NextResponse.json({ error: NOT_WHOLE_HOUR_ERROR }, { status: 400 });
     }
-    parsedSlots.push({ slotDateTime: s.slotDateTime, timezone: s.timezone, ms });
+    parsedSlots.push({ slotDateTime: slotIso, timezone: s.timezone, ms });
   }
   // Process chronologically so gap/weekly-cap checks against
   // already-accepted slots behave predictably regardless of the order the

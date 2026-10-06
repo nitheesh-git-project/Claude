@@ -283,3 +283,17 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   route is the guarantee, the hidden button is the courtesy. Home visits are
   exempt - they keep their own refund window. An unreadable setting is a 503,
   not a pass. `e2e/patient-cancel-cutoff.spec.ts` holds it.
+- **A slot time without a zone is read in the booking's zone, never the
+  server's.** Every route that takes a `slotDateTime` (book-package-sessions,
+  book-with-package, home-visit book-visits / book-cash / verify) passes it
+  through `resolveSlotInstant()` (`src/lib/bookingSlots.ts`) before any
+  check: an instant with `Z` or an offset is kept, a bare wall time
+  ("2026-10-07T18:00") is read in the slot's `timezone`, falling back to
+  the clinic's. Both bulk schedulers now send an ISO instant plus the
+  browser's zone, like the booking wizard. They used to send the bare wall
+  time, which `new Date()` read in the host's zone: on a UTC server 18:00
+  became 23:30 in India and every programme slot a patient tapped was
+  refused as "Sessions start on the hour." The suite did not see it because
+  `playwright.config.ts` runs the app with `TZ=Asia/Kolkata` -
+  `e2e/programme-scheduling-timezone.spec.ts` is the one to run against a
+  server started on UTC.

@@ -9,7 +9,7 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import { normalizePincode } from "@/lib/homeVisitAreas";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
-import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
+import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR, resolveSlotInstant } from "@/lib/bookingSlots";
 import {
   approvePatientAfterPayment,
   isProfileActive,
@@ -84,12 +84,16 @@ export async function POST(request: NextRequest) {
     razorpay_order_id,
     razorpay_payment_id,
     razorpay_signature,
-    slotDateTime,
     timezone,
     notes,
     concern,
     address,
   } = body;
+  // A zone-less wall time is read in the booking's zone, never the server's.
+  const slotDateTime =
+    body.slotDateTime === undefined
+      ? undefined
+      : resolveSlotInstant(body.slotDateTime, timezone) ?? "invalid";
 
   if (
     !homeVisitPurchaseId ||
