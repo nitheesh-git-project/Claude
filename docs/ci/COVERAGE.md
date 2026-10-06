@@ -70,6 +70,7 @@ Session lifecycle: scheduling, suggestions, completion, clinical continuity, car
 | `session.scheduling` Booking the sessions a patient paid for: five in one request, programme rules, lead time, expiry, ownership | covered | yes | api | `session-scheduling.spec.ts` | - |
 | `session.suggestions` Therapist-suggested sessions: suggesting spends nothing, accepting books once, races settle on one answer | covered | yes | api | `session-suggestions.spec.ts` | - |
 | `session.completion-cutoff` The Session Completed cutoff on every surface that lists a session | covered | yes | browser | `session-completed-cutoff.spec.ts` | - |
+| `session.meet-link-note` Patient and therapist session tiles say when the Meet link shows | covered | yes | browser | `meet-link-note.spec.ts` | - |
 | `session.finish-with-note` A therapist's Done opens the session note with the Pain Map and needs both | covered | yes | browser | `finish-session.spec.ts` | Asserts refusals and the dialog only: a successful completion writes append-only settlement rows. |
 | `session.debug-clock` The debug clock moves the completion gate only while the debug bar is on | covered | yes | api | `debug-clock.spec.ts` | Asserts refusals only: a successful completion writes append-only settlement rows (those are exercised by clinical-continuity on the disposable stack). |
 | `session.care-plan-review` A therapist's recommendation is queued and invisible, refused at checkout, then approved, declined or approved with changes | covered | yes | api | `admin-care-plans.spec.ts` | - |
@@ -78,7 +79,7 @@ Session lifecycle: scheduling, suggestions, completion, clinical continuity, car
 | `session.clinical-continuity` Health profile, session note and recommendation carried across therapist, admin and patient: access limited to the treating therapist, notes never patient-visible, a queued plan invisible and unbuyable until approved, approval attributed, and a reopen losing nothing | covered | yes | browser, db | `clinical-continuity.spec.ts`, `clinical-continuity.spec.ts` | - |
 | `session.payment-webhook-recovery` A captured payment whose verify call was lost is recovered by the webhook, exactly once | gap | no | - | - | Needs signed Razorpay webhook payloads (RAZORPAY_WEBHOOK_SECRET) posted to the local app; the idempotency is proven in booking-idempotency-sql-checks.sql only. Needs an owner decision on a webhook test secret. |
 
-Specs owned (7): `admin-care-plans.spec.ts` (browser/api/db, desktop, local), `clinical-continuity.spec.ts` (browser/api/db, desktop, local), `debug-clock.spec.ts` (api/db, desktop, local), `finish-session.spec.ts` (api/browser, desktop, local), `session-completed-cutoff.spec.ts` (browser/api/db, desktop, local), `session-scheduling.spec.ts` (browser/api/db, desktop, local), `session-suggestions.spec.ts` (browser/api/db, desktop, local)
+Specs owned (8): `admin-care-plans.spec.ts` (browser/api/db, desktop, local), `clinical-continuity.spec.ts` (browser/api/db, desktop, local), `debug-clock.spec.ts` (api/db, desktop, local), `finish-session.spec.ts` (api/browser, desktop, local), `meet-link-note.spec.ts` (browser, desktop, local), `session-completed-cutoff.spec.ts` (browser/api/db, desktop, local), `session-scheduling.spec.ts` (browser/api/db, desktop, local), `session-suggestions.spec.ts` (browser/api/db, desktop, local)
 
 ## admin
 

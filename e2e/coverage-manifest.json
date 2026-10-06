@@ -473,6 +473,20 @@
       "integration": "local",
       "destructive": false
     },
+    "meet-link-note.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "debug-clock.spec.ts": {
       "runner": "session",
       "levels": [
@@ -1486,6 +1500,23 @@
             "PCC-001",
             "PCC-002",
             "PCC-003"
+          ],
+          "level": "browser"
+        }
+      ]
+    },
+    {
+      "id": "session.meet-link-note",
+      "runner": "session",
+      "title": "Patient and therapist session tiles say when the Meet link shows",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "meet-link-note.spec.ts",
+          "tests": [
+            "ML-001",
+            "ML-002"
           ],
           "level": "browser"
         }

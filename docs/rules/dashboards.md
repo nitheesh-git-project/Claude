@@ -327,3 +327,10 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   (expanded, collapsed rail, mobile drawer). It is a plain `<a>`, not
   `next/link`, for the reason the nav entries document: client-side
   transitions into a differently-chromed route were silently not completing.
+- **An online session's tile says when its Meet link shows.** With no link
+  yet, `JoinSessionButton` renders a note in place of the button - "The Meet
+  link will show here - you can join from 5:45 pm" (or "...once a therapist
+  is confirmed..." while requested) - and the greyed button's caption names
+  the same clock time. The time is the slot less `join_window_minutes`,
+  printed through `formatClinicTime`. Admin surfaces (`alwaysActive`) get
+  neither. `e2e/meet-link-note.spec.ts`.
