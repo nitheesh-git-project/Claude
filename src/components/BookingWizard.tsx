@@ -1179,7 +1179,10 @@ export default function BookingWizard({
   }
 
   return (
-    <div className="relative bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+    // overflow-clip, not overflow-hidden: it still rounds the corners, but
+    // it is not a scroll container, so the phone's pinned action row below
+    // can stick to the bottom of the screen rather than to this card.
+    <div className="relative bg-white rounded-3xl shadow-xl overflow-clip border border-slate-200">
       {loading && payStage && step === 3 && (
         <CheckoutProgress stage={payStage} includeAccount={payIncludesAccount} />
       )}
@@ -1483,7 +1486,9 @@ export default function BookingWizard({
             </label>
           </div>
 
-          <div className="flex gap-3 pt-1">
+          {/* Pinned to the bottom of a phone screen: step 2 is a long form,
+              and the way forward should not be below it. */}
+          <div className="sticky bottom-0 z-10 -mx-5 flex gap-3 border-t border-slate-100 bg-white/95 px-5 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:pt-1 sm:backdrop-blur-none">
             <button
               onClick={() => setStep(1)}
               className="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3.5 rounded-xl transition"
@@ -1637,7 +1642,9 @@ export default function BookingWizard({
                     ? `This slot is less than ${cancellationWindow.hours} hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option.`
                     : `Free cancellation up to ${cancellationWindow.hours} hours before your slot. After that, cancelling isn't refunded.`}
           </p>
-          <div className="flex gap-3 pt-1">
+          {/* Pinned on a phone, so the amount and Pay are in view while the
+              summary above is read. */}
+          <div className="sticky bottom-0 z-10 -mx-5 flex gap-3 border-t border-slate-100 bg-white/95 px-5 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:pt-1 sm:backdrop-blur-none">
             <button
               onClick={() => {
                 // Going back to change details abandons the current unpaid

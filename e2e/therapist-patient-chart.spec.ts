@@ -40,7 +40,7 @@ test("PC-001: the chart has no back link and the sidebar keeps My Patients lit",
   await expect(page.getByText("Health profile", { exact: false }).first()).toBeVisible();
   await expect(page.getByText("Back to My Patients")).toHaveCount(0);
   const nav = page.getByRole("link", { name: "My Patients" }).first();
-  await expect(nav).toHaveClass(/bg-teal-700/);
+  await expect(nav).toHaveAttribute("aria-current", "page");
   await waitForSplashToClear(page);
   await page.screenshot({ path: "test-results/patient-chart.png" });
 });

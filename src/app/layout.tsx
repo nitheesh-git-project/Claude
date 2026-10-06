@@ -7,6 +7,7 @@ import FarewellBanner from "@/components/FarewellBanner";
 import Footer from "@/components/Footer";
 import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
+import PublicBookBar from "@/components/PublicBookBar";
 import { SectionNavProvider } from "@/components/SectionNavContext";
 import { getLayoutSettings } from "@/lib/siteSettingsCache";
 import { devContactFromRow } from "@/lib/devReachout";
@@ -225,6 +226,7 @@ export default async function RootLayout({
             devCreditEnabled={devCreditEnabled}
           />
           <ScrollHint />
+          <PublicBookBar homeVisitEnabled={homeVisitEnabled} />
         </SectionNavProvider>
           </ToastProvider>
         </PendingWorkProvider>

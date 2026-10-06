@@ -297,3 +297,10 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   `playwright.config.ts` runs the app with `TZ=Asia/Kolkata` -
   `e2e/programme-scheduling-timezone.spec.ts` is the one to run against a
   server started on UTC.
+
+- **On a phone the wizard's Back / Review / Pay row is pinned to the bottom
+  of the screen** (steps 2 and 3), so the way forward and the amount are in
+  view while the form or summary above is read. The card uses
+  `overflow-clip` rather than `overflow-hidden` for exactly this: a hidden
+  overflow makes the card a scroll container and the row would stick to the
+  card, not the screen. From `sm` the row sits in the flow as before.

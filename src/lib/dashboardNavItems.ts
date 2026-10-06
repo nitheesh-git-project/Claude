@@ -34,8 +34,8 @@ export function buildPatientNavItems({
   return [
     // Overview is first on every dashboard: the same "what needs me right
     // now" screen for patient, therapist, hospital and admin.
-    { id: "overview", label: "Overview", icon: "fa-gauge-high", href: "/patient/dashboard" },
-    { id: "book", label: "Book a Session", icon: "fa-plus", href: "/patient/dashboard/book" },
+    { id: "overview", label: "Overview", short: "Home", icon: "fa-gauge-high", href: "/patient/dashboard" },
+    { id: "book", label: "Book a Session", short: "Book", icon: "fa-plus", href: "/patient/dashboard/book" },
     // One entry for every session -- video or home visit, list or calendar.
     // These were three entries over the same rows, which made "what's
     // next?" a three-screen question. The calendar is a view switch on the
@@ -47,6 +47,7 @@ export function buildPatientNavItems({
           {
             id: "suggested",
             label: "Suggested Sessions",
+            short: "Suggested",
             icon: "fa-lightbulb",
             href: "/patient/dashboard/suggested",
           },
@@ -57,6 +58,7 @@ export function buildPatientNavItems({
           {
             id: "sessions",
             label: "Your Sessions",
+            short: "Sessions",
             icon: "fa-calendar-check",
             href: "/patient/dashboard/sessions",
           },
@@ -71,6 +73,7 @@ export function buildPatientNavItems({
           {
             id: "packages",
             label: "Your Programmes",
+            short: "Programmes",
             icon: "fa-box-open",
             href: "/patient/dashboard/packages",
           },
@@ -93,12 +96,16 @@ export function buildPatientNavItems({
     {
       id: "health-profile",
       label: "Health Profile",
+      // "Progress" on the tab bar and rail: what a patient opens it for is
+      // whether they are getting better.
+      short: "Progress",
       icon: "fa-notes-medical",
       href: "/patient/dashboard/health-profile",
     },
     {
       id: "edit-profile",
       label: "Edit Profile",
+      short: "Profile",
       icon: "fa-user-pen",
       href: "/patient/dashboard/profile",
       children: [
@@ -120,7 +127,7 @@ export function buildTherapistNavItems(): ShellNavItem[] {
 }
 
 export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
-  { id: "overview", label: "Overview", icon: "fa-gauge-high", href: "/therapist/dashboard" },
+  { id: "overview", label: "Overview", short: "Home", icon: "fa-gauge-high", href: "/therapist/dashboard" },
   {
     id: "availability",
     label: "Availability",
@@ -142,12 +149,14 @@ export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
   {
     id: "health-profiles",
     label: "My Patients",
+    short: "Patients",
     icon: "fa-notes-medical",
     href: "/therapist/dashboard/health-profile",
   },
   {
     id: "edit-profile",
     label: "Edit Profile",
+    short: "Profile",
     icon: "fa-user-pen",
     href: "/therapist/dashboard/profile",
     children: [
@@ -160,11 +169,12 @@ export const THERAPIST_NAV_ITEMS: ShellNavItem[] = [
 ];
 
 export const HOSPITAL_NAV_ITEMS: ShellNavItem[] = [
-  { id: "overview", label: "Overview", icon: "fa-gauge-high", href: "/hospital/dashboard" },
-  { id: "refer", label: "Refer a Patient", icon: "fa-user-plus", href: "/hospital/dashboard/refer" },
+  { id: "overview", label: "Overview", short: "Home", icon: "fa-gauge-high", href: "/hospital/dashboard" },
+  { id: "refer", label: "Refer a Patient", short: "Refer", icon: "fa-user-plus", href: "/hospital/dashboard/refer" },
   {
     id: "referrals",
     label: "Your Referrals",
+    short: "Referrals",
     icon: "fa-list-check",
     href: "/hospital/dashboard/referrals",
   },
@@ -184,6 +194,7 @@ export const HOSPITAL_NAV_ITEMS: ShellNavItem[] = [
   {
     id: "profile",
     label: "Edit Profile",
+    short: "Profile",
     icon: "fa-user-pen",
     href: "/hospital/dashboard/profile",
     children: [
@@ -194,6 +205,18 @@ export const HOSPITAL_NAV_ITEMS: ShellNavItem[] = [
     ],
   },
 ];
+
+// The phone tab bar for each dashboard (see DashboardShell and
+// src/lib/dashboardTabs.ts): the four screens each role opens most, in bar
+// order, and the one action raised in the middle. Everything else is behind
+// More. An entry a person does not have yet is skipped, not left as a gap.
+// Keyed by basePath, like LOGIN_HREF_BY_BASE_PATH below, so every page that
+// renders a DashboardShell gets the same bar without passing it.
+export const TABS_BY_BASE_PATH: Record<string, { tabIds: string[]; centerTabId?: string }> = {
+  "/patient/dashboard": { tabIds: ["overview", "sessions", "book", "health-profile"], centerTabId: "book" },
+  "/therapist/dashboard": { tabIds: ["overview", "sessions", "health-profiles", "earnings"] },
+  "/hospital/dashboard": { tabIds: ["overview", "referrals", "refer", "revenue"], centerTabId: "refer" },
+};
 
 // Which login page each dashboard's own users belong to, keyed by the
 // DashboardShell `basePath` that dashboard already passes. Used by the

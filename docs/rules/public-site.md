@@ -586,3 +586,13 @@ Eight pages from one design system, the word budgets, why every photograph carri
   `rel="noopener noreferrer"` and says "(opens in a new tab)" in its
   accessible name; `mailto:` and `tel:` stay as they are. The icons are
   inline SVG in `BrandGlyphs.tsx`, not the fa-brands webfont.
+
+- **The header changes by width, and booking is always one tap away.** Below
+  `lg` the page links are in the menu and every marketing page has a sticky
+  **Book a video session** bar at the foot of the screen (`PublicBookBar`,
+  shown where `isBookBarRoute` says -- not on `/get-started`, the wizard, an
+  auth card or a dashboard). From `lg` the header shows Conditions, How it
+  works, Home visit, Team and FAQ with Mission and Hospitals under **More**,
+  then Sign In and the Book button; from `2xl` every page is in the row and
+  Get Started joins them. Home is the logo at every width. The Book label is
+  `BOOK_CONNECTOR.label`, so it names the mode wherever it appears.

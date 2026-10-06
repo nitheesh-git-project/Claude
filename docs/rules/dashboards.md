@@ -323,8 +323,8 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an
   explicit link the only exit is Log Out, which also ends the session. Both
   shells (`dashboard/DashboardShell.tsx`, `admin/AdminShell.tsx`) carry a
-  **Back to Home** entry in all three renders
-  (expanded, collapsed rail, mobile drawer). It is a plain `<a>`, not
+  **Back to Home** entry in every render (sidebar, icon rail, phone More
+  sheet / admin menu). It is a plain `<a>`, not
   `next/link`, for the reason the nav entries document: client-side
   transitions into a differently-chromed route were silently not completing.
 - **An online session's tile says when its Meet link shows.** With no link
@@ -343,3 +343,26 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   the live plan and pending suggestions on **every** screen - which also
   keeps the sidebar's Suggested entry from appearing and disappearing as the
   patient moves between tabs. `e2e/recommendation-course.spec.ts` RC-006.
+
+- **Navigation is chosen by width, and only one form is ever displayed.**
+  Below `lg` a dashboard has a **bottom tab bar**: the four screens a role
+  opens most (`TABS_BY_BASE_PATH` in `src/lib/dashboardNavItems.ts`, split by
+  `splitTabs` in `src/lib/dashboardTabs.ts`), with Book / Refer raised in
+  the middle, and **More** opening a sheet with every other entry, the
+  person's identity, Back to Home and Log Out. An entry a person does not
+  have yet (Sessions before their first booking) is skipped, never a gap.
+  From `lg` to `2xl` it is an **88px icon rail** with a one-word label
+  (`short`) under each icon; from `2xl` the **full sidebar**. The full label
+  stays the accessible name in every form, so a link is found by the same
+  words at any width, and the active entry carries `aria-current="page"` --
+  assert on that, not on a colour class. There is no Collapse button: the
+  rail is what a laptop gets. The admin shell follows the same widths: on a
+  phone two shortcuts (`adminShortcuts` in `src/lib/adminMobileNav.ts`,
+  only screens this scope can open), Search and **All sections**, which opens
+  a menu with a **Find a screen** filter (`filterAdminScreens`); the rail
+  keeps the scope label under the logo; below `2xl` a section's screens are a
+  strip above its content instead of nested in the sidebar. Anything else
+  pinned to the bottom of the screen (toasts, the live-update banner, the
+  scroll hint) adds `--app-bottom-inset`, which a `data-tabbar` element sets
+  in `globals.css`, so nothing sits under the bar. The onboarding tour finds
+  its targets by `data-tour="nav-<id>"` on whichever copy is visible.

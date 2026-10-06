@@ -29,6 +29,20 @@
   --font-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Room taken at the bottom of the screen by a pinned bar -- the dashboards'
+   phone tab bar, the public site's phone Book bar. Anything else pinned to
+   the bottom (toasts, the live-update banner, the scroll hint) adds this,
+   so it sits above the bar instead of under it. Set by the bar's own
+   presence, so a page without one pays nothing. */
+:root {
+  --app-bottom-inset: 0px;
+}
+@media (max-width: 1023.98px) {
+  body:has([data-tabbar]) {
+    --app-bottom-inset: calc(4.5rem + env(safe-area-inset-bottom));
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

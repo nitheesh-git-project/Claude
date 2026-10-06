@@ -37,9 +37,10 @@ function sectionOf(href: string): string | null {
  * like product bugs when they bite. Every screen is mounted at once behind
  * `hidden` (AdminShell keeps a half-typed filter alive across tab changes),
  * so "Owed to therapists" also matches the Money glossary's own term list.
- * And the sidebar is rendered three times -- mobile bar, desktop rail,
- * drawer -- so the *first* match for the dashboard's name is the mobile top
- * bar, which is `lg:hidden` at this viewport.
+ * And the navigation is rendered once per width -- phone top bar and
+ * shortcuts, laptop rail, desktop sidebar -- so the *first* match for the
+ * dashboard's name is the phone top bar, which is `lg:hidden` at this
+ * viewport.
  */
 function onScreen(page: Page, text: string) {
   return page.getByText(text, { exact: true }).filter({ visible: true });
@@ -265,9 +266,9 @@ test.describe("Suite S: scoped admin dashboards", () => {
       await page.goto(`${BASE}/admin/dashboard`);
       await expect(onScreen(page, "Unassigned sessions").first()).toBeVisible({ timeout: 60_000 });
 
-      // The sidebar is in the DOM three times (mobile bar, desktop rail,
-      // drawer), so a bare .first() picks one that is hidden at this width
-      // and the click waits for it forever. Only the desktop nav is visible.
+      // The nav is in the DOM once per width (phone shortcuts, laptop rail,
+      // desktop sidebar), so a bare .first() picks one that is hidden at
+      // this width and the click waits for it forever. Only one is visible.
       const sidebar = page.locator("nav").filter({ visible: true }).first();
       // Anchored regex, not an exact name: a section carrying a queue badge
       // reads "Sessions\n1" to the accessibility tree, so an exact match

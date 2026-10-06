@@ -44,13 +44,13 @@ const STATES: State[] = [
     open: async (page) => page.getByRole("button", { name: "Toggle menu" }).click(),
   },
   {
-    name: "patient dashboard drawer open",
+    name: "patient dashboard More sheet open",
     email: QA_EMAILS.patientB,
     path: "/patient/dashboard",
     open: async (page) => page.getByRole("button", { name: "Open menu" }).click(),
   },
   {
-    name: "admin dashboard drawer open",
+    name: "admin dashboard menu open",
     email: QA_EMAILS.admin,
     path: "/admin/dashboard?section=today&tab=overview",
     open: async (page) => page.getByRole("button", { name: "Open menu" }).click(),

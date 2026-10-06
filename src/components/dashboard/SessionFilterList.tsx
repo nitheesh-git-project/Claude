@@ -159,7 +159,9 @@ export default function SessionFilterList({
           }
         />
       ) : (
-        <ul className="space-y-3">
+        // Two across on a desktop: one card per row left half of a 1920
+        // screen empty and pushed the pager below the fold.
+        <ul className="grid items-start gap-3 2xl:grid-cols-2">
           {pageSessions.map((s) => (
             <li key={s.id}>{cardsById[s.id]}</li>
           ))}

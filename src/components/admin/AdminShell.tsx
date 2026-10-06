@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import RealtimeRefresh from "@/components/RealtimeRefresh";
@@ -10,6 +10,7 @@ import AdminGlobalSearch, { type SearchEntity } from "@/components/admin/AdminGl
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import { useLeavingPage } from "@/lib/useLeavingPage";
 import { ADMIN_SECTIONS, findTab, visibleTabs, type AdminSectionKey } from "@/lib/adminNav";
+import { adminShortcuts, filterAdminScreens } from "@/lib/adminMobileNav";
 
 // Every base table this page's Promise.all queries (src/app/admin/dashboard/
 // page.tsx) -- so any change, whether from another admin screen, a therapist/
@@ -278,11 +279,14 @@ export default function AdminShell({
   const [missedTab, setMissedTab] = useState<string | null>(() =>
     unreachableTabLabel(initialSection ?? null, initialTab ?? null, initial)
   );
-  // Desktop full <-> mini collapse. Independent of the mobile drawer below --
-  // a phone gets an off-canvas drawer instead, never the mini/icon-only rail.
   const markLeaving = useLeavingPage();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  // The phone's full menu (a modal sheet), and what has been typed into its
+  // "Find a screen" box. The 2xl sidebar has the same box, sharing state, so
+  // a half-typed filter is not lost when a window is resized across it.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [screenQuery, setScreenQuery] = useState("");
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   // URL <-> state sync. Deliberately the History API rather than
   // router.push/replace: this page is one big Server Component, and a
@@ -372,205 +376,308 @@ export default function AdminShell({
     return section.tabs.reduce((sum, t) => sum + (badges[`${key}:${t.key}`] ?? 0), 0);
   }
 
-  // A plain render function, not a nested component -- called directly as
-  // renderNavItem(...) rather than <NavItem ... />, so React never treats it
-  // as its own component type and there's nothing to remount every render.
-  function renderNavItem(
-    section: (typeof ADMIN_SECTIONS)[number],
-    mini: boolean,
+  const shortcuts = adminShortcuts(sections);
+  const totalBadge = sections.reduce((n, s) => n + sectionBadge(s.key), 0);
+  const screenMatches = filterAdminScreens(sections, screenQuery);
+
+  useEffect(() => {
+    // The phone menu is a modal: Escape closes it, focus moves into it and
+    // back to the button that opened it, and the page under it stays put.
+    if (!menuOpen) return;
+    const opener = menuButtonRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    menuRef.current?.querySelector<HTMLElement>("input, button")?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      opener?.focus();
+    };
+  }, [menuOpen]);
+
+  function closeMenu() {
+    setMenuOpen(false);
+    setScreenQuery("");
+  }
+
+  // The phone's Search shortcut: the people-and-sessions search already sits
+  // at the top of every screen, so it brings that into view and focuses it
+  // rather than opening a second, different search.
+  function focusGlobalSearch() {
+    closeMenu();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    const input = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[aria-label="Search the admin dashboard"]')
+    ).find((el) => el.getClientRects().length > 0);
+    input?.focus();
+  }
+
+  function count(n: number, className = "") {
+    if (n <= 0) return null;
+    return (
+      <span
+        className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-300 px-1.5 text-[11px] font-bold leading-none text-amber-900 ${className}`}
+      >
+        {n > 99 ? "99+" : n}
+      </span>
+    );
+  }
+
+  // One section entry. "rail" is the laptop's icon-over-label button; the
+  // other two are the full-width row used by the 2xl sidebar and the phone
+  // menu. A plain render function, not a nested component, so React never
+  // treats it as its own component type.
+  function renderSectionButton(
+    section: (typeof sections)[number],
+    variant: "sidebar" | "rail" | "menu",
     onNavigate?: () => void
   ) {
     const active = section.key === activeSection.key;
     const badge = sectionBadge(section.key);
+    if (variant === "rail") {
+      return (
+        <button
+          key={section.key}
+          type="button"
+          onClick={() => navigate(section.key, section.tabs[0].key)}
+          aria-current={active ? "page" : undefined}
+          title={section.label}
+          className={`relative mx-1.5 flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-2 text-[11px] leading-tight tracking-tight transition ${
+            active ? "bg-teal-700 font-bold text-white" : "font-semibold text-slate-400 hover:bg-slate-800 hover:text-white"
+          }`}
+        >
+          <i aria-hidden="true" className={`fa-solid ${section.icon} text-base`}></i>
+          <span>{section.label}</span>
+          {count(badge, "absolute left-1/2 top-1 ml-2 ring-2 ring-slate-900")}
+        </button>
+      );
+    }
     return (
       <div key={section.key}>
         <button
           type="button"
           onClick={() => {
             navigate(section.key, section.tabs[0].key);
-            onNavigate?.();
+            if (variant === "menu" && section.tabs.length <= 1) onNavigate?.();
           }}
-          title={mini ? section.label : undefined}
-          className={`group relative w-full flex items-center gap-3 rounded-xl transition ${
-            mini ? "justify-center px-0 py-3" : "px-3.5 py-2.5"
-          } ${active ? "bg-teal-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+          aria-current={active ? "page" : undefined}
+          aria-expanded={section.tabs.length > 1 ? active : undefined}
+          className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 transition ${
+            active ? "bg-teal-700 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+          }`}
         >
-          <i className={`fa-solid ${section.icon} ${mini ? "text-base" : "w-4 text-center text-sm"}`}></i>
-          {!mini && <span className="flex-1 text-left text-sm font-semibold">{section.label}</span>}
-          {badge > 0 && !mini && (
-            <span className="rounded-full bg-amber-300 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
-              {badge}
-            </span>
-          )}
-          {badge > 0 && mini && (
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400"></span>
-          )}
-          {mini && (
-            <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 scale-95 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover:scale-100 group-hover:opacity-100">
-              {section.label}
-            </span>
-          )}
+          <i aria-hidden="true" className={`fa-solid ${section.icon} w-4 text-center text-sm`}></i>
+          <span className="flex-1 text-left text-sm font-semibold">{section.label}</span>
+          {count(badge)}
         </button>
-        {/* Sub-tabs live under their own section in the sidebar rather than
-            as a second row above the content: the mini rail has no room for
-            a second level, and an admin scanning for "where do I do X" reads
-            one list, not a list plus a hidden strip. */}
-        {active && !mini && section.tabs.length > 1 && (
-          <div className="mt-1 space-y-0.5 border-l border-slate-800 pl-3 ml-4">
-            {section.tabs.map((t, i) => {
-              const tabBadge = badges[`${section.key}:${t.key}`] ?? 0;
-              // A caption whenever the group changes, so Settings' ten
-              // screens read as four short lists. Screens sharing a group are
-              // adjacent in adminNav.ts -- comparing with the previous entry
-              // rather than collecting groups keeps the render in DOM order
-              // and means a section that names no groups is untouched.
-              const caption =
-                t.group && t.group !== section.tabs[i - 1]?.group ? t.group : null;
-              return (
-                <Fragment key={t.key}>
-                {caption && (
-                  <p
-                    className={`px-2.5 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 ${
-                      i === 0 ? "pt-1" : "pt-3"
-                    }`}
-                  >
-                    {caption}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigate(section.key, t.key);
-                    onNavigate?.();
-                  }}
-                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold transition ${
-                    t.key === tabKey
-                      ? "bg-slate-800 text-white"
-                      : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
+        {/* Sub-tabs under their own section: an admin scanning for "where
+            do I do X" reads one list, not a list plus a hidden strip. */}
+        {active && section.tabs.length > 1 && renderSubTabs(section, onNavigate)}
+      </div>
+    );
+  }
+
+  function renderSubTabs(section: (typeof sections)[number], onNavigate?: () => void) {
+    return (
+      <div className="mb-1 ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
+        {section.tabs.map((t, i) => {
+          const tabBadge = badges[`${section.key}:${t.key}`] ?? 0;
+          // A caption whenever the group changes, so Settings' screens read
+          // as short lists rather than one long one.
+          const caption = t.group && t.group !== section.tabs[i - 1]?.group ? t.group : null;
+          return (
+            <Fragment key={t.key}>
+              {caption && (
+                <p
+                  className={`px-2.5 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 ${
+                    i === 0 ? "pt-1" : "pt-3"
                   }`}
                 >
-                  <span className="flex-1">{t.label}</span>
-                  {tabBadge > 0 && (
-                    <span className="rounded-full bg-amber-300 px-1.5 text-[10px] font-bold text-amber-900">
-                      {tabBadge}
-                    </span>
-                  )}
-                </button>
-                </Fragment>
-              );
-            })}
-          </div>
-        )}
+                  {caption}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  navigate(section.key, t.key);
+                  onNavigate?.();
+                }}
+                aria-current={t.key === tabKey ? "page" : undefined}
+                className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold transition ${
+                  t.key === tabKey ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
+                }`}
+              >
+                <span className="flex-1">{t.label}</span>
+                {count(tabBadge, "h-4 min-w-4 text-[10px]")}
+              </button>
+            </Fragment>
+          );
+        })}
       </div>
     );
   }
 
-  function renderBrand(mini: boolean) {
+  // "Find a screen": narrows the menu to screens whose name matches, for the
+  // admin who knows they want Payouts and not which section it is under.
+  // Not the people-and-sessions search in the header -- that one finds rows.
+  function renderScreenFilter(id: string) {
     return (
-      <div
-        className={`flex items-center gap-2.5 px-1 py-2 ${mini ? "justify-center" : ""}`}
-        // The rail keeps only the icon, so the name comes back as a tooltip
-        // -- and the page header carries it regardless.
-        title={mini ? `${scopeLabel} · Admin Panel` : undefined}
-      >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white">
-          <i className="fa-solid fa-user-doctor text-sm"></i>
-        </div>
-        {!mini && (
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-bold leading-tight text-white">
-              {scopeLabel}
-            </span>
-            <span className="block text-[11px] leading-tight text-slate-400">Admin Panel</span>
-          </span>
-        )}
+      <div className="relative mb-3">
+        <i
+          aria-hidden="true"
+          className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-500"
+        ></i>
+        <label htmlFor={id} className="sr-only">
+          Find a screen
+        </label>
+        <input
+          id={id}
+          type="search"
+          value={screenQuery}
+          onChange={(e) => setScreenQuery(e.target.value)}
+          placeholder="Find a screen…"
+          autoComplete="off"
+          className="h-11 w-full rounded-xl border border-slate-700 bg-slate-800 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 focus:border-teal-500 focus:outline-none"
+        />
       </div>
     );
   }
 
-  // Sits directly under the brand, above the sections. The admin dashboard
-  // is in NAV_HIDDEN_ROUTES like the other three, so without this the only
-  // way off it is Log Out -- which also ends the session.
-  //
-  // A plain anchor rather than next/link: this leaves the dashboard chrome
+  function renderMatches(onNavigate?: () => void) {
+    if (screenMatches.length === 0) {
+      return <p className="px-3.5 py-3 text-sm text-slate-400">No screen called that.</p>;
+    }
+    return (
+      <div className="space-y-0.5">
+        {screenMatches.map((m) => (
+          <button
+            key={`${m.section}:${m.tab}`}
+            type="button"
+            onClick={() => {
+              navigate(m.section, m.tab);
+              setScreenQuery("");
+              onNavigate?.();
+            }}
+            className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-slate-300 transition hover:bg-slate-800 hover:text-white"
+          >
+            <i aria-hidden="true" className={`fa-solid ${m.icon} w-4 text-center text-sm text-slate-500`}></i>
+            <span className="flex-1 text-sm font-semibold">{m.label}</span>
+            {m.label !== m.sectionLabel && <span className="text-xs text-slate-500">{m.sectionLabel}</span>}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  function renderSections(variant: "sidebar" | "menu", onNavigate?: () => void) {
+    return screenQuery.trim()
+      ? renderMatches(onNavigate)
+      : <div className="space-y-1">{sections.map((s) => renderSectionButton(s, variant, onNavigate))}</div>;
+  }
+
+  // In every render. The admin dashboard is in NAV_HIDDEN_ROUTES like the
+  // other three, so without this the only way off it is Log Out -- which
+  // also ends the session. A plain anchor: this leaves the dashboard chrome
   // for the public site's own layout, the transition DashboardShell's nav
   // entries document as silently not completing client-side here.
-  function renderHomeLink(mini: boolean, onNavigate?: () => void) {
+  function renderHomeLink(variant: "sidebar" | "rail" | "menu", onNavigate?: () => void) {
     return (
-      // The hard navigation is the point here, not an oversight -- see the
-      // comment above this function.
       // eslint-disable-next-line @next/next/no-html-link-for-pages
       <a
         href="/"
         onClick={() => {
-          // The one hard navigation out of this shell, so the one place the
-          // admin dashboard needs the same treatment the other three do.
           markLeaving();
           onNavigate?.();
         }}
-        title={mini ? "Back to Home" : undefined}
-        className={`mt-2 flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
-          mini ? "justify-center px-0" : ""
-        }`}
+        className={
+          variant === "rail"
+            ? "mx-2 flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-center text-[11px] font-semibold leading-tight text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            : "flex min-h-11 items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white"
+        }
       >
-        <i aria-hidden="true" className="fa-solid fa-house text-sm"></i>
-        {!mini && <span>Back to Home</span>}
+        <i aria-hidden="true" className={`fa-solid fa-house ${variant === "rail" ? "text-base" : "w-4 text-center text-sm"}`}></i>
+        <span>Back to Home</span>
       </a>
     );
   }
 
-  function renderFooter(mini: boolean) {
-    return (
-      <div className="mt-auto space-y-1 border-t border-slate-800 pt-3">
-        <div className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2 ${mini ? "justify-center" : ""}`}>
-          <AvatarThumbnail url={adminAvatarUrl} name={adminName} size={32} />
-          {!mini && (
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-white">{adminName}</p>
-              {/* No scope pill here: the brand at the top of this same
-                  sidebar and the page header both name the dashboard, and a
-                  third copy two inches below the second is noise rather than
-                  reassurance. */}
-              <p className="truncate text-[11px] text-slate-400">{adminEmail}</p>
-            </div>
-          )}
-        </div>
+  function renderSignOut(variant: "sidebar" | "rail" | "menu") {
+    if (variant === "rail") {
+      return (
         <button
           type="button"
           onClick={handleSignOut}
-          title={mini ? "Log Out" : undefined}
-          className={`group relative flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
-            mini ? "justify-center px-0" : ""
-          }`}
+          aria-label="Log Out"
+          title="Log Out"
+          className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-800 hover:text-white"
         >
-          <i className="fa-solid fa-arrow-right-from-bracket text-sm"></i>
-          {!mini && <span>Log Out</span>}
-          {mini && (
-            <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 scale-95 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover:scale-100 group-hover:opacity-100">
-              Log Out
-            </span>
-          )}
+          <i aria-hidden="true" className="fa-solid fa-arrow-right-from-bracket text-sm"></i>
         </button>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={handleSignOut}
+        className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition hover:bg-slate-800 ${
+          variant === "menu" ? "text-red-300" : "text-slate-400 hover:text-white"
+        }`}
+      >
+        <i aria-hidden="true" className="fa-solid fa-arrow-right-from-bracket w-4 text-center text-sm"></i>
+        <span>Log Out</span>
+      </button>
+    );
+  }
+
+  function renderIdentity() {
+    return (
+      <div className="flex min-w-0 items-center gap-2.5 px-2.5 py-2">
+        <AvatarThumbnail url={adminAvatarUrl} name={adminName} size={32} />
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-white">{adminName}</p>
+          {/* No scope pill here: the brand and the page header both name
+              the dashboard already. */}
+          <p className="truncate text-[11px] text-slate-400">{adminEmail}</p>
+        </div>
       </div>
     );
   }
 
-  const contentPadClass = collapsed ? "lg:pl-[76px]" : "lg:pl-64";
+  function renderBrand() {
+    return (
+      <div className="flex min-w-0 items-center gap-2.5 px-1 py-2">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white">
+          <i aria-hidden="true" className="fa-solid fa-user-doctor text-sm"></i>
+        </div>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-bold leading-tight text-white">{scopeLabel}</span>
+          <span className="block text-[11px] leading-tight text-slate-400">Admin Panel</span>
+        </span>
+      </div>
+    );
+  }
+
+  const top = offsetTop ? "top-[41px] h-[calc(100vh-41px)]" : "top-0 h-screen";
+  const activeTabLabel = activeSection.tabs.find((t) => t.key === tabKey)?.label ?? "";
 
   return (
-    // Its own full-height dark app shell (fixed sidebar + a light content
-    // pane), not a card sitting inside the site's normal centered page
-    // column -- Navbar/Footer are hidden on this exact route (see their own
-    // pathname checks) so this component owns the entire viewport.
+    // Its own full-height dark app shell. Navbar/Footer are hidden on this
+    // route, so this component owns the entire viewport.
     //
-    // Both channels notify rather than refresh, and the provider is what
-    // carries the count from them to the Refresh button in the header. This
-    // dashboard is the one place where a rebuild is ~41 queries and every
-    // screen's markup, and where most of what arrives -- a patient booking,
-    // another admin's edit, a therapist revealing a number -- is not what
-    // the person reading is waiting on. The other three dashboards still
-    // refresh themselves: there a rebuild is cheap and the reader usually
-    // is waiting for that row.
+    // Both channels notify rather than refresh, and the provider carries the
+    // count from them to the Refresh button in the header: a rebuild here is
+    // ~41 queries and most of what arrives is not what the reader is waiting
+    // on. The other three dashboards still refresh themselves.
+    //
+    // Navigation by width, like DashboardShell's: a phone gets a dark top
+    // bar, two shortcuts plus Search and the full menu along the bottom;
+    // `lg` to `2xl` a dark 88px icon rail with this section's screens as a
+    // strip above the content; `2xl` up the full sidebar with sub-screens
+    // nested under their section.
     <AdminScreenNavigationProvider value={{ goToScreen: navigate }}>
     <LiveUpdatesProvider>
     <div className="min-h-screen bg-slate-50">
@@ -584,94 +691,159 @@ export default function AdminShell({
         cooldownMs={ADMIN_CATALOG_REALTIME_COOLDOWN_MS}
         mode="notify"
       />
-      {/* Narrow screens: a compact dark top bar that opens an off-canvas
-          drawer -- a fixed-width sidebar doesn't leave enough room for
-          content on a phone/tablet. */}
-      <div className="flex items-center justify-between bg-slate-900 px-4 py-3 lg:hidden">
-        {renderBrand(false)}
+
+      {/* Phone top bar */}
+      <div
+        className={`sticky z-30 flex h-14 items-center justify-between bg-slate-900 pl-3 pr-1 lg:hidden ${
+          offsetTop ? "top-[41px]" : "top-0"
+        }`}
+      >
+        {renderBrand()}
         <button
+          ref={menuButtonRef}
           type="button"
-          onClick={() => setMobileOpen(true)}
+          onClick={() => setMenuOpen(true)}
           aria-label="Open menu"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-800 hover:text-white"
+          aria-haspopup="dialog"
+          aria-expanded={menuOpen}
+          className="relative flex h-12 w-12 items-center justify-center rounded-lg text-slate-200 transition hover:bg-slate-800 hover:text-white"
         >
-          <i className="fa-solid fa-bars"></i>
+          <i aria-hidden="true" className="fa-solid fa-bars text-lg"></i>
+          {count(totalBadge, "absolute right-0.5 top-1")}
         </button>
       </div>
 
-      {mobileOpen && (
+      {menuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={closeMenu}></div>
           <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setMobileOpen(false)}
-          ></div>
-          <nav className="absolute bottom-0 left-0 top-0 flex w-72 max-w-[85vw] flex-col overflow-y-auto bg-slate-900 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              {renderBrand(false)}
+            ref={menuRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Admin menu"
+            className="absolute inset-0 flex flex-col overflow-y-auto bg-slate-900 px-3 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3 sm:inset-y-0 sm:left-0 sm:right-auto sm:w-96"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              {renderBrand()}
               <button
                 type="button"
-                onClick={() => setMobileOpen(false)}
+                onClick={closeMenu}
                 aria-label="Close menu"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
               >
-                <i className="fa-solid fa-xmark"></i>
+                <i aria-hidden="true" className="fa-solid fa-xmark"></i>
               </button>
             </div>
-            <div className="mt-1 flex-1 space-y-1">
-              {sections.map((s) => renderNavItem(s, false, () => setMobileOpen(false)))}
-            </div>
-            {/* The drawer has no Collapse button, so it lands directly above
-                the profile/Log Out footer -- the same place relative to the
-                list as on the desktop rail. */}
-            {renderHomeLink(false, () => setMobileOpen(false))}
-            {renderFooter(false)}
-          </nav>
+            {renderScreenFilter("admin-menu-screen-filter")}
+            <nav aria-label="Admin sections" className="flex-1">
+              {renderSections("menu", closeMenu)}
+              <div className="mt-3 space-y-1 border-t border-slate-800 pt-3">
+                {renderHomeLink("menu", closeMenu)}
+                {renderIdentity()}
+                {renderSignOut("menu")}
+              </div>
+            </nav>
+          </div>
         </div>
       )}
 
-      {/* lg and up: dark sidebar fixed flush against the left edge, spanning
-          the full viewport height, collapsible to an icon-only rail with
-          hover tooltips. offsetTop accounts for the dev-only DebugNav bar
-          the same way Navbar's own offsetTop prop does -- a fixed element
-          doesn't inherit that space from document flow the way Navbar
-          (sticky, still in flow) does. */}
+      {/* Laptop icon rail */}
       <nav
-        className={`fixed left-0 z-30 hidden flex-col bg-slate-900 p-3 transition-[width] duration-200 lg:flex ${
-          collapsed ? "w-[76px]" : "w-64"
-        } ${offsetTop ? "top-[41px] h-[calc(100vh-41px)]" : "top-0 h-screen"}`}
+        aria-label="Admin sections"
+        className={`fixed left-0 z-30 hidden w-[88px] flex-col bg-slate-900 py-3 lg:flex 2xl:hidden ${top}`}
       >
-        {renderBrand(collapsed)}
-        <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
-          {sections.map((s) => renderNavItem(s, collapsed))}
+        <div className="mb-3 flex flex-col items-center gap-1.5 px-2 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white">
+            <i aria-hidden="true" className="fa-solid fa-user-doctor text-sm"></i>
+          </div>
+          {/* The rail keeps the dashboard's name: a scoped admin asks
+              "which one am I on" at every width. */}
+          <span className="text-[10px] font-bold leading-tight text-slate-300">{scopeLabel}</span>
         </div>
-        {/* Below the sections rather than above them, and directly above
-            Collapse -- same placement as the other three shells. Leaving the
-            back office is not one of this admin's screens, so it belongs
-            with the controls that act on the sidebar itself. */}
-        {renderHomeLink(collapsed)}
-        <button
-          type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          className={`mt-2 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white ${
-            collapsed ? "justify-center px-0" : ""
-          }`}
-        >
-          <i className={`fa-solid ${collapsed ? "fa-angles-right" : "fa-angles-left"} text-sm`}></i>
-          {!collapsed && <span>Collapse</span>}
-        </button>
-        {renderFooter(collapsed)}
+        <div className="flex-1 space-y-1 overflow-y-auto">
+          {sections.map((s) => renderSectionButton(s, "rail"))}
+        </div>
+        <div className="space-y-1 border-t border-slate-800 pt-2">
+          {renderHomeLink("rail")}
+          <div className="flex justify-center pt-1" title={`${adminName} · ${adminEmail}`}>
+            <AvatarThumbnail url={adminAvatarUrl} name={adminName} size={36} />
+          </div>
+          {renderSignOut("rail")}
+        </div>
       </nav>
 
-      <div className={`transition-[padding] duration-200 ${contentPadClass}`}>
-        <div className="px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-            <div>
+      {/* Desktop sidebar */}
+      <nav
+        aria-label="Admin sections"
+        className={`fixed left-0 z-30 hidden w-64 flex-col bg-slate-900 p-3 2xl:flex ${top}`}
+      >
+        {renderBrand()}
+        <div className="mt-2">{renderScreenFilter("admin-sidebar-screen-filter")}</div>
+        <div className="flex-1 overflow-y-auto">{renderSections("sidebar")}</div>
+        <div className="mt-2 space-y-1 border-t border-slate-800 pt-3">
+          {renderHomeLink("sidebar")}
+          {renderIdentity()}
+          {renderSignOut("sidebar")}
+        </div>
+      </nav>
+
+      {/* Phone shortcuts. data-tabbar lifts toasts and the live-update
+          banner above it (--app-bottom-inset in globals.css). */}
+      <nav
+        aria-label="Admin shortcuts"
+        data-tabbar=""
+        className="fixed inset-x-0 bottom-0 z-40 grid border-t border-slate-200 bg-white px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 lg:hidden"
+        style={{ gridTemplateColumns: `repeat(${shortcuts.length + 2}, minmax(0, 1fr))` }}
+      >
+        {shortcuts.map((sc) => {
+          const active = activeSection.key === sc.section && tabKey === sc.tab;
+          const n = badges[`${sc.section}:${sc.tab}`] ?? 0;
+          return (
+            <button
+              key={`${sc.section}:${sc.tab}`}
+              type="button"
+              onClick={() => navigate(sc.section, sc.tab)}
+              aria-current={active ? "page" : undefined}
+              className={`relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 text-[11px] ${
+                active ? "font-bold text-teal-700" : "font-semibold text-slate-500"
+              }`}
+            >
+              <i aria-hidden="true" className={`fa-solid ${sc.icon} text-lg`}></i>
+              <span className="max-w-full truncate px-0.5">{sc.label}</span>
+              {n > 0 && (
+                <span className="absolute left-1/2 top-1 ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-700 px-1.5 text-[11px] font-bold leading-none text-white ring-2 ring-white">
+                  {n > 99 ? "99+" : n}
+                </span>
+              )}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={focusGlobalSearch}
+          className="flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-500"
+        >
+          <i aria-hidden="true" className="fa-solid fa-magnifying-glass text-lg"></i>
+          <span>Search</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-haspopup="dialog"
+          className="flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-500"
+        >
+          <i aria-hidden="true" className="fa-solid fa-bars text-lg"></i>
+          <span>All sections</span>
+        </button>
+      </nav>
+
+      <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[88px] 2xl:pl-64">
+        <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-4 sm:mb-8">
+            <div className="min-w-0">
               {/* Which dashboard this is, above what part of it you are
-                  looking at. In the header rather than only in the sidebar
-                  because the sidebar collapses to icons and disappears
-                  entirely on a phone, and "which dashboard am I on" is a
-                  question a scoped admin has on every screen, not just the
-                  first one. */}
+                  looking at -- a question a scoped admin has on every
+                  screen and at every width. */}
               <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-teal-700">
                 <i aria-hidden className="fa-solid fa-shield-halved text-[10px]" />
                 {scopeLabel}
@@ -679,23 +851,13 @@ export default function AdminShell({
               <h1 className="mt-0.5 text-2xl font-bold text-slate-900">
                 {activeSection.label}
                 {/* Suppressed when the screen's own name repeats the
-                    section's -- Today's default screen is called Today, and
-                    "Today Today" reads as a rendering bug. */}
-                {activeSection.tabs.length > 1 &&
-                  (() => {
-                    const tabLabel = activeSection.tabs.find((t) => t.key === tabKey)?.label ?? "";
-                    if (!tabLabel || tabLabel === activeSection.label) return null;
-                    return (
-                      <span className="ml-2 text-base font-semibold text-slate-500">{tabLabel}</span>
-                    );
-                  })()}
+                    section's -- "Today Today" reads as a rendering bug. */}
+                {activeSection.tabs.length > 1 && activeTabLabel && activeTabLabel !== activeSection.label && (
+                  <span className="ml-2 text-base font-semibold text-slate-500">{activeTabLabel}</span>
+                )}
               </h1>
               {/* The screen's own sentence when it has one, the section's
-                  otherwise. Eight Settings screens sharing "How the product
-                  behaves" meant the header explained nothing on the one
-                  section people open least often and remember least well;
-                  the example is the half that says why you are here rather
-                  than what the screen is called. */}
+                  otherwise. */}
               {(() => {
                 const activeTab = activeSection.tabs.find((t) => t.key === tabKey);
                 if (!activeTab?.blurb) {
@@ -714,14 +876,42 @@ export default function AdminShell({
                 );
               })()}
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
               <AdminGlobalSearch entities={searchEntities} />
-              {/* Beside the search rather than in the sidebar: it acts on the
-                  screen in front of you, and the sidebar is a closed drawer
-                  on a phone. */}
+              {/* Beside the search: it acts on the screen in front of you. */}
               <RefreshButton />
             </div>
           </div>
+
+          {/* Below 2xl the rail has no room for a second level, so this
+              section's screens are a strip above its content instead -- one
+              tap between Schedule and All Sessions, at every width. */}
+          {activeSection.tabs.length > 1 && (
+            <div className="-mx-4 mb-5 overflow-x-auto px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 2xl:hidden">
+              <div role="group" aria-label={`${activeSection.label} screens`} className="flex w-max gap-2 pb-1">
+                {activeSection.tabs.map((t) => {
+                  const on = t.key === tabKey;
+                  const n = badges[`${activeSection.key}:${t.key}`] ?? 0;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => navigate(activeSection.key, t.key)}
+                      aria-current={on ? "page" : undefined}
+                      className={`inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-semibold transition ${
+                        on
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      }`}
+                    >
+                      {t.label}
+                      {count(n, "h-[18px] min-w-[18px] text-[10px]")}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {missedTab && (
             <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
@@ -742,9 +932,8 @@ export default function AdminShell({
           )}
 
           {/* Every screen stays mounted and is hidden with CSS rather than
-              unmounted -- the same trade the old tab shell made. It keeps a
-              half-typed filter or an open row from being thrown away when an
-              admin checks something on another screen and comes back. */}
+              unmounted, so a half-typed filter or an open row survives a
+              look at another screen. */}
           {sections.flatMap((section) =>
             section.tabs.map((t) => {
               const key = `${section.key}:${t.key}`;

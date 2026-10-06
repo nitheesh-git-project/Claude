@@ -111,3 +111,15 @@ export function isFrontPageRoute(pathname: string | null): boolean {
   if (pathname === "/") return true;
   return FRONT_PAGE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
+
+// Where the phone's sticky "Book a video session" bar shows: the marketing
+// pages, where somebody is reading about the practice and the next step
+// should never be a scroll away. Not on /get-started (it is already the
+// step), not in the booking wizard or on an auth card (mid-task), and not
+// on a dashboard (it has its own tab bar). /mission is a front page in
+// every sense but the scroll hint's, so it is named here rather than added
+// to FRONT_PAGE_PREFIXES and changing that cue's behaviour.
+export function isBookBarRoute(pathname: string | null): boolean {
+  if (pathname === null || pathname === "/get-started" || pathname.startsWith("/get-started/")) return false;
+  return isFrontPageRoute(pathname) || pathname === "/mission" || pathname.startsWith("/mission/");
+}
