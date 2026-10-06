@@ -1443,6 +1443,22 @@
       ]
     },
     {
+      "id": "therapist.patient-chart-in-shell",
+      "runner": "therapist",
+      "title": "A patient's chart sits inside the therapist dashboard with My Patients lit and no back link",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-patient-chart.spec.ts",
+          "tests": [
+            "PC-001"
+          ],
+          "level": "browser"
+        }
+      ]
+    },
+    {
       "id": "session.finish-with-note",
       "runner": "session",
       "title": "A therapist's Done opens the session note with the Pain Map and needs both",
