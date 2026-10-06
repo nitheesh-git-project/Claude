@@ -268,6 +268,8 @@ export function renderPatientSessionCard(
             role="patient"
             existingRating={a.patient_rating}
             existingFeedback={a.patient_feedback}
+            counterpartName={a.therapist_id ? therapistMap.get(a.therapist_id) ?? null : null}
+            viewerName={profile?.full_name ?? null}
           />
         )}
       </div>

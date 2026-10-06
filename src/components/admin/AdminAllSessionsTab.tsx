@@ -15,6 +15,7 @@ import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import StatStrip from "@/components/dashboard/StatStrip";
 import type { CsvColumn } from "@/lib/csvExport";
+import { RatingChip } from "@/components/feedback/RatingDisplay";
 import { formatSlotRange, istDateKey, istMinutesOfDay } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 import DateField from "@/components/system/DateField";
@@ -52,15 +53,6 @@ const STATUS_STYLES: Record<string, string> = {
   completed: "text-teal-700 bg-teal-50",
   cancelled: "text-red-700 bg-red-50",
 };
-
-function Stars({ rating }: { rating: number }) {
-  return (
-    <span className="text-amber-500">
-      {"★".repeat(rating)}
-      <span className="text-slate-300">{"★".repeat(5 - rating)}</span>
-    </span>
-  );
-}
 
 function SortHeader({
   label,
@@ -794,18 +786,21 @@ export default function AdminAllSessionsTab({
                     {canSeeMoney && <RefundChip row={a} className="mt-1 flex w-fit text-[10px]" />}
                   </td>
                   <td className="py-2 pr-3">
-                    {a.patient_rating ? (
-                      <Stars rating={a.patient_rating} />
-                    ) : (
-                      <span className="text-slate-300">-</span>
-                    )}
+                    {/* A chip, not five glyphs: "★ 4.0" scans down a column,
+                        the bubble says there is a note behind it (hover to
+                        read), and an excluded rating is struck through. */}
+                    <RatingChip
+                      rating={a.patient_rating}
+                      feedback={a.patient_feedback}
+                      excluded={a.patient_rating_excluded}
+                    />
                   </td>
                   <td className="py-2 pr-3">
-                    {a.therapist_rating ? (
-                      <Stars rating={a.therapist_rating} />
-                    ) : (
-                      <span className="text-slate-300">-</span>
-                    )}
+                    <RatingChip
+                      rating={a.therapist_rating}
+                      feedback={a.therapist_feedback}
+                      excluded={a.therapist_rating_excluded}
+                    />
                   </td>
                   <td className="py-2 pr-3" onClick={(e) => e.stopPropagation()}>
                     <JoinSessionButton

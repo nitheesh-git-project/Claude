@@ -1001,6 +1001,21 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "session-feedback.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -2750,6 +2765,24 @@
       "required": false,
       "status": "gap",
       "limitation": "Needs signed Razorpay webhook payloads (RAZORPAY_WEBHOOK_SECRET) posted to the local app; the idempotency is proven in booking-idempotency-sql-checks.sql only. Needs an owner decision on a webhook test secret."
+    },
+    {
+      "id": "session.rating-feedback",
+      "runner": "session",
+      "title": "Patient and therapist rate a completed session with stars, quick picks and a note, and see the thank-you",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "session-feedback.spec.ts",
+          "tests": [
+            "SF-001",
+            "SF-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Leaves a completed session behind (completed sessions cannot be deleted); the pick round trip is unit-tested in src/lib/feedbackPicks.test.ts."
     }
   ],
   "removed": []

@@ -526,6 +526,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         average={ratingAggregate.average}
         count={ratingAggregate.count}
         excludedCount={ratingAggregate.excludedCount}
+        distribution={ratingAggregate.distribution}
       />
       <p className="text-[11px] text-slate-500 -mt-4 mb-6">
         Admin-only - never shown to the patient or any therapist.

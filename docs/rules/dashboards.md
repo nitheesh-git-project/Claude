@@ -385,3 +385,21 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `suggestionsWaiting`, a live plan once plus each proposed time -- is
   summed onto More, where the entry lives. The sidebar and rail show it on
   the entry itself.
+- **A session rating is a card, and its quick picks live in the feedback
+  text.** `SessionFeedbackForm` (patient and therapist) asks for stars
+  first, then offers picks that suit the score (`picksFor` in
+  `src/lib/feedbackPicks.ts`: what went well from 3 stars, what could be
+  better at 1-2), then an optional note. The picks are saved at the front of
+  the ordinary feedback text joined by " · " (`composeFeedback`), so there is
+  no new column, and every screen that shows feedback splits them back out
+  with `splitFeedback` -- only leading recognised phrases count, so an old
+  free-text note stays a note. Sending ends on a short thank-you (a tick
+  that draws itself and a small burst, the `fb-*` keyframes in globals.css;
+  reduced motion lands on the final frame), shown only in the page where it
+  was sent; a later visit shows a still summary. Neither side ever sees the
+  other's rating, and the card says so to the therapist. The admin drawer
+  draws each side as its own card (`FeedbackBody`, amber when excluded,
+  Exclude and Clear as real buttons), tables use `RatingChip` ("★ 4.0", a
+  bubble when there is a note, struck through when excluded), and
+  `RatingManager` shows the average with a bar per star level from
+  `computeRatingAggregate().distribution`. `e2e/session-feedback.spec.ts`.

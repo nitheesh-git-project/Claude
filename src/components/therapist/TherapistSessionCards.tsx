@@ -162,6 +162,8 @@ export function renderTherapistSessionCard(
             role="therapist"
             existingRating={a.therapist_rating}
             existingFeedback={a.therapist_feedback}
+            counterpartName={patient?.full_name ?? null}
+            viewerName={d.profile?.full_name ?? null}
           />
         )}
       </div>
@@ -338,6 +340,8 @@ export function renderTherapistHomeVisitCard(
             role="therapist"
             existingRating={a.therapist_rating}
             existingFeedback={a.therapist_feedback}
+            counterpartName={patient?.full_name ?? null}
+            viewerName={d.profile?.full_name ?? null}
           />
         )}
       </div>

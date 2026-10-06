@@ -493,6 +493,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
         average={ratingAggregate.average}
         count={ratingAggregate.count}
         excludedCount={ratingAggregate.excludedCount}
+        distribution={ratingAggregate.distribution}
         visible={therapist.rating_visible}
         onToggleVisible={{ therapistId: therapist.id }}
       />

@@ -509,3 +509,27 @@ html[data-splash] body {
     top: 1.5rem;
   }
 }
+
+/* Session rating card (SessionFeedbackForm). A star pops when chosen, each
+   one up to it a beat later; the thank-you springs a tick in and fans a
+   few dots out. Reduced motion lands on the final frame at once. */
+@keyframes fb-pop { 0% { transform: scale(1); } 45% { transform: scale(1.32); } 100% { transform: scale(1); } }
+@keyframes fb-ripple { from { transform: scale(0.4); opacity: 0.45; } to { transform: scale(1.9); opacity: 0; } }
+@keyframes fb-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fb-grow { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes fb-draw { to { stroke-dashoffset: 0; } }
+@keyframes fb-burst {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; }
+}
+.fb-pop { animation: fb-pop 340ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.fb-ripple { animation: fb-ripple 520ms ease-out both; }
+.fb-rise { animation: fb-rise 260ms ease-out both; }
+.fb-grow { animation: fb-grow 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.fb-draw { stroke-dasharray: 40; stroke-dashoffset: 40; animation: fb-draw 360ms ease-out 260ms forwards; }
+.fb-burst { animation: fb-burst 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 220ms both; }
+@media (prefers-reduced-motion: reduce) {
+  .fb-pop, .fb-ripple, .fb-rise, .fb-grow, .fb-burst { animation: none; }
+  .fb-ripple, .fb-burst { opacity: 0; }
+  .fb-draw { animation: none; stroke-dashoffset: 0; }
+}
