@@ -607,3 +607,13 @@ Eight pages from one design system, the word budgets, why every photograph carri
   (`payments.md`). Home-visit prices pass `rupeesOnly`. The footer's
   country picker shows only when local prices and the picker are both on;
   the debug bar's Country dropdown forces any country while the bar exists.
+
+- **On /conditions the programmes come first, the areas of practice
+  second.** What a visitor can book today ("Structured programmes") leads;
+  "Areas of practice" sits below it and answers "what if mine is not one of
+  those". The section rail follows the same order.
+- **The sign-in pages keep the nav's whole signed-out cluster** - Sign In,
+  Get Started, Book - so tapping Sign In does not appear to break the nav.
+  `isAuthCtaSignedOutRoute` pins it there whatever the session says, which
+  still stops "Go to Dashboard" flashing mid-login; only registration and
+  the holding pages drop the cluster (`isAuthCtaHiddenRoute`).

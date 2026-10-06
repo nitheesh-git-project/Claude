@@ -358,7 +358,7 @@ The screen warns you to turn it on only once System Health has been clean.
 8. Watch the screen while it loads on a slow connection.
 
 **Expected Result**
-* Steps 1–3: the full dashboard is behind the overlay - the dark sidebar with its **badges**, the **Master Admin** brand, the header's **Refresh** button and the **global search**. There is **no "Back to the dashboard" link anywhere**: that link belonged to the reduced frame this replaced.
+* Steps 1–3: the full dashboard is behind the overlay - the sidebar with its **badges**, the **Master Admin** brand, the header's **Refresh** button and the **global search**. There is **no "Back to the dashboard" link anywhere**: that link belonged to the reduced frame this replaced.
 * Step 3: the screen behind the overlay is **People → Therapists** - the screen this detail belongs to - never Today.
 * Steps 4–5: the overlay closes **instantly**, with no skeleton and no page load, onto that same screen; the address bar becomes `/admin/dashboard?section=people&tab=therapists`. Closing a dashboard that is already on screen must not refetch it.
 * Step 6: identical on all three.

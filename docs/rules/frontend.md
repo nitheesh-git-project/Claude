@@ -255,12 +255,19 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
     for real `<Link>` navigations, which the public Navbar uses. Next's
     `useLinkStatus` only works *inside* a Link, so the reporter is a child
     component rendering nothing rather than a hook the wrapper could call.
-  **And every dynamic route has a `loading.tsx`.** A boundary only at each
-  dashboard's root left every sub-route leaning on an ancestor, so the
-  fallback was the wrong shape or absent; all seventeen dashboard
-  sub-routes and the three admin detail routes have their own now, each
-  passing `withSidebar` and a label naming what is coming. **The `@modal`
-  slot has one too**, and it is the case both loading signals miss: tapping a
+  **And the wait is the spine loader, over the old page - never a
+  `loading.tsx` in a dashboard.** Each dashboard draws its sidebar inside its
+  own page, so a loading boundary replaced the sidebar with the content: every
+  tab tap showed a placeholder rail (it was dark, the old design) until the
+  page arrived. So the dashboards have none. Both reporters above call
+  `begin("navigation")`, and `NavigationLoader` (root layout) draws
+  `SpineLoader` - seven vertebrae settling into line - over the content area
+  after 300 ms, at `z-20`, **under** every nav, sidebar, rail and tab bar
+  (`z-30`+), with the old page faintly behind it. A refresh after a button
+  press is `begin()` and gets the teal bar only: the page is staying put.
+  `RouteLoading` is the spine loader too, for the one boundary left with no
+  chrome to keep (the `/dashboard` role hop). **The admin `@modal`
+  slot keeps its own `loading.tsx`**, and it is the case both loading signals miss: tapping a
   patient name is a `<Link>` into a parallel-route slot, which is not a
   `useRouter` transition (so no bar) and is not covered by an ancestor
   `loading.tsx` (which wraps the page tree, not a sibling slot) -- so the row
@@ -268,12 +275,10 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   fallback mirrors `DetailOverlayModal`'s own sheet rather than reusing
   `RouteLoading`: what is arriving is an overlay over the dashboard, and a
   full-page skeleton there would read as the dashboard itself being
-  replaced. On a hard
-  navigation this is what paints first: the server streams the shell and the
-  fallback before the page's own queries resolve, so the new screen arrives
-  as furniture rather than as a wait. The public marketing pages are
-  deliberately left without one -- they are ISR-prerendered, so there is no
-  server wait to cover, and the bar handles the transition.
+  replaced; its wait is the small `SpineLoader`. On a hard navigation the
+  browser keeps the old document - loader included - on screen until the
+  new one is ready, so the chrome never blanks. The public pages work the
+  same way: no boundary, the loader over the page below the nav.
   **Every dashboard carries one Refresh button**
   (`src/components/dashboard/RefreshButton.tsx`), in the header of both
   shells -- so all four get the same control in the same place. It re-runs
@@ -331,13 +336,14 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   fails WCAG AA for body text, and an axe-core sweep found it on 62 surfaces
   across the public pages and all four dashboards -- every one of them a label,
   a count, a hint or a code somebody actually has to read. The rule is by
-  surface, not by taste: on the dark chrome (the two shells' rails, the
-  footer, the debug bar) `text-slate-400` is correct and `text-slate-500` is
+  surface, not by taste: on the dark chrome (the footer, the debug bar)
+  `text-slate-400` is correct and `text-slate-500` is
   the failure; on a white or `slate-50` card the floor is `text-slate-500`,
   and on a `slate-100` fill -- a segmented-control track, a neutral pill --
   it is `text-slate-600`, since slate-500 there is 4.34:1 and just misses.
-  Sidebar's own active entry is `bg-teal-700`, not `-600`: white on teal-600
-  is 3.66:1. The same split applies to the chart constants in
+  Every dashboard's sidebar and rail - the admin's included - is white:
+  its active entry is `bg-teal-50` with `text-teal-800`, and the brand
+  tile is `bg-teal-700`, not `-600`: white on teal-600 is 3.66:1. The same split applies to the chart constants in
   `src/components/admin/TrendCharts.tsx` (where the Money and Business Health
   screens both read them from) -- they are drawn as lines *and* printed as
   figures, so they take the -700 shades while `PatientProfitChart`, which only

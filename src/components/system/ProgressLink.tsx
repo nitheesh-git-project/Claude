@@ -37,7 +37,7 @@ function LinkPendingReporter() {
 
   useEffect(() => {
     if (pending && !releaseRef.current) {
-      releaseRef.current = begin();
+      releaseRef.current = begin("navigation");
     } else if (!pending && releaseRef.current) {
       releaseRef.current();
       releaseRef.current = null;

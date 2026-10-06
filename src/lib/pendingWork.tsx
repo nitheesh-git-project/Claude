@@ -26,31 +26,51 @@ import {
  */
 type PendingWorkValue = {
   pending: boolean;
+  /** Whether part of that work is a move to another page -- the one kind the
+   *  full loader (NavigationLoader) answers. A refresh after a button press
+   *  only gets the teal bar: the page is staying where it is. */
+  navigating: boolean;
   /** Marks work as started; the returned function marks it finished. Safe to
    *  call twice -- the second call is ignored, so a `finally` that runs after
-   *  an early return cannot drive the count negative. */
-  begin: () => () => void;
+   *  an early return cannot drive the count negative. Pass "navigation" when
+   *  the work is going to another page. */
+  begin: (kind?: WorkKind) => () => void;
 };
+
+export type WorkKind = "work" | "navigation";
 
 const PendingWorkContext = createContext<PendingWorkValue | null>(null);
 
 export function PendingWorkProvider({ children }: { children: React.ReactNode }) {
   const [count, setCount] = useState(0);
   const countRef = useRef(0);
+  const [navCount, setNavCount] = useState(0);
+  const navCountRef = useRef(0);
 
-  const begin = useCallback(() => {
+  const begin = useCallback((kind: WorkKind = "work") => {
     countRef.current += 1;
     setCount(countRef.current);
+    if (kind === "navigation") {
+      navCountRef.current += 1;
+      setNavCount(navCountRef.current);
+    }
     let released = false;
     return () => {
       if (released) return;
       released = true;
       countRef.current = Math.max(0, countRef.current - 1);
       setCount(countRef.current);
+      if (kind === "navigation") {
+        navCountRef.current = Math.max(0, navCountRef.current - 1);
+        setNavCount(navCountRef.current);
+      }
     };
   }, []);
 
-  const value = useMemo(() => ({ pending: count > 0, begin }), [count, begin]);
+  const value = useMemo(
+    () => ({ pending: count > 0, navigating: navCount > 0, begin }),
+    [count, navCount, begin]
+  );
 
   return (
     <PendingWorkContext.Provider value={value}>{children}</PendingWorkContext.Provider>
@@ -69,6 +89,7 @@ export function usePendingWork(): PendingWorkValue {
   return (
     useContext(PendingWorkContext) ?? {
       pending: false,
+      navigating: false,
       begin: () => () => {},
     }
   );

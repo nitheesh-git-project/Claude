@@ -89,11 +89,16 @@ export async function POST() {
     // A refresh token exchanges for a fresh pair, written back through the
     // cookie adapter -- which is what puts the admin's own session in the
     // browser again.
-    const { error } = await supabase.auth.setSession({
-      access_token: "",
+    //
+    // refreshSession, not setSession: setSession refuses a session without
+    // an access token before it ever reaches the refresh token
+    // (AuthSessionMissingError), and this route used to pass "" there --
+    // so every Exit fell through to the sign-out below and sent the admin
+    // to the login page instead of back to the dashboard.
+    const { data: refreshed, error } = await supabase.auth.refreshSession({
       refresh_token: restoreToken,
     });
-    if (!error) {
+    if (!error && refreshed.session) {
       const restored = NextResponse.json({ ok: true, redirectTo: "/admin/dashboard" });
       // The proxy's cached profile still describes the patient who was
       // being impersonated. The signed user id inside it means the admin's

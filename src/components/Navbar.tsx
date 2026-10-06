@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useAccountDestination } from "@/lib/useAccountDestination";
-import { isAuthCtaHiddenRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
+import { isAuthCtaHiddenRoute, isAuthCtaSignedOutRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
 import { BOOK_CONNECTOR, MARKETING_PAGES, type MarketingPageKey } from "@/lib/marketingNav";
 import BrandMark from "@/components/BrandMark";
 
@@ -105,7 +105,7 @@ export default function Navbar({
   }, []);
 
 
-  // Each of the 4 role dashboards is its own full-height dark app shell
+  // Each of the 4 role dashboards is its own full-height app shell
   // (sidebar + content, no page scroll past the viewport) rather than a page
   // that sits below this marketing nav -- exact match only, so sub-pages
   // like /patient/dashboard/profile (which aren't part of a shell) keep
@@ -118,6 +118,9 @@ export default function Navbar({
   // no Sign In / Get Started / Go to Dashboard at all, so signing in can't
   // flash a dashboard button before the page it belongs to has opened.
   const authCtaHidden = isAuthCtaHiddenRoute(pathname);
+  // The sign-in pages show the signed-out cluster whatever the session says,
+  // so the nav looks the same as on every other public page.
+  const showSignedOut = isAuthCtaSignedOutRoute(pathname) || signedIn !== true;
 
   return (
     <nav
@@ -215,7 +218,7 @@ export default function Navbar({
             )}
           </div>
 
-          {authCtaHidden ? null : signedIn !== true ? (
+          {authCtaHidden ? null : showSignedOut ? (
             <div className="hidden lg:flex items-center gap-2 whitespace-nowrap">
               <Link
                 href="/patient/login"
@@ -292,7 +295,7 @@ export default function Navbar({
                     {link.label}
                   </Link>
                 ))}
-                {authCtaHidden ? null : signedIn !== true ? (
+                {authCtaHidden ? null : showSignedOut ? (
                   <>
                     <Link
                       href="/patient/login"

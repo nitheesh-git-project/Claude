@@ -62,7 +62,7 @@ export default function Footer({
     (page) => page.key !== "home" && (homeVisitEnabled || !page.requiresHomeVisit)
   );
   // See Navbar's matching check -- each role dashboard is its own
-  // full-height dark app shell with no page scroll, so a footer below it
+  // full-height app shell with no page scroll, so a footer below it
   // would never be reachable/visible anyway.
   if (isDashboardShellRoute(pathname)) {
     return null;

@@ -825,15 +825,14 @@ line describing nothing but carelessness. Before real patients exist, remove
   dialog that can open inside them portalled from the child side, which is
   the side that matters.
 - **Every route tree has an error boundary, and a thrown message never
-  reaches the screen.** `RouteError` / `RouteLoading`
-  (`src/components/system/`) back `error.tsx` and `loading.tsx` in each
-  dashboard, with `global-error.tsx` for a root-layout throw (it inlines its
+  reaches the screen.** `RouteError` (`src/components/system/`) backs
+  `error.tsx` in each dashboard, with `global-error.tsx` for a root-layout throw (it inlines its
   styles and supplies its own `<html>`, because at that point nothing else
   has rendered). An Error's message can carry a column name or a row id and
   patients see these screens, so only Next's `digest` is shown. A dashboard
-  `loading.tsx` must pass `withSidebar`: the patient, therapist and hospital
-  dashboards render their sidebar per page rather than in a layout, so a
-  bare skeleton would blank the chrome on every navigation.
+  has **no** `loading.tsx`: every dashboard renders its sidebar per page
+  rather than in a layout, so a loading boundary blanks the chrome on every
+  navigation - the wait is `NavigationLoader` instead (`frontend.md`).
 - **A display code outlives the role that generated it.** `handle_new_user`
   inserts every self-signup as a patient, so an account promoted to admin or
   hospital later keeps its `PT####`. The unique indexes are scoped to the

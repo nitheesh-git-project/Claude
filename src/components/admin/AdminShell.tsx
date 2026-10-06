@@ -447,12 +447,12 @@ export default function AdminShell({
           aria-current={active ? "page" : undefined}
           title={section.label}
           className={`relative mx-1.5 flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-2 text-[11px] leading-tight tracking-tight transition ${
-            active ? "bg-teal-700 font-bold text-white" : "font-semibold text-slate-400 hover:bg-slate-800 hover:text-white"
+            active ? "bg-teal-50 font-bold text-teal-800" : "font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
           }`}
         >
           <i aria-hidden="true" className={`fa-solid ${section.icon} text-base`}></i>
           <span>{section.label}</span>
-          {count(badge, "absolute left-1/2 top-1 ml-2 ring-2 ring-slate-900")}
+          {count(badge, "absolute left-1/2 top-1 ml-2 ring-2 ring-white")}
         </button>
       );
     }
@@ -467,7 +467,7 @@ export default function AdminShell({
           aria-current={active ? "page" : undefined}
           aria-expanded={section.tabs.length > 1 ? active : undefined}
           className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 transition ${
-            active ? "bg-teal-700 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            active ? "bg-teal-50 text-teal-800" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
           }`}
         >
           <i aria-hidden="true" className={`fa-solid ${section.icon} w-4 text-center text-sm`}></i>
@@ -483,7 +483,7 @@ export default function AdminShell({
 
   function renderSubTabs(section: (typeof sections)[number], onNavigate?: () => void) {
     return (
-      <div className="mb-1 ml-4 mt-1 space-y-0.5 border-l border-slate-800 pl-3">
+      <div className="mb-1 ml-5 mt-1 space-y-0.5 border-l-2 border-slate-100 pl-2">
         {section.tabs.map((t, i) => {
           const tabBadge = badges[`${section.key}:${t.key}`] ?? 0;
           // A caption whenever the group changes, so Settings' screens read
@@ -493,7 +493,7 @@ export default function AdminShell({
             <Fragment key={t.key}>
               {caption && (
                 <p
-                  className={`px-2.5 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 ${
+                  className={`px-2.5 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 ${
                     i === 0 ? "pt-1" : "pt-3"
                   }`}
                 >
@@ -508,7 +508,7 @@ export default function AdminShell({
                 }}
                 aria-current={t.key === tabKey ? "page" : undefined}
                 className={`flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold transition ${
-                  t.key === tabKey ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
+                  t.key === tabKey ? "bg-slate-100 text-teal-800" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
                 <span className="flex-1">{t.label}</span>
@@ -529,7 +529,7 @@ export default function AdminShell({
       <div className="relative mb-3">
         <i
           aria-hidden="true"
-          className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-500"
+          className="fa-solid fa-magnifying-glass pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400"
         ></i>
         <label htmlFor={id} className="sr-only">
           Find a screen
@@ -541,7 +541,7 @@ export default function AdminShell({
           onChange={(e) => setScreenQuery(e.target.value)}
           placeholder="Find a screen…"
           autoComplete="off"
-          className="h-11 w-full rounded-xl border border-slate-700 bg-slate-800 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 focus:border-teal-500 focus:outline-none"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:outline-none"
         />
       </div>
     );
@@ -549,7 +549,7 @@ export default function AdminShell({
 
   function renderMatches(onNavigate?: () => void) {
     if (screenMatches.length === 0) {
-      return <p className="px-3.5 py-3 text-sm text-slate-400">No screen called that.</p>;
+      return <p className="px-3.5 py-3 text-sm text-slate-500">No screen called that.</p>;
     }
     return (
       <div className="space-y-0.5">
@@ -562,9 +562,9 @@ export default function AdminShell({
               setScreenQuery("");
               onNavigate?.();
             }}
-            className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-slate-300 transition hover:bg-slate-800 hover:text-white"
+            className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
           >
-            <i aria-hidden="true" className={`fa-solid ${m.icon} w-4 text-center text-sm text-slate-500`}></i>
+            <i aria-hidden="true" className={`fa-solid ${m.icon} w-4 text-center text-sm text-slate-400`}></i>
             <span className="flex-1 text-sm font-semibold">{m.label}</span>
             {m.label !== m.sectionLabel && <span className="text-xs text-slate-500">{m.sectionLabel}</span>}
           </button>
@@ -595,8 +595,8 @@ export default function AdminShell({
         }}
         className={
           variant === "rail"
-            ? "mx-2 flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-center text-[11px] font-semibold leading-tight text-slate-400 transition hover:bg-slate-800 hover:text-white"
-            : "flex min-h-11 items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            ? "mx-2 flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-center text-[11px] font-semibold leading-tight text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            : "flex min-h-11 items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
         }
       >
         <i aria-hidden="true" className={`fa-solid fa-house ${variant === "rail" ? "text-base" : "w-4 text-center text-sm"}`}></i>
@@ -613,7 +613,7 @@ export default function AdminShell({
           onClick={handleSignOut}
           aria-label="Log Out"
           title="Log Out"
-          className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-800 hover:text-white"
+          className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
         >
           <i aria-hidden="true" className="fa-solid fa-arrow-right-from-bracket text-sm"></i>
         </button>
@@ -623,8 +623,8 @@ export default function AdminShell({
       <button
         type="button"
         onClick={handleSignOut}
-        className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition hover:bg-slate-800 ${
-          variant === "menu" ? "text-red-300" : "text-slate-400 hover:text-white"
+        className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition ${
+          variant === "menu" ? "text-red-700 hover:bg-red-50" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
         }`}
       >
         <i aria-hidden="true" className="fa-solid fa-arrow-right-from-bracket w-4 text-center text-sm"></i>
@@ -638,10 +638,10 @@ export default function AdminShell({
       <div className="flex min-w-0 items-center gap-2.5 px-2.5 py-2">
         <AvatarThumbnail url={adminAvatarUrl} name={adminName} size={32} />
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-white">{adminName}</p>
+          <p className="truncate text-sm font-bold text-slate-900">{adminName}</p>
           {/* No scope pill here: the brand and the page header both name
               the dashboard already. */}
-          <p className="truncate text-[11px] text-slate-400">{adminEmail}</p>
+          <p className="truncate text-xs text-slate-500">{adminEmail}</p>
         </div>
       </div>
     );
@@ -650,12 +650,12 @@ export default function AdminShell({
   function renderBrand() {
     return (
       <div className="flex min-w-0 items-center gap-2.5 px-1 py-2">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-700 text-white">
           <i aria-hidden="true" className="fa-solid fa-user-doctor text-sm"></i>
         </div>
         <span className="min-w-0">
-          <span className="block truncate text-sm font-bold leading-tight text-white">{scopeLabel}</span>
-          <span className="block text-[11px] leading-tight text-slate-400">Admin Panel</span>
+          <span className="block truncate text-sm font-bold leading-tight text-slate-900">{scopeLabel}</span>
+          <span className="block text-[11px] leading-tight text-slate-500">Admin Panel</span>
         </span>
       </div>
     );
@@ -665,7 +665,8 @@ export default function AdminShell({
   const activeTabLabel = activeSection.tabs.find((t) => t.key === tabKey)?.label ?? "";
 
   return (
-    // Its own full-height dark app shell. Navbar/Footer are hidden on this
+    // Its own full-height app shell, in the same light chrome as the other
+    // three dashboards (DashboardShell). Navbar/Footer are hidden on this
     // route, so this component owns the entire viewport.
     //
     // Both channels notify rather than refresh, and the provider carries the
@@ -673,9 +674,9 @@ export default function AdminShell({
     // ~41 queries and most of what arrives is not what the reader is waiting
     // on. The other three dashboards still refresh themselves.
     //
-    // Navigation by width, like DashboardShell's: a phone gets a dark top
-    // bar, two shortcuts plus Search and the full menu along the bottom;
-    // `lg` to `2xl` a dark 88px icon rail with this section's screens as a
+    // Navigation by width, like DashboardShell's: a phone gets a top bar,
+    // two shortcuts plus Search and the full menu along the bottom;
+    // `lg` to `2xl` an 88px icon rail with this section's screens as a
     // strip above the content; `2xl` up the full sidebar with sub-screens
     // nested under their section.
     <AdminScreenNavigationProvider value={{ goToScreen: navigate }}>
@@ -694,7 +695,7 @@ export default function AdminShell({
 
       {/* Phone top bar */}
       <div
-        className={`sticky z-30 flex h-14 items-center justify-between bg-slate-900 pl-3 pr-1 lg:hidden ${
+        className={`sticky z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 pl-3 pr-1 backdrop-blur lg:hidden ${
           offsetTop ? "top-[41px]" : "top-0"
         }`}
       >
@@ -706,7 +707,7 @@ export default function AdminShell({
           aria-label="Open menu"
           aria-haspopup="dialog"
           aria-expanded={menuOpen}
-          className="relative flex h-12 w-12 items-center justify-center rounded-lg text-slate-200 transition hover:bg-slate-800 hover:text-white"
+          className="relative flex h-12 w-12 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
         >
           <i aria-hidden="true" className="fa-solid fa-bars text-lg"></i>
           {count(totalBadge, "absolute right-0.5 top-1")}
@@ -715,13 +716,13 @@ export default function AdminShell({
 
       {menuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={closeMenu}></div>
+          <div className="absolute inset-0 bg-slate-900/45" onClick={closeMenu}></div>
           <div
             ref={menuRef}
             role="dialog"
             aria-modal="true"
             aria-label="Admin menu"
-            className="absolute inset-0 flex flex-col overflow-y-auto bg-slate-900 px-3 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3 sm:inset-y-0 sm:left-0 sm:right-auto sm:w-96"
+            className="absolute inset-0 flex flex-col overflow-y-auto bg-white px-3 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3 sm:inset-y-0 sm:left-0 sm:right-auto sm:w-96"
           >
             <div className="mb-3 flex items-center justify-between">
               {renderBrand()}
@@ -729,7 +730,7 @@ export default function AdminShell({
                 type="button"
                 onClick={closeMenu}
                 aria-label="Close menu"
-                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
               >
                 <i aria-hidden="true" className="fa-solid fa-xmark"></i>
               </button>
@@ -737,7 +738,7 @@ export default function AdminShell({
             {renderScreenFilter("admin-menu-screen-filter")}
             <nav aria-label="Admin sections" className="flex-1">
               {renderSections("menu", closeMenu)}
-              <div className="mt-3 space-y-1 border-t border-slate-800 pt-3">
+              <div className="mt-3 space-y-1 border-t border-slate-100 pt-3">
                 {renderHomeLink("menu", closeMenu)}
                 {renderIdentity()}
                 {renderSignOut("menu")}
@@ -750,20 +751,20 @@ export default function AdminShell({
       {/* Laptop icon rail */}
       <nav
         aria-label="Admin sections"
-        className={`fixed left-0 z-30 hidden w-[88px] flex-col bg-slate-900 py-3 lg:flex 2xl:hidden ${top}`}
+        className={`fixed left-0 z-30 hidden w-[88px] flex-col border-r border-slate-200 bg-white py-3 lg:flex 2xl:hidden ${top}`}
       >
         <div className="mb-3 flex flex-col items-center gap-1.5 px-2 text-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-700 text-white">
             <i aria-hidden="true" className="fa-solid fa-user-doctor text-sm"></i>
           </div>
           {/* The rail keeps the dashboard's name: a scoped admin asks
               "which one am I on" at every width. */}
-          <span className="text-[10px] font-bold leading-tight text-slate-300">{scopeLabel}</span>
+          <span className="text-[10px] font-bold leading-tight text-slate-700">{scopeLabel}</span>
         </div>
         <div className="flex-1 space-y-1 overflow-y-auto">
           {sections.map((s) => renderSectionButton(s, "rail"))}
         </div>
-        <div className="space-y-1 border-t border-slate-800 pt-2">
+        <div className="space-y-1 border-t border-slate-100 pt-2">
           {renderHomeLink("rail")}
           <div className="flex justify-center pt-1" title={`${adminName} · ${adminEmail}`}>
             <AvatarThumbnail url={adminAvatarUrl} name={adminName} size={36} />
@@ -775,12 +776,12 @@ export default function AdminShell({
       {/* Desktop sidebar */}
       <nav
         aria-label="Admin sections"
-        className={`fixed left-0 z-30 hidden w-64 flex-col bg-slate-900 p-3 2xl:flex ${top}`}
+        className={`fixed left-0 z-30 hidden w-64 flex-col border-r border-slate-200 bg-white p-4 2xl:flex ${top}`}
       >
         {renderBrand()}
         <div className="mt-2">{renderScreenFilter("admin-sidebar-screen-filter")}</div>
         <div className="flex-1 overflow-y-auto">{renderSections("sidebar")}</div>
-        <div className="mt-2 space-y-1 border-t border-slate-800 pt-3">
+        <div className="mt-2 space-y-1 border-t border-slate-100 pt-3">
           {renderHomeLink("sidebar")}
           {renderIdentity()}
           {renderSignOut("sidebar")}
@@ -900,7 +901,7 @@ export default function AdminShell({
                       aria-current={on ? "page" : undefined}
                       className={`inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-semibold transition ${
                         on
-                          ? "border-slate-900 bg-slate-900 text-white"
+                          ? "border-teal-700 bg-teal-700 text-white"
                           : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                       }`}
                     >

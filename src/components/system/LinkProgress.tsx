@@ -97,7 +97,7 @@ export default function LinkProgress() {
       }
 
       release();
-      releaseRef.current = begin();
+      releaseRef.current = begin("navigation");
       timerRef.current = window.setTimeout(release, GIVE_UP_AFTER_MS);
 
       // The anchor's own handlers run after this capture listener, so

@@ -62,32 +62,41 @@ export function isDeveloperRoute(pathname: string | null): boolean {
 // Routes where the nav keeps its links but drops its auth call-to-action
 // (Sign In / Get Started / Go to Dashboard) entirely.
 //
-// These are the pages where the user is mid-authentication, and the nav's
-// idea of "logged in" is briefly true while the page hasn't caught up yet:
-// signInWithPassword() writes the session and fires onAuthStateChange the
-// instant it resolves, so the nav flipped to "Go to Dashboard" for the
-// whole duration of the auth card's own hard navigation -- a flash of a
-// button that shouldn't exist yet, on every login card. There's nothing
-// useful for the nav to offer on these pages anyway (a Sign In link on the
-// sign-in page, a Get Started button on the registration page), so the
-// cluster is dropped rather than raced.
-//
-// /patient/register is included for a second reason: the invite flow signs
-// the patient in and then keeps them on the page for payment, so the button
-// would otherwise sit there inviting them to abandon a half-paid booking.
+// These are pages a person usually reaches already signed in, mid-way
+// through an account step, where a Sign In button would be wrong and "Go to
+// Dashboard" would lead out of something unfinished. /patient/register in
+// particular: the invite flow signs the patient in and then keeps them on
+// the page for payment, so the button would sit there inviting them to
+// abandon a half-paid booking. (The sign-in pages themselves are handled by
+// AUTH_CTA_SIGNED_OUT_ROUTES below.)
 const AUTH_CTA_HIDDEN_ROUTES = new Set([
-  "/patient/login",
-  "/therapist/login",
-  "/admin/login",
-  "/hospital/login",
   "/patient/register",
-  "/reset-password",
   "/pending-approval",
   "/account-suspended",
 ]);
 
 export function isAuthCtaHiddenRoute(pathname: string | null): boolean {
   return pathname !== null && AUTH_CTA_HIDDEN_ROUTES.has(pathname);
+}
+
+// The sign-in pages keep the nav exactly as every other public page shows it
+// -- Sign In, Get Started, Book -- because a visitor who tapped Sign In and
+// watched two of the three buttons vanish read it as the nav breaking. The
+// race the hidden set exists for is still avoided: on these routes the nav
+// is pinned to its signed-out cluster, so a session landing mid-login cannot
+// flip it to "Go to Dashboard" before the login card's own navigation.
+// Registration and the holding pages stay in the hidden set above: a person
+// there is often already signed in, where a Sign In button would be wrong.
+const AUTH_CTA_SIGNED_OUT_ROUTES = new Set([
+  "/patient/login",
+  "/therapist/login",
+  "/admin/login",
+  "/hospital/login",
+  "/reset-password",
+]);
+
+export function isAuthCtaSignedOutRoute(pathname: string | null): boolean {
+  return pathname !== null && AUTH_CTA_SIGNED_OUT_ROUTES.has(pathname);
 }
 
 // The public marketing site -- home plus the top-level content sections

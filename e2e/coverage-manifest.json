@@ -274,12 +274,35 @@
       "integration": "local",
       "destructive": false
     },
+    "chrome-and-loader.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "country-pricing.spec.ts": {
       "runner": "patient",
       "levels": [
         "browser",
         "api",
         "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "impersonation-exit.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api"
       ],
       "projects": [
         "desktop"
@@ -2818,6 +2841,48 @@
         "docs/rules/payments.md",
         "docs/rules/home-visit.md",
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "platform.chrome-and-loader",
+      "runner": "platform",
+      "title": "Navigation stays put while a page loads: spine loader, light sidebars, sign-in nav, /conditions order",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "chrome-and-loader.spec.ts",
+          "tests": [
+            "CHROME-001",
+            "CHROME-002",
+            "CHROME-003",
+            "CHROME-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/frontend.md",
+        "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "admin.impersonation-exit",
+      "runner": "admin",
+      "title": "Exiting an impersonation returns the admin to the dashboard, still signed in",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "impersonation-exit.spec.ts",
+          "tests": [
+            "IMP-EXIT-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
       ]
     }
   ],

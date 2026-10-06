@@ -16,6 +16,7 @@ import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings"
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
 import RouteProgress from "@/components/system/RouteProgress";
+import NavigationLoader from "@/components/system/NavigationLoader";
 import FormValidationChrome from "@/components/system/FormValidationChrome";
 import ErrorAutoScroll from "@/components/system/ErrorAutoScroll";
 import LinkProgress from "@/components/system/LinkProgress";
@@ -200,6 +201,9 @@ export default async function RootLayout({
           <ToastProvider>
           <PricingProvider config={pricingConfig}>
           <RouteProgress />
+          {/* The spine loader over the content while the next page loads;
+              under every nav and sidebar, so they stay in place. */}
+          <NavigationLoader offsetTop={showDebugNav} />
           {/* Every link reports itself, not only the ones written through
               ProgressLink or useRouter. useSearchParams inside it makes this
               subtree opt into client rendering, hence the Suspense -- the
