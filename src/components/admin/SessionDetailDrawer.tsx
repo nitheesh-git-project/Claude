@@ -1,5 +1,6 @@
 "use client";
 
+import ActivityTimeline from "@/components/admin/ActivityTimeline";
 import { useId, useOptimistic, useState, useTransition } from "react";
 import RefundChip from "@/components/admin/RefundChip";
 import { hasRefund } from "@/lib/refundState";
@@ -134,7 +135,6 @@ export default function SessionDetailDrawer({
   categoryMap,
   therapists,
   categories,
-  reassignmentLogs,
   homeVisit,
   canSeeMoney = true,
   canManageSessions = true,
@@ -145,7 +145,6 @@ export default function SessionDetailDrawer({
   categoryMap: Map<string, CategoryInfo>;
   therapists: { id: string; full_name: string; active?: boolean; specialization?: string | null }[];
   categories: CategoryInfo[];
-  reassignmentLogs: ReassignmentLogEntry[];
   // Present only when this session is a home visit. Everything a visit needs
   // that an online session doesn't -- the address it is delivered to, and
   // the cash that may have changed hands there -- rather than a second
@@ -201,19 +200,10 @@ export default function SessionDetailDrawer({
   const patientName = peopleMap.get(a.patient_id) ?? "Unknown";
   const therapistName = a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : null;
   const categoryTitle = a.category_id ? categoryMap.get(a.category_id)?.title ?? null : null;
-  const history = reassignmentLogs
-    .filter((l) => l.appointment_id === a.id)
-    .sort((x, y) => new Date(y.changed_at).getTime() - new Date(x.changed_at).getTime());
 
-  function nameOrUnassigned(id: string | null) {
-    if (!id) return "Unassigned";
-    return peopleMap.get(id) ?? "Unknown";
-  }
 
-  function categoryOrNone(id: string | null) {
-    if (!id) return "No category";
-    return categoryMap.get(id)?.title ?? "Unknown";
-  }
+
+
 
   async function submitReopen(overridePayoutSettled: boolean) {
     setReopening(true);
@@ -634,57 +624,12 @@ export default function SessionDetailDrawer({
               </div>
             </div>
 
-            {history.length > 0 && (
-              <div className="pt-3 border-t border-slate-100">
-                <p className="font-bold text-slate-800 mb-2">Reassignment History</p>
-                <ul className="space-y-2">
-                  {history.map((h) => (
-                    <li key={h.id} className="text-slate-500">
-                      <span className="text-slate-500">
-                        {new Date(h.changed_at).toLocaleString("en-IN", {
-                          timeZone: "Asia/Kolkata",
-                        })}{" "}
-                        IST{h.changed_by && ` by ${nameOrUnassigned(h.changed_by)}`} -{" "}
-                      </span>
-                      {h.old_therapist_id !== h.new_therapist_id && (
-                        <span className="block">
-                          Therapist: {nameOrUnassigned(h.old_therapist_id)} →{" "}
-                          <strong className="text-slate-700">
-                            {nameOrUnassigned(h.new_therapist_id)}
-                          </strong>
-                        </span>
-                      )}
-                      {h.old_slot_time !== h.new_slot_time && (
-                        <span className="block">
-                          Time:{" "}
-                          {h.old_slot_time
-                            ? new Date(h.old_slot_time).toLocaleString("en-IN", {
-                                timeZone: "Asia/Kolkata",
-                              })
-                            : "-"}{" "}
-                          →{" "}
-                          <strong className="text-slate-700">
-                            {h.new_slot_time
-                              ? new Date(h.new_slot_time).toLocaleString("en-IN", {
-                                  timeZone: "Asia/Kolkata",
-                                })
-                              : "-"}
-                          </strong>
-                        </span>
-                      )}
-                      {h.old_category_id !== h.new_category_id && (
-                        <span className="block">
-                          Category: {categoryOrNone(h.old_category_id)} →{" "}
-                          <strong className="text-slate-700">
-                            {categoryOrNone(h.new_category_id)}
-                          </strong>
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* Everything done to this session, by anyone, with filters --
+                replaces the reassignment-only history that sat here. See
+                src/lib/activityTimeline.ts. */}
+            <div className="pt-3 border-t border-slate-100">
+              <ActivityTimeline sessionId={a.id} title="Session history" />
+            </div>
 
             {canManageSessions && canReassign && (
               <div className="pt-3 border-t border-slate-100">

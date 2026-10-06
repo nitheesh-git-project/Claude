@@ -249,6 +249,19 @@
       "integration": "local",
       "destructive": false
     },
+    "activity-timeline.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-validation.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -1633,6 +1646,14 @@
           "spec": "realtime-reconnect.spec.ts",
           "tests": [
             "RT-001"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "activity-timeline.spec.ts",
+          "tests": [
+            "TL-001",
+            "TL-002"
           ],
           "level": "browser"
         }

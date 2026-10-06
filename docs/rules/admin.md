@@ -23,6 +23,25 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
+- **Every session and every person has a timestamped history, built from
+  what is already recorded rather than a new event table.** The session
+  drawer's "Session history" and the "Activity log" on a patient's or
+  therapist's profile (and **View activity** on a hospital's card under
+  People -> Partners) read `/api/admin/timeline` (`sessions` scope for a
+  session, `people` for a person), which `src/lib/activityTimelineServer.ts`
+  assembles from the appointment row's own timestamps,
+  `appointment_reassignment_log`, `admin_activity_log` (labelled with
+  `ADMIN_ACTIVITY_LABELS`), payments, payment failures, refund attempts,
+  session notes, pain assessments, care plans, profile change requests,
+  documents, checkout payment tries and referrals. Shaping and filtering
+  (what happened, who did it -- patient, therapist, hospital, admin or
+  system -- a date range, free text) are `src/lib/activityTimeline.ts`,
+  unit-tested; every date shows in the clinic's zone. Past history is there
+  from day one; a read that fails is "couldn't load", never a shorter
+  history. An admin assignment, written to both logs, is shown once. It
+  replaced the drawer's reassignment-only history and the dashboard query
+  that fed it. A new kind of action needs a line here only if it leaves a
+  row nothing above reads.
 - **People -> Abandoned checkouts is a list of leads, never approvals.** It
   reads `abandoned_booking_accounts()` (service role only): patients who
   signed up inside a booking wizard and have not paid, so their account is

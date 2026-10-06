@@ -10,7 +10,6 @@ import RefundChip from "@/components/admin/RefundChip";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import SessionDetailDrawer, {
   type SessionDetailAppointment,
-  type ReassignmentLogEntry,
 } from "@/components/admin/SessionDetailDrawer";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -46,7 +45,6 @@ export default function ProfileSessionList({
   categoryMap,
   therapists,
   categories,
-  reassignmentLogs,
   emptyMessage,
   canSeeMoney,
   canManageSessions,
@@ -57,7 +55,6 @@ export default function ProfileSessionList({
   categoryMap: Map<string, Category>;
   therapists: { id: string; full_name: string; active?: boolean }[];
   categories: Category[];
-  reassignmentLogs: ReassignmentLogEntry[];
   emptyMessage: string;
   // This list renders on the Patient and Therapist pages, which every admin
   // scope can open -- unlike the Sessions and Money sections the controls
@@ -219,7 +216,6 @@ export default function ProfileSessionList({
           categoryMap={categoryMap}
           therapists={therapists}
           categories={categories}
-          reassignmentLogs={reassignmentLogs}
           canSeeMoney={canSeeMoney}
           canManageSessions={canManageSessions}
           onClose={() => setSelectedAppointment(null)}

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ActivityLogButton from "@/components/admin/ActivityLogButton";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -358,7 +359,6 @@ export default async function AdminDashboardPage({
     { data: scheduleStateRows },
     { data: onLeaveRows },
     { data: leaveDetailRows },
-    { data: reassignmentLogs },
     { data: b2bLeads },
     { data: referrals },
     { data: capacityNoteRows },
@@ -566,16 +566,6 @@ export default async function AdminDashboardPage({
     // availability from them.
     readAllRowsAsData(() =>
       admin.from("profiles").select("id, on_leave_from, on_leave_to, on_leave_reason")
-        .order("id", { ascending: true })
-    ),
-
-    readAllRowsAsData(() =>
-      admin
-        .from("appointment_reassignment_log")
-        .select(
-          "id, appointment_id, changed_at, changed_by, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
-        )
-        .order("changed_at", { ascending: false })
         .order("id", { ascending: true })
     ),
 
@@ -2187,9 +2177,12 @@ export default async function AdminDashboardPage({
                         </dd>
                       </dl>
                     </div>
-                    <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
-                      {h.referral_code}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <ActivityLogButton personId={h.id} name={h.full_name ?? "Hospital"} />
+                      <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+                        {h.referral_code}
+                      </span>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
                     {/* Editing a partner's commercial terms is a money
@@ -2639,7 +2632,6 @@ export default async function AdminDashboardPage({
       people={allPeople}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
-      reassignmentLogs={reassignmentLogs ?? []}
       homeVisits={homeVisitRows}
     />
   );
@@ -2653,7 +2645,6 @@ export default async function AdminDashboardPage({
       people={allPeople}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
-      reassignmentLogs={reassignmentLogs ?? []}
     />
   );
 

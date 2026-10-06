@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ActivityTimeline from "@/components/admin/ActivityTimeline";
 import { formatClinicDate, formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -19,7 +20,6 @@ import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
-import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawer";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
@@ -174,16 +174,6 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     meetLinkRows
   );
 
-  const appointmentIds = (appointments ?? []).map((a) => a.id);
-  const { data: reassignmentLogs } =
-    appointmentIds.length > 0
-      ? await admin
-          .from("appointment_reassignment_log")
-          .select(
-            "id, appointment_id, changed_at, changed_by, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
-          )
-          .in("appointment_id", appointmentIds)
-      : { data: [] as ReassignmentLogEntry[] };
 
   const categoryIds = [
     ...new Set((appointments ?? []).map((a) => a.category_id).filter(Boolean)),
@@ -546,7 +536,6 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           categoryMap={categoryMap}
           therapists={approvedTherapists ?? []}
           categories={categories ?? []}
-          reassignmentLogs={reassignmentLogs ?? []}
           emptyMessage="No sessions assigned yet."
         />
       </div>
@@ -693,6 +682,12 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             })}
           </ul>
         )}
+      </div>
+
+      {/* Everything done by or to this person, with filters -- see
+          src/lib/activityTimeline.ts. */}
+      <div className="mt-6">
+        <ActivityTimeline personId={id} title="Activity log" />
       </div>
     </JoinWindowProvider>
   );

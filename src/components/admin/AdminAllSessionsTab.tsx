@@ -7,7 +7,6 @@ import { formatClinicDate } from "@/lib/formatDateTime";
 import { useSearchParams } from "next/navigation";
 import SessionDetailDrawer, {
   type SessionDetailAppointment,
-  type ReassignmentLogEntry,
 } from "@/components/admin/SessionDetailDrawer";
 import type { HomeVisitRow } from "@/components/admin/HomeVisitVisitActions";
 import JoinSessionButton from "@/components/JoinSessionButton";
@@ -112,7 +111,6 @@ export default function AdminAllSessionsTab({
   people,
   categories,
   therapists,
-  reassignmentLogs,
   canSeeMoney,
   canManageSessions,
 }: {
@@ -123,7 +121,6 @@ export default function AdminAllSessionsTab({
   people: Person[];
   categories: Category[];
   therapists: { id: string; full_name: string; active?: boolean }[];
-  reassignmentLogs: ReassignmentLogEntry[];
   // Passed to SessionDetailDrawer, whose discretionary-refund form calls a
   // route guarded by requireAdminScope("money") -- a clinical admin can
   // open Sessions but not Money, so the form must not render for them.
@@ -836,7 +833,6 @@ export default function AdminAllSessionsTab({
           categoryMap={categoryMap}
           therapists={therapists}
           categories={categories}
-          reassignmentLogs={reassignmentLogs}
           homeVisit={homeVisitMap.get(selected.id) ?? null}
           onClose={() => setSelectedId(null)}
         />

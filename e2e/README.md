@@ -122,6 +122,7 @@ total, which moves with every spec added.
 | `account-created-stamp` | 8 | every account saying when it was created, with the time on it |
 | `booking-pay-button-live` | 3 | the pay button tappable while its price loads, with the wait stated rather than enforced |
 | `booking-retry-after-cancel` | 4 | closing the payment sheet, then Back + Pay or a reload, books again at the same slot: the unpaid draft is replaced, never "You already have a session scheduled around this time"; and a new patient's account stays locked (no dashboard link, no approval) until the try limit, which unlocks it with "Your account is ready"; signing in while locked shows Finish your booking (Pay now / Pick another time), while a /patient/register signup still sees Approval Pending; the locked account is listed under People -> Abandoned checkouts and never in Pending Approvals (needs browser egress) |
+| `activity-timeline` | 2 | a session's history names its booking, payment and assignment with who did each; a patient's Activity log filters by what happened (needs browser egress for the profile screen) |
 | `assign-availability` | 1 | an admin cannot assign a therapist who is not working that hour (409 with the reasons), and opening the hour on the roster lets the same request through |
 | `booking-exit-link` | 2 | the way out of the wizard following the account - and never offering `/pending-approval` mid-booking |
 | `checkout-speed` | 5 | create answering with the quote and the Razorpay order in one trip, and the tap-to-sheet timing route |
