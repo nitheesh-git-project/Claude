@@ -68,11 +68,34 @@ test.beforeAll(async () => {
   patientId = await profileIdFor(db, QA_EMAILS.patientB);
   therapistId = await profileIdFor(db, QA_EMAILS.therapistA);
   await markDashboardTourSeen(QA_EMAILS.patientB);
-  const { data: cat } = await db
+  // Found or made: a long-lived project has this condition already, but the
+  // gate's disposable stack starts with an empty catalog, and the first run
+  // there failed reading `.id` of null. Created active, priced and with a
+  // photo (RC-003 checks the card shows one). Not deleted afterwards:
+  // append-only care-plan versions go on pointing at it, and on a
+  // disposable stack nothing outlives the run anyway.
+  let { data: cat } = await db
     .from("treatment_categories")
     .select("id, price_paise")
     .eq("title", CONDITION)
-    .single();
+    .maybeSingle();
+  if (!cat) {
+    const { data: created, error } = await db
+      .from("treatment_categories")
+      .insert({
+        title: CONDITION,
+        description: "A condition seeded by the recommendation-course spec.",
+        points: ["Back and neck pain", "Posture"],
+        price_paise: 49900,
+        duration_minutes: 60,
+        active: true,
+        image_url: "/photos/care-back.jpg",
+      })
+      .select("id, price_paise")
+      .single();
+    if (error) throw new Error(`could not seed "${CONDITION}": ${error.message}`);
+    cat = created;
+  }
   categoryId = cat!.id;
   perSessionPaise = cat!.price_paise;
 

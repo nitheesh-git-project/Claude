@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, adminClient, browserCookiesFor, cookieHeaderFor, wholeHourFromNow, QA_EMAILS } from "./helpers";
+import { BASE, adminClient, browserCookiesFor, cookieHeaderFor, openTherapistHour, wholeHourFromNow, QA_EMAILS } from "./helpers";
 
 /**
  * Pay later, end to end, in a real browser.
@@ -317,12 +317,18 @@ test("PL-UI-004 completion puts the money in three places at once", async ({ pag
     });
 
   // Assigning is what confirms a booking on terms -- without that arm it
-  // never leaves `requested` and could never be completed.
+  // never leaves `requested` and could never be completed. The assign route
+  // refuses a therapist who is not rostered for the hour (and says why), so
+  // the booked hour is opened on their roster first; on a fresh stack
+  // nobody has a roster at all.
+  const { data: booked } = await db.from("appointments").select("slot_time").eq("id", bookedId).single();
+  const closeHour = await openTherapistHour(db, therapistId, booked!.slot_time);
   const assigned = await post("/api/admin/assign-appointment", {
     appointmentId: bookedId,
     therapistId,
   });
-  expect(assigned.status).toBe(200);
+  await closeHour();
+  expect(assigned.status, await assigned.clone().text()).toBe(200);
   const { data: afterAssign } = await db
     .from("appointments")
     .select("status,payment_terms")
@@ -537,7 +543,13 @@ async function deliverAnotherSession(): Promise<string> {
   expect(frozen!.amount_due_paise).toBeGreaterThan(0);
   expect(frozen!.amount_due_paise).toBeLessThanOrEqual(categoryPricePaise);
 
-  await post("/api/admin/assign-appointment", { appointmentId, therapistId }, adminCookie);
+  // Opened on the therapist's roster first, as in PL-UI-004: assigning
+  // someone not rostered for the hour is refused.
+  const { data: slotRow } = await db.from("appointments").select("slot_time").eq("id", appointmentId).single();
+  const closeHour = await openTherapistHour(db, therapistId, slotRow!.slot_time);
+  const assigned = await post("/api/admin/assign-appointment", { appointmentId, therapistId }, adminCookie);
+  await closeHour();
+  expect(assigned.status, await assigned.clone().text()).toBe(200);
   const done = await post("/api/appointments/complete-session", { appointmentId }, adminCookie);
   expect(done.status).toBe(200);
   return appointmentId as string;

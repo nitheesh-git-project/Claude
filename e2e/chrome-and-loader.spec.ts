@@ -37,7 +37,7 @@ test("CHROME-002: a slow dashboard tab shows the word-roll loader with the sideb
   // only appears after 300ms by design. Installed before the dashboard
   // opens, so Next's prefetch of the tab is held back too: otherwise the tap
   // lands on a page already in hand and there is no wait to show.
-  await page.route("**/patient/dashboard/sessions**", async (route) => {
+  await page.route("**/patient/dashboard/health-profile**", async (route) => {
     await new Promise((r) => setTimeout(r, 2500));
     await route.continue();
   });
@@ -73,7 +73,11 @@ test("CHROME-002: a slow dashboard tab shows the word-roll loader with the sideb
     };
     tick();
   });
-  await rail.getByRole("link", { name: /Sessions/ }).first().click({ noWaitAfter: true });
+  // Health Profile, by address: it is on every patient's sidebar, where
+  // Sessions only appears once the patient has some -- on the gate's fresh
+  // stack this patient has none, and the case waited on a link that was
+  // never drawn. The rail also shortens labels, so not by name.
+  await rail.locator('a[href="/patient/dashboard/health-profile"]').first().click({ noWaitAfter: true });
   const report = await seen;
   // Waits its 300ms before appearing -- a fast tab never flashes it.
   expect(Number(/after=(\d+)/.exec(report)![1])).toBeGreaterThanOrEqual(280);
@@ -84,7 +88,7 @@ test("CHROME-002: a slow dashboard tab shows the word-roll loader with the sideb
   expect(report).toContain("words=Move,Stretch,Strengthen,Recover,Restore");
   await page.screenshot({ path: `${SHOT}/chrome-loader.png` }).catch(() => {});
 
-  await expect(page).toHaveURL(/\/patient\/dashboard\/sessions/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/patient\/dashboard\/health-profile/, { timeout: 30_000 });
   await expect(page.getByTestId("navigation-loader")).toHaveCount(0);
 });
 

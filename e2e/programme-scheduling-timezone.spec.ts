@@ -59,15 +59,52 @@ async function freshPurchase(): Promise<{ id: string; code: string | null }> {
 test.beforeAll(async () => {
   patientId = await profileIdFor(db, QA_EMAILS.patientB);
   await markDashboardTourSeen(QA_EMAILS.patientB);
-  const { data: cat } = await db.from("treatment_categories").select("id").eq("title", CATEGORY).limit(1).single();
+  // Found or made. A long-lived project has both already; the gate's
+  // disposable stack starts with an empty catalog, where the first run read
+  // `.id` of null. Purchases below are inserted directly, so neither row is
+  // ever sold or shown to anybody.
+  let { data: cat } = await db.from("treatment_categories").select("id").eq("title", CATEGORY).limit(1).maybeSingle();
+  if (!cat) {
+    const { data, error } = await db
+      .from("treatment_categories")
+      .insert({
+        title: CATEGORY,
+        description: "A condition seeded by the programme-scheduling spec.",
+        points: ["Scheduling"],
+        price_paise: 100000,
+        duration_minutes: 60,
+        active: true,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(`could not seed "${CATEGORY}": ${error.message}`);
+    cat = data;
+  }
   categoryId = cat!.id;
-  const { data: pkg } = await db
+  let { data: pkg } = await db
     .from("treatment_category_packages")
     .select("id")
     .eq("title", PACKAGE)
     .eq("category_id", categoryId)
     .limit(1)
-    .single();
+    .maybeSingle();
+  if (!pkg) {
+    const { data, error } = await db
+      .from("treatment_category_packages")
+      .insert({
+        category_id: categoryId,
+        title: PACKAGE,
+        session_count: 3,
+        price_paise: 300000,
+        active: true,
+        recommendable: false,
+        therapist_locked: false,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(`could not seed "${PACKAGE}": ${error.message}`);
+    pkg = data;
+  }
   packageId = pkg!.id;
   patient = await request.newContext({ extraHTTPHeaders: { Cookie: await cookieHeaderFor(QA_EMAILS.patientB) } });
 });
