@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, adminClient, browserCookiesFor, cookieHeaderFor, openTherapistHour, wholeHourFromNow, QA_EMAILS } from "./helpers";
+import { BASE, adminClient, browserCookiesFor, cookieHeaderFor, clinicSlot, openTherapistHour, QA_EMAILS } from "./helpers";
 
 /**
  * Pay later, end to end, in a real browser.
@@ -510,7 +510,12 @@ async function deliverAnotherSession(): Promise<string> {
     "/api/appointments/create",
     {
       categoryId,
-      slotTime: wholeHourFromNow(36),
+      // A daytime hour in the clinic's zone, not "36 hours from now": run in
+      // the IST evening, that landed before 6 AM, outside the hours a roster
+      // can hold, and opening the therapist's hour was refused. Random, as
+      // the other roster-opening specs are, so a rerun on a long-lived
+      // project does not meet the session the last run delivered.
+      slotTime: clinicSlot(2 + Math.floor(Math.random() * 30), 6 + Math.floor(Math.random() * 17)),
       timezone: "Asia/Kolkata",
       notes: "pay-later journey fixture",
     },

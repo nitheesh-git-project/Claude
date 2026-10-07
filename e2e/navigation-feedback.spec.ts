@@ -18,6 +18,10 @@ test("NAV-001: an admin screen link switches in place, with no server round trip
   await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   await page.goto(`${BASE}/admin/dashboard?section=today&tab=overview`);
   await page.waitForLoadState("networkidle");
+  // The splash lies over the page while it loads and takes the tap; on the
+  // gate it held the click ~2.4s, and the stopwatch below timed the splash
+  // rather than the switch (which took ~0.5s).
+  await waitForSplashToClear(page);
 
   let documentRequests = 0;
   let rscRequests = 0;
