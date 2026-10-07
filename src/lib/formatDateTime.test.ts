@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   CLINIC_DISPLAY_TIMEZONE,
+  clinicDayParts,
   formatClinicDate,
   formatClinicDateShort,
   formatClinicDateTime,
@@ -133,5 +134,15 @@ describe("nothing renders a date in the runtime's own zone", () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("clinicDayParts", () => {
+  it("reads the day in the clinic's zone, not the runtime's", () => {
+    // 23:00 UTC on 8 Oct is already 9 Oct in India.
+    expect(clinicDayParts("2026-10-08T23:00:00Z")).toEqual({ weekday: "Fri", day: "9", month: "Oct" });
+  });
+  it("is dashes for a missing date", () => {
+    expect(clinicDayParts(null)).toEqual({ weekday: "-", day: "-", month: "-" });
   });
 });

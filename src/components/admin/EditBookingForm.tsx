@@ -1,5 +1,6 @@
 "use client";
 
+import { useTherapistUnavailable } from "@/components/admin/TherapistUnavailableDialog";
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import AdminSlotPicker, { slotFromIso, slotToMs } from "@/components/admin/AdminSlotPicker";
@@ -38,6 +39,7 @@ export default function EditBookingForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { showIfUnavailable, dialog: unavailableDialog } = useTherapistUnavailable();
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -62,6 +64,7 @@ export default function EditBookingForm({
     const data = await res.json().catch(() => ({}));
     setLoading(false);
     if (!res.ok) {
+      if (showIfUnavailable(data)) return;
       setError(data.error ?? "Could not save. Please try again.");
       return;
     }
@@ -159,6 +162,7 @@ export default function EditBookingForm({
           {loading ? "Saving..." : "Save"}
         </button>
       </div>
+      {unavailableDialog}
     </form>
   );
 }

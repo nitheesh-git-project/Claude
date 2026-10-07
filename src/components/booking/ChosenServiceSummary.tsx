@@ -1,5 +1,6 @@
 import CatalogImage from "@/components/catalog/CatalogImage";
 import { rupees } from "@/components/catalog/CatalogVisuals";
+import Price from "@/components/pricing/Price";
 import type { ServiceOption } from "@/lib/serviceOptions";
 
 /**
@@ -26,8 +27,11 @@ export default function ChosenServiceSummary({
   option,
   actions,
   compact = false,
+  rupeesOnly = false,
 }: {
   option: ServiceOption;
+  /** A home visit: priced in rupees wherever the visitor is. */
+  rupeesOnly?: boolean;
   actions?: React.ReactNode;
   /** The later steps are a statement rather than a control, so they sit in
    *  the quieter teal panel the rest of those forms use and take a smaller
@@ -67,7 +71,8 @@ export default function ChosenServiceSummary({
           {option.title}
         </h3>
         <p className="text-xs text-slate-600">
-          {rupees(option.pricePaise)} &middot; {option.durationMinutes} min
+          {rupeesOnly ? rupees(option.pricePaise) : <Price paise={option.pricePaise} />} &middot;{" "}
+          {option.durationMinutes} min
         </p>
       </div>
 

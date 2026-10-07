@@ -10,13 +10,13 @@ import RefundChip from "@/components/admin/RefundChip";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import SessionDetailDrawer, {
   type SessionDetailAppointment,
-  type ReassignmentLogEntry,
 } from "@/components/admin/SessionDetailDrawer";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { describeSessionPayment } from "@/lib/sessionPaymentState";
 import { sortSessionsNewestFirst } from "@/lib/sessionOrdering";
 import { rowActivationProps } from "@/lib/rowActivation";
+import { formatRupees } from "@/lib/formatMoney";
 
 type Category = {
   id: string;
@@ -46,7 +46,6 @@ export default function ProfileSessionList({
   categoryMap,
   therapists,
   categories,
-  reassignmentLogs,
   emptyMessage,
   canSeeMoney,
   canManageSessions,
@@ -57,7 +56,6 @@ export default function ProfileSessionList({
   categoryMap: Map<string, Category>;
   therapists: { id: string; full_name: string; active?: boolean }[];
   categories: Category[];
-  reassignmentLogs: ReassignmentLogEntry[];
   emptyMessage: string;
   // This list renders on the Patient and Therapist pages, which every admin
   // scope can open -- unlike the Sessions and Money sections the controls
@@ -146,7 +144,7 @@ export default function ProfileSessionList({
               <p className="text-slate-500">
                 {variant === "therapist" ? `${a.concern ?? "General Consultation"} • ` : ""}
                 {formatSlotTime(a.slot_time, a.timezone)} • {durationMinutes} min • ₹
-                {(feePaise / 100).toLocaleString("en-IN")}
+                {formatRupees(feePaise)}
                 {a.session_code && (
                   <span className="ml-1 font-mono text-slate-500">• {a.session_code}</span>
                 )}
@@ -219,7 +217,6 @@ export default function ProfileSessionList({
           categoryMap={categoryMap}
           therapists={therapists}
           categories={categories}
-          reassignmentLogs={reassignmentLogs}
           canSeeMoney={canSeeMoney}
           canManageSessions={canManageSessions}
           onClose={() => setSelectedAppointment(null)}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useTransition } from "react";
 import { useRouter as useNextRouter } from "next/navigation";
-import { usePendingWork } from "@/lib/pendingWork";
+import { usePendingWork, type WorkKind } from "@/lib/pendingWork";
 import { markLocalRefresh, markLocalRefreshSettled } from "@/lib/refreshSignal";
 
 /**
@@ -39,10 +39,13 @@ export function useRouter() {
   // not: `RealtimeRefresh` asks whether this browser has re-read the page, and
   // a navigation to a different screen has not answered that.
   const refreshInFlightRef = useRef(false);
+  // What the transition now running is: a refresh keeps the page where it
+  // is (the teal bar), a push or replace moves to another one (the loader).
+  const kindRef = useRef<WorkKind>("work");
 
   useEffect(() => {
     if (isPending && !releaseRef.current) {
-      releaseRef.current = begin();
+      releaseRef.current = begin(kindRef.current);
     } else if (!isPending && releaseRef.current) {
       releaseRef.current();
       releaseRef.current = null;
@@ -79,14 +82,25 @@ export function useRouter() {
         // taps (see `src/lib/refreshCoverage.ts`).
         markLocalRefresh();
         refreshInFlightRef.current = true;
+        kindRef.current = "work";
         startTransition(() => router.refresh());
       },
-      push: ((href: string, options?: Parameters<typeof router.push>[1]) =>
-        startTransition(() => router.push(href, options))) as typeof router.push,
-      replace: ((href: string, options?: Parameters<typeof router.replace>[1]) =>
-        startTransition(() => router.replace(href, options))) as typeof router.replace,
-      back: () => startTransition(() => router.back()),
-      forward: () => startTransition(() => router.forward()),
+      push: ((href: string, options?: Parameters<typeof router.push>[1]) => {
+        kindRef.current = "navigation";
+        startTransition(() => router.push(href, options));
+      }) as typeof router.push,
+      replace: ((href: string, options?: Parameters<typeof router.replace>[1]) => {
+        kindRef.current = "navigation";
+        startTransition(() => router.replace(href, options));
+      }) as typeof router.replace,
+      back: () => {
+        kindRef.current = "navigation";
+        startTransition(() => router.back());
+      },
+      forward: () => {
+        kindRef.current = "navigation";
+        startTransition(() => router.forward());
+      },
     };
   }, [router, startTransition]);
 }

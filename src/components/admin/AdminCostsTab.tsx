@@ -26,6 +26,7 @@ import {
   sumExpensesPaise,
 } from "@/lib/operatingCosts";
 import DateField from "@/components/system/DateField";
+import { formatRupees } from "@/lib/formatMoney";
 
 /** One line each on what this rule is for, in the admin's own words. */
 const DISCOUNT_SOURCE_NOTES: Record<DiscountSource, string> = {
@@ -37,7 +38,7 @@ const DISCOUNT_SOURCE_NOTES: Record<DiscountSource, string> = {
 };
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 function formatDate(value: string) {

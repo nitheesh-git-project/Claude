@@ -30,15 +30,19 @@ export default function BrandMark({
         height={size}
         unoptimized
         priority
-        className="shrink-0"
+        // .brand-logo: in dark mode (dark-theme.css) the mark sits on a soft
+        // light tile, because its dark-teal strokes vanish on a dark header.
+        className="brand-logo shrink-0"
       />
     );
   }
   const inner = Math.round(size * 0.8);
   return (
+    // The tile is white in literal CSS, not `bg-white`: in dark mode
+    // `bg-white` becomes a dark card, and the mark needs the white behind it.
     <span
-      className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white"
-      style={{ width: size, height: size }}
+      className="inline-flex shrink-0 items-center justify-center rounded-xl"
+      style={{ width: size, height: size, backgroundColor: "#ffffff" }}
     >
       <Image src={mark} alt="" width={inner} height={inner} unoptimized priority />
     </span>

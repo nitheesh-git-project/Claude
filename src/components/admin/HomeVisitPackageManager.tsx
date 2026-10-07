@@ -8,6 +8,7 @@ import HomeVisitPackageForm, { type HomeVisitPackage } from "./HomeVisitPackageF
 import { countFeatured, FEATURED_LIMIT } from "@/lib/catalogFeatured";
 import { useConfirm } from "@/lib/useConfirm";
 import { computeHomeVisitSavings } from "@/lib/homeVisitProgress";
+import { formatRupees } from "@/lib/formatMoney";
 
 function DeleteButton({ id }: { id: string }) {
   const [optimisticDeleted, setOptimisticDeleted] = useOptimistic(false);
@@ -137,8 +138,8 @@ export default function HomeVisitPackageManager({
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100 flex-wrap gap-2">
                   <p className="text-slate-500">
                     {pkg.visit_count} {pkg.visit_count === 1 ? "visit" : "visits"} • ₹
-                    {(pkg.price_paise / 100).toLocaleString("en-IN")} (₹
-                    {(savings.perVisitPaise / 100).toLocaleString("en-IN")}/visit)
+                    {formatRupees(pkg.price_paise)} (₹
+                    {formatRupees(savings.perVisitPaise)}/visit)
                     {savings.savingsPercent !== null && (
                       <span className="text-teal-700 font-semibold">
                         {" "}

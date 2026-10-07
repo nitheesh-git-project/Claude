@@ -86,7 +86,10 @@ export default function HomeVisitPackages({
 
   return (
     <>
-    <Stagger className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    {/* Keyed on the reveal: Stagger animates its children in once, so cards
+        added after it ran stayed at their hidden starting state -- blank
+        space where the rest of the list should be. A new key runs it again. */}
+    <Stagger key={showAll ? "all" : "lead"} className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {visible.map((pkg) => {
         const benefits = Array.isArray(pkg.benefits) ? (pkg.benefits as string[]) : [];
         const savings = computeHomeVisitSavings({
@@ -122,6 +125,7 @@ export default function HomeVisitPackages({
                 meta,
                 points: benefits,
                 pricePaise: pkg.price_paise,
+                rupeesOnly: true,
                 compareAtPaise: savings.compareAtPaise,
                 savingsPaise:
                   savings.compareAtPaise === null

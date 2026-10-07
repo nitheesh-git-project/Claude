@@ -7,6 +7,7 @@ import { useToast } from "@/lib/toast";
 import Modal from "@/components/admin/Modal";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { describeAreaPrefill, type AreaPrefill } from "@/lib/homeVisitWaitlistArea";
+import { formatRupees } from "@/lib/formatMoney";
 
 export type ServiceAreaRow = {
   id: string;
@@ -291,7 +292,7 @@ function AreaRow({ area }: { area: ServiceAreaRow }) {
           {area.area_name && <span className="text-slate-500"> ({area.area_name})</span>}
         </p>
         <p className="text-slate-500 mt-0.5">
-          Travel ₹{(area.travel_fee_paise / 100).toLocaleString("en-IN")} per visit
+          Travel ₹{formatRupees(area.travel_fee_paise)} per visit
           {area.notes && <span className="text-slate-500"> · {area.notes}</span>}
         </p>
         {area.pending_visits === null ? (

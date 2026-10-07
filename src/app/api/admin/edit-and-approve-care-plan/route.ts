@@ -5,7 +5,6 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { authorCarePlanVersion } from "@/lib/carePlanAuthoring";
 import { recordReview, validateReviewReason } from "@/lib/carePlanReview";
-import type { CarePlanOfferKind } from "@/lib/carePlans";
 
 // Approving a recommendation with different numbers from the ones the
 // therapist proposed.
@@ -35,8 +34,8 @@ export async function POST(request: NextRequest) {
 
   const { data: body, error: parseError } = await parseJsonBody<{
     carePlanId?: string;
-    offerKind?: string;
-    packageId?: string;
+    categoryId?: string;
+    sessionCount?: number;
     handsOnRequired?: boolean;
     frequencyPerWeek?: number | null;
     clinicalRationale?: string;
@@ -46,18 +45,20 @@ export async function POST(request: NextRequest) {
   if (parseError) return parseError;
 
   const carePlanId = body.carePlanId?.trim();
-  const packageId = body.packageId?.trim();
-  const offerKind = body.offerKind as CarePlanOfferKind | undefined;
+  const categoryId = body.categoryId?.trim();
+  const sessionCount = body.sessionCount;
   const reason = (body.reason ?? "").trim();
 
-  if (!carePlanId || !packageId) {
+  if (!carePlanId || !categoryId) {
     return NextResponse.json(
-      { error: "Choose the programme this should be approved as." },
+      { error: "Choose the condition this should be approved for." },
       { status: 400 }
     );
   }
-  if (offerKind !== "session_package" && offerKind !== "home_visit_package") {
-    return NextResponse.json({ error: "Unknown programme type." }, { status: 400 });
+  // The count is checked by authorCarePlanVersion with every other rule;
+  // only "nothing sent" is answered here.
+  if (typeof sessionCount !== "number") {
+    return NextResponse.json({ error: "Say how many sessions to recommend." }, { status: 400 });
   }
   const reasonCheck = validateReviewReason(reason, "edited_and_approved");
   if (!reasonCheck.ok) {
@@ -127,8 +128,8 @@ export async function POST(request: NextRequest) {
   const result = await authorCarePlanVersion(admin, {
     patientId: plan.patient_id,
     appointmentId: currentVersion.source_appointment_id,
-    offerKind,
-    packageId,
+    categoryId,
+    sessionCount,
     handsOnRequired: body.handsOnRequired === true,
     frequencyPerWeek:
       typeof body.frequencyPerWeek === "number" ? body.frequencyPerWeek : null,

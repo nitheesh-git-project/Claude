@@ -23,6 +23,7 @@ export default function SessionNoteButton({
   patientId,
   sessionCompleted,
   recommendable = [],
+  recommendationCategoryId = null,
   recommendationNeedsApproval = true,
   recommendationAwaitingClinic = false,
 }: {
@@ -45,6 +46,8 @@ export default function SessionNoteButton({
   /** Programmes admin has cleared for recommendation, resolved server-side.
    *  Empty hides the section rather than showing an empty picker. */
   recommendable?: RecommendableOption[];
+  /** The session's own condition, which a recommendation starts on. */
+  recommendationCategoryId?: string | null;
   /** Whether the clinic reviews a recommendation before the patient sees
    *  it. Defaults to true, matching the setting it comes from -- the wrong
    *  default here would promise a therapist their patient can see something
@@ -81,6 +84,7 @@ export default function SessionNoteButton({
           patientId={patientId}
           sessionCompleted={sessionCompleted}
           recommendable={recommendable}
+          recommendationCategoryId={recommendationCategoryId}
           recommendationNeedsApproval={recommendationNeedsApproval}
           recommendationAwaitingClinic={recommendationAwaitingClinic}
           onClose={() => setOpen(false)}

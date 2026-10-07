@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useToast } from "@/lib/toast";
+import { debugNowHeaders } from "@/lib/debugNow";
+import { MAX_COURSE_SESSIONS, MIN_COURSE_SESSIONS } from "@/lib/carePlans";
 import { useRouter } from "@/lib/useRouter";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -14,6 +16,7 @@ import CarePlanFields, {
   type CarePlanDraft,
   type RecommendableOption,
 } from "@/components/therapist/CarePlanFields";
+import SessionPainMapStep from "@/components/therapist/SessionPainMapStep";
 
 /**
  * The post-session note, written in a pop-up straight after a session
@@ -38,8 +41,11 @@ export default function SessionNoteDialog({
   patientId,
   sessionCompleted,
   recommendable,
+  recommendationCategoryId = null,
   recommendationNeedsApproval,
   recommendationAwaitingClinic,
+  completeOnSave = false,
+  sessionStartIso = null,
   onClose,
 }: {
   appointmentId: string;
@@ -53,6 +59,8 @@ export default function SessionNoteDialog({
   /** The programmes admin has cleared for recommendation. Empty means the
    *  section stays hidden rather than showing an empty picker. */
   recommendable: RecommendableOption[];
+  /** The session's own condition, which the recommendation starts on. */
+  recommendationCategoryId?: string | null;
   recommendationNeedsApproval: boolean;
   recommendationAwaitingClinic: boolean;
   /** When the session was, for the dialog's own subtitle. */
@@ -62,6 +70,11 @@ export default function SessionNoteDialog({
    *  SessionNoteButton) so it cannot disagree with the submit route. */
   locked: boolean;
   hoursLeft: number | null;
+  /** Opened from Done: saving the note also finishes the session, and the
+   *  Pain Map must be updated first. The route enforces both. */
+  completeOnSave?: boolean;
+  /** The session's start, for "updated during this session". */
+  sessionStartIso?: string | null;
   onClose: () => void;
 }) {
   const { show } = useToast();
@@ -79,6 +92,9 @@ export default function SessionNoteDialog({
   const [planError, setPlanError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState<Set<string>>(new Set());
+  const [painRecorded, setPainRecorded] = useState(false);
+  const onPainRecordedChange = useCallback((recorded: boolean) => setPainRecorded(recorded), []);
+  const canRecommend = sessionCompleted || completeOnSave;
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -119,6 +135,21 @@ export default function SessionNoteDialog({
       setError("Fill in what you treated, how they responded, and the plan for next time.");
       return;
     }
+    // Checked before anything is saved: a bad count found after the note
+    // (and the session) went through would leave a half-done finish.
+    if (
+      plan &&
+      (!Number.isInteger(plan.sessionCount) ||
+        plan.sessionCount < MIN_COURSE_SESSIONS ||
+        plan.sessionCount > MAX_COURSE_SESSIONS)
+    ) {
+      setError(`Recommend between ${MIN_COURSE_SESSIONS} and ${MAX_COURSE_SESSIONS} sessions, or remove the recommendation.`);
+      return;
+    }
+    if (completeOnSave && !painRecorded) {
+      setError("Update the Pain Map for this session before finishing it.");
+      return;
+    }
     setMissing(new Set());
     startTransition(async () => {
       const res = await fetch("/api/therapist/session-notes/submit", {
@@ -139,6 +170,27 @@ export default function SessionNoteDialog({
         return;
       }
 
+      // Finishing: the note is saved, so the session can close now. A refusal
+      // here leaves the note safely stored and says why the session is still
+      // open -- the route is what binds (note + Pain Map + the clock).
+      if (completeOnSave) {
+        const doneRes = await fetch("/api/appointments/complete-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...debugNowHeaders() },
+          body: JSON.stringify({ appointmentId }),
+        });
+        if (!doneRes.ok) {
+          const body = await doneRes.json().catch(() => ({}));
+          setError(
+            `Your note was saved, but the session isn't finished yet: ${
+              body.error ?? "please try again."
+            }`
+          );
+          router.refresh();
+          return;
+        }
+      }
+
       // The plan is submitted after the note, and its failure is reported
       // separately: the note is already saved by this point, and telling a
       // therapist their note failed because the recommendation did would
@@ -150,8 +202,8 @@ export default function SessionNoteDialog({
           body: JSON.stringify({
             patientId,
             appointmentId,
-            offerKind: plan.offerKind,
-            packageId: plan.packageId,
+            categoryId: plan.categoryId,
+            sessionCount: plan.sessionCount,
             handsOnRequired: plan.handsOnRequired,
             frequencyPerWeek: plan.frequencyPerWeek,
             clinicalRationale: plan.clinicalRationale,
@@ -170,7 +222,15 @@ export default function SessionNoteDialog({
 
       // The plan half, when there was one, is named separately -- a
       // clinician who wrote both wants to know both landed.
-      show(plan ? "Note saved and your recommendation sent." : "Session note saved.");
+      show(
+        completeOnSave
+          ? plan
+            ? "Session finished, note saved and your recommendation sent."
+            : "Session finished and note saved. Rate it below."
+          : plan
+            ? "Note saved and your recommendation sent."
+            : "Session note saved."
+      );
       router.refresh();
       onClose();
     });
@@ -203,7 +263,7 @@ export default function SessionNoteDialog({
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">
-                  Session note · clinician only
+                  {completeOnSave ? "Finish session · write the note" : "Session note · clinician only"}
                 </p>
                 <h2 id="session-note-title" className="font-display text-lg font-bold text-slate-800">
                   {patientName}
@@ -239,6 +299,15 @@ export default function SessionNoteDialog({
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+            {!locked && (
+              <SessionPainMapStep
+                patientId={patientId}
+                sessionStartIso={sessionStartIso}
+                required={completeOnSave}
+                onRecordedChange={onPainRecordedChange}
+              />
+            )}
+
             {SESSION_NOTE_FIELDS.map((field) => {
               const isMissing = missing.has(field.key);
               const inputClass = `w-full rounded-xl border p-3 text-sm focus:outline-none disabled:bg-slate-50 disabled:text-slate-500 ${
@@ -320,9 +389,10 @@ export default function SessionNoteDialog({
               />
             </div>
 
-            {!locked && sessionCompleted && recommendable.length > 0 && (
+            {!locked && canRecommend && recommendable.length > 0 && (
               <CarePlanFields
                 options={recommendable}
+                defaultCategoryId={recommendationCategoryId}
                 needsApproval={recommendationNeedsApproval}
                 awaitingClinic={recommendationAwaitingClinic}
                 value={plan}
@@ -354,7 +424,11 @@ export default function SessionNoteDialog({
               >
                 {isPending
                   ? "Saving..."
-                  : plan
+                  : completeOnSave
+                    ? plan
+                      ? "Save, finish & recommend"
+                      : "Save note & finish session"
+                    : plan
                     ? "Save note & recommend"
                     : existing
                       ? "Save changes"

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 
 type Step = {
-  targetId?: string; // DOM id (see DashboardShell's `nav-${item.id}`) - omitted for the intro step
+  targetId?: string; // data-tour value (see DashboardShell's `nav-${item.id}`) - omitted for the intro step
   title: string;
   body: string;
   ctaHref?: string; // optional direct link out of the tour, for a step worth acting on right away
@@ -18,7 +18,7 @@ const STEPS: Step[] = [
   },
   { targetId: "nav-sessions", title: "Your Sessions", body: "Book, join, and review your appointments." },
   {
-    targetId: "nav-session-packages",
+    targetId: "nav-packages",
     title: "Your Programmes",
     body: "A course of treatment your therapist arranged, and the sessions you have left to book.",
   },
@@ -34,9 +34,19 @@ const STEPS: Step[] = [
 
 type Rect = { top: number; left: number; width: number; height: number };
 
+// Every nav render (tab bar, rail, sidebar, More sheet) carries the same
+// data-tour id, and only one is displayed at a time -- so the target is
+// whichever copy is actually on screen. A step whose entry is behind the
+// phone's More button has no visible copy and is skipped.
+function findTarget(targetId: string): HTMLElement | null {
+  const all = document.querySelectorAll<HTMLElement>(`[data-tour="${targetId}"]`);
+  for (const el of all) if (el.getClientRects().length > 0) return el;
+  return null;
+}
+
 // Guided spotlight tour on a patient's first dashboard visit - steps
-// through the actual sidebar nav items (see DashboardShell's `nav-${id}`
-// ids) rather than a static "here's what's here" list. Skippable at any
+// through the actual nav items (see DashboardShell's `data-tour`
+// values) rather than a static "here's what's here" list. Skippable at any
 // point (see the onboarding product decision); dismissing either way marks
 // onboarding_seen_at so it never shows again. The separate
 // "complete your health profile" reminder banner keeps nudging
@@ -67,7 +77,7 @@ export default function OnboardingTour({
     // external system besides the DOM this could otherwise sync from.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSteps(
-      STEPS.filter((s) => !s.targetId || document.getElementById(s.targetId)).map((s) =>
+      STEPS.filter((s) => !s.targetId || findTarget(s.targetId)).map((s) =>
         intakeLocked && s.targetId === "nav-health-profile"
           ? {
               ...s,
@@ -89,7 +99,7 @@ export default function OnboardingTour({
       return;
     }
     function measure() {
-      const el = document.getElementById(step.targetId!);
+      const el = findTarget(step.targetId!);
       if (!el) {
         setRect(null);
         return;

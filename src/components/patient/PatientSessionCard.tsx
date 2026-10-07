@@ -11,6 +11,7 @@ import { describeSessionPaymentForPatient } from "@/lib/sessionPaymentState";
 import { SESSION_FEE_PAISE, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { visitAddressFromAppointment, formatAddressBlock, mapsSearchUrl } from "@/lib/formatAddress";
 import type { PatientDashboardData } from "@/lib/patientDashboardData";
+import { formatRupees } from "@/lib/formatMoney";
 
 const STATUS_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -227,7 +228,7 @@ export function renderPatientSessionCard(
             )}
             {visit?.travel_fee_paise !== null && (visit?.travel_fee_paise ?? 0) > 0 && (
               <p className="pt-1 text-[11px] text-slate-500">
-                Includes ₹{((visit?.travel_fee_paise ?? 0) / 100).toLocaleString("en-IN")} travel
+                Includes ₹{formatRupees((visit?.travel_fee_paise ?? 0))} travel
               </p>
             )}
           </div>
@@ -254,6 +255,10 @@ export function renderPatientSessionCard(
                   ? adminSettings.homeVisitCancellationRefundHours
                   : undefined
               }
+              cutoffMinutes={
+                visit?.visit_mode === "home_visit" ? null : adminSettings.patientCancelCutoffMinutes
+              }
+              serverNowMs={data.nowMs}
             />
           )}
         </div>
@@ -263,6 +268,8 @@ export function renderPatientSessionCard(
             role="patient"
             existingRating={a.patient_rating}
             existingFeedback={a.patient_feedback}
+            counterpartName={a.therapist_id ? therapistMap.get(a.therapist_id) ?? null : null}
+            viewerName={profile?.full_name ?? null}
           />
         )}
       </div>

@@ -3,6 +3,8 @@ import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { pricingForRequest } from "@/lib/countryPricingServer";
+import { HOME_VISIT_OUTSIDE_INDIA_ERROR, priceForCountry } from "@/lib/countryPricing";
 import { computeHomeVisitTotal } from "@/lib/homeVisitPricing";
 import {
   resolveHomeVisitAddress,
@@ -14,8 +16,13 @@ import {
   isPatientProfile,
   profileCheckUnavailable,
 } from "@/lib/supabase/requireActiveProfile";
-import { resolveRecommendablePackage } from "@/lib/carePlanServer";
-import { parseOfferSnapshot, carePlanState } from "@/lib/carePlans";
+import { resolveCourseRate, resolveRecommendablePackage } from "@/lib/carePlanServer";
+import {
+  buildCourseSnapshot,
+  parseOfferSnapshot,
+  carePlanState,
+  type CarePlanOfferSnapshot,
+} from "@/lib/carePlans";
 
 // Buying the plan a therapist recommended.
 //
@@ -144,22 +151,31 @@ export async function POST(request: NextRequest) {
   }
 
   const offerKind = version.offer_kind as "session_package" | "home_visit_package";
-  const live = await resolveRecommendablePackage(admin, offerKind, packageId);
+  // A per-session recommendation is re-priced from the condition's live
+  // per-session rate; an older one written against an admin programme is
+  // re-read from that programme. Either way the patient is charged what the
+  // catalog says now, and refused rather than charged a different figure
+  // than the card they read.
+  const snapshot = parseOfferSnapshot(version.offer_snapshot);
+  let live: { snapshot: CarePlanOfferSnapshot; categoryId: string | null } | null;
+  if (snapshot?.course && snapshot.categoryId) {
+    const rate = await resolveCourseRate(admin, offerKind, snapshot.categoryId);
+    live = rate
+      ? { snapshot: buildCourseSnapshot(rate, snapshot.sessionCount), categoryId: rate.categoryId }
+      : null;
+  } else {
+    live = await resolveRecommendablePackage(admin, offerKind, packageId);
+  }
   if (!live) {
     return NextResponse.json(
       {
         error:
-          "The programme your therapist recommended is no longer available. They'll need to send a new recommendation.",
+          "The treatment your therapist recommended is no longer available. They'll need to send a new recommendation.",
       },
       { status: 409 }
     );
   }
 
-  // The snapshot is what the patient was shown; the live row is what they
-  // would be charged. If those have parted company since the therapist
-  // wrote the plan, nobody is charged a different amount quietly -- the
-  // recommendation goes back to the clinician to re-confirm.
-  const snapshot = parseOfferSnapshot(version.offer_snapshot);
   if (
     snapshot &&
     (snapshot.pricePaise !== live.snapshot.pricePaise ||
@@ -168,7 +184,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "This programme has changed since your therapist recommended it. We've asked them to confirm it before you pay.",
+          "The price of this treatment has changed since your therapist recommended it. We've asked them to confirm it before you pay.",
       },
       { status: 409 }
     );
@@ -188,8 +204,18 @@ export async function POST(request: NextRequest) {
   // after paying), and the second is what the therapist is reimbursed for
   // travelling. It survived Phase 6 because a multi-visit programme could
   // still be bought the old way; it cannot now, so it is fixed here.
+  // The visitor's country: an online programme is priced for it, and a home
+  // visit is refused outside India unless an admin has allowed it.
+  const requestPricing = await pricingForRequest(admin, request);
+
   let resolvedAddress: ResolvedHomeVisitAddress | null = null;
   if (offerKind === "home_visit_package") {
+    if (!requestPricing.homeVisitsOffered) {
+      return NextResponse.json(
+        { error: HOME_VISIT_OUTSIDE_INDIA_ERROR },
+        { status: 403 }
+      );
+    }
     // The master switch, checked here as it is on the direct route. An
     // admin who turns home visits off has stopped the service; a
     // recommendation written before that must not stay purchasable, or the
@@ -241,7 +267,13 @@ export async function POST(request: NextRequest) {
         visitCount: live.snapshot.sessionCount,
       })
     : null;
-  const amountPaise = live.snapshot.pricePaise;
+  // Outside India an online programme costs the rupee equal of its local
+  // price (raised, converted, rounded up to .99) -- the figure the card
+  // showed. A home-visit programme is delivered in India and stays in rupees.
+  const amountPaise =
+    offerKind === "session_package" && requestPricing.pricing
+      ? priceForCountry(live.snapshot.pricePaise, requestPricing.pricing).chargePaise
+      : live.snapshot.pricePaise;
   const chargePaise = total ? total.totalPaise : amountPaise;
 
   const table =

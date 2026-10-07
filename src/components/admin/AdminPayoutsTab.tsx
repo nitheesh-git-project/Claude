@@ -1,6 +1,7 @@
 "use client";
 
 import FilterChips from "@/components/dashboard/FilterChips";
+import { RatingChip } from "@/components/feedback/RatingDisplay";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import { Fragment, useState } from "react";
@@ -12,6 +13,7 @@ import {
   computeTherapistPayoutSummary,
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
+import { formatRupees } from "@/lib/formatMoney";
 
 type Therapist = {
   id: string;
@@ -23,17 +25,7 @@ type Patient = { id: string; full_name: string | null };
 type Category = { id: string; title: string };
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
-}
-
-function RatingStars({ rating }: { rating: number | null }) {
-  if (rating === null) return <span className="text-slate-500">Not rated</span>;
-  return (
-    <span className="text-amber-500">
-      {"★".repeat(rating)}
-      <span className="text-slate-300">{"★".repeat(5 - rating)}</span>
-    </span>
-  );
+  return `₹${formatRupees(paise)}`;
 }
 
 function TherapistSessionList({
@@ -102,7 +94,7 @@ function TherapistSessionList({
             </p>
             <div className="flex items-center gap-4 text-slate-500">
               <span>
-                Patient rated: <RatingStars rating={a.patient_rating} />
+                Patient rated: <RatingChip rating={a.patient_rating} />
               </span>
             </div>
             {a.patient_feedback && (

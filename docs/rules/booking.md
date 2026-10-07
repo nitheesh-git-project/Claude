@@ -18,6 +18,19 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   every inserting route maps that to a 409 in words. The same purchase at
   the same instant is exempt - that is a retried booking, and the unique
   indexes' `23505` already answers it as "that visit exists".
+  **The patient's own unpaid draft does not count.** The wizard creates the
+  booking on the first Pay tap; a patient who closed the sheet and then went
+  Back, reloaded or reopened `/book` was refused their own slot by that
+  abandoned row. `/api/appointments/create` now replaces it: an overlapping
+  row that `isReplaceableDraft` (`src/lib/bookingDraft.ts`) accepts --
+  `requested`, unpaid, prepaid, online, unassigned, no package / home-visit
+  purchase / referral / pay-later outcome -- is cancelled through
+  `cancelAppointmentAndRefund` ("Replaced by a new booking before it was
+  paid") before the insert, as is the draft the wizard names in
+  `replacesAppointmentId` after a Back. A draft with a Razorpay order is
+  asked about first (`razorpayOrderIsPaid`): paid is a 409 saying so, and a
+  lookup that fails is a 503, never "not paid". Anything else that overlaps
+  still blocks. `e2e/booking-retry-after-cancel.spec.ts` holds it.
 - **Booking lead time** is `site_settings.online_booking_lead_time_hours`,
   defaulting to the 12 hours `src/lib/bookingSlots.ts` still holds as
   `BOOKING_LEAD_TIME_HOURS`, and shared by the picker and the validator so
@@ -197,9 +210,12 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   the page-level `BookingExitLink` sits outside the wizard, so it showed
   "Back to Dashboard" beside the Pay button of a patient who had not yet tried
   to pay. `src/lib/bookingPaymentTrouble.ts` carries the two facts across
-  (`onPaymentStep`, `failedAttempts`); `exitLinkHidden()` hides the link on the
-  payment step until `MAX_ATTEMPTS_BEFORE_ESCAPE` (3) failures, which is also
-  when the wizard's own dashboard escape appears. Keep both on that one constant.
+  (`onPaymentStep`, `escapeOpen`); `exitLinkHidden()` hides the link on the
+  payment step until the wizard's own dashboard escape appears, which
+  `escapeOffered()` (`src/lib/paymentTries.ts`) decides: only for an account
+  that can open its dashboard, and only on the try that unlocked it or after
+  `site_settings.payment_tries_before_access` failures in this visit. Keep
+  both on that one function.
   **The first tap is now two round trips for a signed-in patient** (create,
   then create-order), down from five. `/api/appointments/create` takes
   `withQuote` + `quotePromoCode` and returns the new booking's quote in its own
@@ -230,10 +246,61 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   a success signs the wizard in and re-quotes for the real account, and a
   failure -- an email already registered -- returns the patient to Step 2
   with that field revealed. The consequence to know: an account now exists
-  for somebody who reached Step 3 and left without paying; it is unapproved
-  and holds no booking, the same as a bare `/patient/register`. The home-visit
-  wizard still signs up on the tap. `CheckoutProgress`
+  for somebody who reached Step 3 and left without paying. **It is locked**
+  (`approved = false`, marked `signup_source: 'booking'` in the signup
+  metadata) until a payment is captured or the patient has failed
+  `payment_tries_before_access` times (Settings -> Booking Rules, default 3,
+  1-10). Every try that ends without a payment counts -- the sheet closed,
+  a payment failed, or our own route answered 5xx -- and is reported to
+  `/api/patient/payment-try`, which counts it in `checkout_payment_tries`
+  and unlocks the account on the limit; a refusal the patient can fix (a
+  slot, a lead time) is not a try. Until then the wizard never offers the
+  dashboard and its copy never promises one ("your slot is still held");
+  the try that unlocks it says "Your account is ready" with Go to
+  Dashboard. Both wizards follow this; the home-visit wizard still signs up
+  on the tap. A locked account that does neither is deleted after
+  `abandoned_booking_account_days` -- see `admin.md`. **Signing in while
+  locked shows "Finish your booking", not "Approval Pending"**:
+  `/pending-approval` reads the signup marker and renders
+  `FinishBookingCard` -- the newest future unpaid online draft with **Pay
+  now** (the same `payForAppointment`, tries counted the same way) and
+  **Pick another time** (`/book?replaces=<draft id>`, which seeds the
+  wizard's `replacesAppointmentId`), plus the date the account is removed
+  if it stays unpaid. Nobody is reviewing such an account, so a review
+  screen would never end. And a patient who comes back signed out and
+  types the same email and password into Step 2 is signed in with them
+  (`beginSignup`), rather than told the address is taken. `CheckoutProgress`
   (`src/components/booking/`) covers the card from the tap until the sheet
   opens, naming each stage (account, slot, payment); it is a status, not a
   dialog. Both wizards report the tap's timing -- see the Checkout speed
   bullet in `docs/rules/admin.md`.
+- **A patient can't cancel an online session in its last N minutes.**
+  `site_settings.patient_cancel_cutoff_minutes` (default 15, 0-1440,
+  Settings → Booking Rules) decides it through
+  `src/lib/patientCancelCutoff.ts`: `CancelSessionButton` hides itself at the
+  cut-off (one timer, first render on the page's request clock so hydration
+  agrees), and `/api/appointments/cancel` refuses 409 `cancel_cutoff`. The
+  route is the guarantee, the hidden button is the courtesy. Home visits are
+  exempt - they keep their own refund window. An unreadable setting is a 503,
+  not a pass. `e2e/patient-cancel-cutoff.spec.ts` holds it.
+- **A slot time without a zone is read in the booking's zone, never the
+  server's.** Every route that takes a `slotDateTime` (book-package-sessions,
+  book-with-package, home-visit book-visits / book-cash / verify) passes it
+  through `resolveSlotInstant()` (`src/lib/bookingSlots.ts`) before any
+  check: an instant with `Z` or an offset is kept, a bare wall time
+  ("2026-10-07T18:00") is read in the slot's `timezone`, falling back to
+  the clinic's. Both bulk schedulers now send an ISO instant plus the
+  browser's zone, like the booking wizard. They used to send the bare wall
+  time, which `new Date()` read in the host's zone: on a UTC server 18:00
+  became 23:30 in India and every programme slot a patient tapped was
+  refused as "Sessions start on the hour." The suite did not see it because
+  `playwright.config.ts` runs the app with `TZ=Asia/Kolkata` -
+  `e2e/programme-scheduling-timezone.spec.ts` is the one to run against a
+  server started on UTC.
+
+- **On a phone the wizard's Back / Review / Pay row is pinned to the bottom
+  of the screen** (steps 2 and 3), so the way forward and the amount are in
+  view while the form or summary above is read. The card uses
+  `overflow-clip` rather than `overflow-hidden` for exactly this: a hidden
+  overflow makes the card a scroll container and the row would stick to the
+  card, not the screen. From `sm` the row sits in the flow as before.

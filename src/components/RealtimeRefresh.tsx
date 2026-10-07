@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { createClient } from "@/lib/supabase/client";
 import { isEventCoveredByLocalRefresh } from "@/lib/refreshSignal";
@@ -70,6 +70,27 @@ export default function RealtimeRefresh({
   // dropped or was refused used to stop updating the dashboard with nothing
   // on screen to say so -- the figures simply went stale.
   const [degraded, setDegraded] = useState(false);
+  // Bumped by the banner's Refresh: tears the channel down and joins it
+  // again. Refresh used to re-read the page only, so the data came back but
+  // the dropped socket did not, and the banner stayed until a browser reload.
+  const [connectAttempt, setConnectAttempt] = useState(0);
+  const [reconnecting, setReconnecting] = useState(false);
+
+  // A screen can carry more than one of these (the admin dashboard has two
+  // channels), and each drew its own banner in the same fixed spot, stacked.
+  // Refresh on the top one reconnected only that channel, so the one beneath
+  // stayed -- which read as Refresh not working. One Refresh now reconnects
+  // every channel on the page, and only the first degraded one draws.
+  const bannerId = useId();
+  useEffect(() => {
+    const onReconnect = () => {
+      setReconnecting(true);
+      setConnectAttempt((n) => n + 1);
+    };
+    window.addEventListener(RECONNECT_EVENT, onReconnect);
+    return () => window.removeEventListener(RECONNECT_EVENT, onReconnect);
+  }, []);
+  const drawsBanner = useBannerOwner(bannerId, degraded);
 
   useEffect(() => {
     const list = tablesKey.split(",").filter(Boolean);
@@ -136,6 +157,11 @@ export default function RealtimeRefresh({
       // leaving, not a fault.
       if (disposed) return;
       if (status === "SUBSCRIBED") {
+        // A join from the banner's Refresh starts with hadProblem false, so
+        // the banner is cleared here on any successful join, not only on a
+        // recovery this channel saw itself.
+        setDegraded(false);
+        setReconnecting(false);
         if (hadProblem) {
           // Back after a gap: whatever changed while the socket was down was
           // never delivered, so catch up once.
@@ -148,6 +174,7 @@ export default function RealtimeRefresh({
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
         hadProblem = true;
         setDegraded(true);
+        setReconnecting(false);
       }
     });
 
@@ -157,23 +184,56 @@ export default function RealtimeRefresh({
       disposed = true;
       supabase.removeChannel(channel);
     };
-  }, [tablesKey, cooldownMs, router, mode, noteUpdate]);
+  }, [tablesKey, cooldownMs, router, mode, noteUpdate, connectAttempt]);
 
-  if (!degraded) return null;
+  if (!degraded || !drawsBanner) return null;
   return (
     <div
       role="status"
-      className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-800 shadow-md print:hidden"
+      className="fixed bottom-[calc(1rem+var(--app-bottom-inset,0px))] left-1/2 z-50 -translate-x-1/2 flex w-max max-w-[calc(100vw-2rem)] items-center gap-2 rounded-2xl sm:rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-800 shadow-md print:hidden"
     >
-      <i aria-hidden className="fa-solid fa-plug-circle-exclamation" />
-      Live updates paused - this screen may be out of date.
+      <i aria-hidden className="fa-solid fa-plug-circle-exclamation shrink-0" />
+      <span>Live updates paused - this screen may be out of date.</span>
       <button
         type="button"
-        onClick={() => router.refresh()}
-        className="rounded-full bg-amber-600 px-3 py-1 text-white hover:bg-amber-700 transition"
+        onClick={() => {
+          window.dispatchEvent(new Event(RECONNECT_EVENT));
+          router.refresh();
+        }}
+        disabled={reconnecting}
+        className="shrink-0 whitespace-nowrap rounded-full bg-amber-600 px-3 py-1 text-white hover:bg-amber-700 disabled:opacity-70 transition"
       >
-        Refresh
+        {reconnecting ? "Reconnecting..." : "Refresh"}
       </button>
     </div>
+  );
+}
+
+const RECONNECT_EVENT = "realtime-refresh:reconnect";
+
+// Which degraded channel draws the one banner: the first to report, until it
+// recovers. A tiny module-level registry rather than context, because the
+// channels are mounted by unrelated parts of the page.
+const degradedOrder: string[] = [];
+const ownerListeners = new Set<() => void>();
+function setDegradedEntry(id: string, isDegraded: boolean) {
+  const at = degradedOrder.indexOf(id);
+  if (isDegraded && at === -1) degradedOrder.push(id);
+  if (!isDegraded && at !== -1) degradedOrder.splice(at, 1);
+  ownerListeners.forEach((l) => l());
+}
+
+function useBannerOwner(id: string, isDegraded: boolean): boolean {
+  useEffect(() => {
+    setDegradedEntry(id, isDegraded);
+    return () => setDegradedEntry(id, false);
+  }, [id, isDegraded]);
+  return useSyncExternalStore(
+    (cb) => {
+      ownerListeners.add(cb);
+      return () => ownerListeners.delete(cb);
+    },
+    () => degradedOrder[0] === id,
+    () => false
   );
 }

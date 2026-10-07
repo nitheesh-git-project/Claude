@@ -300,3 +300,59 @@ export function isWholeHourSlot(iso: string, timeZone?: string | null): boolean 
  *  message a patient or an admin reads is the same wherever it comes from. */
 export const NOT_WHOLE_HOUR_ERROR =
   "Sessions start on the hour. Pick a time like 6:00 or 7:00.";
+
+const NAIVE_SLOT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
+
+function zoneOffsetMs(utcMs: number, zone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(utcMs));
+  const n = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return Date.UTC(n("year"), n("month") - 1, n("day"), n("hour"), n("minute"), n("second")) - utcMs;
+}
+
+/**
+ * The instant a booking request means, as an ISO string -- or null when it
+ * names none.
+ *
+ * A time with a zone (`...Z`, `...+05:30`) is taken as it is. A wall time
+ * without one (`2026-10-07T18:00`) is read **in the booking's own timezone**,
+ * falling back to the clinic's -- never in the server's. `new Date()` on a
+ * zone-less string uses the host's zone, so on a UTC server "18:00" became
+ * 18:00 UTC, which is 23:30 in India: every programme slot a patient tapped
+ * was refused as "not on the hour", and the e2e suite never saw it because it
+ * runs the app with TZ=Asia/Kolkata.
+ */
+export function resolveSlotInstant(
+  slotDateTime: string | null | undefined,
+  timeZone?: string | null
+): string | null {
+  if (!slotDateTime || typeof slotDateTime !== "string") return null;
+  const value = slotDateTime.trim();
+  const naive = NAIVE_SLOT.exec(value);
+  if (!naive) {
+    const ms = new Date(value).getTime();
+    return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+  }
+  const [, y, mo, d, h, mi, s] = naive;
+  const wallMs = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s ?? 0));
+  if (!Number.isFinite(wallMs)) return null;
+  let zone = timeZone?.trim() || CLINIC_TIMEZONE;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+  } catch {
+    zone = CLINIC_TIMEZONE;
+  }
+  // Two passes settle a wall time near a DST change; India has none, but a
+  // patient booking from abroad might.
+  let utc = wallMs - zoneOffsetMs(wallMs, zone);
+  utc = wallMs - zoneOffsetMs(utc, zone);
+  return new Date(utc).toISOString();
+}

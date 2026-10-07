@@ -182,7 +182,12 @@ export default function SessionCalendarTab<T extends CalendarSession>({
     /* No card chrome of its own: this always renders inside the Sessions
        screen's SurfaceCard, and a bordered box inside a bordered box reads
        as two separate things. */
-    <div>
+    // On a desktop the month and the chosen day sit side by side
+    // (`.calendar-split` in globals.css): stacked, the day's cards were
+    // below the grid and off the bottom of a 1080px screen. The same blocks
+    // in the same order; only their placement changes.
+    <div className="calendar-split">
+      <div className="cal-month">
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={() => goToMonth(-1)}
@@ -254,8 +259,10 @@ export default function SessionCalendarTab<T extends CalendarSession>({
           );
         })}
       </div>
+      </div>
 
-      <p className="text-xs font-semibold text-slate-600 mt-6">
+      <div className="cal-day">
+      <p className="text-xs font-semibold text-slate-600 mt-6 2xl:mt-0">
         Showing sessions for {selectedDateLabel}
         {(viewYear !== Number(selectedDate.split("-")[0]) ||
           viewMonth !== Number(selectedDate.split("-")[1]) - 1) && (
@@ -272,9 +279,10 @@ export default function SessionCalendarTab<T extends CalendarSession>({
           ))}
         </ul>
       )}
+      </div>
 
       {showMotivation && (
-        <div className="mt-6">
+        <div className="cal-motivation mt-6">
           <PatientMonthMotivation stats={monthStats} />
         </div>
       )}

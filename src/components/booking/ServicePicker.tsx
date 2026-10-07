@@ -62,6 +62,7 @@ export default function ServicePicker({
   aboutTitle,
   emptyMessage,
   singleOptionNote,
+  rupeesOnly = false,
 }: {
   options: ServiceOption[];
   /** The chosen option's id, or "" for none. Owned by the wizard, because
@@ -87,6 +88,9 @@ export default function ServicePicker({
   /** Shown under the card when there is exactly one option and so no choice
    *  to make. Null to say nothing. */
   singleOptionNote?: string | null;
+  /** Home visits: delivered and charged in India, so priced in rupees for
+   *  every visitor. */
+  rupeesOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -145,6 +149,7 @@ export default function ServicePicker({
       savingsPaise: option.savingsPaise,
       priceUnit: option.priceUnit,
       icon: option.icon,
+      rupeesOnly,
     };
   }
 
@@ -155,6 +160,7 @@ export default function ServicePicker({
       {chosen ? (
         <ChosenServiceSummary
           option={chosen}
+          rupeesOnly={rupeesOnly}
           actions={
             <>
               {/* With one option there is nothing to change to, so the

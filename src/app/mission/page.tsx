@@ -3,6 +3,7 @@ import { createPublicClient } from "@/lib/supabase/public";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 import PageHero from "@/components/marketing/PageHero";
 import Section from "@/components/marketing/Section";
+import { RealBenefitsList, WhyChooseUsGrid } from "@/components/marketing/WhyChooseUs";
 import IconCard from "@/components/marketing/IconCard";
 import Testimonials, {
   type PublicTestimonial,
@@ -10,7 +11,7 @@ import Testimonials, {
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
-import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import { readBookingLanguages, readHomeVisitEnabled } from "@/lib/homeVisitFlag";
 import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
 
 export const metadata: Metadata = {
@@ -57,7 +58,10 @@ export default async function MissionPage() {
     .single();
   const hasRealRatings = !!ratingSummary && ratingSummary.rating_count > 0;
 
-  const homeVisitEnabled = await readHomeVisitEnabled();
+  const [homeVisitEnabled, bookingLanguages] = await Promise.all([
+    readHomeVisitEnabled(),
+    readBookingLanguages(),
+  ]);
 
   // The two lines this page is built around. Read on its own like the flag
   // above, and falling back to the wording in mission.ts, so a database that
@@ -72,6 +76,8 @@ export default async function MissionPage() {
   // Only sections that render: the testimonial band is admin-controlled, so
   // its rail entry is conditional. Order matches the DOM.
   const sectionNavItems: SectionNavItem[] = [
+    { id: "why-choose-us", label: "Why Choose Us", icon: "fa-award" },
+    { id: "real-benefits", label: "Real Benefits", icon: "fa-seedling" },
     { id: "why-we-exist", label: "Why We Exist", icon: "fa-bullseye" },
     // Both bands are admin-managed now, so their rail entries are conditional
     // for the same reason the testimonial one is -- an entry has to match a
@@ -103,6 +109,26 @@ export default async function MissionPage() {
         photoId="hero-mission"
         alt="Two patients following their exercise plan together at home, laptop open in front of them"
       />
+
+      {/* The same order as the home page's mission band -- what we do, what
+          changes for you, then why -- each card with the line on how the
+          platform actually does it. Copy: src/lib/whyChooseUs.ts. */}
+      <Section
+        id="why-choose-us"
+        tone="tint"
+        eyebrow="Why choose us"
+        title="Six reasons patients pick us"
+      >
+        <WhyChooseUsGrid languages={bookingLanguages} />
+      </Section>
+
+      <Section
+        id="real-benefits"
+        eyebrow="The real benefits"
+        title="What changes for you"
+      >
+        <RealBenefitsList />
+      </Section>
 
       {/* Mission and vision as one band, not two. They answer the same
           question at two time horizons, and splitting them into separate

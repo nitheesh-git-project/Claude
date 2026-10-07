@@ -14,6 +14,7 @@ import ActivityDetailDialog, {
 } from "@/components/admin/ActivityDetailDialog";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
+import { formatRupees } from "@/lib/formatMoney";
 
 // Who did what, for one desk.
 //
@@ -231,7 +232,7 @@ export default function AdminActivityLogTab({
                   <td className="py-2 pr-3 text-slate-500">{r.targetLabel ?? "-"}</td>
                   <td className="whitespace-nowrap py-2 pr-3 text-right font-semibold tabular-nums text-slate-800">
                     {r.amountPaise != null
-                      ? `₹${(r.amountPaise / 100).toLocaleString("en-IN")}`
+                      ? `₹${formatRupees(r.amountPaise)}`
                       : "-"}
                   </td>
                 </tr>

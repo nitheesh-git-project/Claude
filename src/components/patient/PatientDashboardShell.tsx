@@ -4,6 +4,7 @@ import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import type { PatientDashboardData } from "@/lib/patientDashboardData";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
+import SuggestedTeaserBar from "@/components/patient/SuggestedTeaserBar";
 
 /**
  * The chrome every patient dashboard screen shares: sidebar, header,
@@ -68,6 +69,7 @@ export default function PatientDashboardShell({
           <AdminDataLoadBanner missing={data.loadIssues.missing} />
         </div>
       )}
+      {data.suggestedTeaser && <SuggestedTeaserBar teaser={data.suggestedTeaser} />}
       {children}
     </DashboardShell>
     </JoinWindowProvider>

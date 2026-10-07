@@ -10,8 +10,9 @@ import { startCheckoutTimer, type CheckoutTimer } from "@/lib/checkoutTiming";
 import CheckoutProgress, { type CheckoutProgressStage } from "@/components/booking/CheckoutProgress";
 import {
   publishBookingPaymentTrouble,
-  MAX_ATTEMPTS_BEFORE_ESCAPE,
 } from "@/lib/bookingPaymentTrouble";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { escapeOffered, type PaymentTryAnswer, type PaymentTryOutcome } from "@/lib/paymentTries";
 import {
   isDirectlyPurchasable,
   PROGRAMME_NEEDS_RECOMMENDATION,
@@ -44,6 +45,7 @@ import { rateLimitNotice } from "@/lib/rateLimit";
 import ServicePicker from "@/components/booking/ServicePicker";
 import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
 import { homeVisitServiceOption } from "@/lib/serviceOptions";
+import { formatRupees } from "@/lib/formatMoney";
 
 // The six fields this wizard has always read, plus what the service picker
 // shows. The optional ones are optional for two different reasons: the focal
@@ -85,6 +87,7 @@ export default function HomeVisitBookingWizard({
   packages,
   leadTimeHours,
   cashEnabled = false,
+  paymentTriesBeforeAccess = DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess,
 }: {
   packages: WizardPackage[];
   leadTimeHours: number;
@@ -92,6 +95,9 @@ export default function HomeVisitBookingWizard({
   // offers "pay at the door" and behaves exactly as it did before this
   // option existed.
   cashEnabled?: boolean;
+  /** Unsuccessful payment tries before a new patient's locked account opens
+   *  (`site_settings.payment_tries_before_access`, see paymentTries.ts). */
+  paymentTriesBeforeAccess?: number;
 }) {
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -116,6 +122,16 @@ export default function HomeVisitBookingWizard({
   const [done, setDone] = useState(false);
   const [paymentResult, setPaymentResult] = useState<HomeVisitPaymentResult | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  // Same lock as the online wizard: a new patient's dashboard opens on a
+  // payment, or once their tries run out (/api/patient/payment-try).
+  const [accountUnlocked, setAccountUnlocked] = useState(false);
+  const [justUnlocked, setJustUnlocked] = useState(false);
+  const escapeOpen = escapeOffered({
+    unlocked: accountUnlocked,
+    justUnlocked,
+    failuresThisVisit: failedAttempts,
+    limit: paymentTriesBeforeAccess,
+  });
 
   // Step 1 -- serviceability, then the address.
   const [pincode, setPincode] = useState("");
@@ -198,6 +214,7 @@ export default function HomeVisitBookingWizard({
   // written before the thing it describes had been picked.
   const servicePicker = (
     <ServicePicker
+      rupeesOnly
       options={serviceOptions}
       value={selectedPackage?.id ?? ""}
       onChange={setPackageId}
@@ -223,10 +240,11 @@ export default function HomeVisitBookingWizard({
   useEffect(() => {
     publishBookingPaymentTrouble({
       onPaymentStep: step === 4 && !done,
-      failedAttempts,
+      escapeOpen,
+      done,
     });
-    return () => publishBookingPaymentTrouble({ onPaymentStep: false, failedAttempts: 0 });
-  }, [step, done, failedAttempts]);
+    return () => publishBookingPaymentTrouble({ onPaymentStep: false, escapeOpen: false });
+  }, [step, done, escapeOpen]);
 
   useEffect(() => {
     // The browser's detected timezone is only knowable once mounted on the
@@ -246,10 +264,11 @@ export default function HomeVisitBookingWizard({
         setIsLoggedIn(true);
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name, email, phone, role")
+          .select("full_name, email, phone, role, approved")
           .eq("id", data.user.id)
           .single();
         if (!active) return;
+        setAccountUnlocked(profile?.approved === true);
         setFullName(profile?.full_name ?? "");
         setEmail(profile?.email ?? data.user.email ?? "");
         setPhone(profile?.phone ?? "");
@@ -456,6 +475,24 @@ export default function HomeVisitBookingWizard({
     }
   }
 
+  /** One try that did not end in a payment -- see the online wizard's twin. */
+  async function noteFailedTry(outcome: PaymentTryOutcome) {
+    setFailedAttempts((n) => n + 1);
+    try {
+      const res = await fetch("/api/patient/payment-try", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flow: "home_visit", outcome }),
+      });
+      if (!res.ok) return;
+      const answer = (await res.json()) as PaymentTryAnswer;
+      if (answer.unlocked) setAccountUnlocked(true);
+      if (answer.justUnlocked) setJustUnlocked(true);
+    } catch {
+      // The try still counts here; the next one reports.
+    }
+  }
+
   async function handleSubmitInner() {
     if (!selectedPackage) return;
 
@@ -469,6 +506,9 @@ export default function HomeVisitBookingWizard({
             full_name: fullName,
             phone,
             referral_code: referralCode.trim() || undefined,
+            // Locked until it pays or runs out of tries; deleted if it does
+            // neither (see purge_abandoned_booking_accounts).
+            signup_source: "booking",
           },
         },
       });
@@ -510,7 +550,7 @@ export default function HomeVisitBookingWizard({
         setLoading(false);
         if (!res.ok) {
           setError(data.error ?? "Could not book this visit. Please try again.");
-          setFailedAttempts((n) => n + 1);
+          if (res.status >= 500) void noteFailedTry("server_error");
           return;
         }
         setPaymentResult({
@@ -523,7 +563,7 @@ export default function HomeVisitBookingWizard({
       } catch {
         setLoading(false);
         setError("Could not book this visit. Please check your connection and try again.");
-        setFailedAttempts((n) => n + 1);
+        void noteFailedTry("server_error");
       }
       return;
     }
@@ -553,12 +593,12 @@ export default function HomeVisitBookingWizard({
       onError: (message) => {
         setLoading(false);
         setError(message);
-        setFailedAttempts((n) => n + 1);
+        void noteFailedTry("failed");
       },
       onDismiss: () => {
         setLoading(false);
         setError("Payment was not completed. You can try again below.");
-        setFailedAttempts((n) => n + 1);
+        void noteFailedTry("dismissed");
       },
     });
   }
@@ -707,7 +747,7 @@ export default function HomeVisitBookingWizard({
                   <span>
                     {" "}
                     Travel to this area is ₹
-                    {(areaCheck.travelFeePaise / 100).toLocaleString("en-IN")} per visit.
+                    {formatRupees(areaCheck.travelFeePaise)} per visit.
                   </span>
                 )}
                 {selectedPackage?.travel_fee_included && <span> Travel is included.</span>}
@@ -866,6 +906,7 @@ export default function HomeVisitBookingWizard({
               screen never having seen what they were buying. */}
           {selectedOption && (
             <ChosenServiceSummary
+              rupeesOnly
               option={selectedOption}
               compact
               actions={
@@ -1054,7 +1095,7 @@ export default function HomeVisitBookingWizard({
             <div className="flex justify-between gap-4">
               <dt className="text-slate-500">Package price</dt>
               <dd className="text-slate-900">
-                ₹{(total.packagePricePaise / 100).toLocaleString("en-IN")}
+                ₹{formatRupees(total.packagePricePaise)}
               </dd>
             </div>
             <div className="flex justify-between gap-4">
@@ -1069,13 +1110,13 @@ export default function HomeVisitBookingWizard({
                   ? "Included"
                   : total.travelLabel === "none"
                     ? "Free"
-                    : `₹${((total.totalPaise - total.packagePricePaise) / 100).toLocaleString("en-IN")}`}
+                    : `₹${formatRupees((total.totalPaise - total.packagePricePaise))}`}
               </dd>
             </div>
             <div className="flex justify-between gap-4 border-t border-slate-200 pt-2">
               <dt className="font-bold text-slate-900">Total</dt>
               <dd className="font-display text-lg font-bold text-slate-900">
-                ₹{(total.totalPaise / 100).toLocaleString("en-IN")}
+                ₹{formatRupees(total.totalPaise)}
               </dd>
             </div>
           </dl>
@@ -1122,14 +1163,18 @@ export default function HomeVisitBookingWizard({
             </p>
           )}
 
-          {failedAttempts >= MAX_ATTEMPTS_BEFORE_ESCAPE && (
-            <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-              {paymentMode === "cash" ? "Something's not going through." : "Payment isn't going through."}{" "}
+          {escapeOpen && (
+            <p role="status" className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+              {justUnlocked
+                ? "Your account is ready."
+                : paymentMode === "cash"
+                  ? "Something's not going through."
+                  : "Payment isn't going through."}{" "}
               Your details are saved - you can{" "}
               <Link href="/patient/dashboard" className="font-semibold underline">
                 try again from your dashboard
               </Link>{" "}
-              later.
+              whenever you&apos;re ready.
             </p>
           )}
 
@@ -1153,8 +1198,8 @@ export default function HomeVisitBookingWizard({
                   ? "Booking..."
                   : "Opening payment..."
                 : paymentMode === "cash"
-                  ? `Book - pay ₹${(total.totalPaise / 100).toLocaleString("en-IN")} at the door`
-                  : `Pay ₹${(total.totalPaise / 100).toLocaleString("en-IN")}`}
+                  ? `Book - pay ₹${formatRupees(total.totalPaise)} at the door`
+                  : `Pay ₹${formatRupees(total.totalPaise)}`}
             </button>
           </div>
         </div>

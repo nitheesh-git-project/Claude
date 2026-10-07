@@ -109,7 +109,11 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   outcome a removed checkout must not produce. Existing purchases are
   untouched and keep booking to exhaustion.
   A recommended home visit collects an address at checkout
-  (`src/lib/homeVisitAddress.ts`, shared with the direct route) and sets
+  (`src/lib/homeVisitAddress.ts`, shared with the direct route) - the offer
+  card adds its own **Pincode** field above the shared `AddressForm`, which
+  leaves the pincode to the wizard's area step; without it a new address
+  could never be complete and every pay attempt said "Add the address these
+  visits should come to" (`e2e/recommendation-course.spec.ts`) - and sets
   `default_address_id` and `travel_fee_paise`. The offer card quotes the fee
   for that address through `/api/home-visit/check-area` and shows
   programme + travel + total, because travel is charged **per visit** and the

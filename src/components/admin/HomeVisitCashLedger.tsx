@@ -12,9 +12,10 @@ import {
   type CashAppointment,
 } from "@/lib/therapistCashLedger";
 import type { HomeVisitRow } from "@/components/admin/HomeVisitVisitActions";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 function MarkRemittedButton({ appointmentId, amountPaise }: { appointmentId: string; amountPaise: number }) {

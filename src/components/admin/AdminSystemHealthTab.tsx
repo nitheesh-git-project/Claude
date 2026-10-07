@@ -19,6 +19,7 @@ import {
   type HealthStatus,
   type CheckoutSpeedHealth,
 } from "@/lib/systemHealth";
+import { formatRupees } from "@/lib/formatMoney";
 
 // Settings -> System Health.
 //
@@ -51,7 +52,7 @@ export type GoogleMeetSyncIssue = {
 };
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 const STRIP_TONE: Record<HealthStatus, string> = {

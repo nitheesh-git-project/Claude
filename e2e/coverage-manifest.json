@@ -249,8 +249,93 @@
       "integration": "local",
       "destructive": false
     },
+    "activity-timeline.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-validation.spec.ts": {
       "runner": "admin",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "chrome-and-loader.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "country-pricing.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "dark-mode.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "impersonation-exit.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "realtime-reconnect.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "assign-availability.spec.ts": {
+      "runner": "therapist",
       "levels": [
         "api",
         "db"
@@ -294,6 +379,18 @@
         "desktop"
       ],
       "integration": "local",
+      "destructive": false
+    },
+    "booking-retry-after-cancel.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "provider-sandbox",
       "destructive": false
     },
     "booking-rules.spec.ts": {
@@ -377,6 +474,140 @@
       ],
       "projects": [
         "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "finish-session.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "api",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/roster.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "therapist-patient-chart.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "patient-cancel-cutoff.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/booking.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "meet-link-note.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "recommendation-course.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/programmes.md"
+      ],
+      "integration": "provider-sandbox",
+      "destructive": true
+    },
+    "pain-trend.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "programme-scheduling-timezone.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/booking.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "layout-audit.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/frontend.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "layout-states.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/frontend.md"
       ],
       "integration": "local",
       "destructive": false
@@ -808,6 +1039,32 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "health-profile-showcase.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "session-feedback.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -916,7 +1173,7 @@
     {
       "id": "patient.booking-wizard",
       "runner": "patient",
-      "title": "The booking wizard: service picker, deep links, named specialist, exit link, a pay button that stays tappable",
+      "title": "The booking wizard: service picker, deep links, named specialist, exit link, a pay button that stays tappable, a cancelled payment retried at the same slot, and a new account locked until it pays or runs out of tries",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -956,11 +1213,22 @@
             "PAY-003"
           ],
           "level": "browser"
+        },
+        {
+          "spec": "booking-retry-after-cancel.spec.ts",
+          "tests": [
+            "RETRY-001",
+            "RETRY-002",
+            "RETRY-003",
+            "RETRY-004"
+          ],
+          "level": "browser"
         }
       ],
       "rules": [
         "docs/rules/booking.md",
-        "docs/rules/frontend.md"
+        "docs/rules/frontend.md",
+        "docs/rules/payments.md"
       ]
     },
     {
@@ -1344,6 +1612,160 @@
       ]
     },
     {
+      "id": "therapist.patient-chart-in-shell",
+      "runner": "therapist",
+      "title": "A patient's chart sits inside the therapist dashboard with My Patients lit and no back link",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-patient-chart.spec.ts",
+          "tests": [
+            "PC-001"
+          ],
+          "level": "browser"
+        }
+      ]
+    },
+    {
+      "id": "patient.cancel-cutoff",
+      "runner": "patient",
+      "title": "A patient can't cancel an online session inside the clinic's cut-off",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-cancel-cutoff.spec.ts",
+          "tests": [
+            "PCC-001",
+            "PCC-002",
+            "PCC-003"
+          ],
+          "level": "browser"
+        }
+      ]
+    },
+    {
+      "id": "session.meet-link-note",
+      "runner": "session",
+      "title": "Patient and therapist session tiles say when the Meet link shows",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "meet-link-note.spec.ts",
+          "tests": [
+            "ML-001",
+            "ML-002"
+          ],
+          "level": "browser"
+        }
+      ]
+    },
+    {
+      "id": "session.recommendation-course",
+      "runner": "session",
+      "title": "A recommendation is a condition x a session count at the per-session price; hands-on makes it home visits, and its address checkout goes through",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "recommendation-course.spec.ts",
+          "tests": [
+            "RC-001",
+            "RC-002",
+            "RC-003",
+            "RC-004",
+            "RC-005",
+            "RC-006"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only care-plan rows, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; it opens a Razorpay test order but does not drive the payment window."
+    },
+    {
+      "id": "patient.pain-trend-per-exam",
+      "runner": "patient",
+      "title": "The patient's progress line keeps every exam, two on one day included",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "pain-trend.spec.ts",
+          "tests": [
+            "PT-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only pain readings, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; the grouping rules themselves are unit-tested in src/lib/painTrendSeries.test.ts."
+    },
+    {
+      "id": "patient.programme-scheduling-timezone",
+      "runner": "patient",
+      "title": "A patient schedules programme sessions from the dashboard, whatever zone the server runs in",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "programme-scheduling-timezone.spec.ts",
+          "tests": [
+            "PST-001",
+            "PST-002",
+            "PST-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Reproduces the original failure only against a server not running in India time; the gate's webServer inherits TZ=Asia/Kolkata from playwright.config.ts. The zone maths is unit-tested in src/lib/resolveSlotInstant.test.ts."
+    },
+    {
+      "id": "admin.layout-every-screen-shape",
+      "runner": "admin",
+      "title": "Every page fits every screen shape the owner named, with nothing overlapping or off the edge",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "layout-audit.spec.ts",
+          "tests": [
+            "LAYOUT"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "layout-states.spec.ts",
+          "tests": [
+            "LAYOUT-STATE"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Pages are checked as they first render; the interactive states covered are the public menu, both dashboard drawers, booking step 2, the programme scheduler, the therapist's finish dialog with a recommendation open, and the admin session drawer. Other dialogs are not yet in the sweep."
+    },
+    {
+      "id": "session.finish-with-note",
+      "runner": "session",
+      "title": "A therapist's Done opens the session note with the Pain Map and needs both",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "finish-session.spec.ts",
+          "tests": [
+            "FS-001",
+            "FS-002",
+            "FS-003",
+            "FS-004",
+            "FS-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Asserts refusals and the dialog only: a successful completion writes append-only settlement rows."
+    },
+    {
       "id": "session.debug-clock",
       "runner": "session",
       "title": "The debug clock moves the completion gate only while the debug bar is on",
@@ -1569,6 +1991,21 @@
             "RB-001",
             "RB-002",
             "RB-003"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "realtime-reconnect.spec.ts",
+          "tests": [
+            "RT-001"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "activity-timeline.spec.ts",
+          "tests": [
+            "TL-001",
+            "TL-002"
           ],
           "level": "browser"
         }
@@ -1843,6 +2280,14 @@
             "NAV-003"
           ],
           "level": "browser"
+        },
+        {
+          "spec": "health-profile-showcase.spec.ts",
+          "tests": [
+            "HPS-001",
+            "HPS-002"
+          ],
+          "level": "browser"
         }
       ],
       "rules": [
@@ -1960,7 +2405,8 @@
             "DF-002",
             "DF-003",
             "DF-004",
-            "DF-005"
+            "DF-005",
+            "DF-006"
           ],
           "level": "browser"
         },
@@ -2325,8 +2771,17 @@
       "runner": "therapist",
       "title": "Assignment, reassignment and no-show handling through the admin and therapist routes",
       "required": false,
-      "status": "gap",
-      "limitation": "claim_therapist_slot is proven at the RPC (therapist-slot-sql-checks.sql, concurrency-checks.mjs) but no spec drives the assignment or no-show routes."
+      "status": "partial",
+      "limitation": "assign-availability.spec.ts drives the admin assign route (availability refusal and the assignment it allows); reassignment and no-show handling are still proven only at the RPC (therapist-slot-sql-checks.sql, concurrency-checks.mjs).",
+      "coverage": [
+        {
+          "spec": "assign-availability.spec.ts",
+          "tests": [
+            "AV-001"
+          ],
+          "level": "api"
+        }
+      ]
     },
     {
       "id": "therapist.cash-and-payout-requests",
@@ -2359,6 +2814,112 @@
       "required": false,
       "status": "gap",
       "limitation": "Needs signed Razorpay webhook payloads (RAZORPAY_WEBHOOK_SECRET) posted to the local app; the idempotency is proven in booking-idempotency-sql-checks.sql only. Needs an owner decision on a webhook test secret."
+    },
+    {
+      "id": "session.rating-feedback",
+      "runner": "session",
+      "title": "Patient and therapist rate a completed session with stars, quick picks and a note, and see the thank-you",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "session-feedback.spec.ts",
+          "tests": [
+            "SF-001",
+            "SF-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Leaves a completed session behind (completed sessions cannot be deleted); the pick round trip is unit-tested in src/lib/feedbackPicks.test.ts."
+    },
+    {
+      "id": "patient.country-pricing",
+      "runner": "patient",
+      "title": "Prices outside India: local currency shown, rupee equal charged, home visits off abroad",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "country-pricing.spec.ts",
+          "tests": [
+            "CP-001",
+            "CP-002",
+            "CP-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/payments.md",
+        "docs/rules/home-visit.md",
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "platform.chrome-and-loader",
+      "runner": "platform",
+      "title": "Navigation stays put while a page loads: spine loader, light sidebars, sign-in nav, /conditions order",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "chrome-and-loader.spec.ts",
+          "tests": [
+            "CHROME-001",
+            "CHROME-002",
+            "CHROME-003",
+            "CHROME-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/frontend.md",
+        "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "admin.impersonation-exit",
+      "runner": "admin",
+      "title": "Exiting an impersonation returns the admin to the dashboard, still signed in",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "impersonation-exit.spec.ts",
+          "tests": [
+            "IMP-EXIT-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "platform.dark-mode",
+      "runner": "platform",
+      "title": "Dark mode follows the device when the admin switch is on; light otherwise; printing stays light",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "dark-mode.spec.ts",
+          "tests": [
+            "DARK-001",
+            "DARK-002",
+            "DARK-003",
+            "DARK-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/frontend.md",
+        "docs/rules/admin.md"
+      ]
     }
   ],
   "removed": []

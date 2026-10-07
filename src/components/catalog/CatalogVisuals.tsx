@@ -105,7 +105,7 @@ export function SavingsMeter({
   );
 }
 
-export type StatTile = { label: string; value: string; icon: string };
+export type StatTile = { label: string; value: React.ReactNode; icon: string };
 
 /** Label/value tiles for the facts a visitor scans for before reading prose. */
 export function StatTiles({ items }: { items: StatTile[] }) {

@@ -3,8 +3,15 @@ import { lookupServiceArea } from "@/lib/serviceAreaServer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { pricingForRequest } from "@/lib/countryPricingServer";
+import { HOME_VISIT_OUTSIDE_INDIA_ERROR } from "@/lib/countryPricing";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
-import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
+import {
+  approvePatientAfterPayment,
+  isProfileActive,
+  isPatientProfile,
+  profileCheckUnavailable,
+} from "@/lib/supabase/requireActiveProfile";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
@@ -13,7 +20,7 @@ import {
   isDirectlyPurchasable,
   PROGRAMME_NEEDS_RECOMMENDATION,
 } from "@/lib/consultationFirst";
-import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
+import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR, resolveSlotInstant } from "@/lib/bookingSlots";
 
 const MAX_LINE_LENGTH = 300;
 const MAX_NOTES_LENGTH = 1000;
@@ -46,7 +53,9 @@ export async function POST(request: NextRequest) {
   }>(request);
   if (parseError) return parseError;
 
-  const { packageId, address, slotDateTime, timezone, notes, concern } = body;
+  const { packageId, address, timezone, notes, concern } = body;
+  // A zone-less wall time is read in the booking's zone, never the server's.
+  const slotDateTime = body.slotDateTime ? resolveSlotInstant(body.slotDateTime, timezone) ?? "invalid" : undefined;
   if (!packageId) {
     return NextResponse.json({ error: "Missing packageId" }, { status: 400 });
   }
@@ -138,6 +147,11 @@ export async function POST(request: NextRequest) {
       { error: "Home visits aren't available right now." },
       { status: 403 }
     );
+  }
+  // Outside India home visits are off unless an admin has allowed them
+  // (Catalog -> Countries & currency). The country is the request's own.
+  if (!(await pricingForRequest(admin, request)).homeVisitsOffered) {
+    return NextResponse.json({ error: HOME_VISIT_OUTSIDE_INDIA_ERROR }, { status: 403 });
   }
   // Defaults to true (DEFAULT_ADMIN_SETTINGS.homeVisitCashEnabled) -- only
   // an explicit false turns it off, same convention as every other toggle
@@ -306,6 +320,10 @@ export async function POST(request: NextRequest) {
       ...(addressNotSaved ? { addressNotSaved: true } : {}),
     });
   }
+
+  // A booked cash visit is a commitment to pay at the door, so a new
+  // patient's account opens now, as it would after an online payment.
+  await approvePatientAfterPayment(user.id);
 
   return NextResponse.json({
     success: true,

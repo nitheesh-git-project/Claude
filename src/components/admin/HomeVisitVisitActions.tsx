@@ -8,6 +8,7 @@
 // rows are now part of the one All Sessions list and these two forms are
 // rendered from the shared session drawer instead.
 
+import { useTherapistUnavailable } from "@/components/admin/TherapistUnavailableDialog";
 import { useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 
@@ -157,6 +158,7 @@ export function HomeVisitAssignForm({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { showIfUnavailable, dialog: unavailableDialog } = useTherapistUnavailable();
 
   function handleAssign() {
     if (!therapistId) return;
@@ -170,7 +172,7 @@ export function HomeVisitAssignForm({
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         router.refresh();
-      } else {
+      } else if (!showIfUnavailable(data)) {
         setError(data.error ?? "Could not assign. Please try again.");
       }
     });
@@ -200,6 +202,7 @@ export function HomeVisitAssignForm({
         </button>
       </div>
       {error && <p className="text-[11px] text-red-600">{error}</p>}
+      {unavailableDialog}
     </div>
   );
 }

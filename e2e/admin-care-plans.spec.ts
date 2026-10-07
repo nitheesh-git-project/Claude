@@ -58,8 +58,8 @@ test.describe("Admin reach over recommendations", () => {
       data: {
         patientId: FAKE_ID,
         appointmentId: FAKE_ID,
-        packageId: FAKE_ID,
-        offerKind: "session_package",
+        categoryId: FAKE_ID,
+        sessionCount: 6,
         reason: "short",
       },
     });
@@ -67,37 +67,35 @@ test.describe("Admin reach over recommendations", () => {
     expect(await res.text()).toContain("at least");
   });
 
-  test("ACP-005: authoring refuses an unknown programme type", async ({ request }) => {
+  test("ACP-005: authoring refuses a recommendation with no session count", async ({ request }) => {
     const cookie = await cookieHeaderFor(QA_EMAILS.admin);
     const res = await request.post(`${BASE}/api/admin/author-care-plan`, {
       headers: { cookie, "content-type": "application/json" },
       data: {
         patientId: FAKE_ID,
         appointmentId: FAKE_ID,
-        packageId: FAKE_ID,
-        offerKind: "whatever_they_like",
+        categoryId: FAKE_ID,
         reason: "the therapist is on leave until Monday",
       },
     });
     expect(res.status()).toBe(400);
   });
 
-  test("ACP-006: there is no price, session count or discount to send", async ({ request }) => {
-    // The point of the whole design: those columns do not exist on a version,
-    // so smuggling them in a body changes nothing. Asserted by sending them
-    // and confirming the route still refuses on its ordinary grounds rather
-    // than accepting a cheaper programme.
+  test("ACP-006: there is no price or discount to send", async ({ request }) => {
+    // The count is the clinician's; the price never is. It is the
+    // condition's per-session price times the count, resolved server-side,
+    // so smuggling a price in a body changes nothing. Asserted by sending
+    // one and confirming the route still refuses on its ordinary grounds.
     const cookie = await cookieHeaderFor(QA_EMAILS.admin);
     const res = await request.post(`${BASE}/api/admin/author-care-plan`, {
       headers: { cookie, "content-type": "application/json" },
       data: {
         patientId: FAKE_ID,
         appointmentId: FAKE_ID,
-        packageId: FAKE_ID,
-        offerKind: "session_package",
+        categoryId: FAKE_ID,
+        sessionCount: 6,
         reason: "the therapist is on leave until Monday",
         pricePaise: 1,
-        sessionCount: 99,
         discountPercent: 100,
       },
     });
@@ -311,9 +309,9 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
       data: {
         patientId,
         appointmentId,
-        offerKind: "session_package",
-        packageId,
-        handsOnRequired: true,
+        categoryId,
+        sessionCount: 6,
+        handsOnRequired: false,
         frequencyPerWeek: 2,
         clinicalRationale: "Your range is improving but the pain returns after a desk day.",
         instructions: "Keep walking between sessions.",
@@ -349,15 +347,28 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
     expect(version?.authored_by).toBe(therapistId);
     expect(version?.entered_by).toBe(adminId);
     expect(version?.source_appointment_id).toBe(appointmentId);
-    expect(version?.session_package_id).toBe(packageId);
-    expect(version?.hands_on_required).toBe(true);
+    // The purchase will hang off the condition's hidden course row, not an
+    // admin programme.
+    const { data: course } = await admin
+      .from("treatment_category_packages")
+      .select("care_plan_course, category_id")
+      .eq("id", version?.session_package_id ?? "")
+      .single();
+    expect(course?.care_plan_course).toBe(true);
+    expect(course?.category_id).toBe(categoryId);
+    expect(version?.hands_on_required).toBe(false);
     expect(version?.frequency_per_week).toBe(2);
     expect(version?.is_current).toBe(true);
-    // Price and count come from the catalog row the admin picked, never from
-    // anything the request could have carried.
+    // The count is what was asked for; the price is the condition's own
+    // per-session price times it, never anything the request could carry.
+    const { data: cat } = await admin
+      .from("treatment_categories")
+      .select("price_paise")
+      .eq("id", categoryId)
+      .single();
     const snapshot = version?.offer_snapshot as { sessionCount: number; pricePaise: number };
     expect(snapshot.sessionCount).toBe(6);
-    expect(snapshot.pricePaise).toBe(600000);
+    expect(snapshot.pricePaise).toBe((cat?.price_paise ?? 0) * 6);
 
     const { data: audit } = await admin
       .from("admin_activity_log")
@@ -399,8 +410,8 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
       data: {
         patientId,
         appointmentId: foreign?.id,
-        offerKind: "session_package",
-        packageId,
+        categoryId,
+        sessionCount: 6,
         reason: "trying it against a session nobody has delivered yet",
       },
     });
@@ -421,8 +432,8 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
       data: {
         patientId,
         appointmentId,
-        offerKind: "session_package",
-        packageId,
+        categoryId,
+        sessionCount: 6,
         clinicalRationale: "A structured block will hold the gains you have made.",
         reason: "Dr A is off sick and asked us to send this on",
       },
@@ -440,7 +451,7 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
     await expect(page.getByText("Recommended by QA Therapist A")).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByText(AUTHOR_PACKAGE_TITLE).first()).toBeVisible();
+    await expect(page.getByText(AUTHOR_CATEGORY_TITLE).first()).toBeVisible();
     await expect(page.getByText("QA Admin", { exact: false })).toHaveCount(0);
     await browserCtx.close();
   });
@@ -461,15 +472,12 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
     await expect(picker).toHaveValue(appointmentId);
 
     await page.getByRole("button", { name: "Add a recommendation" }).click();
-    // The picker asks for a condition and a number of sessions, never a
-    // programme by name -- so what is asserted is that the seeded
-    // condition is on offer and that a session-count chip carrying the
-    // seeded package's price appears once it is chosen.
+    // The picker asks for a condition and a number of sessions, and shows
+    // the total as the condition's per-session price times the count.
     const condition = page.getByLabel("Condition", { exact: true });
     await expect(condition).toContainText(AUTHOR_CATEGORY_TITLE);
-    await expect(
-      page.getByRole("button", { name: /6 sessions/ }).first()
-    ).toBeVisible();
+    await expect(page.getByLabel("How many sessions", { exact: true })).toHaveValue("6");
+    await expect(page.getByTestId("care-plan-total")).toContainText("×");
 
     // Attribution stated at the button, not two screens up.
     await expect(
@@ -508,7 +516,7 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
     // programme for that condition, so the chip click is what pins it to the
     // seeded six-session one rather than whatever happened to be first.
     await page.getByLabel("Condition", { exact: true }).selectOption(categoryId);
-    await page.getByRole("button", { name: /6 sessions/ }).first().click();
+    await page.getByLabel("How many sessions", { exact: true }).fill("6");
     await page
       .getByLabel("Why is the clinic writing this instead of the therapist?")
       .fill("Dr A is off sick and asked us to send this on");
@@ -598,8 +606,8 @@ test.describe("The clinic approves a recommendation", () => {
       data: {
         patientId,
         appointmentId,
-        offerKind: "session_package",
-        packageId,
+        categoryId,
+        sessionCount: 6,
         handsOnRequired: false,
         frequencyPerWeek: 2,
         clinicalRationale: "Your range is better but the pain returns after a desk day.",
@@ -813,16 +821,17 @@ test.describe("The clinic approves a recommendation", () => {
     await clearOpenPlans();
     const planId = await submitAsTherapist();
 
+    // A per-session recommendation drifts when its condition is re-priced.
     const { data: before } = await admin
-      .from("treatment_category_packages")
+      .from("treatment_categories")
       .select("price_paise")
-      .eq("id", packageId)
+      .eq("id", categoryId)
       .single();
 
     await admin
-      .from("treatment_category_packages")
-      .update({ price_paise: (before?.price_paise ?? 900000) + 50000 })
-      .eq("id", packageId);
+      .from("treatment_categories")
+      .update({ price_paise: (before?.price_paise ?? 140000) + 5000 })
+      .eq("id", categoryId);
 
     const ctx = await playwrightRequest.newContext({
       extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.admin) },
@@ -855,9 +864,9 @@ test.describe("The clinic approves a recommendation", () => {
     expect(rejected.status(), await rejected.text()).toBe(200);
 
     await admin
-      .from("treatment_category_packages")
-      .update({ price_paise: before?.price_paise ?? 900000 })
-      .eq("id", packageId);
+      .from("treatment_categories")
+      .update({ price_paise: before?.price_paise ?? 140000 })
+      .eq("id", categoryId);
     await ctx.dispose();
   });
 
@@ -998,8 +1007,8 @@ test.describe("The clinic approves a recommendation", () => {
     const res = await ctx.post(`${BASE}/api/admin/edit-and-approve-care-plan`, {
       data: {
         carePlanId: planId,
-        offerKind: "session_package",
-        packageId,
+        categoryId,
+        sessionCount: 6,
         handsOnRequired: true,
         frequencyPerWeek: 1,
         clinicalRationale: "Approved at a lower weekly frequency to suit the patient.",

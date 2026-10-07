@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { buildCheckoutQuoteBody } from "@/lib/checkoutQuoteServer";
+import { pricingForRequest } from "@/lib/countryPricingServer";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
 
 // What this booking costs, as the payment screen will say it.
@@ -125,6 +126,7 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  const { pricing } = await pricingForRequest(admin, request);
 
   // Built by the same function `/api/appointments/create` uses to hand back
   // the quote for the booking it just made, so the two cannot disagree.
@@ -134,6 +136,7 @@ export async function POST(request: NextRequest) {
       userId: user?.id ?? null,
       hasProgramme,
       promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
+      pricing,
     })
   );
 }

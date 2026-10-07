@@ -2,9 +2,11 @@
 
 import { useRef, useState } from "react";
 import { isWellFormedPromoCode, normalizePromoCode } from "@/lib/promoCodes";
+import { formatRupees } from "@/lib/formatMoney";
+import { formatPaiseForCountry, type CountryPricing } from "@/lib/countryPricing";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 /**
@@ -35,7 +37,12 @@ export default function PromoCodeField({
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
   const [checking, setChecking] = useState(false);
-  const [applied, setApplied] = useState<{ code: string; discountPaise: number } | null>(null);
+  const [applied, setApplied] = useState<{
+    code: string;
+    discountPaise: number;
+    /** The country the server priced the preview for, or null for rupees. */
+    pricing: CountryPricing | null;
+  } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   // A synchronous guard, not the disabled attribute: a disabled prop lands a
   // render too late to stop a double tap.
@@ -72,7 +79,7 @@ export default function PromoCodeField({
         setMessage(data.message ?? "That code isn't recognised.");
         return;
       }
-      setApplied({ code: data.code, discountPaise: data.discountPaise });
+      setApplied({ code: data.code, discountPaise: data.discountPaise, pricing: data.pricing ?? null });
       onApplied(data.code);
       setMessage(null);
     } catch {
@@ -95,7 +102,7 @@ export default function PromoCodeField({
       <div className="flex items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50 p-3">
         <p className="text-xs text-teal-900">
           <span className="font-mono font-bold">{applied.code}</span> applied -{" "}
-          {formatInr(applied.discountPaise)} off
+          {applied.pricing ? formatPaiseForCountry(applied.discountPaise, applied.pricing) : formatInr(applied.discountPaise)} off
         </p>
         <button
           type="button"

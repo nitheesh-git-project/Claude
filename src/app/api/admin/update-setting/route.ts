@@ -100,6 +100,12 @@ const ALLOWED_COLUMNS = new Set([
   // changing the online refund window used to need a deploy.
   "online_booking_lead_time_hours",
   "online_cancellation_refund_hours",
+  // How many failed payment tries unlock a new patient's account, and how
+  // long a locked one that never paid is kept. Both ranged by a CHECK.
+  "payment_tries_before_access",
+  "abandoned_booking_account_days",
+  // How close to an online session's start a patient may still cancel it.
+  "patient_cancel_cutoff_minutes",
   // Drives the automatic payment-fee cost line on the Money screens.
   "payment_gateway_fee_percent",
   // How Business Health reads the same money: which cost lines count as the
@@ -123,6 +129,8 @@ const ALLOWED_COLUMNS = new Set([
   "splash_phrase",
   "splash_hold_seconds",
   "splash_revisit_minutes",
+  // Appearance: follow the device's light/dark setting.
+  "follow_device_theme",
 ]);
 
 // The home page walkthrough's rotation pace. Neither of the numeric rules
@@ -215,6 +223,7 @@ export async function POST(request: NextRequest) {
       key === "finance_cogs_payment_fees" ||
       key === "finance_include_app_balances" ||
       key === "splash_enabled" ||
+      key === "follow_device_theme" ||
       key === "pay_later_age_warning_enabled" ||
       key === "pay_later_enabled") &&
     typeof value !== "boolean"
@@ -341,6 +350,25 @@ export async function POST(request: NextRequest) {
       { error: "Keep this to 300 seconds or less." },
       { status: 400 }
     );
+  }
+  // Matches each column's CHECK, so an out-of-range value is a sentence
+  // rather than a 500.
+  if (key === "payment_tries_before_access" || key === "abandoned_booking_account_days") {
+    const [min, max] = key === "payment_tries_before_access" ? [1, 10] : [1, 90];
+    if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+      return NextResponse.json(
+        { error: `Choose a whole number from ${min} to ${max}.` },
+        { status: 400 }
+      );
+    }
+  }
+  if (key === "patient_cancel_cutoff_minutes") {
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 1440) {
+      return NextResponse.json(
+        { error: "Choose a whole number of minutes from 0 to 1440." },
+        { status: 400 }
+      );
+    }
   }
   if (key === "journey_step_seconds") {
     if (
@@ -743,6 +771,7 @@ export async function POST(request: NextRequest) {
     key === "booking_languages" ||
     key === "online_booking_lead_time_hours" ||
     key === "online_cancellation_refund_hours" ||
+    key === "payment_tries_before_access" ||
     key === "promo_codes_enabled"
   ) {
     revalidatePath("/book");
@@ -803,7 +832,10 @@ export async function POST(request: NextRequest) {
     key === "splash_brand_line" ||
     key === "splash_phrase" ||
     key === "splash_hold_seconds" ||
-    key === "splash_revisit_minutes"
+    key === "splash_revisit_minutes" ||
+    // The appearance switch is read by the root layout too: its head script
+    // decides light or dark before the first paint of every page.
+    key === "follow_device_theme"
   ) {
     revalidatePath("/", "layout");
   }

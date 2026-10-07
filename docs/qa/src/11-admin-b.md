@@ -147,6 +147,12 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 **The number must move with the setting.** `CANCELLATION_FULL_REFUND_HOURS` (24) is only the fallback for a database with no value stored; a notice still reading 24 here is the screen quoting a constant instead of the clinic's own window.
 **Independence check:** this must **not** change the **home-visit** refund dialog, which reads its own setting.
 
+#### `ADM-SET-011b` - Online cancel cut-off → the patient's Cancel button · P0
+**Configuration.** `patient_cancel_cutoff_minutes` (Settings → Booking Rules → **Online cancel cut-off**), default **15**, range 0-1440.
+**Steps.** As a patient, open **Sessions** with an online session starting in about 20 minutes, and leave the page open past the 15-minute mark. Then set the cut-off to `0` and reload.
+**Expected Result.** **Cancel Session** shows at 20 minutes out and disappears by itself at 15 minutes out, without a reload; a cancel sent anyway is refused with *"This session starts too soon to cancel online (within 15 minutes). Please contact the clinic."* At `0` the button is back until the session starts. Restore `15`.
+**Independence check:** a **home visit** keeps its Cancel button - the cut-off is online only. Out-of-range values (e.g. `2000`) are refused on save.
+
 #### `ADM-SET-012` - Booking Languages → the Step 1 chips · P1
 **Steps.** Add `Hindi` and `Kannada`. Save. Reload `/book`. Then remove every language and save.
 **Expected Result.** Three chips appear in Step 1 in the configured order; the first is auto-selected. A language not on the list is **dropped server-side** rather than stored as a preference nobody is matched on. Removing all is refused with `Keep at least one language - booking needs something to offer.` - booking must never present an empty language picker. Duplicates that differ only by case are de-duplicated.
@@ -352,7 +358,7 @@ The screen warns you to turn it on only once System Health has been clean.
 8. Watch the screen while it loads on a slow connection.
 
 **Expected Result**
-* Steps 1–3: the full dashboard is behind the overlay - the dark sidebar with its **badges**, the **Master Admin** brand, the header's **Refresh** button and the **global search**. There is **no "Back to the dashboard" link anywhere**: that link belonged to the reduced frame this replaced.
+* Steps 1–3: the full dashboard is behind the overlay - the sidebar with its **badges**, the **Master Admin** brand, the header's **Refresh** button and the **global search**. There is **no "Back to the dashboard" link anywhere**: that link belonged to the reduced frame this replaced.
 * Step 3: the screen behind the overlay is **People → Therapists** - the screen this detail belongs to - never Today.
 * Steps 4–5: the overlay closes **instantly**, with no skeleton and no page load, onto that same screen; the address bar becomes `/admin/dashboard?section=people&tab=therapists`. Closing a dashboard that is already on screen must not refetch it.
 * Step 6: identical on all three.
@@ -360,6 +366,23 @@ The screen warns you to turn it on only once System Health has been clean.
 * Step 8: the skeleton **keeps the sidebar rail** rather than blanking the chrome and putting it back.
 
 **Critical check.** A direct load pays for a whole dashboard render as well as the detail's own, which is the deliberate cost of there being one design rather than two. Tapping a name from inside the dashboard must **not** pay it twice - the dashboard behind the overlay is the one already rendered.
+
+#### `ADM-PEOP-012` - Abandoned checkouts are leads, not approvals · P1
+
+**Feature.** Someone who signs up inside a booking wizard and does not pay has a **locked** account (see §4.3). They are listed under **People → Abandoned checkouts** with their contact details, the session they wanted, how many payment tries they have used, and the date the account is removed if it stays unpaid. They never appear in **Today → Approvals**: nobody reviews these accounts, and approving one would hand a dashboard to somebody who has not paid.
+
+**Steps**
+1. Signed out, open `/book`, fill Steps 1 and 2 with a new email, reach Step 3 and tap **Pay**. Close the payment window once.
+2. As the Master Admin, open **People → Abandoned checkouts**.
+3. Open **Today → Approvals**.
+4. In **Settings → Booking Rules → New patients at checkout**, set **Delete unpaid booking accounts after** to `0`, then to `91`, then back to `3`.
+
+**Expected Result**
+* Step 2: the new person is listed with name, `mailto:` email, `tel:` phone, the session they wanted (in the clinic's zone), **1 of 3 payment tries**, and **Removed on** a date three days after they signed up. The tab's badge counts them.
+* Step 3: they are **not** in Pending Approvals. A `/patient/register` signup still is.
+* Step 4: `0` and `91` are refused with "Choose a whole number from 1 to 90."; `3` saves with a toast naming the new value.
+* After the window passes (or on the next maintenance sweep once it has), the account and its unpaid booking are gone; one that paid, used up its tries, or registered at `/patient/register` is never removed.
+
 
 #### `ADM-SET-025d` - Delete an account, and be refused when it has history · P0
 
@@ -658,18 +681,18 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 **Steps**
 1. Complete `PUB-DEV-001` so there is at least one message, then sign in as the Master Admin and open **Settings → Dev Reachouts** (`?section=settings&tab=reachouts`). Check the sidebar badge counts the **new** messages.
 2. On the message, confirm the name, a `mailto:` email link, a `tel:` number link (when one was given), the message with its line breaks kept, and the received time **in the clinic's zone**.
-3. Type a note and tap **Save note**. Then tap **Mark as contacted**. Then tap **Move back to new**.
+3. Under **Add a note**, type a note and tap **Save note**. Add a second note the same way. On the first note tap **Edit**, change the text and tap **Save**. On the second tap **Delete**, then **No**; tap **Delete** again, then **Yes**. Then tap **Mark as contacted**. Then tap **Move back to new**.
 4. In **Show the developer credit and contact page**, tap the switch. Read the dialog, tap **No**. Tap it again and tap **Yes**. Open `/developer`, then switch it back on the same way (dialog again, **No**, then **Yes**).
 5. In **Email shown on the Let's talk page**, type `not an email` and tap **Save**. Then enter a real address and **Save**. Open `/developer/lets-talk`. Clear the box, **Save**, and open it again.
 6. Sign in as each of the three scoped admins and try `?section=settings&tab=reachouts`.
 
 **Expected Result**
 * Step 1: the badge shows the number of **new** messages and the filter chips read New / Contacted / All. A new message appears without a reload.
-* Step 3: the toast reads `Note saved for <name>`; the status pill reads **Contacted** with the date and time, then returns to **New**. Moving back clears who and when. Each action appears in Logs → All Activity as *Saved a note on a developer reachout* / *Moved a developer reachout*, and **the note's text is never in the log** - only that one was saved.
+* Step 3: each saved note appears at once **below the previous one** under **Notes**, with its date and time **in the clinic's zone** and the admin's name; the box clears for the next note and the toast reads `Note added for <name>`. **Save note** stays disabled while the box is blank. The edited note keeps its place and time and adds `· edited <date, time>`; **Save** stays disabled until the text changes, and **Cancel** restores it. **No** on the delete dialog keeps the note; **Yes** removes it. The status pill reads **Contacted** with the date and time, then returns to **New**. Moving back clears who and when. Each action appears in Logs → All Activity as *Added a note to* / *Edited a note on* / *Deleted a note on a developer reachout* / *Moved a developer reachout*, and **a note's text is never in the log** - only its length.
 * Step 4: **both** directions open a confirm dialog before anything is saved; **No** leaves the switch exactly where it was and writes nothing. After **Yes** the toast names the new state (`Developer credit is now hidden` / `shown`), the switch reads **Saving…** while in flight, the footer's credit line disappears or returns on a public page, and `/developer` and `/developer/lets-talk` are **404** while it is off. Messages already received are still listed.
 * Step 5: an invalid address is refused with a sentence and nothing is saved. A saved address shows as a `mailto:` link under **Prefer email?**; a blank one **hides that line entirely** while the form still works. No address ships in the code - a fresh database shows the box empty.
-* Step 6: a scoped admin never gets the tab, the rows or the controls, and a direct call to `/api/admin/update-dev-reachout` answers **403**.
-**Negative:** the debug **Reset data** button must **not** remove these messages or change either setting - they are the developer's own leads, not test data.
+* Step 6: a scoped admin never gets the tab, the rows or the controls, and a direct call to `/api/admin/update-dev-reachout` or `/api/admin/dev-reachout-note` answers **403**.
+**Negative:** the debug **Reset data** button must **not** remove these messages or their notes, or change either setting - they are the developer's own leads, not test data.
 
 #### `ADM-SET-035` - Sign-in & Security · P2
 **Steps.** Open **Settings → Sign-in & Security** and change the admin's own password. Check the screen carries two headed blocks: *Your own sign-in* (the reset button) and *Everybody else's sign-in* (the inactivity timeout and the sign-out message).

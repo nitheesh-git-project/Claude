@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { AnimatePresence, motion } from "motion/react";
 import { computePackageCounts, daysUntilExpiry, PACKAGE_EVENT_LABELS } from "@/lib/packageProgress";
+import { formatRupees } from "@/lib/formatMoney";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -216,7 +217,7 @@ export default function PackageDetailModal({
                   {data.viewerRole === "patient" && data.purchase.amountPaidPaise !== null && (
                     <p>
                       <span className="text-slate-500">Paid:</span> ₹
-                      {(data.purchase.amountPaidPaise / 100).toLocaleString("en-IN")}
+                      {formatRupees(data.purchase.amountPaidPaise)}
                     </p>
                   )}
                   <p>

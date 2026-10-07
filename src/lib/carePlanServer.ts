@@ -3,7 +3,11 @@ import {
   buildOfferSnapshot,
   type CarePlanOfferKind,
   type CarePlanOfferSnapshot,
+  type CourseRate,
+  type RecommendableRate,
 } from "@/lib/carePlans";
+
+export type { RecommendableRate };
 
 type AdminClient = SupabaseClient;
 
@@ -11,50 +15,21 @@ type AdminClient = SupabaseClient;
 // authoring route, the therapist's dialog and the patient's screen cannot
 // each grow their own slightly different idea of what may be recommended.
 
-export type RecommendablePackage = {
-  id: string;
-  kind: CarePlanOfferKind;
-  title: string;
-  categoryId: string | null;
-  /** The condition this treats, and which of the three condition types it
-   *  belongs to. Both resolved here rather than in a component, because the
-   *  therapist's picker asks for a condition and a number of sessions --
-   *  never for a programme by name -- and the price has to come back from
-   *  that pair. Null where an admin has not attached or tagged the
-   *  category yet; such a programme is offered under "Any condition" rather
-   *  than disappearing. */
-  categoryTitle: string | null;
-  specialty: "ortho" | "neuro" | "pediatrics" | null;
-  snapshot: CarePlanOfferSnapshot;
-};
-
 /**
- * What a therapist may put in front of this patient.
+ * Every rate a recommendation may be written at.
  *
- * Admin-controlled on two axes: `active` (is this package real at all) and
- * `recommendable` (may a clinician offer it). Those are deliberately
- * separate from the three `visible_*` flags, which decide where a package is
- * *advertised* - an admin who stops selling something on the website has not
- * necessarily stopped it being the right treatment for someone already in
- * the practice.
+ * Video: each active condition at its own price -- the same price /book
+ * charges for one consultation, so "N sessions" costs N consultations.
+ * Hands-on: the single home-visit price (a one-visit package; one attached to
+ * the condition wins over a general one), only while home visits are
+ * switched on -- recommending a delivery mode the clinic has turned off would
+ * produce a plan nobody can buy.
  *
- * Home-visit packages are included only when the master switch is on, since
- * recommending a delivery mode the clinic has turned off would produce a
- * plan nobody can buy.
+ * Each read keeps its own tolerance (`specialty` and `image_url` are newer
+ * columns), so an unknown-column error costs one detail of the picker rather
+ * than the screen it sits on.
  */
-export async function loadRecommendablePackages(
-  admin: AdminClient,
-  { categoryId }: { categoryId?: string | null } = {}
-): Promise<RecommendablePackage[]> {
-  const out: RecommendablePackage[] = [];
-
-  // Each read keeps its own tolerance -- `recommendable` and `specialty` are
-  // both newer than the rows they sit on, so an unknown-column error must
-  // cost one part of the picker rather than the screen it sits on. What
-  // changed is only the waiting: these were five awaits in a row, and only
-  // three of them depend on anything, so the module spent five round trips
-  // of latency where three waves do. It is called from the admin dashboard
-  // and the therapist's, so the chain was paid twice over.
+export async function loadRecommendableRates(admin: AdminClient): Promise<RecommendableRate[]> {
   const soften = async <T>(run: () => PromiseLike<T>, fallback: T): Promise<T> => {
     try {
       return await run();
@@ -63,112 +38,182 @@ export async function loadRecommendablePackages(
     }
   };
 
-  // The two catalog tables differ in their columns but are read the same way:
-  // an id and a title to show, a category to group by, and the whole row into
-  // `buildOfferSnapshot`, which takes it as a bag on purpose.
-  type CatalogRow = Record<string, unknown> & {
+  type CategoryRow = { id: string; title: string; price_paise: number; duration_minutes: number | null; active: boolean };
+  type VisitRow = {
     id: string;
-    title: string;
     category_id: string | null;
+    price_paise: number;
+    visit_duration_minutes: number | null;
+    travel_fee_included: boolean | null;
   };
 
-  let sessionQuery = admin
-    .from("treatment_category_packages")
-    .select(
-      "id, category_id, title, session_count, price_paise, compare_at_paise, validity_days, session_duration_minutes, min_gap_hours, max_sessions_per_week, therapist_locked, active, recommendable"
-    )
-    .eq("active", true)
-    .eq("recommendable", true)
-    .order("display_order", { ascending: true });
-  // Narrowed to the patient's own condition when we know it: a therapist
-  // scanning every programme in the catalog is how the wrong one gets
-  // picked.
-  if (categoryId) sessionQuery = sessionQuery.eq("category_id", categoryId);
-
-  // The programme catalogue and the home-visit switch need nothing from each
-  // other, so they go together; only the home-visit packages have to wait,
-  // since reading them is what the switch decides.
-  const [sessionPackages, homeVisitEnabled, titleRows, specialtyRows] = await Promise.all([
-    soften(async () => (await sessionQuery).data as CatalogRow[] | null, null),
+  const [categories, imageRows, specialtyRows, settings] = await Promise.all([
     soften(
-      async () =>
-        (await admin.from("site_settings").select("home_visit_enabled").maybeSingle()).data
-          ?.home_visit_enabled === true,
-      false
-    ),
-    // The category names and condition types, unfiltered. They used to be
-    // narrowed with `.in("id", categoryIds)`, which meant waiting for the
-    // package rows first and made them a third wave on their own; this
-    // catalogue is a handful of rows, so reading all of them costs less than
-    // the round trip the filter was buying. They stay two calls rather than
-    // one `select("id, title, specialty")`: `specialty` is the newer column,
-    // and sharing a select would lose the names along with it.
-    soften(
-      async () => (await admin.from("treatment_categories").select("id, title")).data,
-      // Names lost; the picker falls back to the programme's own title.
-      null as { id: string; title: string }[] | null
-    ),
-    soften(
-      async () => (await admin.from("treatment_categories").select("id, specialty")).data,
-      // Untagged database: every condition sits under one heading, which is
-      // exactly how it read before the column existed.
-      null as { id: string; specialty: string | null }[] | null
-    ),
-  ]);
-
-  for (const row of sessionPackages ?? []) {
-    out.push({
-      id: row.id,
-      kind: "session_package",
-      title: row.title,
-      categoryId: row.category_id ?? null,
-      categoryTitle: null,
-      specialty: null,
-      snapshot: buildOfferSnapshot("session_package", row),
-    });
-  }
-
-  if (homeVisitEnabled) {
-    const visitPackages = await soften(
       async () =>
         (
           await admin
-            .from("home_visit_packages")
-            .select(
-              "id, category_id, title, visit_count, price_paise, compare_at_paise, validity_days, visit_duration_minutes, min_gap_hours, max_visits_per_week, therapist_locked, terms, active, recommendable"
-            )
+            .from("treatment_categories")
+            .select("id, title, price_paise, duration_minutes, active")
             .eq("active", true)
-            .eq("recommendable", true)
             .order("display_order", { ascending: true })
-        ).data as CatalogRow[] | null,
+        ).data as CategoryRow[] | null,
       null
-    );
-    for (const row of visitPackages ?? []) {
+    ),
+    soften(
+      async () => (await admin.from("treatment_categories").select("id, image_url")).data,
+      null as { id: string; image_url: string | null }[] | null
+    ),
+    soften(
+      async () => (await admin.from("treatment_categories").select("id, specialty")).data,
+      null as { id: string; specialty: string | null }[] | null
+    ),
+    soften(
+      async () =>
+        (
+          await admin
+            .from("site_settings")
+            .select("home_visit_enabled, package_default_validity_days, home_visit_default_validity_days")
+            .maybeSingle()
+        ).data,
+      null as {
+        home_visit_enabled: boolean | null;
+        package_default_validity_days: number | null;
+        home_visit_default_validity_days: number | null;
+      } | null
+    ),
+  ]);
+
+  const homeVisitEnabled = settings?.home_visit_enabled === true;
+  const visits = homeVisitEnabled
+    ? await soften(
+        async () =>
+          (
+            await admin
+              .from("home_visit_packages")
+              .select("id, category_id, price_paise, visit_duration_minutes, travel_fee_included")
+              .eq("active", true)
+              .eq("visit_count", 1)
+              .eq("care_plan_course", false)
+              .order("price_paise", { ascending: true })
+          ).data as VisitRow[] | null,
+        null
+      )
+    : null;
+
+  const imageById = new Map((imageRows ?? []).map((c) => [c.id, c.image_url ?? null]));
+  const specialtyById = new Map((specialtyRows ?? []).map((c) => [c.id, c.specialty ?? null]));
+  const generalVisit = (visits ?? []).find((v) => v.category_id === null) ?? (visits ?? [])[0] ?? null;
+
+  const out: RecommendableRate[] = [];
+  for (const c of categories ?? []) {
+    if (!(c.price_paise > 0)) continue;
+    const raw = specialtyById.get(c.id) ?? null;
+    const specialty = raw === "ortho" || raw === "neuro" || raw === "pediatrics" ? raw : null;
+    const imageUrl = imageById.get(c.id) ?? null;
+    out.push({
+      id: `session_package:${c.id}`,
+      kind: "session_package",
+      categoryId: c.id,
+      categoryTitle: c.title,
+      imageUrl,
+      perSessionPaise: c.price_paise,
+      sessionDurationMinutes: c.duration_minutes ?? null,
+      validityDays: settings?.package_default_validity_days ?? null,
+      travelFeeIncluded: false,
+      specialty,
+    });
+    const visit = (visits ?? []).find((v) => v.category_id === c.id) ?? generalVisit;
+    if (visit && visit.price_paise > 0) {
       out.push({
-        id: row.id,
+        id: `home_visit_package:${c.id}`,
         kind: "home_visit_package",
-        title: row.title,
-        categoryId: row.category_id ?? null,
-        categoryTitle: null,
-        specialty: null,
-        snapshot: buildOfferSnapshot("home_visit_package", row),
+        categoryId: c.id,
+        categoryTitle: c.title,
+        imageUrl,
+        perSessionPaise: visit.price_paise,
+        sessionDurationMinutes: visit.visit_duration_minutes ?? null,
+        validityDays: settings?.home_visit_default_validity_days ?? null,
+        travelFeeIncluded: visit.travel_fee_included === true,
+        specialty,
       });
     }
   }
-
-  const titleById = new Map((titleRows ?? []).map((c) => [c.id, c.title]));
-  const specialtyById = new Map((specialtyRows ?? []).map((c) => [c.id, c.specialty ?? null]));
-  for (const p of out) {
-    if (!p.categoryId) continue;
-    p.categoryTitle = titleById.get(p.categoryId) ?? null;
-    const specialty = specialtyById.get(p.categoryId) ?? null;
-    p.specialty =
-      specialty === "ortho" || specialty === "neuro" || specialty === "pediatrics"
-        ? specialty
-        : null;
-  }
-
   return out;
+}
+
+/**
+ * The live rate for one condition and delivery mode, re-read server-side.
+ * Authoring and checkout both call this rather than trusting a number the
+ * browser sent or one frozen in a snapshot.
+ */
+export async function resolveCourseRate(
+  admin: AdminClient,
+  kind: CarePlanOfferKind,
+  categoryId: string
+): Promise<RecommendableRate | null> {
+  const rates = await loadRecommendableRates(admin);
+  return rates.find((r) => r.kind === kind && r.categoryId === categoryId) ?? null;
+}
+
+/**
+ * The hidden catalog row a per-session purchase hangs off (see the
+ * `care_plan_course` block at the end of schema.sql). One per condition and
+ * delivery mode, created the first time it is needed. Its own count and price
+ * are placeholders the catalog CHECKs require: the purchase carries the real
+ * count and amount, and no catalog screen lists the row.
+ */
+export async function ensureCourseTemplate(
+  admin: AdminClient,
+  rate: CourseRate
+): Promise<string | null> {
+  const table = rate.kind === "session_package" ? "treatment_category_packages" : "home_visit_packages";
+  const find = async () => {
+    const { data } = await admin
+      .from(table)
+      .select("id")
+      .eq("care_plan_course", true)
+      .eq("category_id", rate.categoryId)
+      .maybeSingle();
+    return (data as { id: string } | null)?.id ?? null;
+  };
+  const existing = await find();
+  if (existing) return existing;
+
+  const common = {
+    category_id: rate.categoryId,
+    price_paise: Math.max(1, rate.perSessionPaise),
+    active: true,
+    recommendable: false,
+    therapist_locked: true,
+    care_plan_course: true,
+  };
+  const row =
+    rate.kind === "session_package"
+      ? {
+          ...common,
+          title: `${rate.categoryTitle} - recommended course`,
+          session_count: 2,
+          session_duration_minutes: rate.sessionDurationMinutes,
+        }
+      : {
+          ...common,
+          title: `${rate.categoryTitle} - recommended home visits`,
+          visit_count: 1,
+          visit_duration_minutes: rate.sessionDurationMinutes ?? 60,
+          travel_fee_included: rate.travelFeeIncluded,
+          visible_on_home_visit_page: false,
+          visible_in_dashboard: false,
+        };
+  const { data, error } = await admin
+    .from(table)
+    .insert(row as Record<string, unknown>)
+    .select("id")
+    .single();
+  if (!error && data) return (data as { id: string }).id;
+  // Lost the race to another writer: the unique index kept one row, use it.
+  if (error?.code === "23505") return find();
+  console.error("ensureCourseTemplate failed", table, error?.message);
+  return null;
 }
 
 /**

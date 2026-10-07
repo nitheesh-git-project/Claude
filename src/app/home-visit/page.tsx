@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import HomeVisitOnly, { HomeVisitUnavailable } from "@/components/pricing/HomeVisitOnly";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
 import { pickFeatured } from "@/lib/catalogFeatured";
@@ -143,15 +144,12 @@ export default async function HomeVisitPage() {
       featured: featuredById.get(p.id) ?? false,
     })) as PublicHomeVisitPackage[];
 
-  // This page leads with four and reveals the rest in place rather than
-  // linking on: unlike the home page, which sends a visitor to /conditions,
-  // /home-visit *is* its own full list and has nowhere to send anybody. The
-  // led rows go first so the reveal appends rather than reshuffling what
-  // somebody has already read.
+  // Every package, featured ones first. This page *is* the full list of home
+  // visits, so nothing is held back behind a reveal: it used to lead with
+  // four and a "Show more" whose cards never appeared.
   const { shown: leadPackages } = pickFeatured(allPackages);
   const leadIds = new Set(leadPackages.map((p) => p.id));
   const packages = [...leadPackages, ...allPackages.filter((p) => !leadIds.has(p.id))];
-  const leadCount = leadPackages.length;
 
   const heading =
     settingsRow?.home_visit_page_heading?.trim() || DEFAULT_HOME_VISIT_PAGE_HEADING;
@@ -180,8 +178,12 @@ export default async function HomeVisitPage() {
     { id: "check-pincode", label: "Check My Pincode", icon: "fa-map-pin" },
   ];
 
+  // Outside India the page says so instead -- unless an admin has allowed
+  // home visits abroad (Catalog -> Countries & currency). The page stays
+  // statically cached for everybody; the visitor's country is read in the
+  // browser, and the routes that sell a visit refuse one by themselves.
   return (
-    <>
+    <HomeVisitOnly fallback={<HomeVisitUnavailable />}>
       <SectionNav items={sectionNavItems} />
 
       {/* Heading and subheading stay admin-editable -- this page's copy is a
@@ -224,7 +226,7 @@ export default async function HomeVisitPage() {
         lede="One visit, or a programme with the same physiotherapist."
       >
         {packages.length > 0 ? (
-          <HomeVisitPackages packages={packages} leadCount={leadCount} />
+          <HomeVisitPackages packages={packages} />
         ) : (
           <p className="text-center text-sm text-slate-500">
             Home visit packages are being finalised - please check back shortly.
@@ -268,6 +270,6 @@ export default async function HomeVisitPage() {
         photoId="cta-home-visit"
         photoAlt="An older couple side by side in their front room, smiling at the tablet they are booking on"
       />
-    </>
+    </HomeVisitOnly>
   );
 }

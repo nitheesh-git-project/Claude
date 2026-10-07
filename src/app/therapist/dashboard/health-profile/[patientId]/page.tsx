@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -248,9 +247,9 @@ export default async function TherapistPatientHealthProfilePage({
       headerSubtitle={patient.patient_code ?? "Patient"}
     >
       <div className="max-w-2xl mx-auto space-y-6">
-        <Link href="/therapist/dashboard/health-profile" className="text-xs text-teal-700 font-semibold">
-          ← Back to My Patients
-        </Link>
+        {/* No "Back to My Patients" link: this page sits inside the dashboard
+            shell, whose sidebar keeps My Patients highlighted and one tap
+            away. */}
 
         {/* The edit-access card used to sit here, three sections above the
             only thing it unlocks. It now lives inside the Pain Map card,

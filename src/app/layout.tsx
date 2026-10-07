@@ -7,6 +7,7 @@ import FarewellBanner from "@/components/FarewellBanner";
 import Footer from "@/components/Footer";
 import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
+import PublicBookBar from "@/components/PublicBookBar";
 import { SectionNavProvider } from "@/components/SectionNavContext";
 import { getLayoutSettings } from "@/lib/siteSettingsCache";
 import { devContactFromRow } from "@/lib/devReachout";
@@ -15,6 +16,9 @@ import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings"
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
 import RouteProgress from "@/components/system/RouteProgress";
+import NavigationLoader from "@/components/system/NavigationLoader";
+import DeviceThemeFollower from "@/components/system/DeviceThemeFollower";
+import { deviceThemeBootScript } from "@/lib/deviceTheme";
 import FormValidationChrome from "@/components/system/FormValidationChrome";
 import ErrorAutoScroll from "@/components/system/ErrorAutoScroll";
 import LinkProgress from "@/components/system/LinkProgress";
@@ -22,6 +26,9 @@ import NumericInputGuard from "@/components/system/NumericInputGuard";
 import ToastViewport from "@/components/system/ToastViewport";
 import { ToastProvider } from "@/lib/toast";
 import { PendingWorkProvider } from "@/lib/pendingWork";
+import { PricingProvider, type PricingConfig } from "@/components/pricing/PricingProvider";
+import { pricingPendingScript } from "@/lib/pricingPendingScript";
+import { rowToPricing } from "@/lib/countryPricingServer";
 import {
   DEFAULT_SPLASH_CONFIG,
   splashBootScript,
@@ -92,6 +99,8 @@ export default async function RootLayout({
     farewell: farewellRow,
     splash: splashRow,
     devContact: devContactRow,
+    pricing: pricingRow,
+    followDeviceTheme,
   } = await getLayoutSettings();
   // The developer credit under the footer's copyright. On unless an admin
   // switched it off -- and an unreadable row is "could not check", not "off".
@@ -137,8 +146,25 @@ export default async function RootLayout({
         : DEFAULT_SPLASH_CONFIG.revisitAwayMs,
   };
 
+  // Prices for visitors outside India (Catalog -> Countries & currency).
+  // The same for everybody, so it can live in this cached layout; the
+  // browser picks the visitor's own row. Rupees for everyone until the
+  // master switch is on.
+  const pricingConfig: PricingConfig = {
+    internationalEnabled: pricingRow.settings?.international_pricing_enabled === true,
+    pickerEnabled: pricingRow.settings?.country_picker_enabled !== false,
+    homeVisitOutsideIndia: pricingRow.settings?.home_visit_outside_india === true,
+    rows: pricingRow.rows.map(rowToPricing),
+    debug: showDebugNav,
+  };
+  const pricingScript = pricingPendingScript(pricingConfig.internationalEnabled);
+  // Light or dark (Settings -> Public Site -> Appearance). Empty, and so
+  // never dark, while the switch is off.
+  const themeScript = deviceThemeBootScript(followDeviceTheme);
+
   return (
-    // suppressHydrationWarning covers this one element's own attributes:
+    // suppressHydrationWarning covers this one element's own attributes
+    // (data-splash, and data-theme from the appearance script):
     // the splash boot script below writes data-splash onto <html> before
     // React hydrates, so the server's markup and the live DOM legitimately
     // differ by that attribute. It does not reach any descendant, so a real
@@ -160,6 +186,14 @@ export default async function RootLayout({
         {splash.enabled && (
           <script dangerouslySetInnerHTML={{ __html: splashBootScript(splash) }} />
         )}
+        {/* Hides prices until PricingProvider has formatted them in the
+            visitor's currency, so a foreign visitor never sees the rupee
+            figure the cached HTML carries. Only when local prices are on. */}
+        {pricingScript && <script dangerouslySetInnerHTML={{ __html: pricingScript }} />}
+        {/* Dark before the first paint on a dark device, when the admin has
+            switched "follow the device" on -- an effect would flash the
+            light page first. src/lib/deviceTheme.ts. */}
+        {themeScript && <script dangerouslySetInnerHTML={{ __html: themeScript }} />}
       </head>
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-800 font-sans">
         {/* Always in the HTML, painted only when the script above says so -
@@ -176,7 +210,12 @@ export default async function RootLayout({
               survives the router.refresh() that control fires -- the tree
               underneath re-renders, this does not unmount. */}
           <ToastProvider>
+          <PricingProvider config={pricingConfig}>
+          <DeviceThemeFollower followDevice={followDeviceTheme} />
           <RouteProgress />
+          {/* The word-roll loader over the content while the next page loads;
+              under every nav and sidebar, so they stay in place. */}
+          <NavigationLoader offsetTop={showDebugNav} />
           {/* Every link reports itself, not only the ones written through
               ProgressLink or useRouter. useSearchParams inside it makes this
               subtree opt into client rendering, hence the Suspense -- the
@@ -225,7 +264,9 @@ export default async function RootLayout({
             devCreditEnabled={devCreditEnabled}
           />
           <ScrollHint />
+          <PublicBookBar homeVisitEnabled={homeVisitEnabled} />
         </SectionNavProvider>
+          </PricingProvider>
           </ToastProvider>
         </PendingWorkProvider>
       </body>

@@ -212,6 +212,10 @@ function DateFieldDialog({
     labelledBy: titleId,
   });
   const todayKey = toDateKey(new Date(nowMs));
+  // Today must bring the grid back to this month even when today is already
+  // the selection -- the case where the selection does not change, so the
+  // grid has nothing to follow. Remounting it opens it on the selected month.
+  const [gridKey, setGridKey] = useState(0);
 
   return (
     <OverlayPortal>
@@ -241,6 +245,7 @@ function DateFieldDialog({
           </div>
 
           <BookingCalendar
+            key={gridKey}
             compact
             selectedDateKey={draftDate ?? ""}
             onSelect={setDraftDate}
@@ -293,7 +298,10 @@ function DateFieldDialog({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setDraftDate(todayKey)}
+                onClick={() => {
+                  setDraftDate(todayKey);
+                  setGridKey((k) => k + 1);
+                }}
                 className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
               >
                 Today

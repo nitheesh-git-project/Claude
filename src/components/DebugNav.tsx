@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useRouter } from "@/lib/useRouter";
 import { debugNow, getDebugNowOffsetMs, setDebugNowOffsetMs } from "@/lib/debugNow";
 import DebugResetButton from "@/components/DebugResetButton";
 import { MARKETING_PAGES } from "@/lib/marketingNav";
 import { isDeveloperRoute } from "@/lib/dashboardShellRoutes";
+import { COUNTRIES, HOME_COUNTRY } from "@/lib/countryPricing";
+import { DEBUG_COUNTRY_COOKIE } from "@/lib/countryGeo";
+import { usePricing } from "@/components/pricing/PricingProvider";
 
 // datetime-local wants "YYYY-MM-DDTHH:mm" in the browser's local timezone,
 // not an ISO/UTC string -- sliceing toISOString would silently shift the
@@ -54,6 +57,26 @@ export default function DebugNav() {
   // every render would be pure overhead for no benefit.
   const [simInput, setSimInput] = useState(() => toLocalInputValue(debugNow()));
   const [active, setActive] = useState(() => getDebugNowOffsetMs() !== 0);
+  // The country the whole app is priced for, forced from here so local
+  // prices and the home-visit rule can be tried without a VPN. Honoured by
+  // the browser and by every checkout route only while this bar exists.
+  const { country } = usePricing();
+  const [forcedCountry, setForcedCountry] = useState("");
+  useEffect(() => {
+    const match = document.cookie.match(new RegExp(`(?:^|; )${DEBUG_COUNTRY_COOKIE}=([A-Z]{2})`));
+    // A mount-time read of a cookie; there is none on the server.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (match) setForcedCountry(match[1]);
+  }, []);
+
+  function applyCountry(code: string) {
+    document.cookie = code
+      ? `${DEBUG_COUNTRY_COOKIE}=${code}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`
+      : `${DEBUG_COUNTRY_COOKIE}=; path=/; max-age=0; samesite=lax`;
+    // A full reload, like the clock: prices, the nav and the server's
+    // checkout all read the country once per page.
+    window.location.reload();
+  }
 
   function applySimulatedTime() {
     const target = new Date(simInput).getTime();
@@ -128,6 +151,23 @@ export default function DebugNav() {
             Reset to Real Time
           </button>
         )}
+
+        <span className="text-xs text-slate-400 hidden md:inline ml-2">Country:</span>
+        <select
+          aria-label="Test as a visitor from"
+          data-testid="debug-country"
+          value={forcedCountry}
+          onChange={(e) => applyCountry(e.target.value)}
+          className="bg-slate-800 text-teal-300 text-xs font-mono py-1.5 px-2 rounded-lg border border-slate-700 focus:outline-none focus:border-teal-500"
+        >
+          <option value="">Real location ({country})</option>
+          <option value={HOME_COUNTRY}>India (INR)</option>
+          {COUNTRIES.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name} ({c.currency})
+            </option>
+          ))}
+        </select>
 
         {/* Pre-launch only, like the bar itself. The server decides whether
             it actually works -- see DebugResetButton. */}

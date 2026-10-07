@@ -1,5 +1,5 @@
 import Link from "next/link";
-import CompleteSessionButton from "@/components/CompleteSessionButton";
+import FinishSessionButton from "@/components/therapist/FinishSessionButton";
 import MarkNoShowButton from "@/components/MarkNoShowButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import SessionNoteButton from "@/components/therapist/SessionNoteButton";
@@ -12,7 +12,7 @@ import { isNoteEditable, noteEditHoursLeft } from "@/lib/sessionNotes";
 import type { TherapistDashboardData } from "@/lib/therapistDashboardData";
 import RevealContactButton from "@/components/therapist/RevealContactButton";
 import { maskPhone } from "@/lib/contactMasking";
-import { narrowToCategory } from "@/lib/carePlans";
+import { formatRupees } from "@/lib/formatMoney";
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -24,6 +24,26 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
 // A completed session with no_show=true is otherwise visually identical to
 // one that actually happened, so it gets its own badge colour.
 const NO_SHOW_STYLE = "text-orange-700 bg-orange-50";
+
+// What the Done button needs to open the finishing note -- the same note
+// props the card's note button gets, shared by both card kinds.
+function finishProps(d: TherapistDashboardData, a: TherapistDashboardData["appointments"][number]) {
+  const note = d.noteByAppointmentId.get(a.id) ?? null;
+  return {
+    appointmentId: a.id,
+    slotTime: a.slot_time,
+    patientName: d.patientMap.get(a.patient_id)?.full_name ?? "Patient",
+    sessionLabel: formatSlotTime(a.slot_time, a.timezone),
+    note,
+    editable: !note || isNoteEditable(note, d.nowMs),
+    hoursLeft: note ? noteEditHoursLeft(note, d.nowMs) : null,
+    patientId: a.patient_id,
+    recommendable: d.recommendableRates,
+    recommendationCategoryId: a.category_id ?? null,
+    recommendationNeedsApproval: d.carePlanRequiresApproval,
+    recommendationAwaitingClinic: d.patientsAwaitingClinic.has(a.patient_id),
+  };
+}
 
 // The two session cards a therapist sees -- a video consultation and a
 // home visit. They were closures inside the old single-page dashboard;
@@ -37,7 +57,7 @@ export function renderTherapistSessionCard(
     patientMap,
     noteByAppointmentId,
     nowMs: nowMsForOverview,
-    recommendablePackages,
+    recommendableRates,
     patientsAwaitingClinic,
     carePlanRequiresApproval,
   } = d;
@@ -98,18 +118,19 @@ export function renderTherapistSessionCard(
             status={a.status}
             durationMinutes={a.duration_minutes}
           />
+          {/* Done opens the note (with the Pain Map); saving it is what
+              finishes the session, so a confirmed card has no separate
+              note button. */}
           {a.status === "confirmed" && (
             <>
-              <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+              <FinishSessionButton {...finishProps(d, a)} />
               <MarkNoShowButton appointmentId={a.id} />
             </>
           )}
           {/* The note lives on the card, not behind the patient's chart:
               the moment a therapist can write an accurate note is the
               moment they finish and are still looking at the session. */}
-          {!a.no_show &&
-            (a.status === "completed" ||
-              (a.status === "confirmed" && !!a.slot_time && new Date(a.slot_time).getTime() < nowMsForOverview)) && (
+          {!a.no_show && a.status === "completed" && (
               <SessionNoteButton
                 appointmentId={a.id}
                 patientName={patient?.full_name ?? "Patient"}
@@ -126,12 +147,10 @@ export function renderTherapistSessionCard(
                 }
                 patientId={a.patient_id}
                 sessionCompleted={a.status === "completed"}
-                // Narrowed to this session's own condition. The dashboard
-                // loads every recommendable package once because it covers
-                // all of this therapist's patients, so the narrowing has to
-                // happen per card -- and scanning the whole catalog is how
-                // the wrong programme gets picked.
-                recommendable={narrowToCategory(recommendablePackages, a.category_id ?? null)}
+                // Every condition the clinic prices, starting on this
+                // session's own.
+                recommendable={recommendableRates}
+                recommendationCategoryId={a.category_id ?? null}
                 recommendationNeedsApproval={carePlanRequiresApproval}
                 recommendationAwaitingClinic={patientsAwaitingClinic.has(a.patient_id)}
               />
@@ -143,6 +162,8 @@ export function renderTherapistSessionCard(
             role="therapist"
             existingRating={a.therapist_rating}
             existingFeedback={a.therapist_feedback}
+            counterpartName={patient?.full_name ?? null}
+            viewerName={d.profile?.full_name ?? null}
           />
         )}
       </div>
@@ -299,7 +320,7 @@ export function renderTherapistHomeVisitCard(
             <i className="fa-solid fa-circle-check mr-1.5" />
             Cash collected
             {visit.cash_collected_amount_paise
-              ? ` - ₹${(visit.cash_collected_amount_paise / 100).toLocaleString("en-IN")}`
+              ? ` - ₹${formatRupees(visit.cash_collected_amount_paise)}`
               : ""}
           </p>
         )}
@@ -308,7 +329,7 @@ export function renderTherapistHomeVisitCard(
             travelling to the address above. */}
         {a.status === "confirmed" && (
           <div className="flex items-center gap-2 flex-wrap">
-            <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
+            <FinishSessionButton {...finishProps(d, a)} />
             <MarkNoShowButton appointmentId={a.id} />
           </div>
         )}
@@ -319,6 +340,8 @@ export function renderTherapistHomeVisitCard(
             role="therapist"
             existingRating={a.therapist_rating}
             existingFeedback={a.therapist_feedback}
+            counterpartName={patient?.full_name ?? null}
+            viewerName={d.profile?.full_name ?? null}
           />
         )}
       </div>

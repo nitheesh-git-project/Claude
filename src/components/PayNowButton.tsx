@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { payForAppointment } from "@/lib/razorpay";
+import { formatRupees } from "@/lib/formatMoney";
 
 export default function PayNowButton({
   appointmentId,
@@ -75,7 +76,7 @@ export default function PayNowButton({
       >
         {loading
           ? "Please wait..."
-          : `Pay ₹${(amountPaise / 100).toLocaleString("en-IN")} Now`}
+          : `Pay ₹${formatRupees(amountPaise)} Now`}
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
     </div>

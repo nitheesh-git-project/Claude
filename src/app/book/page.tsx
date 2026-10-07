@@ -7,7 +7,7 @@ import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { BOOKING_LEAD_TIME_HOURS } from "@/lib/bookingSlots";
 import BookingBackToSessions from "@/components/BookingBackToSessions";
 import { Reveal } from "@/components/motion/primitives";
-import { parseBookingLanguages } from "@/lib/adminSettings";
+import { DEFAULT_ADMIN_SETTINGS, parseBookingLanguages } from "@/lib/adminSettings";
 
 export const metadata: Metadata = {
   title: "Book a Session | MoveRestore",
@@ -32,6 +32,7 @@ export default async function BookPage() {
     { data: promoRow },
     { data: cancelRow },
     { data: leadRow },
+    { data: triesRow },
   ] = await Promise.all([
     // `description` and `points` are what the service picker's cards and
     // detail view read. They have existed on this table since it was
@@ -86,6 +87,11 @@ export default async function BookPage() {
     // window was offered the old one by its own picker and had the booking
     // refused at the last step of checkout.
     supabase.from("site_settings").select("online_booking_lead_time_hours").maybeSingle(),
+
+    // How many unsuccessful payment tries open a new patient's dashboard.
+    // Its own query like the rest, so a database without the column yet
+    // loses this value (the default stands), not the page.
+    supabase.from("site_settings").select("payment_tries_before_access").maybeSingle(),
   ]);
 
   const imageByCategoryId = new Map(
@@ -132,6 +138,11 @@ export default async function BookPage() {
               typeof leadRow?.online_booking_lead_time_hours === "number"
                 ? leadRow.online_booking_lead_time_hours
                 : BOOKING_LEAD_TIME_HOURS
+            }
+            paymentTriesBeforeAccess={
+              typeof triesRow?.payment_tries_before_access === "number"
+                ? triesRow.payment_tries_before_access
+                : DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess
             }
           />
         </Suspense>

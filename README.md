@@ -531,7 +531,7 @@ states" above.
 | --- | --- | --- |
 | **Today** | Today · Approvals · Risk · Activity | What is waiting on me right now. **Activity** is the one feed scoped by desk: a limited scope reads entries whose action belongs to a section it can work *and* whose actor sits at that desk; a Master Admin reads the whole log under **Logs**. |
 | **Sessions** | Schedule · All Sessions · Roster · Delivery · Recommendations · New Booking | What is being delivered, and by whom. **Recommendations** is the review queue - a therapist's care plan waits here before the patient sees it, and it is also where an admin writes one on a clinician's behalf. |
-| **People** | Patients · Therapists · Partners | Who is this person, and their whole history |
+| **People** | Patients · Therapists · Partners · Abandoned checkouts | Who is this person, and their whole history - and who started a booking but never paid |
 | **Money** | Summary · Business Health · Transactions · Payouts · Owed by Patients · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
 | **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |

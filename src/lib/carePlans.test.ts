@@ -9,6 +9,11 @@ import {
   isQueueStale,
   validateCarePlanInput,
   narrowToCategory,
+  buildCourseSnapshot,
+  coursePricePaise,
+  offerKindFor,
+  validateSessionCount,
+  type CourseRate,
   type CarePlanStatus,
   type CarePlanState,
 } from "@/lib/carePlans";
@@ -113,7 +118,8 @@ describe("validateCarePlanInput", () => {
   });
   const base = {
     offerKind: "session_package" as const,
-    packageId: "p1",
+    categoryId: "cat-1",
+    sessionCount: 6,
     handsOnRequired: false,
     frequencyPerWeek: 2,
     clinicalRationale: "Ongoing lumbar instability.",
@@ -144,6 +150,66 @@ describe("validateCarePlanInput", () => {
     expect(
       validateCarePlanInput({ ...base, frequencyPerWeek: null }, snapshot, { maxFrequencyPerWeek: 5 }).ok
     ).toBe(true);
+  });
+});
+
+describe("per-session recommendations", () => {
+  const rate: CourseRate = {
+    kind: "session_package",
+    categoryId: "cat-spine",
+    categoryTitle: "Spine Conditions",
+    imageUrl: "/photos/spine.jpg",
+    perSessionPaise: 49900,
+    sessionDurationMinutes: 60,
+    validityDays: 90,
+    travelFeeIncluded: false,
+  };
+
+  it("prices a course as the per-session price times the count, in paise", () => {
+    expect(coursePricePaise(49900, 8)).toBe(399200);
+    const snap = buildCourseSnapshot(rate, 8);
+    expect(snap.sessionCount).toBe(8);
+    expect(snap.pricePaise).toBe(399200);
+    expect(snap.perSessionPaise).toBe(49900);
+    expect(snap.course).toBe(true);
+    expect(snap.title).toBe("Spine Conditions");
+    expect(snap.imageUrl).toBe("/photos/spine.jpg");
+  });
+
+  it("survives a round trip through the stored snapshot", () => {
+    const parsed = parseOfferSnapshot(JSON.parse(JSON.stringify(buildCourseSnapshot(rate, 3))));
+    expect(parsed?.course).toBe(true);
+    expect(parsed?.categoryId).toBe("cat-spine");
+    expect(parsed?.pricePaise).toBe(149700);
+  });
+
+  it("reads an older programme snapshot as not a course", () => {
+    const old = parseOfferSnapshot(
+      buildOfferSnapshot("session_package", { title: "Six", session_count: 6, price_paise: 1 })
+    );
+    expect(old?.course).toBe(false);
+    expect(old?.perSessionPaise).toBeNull();
+  });
+
+  it("only counts travel as included on a home-visit rate", () => {
+    expect(buildCourseSnapshot({ ...rate, travelFeeIncluded: true }, 2).travelFeeIncluded).toBe(false);
+    expect(
+      buildCourseSnapshot({ ...rate, kind: "home_visit_package", travelFeeIncluded: true }, 2)
+        .travelFeeIncluded
+    ).toBe(true);
+  });
+
+  it("makes hands-on mean home visits, and nothing else", () => {
+    expect(offerKindFor(true)).toBe("home_visit_package");
+    expect(offerKindFor(false)).toBe("session_package");
+  });
+
+  it("accepts 1-30 whole sessions and refuses the rest", () => {
+    expect(validateSessionCount(1)).toBeNull();
+    expect(validateSessionCount(30)).toBeNull();
+    for (const bad of [0, 31, 2.5, NaN, "6", null]) {
+      expect(validateSessionCount(bad)).not.toBeNull();
+    }
   });
 });
 

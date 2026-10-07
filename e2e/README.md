@@ -17,6 +17,15 @@ Node-minted session cookie, which covers authentication but not data: a page
 that resolves something with the browser-side client still needs the network
 from Chromium.
 
+In a sandbox whose egress goes through a TLS-inspecting proxy, that network is
+usually there and only the trust is missing: Chromium reads `~/.pki/nssdb`, not
+the system bundle, and fails every Supabase call with
+`ERR_CERT_AUTHORITY_INVALID`. Add the proxy's CA certificates to that store
+with `certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n <name> -i <cert.pem>`
+(package `libnss3-tools`) and run with `PLAYWRIGHT_CHROMIUM_PATH` set, which
+also routes Chromium through `HTTPS_PROXY`. That is trusting the proxy, never
+disabling verification.
+
 | Case | Fails as | Why |
 | --- | --- | --- |
 | `therapist-request` TR-002 | the requested-specialist chip never renders | `BookingWizard` resolves `?therapist=` against `public_therapist_profiles` from the browser, because the page is ISR-cached |
@@ -106,19 +115,24 @@ total, which moves with every spec added.
 | `admin-refresh-badge` | 4 | the badge counting other people's changes, not the admin's own taps |
 | `admin-detail-overlay` | 4 | the overlay and the real route behind it rendering identically |
 | `admin-settings-ia` | 7 | Settings' four captions and per-screen blurbs |
-| `dev-reachout` | 4 | the footer's developer credit end to end: Contact me → Say hello → Let's talk → a row, a filled honeypot writing nothing, a Master Admin marking it contacted and keeping a note, and the switch asking on **both** directions with cancel changing nothing and the credit, the pages and the route following it |
+| `dev-reachout` | 4 | the footer's developer credit end to end: Contact me → Say hello → Let's talk → a row, a filled honeypot writing nothing, a Master Admin marking it contacted and keeping a dated thread of notes (add, edit, delete), and the switch asking on **both** directions with cancel changing nothing and the credit, the pages and the route following it |
 | `admin-partners-and-credentials` | 6 | the three partner layouts, and a credential still readable after the refresh its own write triggers |
 | `admin-profile-session-order` | 3 | a person's sessions ordered by when they are, not when they were booked |
 | `logs-subject-timeline` | 1 | tapping a log entry's subject, and the way back |
 | `account-created-stamp` | 8 | every account saying when it was created, with the time on it |
 | `booking-pay-button-live` | 3 | the pay button tappable while its price loads, with the wait stated rather than enforced |
+| `booking-retry-after-cancel` | 4 | closing the payment sheet, then Back + Pay or a reload, books again at the same slot: the unpaid draft is replaced, never "You already have a session scheduled around this time"; and a new patient's account stays locked (no dashboard link, no approval) until the try limit, which unlocks it with "Your account is ready"; signing in while locked shows Finish your booking (Pay now / Pick another time), while a /patient/register signup still sees Approval Pending; the locked account is listed under People -> Abandoned checkouts and never in Pending Approvals (needs browser egress) |
+| `activity-timeline` | 2 | a session's history names its booking, payment and assignment with who did each; a patient's Activity log filters by what happened (needs browser egress for the profile screen) |
+| `assign-availability` | 1 | an admin cannot assign a therapist who is not working that hour (409 with the reasons), and opening the hour on the roster lets the same request through |
 | `booking-exit-link` | 2 | the way out of the wizard following the account - and never offering `/pending-approval` mid-booking |
 | `checkout-speed` | 5 | create answering with the quote and the Razorpay order in one trip, and the tap-to-sheet timing route |
 | `service-picker` | 11 | the service chosen before the slot, on both wizards |
-| `date-field` | 5 | the clinic's own month grid in place of the browser's panel, including a past date |
+| `health-profile-showcase` | 2 | a sample patient dashboard per specialty, labelled as a sample, that moves on by itself every five seconds and stops for good once a tab is picked |
+| `date-field` | 6 | the clinic's own month grid in place of the browser's panel, including a past date, and Today bringing the grid back to this month |
 | `form-validation-chrome` | 2 | the app's own message in place of the OS tooltip |
 | `numeric-input` | 1 | a number box refusing `e`, `E` and `+` |
 | `navigation-feedback` | 3 | a tap acknowledged, and a screen already rendered not fetched again |
+| `realtime-reconnect` | 1 | "Live updates paused" draws once and its Refresh reconnects every channel and clears it (the realtime server is stood in for, since sandbox egress cannot carry the socket) |
 | `section-nav` | 7 | the public pages' section rail and scroll arrow |
 | `catalog-detail` | 8 | the public catalog's detail dialogs |
 | `catalog-cover-image` | 11 | a cover uploaded, positioned and rendering the same on card, dialog and dashboard |
@@ -126,6 +140,16 @@ total, which moves with every spec added.
 | `journey-pace` | 16 | the home walkthrough's admin-configured rotation pace |
 | `session-completed-cutoff` | 11 | the cutoff on every surface that lists a session |
 | `debug-clock` | 2 | the debug bar's simulated clock moving the completion gate while the debug bar is on; asserts refusals only, since a successful completion writes append-only settlement rows |
+| `finish-session` | 5 | a therapist's Done opening the session note with the Pain Map step; the route refusing Done without a note; the not-started line keeping No-show beside Done; a neuro patient finishing on the note alone, an orthopaedic one refused without the Pain Map (the last two append-only, disposable project only) |
+| `layout-audit` | 81 | every public, patient, therapist, hospital and admin page at 17 viewports covering 20:9, 19.5:9, 22:9, 16:9, 16:10, 5:3, 7:5, 5:4 and the 12.9" iPad: no sideways scroll, nothing off the edge, no clipped text, no overlaps. Read-only; `LAYOUT_ONLY=<substring>` narrows it |
+| `layout-states` | 7 | the same 17-viewport checks on what only exists after a tap: the public menu, the patient More sheet and the admin menu, booking step 2, the programme scheduler, the therapist's finish dialog with a recommendation open, the admin session drawer. Seeds one confirmed session and deletes it |
+| `programme-scheduling-timezone` | 3 | scheduling an owned programme: a zone-less time read in India not the server's zone, an off-the-hour time still refused, and the dashboard scheduler booking a tapped time. Run against a UTC server to reproduce the original bug |
+| `session-feedback` | 2 | a patient rating with stars, a quick pick and a note, then the thank-you and, on a later visit, the summary; a therapist's low score offering what could be better and sending a pick alone. Checks the saved text. Leaves a completed session behind |
+| `pain-trend` | 1 | "Are you getting better?" keeping two same-day exams as two points. Append-only writes - disposable project only |
+| `recommendation-course` | 6 | a recommendation priced as the condition's per-session price x the count; hands-on making it home visits; the patient's card with the condition photo and no address on a video plan; a new address with a pincode reaching checkout; the therapist's number field and live total; the Suggested teaser on every other patient screen. Append-only writes - disposable project only |
+| `meet-link-note` | 2 | the note on a patient's and a therapist's online tile saying, as a clock time, when the Meet link shows |
+| `patient-cancel-cutoff` | 3 | the online cancel cut-off: the route refusing inside it, the setting moving it (and its range check), the Cancel button hidden inside it |
+| `therapist-patient-chart` | 1 | a patient's chart inside the therapist dashboard: no back link, the sidebar keeps My Patients lit |
 | `admin-login` | 4 | the real login form. Needs the relay (see `docs/rules/testing.md`); skips itself otherwise |
 
 ### Clinical, roster and catalogue
@@ -150,6 +174,10 @@ total, which moves with every spec added.
 | `package-form-flags` | 1 | the placement switches that decided nothing are gone |
 | `booking-rules` | 9 | lead time, the cancellation window, and the bulk-scheduler regression |
 | `home-visit-disabled` | 2 | the master switch off, flipped in the **database** rather than through the route - the case the cache could not survive |
+| `dark-mode` | 4 | the Appearance switch: off stays light on a dark device, on follows the device (and live), the brand button keeps its fill, printing stays light |
+| `chrome-and-loader` | 4 | the sign-in nav keeps its buttons, a slow dashboard tab shows the word-roll loader with the sidebar still in place, the admin sidebar is light, and /conditions puts programmes first |
+| `impersonation-exit` | 1 | "Exit and go back to admin" restores the admin's own session and lands on the dashboard, not the login page |
+| `country-pricing` | 3 | Countries & currency: the screen and its search, a US visitor reading dollars rounded up to .99 while the quote charges the rupee equal, no home visit offered abroad, and no country switched on without a rate |
 | `waitlist-serve-area` | 1 | marking an out-of-area request served, both answers |
 
 ## Adding one

@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readCarePlanSettings } from "@/lib/carePlanAuthoring";
-import { resolveRecommendablePackage } from "@/lib/carePlanServer";
-import { parseOfferSnapshot, type CarePlanOfferKind } from "@/lib/carePlans";
+import { resolveCourseRate, resolveRecommendablePackage } from "@/lib/carePlanServer";
+import { buildCourseSnapshot, parseOfferSnapshot, type CarePlanOfferKind } from "@/lib/carePlans";
+import { formatRupees } from "@/lib/formatMoney";
 
 type AdminClient = SupabaseClient;
 
@@ -327,24 +328,34 @@ export async function describeOfferDrift(
     const packageId = version.session_package_id ?? version.home_visit_package_id;
     if (!packageId) return null;
 
-    const resolved = await resolveRecommendablePackage(
-      admin,
-      version.offer_kind as CarePlanOfferKind,
-      packageId
-    );
+    const was = parseOfferSnapshot(version.offer_snapshot);
+    const kind = version.offer_kind as CarePlanOfferKind;
+    // A per-session recommendation drifts when the condition's own price
+    // does; an older one when its programme row does.
+    let resolved: { snapshot: { sessionCount: number; pricePaise: number } } | null;
+    if (was?.course && was.categoryId) {
+      const rate = await resolveCourseRate(admin, kind, was.categoryId);
+      if (!rate) {
+        return kind === "home_visit_package"
+          ? "Home visits are switched off or have no price set, so the patient could not buy this. Turn it down and ask for a fresh recommendation."
+          : "This condition is no longer offered, so the patient could not buy this. Turn it down and ask for a fresh recommendation.";
+      }
+      resolved = { snapshot: buildCourseSnapshot(rate, was.sessionCount) };
+    } else {
+      resolved = await resolveRecommendablePackage(admin, kind, packageId);
+    }
     if (!resolved) {
       return "The programme behind this recommendation is no longer active or recommendable, so the patient could not buy it. Put it back on the catalogue, or turn this down and ask for a fresh recommendation.";
     }
 
-    const was = parseOfferSnapshot(version.offer_snapshot);
     if (!was) return null;
 
     if (was.sessionCount !== resolved.snapshot.sessionCount) {
       return `This was written for ${was.sessionCount} sessions and the programme now has ${resolved.snapshot.sessionCount}. Approving it would offer the patient a plan checkout then refuses. Turn it down and ask for a fresh recommendation.`;
     }
     if (was.pricePaise !== resolved.snapshot.pricePaise) {
-      const inr = (p: number) => `₹${(p / 100).toLocaleString("en-IN")}`;
-      return `This was written at ${inr(was.pricePaise)} and the programme now costs ${inr(resolved.snapshot.pricePaise)}. Approving it would quote one figure and charge another. Turn it down and ask for a fresh recommendation.`;
+      const inr = (p: number) => `₹${formatRupees(p)}`;
+      return `This was written at ${inr(was.pricePaise)} and it now costs ${inr(resolved.snapshot.pricePaise)}. Approving it would quote one figure and charge another. Turn it down and ask for a fresh recommendation.`;
     }
     return null;
   } catch {

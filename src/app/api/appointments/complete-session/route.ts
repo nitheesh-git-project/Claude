@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
@@ -185,6 +186,55 @@ export async function POST(request: NextRequest) {
         { error: completionRefusal(kind, lateGraceMinutes), notYet: true },
         { status: 409 }
       );
+    }
+
+    // Done means the clinical record is written: a session note for this
+    // session, and the Pain Map updated during it (owner's rule, every
+    // specialty). The therapist's Done opens the note first and calls this
+    // only after it saved -- this is the copy that binds. "During it" is
+    // from an hour before the slot, so an exam recorded while setting up
+    // counts. An admin closing the record is exempt, as for the clock.
+    // Not applied to a no-show: there was nobody to examine.
+    if (kind === "done") {
+      const sinceIso = new Date(new Date(appointment.slot_time).getTime() - 60 * 60_000).toISOString();
+      const [
+        { data: noteRow, error: noteError },
+        { count: painCount, error: painError },
+        { data: specialtyRow, error: specialtyError },
+      ] = await Promise.all([
+        admin.from("session_notes").select("id").eq("appointment_id", appointmentId).maybeSingle(),
+        admin
+          .from("pain_assessments")
+          .select("id", { count: "exact", head: true })
+          .eq("patient_id", appointment.patient_id)
+          .eq("submitted_by", user.id)
+          .gte("created_at", sinceIso),
+        // Only an orthopaedic chart has a Pain Map; neuro and paediatric
+        // patients are charted in their own terms, so requiring pain scores
+        // of them would have a therapist invent numbers nobody ever reads.
+        admin.from("patient_condition_profiles").select("specialty").eq("patient_id", appointment.patient_id).maybeSingle(),
+      ]);
+      if (noteError || painError || specialtyError) {
+        return NextResponse.json(
+          { error: "We couldn't check this session's note just now. Please try again." },
+          { status: 503 }
+        );
+      }
+      if (!noteRow) {
+        return NextResponse.json(
+          { error: "Write the session note before marking this session done.", code: "note_required" },
+          { status: 409 }
+        );
+      }
+      if (!painCount && parseConditionSpecialty(specialtyRow?.specialty) === "ortho") {
+        return NextResponse.json(
+          {
+            error: "Update the Pain Map for this session before marking it done.",
+            code: "pain_map_required",
+          },
+          { status: 409 }
+        );
+      }
     }
   }
 

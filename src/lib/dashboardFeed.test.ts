@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildPatientFeed,
   buildAdminFeed,
   queueRollup,
   sortFeed,
@@ -269,5 +270,26 @@ describe("an audit action reads as the sentence somebody wrote", () => {
       ],
     });
     expect(items.map((i) => i.title)).toContain("Widget updated");
+  });
+});
+
+describe("buildPatientFeed: unbooked sessions", () => {
+  const u = (purchaseId: string, pending: number) => ({
+    purchaseId,
+    title: "QA Scheduling Condition",
+    pending,
+    since: "2026-10-01T10:00:00Z",
+  });
+  it("names one programme's unbooked sessions on its own", () => {
+    const items = buildPatientFeed({ appointments: [], conditionRequests: [], unscheduled: [u("a", 5)] });
+    expect(items.filter((i) => i.title.includes("still to book")).map((i) => i.title)).toEqual([
+      "5 sessions still to book",
+    ]);
+  });
+  it("merges several programmes into one item rather than a stack of copies", () => {
+    const items = buildPatientFeed({ appointments: [], conditionRequests: [], unscheduled: [u("a", 5), u("b", 5), u("c", 3)] });
+    const unbooked = items.filter((i) => i.title.includes("still to book"));
+    expect(unbooked).toHaveLength(1);
+    expect(unbooked[0].title).toBe("13 sessions still to book across 3 programmes");
   });
 });

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { debugNow } from "@/lib/debugNow";
 import { useJoinWindow } from "@/lib/joinWindowContext";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { formatClinicTime } from "@/lib/formatDateTime";
 
 export default function JoinSessionButton({
   meetLink,
@@ -108,7 +109,26 @@ export default function JoinSessionButton({
     return () => clearTimeout(timer);
   }, [isPastCutoff, slotTimeMs, completedAfterMs]);
 
-  if (!meetLink) return null;
+  // When the Join button opens, as a clock time in the clinic's zone -- "at
+  // 5:45 PM" answers "when do I get my link?" without arithmetic.
+  const opensAt =
+    slotTimeMs === null ? null : formatClinicTime(new Date(slotTimeMs - beforeMs));
+
+  if (!meetLink) {
+    // No link yet: say where it will appear and when, instead of an empty
+    // space where people expect one. The link is created once a therapist is
+    // confirmed; the button opens at the join window either way.
+    const upcoming = (status === "requested" || status === "confirmed") && !isPastCutoff;
+    if (alwaysActive || !upcoming || !opensAt) return null;
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600">
+        <i className="fa-solid fa-video text-[10px] text-teal-700" aria-hidden="true" />
+        {status === "requested"
+          ? `The Meet link will show here once a therapist is confirmed - you can join from ${opensAt}.`
+          : `The Meet link will show here - you can join from ${opensAt}.`}
+      </span>
+    );
+  }
 
   // A cancelled session is not a completed one, and saying so would be a
   // plain lie on a row an admin is trying to read.
@@ -140,8 +160,8 @@ export default function JoinSessionButton({
     : isJoinable
       ? "Opens straight into the call - sign in to Google if asked."
       : beforeMinutes > 0
-        ? `Opens ${beforeMinutes} minutes before your session.`
-        : "Opens at your session time.";
+        ? `Opens at ${opensAt} - ${beforeMinutes} minutes before the session.`
+        : `Opens at ${opensAt}, the session time.`;
 
   return (
     <span className="inline-flex flex-col items-start gap-1">

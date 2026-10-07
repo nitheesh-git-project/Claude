@@ -554,7 +554,15 @@ client is the only writer and the log is append-only from any session.
   and the admin path never reaches a public bundle. A `hash` param on that
   route becomes a real fragment (the anchor-based shells need it) and is
   pattern-checked, since it is the one input that could otherwise smuggle a
-  host into the redirect. Link new "go to my dashboard" affordances at
+  host into the redirect. A signed-in caller with a dashboard is handed on
+  from the browser (`DashboardHop`, `router.replace`) rather than with a
+  server `redirect()`: the server redirect ended `/dashboard`'s loading
+  screen and made the browser fetch the dashboard's own, which left the
+  page blank for about half a second. The hop keeps the same skeleton up
+  throughout, and `/dashboard` counts as a dashboard route for hiding the
+  public Navbar and Footer. The path still goes only to the person it
+  belongs to; a signed-out caller is still a server redirect.
+  Link new "go to my dashboard" affordances at
   `/dashboard` rather than adding a fifth role map. The debug bar is the
   deliberate exception -- it still lists the admin routes, and is switched
   off before release.
@@ -666,7 +674,10 @@ one foreign key, `contacted_by`, points at `profiles`, which is never truncated
 (and is `on delete set null` regardless). **Do not add it to the `TRUNCATE`
 list**; `src/lib/devReachoutResetGuard.test.ts` reads the *last*
 `debug_reset_all_data` body and fails if its list names `dev_reachouts` or any
-statement touches `dev_contact_`.
+statement touches `dev_contact_`. **`dev_reachout_notes` is kept for the same
+reason**, and CASCADE cannot reach it either: its foreign keys point at
+`dev_reachouts` and `profiles`, neither truncated; the same test fails if the
+body names it or the `TRUNCATE` list gains `profiles`.
 
 **`faqs`, `testimonials` and `mission_principles` are kept for the same
 reason**, one table at a time with its own reason, as
@@ -814,15 +825,14 @@ line describing nothing but carelessness. Before real patients exist, remove
   dialog that can open inside them portalled from the child side, which is
   the side that matters.
 - **Every route tree has an error boundary, and a thrown message never
-  reaches the screen.** `RouteError` / `RouteLoading`
-  (`src/components/system/`) back `error.tsx` and `loading.tsx` in each
-  dashboard, with `global-error.tsx` for a root-layout throw (it inlines its
+  reaches the screen.** `RouteError` (`src/components/system/`) backs
+  `error.tsx` in each dashboard, with `global-error.tsx` for a root-layout throw (it inlines its
   styles and supplies its own `<html>`, because at that point nothing else
   has rendered). An Error's message can carry a column name or a row id and
   patients see these screens, so only Next's `digest` is shown. A dashboard
-  `loading.tsx` must pass `withSidebar`: the patient, therapist and hospital
-  dashboards render their sidebar per page rather than in a layout, so a
-  bare skeleton would blank the chrome on every navigation.
+  has **no** `loading.tsx`: every dashboard renders its sidebar per page
+  rather than in a layout, so a loading boundary blanks the chrome on every
+  navigation - the wait is `NavigationLoader` instead (`frontend.md`).
 - **A display code outlives the role that generated it.** `handle_new_user`
   inserts every self-signup as a patient, so an account promoted to admin or
   hospital later keeps its `PT####`. The unique indexes are scoped to the

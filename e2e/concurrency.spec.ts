@@ -15,6 +15,8 @@ import {
   E2E_MARKERS,
   deleteHomeVisitFixturePurchases,
   deleteReferralFixtures,
+  clinicSlot,
+  openTherapistHour,
 } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
@@ -239,7 +241,11 @@ test("assign-referral: concurrent assignment of two referrals to the same therap
   const hospitalId = await profileIdFor(admin, QA_EMAILS.hospital);
   const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
 
-  const slot = wholeHourFromNow(500 + Math.floor(Math.random() * 2000));
+  // A random daytime clinic hour (so parallel runs do not collide), opened
+  // on the therapist's roster: assignment refuses an hour they do not work,
+  // and this test is about the race, not the roster.
+  const slot = clinicSlot(20 + Math.floor(Math.random() * 80), 6 + Math.floor(Math.random() * 17));
+  const closeHour = await openTherapistHour(admin, therapistId, slot);
   const referralIds: string[] = [];
   for (let i = 0; i < 2; i++) {
     const { data } = await admin
@@ -264,7 +270,13 @@ test("assign-referral: concurrent assignment of two referrals to the same therap
       body: JSON.stringify({ referralId, therapistId, slotDateTime: slot }),
     }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
 
-  const [r1, r2] = await Promise.all([assign(referralIds[0]), assign(referralIds[1])]);
+  let r1: { status: number; body: unknown };
+  let r2: { status: number; body: unknown };
+  try {
+    [r1, r2] = await Promise.all([assign(referralIds[0]), assign(referralIds[1])]);
+  } finally {
+    await closeHour();
+  }
   // The loser can be caught by either the pre-write check (400, if the
   // winner's write already landed by the time the loser's pre-check ran)
   // or the post-write tie-broken recheck (409, if both pre-checks passed

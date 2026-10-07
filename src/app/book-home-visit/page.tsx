@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import HomeVisitOnly, { HomeVisitUnavailable } from "@/components/pricing/HomeVisitOnly";
 import BookingExitLink from "@/components/booking/BookingExitLink";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -36,10 +37,15 @@ export const dynamic = "force-dynamic";
 export default async function BookHomeVisitPage() {
   const supabase = createPublicClient();
 
-  const { data: settingsRow } = await supabase
-    .from("site_settings")
-    .select("home_visit_enabled, home_visit_lead_time_hours, home_visit_cash_enabled")
-    .maybeSingle();
+  const [{ data: settingsRow }, { data: triesRow }] = await Promise.all([
+    supabase
+      .from("site_settings")
+      .select("home_visit_enabled, home_visit_lead_time_hours, home_visit_cash_enabled")
+      .maybeSingle(),
+    // Its own query, so a database without the column yet keeps the default
+    // rather than losing the page.
+    supabase.from("site_settings").select("payment_tries_before_access").maybeSingle(),
+  ]);
 
   if (settingsRow?.home_visit_enabled !== true) {
     notFound();
@@ -57,6 +63,8 @@ export default async function BookHomeVisitPage() {
     // prettier-ignore
     .select("id, title, visit_count, price_paise, visit_duration_minutes, travel_fee_included, subtitle, description, terms, badge_label, highlight, benefits, compare_at_paise, validity_days, therapist_locked, image_url")
     .eq("active", true)
+    // Not a course row: those exist only for recommendations (carePlanServer.ts).
+    .eq("care_plan_course", false)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
 
@@ -89,6 +97,7 @@ export default async function BookHomeVisitPage() {
   return (
     <section className="min-h-screen bg-gradient-to-b from-teal-50/50 to-slate-100 px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl">
+        <HomeVisitOnly fallback={<HomeVisitUnavailable />}>
         <Reveal className="mb-8 text-center">
           <h1 className="font-display text-2xl font-extrabold text-slate-900 sm:text-3xl">
             Book a Home Visit
@@ -102,8 +111,14 @@ export default async function BookHomeVisitPage() {
             packages={wizardPackages}
             leadTimeHours={leadTimeHours}
             cashEnabled={cashEnabled}
+            paymentTriesBeforeAccess={
+              typeof triesRow?.payment_tries_before_access === "number"
+                ? triesRow.payment_tries_before_access
+                : DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess
+            }
           />
         </Suspense>
+        </HomeVisitOnly>
         {/* This route hides the site nav (see NAV_HIDDEN_ROUTES) so a stray
             link can't lose someone's progress mid-payment -- same reasoning
             as /book, and the same single deliberate exit, placed clear of

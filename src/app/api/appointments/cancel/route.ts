@@ -4,6 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { cancelAppointmentAndRefund } from "@/lib/cancelAppointment";
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
+import { patientCancelClosed } from "@/lib/patientCancelCutoff";
+import { serverNowMs } from "@/lib/debugClock";
 
 const MAX_REASON_LENGTH = 500;
 
@@ -45,11 +48,37 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: appointment } = await admin
     .from("appointments")
-    .select("id, patient_id")
+    .select("id, patient_id, slot_time, visit_mode")
     .eq("id", appointmentId)
     .single();
   if (!appointment || appointment.patient_id !== user.id) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+  }
+
+  // The clinic's cut-off: an online session can't be cancelled by the
+  // patient in its last N minutes. An unreadable setting is "we couldn't
+  // check", not a green light or a refusal.
+  if (appointment.visit_mode !== "home_visit") {
+    const { data: settingsRow, error: settingsError } = await admin
+      .from("site_settings")
+      .select(SITE_SETTINGS_SELECT)
+      .maybeSingle();
+    if (settingsError) {
+      return NextResponse.json(
+        { error: "We couldn't check whether this session can still be cancelled. Please try again." },
+        { status: 503 }
+      );
+    }
+    const cutoffMinutes = parseAdminSettings(settingsRow).patientCancelCutoffMinutes;
+    if (patientCancelClosed({ slotTime: appointment.slot_time, nowMs: serverNowMs(request), cutoffMinutes })) {
+      return NextResponse.json(
+        {
+          error: `This session starts too soon to cancel online (within ${cutoffMinutes} minutes). Please contact the clinic.`,
+          code: "cancel_cutoff",
+        },
+        { status: 409 }
+      );
+    }
   }
 
   const result = await cancelAppointmentAndRefund(admin, {

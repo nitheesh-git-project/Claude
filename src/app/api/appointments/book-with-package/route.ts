@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
-import { isWholeHourSlot, leadTimeMsFromHours, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
+import { isWholeHourSlot, leadTimeMsFromHours, NOT_WHOLE_HOUR_ERROR, resolveSlotInstant } from "@/lib/bookingSlots";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { bookPackageSession } from "@/lib/bookPackageSession";
@@ -45,7 +45,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const slotTimestamp = new Date(slotDateTime).getTime();
+  // A zone-less wall time is read in the booking's zone, never the server's.
+  const slotIso = resolveSlotInstant(slotDateTime, timezone);
+  const slotTimestamp = slotIso ? new Date(slotIso).getTime() : NaN;
   if (Number.isNaN(slotTimestamp)) {
     return NextResponse.json({ error: "Invalid slotDateTime" }, { status: 400 });
   }
@@ -121,7 +123,7 @@ export async function POST(request: NextRequest) {
 
   const result = await bookPackageSession(admin, {
     purchase,
-    slotDateTime,
+    slotDateTime: slotIso!,
     timezone,
     notes,
     actorId: user.id,

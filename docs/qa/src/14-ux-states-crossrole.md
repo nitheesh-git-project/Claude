@@ -231,6 +231,19 @@
 
 ---
 
+### 19.4 Dark mode
+
+Settings -> Public Site -> **Appearance** -> "Follow the device's light/dark setting". Test with the device (or the browser's DevTools rendering panel) set to dark.
+
+| Step | Expected | Test |
+| --- | --- | --- |
+| Switch **off**, device dark | The app is light, exactly as before | `DARK-001` |
+| Switch **on**, device dark | Every page dark from the first paint - no white flash; cards dark, teal buttons unchanged with white text | `DARK-002` |
+| Switch on, device light | Light | `DARK-002` |
+| Switch on, change the device setting with a page open | The page changes without a reload | `DARK-003` |
+| Print any page while dark | Prints on white | `DARK-003` |
+| Walk the home page, booking, login, each dashboard, charts (Progress, Money, Earnings), the Pain Map | Nothing invisible: no dark text on dark, no white panels left behind; the MR logo sits on a light tile | manual |
+
 ## 20. Error, loading and empty-state testing
 
 **The rule that applies to every case in this section:** an internal database error, a column name, a row id or a stack trace **must never reach the screen**. Every route tree has an error boundary, and only the framework's opaque `digest` is shown - because an error message can carry a column name or a row id, and **patients see these screens**.

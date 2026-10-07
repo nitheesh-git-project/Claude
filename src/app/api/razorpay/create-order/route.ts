@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   readPatientCheckoutStanding,
-  approvePatientForGenuinePaymentAttempt,
   profileCheckUnavailable,
 } from "@/lib/supabase/requireActiveProfile";
 import { mintAppointmentOrder } from "@/lib/appointmentOrderServer";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { pricingForRequest } from "@/lib/countryPricingServer";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 
@@ -57,8 +58,9 @@ export async function POST(request: NextRequest) {
   // pre-payment appointment row through, and reaching this route at all
   // means they're genuinely trying to pay for it -- gating checkout itself
   // on approval would mean that attempt can never happen. See
-  // approvePatientForGenuinePaymentAttempt for why the vetting fires here,
-  // on the attempt, rather than waiting on a completed payment.
+  // approvePatientAfterPayment: the account is unlocked by a captured
+  // payment, or by /api/patient/payment-try once enough tries have failed --
+  // no longer by reaching this route.
   // The standing check and the appointment read are independent, so they go
   // out together -- this route sits between the tap on Pay and the Razorpay
   // sheet. The appointment read is RLS-scoped and filtered to this caller, so
@@ -90,19 +92,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
   }
 
-  // Reaching here means a signed-in patient is genuinely trying to pay for
-  // their own real appointment -- that's the vetting, whether or not the
-  // payment that follows actually succeeds (see the escape hatch in
-  // BookingWizard.tsx, which sends a patient straight to their dashboard
-  // with the booking left pending after repeated failed/dismissed
-  // attempts). Scheduled with `after()` rather than awaited in line: the
-  // platform keeps the function alive until it completes (an un-awaited
-  // promise could be cut off once the response is sent, which is why it was
-  // awaited before), but the patient no longer waits on it for the sheet to
-  // open. It never blocked checkout on failure either; see its own error
-  // handling.
-  after(() => approvePatientForGenuinePaymentAttempt(user.id));
-
   if (appointment.payment_status === "paid") {
     return NextResponse.json({ error: "This booking is already paid" }, { status: 400 });
   }
@@ -129,11 +118,15 @@ export async function POST(request: NextRequest) {
   // round trip from the Pay tap to the Razorpay sheet instead of two). One
   // function, so the two doors cannot grow different rules about prior
   // orders, claims, free bookings or what is written back.
+  // Priced for the request's own country, re-derived here rather than taken
+  // from anything the wizard sent.
+  const { pricing } = await pricingForRequest(createAdminClient(), request);
   const minted = await mintAppointmentOrder({
     supabase,
     appointment,
     appointmentId,
     promoCode: typedPromoCode,
+    pricing,
   });
   return NextResponse.json(minted.body, { status: minted.status });
 }

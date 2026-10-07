@@ -4,27 +4,36 @@
 // reaches `useRouter`, so nothing told PendingWorkProvider a page change had
 // started -- ProgressLink reports it from inside the link, which is the only
 // place Next's own `useLinkStatus` can be read.
+import { usePricing } from "@/components/pricing/PricingProvider";
 import Link from "@/components/system/ProgressLink";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useAccountDestination } from "@/lib/useAccountDestination";
-import { isAuthCtaHiddenRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
-import { MARKETING_PAGES } from "@/lib/marketingNav";
+import { isAuthCtaHiddenRoute, isAuthCtaSignedOutRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
+import { BOOK_CONNECTOR, MARKETING_PAGES, type MarketingPageKey } from "@/lib/marketingNav";
 import BrandMark from "@/components/BrandMark";
 
+
+// The pages a laptop header keeps in its row -- what a first-time visitor
+// reads before booking. Mission and Hospitals (the latter written for a
+// different audience) go under More until 2xl.
+const PRIMARY_KEYS = new Set<MarketingPageKey>(["conditions", "how-it-works", "home-visit", "team", "faq"]);
 
 export default function Navbar({
   offsetTop = false,
   siteName,
   siteTagline,
-  homeVisitEnabled = false,
+  homeVisitEnabled: homeVisitSwitch = false,
 }: {
   offsetTop?: boolean;
   siteName: string;
   siteTagline: string;
   homeVisitEnabled?: boolean;
 }) {
+  // Off outside India unless an admin allows it (Countries & currency).
+  const { homeVisitsOffered } = usePricing();
+  const homeVisitEnabled = homeVisitSwitch && homeVisitsOffered;
   // Derived from marketingNav.ts rather than written out here, so the header,
   // the home page's connector grid and every page's "where to go next" strip
   // can never disagree about what pages exist or what they are called. Home
@@ -34,8 +43,13 @@ export default function Navbar({
   const links = MARKETING_PAGES.filter(
     (page) => homeVisitEnabled || !page.requiresHomeVisit
   );
+  // The header row leaves Home to the logo. Every other page shows at 2xl;
+  // on a laptop the secondary ones fold into More.
+  const navLinks = links.filter((page) => page.key !== "home");
+  const moreLinks = navLinks.filter((page) => !PRIMARY_KEYS.has(page.key));
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   // Just a boolean -- every role's dashboard is now its own app shell with
   // its own profile card and Log Out control, so this nav no longer needs
   // to know WHO is logged in (name/avatar/role), only whether to hide the
@@ -62,7 +76,26 @@ export default function Navbar({
   if (pathname !== prevPathname) {
     setPrevPathname(pathname);
     if (navigating) setNavigating(false);
+    if (moreOpen) setMoreOpen(false);
   }
+
+  // More closes on a tap elsewhere or Escape -- a touch laptop never sends
+  // the mouseleave that closes it for a pointer.
+  useEffect(() => {
+    if (!moreOpen) return;
+    function onDown(e: MouseEvent) {
+      if (!(e.target as Element | null)?.closest("[data-nav-more]")) setMoreOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMoreOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [moreOpen]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -72,7 +105,7 @@ export default function Navbar({
   }, []);
 
 
-  // Each of the 4 role dashboards is its own full-height dark app shell
+  // Each of the 4 role dashboards is its own full-height app shell
   // (sidebar + content, no page scroll past the viewport) rather than a page
   // that sits below this marketing nav -- exact match only, so sub-pages
   // like /patient/dashboard/profile (which aren't part of a shell) keep
@@ -85,6 +118,9 @@ export default function Navbar({
   // no Sign In / Get Started / Go to Dashboard at all, so signing in can't
   // flash a dashboard button before the page it belongs to has opened.
   const authCtaHidden = isAuthCtaHiddenRoute(pathname);
+  // The sign-in pages show the signed-out cluster whatever the session says,
+  // so the nav looks the same as on every other public page.
+  const showSignedOut = isAuthCtaSignedOutRoute(pathname) || signedIn !== true;
 
   return (
     <nav
@@ -92,34 +128,46 @@ export default function Navbar({
         offsetTop ? "top-[41px]" : "top-0"
       } ${scrolled ? "shadow-md border-slate-200" : "shadow-none border-transparent"}`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 2xl:max-w-[1440px]">
         <div className="flex justify-between gap-6 h-16 items-center">
-          <Link href="/" className="flex shrink-0 items-center space-x-3 group">
+          {/* Shrinks rather than shoving the menu button off a 360px phone:
+              the name and tagline never wrap, so they truncate instead. */}
+          <Link href="/" className="flex min-w-0 items-center space-x-3 group">
             <motion.div
               whileHover={{ rotate: -6, scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
-              className="flex"
+              className="flex shrink-0"
             >
               <BrandMark size={44} variant="flat" />
             </motion.div>
-            <div>
-              <span className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight whitespace-nowrap">
+            <div className="min-w-0">
+              <span className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight truncate">
                 {siteName}
               </span>
-              <span className="text-[10px] font-semibold text-teal-700 uppercase tracking-widest block whitespace-nowrap">
+              <span className="text-[10px] font-semibold text-teal-700 uppercase tracking-wider sm:tracking-widest block truncate">
                 {siteTagline}
               </span>
             </div>
           </Link>
 
-          <div className="hidden xl:flex items-center space-x-5 whitespace-nowrap text-sm font-medium text-slate-600">
-            {links.map((link) => {
+          {/* Three link sets by width. Laptops (lg-2xl) cannot fit all
+              seven pages beside the brand and two buttons, so the five a
+              first-time visitor reads most stay and the rest sit under More;
+              2xl has room for every page. Home is the logo on both. Below
+              lg everything is in the menu, with the phone's own Book bar
+              (PublicBookBar) at the foot of the screen. */}
+          <div className="hidden lg:flex items-center gap-5 whitespace-nowrap text-sm font-medium text-slate-600 2xl:gap-6">
+            {navLinks.map((link) => {
               const active = pathname === link.href;
+              const secondary = !PRIMARY_KEYS.has(link.key);
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`relative py-1 transition-colors ${active ? "text-teal-700" : "hover:text-teal-700"}`}
+                  aria-current={active ? "page" : undefined}
+                  className={`relative py-1 transition-colors ${secondary ? "hidden 2xl:inline" : ""} ${
+                    active ? "text-teal-700" : "hover:text-teal-700"
+                  }`}
                 >
                   {link.label}
                   {active && (
@@ -132,15 +180,60 @@ export default function Navbar({
                 </Link>
               );
             })}
+            {moreLinks.length > 0 && (
+              <div data-nav-more="" className="relative 2xl:hidden" onMouseLeave={() => setMoreOpen(false)}>
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen((o) => !o)}
+                  aria-expanded={moreOpen}
+                  aria-haspopup="true"
+                  className={`flex items-center gap-1 py-1 transition-colors ${
+                    moreLinks.some((l) => l.href === pathname) ? "text-teal-700" : "hover:text-teal-700"
+                  }`}
+                >
+                  More <i aria-hidden="true" className="fa-solid fa-chevron-down text-[10px]"></i>
+                </button>
+                {moreOpen && (
+                  <div className="absolute right-0 top-full z-50 pt-2">
+                    <div className="w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                      {moreLinks.map((link) => (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          onClick={() => setMoreOpen(false)}
+                          aria-current={pathname === link.href ? "page" : undefined}
+                          className={`flex min-h-10 items-center rounded-lg px-3 text-sm ${
+                            pathname === link.href
+                              ? "bg-teal-50 font-semibold text-teal-800"
+                              : "text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          {link.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {authCtaHidden ? null : signedIn !== true ? (
-            <div className="hidden xl:flex items-center space-x-3 whitespace-nowrap">
+          {authCtaHidden ? null : showSignedOut ? (
+            <div className="hidden lg:flex items-center gap-2 whitespace-nowrap">
               <Link
                 href="/patient/login"
                 className="text-sm font-semibold text-slate-700 hover:text-teal-700 px-3 py-2 transition"
               >
                 Sign In
+              </Link>
+              {/* Account creation on its own only where there is room for
+                  three controls; on a laptop the booking flow creates the
+                  account anyway, and Get Started is one tap away in it. */}
+              <Link
+                href="/get-started"
+                className="hidden 2xl:flex items-center gap-1.5 rounded-xl border border-teal-700 px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-50"
+              >
+                Get Started
               </Link>
               <motion.div
                 whileHover={{ scale: 1.04 }}
@@ -148,10 +241,10 @@ export default function Navbar({
                 transition={{ type: "spring", stiffness: 400, damping: 20 }}
               >
                 <Link
-                  href="/get-started"
+                  href={BOOK_CONNECTOR.href}
                   className="bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
                 >
-                  Get Started <i className="fa-solid fa-arrow-right text-xs"></i>
+                  {BOOK_CONNECTOR.label} <i aria-hidden="true" className="fa-solid fa-arrow-right text-xs"></i>
                 </Link>
               </motion.div>
             </div>
@@ -159,7 +252,7 @@ export default function Navbar({
             <motion.div
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
-              className="hidden xl:flex items-center"
+              className="hidden lg:flex items-center"
             >
               <Link
                 href={destination.href}
@@ -175,7 +268,7 @@ export default function Navbar({
 
           <button
             onClick={() => setOpen(!open)}
-            className="xl:hidden text-slate-700 text-xl p-2"
+            className="lg:hidden flex h-11 w-11 shrink-0 items-center justify-center text-slate-700 text-xl"
             aria-label="Toggle menu"
           >
             <i className={`fa-solid ${open ? "fa-xmark" : "fa-bars"}`}></i>
@@ -189,7 +282,7 @@ export default function Navbar({
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              className="xl:hidden overflow-hidden"
+              className="lg:hidden overflow-hidden"
             >
               <div className="pb-4 flex flex-col space-y-1 text-sm font-medium text-slate-600">
                 {links.map((link) => (
@@ -202,7 +295,7 @@ export default function Navbar({
                     {link.label}
                   </Link>
                 ))}
-                {authCtaHidden ? null : signedIn !== true ? (
+                {authCtaHidden ? null : showSignedOut ? (
                   <>
                     <Link
                       href="/patient/login"

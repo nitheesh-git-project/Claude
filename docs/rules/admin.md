@@ -23,6 +23,41 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
   runs.
+- **Every session and every person has a timestamped history, built from
+  what is already recorded rather than a new event table.** The session
+  drawer's "Session history" and the "Activity log" on a patient's or
+  therapist's profile (and **View activity** on a hospital's card under
+  People -> Partners) read `/api/admin/timeline` (`sessions` scope for a
+  session, `people` for a person), which `src/lib/activityTimelineServer.ts`
+  assembles from the appointment row's own timestamps,
+  `appointment_reassignment_log`, `admin_activity_log` (labelled with
+  `ADMIN_ACTIVITY_LABELS`), payments, payment failures, refund attempts,
+  session notes, pain assessments, care plans, profile change requests,
+  documents, checkout payment tries and referrals. Shaping and filtering
+  (what happened, who did it -- patient, therapist, hospital, admin or
+  system -- a date range, free text) are `src/lib/activityTimeline.ts`,
+  unit-tested; every date shows in the clinic's zone. Past history is there
+  from day one; a read that fails is "couldn't load", never a shorter
+  history. An admin assignment, written to both logs, is shown once. It
+  replaced the drawer's reassignment-only history and the dashboard query
+  that fed it. A new kind of action needs a line here only if it leaves a
+  row nothing above reads.
+- **People -> Abandoned checkouts is a list of leads, never approvals.** It
+  reads `abandoned_booking_accounts()` (service role only): patients who
+  signed up inside a booking wizard and have not paid, so their account is
+  locked (`booking.md`). Each card names the contact details, the session
+  they wanted, tries used of `payment_tries_before_access`, and the date
+  `purge_abandoned_booking_accounts` (the maintenance sweep) removes the
+  account if it stays unpaid -- `abandoned_booking_account_days` after
+  signup, both set under Settings -> Booking Rules. **The same ids are
+  filtered out of Today -> Approvals**: nobody reviews these accounts, and
+  approving one would hand a dashboard to somebody who has not paid. A
+  failed read is said ("couldn't be loaded") and leaves the approvals queue
+  unfiltered rather than empty. Read-only on purpose. The purge deletes only
+  accounts carrying the wizard's `signup_source: 'booking'` signup
+  metadata, older than the window, below the try limit, with no payment,
+  purchase, or session past an unpaid `requested` draft -- a
+  `/patient/register` signup is never touched.
 - **A scope that could not be read is refused, never promoted, and a
   screen outside the scope never leaves the server.** `resolveAdminScope`
   answers the guard: a real value passes, a failed read or an unknown value
@@ -203,7 +238,13 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   `people` scope the clinic's own lead pipelines use: a scoped admin must not
   receive a stranger's name, email and number, so the dashboard reads the
   table only when `scopeCanOpen(viewerScope, "settings")` and
-  `/api/admin/update-dev-reachout` is `requireAdminScope("settings")`. Three
+  `/api/admin/update-dev-reachout` (status) and `/api/admin/dev-reachout-note`
+  (add / edit / delete a note) are `requireAdminScope("settings")`. Notes are
+  a dated thread, one `dev_reachout_notes` row each, oldest first, with author
+  and an `edited_at` that stays null until a note changes; the old single
+  `dev_reachouts.admin_note` was carried into it and is no longer read. The
+  notes are a second read, so a failed one shows "could not be loaded", never
+  an empty thread that invites a duplicate. Three
   rules are easy to undo. **The credit switch asks on BOTH directions** and
   saves nothing until the dialog is confirmed -- cancelling leaves the switch
   where it was -- because turning it off closes `/developer` for every
@@ -213,9 +254,10 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   blank the "Prefer email?" row is hidden and the form still works (blank is
   the one email value `update-setting` accepts, since it is how an address is
   taken back down). And **the audit log never carries the note's text** --
-  `dev_reachout.update_note` records only `noteLength`; the note is free text
+  `dev_reachout.add_note` / `edit_note` record only `noteLength` (and
+  `delete_note` only the note's id); a note is free text
   about a person. `dev_reachouts` is in `ADMIN_REALTIME_TABLES`, so a new
-  message arrives without a reload. The table and both `dev_contact_*`
+  message arrives without a reload. Both tables and both `dev_contact_*`
   settings survive the debug data reset (see `ops-security.md`).
   **A settings screen taller than a couple of screens carries a map of
   itself.** `SettingsJumpNav` + `SettingsSection`
@@ -642,3 +684,27 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   *Needs a look* with the median of each stage as evidence. The table is not
   published to realtime on purpose -- a row per tap would refresh the
   dashboard for every patient paying.
+
+- **Countries & currency lives under Catalog, because it decides what a
+  patient is charged.** `catalog` scope, logged as `catalog.update`. Three
+  switches save on their own (local prices on/off, visitors may choose their
+  country, home visits outside India); the country table saves as one
+  "N countries changed" bar. Each row shows the whole sum the owner asked
+  for - the Indian price after the increase, the converted figure, what they
+  see (rounded up to .99) and what Razorpay charges - previewed against any
+  active condition's price, with search and an On/Off filter.
+  - **A rate only ever comes from Refresh rates** (`/api/admin/country-pricing/refresh-rates`,
+    open.er-api.com, INR base). Nothing typed on the screen can set the rate
+    a charge is made with, and a failed refresh keeps the rates already in
+    use and says so. Rates older than a week turn the bar amber.
+  - A country cannot be switched on without a rate - the route names it, and
+    the table's own check (`country_pricing_enabled_needs_rate`) agrees.
+  - Visitor-chosen countries are a convenience, not a fence: with the picker
+    on, a visitor abroad can choose India and pay the Indian price. Turning
+    the picker off leaves location alone in charge.
+
+- **Appearance (Settings -> Public Site) is one switch: follow the device's
+  light/dark setting.** Off, the default, is the app exactly as it has
+  always looked. On, every page follows each visitor's device, live. Saved
+  through `update-setting` (`follow_device_theme`), which revalidates the
+  root layout because the decision is made by a script in `<head>`.

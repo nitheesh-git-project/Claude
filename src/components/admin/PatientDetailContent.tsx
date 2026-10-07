@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ActivityTimeline from "@/components/admin/ActivityTimeline";
 import {
   formatClinicDate,
   formatClinicDateTime,
@@ -26,7 +27,6 @@ import {
   programmeLockGrantsClinicalAccess,
 } from "@/lib/clinicalAccess";
 import PayLaterGrantCard from "@/components/admin/PayLaterGrantCard";
-import { type ReassignmentLogEntry } from "@/components/admin/SessionDetailDrawer";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
@@ -40,6 +40,7 @@ import {
   sessionTherapistCutPaise,
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
+import { formatRupees } from "@/lib/formatMoney";
 
 // A module-level helper rather than an inline `Date.now()` in the component
 // body: `react-hooks/purity` refuses a clock read during render, and the rule
@@ -277,16 +278,6 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     ...(sessionTherapists ?? []).map((t) => [t.id, t.full_name ?? "Unknown"] as [string, string]),
   ]);
 
-  const appointmentIds = (appointments ?? []).map((a) => a.id);
-  const { data: reassignmentLogs } =
-    appointmentIds.length > 0
-      ? await admin
-          .from("appointment_reassignment_log")
-          .select(
-            "id, appointment_id, changed_at, changed_by, old_therapist_id, new_therapist_id, old_slot_time, new_slot_time, old_category_id, new_category_id"
-          )
-          .in("appointment_id", appointmentIds)
-      : { data: [] as ReassignmentLogEntry[] };
 
   // Patient ratings (how therapists rated THIS patient) are admin-only by
   // design -- see RatingManager below, no onToggleVisible prop -- so this
@@ -388,10 +379,10 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     >
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             <AvatarThumbnail url={patient.avatar_url} name={patient.full_name ?? "P"} size={64} />
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900">{patient.full_name}</h1>
                 {patientCodeRow?.patient_code && (
                   <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
@@ -535,6 +526,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         average={ratingAggregate.average}
         count={ratingAggregate.count}
         excludedCount={ratingAggregate.excludedCount}
+        distribution={ratingAggregate.distribution}
       />
       <p className="text-[11px] text-slate-500 -mt-4 mb-6">
         Admin-only - never shown to the patient or any therapist.
@@ -593,7 +585,6 @@ export default async function PatientDetailContent({ id }: { id: string }) {
           categoryMap={categoryMap}
           therapists={approvedTherapists ?? []}
           categories={categories ?? []}
-          reassignmentLogs={reassignmentLogs ?? []}
           emptyMessage="No bookings yet."
         />
       </div>
@@ -625,7 +616,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-sm text-slate-800">Payment History</h2>
           <p className="text-xs text-slate-500">
-            Total Paid: <strong className="text-teal-700">₹{(totalPaidPaise / 100).toLocaleString("en-IN")}</strong>
+            Total Paid: <strong className="text-teal-700">₹{formatRupees(totalPaidPaise)}</strong>
           </p>
         </div>
         {paidAppointments.length === 0 ? (
@@ -646,7 +637,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                       )}
                     </strong>
                     <span className="font-semibold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full">
-                      ₹{((a.amount_paid_paise ?? SESSION_FEE_PAISE) / 100).toLocaleString("en-IN")}
+                      ₹{formatRupees((a.amount_paid_paise ?? SESSION_FEE_PAISE))}
                     </span>
                   </div>
                   <p className="text-slate-500">
@@ -731,6 +722,12 @@ export default async function PatientDetailContent({ id }: { id: string }) {
             })}
           </ul>
         )}
+      </div>
+
+      {/* Everything done by or to this person, with filters -- see
+          src/lib/activityTimeline.ts. */}
+      <div className="mt-6">
+        <ActivityTimeline personId={id} title="Activity log" />
       </div>
     </JoinWindowProvider>
   );

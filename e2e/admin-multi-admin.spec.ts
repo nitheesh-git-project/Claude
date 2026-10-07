@@ -10,7 +10,16 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, profileIdFor } from "./helpers";
+import {
+  BASE,
+  QA_EMAILS,
+  adminClient,
+  browserCookiesFor,
+  clinicSlot,
+  cookieHeaderFor,
+  openTherapistHour,
+  profileIdFor,
+} from "./helpers";
 
 test.describe("Suite H: two admins", () => {
   test("H-006: every table the dashboard reads is in the realtime publication", async () => {
@@ -184,7 +193,12 @@ test.describe("Suite H: two admins", () => {
     const therapistB = await profileIdFor(admin, QA_EMAILS.therapistB);
     const cookie = await cookieHeaderFor(QA_EMAILS.admin);
 
-    const slot = new Date(Date.now() + 30 * 86_400_000).toISOString();
+    // A daytime clinic hour both therapists are opened for: assignment now
+    // refuses somebody not working that hour, and this test is about the
+    // race, not the roster.
+    const slot = clinicSlot(30, 10);
+    const closeA = await openTherapistHour(admin, therapistA, slot);
+    const closeB = await openTherapistHour(admin, therapistB, slot);
     const { data: appointment } = await admin
       .from("appointments")
       .insert({
@@ -227,6 +241,8 @@ test.describe("Suite H: two admins", () => {
         "both concurrent assignments reported success"
       ).toBeLessThanOrEqual(1);
     } finally {
+      await closeA();
+      await closeB();
       await admin.from("appointments").delete().eq("id", appointment!.id);
     }
   });

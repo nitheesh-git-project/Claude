@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadActiveCarePlan, loadCarePlanHistory } from "@/lib/carePlanServer";
 import { summariseVersion } from "@/lib/carePlans";
+import { buildSuggestedTeaser } from "@/lib/suggestedTeaser";
 import {
   applyLedgerSessionBalances,
   applyLedgerVisitBalances,
@@ -408,13 +409,14 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { authoritative: ledgerAuthoritative }
   );
 
-  // The live recommendation and its history. Only for the screens that
-  // render them -- a tab is a server round trip, so Payments must not pay
-  // for a care-plan read it never shows. Both helpers swallow their own
+  // The live recommendation, on every screen: each one carries a short
+  // "your therapist recommended..." line linking to Suggested Sessions, and
+  // the sidebar decides from it whether Suggested exists at all -- read on
+  // two screens only, that entry came and went as the patient moved around.
+  // The history stays Suggested-only. Both helpers swallow their own
   // errors, so a database without the tables loses the recommendation
   // rather than the dashboard.
-  const needCarePlan = screen === "suggested" || screen === "overview";
-  const activeCarePlan = needCarePlan ? await loadActiveCarePlan(admin, user.id) : null;
+  const activeCarePlan = await loadActiveCarePlan(admin, user.id);
   const carePlanHistory =
     screen === "suggested" ? await loadCarePlanHistory(admin, user.id) : [];
 
@@ -632,23 +634,16 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // table, the cards are absent and the rest of the dashboard is unaffected.
   // Nothing is scheduled and no session is spent until one is accepted, so
   // these are deliberately not folded into the package counts below.
-  // Needed by the feed and by Suggested Sessions, which is where these
-  // cards now live -- they used to render on Overview only, which meant a
-  // proposed time was invisible from every other screen.
-  const { data: suggestionRows } = needFeed || screen === "suggested"
-    ? await supabase
-        .from("session_suggestions")
-        .select("id, purchase_id, therapist_id, slot_time, note")
-        .eq("patient_id", user.id)
-        .eq("status", "pending")
-        .order("slot_time", { ascending: true })
-    : await emptyRows<{
-        id: string;
-        purchase_id: string;
-        therapist_id: string;
-        slot_time: string;
-        note: string | null;
-      }>();
+  // Read on every screen, for the same reason as the recommendation above:
+  // the teaser and the sidebar both need to know a proposed time is waiting.
+  // They used to render on Overview only, which meant a proposed time was
+  // invisible from every other screen.
+  const { data: suggestionRows } = await supabase
+    .from("session_suggestions")
+    .select("id, purchase_id, therapist_id, slot_time, note")
+    .eq("patient_id", user.id)
+    .eq("status", "pending")
+    .order("slot_time", { ascending: true });
 
   const pendingSuggestions = (suggestionRows ?? []).flatMap((row) => {
     const purchase = ownedPackagesForDisplay.find((p) => p.id === row.purchase_id);
@@ -812,6 +807,30 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ...(hubCategoryFocalById.get(c.id) ?? {}),
   }));
 
+  // Everything paid for and not yet in the diary (feed items and the
+  // Overview headline both read it).
+  const unscheduled = ownedPackagesForDisplay.flatMap((p) => {
+      if (p.status !== "active") return [];
+      const counts = computePackageCounts({
+        sessionCount: p.session_count,
+        sessionsUsed: p.sessions_used,
+        completedCount: completedCountByPurchase.get(p.id) ?? 0,
+        scheduledCount: scheduledCountByPurchase.get(p.id) ?? 0,
+      });
+      if (counts.pending <= 0) return [];
+      return [
+        {
+          purchaseId: p.id,
+          title:
+            ownedPackageInfoMap.get(p.package_id)?.title ??
+            activeCategoryMap.get(p.category_id) ??
+            "Your programme",
+          pending: counts.pending,
+          since: p.paid_at ?? p.created_at ?? new Date(nowMs).toISOString(),
+        },
+      ];
+    });
+
   const patientFeed = buildPatientFeed({
     appointments: appointments.map((a) => ({
       id: a.id,
@@ -853,27 +872,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // loader already has -- no extra query, and the same counter every
     // other surface reads, so the feed cannot claim a balance the Packages
     // screen disagrees with.
-    unscheduled: ownedPackagesForDisplay.flatMap((p) => {
-      if (p.status !== "active") return [];
-      const counts = computePackageCounts({
-        sessionCount: p.session_count,
-        sessionsUsed: p.sessions_used,
-        completedCount: completedCountByPurchase.get(p.id) ?? 0,
-        scheduledCount: scheduledCountByPurchase.get(p.id) ?? 0,
-      });
-      if (counts.pending <= 0) return [];
-      return [
-        {
-          purchaseId: p.id,
-          title:
-            ownedPackageInfoMap.get(p.package_id)?.title ??
-            activeCategoryMap.get(p.category_id) ??
-            "Your programme",
-          pending: counts.pending,
-          since: p.paid_at ?? p.created_at ?? new Date(nowMs).toISOString(),
-        },
-      ];
-    }),
+    unscheduled,
   });
 
   const overviewCells: StatCell[] = [
@@ -936,6 +935,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     hasHomeVisits: homeVisitAppointments.length > 0,
     hasOwnedHomeVisitPackages,
     hasSuggestions: !!activeCarePlan || pendingSuggestions.length > 0,
+    suggestionsWaiting: (activeCarePlan ? 1 : 0) + pendingSuggestions.length,
   });
 
   // What the Book a Session hub offers. Both master switches are honoured
@@ -1045,6 +1045,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // undo the flip for exactly the two screens a patient looks at.
     activeCarePlan,
     carePlanHistory,
+    // The one-line nudge every screen but Suggested Sessions carries.
+    suggestedTeaser:
+      screen === "suggested" ? null : buildSuggestedTeaser(activeCarePlan, pendingSuggestions.length, nowTimestamp()),
     ownedPackages: ownedPackagesForDisplay,
     ownedHomeVisitPackages: ownedHomeVisitPackagesForDisplay,
     homeVisitPackages,
@@ -1060,6 +1063,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ownedHomeVisitPackageInfoMap,
     purchaseCodeById,
     pendingSuggestions,
+    unbookedSessionCount: unscheduled.reduce((n, u) => n + u.pending, 0),
     completedCountByPurchase,
     scheduledCountByPurchase,
     completedCountByHomeVisitPurchase,

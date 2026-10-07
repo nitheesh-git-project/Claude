@@ -83,7 +83,10 @@ test.describe("The admin back office is not advertised", () => {
     // `hash` is the one param re-attached as a fragment, so it is the one
     // that could smuggle a host if it were passed through unchecked.
     await page.goto(`${BASE}/dashboard?hash=${encodeURIComponent("//evil.example/x")}`);
-    await page.waitForURL(/localhost|127\.0\.0\.1|\/admin\/dashboard/, { timeout: 30_000 });
+    // /dashboard hands on from the browser now (DashboardHop), so wait for
+    // where it lands rather than for any local URL -- the hop's own address
+    // still carries the query until it moves on.
+    await page.waitForURL(/\/admin\/dashboard/, { timeout: 30_000 });
     expect(page.url()).not.toContain("evil.example");
   });
 

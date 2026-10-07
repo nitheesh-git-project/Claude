@@ -3,6 +3,7 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
+import { formatRupees } from "@/lib/formatMoney";
 
 export default function CompletePayoutRequestButton({
   requestId,
@@ -28,9 +29,7 @@ export default function CompletePayoutRequestButton({
   async function handleComplete() {
     const confirmMessage =
       currentlyOwedPaise > 0
-        ? `This therapist still shows ₹${(currentlyOwedPaise / 100).toLocaleString(
-            "en-IN"
-          )} owed and unsettled in the Payouts tab - mark this request completed anyway?`
+        ? `This therapist still shows ₹${formatRupees(currentlyOwedPaise)} owed and unsettled in the Payouts tab - mark this request completed anyway?`
         : "Mark this payout request as completed? The therapist will be notified.";
     if (!(await confirm(confirmMessage))) return;
 

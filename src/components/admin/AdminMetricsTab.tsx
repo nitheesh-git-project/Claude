@@ -51,6 +51,7 @@ import {
 } from "@/components/admin/TrendCharts";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
+import { formatRupees } from "@/lib/formatMoney";
 
 export type { MetricsAppointment };
 
@@ -66,7 +67,7 @@ export type { MetricsAppointment };
 type Category = { id: string; title: string };
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 // Pinned to Asia/Kolkata (not d.toISOString()'s UTC date), the same

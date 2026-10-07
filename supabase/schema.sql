@@ -15365,3 +15365,312 @@ end $$;
 -- form still works.
 alter table site_settings add column if not exists dev_contact_enabled boolean not null default true;
 alter table site_settings add column if not exists dev_contact_email text not null default '';
+
+-- ===========================================================================
+-- Dev Reachouts: a thread of notes per message
+-- ===========================================================================
+-- One row per note, so the inbox keeps a dated history instead of the single
+-- overwritten `dev_reachouts.admin_note`. Written only by
+-- /api/admin/dev-reachout-note with the service-role client; read by admins.
+--
+-- Like `dev_reachouts` itself, NOT truncated by debug_reset_all_data(), and
+-- nothing reaches it through CASCADE: its two foreign keys point at
+-- `dev_reachouts` and `profiles`, neither of which the reset truncates
+-- (src/lib/devReachoutResetGuard.test.ts holds this). `cascade` on the
+-- reachout because a note means nothing without its message; `set null` on
+-- the author so deleting an admin account is not blocked by a note they wrote.
+create table if not exists dev_reachout_notes (
+  id uuid primary key default gen_random_uuid(),
+  reachout_id uuid not null references dev_reachouts(id) on delete cascade,
+  body text not null check (char_length(body) between 1 and 2000),
+  author_id uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  -- Null until the note is changed, so "edited" is shown only when it was.
+  edited_at timestamptz
+);
+
+create index if not exists dev_reachout_notes_reachout_created_idx
+  on dev_reachout_notes (reachout_id, created_at);
+
+alter table dev_reachout_notes enable row level security;
+
+drop policy if exists "dev_reachout_notes_select_admin" on dev_reachout_notes;
+create policy "dev_reachout_notes_select_admin" on dev_reachout_notes
+  for select using (is_admin());
+
+revoke insert, update, delete on dev_reachout_notes from anon, authenticated;
+
+-- In the realtime publication because the Dev Reachouts screen subscribes to
+-- it (ADMIN_REALTIME_TABLES): a second admin's note arrives without a reload.
+do $$
+begin
+  alter publication supabase_realtime add table dev_reachout_notes;
+exception when duplicate_object then null;
+end $$;
+
+-- Carry each existing single note over as that message's first note, dated
+-- when it was last saved, then clear the old column so a re-run finds nothing
+-- left to move (and a note deleted from the thread is not resurrected).
+-- `admin_note` / `note_updated_at` stay as columns but are no longer read.
+with moved as (
+  insert into dev_reachout_notes (reachout_id, body, created_at)
+  select id, admin_note, coalesce(note_updated_at, created_at)
+  from dev_reachouts
+  where admin_note is not null and btrim(admin_note) <> ''
+  returning reachout_id
+)
+update dev_reachouts
+set admin_note = null, note_updated_at = null
+where admin_note is not null
+  and (id in (select reachout_id from moved) or btrim(admin_note) = '');
+
+-- ===========================================================================
+-- Booking checkout: payment tries, the access they unlock, and abandoned
+-- accounts
+-- ===========================================================================
+-- A patient who signs up inside a booking wizard gets an account before they
+-- pay (a Razorpay order must belong to somebody), but it stays locked --
+-- `approved = false`, no dashboard -- until either a payment is captured or
+-- they have tried and failed to pay `payment_tries_before_access` times.
+-- Then the account is unlocked and the dashboard asks them to pay there.
+-- A locked account that never paid and never used up its tries is deleted
+-- after `abandoned_booking_account_days` by purge_abandoned_booking_accounts().
+--
+-- Which accounts the wizards made is read from the signup's own metadata
+-- (`raw_user_meta_data.signup_source = 'booking'`), never from a profile
+-- column a later write could set: a /patient/register signup, also
+-- unapproved while it waits on an admin, must never be deleted by this.
+
+alter table site_settings add column if not exists payment_tries_before_access integer not null default 3;
+alter table site_settings add column if not exists abandoned_booking_account_days integer not null default 3;
+
+do $$
+begin
+  alter table site_settings add constraint site_settings_payment_tries_before_access_range
+    check (payment_tries_before_access between 1 and 10);
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter table site_settings add constraint site_settings_abandoned_booking_account_days_range
+    check (abandoned_booking_account_days between 1 and 90);
+exception when duplicate_object then null;
+end $$;
+
+-- One row per try that did not end in a payment. Written only by
+-- /api/patient/payment-try with the service-role client; read by admins.
+-- `cascade` on the patient: the rows describe the account and go with it.
+create table if not exists checkout_payment_tries (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  flow text not null check (flow in ('online', 'home_visit')),
+  outcome text not null check (outcome in ('dismissed', 'failed', 'server_error')),
+  appointment_id uuid references appointments(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists checkout_payment_tries_patient_idx
+  on checkout_payment_tries (patient_id, created_at);
+
+alter table checkout_payment_tries enable row level security;
+
+drop policy if exists "checkout_payment_tries_select_admin" on checkout_payment_tries;
+create policy "checkout_payment_tries_select_admin" on checkout_payment_tries
+  for select using (is_admin());
+
+revoke insert, update, delete on checkout_payment_tries from anon, authenticated;
+
+-- The locked accounts the booking wizards made, for People -> Abandoned
+-- checkouts. A function rather than a view because the marker lives in
+-- auth.users, which no API role may read directly.
+create or replace function public.abandoned_booking_accounts()
+returns table (
+  id uuid,
+  full_name text,
+  email text,
+  phone text,
+  created_at timestamptz,
+  tries integer,
+  next_slot timestamptz,
+  next_concern text
+)
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select
+    p.id,
+    p.full_name,
+    p.email,
+    p.phone,
+    u.created_at,
+    (select count(*)::integer from public.checkout_payment_tries t where t.patient_id = p.id),
+    d.slot_time,
+    d.concern
+  from public.profiles p
+  join auth.users u on u.id = p.id
+  left join lateral (
+    select a.slot_time, a.concern
+    from public.appointments a
+    where a.patient_id = p.id and a.status = 'requested' and a.payment_status = 'unpaid'
+    order by a.created_at desc
+    limit 1
+  ) d on true
+  where p.role = 'patient'
+    and p.approved = false
+    and u.raw_user_meta_data->>'signup_source' = 'booking'
+  order by u.created_at desc;
+$$;
+
+revoke all on function public.abandoned_booking_accounts() from public, anon, authenticated;
+
+-- Deletes the locked booking accounts that have nothing worth keeping:
+-- older than p_days, never approved, below the try limit, no payment of any
+-- kind, no purchase, and no session that is paid, assigned or past
+-- `requested`. One account at a time, so one that cannot be deleted (a
+-- foreign key somebody added later) is skipped rather than failing the rest.
+-- Returns how many were deleted.
+create or replace function public.purge_abandoned_booking_accounts(p_days integer, p_try_limit integer)
+returns integer
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_id uuid;
+  v_deleted integer := 0;
+begin
+  if p_days is null or p_days < 1 or p_try_limit is null or p_try_limit < 1 then
+    raise exception 'purge_abandoned_booking_accounts: p_days and p_try_limit must be at least 1';
+  end if;
+
+  for v_id in
+    select p.id
+    from public.profiles p
+    join auth.users u on u.id = p.id
+    where p.role = 'patient'
+      and p.approved = false
+      and u.raw_user_meta_data->>'signup_source' = 'booking'
+      and u.created_at < now() - make_interval(days => p_days)
+      and (select count(*) from public.checkout_payment_tries t where t.patient_id = p.id) < p_try_limit
+      and not exists (select 1 from public.payments pay where pay.patient_id = p.id)
+      and not exists (select 1 from public.patient_package_purchases pp where pp.patient_id = p.id)
+      and not exists (select 1 from public.home_visit_package_purchases hp where hp.patient_id = p.id)
+      and not exists (
+        select 1 from public.appointments a
+        where a.patient_id = p.id
+          and (a.payment_status <> 'unpaid' or a.therapist_id is not null
+               or a.status not in ('requested', 'cancelled'))
+      )
+    limit 200
+  loop
+    begin
+      delete from auth.users where id = v_id;
+      v_deleted := v_deleted + 1;
+    exception when others then
+      raise warning 'purge_abandoned_booking_accounts: kept % (%)', v_id, sqlerrm;
+    end;
+  end loop;
+
+  return v_deleted;
+end;
+$$;
+
+revoke all on function public.purge_abandoned_booking_accounts(integer, integer) from public, anon, authenticated;
+
+-- ===========================================================================
+-- How close to an online session's start a patient may still cancel it
+-- themselves. Inside the cut-off the Cancel button is gone and
+-- /api/appointments/cancel refuses (src/lib/patientCancelCutoff.ts). Online
+-- only: home visits keep their own refund window. Configuration, so the debug
+-- data reset leaves it alone.
+
+alter table site_settings add column if not exists patient_cancel_cutoff_minutes integer not null default 15;
+
+do $$
+begin
+  alter table site_settings add constraint site_settings_patient_cancel_cutoff_minutes_range
+    check (patient_cancel_cutoff_minutes between 0 and 1440);
+exception when duplicate_object then null;
+end $$;
+
+-- ===========================================================================
+-- Recommendations are priced per session.
+--
+-- A therapist now recommends a condition and a number of sessions, and the
+-- price is that condition's per-session price times the count: the online
+-- consultation price for video sessions, the single home-visit price when
+-- the plan needs hands-on treatment. Admin programmes are no longer what a
+-- recommendation sells.
+--
+-- A purchase still points at a catalog row (`package_id` is not null on both
+-- purchase tables, and the booking rules are read through it), so each
+-- condition gets one hidden "course" row per delivery mode, created on
+-- demand by src/lib/carePlanServer.ts. `care_plan_course` marks it so no
+-- catalog screen lists it; the count and the amount live on the purchase,
+-- never on this row. The partial unique indexes make the on-demand create
+-- safe against two therapists writing at once.
+
+alter table treatment_category_packages add column if not exists care_plan_course boolean not null default false;
+alter table home_visit_packages add column if not exists care_plan_course boolean not null default false;
+
+create unique index if not exists treatment_category_packages_one_course_per_category
+  on treatment_category_packages (category_id) where care_plan_course;
+create unique index if not exists home_visit_packages_one_course_per_category
+  on home_visit_packages (category_id) where care_plan_course;
+
+-- ===========================================================================
+-- Prices for visitors outside India.
+--
+-- Catalog -> Countries & currency. One row per country the clinic may price
+-- for: a percentage above the Indian price, and the exchange rate the
+-- admin last refreshed (units of that currency per rupee). The maths is
+-- src/lib/countryPricing.ts: raise, convert, round up to .99, and charge the
+-- INR equal of the rounded figure -- so every amount stored anywhere is
+-- still INR paise, and Razorpay is still charged INR.
+--
+-- A rate is never fetched on a visitor's request: the admin refreshes it,
+-- and the stored figure is what every price uses until the next refresh,
+-- so a quote and the order minted from it cannot straddle a rate change.
+--
+-- Configuration, so the debug data reset leaves it alone (it is not in the
+-- reset's TRUNCATE list). Read by the server with the service role; the
+-- public read policy only states that nothing here is secret.
+
+create table if not exists country_pricing (
+  country_code text primary key check (country_code ~ '^[A-Z]{2}$' and country_code <> 'IN'),
+  currency_code text not null check (currency_code ~ '^[A-Z]{3}$'),
+  enabled boolean not null default false,
+  markup_percent numeric(6, 2) not null default 0 check (markup_percent between 0 and 500),
+  units_per_inr numeric(20, 10) check (units_per_inr is null or units_per_inr > 0),
+  rate_fetched_at timestamptz,
+  updated_at timestamptz not null default now(),
+  -- A country cannot be switched on without a rate to price it with.
+  constraint country_pricing_enabled_needs_rate check (not enabled or units_per_inr is not null)
+);
+
+alter table country_pricing enable row level security;
+
+drop policy if exists "country_pricing_select_all" on country_pricing;
+create policy "country_pricing_select_all" on country_pricing
+  for select using (true);
+
+revoke insert, update, delete on country_pricing from anon, authenticated;
+
+-- The three switches beside the list. All off-safe: with the master switch
+-- off every visitor sees rupees, exactly as before this section existed.
+alter table site_settings add column if not exists international_pricing_enabled boolean not null default false;
+alter table site_settings add column if not exists country_picker_enabled boolean not null default true;
+alter table site_settings add column if not exists home_visit_outside_india boolean not null default false;
+
+-- ===========================================================================
+-- Follow the device's light/dark setting.
+--
+-- Settings -> Public Site -> Appearance. Off (the default) is the app as it
+-- has always looked: light, whatever the device says. On, a visitor whose
+-- phone or computer is set to dark gets the dark palette
+-- (src/app/dark-theme.css), and the page follows the device live if it
+-- changes. Configuration, so the debug data reset leaves it alone.
+alter table site_settings add column if not exists follow_device_theme boolean not null default false;

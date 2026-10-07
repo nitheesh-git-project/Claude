@@ -8,6 +8,7 @@ import { rateLimitNotice } from "@/lib/rateLimit";
 import { payForAppointment } from "@/lib/razorpay";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_INR } from "@/lib/pricing";
+import { usePricing } from "@/components/pricing/PricingProvider";
 import { isValidEmail } from "@/lib/validateEmail";
 import ConfirmPasswordField from "./ConfirmPasswordField";
 import EmailField from "./EmailField";
@@ -46,6 +47,8 @@ export default function InviteRegisterCard() {
   const [linkState, setLinkState] = useState<LinkState>(token ? "checking" : "invalid");
   const [retryNotice, setRetryNotice] = useState<string | null>(null);
   const [recheckCount, setRecheckCount] = useState(0);
+  // The fee in the visitor's currency; the server charges its rupee equal.
+  const { formatList } = usePricing();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -245,7 +248,8 @@ export default function InviteRegisterCard() {
           <h1 className="text-xl font-bold text-slate-900">Payment Confirmed</h1>
           <p className="text-xs text-slate-500 mt-2 leading-relaxed">
             Your account is set up and your session is booked and paid.
-            We&apos;ll send the video call link by email or WhatsApp shortly.
+            We&apos;ll email you a calendar invite with the video call link - it also
+            shows on your dashboard.
           </p>
           <Link
             href="/patient/dashboard"
@@ -321,7 +325,7 @@ export default function InviteRegisterCard() {
             >
               {loading
                 ? "Please wait..."
-                : `Pay ₹${SESSION_FEE_INR.toLocaleString("en-IN")} Now`}
+                : `Pay ${formatList(SESSION_FEE_INR * 100)} Now`}
             </button>
           </div>
         ) : (

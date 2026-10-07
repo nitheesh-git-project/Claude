@@ -12,8 +12,9 @@ import { startCheckoutTimer, type CheckoutOutcome, type CheckoutTimer } from "@/
 import CheckoutProgress, { type CheckoutProgressStage } from "@/components/booking/CheckoutProgress";
 import {
   publishBookingPaymentTrouble,
-  MAX_ATTEMPTS_BEFORE_ESCAPE,
 } from "@/lib/bookingPaymentTrouble";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { escapeOffered, type PaymentTryAnswer, type PaymentTryOutcome } from "@/lib/paymentTries";
 import PromoCodeField from "@/components/booking/PromoCodeField";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
@@ -37,6 +38,9 @@ import ServicePicker from "@/components/booking/ServicePicker";
 import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
 import { categoryServiceOption, defaultCategoryId } from "@/lib/serviceOptions";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
+import { formatRupees } from "@/lib/formatMoney";
+import { usePricing } from "@/components/pricing/PricingProvider";
+import { formatPaiseForCountry, type CountryPricing } from "@/lib/countryPricing";
 
 // The four fields this wizard has always read, plus what the service picker
 // shows. Everything after `duration_minutes` is optional because it arrives
@@ -56,7 +60,7 @@ type Category = {
 
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 type CheckoutQuoteResponse = {
@@ -74,6 +78,10 @@ type CheckoutQuoteResponse = {
   /** Whether paying now is possible at all. A different question: a patient
    *  on terms may still prefer to pay and not owe. */
   canPayNow: boolean;
+  /** The country the server priced this for, or null for rupees. Every
+   *  figure above is the rupee amount Razorpay takes; this is how they are
+   *  printed, so the screen shows what the server charged. */
+  pricing?: CountryPricing | null;
 };
 
 type SignupOutcome =
@@ -86,6 +94,7 @@ export default function BookingWizard({
   promoCodesEnabled = false,
   cancellationRefundHours = CANCELLATION_FULL_REFUND_HOURS,
   bookingLeadTimeHours = BOOKING_LEAD_TIME_HOURS,
+  paymentTriesBeforeAccess = DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess,
 }: {
   initialCategories: Category[];
   // Admin-configured (Feature Control → Booking Languages), never a
@@ -109,6 +118,9 @@ export default function BookingWizard({
    *  refuse, at the last step of checkout. Same correction, and the same
    *  shape, as `cancellationRefundHours` above. */
   bookingLeadTimeHours?: number;
+  /** `site_settings.payment_tries_before_access`: unsuccessful payment tries
+   *  before a new patient's locked account opens (see paymentTries.ts). */
+  paymentTriesBeforeAccess?: number;
 }) {
   const refundWindowHours = cancellationRefundHours;
   const leadTimeMs = leadTimeMsFromHours(bookingLeadTimeHours);
@@ -133,7 +145,25 @@ export default function BookingWizard({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
+  // Unsuccessful payment tries in this visit. The account's own count -- the
+  // one that unlocks it -- is kept by /api/patient/payment-try.
   const [failedAttempts, setFailedAttempts] = useState(0);
+  // Whether this account can open its dashboard. A new patient's cannot
+  // until a payment lands or their tries run out; `justUnlocked` is the try
+  // that opened it, which is when the wizard sends them there to pay.
+  const [accountUnlocked, setAccountUnlocked] = useState(false);
+  const [justUnlocked, setJustUnlocked] = useState(false);
+  const escapeOpen = escapeOffered({
+    unlocked: accountUnlocked,
+    justUnlocked,
+    failuresThisVisit: failedAttempts,
+    limit: paymentTriesBeforeAccess,
+  });
+  // The unpaid draft a Back from the payment step left behind, so the next
+  // booking replaces it rather than leaving a second unpaid session behind.
+  // Seeded from `?replaces=` when the finish-booking screen sends a locked
+  // patient here to pick another time for the draft they left unpaid.
+  const replacedDraftRef = useRef<string | null>(searchParams.get("replaces"));
   // The code the patient applied, if any. Held as a string and sent to
   // checkout as one -- the amount it is worth is never in this component.
   const [promoCode, setPromoCode] = useState<string | null>(null);
@@ -142,6 +172,20 @@ export default function BookingWizard({
   // reads from this rather than from the category price, because printing
   // one figure and opening Razorpay at another is the bug this replaced.
   const [quote, setQuote] = useState<CheckoutQuoteResponse | null>(null);
+  // Prices in the visitor's currency. Before a quote, the catalog price is
+  // formatted on this device; once the server has quoted, its own country
+  // row formats every figure -- the screen never prints a price the server
+  // did not charge.
+  const { formatList } = usePricing();
+  const quotePricing = quote?.pricing ?? null;
+  const quoteMoney = (paise: number) =>
+    quotePricing ? formatPaiseForCountry(paise, quotePricing) : `${formatInr(paise)} INR`;
+  const quoteMoneyShort = (paise: number) =>
+    quotePricing ? formatPaiseForCountry(paise, quotePricing) : formatInr(paise);
+  const listMoney = (paise: number) => {
+    const shown = formatList(paise);
+    return shown.startsWith("₹") ? `${shown} INR` : shown;
+  };
   // Which ending the confirmation screen describes. A booking settled later
   // is not a completed payment, and a screen that reads as one would be
   // telling somebody they did something they did not do.
@@ -329,10 +373,11 @@ export default function BookingWizard({
   useEffect(() => {
     publishBookingPaymentTrouble({
       onPaymentStep: step === 3 && !done,
-      failedAttempts,
+      escapeOpen,
+      done,
     });
-    return () => publishBookingPaymentTrouble({ onPaymentStep: false, failedAttempts: 0 });
-  }, [step, done, failedAttempts]);
+    return () => publishBookingPaymentTrouble({ onPaymentStep: false, escapeOpen: false });
+  }, [step, done, escapeOpen]);
 
   useEffect(() => {
     // Reads the browser's detected timezone, which is only known once
@@ -347,10 +392,11 @@ export default function BookingWizard({
           setIsLoggedIn(true);
           const { data: profile } = await supabase
             .from("profiles")
-            .select("full_name, email, role")
+            .select("full_name, email, role, approved")
             .eq("id", data.user.id)
             .single();
           if (profile) {
+            setAccountUnlocked(profile.approved === true);
             setFullName(profile.full_name);
             setEmail(profile.email);
             // A session belongs to exactly one role (profiles.id is the auth
@@ -493,9 +539,30 @@ export default function BookingWizard({
               full_name: fullName,
               phone,
               referral_code: referralCode.trim() || undefined,
+              // Marks the account as made by a booking wizard: locked until
+              // it pays or runs out of tries, and deleted if it does
+              // neither (see purge_abandoned_booking_accounts).
+              signup_source: "booking",
             },
           },
         });
+        if (signUpError && /already registered|already exists/i.test(signUpError.message)) {
+          // Somebody coming back to finish a booking they started: the
+          // email and password they just typed are their own, so sign them
+          // in with them rather than refusing the address. A wrong password
+          // still reads as the address being taken.
+          const { data: signedIn, error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (!signInError && signedIn.session) return { ok: true };
+          return {
+            ok: false,
+            message:
+              "This email already has an account. Sign in with it to book, or use a different email.",
+            fieldId: "bw-email",
+          };
+        }
         if (signUpError) {
           const message = signUpError.message;
           return {
@@ -684,12 +751,16 @@ export default function BookingWizard({
           // ...and the Razorpay order too, when the quote says the gateway
           // is how it settles: one round trip from this tap to the sheet.
           startPayment: intent,
+          replacesAppointmentId: replacedDraftRef.current,
         }),
       });
       const result = await res.json().catch(() => null);
       if (!res.ok || !result?.appointmentId) {
         setLoading(false);
         setError(result?.error ?? "Could not save your booking. Please try again.");
+        // Our failure is a try; a refusal the patient can fix (a slot, a
+        // lead time) is not.
+        if (res.status >= 500) void noteFailedTry("server_error", null);
         return;
       }
       newAppointmentId = result.appointmentId as string;
@@ -701,9 +772,11 @@ export default function BookingWizard({
     } catch {
       setLoading(false);
       setError("Could not reach the server. Please check your connection and try again.");
+      void noteFailedTry("server_error", null);
       return;
     }
 
+    replacedDraftRef.current = null;
     setAppointmentId(newAppointmentId);
 
     // Re-quoted against the real account and the real booking before
@@ -756,7 +829,7 @@ export default function BookingWizard({
       if (!res.ok) {
         setLoading(false);
         setError(data.error ?? "Could not confirm your booking. Please try again.");
-        setFailedAttempts((n) => n + 1);
+        if (res.status >= 500) void noteFailedTry("server_error", id);
         // The price moved between the quote and this tap -- a cap filled, a
         // code was paused. Re-quote so the screen stops saying "free".
         await refreshQuote(id, promoCode);
@@ -767,7 +840,7 @@ export default function BookingWizard({
     } catch {
       setLoading(false);
       setError("Could not reach the server. Please check your connection and try again.");
-      setFailedAttempts((n) => n + 1);
+      void noteFailedTry("server_error", id);
     }
   }
 
@@ -794,7 +867,7 @@ export default function BookingWizard({
       if (!res.ok) {
         setLoading(false);
         setError(data.error ?? "Could not confirm your booking. Please try again.");
-        setFailedAttempts((n) => n + 1);
+        if (res.status >= 500) void noteFailedTry("server_error", id);
         // The answer moved between the quote and this tap -- terms stopped,
         // a code was paused. Re-quote so the screen stops offering it.
         await refreshQuote(id, promoCode);
@@ -815,7 +888,7 @@ export default function BookingWizard({
     } catch {
       setLoading(false);
       setError("Could not reach the server. Please check your connection and try again.");
-      setFailedAttempts((n) => n + 1);
+      void noteFailedTry("server_error", id);
     }
   }
 
@@ -926,6 +999,29 @@ export default function BookingWizard({
     await startPayment(appointmentId);
   }
 
+  /**
+   * One try that did not end in a payment. Counted here for this visit, and
+   * reported so the server can count it for the account -- the count that
+   * unlocks a new patient's dashboard. A report that fails changes nothing
+   * on screen: the account simply stays as it was.
+   */
+  async function noteFailedTry(outcome: PaymentTryOutcome, id: string | null) {
+    setFailedAttempts((n) => n + 1);
+    try {
+      const res = await fetch("/api/patient/payment-try", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flow: "online", outcome, appointmentId: id }),
+      });
+      if (!res.ok) return;
+      const answer = (await res.json()) as PaymentTryAnswer;
+      if (answer.unlocked) setAccountUnlocked(true);
+      if (answer.justUnlocked) setJustUnlocked(true);
+    } catch {
+      // Nothing to say: the try still counts here, and the next one reports.
+    }
+  }
+
   async function startPayment(
     id: string,
     preMintedOrder: ({ status: number } & Record<string, unknown>) | null = null
@@ -955,12 +1051,12 @@ export default function BookingWizard({
       onError: (message) => {
         setLoading(false);
         setError(message);
-        setFailedAttempts((n) => n + 1);
+        void noteFailedTry("failed", id);
       },
       onDismiss: () => {
         setLoading(false);
         setError("Payment was not completed. You can try again below.");
-        setFailedAttempts((n) => n + 1);
+        void noteFailedTry("dismissed", id);
       },
     });
   }
@@ -973,7 +1069,7 @@ export default function BookingWizard({
       <h1 className="text-xl font-bold">Book Virtual Physical Therapy Session</h1>
       <p className="text-xs text-slate-300 mt-1">
         {selectedCategory
-          ? `${formatInr(selectedCategory.price_paise)} INR • ${
+          ? `${listMoney(selectedCategory.price_paise)} • ${
               selectedCategory.duration_minutes
             }-Min HD Video Call & Custom Rehab Plan`
           : "HD Video Call & Custom Rehab Plan - pricing shown once you pick a concern"}
@@ -1057,13 +1153,14 @@ export default function BookingWizard({
               <>
                 Your session is booked and there&apos;s nothing to pay now. It&apos;s added to
                 what you owe once the session has happened, and you can settle whenever suits
-                you. We&apos;ll confirm your exact slot and send the video call link by email
-                or WhatsApp shortly.
+                you. We&apos;ll confirm your exact slot, then email you a calendar invite with
+                the video call link - it also shows on your dashboard.
               </>
             ) : (
               <>
-                Your session is booked and paid. We&apos;ll confirm your exact slot and send
-                the video call link by email or WhatsApp shortly.
+                Your session is booked and paid. We&apos;ll confirm your exact slot, then email
+                you a calendar invite with the video call link - it also shows on your
+                dashboard.
               </>
             )}
           </p>
@@ -1102,7 +1199,10 @@ export default function BookingWizard({
   }
 
   return (
-    <div className="relative bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+    // overflow-clip, not overflow-hidden: it still rounds the corners, but
+    // it is not a scroll container, so the phone's pinned action row below
+    // can stick to the bottom of the screen rather than to this card.
+    <div className="relative bg-white rounded-3xl shadow-xl overflow-clip border border-slate-200">
       {loading && payStage && step === 3 && (
         <CheckoutProgress stage={payStage} includeAccount={payIncludesAccount} />
       )}
@@ -1406,7 +1506,9 @@ export default function BookingWizard({
             </label>
           </div>
 
-          <div className="flex gap-3 pt-1">
+          {/* Pinned to the bottom of a phone screen: step 2 is a long form,
+              and the way forward should not be below it. */}
+          <div className="sticky bottom-0 z-10 -mx-5 flex gap-3 border-t border-slate-100 bg-white/95 px-5 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:pt-1 sm:backdrop-blur-none">
             <button
               onClick={() => setStep(1)}
               className="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3.5 rounded-xl transition"
@@ -1454,9 +1556,9 @@ export default function BookingWizard({
               <span className="text-slate-500">Session Fee</span>
               <span className={`font-bold text-slate-900 ${quote && quote.discountPaise > 0 ? "line-through opacity-60" : ""}`}>
                 {quote
-                  ? `${formatInr(quote.listPricePaise)} INR`
+                  ? quoteMoney(quote.listPricePaise)
                   : selectedCategory
-                    ? `${formatInr(selectedCategory.price_paise)} INR`
+                    ? listMoney(selectedCategory.price_paise)
                     : "-"}
               </span>
             </div>
@@ -1464,7 +1566,7 @@ export default function BookingWizard({
               <div className="flex justify-between text-xs">
                 <span className="text-teal-700">{quote.discountLabel ?? "Discount"}</span>
                 <span className="font-bold text-teal-700">
-                  −{formatInr(quote.discountPaise)}
+                  −{quoteMoneyShort(quote.discountPaise)}
                 </span>
               </div>
             )}
@@ -1475,7 +1577,7 @@ export default function BookingWizard({
                     own line rather than folded into a price. */}
                 <span className="text-slate-500">Travel</span>
                 <span className="font-bold text-slate-900">
-                  {formatInr(quote.travelFeePaise)}
+                  {quoteMoneyShort(quote.travelFeePaise)}
                 </span>
               </div>
             )}
@@ -1483,9 +1585,18 @@ export default function BookingWizard({
               <div className="flex justify-between text-sm pt-3 border-t border-teal-100">
                 <span className="font-semibold text-slate-700">Total</span>
                 <span className="font-extrabold text-slate-900">
-                  {quote.settlement === "free" ? "Free" : `${formatInr(quote.totalPaise)} INR`}
+                  {quote.settlement === "free" ? "Free" : quoteMoney(quote.totalPaise)}
                 </span>
               </div>
+            )}
+            {/* Razorpay takes rupees only, so a visitor priced abroad is told
+                the exact rupee figure their card will show -- their bank
+                converts it, and may round or add its own fee. */}
+            {quote && quotePricing && quote.settlement !== "free" && (
+              <p className="pt-1 text-[11px] leading-snug text-slate-500" data-testid="charged-in-inr">
+                Charged as {formatInr(quote.totalPaise)} INR. Your bank converts it, so the amount on
+                your statement may differ slightly.
+              </p>
             )}
             {/* The wait is stated instead of being enforced. The button stays
                 tappable throughout -- a tap simply waits for this answer --
@@ -1560,14 +1671,18 @@ export default function BookingWizard({
                     ? `This slot is less than ${cancellationWindow.hours} hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option.`
                     : `Free cancellation up to ${cancellationWindow.hours} hours before your slot. After that, cancelling isn't refunded.`}
           </p>
-          <div className="flex gap-3 pt-1">
+          {/* Pinned on a phone, so the amount and Pay are in view while the
+              summary above is read. */}
+          <div className="sticky bottom-0 z-10 -mx-5 flex gap-3 border-t border-slate-100 bg-white/95 px-5 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:pt-1 sm:backdrop-blur-none">
             <button
               onClick={() => {
                 // Going back to change details abandons the current unpaid
                 // draft rather than silently retrying payment against the
-                // old (possibly now-stale) booking -- it stays in the
-                // patient's dashboard as a normal unpaid session either way,
-                // same as if they'd just closed the tab here.
+                // old (possibly now-stale) booking. The next booking names
+                // it, and /api/appointments/create replaces it while it is
+                // still only a draft -- so the patient neither collides with
+                // their own slot nor ends up with a second unpaid session.
+                if (appointmentId) replacedDraftRef.current = appointmentId;
                 setAppointmentId(null);
                 setFailedAttempts(0);
                 setError(null);
@@ -1596,7 +1711,11 @@ export default function BookingWizard({
                   : quote?.settlement === "pay_later"
                     ? "Confirm booking - pay later"
                     : appointmentId
-                      ? `Pay ${formatInr(quote?.totalPaise ?? selectedCategory?.price_paise ?? 0)} Now`
+                      ? `Pay ${
+                          quote
+                            ? quoteMoneyShort(quote.totalPaise)
+                            : formatList(selectedCategory?.price_paise ?? 0)
+                        } Now`
                       : "Request Booking"}
             </button>
           </div>
@@ -1620,7 +1739,7 @@ export default function BookingWizard({
               disabled={loading}
               className="w-full text-center text-xs font-semibold text-teal-700 underline underline-offset-2 disabled:opacity-60"
             >
-              Or pay {formatInr(quote.totalPaise)} now instead
+              Or pay {quoteMoneyShort(quote.totalPaise)} now instead
             </button>
           )}
           {/* One failure is enough to want reassurance. A patient whose card
@@ -1629,20 +1748,32 @@ export default function BookingWizard({
               that nothing was lost is said immediately, and the escape
               hatch to the dashboard still waits until retrying here has
               plainly stopped working. */}
-          {appointmentId &&
-            failedAttempts > 0 &&
-            failedAttempts < MAX_ATTEMPTS_BEFORE_ESCAPE && (
-              <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-600">
-                Nothing was lost - your booking is saved and still held as unpaid. You can try
-                again above, or pay later from your dashboard.
-              </p>
-            )}
-          {appointmentId && failedAttempts >= MAX_ATTEMPTS_BEFORE_ESCAPE && (
-            <div className="text-xs text-center bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 space-y-2">
-              <p>
-                Having trouble paying? Your booking is saved as pending - you
-                can come back and pay any time from your dashboard.
-              </p>
+          {appointmentId && failedAttempts > 0 && !escapeOpen && (
+            <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-600">
+              {accountUnlocked
+                ? "Nothing was lost - your booking is saved and still held as unpaid. You can try again above, or pay later from your dashboard."
+                : "Nothing was lost - your slot is still held for you. Try again whenever you're ready."}
+            </p>
+          )}
+          {escapeOpen && (
+            <div
+              role="status"
+              className="text-xs text-center bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 space-y-2"
+            >
+              {justUnlocked ? (
+                <>
+                  <p className="font-semibold">Your account is ready.</p>
+                  <p>
+                    We&apos;ve saved your booking as unpaid. You can finish paying from your
+                    dashboard whenever you&apos;re ready.
+                  </p>
+                </>
+              ) : (
+                <p>
+                  Having trouble paying? Your booking is saved as pending - you
+                  can come back and pay any time from your dashboard.
+                </p>
+              )}
               <Link
                 href="/patient/dashboard"
                 className="inline-block font-bold text-teal-700 hover:underline"

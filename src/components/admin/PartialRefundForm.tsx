@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
+import { formatRupees } from "@/lib/formatMoney";
 
 // A refund for an amount the admin chooses.
 //
@@ -47,7 +48,7 @@ export default function PartialRefundForm({
   if (remainingPaise <= 0) {
     return (
       <p className="text-[11px] text-slate-500">
-        Fully refunded - ₹{(alreadyRefundedPaise / 100).toLocaleString("en-IN")} returned.
+        Fully refunded - ₹{formatRupees(alreadyRefundedPaise)} returned.
       </p>
     );
   }
@@ -65,7 +66,7 @@ export default function PartialRefundForm({
     const paise = Math.round(rupees * 100);
     if (paise > remainingPaise) {
       setError(
-        `Only ₹${(remainingPaise / 100).toLocaleString("en-IN")} is still refundable on this session.`
+        `Only ₹${formatRupees(remainingPaise)} is still refundable on this session.`
       );
       return;
     }
@@ -114,8 +115,8 @@ export default function PartialRefundForm({
   return (
     <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
       <p className="text-[11px] text-slate-500">
-        ₹{(remainingPaise / 100).toLocaleString("en-IN")} of ₹
-        {(paidPaise / 100).toLocaleString("en-IN")} is still refundable.
+        ₹{formatRupees(remainingPaise)} of ₹
+        {formatRupees(paidPaise)} is still refundable.
       </p>
       {byHand && (
         <p className="text-[11px] text-slate-600">

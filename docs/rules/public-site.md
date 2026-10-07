@@ -338,10 +338,14 @@ Eight pages from one design system, the word budgets, why every photograph carri
   3. **More ticked than the limit is not an error**, and the cap is stated on
      the screen that sets it rather than discovered on the live site.
   4. **The two pages differ because their lists do.** `/` links on to
-     `/conditions`, which still shows everything; `/home-visit` reveals the
-     rest in place, because it *is* its own full list and has nowhere to send
-     anybody. `hasMore` gates both -- a control opening a list identical to
-     the one above it is a dead end with a label on it.
+     `/conditions`, which still shows everything; `/home-visit` shows every
+     package, featured ones first, because it *is* its own full list and has
+     nowhere to send anybody. (It used to lead with four and reveal the rest,
+     and the revealed cards never appeared: `Stagger` animates its children
+     once, so cards added later stayed hidden. `HomeVisitPackages` keys it on
+     the reveal for any caller that still passes `leadCount`.) `hasMore`
+     gates the home page's link -- a control opening a list identical to the
+     one above it is a dead end with a label on it.
   5. **`featured` is not `highlight`.** The home-visit form already had a
      control labelled "Feature this package" that drew the teal ring; it
      reads "Highlight with a ring" now. Two controls called Feature, meaning
@@ -438,6 +442,40 @@ Eight pages from one design system, the word budgets, why every photograph carri
   surface for an admin-editable table means adding its path to those routes
   in the same change; the ISR window is a cache, not a publishing delay
   anyone chose.
+- **The health profile is shown as the dashboard a patient gets, never with
+  a real patient's data.** `HealthProfileShowcase` draws a sample dashboard
+  per enabled specialty (`site_settings.enabled_intake_specialties`): stat
+  tiles, the real `PainTrendChart` / `PainMapView` / `IntakeTrendChart`, the
+  care plan's progress and an "Every action, recorded" timeline, from
+  `SAMPLE_DASHBOARDS` in `src/lib/healthProfileShowcase.ts`, labelled
+  "Sample patient". Every stat and timeline entry is something the product
+  records -- home exercises *prescribed* in session notes, never completion,
+  which it does not track -- and a unit test holds the sample's headline
+  figures to what its charts draw. On `/how-it-works` it sits beside "What
+  we track"; on the home page it is its own band beside a short pitch and
+  **Book your first session**. **It is the one public widget that moves on
+  its own**, every five seconds, which the carousel rule below otherwise
+  forbids, so the movement is held to the reader: only while its frame is
+  at least half on screen (never alongside `JourneySteps`), never while
+  hovered, focused or touched, never again once a tab is picked, never
+  under reduced motion, and always with a pause button
+  (`e2e/health-profile-showcase.spec.ts`).
+- **Why choose us is a bento grid of drawn vignettes, Real benefits a
+  photograph beside illustrated rows.** The vignettes are built from the
+  site's own UI parts rather than stock art, and the language tile reads
+  `booking_languages`, so it never names a language the booking form does
+  not offer.
+- **The home page's mission band steps from the concrete to the why: Why
+  choose us, then The real benefits, then mission and vision.** Six reasons
+  as icon cards and six numbered outcomes, one line each on the home page
+  (`WhyChooseUsGrid compact` / `RealBenefitsList compact`), and in full on
+  `/mission` in the same order, each card adding how the platform does it.
+  The copy is `src/lib/whyChooseUs.ts`, and every line is something the
+  product keeps (a profile per specialty, the Pain Map, the language picked
+  at booking, the price before paying) -- distinct from "What we promise",
+  which are rules the platform enforces. No admin-set figure is written
+  into it: the refund window and lead time live in `site_settings`, and a
+  number in marketing copy is the first thing to go stale.
 - **A connector shows the whole of what is short and the headline of what is
   long.** The home page's mission band gives the mission and vision in full -
   they are two sentences, and paraphrasing them into a teaser would leave the
@@ -548,3 +586,34 @@ Eight pages from one design system, the word budgets, why every photograph carri
   `rel="noopener noreferrer"` and says "(opens in a new tab)" in its
   accessible name; `mailto:` and `tel:` stay as they are. The icons are
   inline SVG in `BrandGlyphs.tsx`, not the fa-brands webfont.
+
+- **The header changes by width, and booking is always one tap away.** Below
+  `lg` the page links are in the menu and every marketing page has a sticky
+  **Book a video session** bar at the foot of the screen (`PublicBookBar`,
+  shown where `isBookBarRoute` says -- not on `/get-started`, the wizard, an
+  auth card or a dashboard). From `lg` the header shows Conditions, How it
+  works, Home visit, Team and FAQ with Mission and Hospitals under **More**,
+  then Sign In and the Book button; from `2xl` every page is in the row and
+  Get Started joins them. Home is the logo at every width. The Book label is
+  `BOOK_CONNECTOR.label`, so it names the mode wherever it appears.
+
+- **A public price is a `<Price>`, never a formatted string.** The public
+  pages are statically cached for everybody, so their HTML carries rupees.
+  `PricingProvider` (root layout) reads the visitor's country from cookies
+  after mount and every `<Price>` / `usePricing()` re-renders in the local
+  currency; a head script hides `[data-price]` for a non-Indian cookie until
+  then (3 s backstop), so a foreign visitor never sees the rupee figure
+  flash. Display only - the checkout prices the request again on the server
+  (`payments.md`). Home-visit prices pass `rupeesOnly`. The footer's
+  country picker shows only when local prices and the picker are both on;
+  the debug bar's Country dropdown forces any country while the bar exists.
+
+- **On /conditions the programmes come first, the areas of practice
+  second.** What a visitor can book today ("Structured programmes") leads;
+  "Areas of practice" sits below it and answers "what if mine is not one of
+  those". The section rail follows the same order.
+- **The sign-in pages keep the nav's whole signed-out cluster** - Sign In,
+  Get Started, Book - so tapping Sign In does not appear to break the nav.
+  `isAuthCtaSignedOutRoute` pins it there whatever the session says, which
+  still stops "Go to Dashboard" flashing mid-login; only registration and
+  the holding pages drop the cluster (`isAuthCtaHiddenRoute`).

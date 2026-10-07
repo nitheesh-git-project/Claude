@@ -9,9 +9,10 @@ import TherapistEarningsChart, { type EarningsDay } from "@/components/Therapist
 import type { TherapistEarningRow } from "@/lib/therapistEarnings";
 import { istDateKey } from "@/lib/formatSlotRange";
 import DateField from "@/components/system/DateField";
+import { formatRupees } from "@/lib/formatMoney";
 
 function formatInr(paise: number) {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${formatRupees(paise)}`;
 }
 
 function formatDate(iso: string) {
