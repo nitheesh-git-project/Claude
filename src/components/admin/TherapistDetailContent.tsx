@@ -4,7 +4,7 @@ import { formatClinicDate, formatClinicDateTimeWithZone } from "@/lib/formatDate
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
-import { scopeCanOpen } from "@/lib/adminScope";
+import { scopeCanManage, scopeCanOpen } from "@/lib/adminScope";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import TherapistActiveToggle from "@/components/admin/TherapistActiveToggle";
@@ -30,7 +30,7 @@ import {
 } from "@/lib/therapistPayouts";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
-import { parseAdminSettings } from "@/lib/adminSettings";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 // A plain module-level helper rather than a bare Date.now() inside a Server
@@ -77,7 +77,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     // Isolated query, same migration-dependent convention as everything
     // else on this page -- only feeds the Join button's window here, never
     // blocks the rest of the detail page if the columns aren't migrated yet.
-    admin.from("site_settings").select("join_window_minutes").maybeSingle(),
+    admin.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
 
     admin
       .from("profiles")
@@ -108,6 +108,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       .maybeSingle(),
   ]);
   const adminSettings = parseAdminSettings(settingsRow);
+  const homeVisitEnabled = adminSettings.homeVisitEnabled;
 
   if (!therapist) {
     notFound();
@@ -374,7 +375,20 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                 userName={therapist.full_name ?? "this therapist"}
               />
             )}
-            {!therapist.approved && <ApproveAccountButton userId={therapist.id} />}
+            {!therapist.approved && (
+              <ApproveAccountButton
+                userId={therapist.id}
+                therapist={{
+                  name: therapist.full_name ?? therapist.email ?? "this therapist",
+                  email: therapist.email,
+                  credentials: therapist.credentials,
+                  specialization: therapist.specialization,
+                }}
+                canSetRevenueShare={viewer !== null && scopeCanManage(viewer.scope, "money")}
+                homeVisitEnabled={homeVisitEnabled}
+                canOpenRoster={canManageSessions}
+              />
+            )}
             <TherapistTeamVisibilityToggle
               therapistId={therapist.id}
               visibleOnTeam={therapist.visible_on_team}

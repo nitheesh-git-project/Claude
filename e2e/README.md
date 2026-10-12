@@ -95,6 +95,7 @@ total, which moves with every spec added.
 | --- | --- | --- |
 | `admin-authz` | 5 | admin route authorization for every role |
 | `admin-scoped-dashboard` | 6 | each scope's own landing screen, and Logs refusing all three limited desks at the screen *and* both routes |
+| `admin-approve-therapist` | 2 | approving a therapist asks for the revenue share and writes it with `approved`; the route refuses one without it from a money-scoped admin |
 | `admin-multi-admin` | 4 | two admins acting at once; an approve and a decline racing on one signup (H-021) |
 | `admin-exposure` | 6 | the back office is not named to anyone outside it |
 | `admin-account-delete` | 3 | a delete that can only succeed on an account with no history |

@@ -5,12 +5,24 @@ import { revalidatePath } from "next/cache";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { serverError } from "@/lib/apiError";
+import { scopeCanManage } from "@/lib/adminScope";
+import {
+  parseTherapistApprovalSetup,
+  type TherapistApprovalSetup,
+  type TherapistApprovalSetupInput,
+} from "@/lib/therapistApproval";
 
 // Approves a pending self-serve signup. Handles both roles that go through
 // the approval gate -- therapist applications and, since patients now wait
 // on the same gate, patient registrations. The role filter is still there
 // (rather than approving any id) so this can never be used to flip
 // `approved` on an admin or hospital row.
+//
+// A therapist's approval also carries their setup -- revenue share, an
+// optional home-visit share, whether they show on /team, and a note for the
+// log -- written in the same update as `approved`, so an admin who can set
+// money cannot approve a therapist and leave their pay undefined. The rules
+// live in src/lib/therapistApproval.ts.
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
   if (!adminUser) {
@@ -19,6 +31,7 @@ export async function POST(request: NextRequest) {
 
   const { data: body, error: parseError } = await parseJsonBody<{
     userId?: string;
+    therapistSetup?: TherapistApprovalSetupInput;
   }>(request);
   if (parseError) return parseError;
   const { userId } = body;
@@ -27,9 +40,40 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+
+  // The role decides whether a setup is required, so it is read first --
+  // from the row, never from the request.
+  const { data: target, error: targetError } = await admin
+    .from("profiles")
+    .select("role, full_name, revenue_share_percent, home_visit_revenue_share_percent")
+    .eq("id", userId)
+    .in("role", ["therapist", "patient"])
+    .maybeSingle();
+  if (targetError) return serverError("admin/approve-account (role)", targetError);
+
+  let setup: TherapistApprovalSetup | null = null;
+  const changes: Record<string, unknown> = { approved: true };
+  if (target?.role === "therapist") {
+    const parsed = parseTherapistApprovalSetup(body.therapistSetup, {
+      canSetRevenueShare: scopeCanManage(adminUser.scope, "money"),
+    });
+    if (!parsed.ok) {
+      return NextResponse.json(
+        { error: parsed.error, code: parsed.code },
+        { status: parsed.code === "forbidden_money" ? 403 : 400 }
+      );
+    }
+    setup = parsed.setup;
+    if (setup.revenueSharePercent !== null) {
+      changes.revenue_share_percent = setup.revenueSharePercent;
+      changes.home_visit_revenue_share_percent = setup.homeVisitSharePercent;
+    }
+    if (setup.visibleOnTeam !== undefined) changes.visible_on_team = setup.visibleOnTeam;
+  }
+
   const { data: updated, error } = await admin
     .from("profiles")
-    .update({ approved: true })
+    .update(changes)
     .eq("id", userId)
     .in("role", ["therapist", "patient"])
     // Only a pending account. If a decline holds the row's lock this waits,
@@ -68,7 +112,41 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "account.approve",
     targetId: userId,
+    targetLabel: target?.full_name ?? null,
+    details: setup
+      ? {
+          ...(setup.visibleOnTeam !== undefined ? { visibleOnTeam: setup.visibleOnTeam } : {}),
+          ...(setup.note ? { note: setup.note } : {}),
+        }
+      : undefined,
   });
+  // The rates get their own entries, under the actions the profile's rate
+  // forms already log, so they land in the Money desk's view of the log
+  // rather than in People's.
+  if (setup?.revenueSharePercent != null) {
+    await recordAdminActivity(admin, adminUser.id, {
+      action: "therapist.set_revenue_share",
+      targetId: userId,
+      targetLabel: target?.full_name ?? null,
+      details: {
+        fromPercent: target?.revenue_share_percent ?? null,
+        toPercent: setup.revenueSharePercent,
+        atApproval: true,
+      },
+    });
+    if (setup.homeVisitSharePercent !== null) {
+      await recordAdminActivity(admin, adminUser.id, {
+        action: "therapist.set_home_visit_revenue_share",
+        targetId: userId,
+        targetLabel: target?.full_name ?? null,
+        details: {
+          fromPercent: target?.home_visit_revenue_share_percent ?? null,
+          toPercent: setup.homeVisitSharePercent,
+          atApproval: true,
+        },
+      });
+    }
+  }
 
   return NextResponse.json({ success: true });
 }

@@ -1952,7 +1952,22 @@ export default async function AdminDashboardPage({
                       userId={p.id}
                       role={isTherapist ? "therapist" : "patient"}
                     />
-                    <ApproveAccountButton userId={p.id} />
+                    <ApproveAccountButton
+                      userId={p.id}
+                      therapist={
+                        isTherapist
+                          ? {
+                              name: p.full_name ?? p.email ?? "this therapist",
+                              email: p.email,
+                              credentials: p.credentials,
+                              specialization: p.specialization,
+                            }
+                          : undefined
+                      }
+                      canSetRevenueShare={scopeCanManage(viewerScope, "money")}
+                      homeVisitEnabled={adminSettings.homeVisitEnabled}
+                      canOpenRoster={scopeCanOpen(viewerScope, "sessions")}
+                    />
                   </div>
                 </div>
               ),

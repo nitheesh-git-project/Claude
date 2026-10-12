@@ -3,8 +3,29 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
+import ApproveTherapistDialog, {
+  type ApproveTherapistSummary,
+} from "@/components/admin/ApproveTherapistDialog";
 
-export default function ApproveAccountButton({ userId }: { userId: string }) {
+/**
+ * A patient is approved in one tap. A therapist opens ApproveTherapistDialog,
+ * which collects their revenue share and the rest of their setup before
+ * approving -- pass `therapist` for that.
+ */
+export default function ApproveAccountButton({
+  userId,
+  therapist,
+  canSetRevenueShare = false,
+  homeVisitEnabled = false,
+  canOpenRoster = false,
+}: {
+  userId: string;
+  therapist?: ApproveTherapistSummary;
+  canSetRevenueShare?: boolean;
+  homeVisitEnabled?: boolean;
+  canOpenRoster?: boolean;
+}) {
+  const [dialogOpen, setDialogOpen] = useState(false);
   // The parent only renders this button for pending signups, so a real
   // success unmounts it via router.refresh() before this optimistic overlay
   // would need to clear on its own -- a failure just reverts to the base
@@ -34,6 +55,34 @@ export default function ApproveAccountButton({ userId }: { userId: string }) {
     });
   }
 
+  if (therapist) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setDialogOpen(true)}
+          className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"
+        >
+          Approve
+        </button>
+        {dialogOpen && (
+          <ApproveTherapistDialog
+            userId={userId}
+            therapist={therapist}
+            canSetRevenueShare={canSetRevenueShare}
+            homeVisitEnabled={homeVisitEnabled}
+            canOpenRoster={canOpenRoster}
+            onClose={() => setDialogOpen(false)}
+            onApproved={() => {
+              setDialogOpen(false);
+              router.refresh();
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
   if (optimisticApproved && !error) {
     return <span className="text-xs font-semibold text-teal-700">Approved</span>;
   }
@@ -41,6 +90,7 @@ export default function ApproveAccountButton({ userId }: { userId: string }) {
   return (
     <div className="flex flex-col items-end gap-1">
       <button
+        type="button"
         onClick={handleApprove}
         disabled={isPending}
         className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2 rounded-xl transition"

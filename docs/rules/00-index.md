@@ -13,11 +13,12 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## The admin back office
 
-`docs/rules/admin.md` -- 23 rules
+`docs/rules/admin.md` -- 24 rules
 
 - The admin dashboard's information architecture lives in `src/lib/adminNav.ts`
 - Every session and every person has a timestamped history, built from what is already recorded rather than a new event table
 - People -> Abandoned checkouts is a list of leads, never approvals
+- Approving a therapist sets their revenue share in the same step
 - A scope that could not be read is refused, never promoted, and a screen outside the scope never leaves the server
 - No password is issued, stored or shown - an admin hands over a one-time link
 - User Access is where the access model is read, and it is derived

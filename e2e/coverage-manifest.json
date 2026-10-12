@@ -47,6 +47,19 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-approve-therapist.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-authz.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -2013,6 +2026,27 @@
       "rules": [
         "docs/rules/dashboards.md",
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.approve-therapist",
+      "runner": "admin",
+      "title": "Approving a therapist sets their revenue share in the same step",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-approve-therapist.spec.ts",
+          "tests": [
+            "AT-001",
+            "AT-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md",
+        "docs/rules/roster.md"
       ]
     },
     {

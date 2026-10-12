@@ -627,6 +627,22 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   path. Approve flips only `approved = false` rows, reports a repeat as
   success, and a declined account as gone. `admin-multi-admin` H-021 races
   the pair in both orders.
+- **Approving a therapist sets their revenue share in the same step.**
+  Approve on a therapist opens `ApproveTherapistDialog`: their credentials
+  and specialisation to check, the session share (required), an optional
+  separate home-visit share (only while home visits are on; "same rate"
+  saves null, as the profile's form does), Show on /team, and an internal
+  note for the log. `approve-account` writes the rates in the same update as
+  `approved`, and refuses a therapist approval without a share (400
+  `revenue_share_required`) from an admin who can manage `money`. An admin
+  without `money` still approves - the people desk is not held up on
+  finance - sends no share (one sent is a 403 `forbidden_money`, never
+  silently dropped), and the readiness panel keeps saying it is missing.
+  The rates are logged under the profile forms' own actions, so they reach
+  Money's view of the log rather than People's. The dialog ends on "set
+  working hours", the one readiness item too big to ask for there. Patients
+  still approve in one tap. Rules: `src/lib/therapistApproval.ts`; guard:
+  `e2e/admin-approve-therapist.spec.ts`.
 - **Admin-configurable behavior** (Meet on/off, join window, the Session
   Completed cutoff - minutes after slot time at which every "Tap to Join"
   control reads "Session Completed" instead, admin's own included, since a
