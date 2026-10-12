@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import PasswordInput from "./PasswordInput";
 
 // See EmailField for why the label carries a generated `htmlFor`. This one
 // is always a retype, so `autoComplete` is "new-password" on every caller.
@@ -37,9 +38,8 @@ export default function ConfirmPasswordField({
       <label htmlFor={id} className={labelClassName}>
         {label}
       </label>
-      <input
+      <PasswordInput
         id={id}
-        type="password"
         name={name}
         required
         minLength={6}

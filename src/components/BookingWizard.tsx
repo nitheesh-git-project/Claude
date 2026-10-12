@@ -42,6 +42,7 @@ import { formatRupees } from "@/lib/formatMoney";
 import { usePricing } from "@/components/pricing/PricingProvider";
 import { formatPaiseForCountry, type CountryPricing } from "@/lib/countryPricing";
 import { wizardSlotParts } from "@/lib/resumeCheckout";
+import PasswordInput from "@/components/auth/PasswordInput";
 
 // The four fields this wizard has always read, plus what the service picker
 // shows. Everything after `duration_minutes` is optional because it arrives
@@ -1460,9 +1461,8 @@ export default function BookingWizard({
                       (for portal access)
                     </span>
                   </span>
-                  <input
+                  <PasswordInput
                     id="bw-password"
-                    type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     minLength={6}

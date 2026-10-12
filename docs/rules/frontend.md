@@ -642,6 +642,22 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
 
 ---
 
+## Password boxes
+
+**Every password box is `PasswordInput`** (`src/components/auth/PasswordInput.tsx`),
+never a bare `<input type="password">`. It is a drop-in that adds the eye
+toggle: mistyping a password you cannot see is the commonest reason a
+sign-in or registration fails on a phone keyboard. The toggle is a real,
+focusable button (`aria-pressed`, "Show password" / "Hide password"), so
+keyboard users get it too and Tab goes password, eye, then the next control.
+The box flips back to hidden when its form submits, because a password
+manager reads the field's type at submit time to decide whether to offer to
+save it. `PasswordField` and `ConfirmPasswordField` are built on it. A spec
+that finds the box by label needs `getByLabel("Password", { exact: true })`,
+or it also matches the toggle.
+
+---
+
 ## Icons: solid only
 
 `globals.css` imports `fontawesome.min.css` + `solid.min.css`, **not**

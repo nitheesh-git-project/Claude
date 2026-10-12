@@ -30,7 +30,7 @@ test.describe("Admin login", () => {
   test("valid admin credentials reach the dashboard", async ({ page }) => {
     await page.goto(`${LOGIN_BASE}/admin/login`);
     await page.getByLabel("Email Address").fill(QA_EMAILS.admin);
-    await page.getByLabel("Password").fill(TEST_PASSWORD);
+    await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
 
     await page.waitForURL(/\/admin\/dashboard/, { timeout: 60_000 });
@@ -42,7 +42,7 @@ test.describe("Admin login", () => {
   test("a wrong password is reported and does not sign anyone in", async ({ page }) => {
     await page.goto(`${LOGIN_BASE}/admin/login`);
     await page.getByLabel("Email Address").fill(QA_EMAILS.admin);
-    await page.getByLabel("Password").fill("definitely-not-the-password");
+    await page.getByLabel("Password", { exact: true }).fill("definitely-not-the-password");
     await page.getByRole("button", { name: /sign in/i }).click();
 
     // The message comes back and the button returns -- a failed sign-in must
@@ -55,7 +55,7 @@ test.describe("Admin login", () => {
   test("a patient's credentials cannot open the admin dashboard", async ({ page }) => {
     await page.goto(`${LOGIN_BASE}/admin/login`);
     await page.getByLabel("Email Address").fill(QA_EMAILS.patientA);
-    await page.getByLabel("Password").fill(TEST_PASSWORD);
+    await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
     await page.getByRole("button", { name: /sign in/i }).click();
 
     // Supabase accepts the credentials -- they are a real user -- so the
@@ -77,13 +77,28 @@ test.describe("Admin login", () => {
   }) => {
     await page.goto(`${LOGIN_BASE}/admin/login`);
     const email = page.getByLabel("Email Address");
-    const password = page.getByLabel("Password");
+    const password = page.getByLabel("Password", { exact: true });
     await expect(email).toHaveAttribute("type", "email");
     await expect(password).toHaveAttribute("type", "password");
     // Keyboard alone must get from the email field to the submit button.
     await email.focus();
     await page.keyboard.press("Tab");
     await expect(password).toBeFocused();
+    // The eye toggle sits between the password and Sign In, and works from
+    // the keyboard: Space shows the password, Space again hides it.
+    await page.keyboard.press("Tab");
+    const eye = page.getByRole("button", { name: "Show password" });
+    await expect(eye).toBeFocused();
+    await expect(eye).toHaveAttribute("aria-pressed", "false");
+    await page.keyboard.press("Space");
+    await expect(password).toHaveAttribute("type", "text");
+    await expect(page.getByRole("button", { name: "Hide password" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await page.getByRole("button", { name: "Hide password" }).click();
+    await expect(password).toHaveAttribute("type", "password");
+    await page.getByRole("button", { name: "Show password" }).focus();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: /sign in/i })).toBeFocused();
   });

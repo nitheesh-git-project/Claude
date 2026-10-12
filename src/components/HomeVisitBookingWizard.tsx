@@ -46,6 +46,7 @@ import ServicePicker from "@/components/booking/ServicePicker";
 import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
 import { homeVisitServiceOption } from "@/lib/serviceOptions";
 import { formatRupees } from "@/lib/formatMoney";
+import PasswordInput from "@/components/auth/PasswordInput";
 
 // The six fields this wizard has always read, plus what the service picker
 // shows. The optional ones are optional for two different reasons: the focal
@@ -949,9 +950,8 @@ export default function HomeVisitBookingWizard({
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Password</span>
-                  <input
+                  <PasswordInput
                     id="hv-password"
-                    type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className={inputCls()}
@@ -959,9 +959,8 @@ export default function HomeVisitBookingWizard({
                 </label>
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Confirm password</span>
-                  <input
+                  <PasswordInput
                     id="hv-confirm-password"
-                    type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className={inputCls()}

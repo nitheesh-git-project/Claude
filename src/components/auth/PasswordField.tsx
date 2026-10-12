@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
+import PasswordInput from "./PasswordInput";
 
 const MIN_LENGTH = 6;
 
@@ -38,9 +39,8 @@ export default function PasswordField({
       <label htmlFor={id} className={labelClassName}>
         {label}
       </label>
-      <input
+      <PasswordInput
         id={id}
-        type="password"
         name={name}
         required
         minLength={MIN_LENGTH}
