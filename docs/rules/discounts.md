@@ -81,7 +81,20 @@ The four acquisition discounts, promo codes, patient invites, and the one module
        shown a figure with the code applied, and taking more money than they
        were quoted is the one outcome a payment screen must never produce.
        A code that is claimed but then loses to a larger discount is
-       *released*, so it does not count against its own cap for nothing.
+       *released*, so it does not count against its own cap for nothing --
+       and so is a claim an earlier attempt left on the booking when this
+       checkout carries no code, or a refused one: the row names the code
+       its price actually used.
+     - **An open order is reused only at the price just resolved.**
+       `mintAppointmentOrder` used to hand back a prior `created` /
+       `attempted` Razorpay order before re-pricing, so a code applied after
+       a failed try showed its discount on screen while the sheet charged
+       the old amount, and a code whose cap had filled since was still
+       honoured. It now resolves (and claims) first and reuses the order only
+       when the amount matches; otherwise it mints a new one -- unless a
+       payment on the old order is still `created`, `authorized` or
+       `captured`, which is a 409 ("still being processed"), and a lookup
+       that fails is a 503, never "nothing in flight".
      `promo_codes` has no patient select policy - a patient who can list it
      reads every campaign the clinic has ever scheduled, including the ones
      not yet running. A **claimed** code is never deleted, only paused: a

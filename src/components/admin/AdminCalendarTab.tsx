@@ -10,6 +10,7 @@ import { formatSlotRange, istDateKey } from "@/lib/formatSlotRange";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
+import { awaitsPatientPayment, needsTherapist } from "@/lib/sessionAssignQueue";
 
 type Person = { id: string; full_name: string | null };
 type Category = {
@@ -240,13 +241,19 @@ export default function AdminCalendarTab({
                   <td className="py-2 pr-3 text-slate-500 font-mono">{a.session_code ?? "-"}</td>
                   <td className="py-2 pr-3 font-bold text-slate-900">
                     {a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : "Unassigned"}
-                    {!a.therapist_id && a.status !== "cancelled" && (
+                    {needsTherapist(a, homeVisitMap.has(a.id)) && (
                       // Same affordance as the All Sessions row: the click
                       // that opens the drawer is also the click that leads
                       // to the assignment, so say so rather than leaving
                       // "Unassigned" as a bare statement of fact.
                       <span className="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
                         Tap to assign
+                      </span>
+                    )}
+                    {awaitsPatientPayment(a, homeVisitMap.has(a.id)) && (
+                      // Not work yet: it assigns itself once paid.
+                      <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                        Awaiting payment
                       </span>
                     )}
                   </td>

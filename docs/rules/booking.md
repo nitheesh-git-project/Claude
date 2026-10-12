@@ -31,6 +31,25 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   asked about first (`razorpayOrderIsPaid`): paid is a 409 saying so, and a
   lookup that fails is a 503, never "not paid". Anything else that overlaps
   still blocks. `e2e/booking-retry-after-cancel.spec.ts` holds it.
+- **Paying for an unpaid booking later goes back to Step 3, not to a second
+  checkout.** Pay on an unpaid online session (the patient's session card,
+  and **Finish your booking**) opened Razorpay straight from the card, with
+  no code field and no breakdown -- so a patient whose first try failed after
+  applying a promo code was asked for the full price and could not apply it
+  again. It is now a link to `/book?resume=<id>`: `/api/appointments/resume`
+  (a read; the patient's own row) answers `ready`, `pick_new_time`, `paid`
+  or `not_resumable`, and `decideResume` (`src/lib/resumeCheckout.ts`) is
+  that rule. `ready` opens Step 3 for the same appointment with its time,
+  concern, language and notes filled in, and the code the earlier attempt
+  claimed handed to `PromoCodeField` as `initialCode`, which re-checks it --
+  applied again, or "... from your last try can't be used now: <why>".
+  `pick_new_time` (the slot has passed or is inside the lead time, and the
+  row is still a replaceable draft) opens Step 1 with the service kept and
+  says so; the next Pay replaces the draft as Back does. Home visits,
+  programme sessions and sessions on terms keep their own paths
+  (`canResumeInWizard`), and a paid, cancelled or otherwise unfinishable
+  booking is said in words with a way forward. Tries are counted exactly as
+  on the first attempt. `e2e/checkout-resume.spec.ts` holds it.
 - **Booking lead time** is `site_settings.online_booking_lead_time_hours`,
   defaulting to the 12 hours `src/lib/bookingSlots.ts` still holds as
   `BOOKING_LEAD_TIME_HOURS`, and shared by the picker and the validator so
@@ -263,7 +282,7 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   locked shows "Finish your booking", not "Approval Pending"**:
   `/pending-approval` reads the signup marker and renders
   `FinishBookingCard` -- the newest future unpaid online draft with **Pay
-  now** (the same `payForAppointment`, tries counted the same way) and
+  now** (the wizard's own Step 3 via `/book?resume=`, see below) and
   **Pick another time** (`/book?replaces=<draft id>`, which seeds the
   wizard's `replacesAppointmentId`), plus the date the account is removed
   if it stays unpaid. Nobody is reviewing such an account, so a review

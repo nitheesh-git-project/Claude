@@ -428,8 +428,8 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   redo the filtering by hand and, worse, made the number look wrong.
   `adminScreenHref(section, tab, view)` adds a third, optional `?view=`
   preset, and the target screen applies it to its own filters on arrival:
-  `AdminAllSessionsTab` knows `unassigned`, `today`, `cancelled`, `no_show`,
-  `completed`, `home_visit` and `unpaid`; `AdminPayoutsTab` knows `owed` and
+  `AdminAllSessionsTab` knows `unassigned`, `awaiting_payment`, `today`,
+  `cancelled`, `no_show`, `completed`, `home_visit` and `unpaid`; `AdminPayoutsTab` knows `owed` and
   `settled`. Three rules keep it honest. It is **one-shot**:
   `AdminShell.navigate()` deletes `view` on the next tab change, so a preset
   never becomes a filter an admin cannot find the source of, and a repeat
@@ -442,6 +442,21 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   dashboard taps a figure, and an effect would paint the unfiltered table
   first. An unknown preset falls through to cleared filters, so a stale
   link shows everything rather than nothing.
+- **"Sessions with no therapist" is committed sessions only.** It counted
+  every unassigned row that was not cancelled, and the online wizard creates
+  its booking on the first Pay tap -- so every abandoned checkout sat in the
+  admin's assign queue looking like work, and assigning one held a
+  therapist's hour for a session nobody had paid for. `needsTherapist` /
+  `awaitsPatientPayment` (`src/lib/sessionAssignQueue.ts`) split them: an
+  online, prepaid, unpaid, unassigned session not drawn from a purchase is
+  **awaiting payment** -- its own non-urgent inbox row ("Waiting on the
+  patient's payment", `?view=awaiting_payment`), an **Awaiting payment**
+  chip instead of **Tap to assign** on All Sessions and the Schedule panel,
+  and a "Waiting on payment" status option. Paid, on terms, purchase-drawn
+  and home-visit sessions (cash at the door is a commitment) stay in the
+  queue. A paid session assigns itself when the roster has one answer
+  (`roster.md`), so the queue is what that could not place. An admin can
+  still open and assign an unpaid one; it just is not presented as work.
 - **A session is listed once.** All Bookings, Session Story, the calendar's
   day panel and the home-visit queue were four lists over the same
   `appointments` rows; they are now one filterable list

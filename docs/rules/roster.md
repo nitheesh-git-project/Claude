@@ -223,7 +223,8 @@ Availability as periods over hour rows, specialisation as a value, what readines
   when **exactly one** eligible therapist is free, or when the patient's own
   `preferred_therapist_id` is among the free ones. Zero or two-or-more
   returns null and the appointment stays `requested` and unassigned in the
-  admin queue -- the pre-existing behaviour, and deliberately the fallback,
+  admin queue (an unpaid online booking is never in that queue -- it is
+  "awaiting payment", `src/lib/sessionAssignQueue.ts`; see `admin.md`) -- the pre-existing behaviour, and deliberately the fallback,
   because assigning the wrong clinician is far worse than the wait this
   removes. `decideAutoAssignment()` is that rule with the database taken
   out, so the judgement is unit-tested rather than only integration-tested.

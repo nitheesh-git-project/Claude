@@ -21,6 +21,7 @@ import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
 import { formatRupees } from "@/lib/formatMoney";
+import { awaitsPatientPayment, needsTherapist } from "@/lib/sessionAssignQueue";
 
 // The one list of sessions.
 //
@@ -204,6 +205,7 @@ export default function AdminAllSessionsTab({
       setTherapistFilter("all");
       setPatientFilter("all");
       if (viewParam === "unassigned") setStatusFilter("unassigned");
+      else if (viewParam === "awaiting_payment") setStatusFilter("awaiting_payment");
       else if (viewParam === "cancelled") setStatusFilter("cancelled");
       else if (viewParam === "no_show") setStatusFilter("no_show");
       else if (viewParam === "completed") setStatusFilter("completed");
@@ -278,8 +280,13 @@ export default function AdminAllSessionsTab({
         // "Unassigned" is the one filter that isn't a status column -- it's
         // the question an admin actually asks ("who still needs someone on
         // them?"), so it lives in the same control rather than a second one.
+        // Committed sessions only: an online booking nobody has paid for is
+        // "Waiting on payment" below, not work (sessionAssignQueue.ts).
         if (statusFilter === "unassigned") {
-          return !a.therapist_id && a.status !== "cancelled";
+          return needsTherapist(a, homeVisitMap.has(a.id));
+        }
+        if (statusFilter === "awaiting_payment") {
+          return awaitsPatientPayment(a, homeVisitMap.has(a.id));
         }
         if (statusFilter === "no_show") return a.no_show;
         return a.status === statusFilter;
@@ -470,8 +477,8 @@ export default function AdminAllSessionsTab({
   // rows currently passing the filters so it always describes what is on
   // screen rather than the whole table.
   const visibleAppointments = rows.map((r) => r.a);
-  const unassignedVisible = visibleAppointments.filter(
-    (a) => !a.therapist_id && a.status !== "cancelled"
+  const unassignedVisible = visibleAppointments.filter((a) =>
+    needsTherapist(a, homeVisitMap.has(a.id))
   ).length;
   const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const todayVisible = visibleAppointments.filter(
@@ -608,6 +615,7 @@ export default function AdminAllSessionsTab({
           >
             <option value="all">Any status</option>
             <option value="unassigned">Needs a therapist</option>
+            <option value="awaiting_payment">Waiting on payment</option>
             <option value="requested">Requested</option>
             <option value="confirmed">Confirmed</option>
             <option value="completed">Completed</option>
@@ -739,7 +747,7 @@ export default function AdminAllSessionsTab({
                   </td>
                   <td className="py-2 pr-3 font-bold text-slate-900">
                     {therapistName}
-                    {!a.therapist_id && a.status !== "cancelled" && (
+                    {needsTherapist(a, homeVisitMap.has(a.id)) && (
                       // The row already opens the drawer, where the
                       // assignment is made -- this says so. "needs one"
                       // named the problem without naming the action, and
@@ -748,6 +756,12 @@ export default function AdminAllSessionsTab({
                       // nobody has ever been assigned to.
                       <span className="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
                         Tap to assign
+                      </span>
+                    )}
+                    {awaitsPatientPayment(a, homeVisitMap.has(a.id)) && (
+                      // Not work yet: it assigns itself once paid.
+                      <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                        Awaiting payment
                       </span>
                     )}
                   </td>

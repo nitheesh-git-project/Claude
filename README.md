@@ -817,7 +817,9 @@ browser has no insert access to `appointments` at all). Then Razorpay
 checkout: `/api/razorpay/create-order` creates the
 order, the browser opens the widget, and `/api/razorpay/verify` verifies the
 signature server-side before the appointment is confirmed. Failures are
-recorded in `payment_failure_log`.
+recorded in `payment_failure_log`. A booking left unpaid is finished later
+in the same Step 3 (`/book?resume=<id>`, read through
+`/api/appointments/resume`), where a promo code can be applied again.
 
 A browser callback is not the only way a payment is confirmed.
 `/api/razorpay/webhook` receives Razorpay's own server-to-server

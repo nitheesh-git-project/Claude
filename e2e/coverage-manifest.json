@@ -419,6 +419,19 @@
       "integration": "provider-sandbox",
       "destructive": false
     },
+    "checkout-resume.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "provider-sandbox",
+      "destructive": false
+    },
     "booking-rules.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -1247,6 +1260,17 @@
             "RETRY-002",
             "RETRY-003",
             "RETRY-004"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "checkout-resume.spec.ts",
+          "tests": [
+            "RES-001",
+            "RES-002",
+            "RES-003",
+            "RES-004",
+            "RES-005"
           ],
           "level": "browser"
         }

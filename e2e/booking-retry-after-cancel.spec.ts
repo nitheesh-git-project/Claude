@@ -231,7 +231,12 @@ test.describe("signing in to a locked booking account", () => {
       await expect(page).toHaveURL(/\/pending-approval/, { timeout: 60_000 });
       await expect(page.getByRole("heading", { name: "Finish your booking" })).toBeVisible();
       await expect(page.getByText(/is waiting for payment/)).toBeVisible();
-      await expect(page.getByRole("button", { name: "Pay now" })).toBeVisible();
+      // Pay now finishes in the wizard's own Step 3 (code field and all),
+      // not in a Razorpay sheet opened from this card.
+      await expect(page.getByRole("link", { name: "Pay now" })).toHaveAttribute(
+        "href",
+        `/book?resume=${draft!.id}`
+      );
       await expect(page.getByRole("link", { name: "Pick another time" })).toHaveAttribute(
         "href",
         `/book?replaces=${draft!.id}`

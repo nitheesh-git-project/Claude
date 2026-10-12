@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isWellFormedPromoCode, normalizePromoCode } from "@/lib/promoCodes";
 import { formatRupees } from "@/lib/formatMoney";
 import { formatPaiseForCountry, type CountryPricing } from "@/lib/countryPricing";
@@ -26,16 +26,22 @@ function formatInr(paise: number) {
 export default function PromoCodeField({
   categoryId,
   appointmentId,
+  initialCode = null,
   onApplied,
 }: {
   categoryId?: string | null;
   appointmentId?: string | null;
+  /** A code applied on an earlier, unpaid attempt at this booking. Checked
+   *  again on mount -- shown as applied, or with the reason it no longer is
+   *  -- so a patient finishing payment later neither loses it silently nor
+   *  is charged for one that has since run out. */
+  initialCode?: string | null;
   /** The applied code, or null when it is cleared. The parent sends it on to
    *  checkout; it never sends an amount. */
   onApplied: (code: string | null) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [code, setCode] = useState("");
+  const [open, setOpen] = useState(Boolean(initialCode));
+  const [code, setCode] = useState(initialCode ?? "");
   const [checking, setChecking] = useState(false);
   const [applied, setApplied] = useState<{
     code: string;
@@ -48,9 +54,18 @@ export default function PromoCodeField({
   // render too late to stop a double tap.
   const inFlight = useRef(false);
 
-  async function check() {
+  // The earlier attempt's code, re-checked once.
+  const initialChecked = useRef(false);
+  useEffect(() => {
+    if (!initialCode || initialChecked.current) return;
+    initialChecked.current = true;
+    void check(initialCode, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCode]);
+
+  async function check(typed: string = code, fromEarlierTry = false) {
     if (inFlight.current) return;
-    const normalized = normalizePromoCode(code);
+    const normalized = normalizePromoCode(typed);
     if (!isWellFormedPromoCode(normalized)) {
       setMessage("That code isn't recognised.");
       return;
@@ -76,7 +91,12 @@ export default function PromoCodeField({
       if (!data.applies) {
         setApplied(null);
         onApplied(null);
-        setMessage(data.message ?? "That code isn't recognised.");
+        const reason = data.message ?? "That code isn't recognised.";
+        setMessage(
+          fromEarlierTry
+            ? `${normalized} from your last try can't be used now: ${reason}`
+            : reason
+        );
         return;
       }
       setApplied({ code: data.code, discountPaise: data.discountPaise, pricing: data.pricing ?? null });
@@ -147,7 +167,7 @@ export default function PromoCodeField({
         />
         <button
           type="button"
-          onClick={check}
+          onClick={() => void check()}
           disabled={checking}
           className="rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-60"
         >

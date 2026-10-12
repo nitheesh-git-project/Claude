@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import PayNowButton from "@/components/PayNowButton";
+import { canResumeInWizard, resumeCheckoutHref } from "@/lib/resumeCheckout";
 import CancelSessionButton from "@/components/CancelSessionButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import PackageChip from "@/components/packages/PackageChip";
@@ -143,6 +145,26 @@ export function renderPatientSessionCard(
               >
                 {payment.label}
               </span>
+            ) : a.payment_status === "unpaid" &&
+              canResumeInWizard({
+                visit_mode: data.visitDetailById.get(a.id)?.visit_mode ?? null,
+                payment_terms: a.payment_terms ?? null,
+                package_purchase_id: a.package_purchase_id ?? null,
+                home_visit_purchase_id: data.visitDetailById.get(a.id)?.home_visit_purchase_id ?? null,
+              }) ? (
+              // An online session finishes in the booking wizard's own Step 3
+              // (src/lib/resumeCheckout.ts): the code field, the breakdown and
+              // the same Pay button as the first attempt. Paying from this card
+              // had no code field, so a patient whose first try failed after
+              // applying a code was asked for the full price. No amount on the
+              // label: it can change once a code is applied there.
+              <Link
+                href={resumeCheckoutHref(a.id)}
+                data-testid="resume-checkout"
+                className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+              >
+                Pay now
+              </Link>
             ) : a.payment_status === "unpaid" ? (
               <PayNowButton
                 appointmentId={a.id}

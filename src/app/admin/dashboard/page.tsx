@@ -51,6 +51,7 @@ import AbandonedCheckoutsTab, { type AbandonedCheckoutRow } from "@/components/a
 import DeclinedApplicationsTab from "@/components/admin/DeclinedApplicationsTab";
 import PriorDeclineChip from "@/components/admin/PriorDeclineChip";
 import { declineReasonLabel, findPriorDecline, type DeclinedApplication } from "@/lib/declineReasons";
+import { awaitsPatientPayment, needsTherapist } from "@/lib/sessionAssignQueue";
 import { groupDevReachoutNotes, type DevReachoutNoteRow } from "@/lib/devReachout";
 import SettingsJumpNav, { SettingsSection } from "@/components/admin/SettingsJumpNav";
 import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
@@ -4508,9 +4509,18 @@ export default async function AdminDashboardPage({
       new Date(a.slot_time).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) ===
         todayKeyIST
   );
-  const unassignedToday = sessionsToday.filter((a) => !a.therapist_id).length;
-  const unassignedTotal = appointmentsWithSessionCode.filter(
-    (a) => !a.therapist_id && a.status !== "cancelled"
+  // Committed sessions only: an online booking nobody has paid for is not
+  // the admin's to staff -- it assigns itself once paid, when the roster has
+  // one clear answer (src/lib/sessionAssignQueue.ts).
+  const homeVisitIds = new Set(homeVisitRows.map((v) => v.id));
+  const unassignedToday = sessionsToday.filter((a) =>
+    needsTherapist(a, homeVisitIds.has(a.id))
+  ).length;
+  const unassignedTotal = appointmentsWithSessionCode.filter((a) =>
+    needsTherapist(a, homeVisitIds.has(a.id))
+  ).length;
+  const awaitingPaymentTotal = appointmentsWithSessionCode.filter((a) =>
+    awaitsPatientPayment(a, homeVisitIds.has(a.id))
   ).length;
   const cashOwedByTherapists = homeVisitRows.filter(
     (v) => v.cash_collected_at && !v.cash_remitted_at
@@ -4602,8 +4612,19 @@ export default async function AdminDashboardPage({
           // Opens All Sessions already filtered to exactly these rows --
           // the count and the list it links to have to agree.
           view: "unassigned",
-          hint: "Nobody is assigned to run these yet.",
+          hint: "Booked and nobody is assigned to run them yet.",
           urgent: unassignedToday > 0,
+        },
+        {
+          // Never urgent: nothing is owed to these patients yet. Listed so
+          // the clinic can see who is mid-checkout, apart from the queue of
+          // sessions somebody has committed to.
+          label: "Waiting on the patient's payment",
+          count: awaitingPaymentTotal,
+          section: "sessions",
+          tab: "all",
+          view: "awaiting_payment",
+          hint: "Not paid yet. A therapist is assigned automatically once they pay.",
         },
         {
           label: "Referrals waiting on triage",

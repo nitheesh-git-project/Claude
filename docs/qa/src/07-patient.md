@@ -382,10 +382,16 @@ Attempt **Review Booking →** once per row, as a guest:
 **Expected Result.** After the **first** failure a slate panel reads *"Nothing was lost - your booking is saved and still held as unpaid. You can try again above, or pay later from your dashboard."* A patient whose card was declined has no other way of knowing the booking survived, and the likeliest next action is closing the tab.
 After the third, that line is replaced by an amber panel: *"Having trouble paying? Your booking is saved as pending - you can come back and pay any time from your dashboard."* with a **Go to Dashboard →** link. Following it lands on `/patient/dashboard` with the session listed as unpaid. **The patient is not bounced to `/pending-approval`** - the first genuine attempt already approved them.
 
-#### `PAT-PAY-004` - Abandon then pay from the dashboard · P0
+#### `PAT-PAY-004` - Abandon then pay from the dashboard, with the code kept · P0
 
-**Steps.** Create an unpaid booking, close the tab, sign in again, go to **Your Sessions**, tap **Pay ₹… Now** on that row, and complete with `success@razorpay`.
-**Expected Result.** The same appointment becomes paid. No second appointment. The dashboard row's **Pay** button is replaced by the session's normal state. One `payments` row.
+**Steps.**
+1. Start a booking, apply a promo code on Step 3, and close the payment sheet.
+2. Close the tab. Sign in again, go to **Your Sessions**, and tap **Pay now** on that row.
+3. On Step 3, read the summary and the code field. Tap **Remove** on the code, then apply it again.
+4. Complete the payment with `success@razorpay`.
+5. Separately, make a draft whose time is now less than the booking lead time away, and tap **Pay now** on it.
+
+**Expected Result.** In step 2 **Pay now** opens `/book?resume=<id>` at **Step 3 of 3** for that same booking: its time, concern and language are filled in, and the code from the first try is applied again, with the discounted total on the Pay button. If the code has expired or run out since, the field says so (`… from your last try can't be used now: …`) and the full price is shown; nothing is charged at a price that wasn't shown. In step 3, removing and re-applying the code moves the total both ways. After step 4 the same appointment becomes paid, there is no second appointment, and there is one `payments` row. In step 5 the wizard opens on Step 1 with `The time you picked (…) isn't available any more. Pick a new time - everything else is kept.` Booking the new time replaces the old draft. A locked new patient's **Finish your booking → Pay now** goes to the same Step 3.
 
 #### `PAT-PAY-005` - Retry after the order was already captured · P1
 
