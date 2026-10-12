@@ -177,9 +177,11 @@ before.
   alter default privileges in schema public grant all on sequences to authenticated, service_role;
   ```
 
-  Tables and sequences only: function EXECUTE is deliberately left alone,
-  because the schema revokes it from `public`, `anon` and `authenticated`
-  and re-granting it wholesale would undo that.
+  Tables and sequences only: function EXECUTE for `anon` and
+  `authenticated` is deliberately left alone, because the schema revokes it
+  from `public`, `anon` and `authenticated` and re-granting it wholesale
+  would undo that. `service_role`'s function EXECUTE is granted by
+  `schema.sql` itself (see the revoke rule below).
 - New columns are migration-dependent - a live database may not have them
   yet. Query such a column in its own isolated call and merge the result in
   (see `src/lib/sessionCode.ts`), so one unknown-column error can't blank
@@ -336,6 +338,19 @@ before.
   of them. `npm run lint` fails on a violation; `scripts/check-live-grants.mjs`
   checks the running database, since only that catches a revoke that was
   never applied.
+  **Those revokes also take `service_role` with them on a database where it
+  held only the PUBLIC grant, so `service_role` is granted back explicitly.**
+  Production was that database: `claim_promo_code` failed with "permission
+  denied for function" and every promo code was refused as "That code
+  couldn't be applied". The file used to rely on `pg_default_acl` having
+  written `service_role=X` onto each function, which it had on staging and
+  not in production. The last block of `schema.sql` now runs
+  `grant execute on all functions in schema public to service_role` and the
+  matching `alter default privileges ... grant execute on functions to
+  service_role`; `npm run check:grants` fails if either goes, and
+  `check-live-grants.mjs` probes `claim_promo_code` as `service_role`. This
+  is safe to blanket because `service_role` is server-only and bypasses RLS
+  already - it is the opposite of re-granting `anon` or `authenticated`.
   **And `scripts/check-definer-exposure.mjs` asks the question those two do
   not: which definer functions can a browser actually *call*.** It is run by
   hand against a live project, like `check-live-grants.mjs` beside it, and it

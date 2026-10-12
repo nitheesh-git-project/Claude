@@ -15874,3 +15874,32 @@ end;
 $$;
 
 revoke all on function public.decline_b2b_lead(uuid, text, text, uuid) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- service_role's EXECUTE, written out rather than inherited.
+--
+-- Every RPC this application makes goes through the service-role client,
+-- and the revokes above close each security definer function to PUBLIC,
+-- anon and authenticated. Nothing in this file granted those functions
+-- back to service_role (only revoke_user_sessions and check_rate_limit
+-- named it); it was relying on Supabase's pg_default_acl to have written
+-- `service_role=X` onto each function when it was created.
+--
+-- Production did not have that. Its functions carried only the implicit
+-- PUBLIC grant, so `revoke ... from public` took service_role's access
+-- away with everyone else's, and claim_promo_code failed with
+-- "permission denied for function" -- every promo code refused as "That
+-- code couldn't be applied." The same gap sat under payment capture, the
+-- credit ledger, invites and the therapist schedule writes, each one
+-- waiting for its first call.
+--
+-- So both halves are explicit here: a grant on every function that exists
+-- when this runs, and the default for every function created after it --
+-- including ones appended below this block on a fresh database, since this
+-- file is applied by the same role that owns the schema's defaults.
+-- service_role is server-only and bypasses RLS already; this gives it
+-- nothing it was not meant to have. Re-runnable: a repeated grant is a
+-- no-op. `npm run check:grants` fails if either line goes missing.
+-- ---------------------------------------------------------------------
+grant execute on all functions in schema public to service_role;
+alter default privileges in schema public grant execute on functions to service_role;

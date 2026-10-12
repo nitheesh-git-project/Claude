@@ -85,7 +85,9 @@ Four things in there are not negotiable:
   `authenticated` - all three, every time**, and gets an explicit safe
   `search_path`. Naming only the last two leaves PUBLIC's implicit grant,
   which is how two ledger functions came to be callable by anyone holding the
-  publishable anon key. `npm run lint` fails on either omission.
+  publishable anon key. `npm run lint` fails on either omission. Those
+  revokes can take `service_role` with them, so the file's last block grants
+  it back explicitly - production refused every promo code without it.
 - **Append-only means a trigger, not RLS.** Every route here writes with the
   service-role client, which bypasses RLS entirely, so for a table whose
   whole value is that it cannot be rewritten, "no route updates it" is not
