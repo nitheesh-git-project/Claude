@@ -16,6 +16,7 @@ import {
   browserCookiesFor,
   cookieHeaderFor,
   waitForSplashToClear,
+  markDashboardTourSeen,
 } from "./helpers";
 
 const DISCOUNT_PAISE = 20000;
@@ -75,6 +76,9 @@ test.describe("Finishing payment for an unpaid booking", () => {
       .from("profiles")
       .update({ role: "patient", approved: true, active: true, full_name: `QA Resume ${stamp}` })
       .eq("id", patientId);
+    // A new account: the first-visit tutorial would open over its dashboard
+    // and take the click this file is about.
+    await markDashboardTourSeen(patientEmail);
 
     const { data: category } = await admin
       .from("treatment_categories")
