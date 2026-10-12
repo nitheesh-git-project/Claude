@@ -13,7 +13,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## The admin back office
 
-`docs/rules/admin.md` -- 26 rules
+`docs/rules/admin.md` -- 27 rules
 
 - The admin dashboard's information architecture lives in `src/lib/adminNav.ts`
 - Every session and every person has a timestamped history, built from what is already recorded rather than a new event table
@@ -37,6 +37,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - Approving and declining a signup cannot both land
 - A decline says why, and the person stays listed
 - Approving a therapist sets their revenue share in the same step
+- People -> Patients finds a patient by a reference that is not on their card
 - Admin-configurable behavior
 - Checkout speed is the one check that measures the product rather than a backlog
 - Countries & currency lives under Catalog, because it decides what a patient is charged

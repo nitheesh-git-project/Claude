@@ -225,6 +225,18 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-payment-search.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-profile-session-order.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -2099,6 +2111,25 @@
             "DA-001",
             "DA-002",
             "DA-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.payment-search",
+      "runner": "admin",
+      "title": "People search finds a patient by Razorpay payment or order id",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-payment-search.spec.ts",
+          "tests": [
+            "PS-001"
           ],
           "level": "browser"
         }

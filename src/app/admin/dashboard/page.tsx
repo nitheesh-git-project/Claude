@@ -114,6 +114,7 @@ import type { SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
 import AdminPayoutRequestsTab, { type PayoutRequestRow } from "@/components/admin/AdminPayoutRequestsTab";
 import AdminPaymentHistoryTab from "@/components/admin/AdminPaymentHistoryTab";
+import { groupSearchRefs } from "@/lib/paymentSearch";
 import AdminRosterTab from "@/components/admin/AdminRosterTab";
 import SpecialtyChip from "@/components/SpecialtyChip";
 import LeadStatusButtons from "@/components/admin/LeadStatusButtons";
@@ -899,6 +900,29 @@ export default async function AdminDashboardPage({
   // checkout speed: a new table, so a failure costs this screen and nothing
   // else, and says so rather than showing every country switched off.
   const countryPricingRead = guard(() => readCountryPricingAdmin(admin), null);
+
+  // People -> Patients search by Razorpay payment / order id. The payments
+  // ledger is the one table holding every checkout attempt for every purpose
+  // (session, programme, home visit, owed balance), so it is the read that
+  // finds a pasted pay_... whatever it paid for. Money scope only: the ids
+  // reach the browser with the directory whether or not anyone searches,
+  // and a scope that cannot open Money is not shown them anywhere else. A
+  // failed read loses the payment matches and nothing else -- session and
+  // programme codes still match from rows this page already has.
+  const paymentRefsRead = guard(async () => {
+    if (!canSeeMoney) return [];
+    const result = await readAllRowsAsData(() =>
+      admin
+        .from("payments")
+        .select("id, patient_id, razorpay_order_id, razorpay_payment_id")
+        .order("id", { ascending: true })
+    );
+    return (result.data ?? []) as {
+      patient_id: string | null;
+      razorpay_order_id: string | null;
+      razorpay_payment_id: string | null;
+    }[];
+  }, []);
 
   const [
     accountingHealth,
@@ -2562,6 +2586,41 @@ export default async function AdminDashboardPage({
     ])
   );
 
+  // What a patient can be found by without it being on their card: session
+  // and programme codes for every scope, Razorpay ids for a Money scope only
+  // (see paymentRefsRead). The appointment and purchase rows' own payment ids
+  // cover payments taken before the payments ledger existed.
+  const paymentRefRows = await paymentRefsRead;
+  const searchRefsByPatientId = groupSearchRefs([
+    ...appointmentsWithSessionCode.flatMap((a) => [
+      { patientId: a.patient_id, kind: "session" as const, value: a.session_code },
+      ...(canSeeMoney
+        ? [{ patientId: a.patient_id, kind: "payment" as const, value: a.razorpay_payment_id }]
+        : []),
+    ]),
+    ...(packagePurchaseSummaries ?? []).map((p) => ({
+      patientId: p.patient_id,
+      kind: "programme" as const,
+      value: p.purchase_code,
+    })),
+    ...(homeVisitPurchases ?? []).map((p) => ({
+      patientId: p.patient_id,
+      kind: "programme" as const,
+      value: p.purchase_code,
+    })),
+    ...(canSeeMoney
+      ? (packagePurchases ?? []).map((p) => ({
+          patientId: p.patient_id,
+          kind: "payment" as const,
+          value: p.razorpay_payment_id,
+        }))
+      : []),
+    ...paymentRefRows.flatMap((r) => [
+      { patientId: r.patient_id, kind: "payment" as const, value: r.razorpay_payment_id },
+      { patientId: r.patient_id, kind: "order" as const, value: r.razorpay_order_id },
+    ]),
+  ]);
+
   const patientsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
@@ -2600,6 +2659,7 @@ export default async function AdminDashboardPage({
               created_at: p.created_at,
               code: roleCodeMap.get(p.id)?.patient_code ?? null,
               careStatus: conditionStatusByPatientId.get(p.id) ?? "not_started",
+              searchRefs: searchRefsByPatientId.get(p.id),
             };
           })}
         />

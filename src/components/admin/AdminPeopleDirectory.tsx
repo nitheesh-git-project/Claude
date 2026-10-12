@@ -7,6 +7,7 @@ import Link from "next/link";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import SpecialtyChip from "@/components/SpecialtyChip";
+import { matchSearchRef, SEARCH_REF_LABEL, type SearchRef } from "@/lib/paymentSearch";
 import {
   SPECIALTY_FILTER_ALL,
   matchesSpecialtyFilter,
@@ -37,6 +38,11 @@ type Person = {
   // careStatus above: undefined means "this directory is not about that",
   // and the filter and the column appear only where somebody passed it.
   specialization?: string | null;
+  // References that are not on the card but still identify this person:
+  // Razorpay payment and order ids, session codes, programme purchase codes
+  // (src/lib/paymentSearch.ts). Searched, never listed -- a card matched by
+  // one shows which, so the admin can see why it is in the results.
+  searchRefs?: SearchRef[];
 };
 
 const CARE_STATUS_LABELS: Record<string, string> = {
@@ -86,14 +92,22 @@ export default function AdminPeopleDirectory({
     : [];
 
   const normalizedQuery = query.trim().toLowerCase();
+  const hasRefs = people.some((p) => p.searchRefs && p.searchRefs.length > 0);
+  // Which hidden reference put each person in the results, when it was one.
+  // Only looked up when the visible fields did not match, so typing a name
+  // never shows a payment chip.
+  const refMatchById = new Map<string, SearchRef>();
   const filtered = people
-    .filter((p) =>
-      normalizedQuery
-        ? [p.full_name, p.subtitle, p.code, specialtyLabel(p.specialization)]
-            .filter((v): v is string => !!v)
-            .some((v) => v.toLowerCase().includes(normalizedQuery))
-        : true
-    )
+    .filter((p) => {
+      if (!normalizedQuery) return true;
+      const visibleMatch = [p.full_name, p.subtitle, p.code, specialtyLabel(p.specialization)]
+        .filter((v): v is string => !!v)
+        .some((v) => v.toLowerCase().includes(normalizedQuery));
+      if (visibleMatch) return true;
+      const ref = matchSearchRef(p.searchRefs, query);
+      if (ref) refMatchById.set(p.id, ref);
+      return ref !== null;
+    })
     .filter((p) => {
       if (statusFilter === "all") return true;
       if (statusFilter === "pending") return p.approved === false;
@@ -108,6 +122,21 @@ export default function AdminPeopleDirectory({
   const { rows: pageRows, pager } = usePagedList(filtered, {
     storageKey: storageKey ?? `admin-directory-${basePath}`,
   });
+
+  function refChip(p: Person) {
+    const ref = refMatchById.get(p.id);
+    if (!ref) return null;
+    return (
+      <span
+        className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] text-teal-800 ring-1 ring-inset ring-teal-200"
+        title={`Matched ${SEARCH_REF_LABEL[ref.kind].toLowerCase()} ${ref.value}`}
+      >
+        <i aria-hidden="true" className={`fa-solid ${ref.kind === "payment" || ref.kind === "order" ? "fa-receipt" : "fa-hashtag"} text-[9px]`}></i>
+        <span className="font-semibold">{SEARCH_REF_LABEL[ref.kind]}</span>
+        <span className="truncate font-mono">{ref.value}</span>
+      </span>
+    );
+  }
 
   function badge(p: Person) {
     if (!p.active) {
@@ -130,14 +159,18 @@ export default function AdminPeopleDirectory({
   return (
     <div>
       <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
           <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
           <input
-            aria-label="Search people by name, email or ID"
-            type="text"
+            aria-label={
+              hasRefs
+                ? "Search people by name, email, ID, session code or payment ID"
+                : "Search people by name, email or ID"
+            }
+            type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name, email, or ID..."
+            placeholder={hasRefs ? "Name, email, ID, SS0004 or pay_..." : "Search by name, email, or ID..."}
             className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 text-xs"
           />
         </div>
@@ -217,6 +250,7 @@ export default function AdminPeopleDirectory({
               <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">{p.full_name}</p>
               {p.code && <p className="text-slate-500 text-[10px] font-mono">{p.code}</p>}
               <p className="text-slate-500 text-[11px] line-clamp-1">{p.subtitle}</p>
+              {refChip(p)}
               {p.specialization && (
                 <span className="mt-1">
                   <SpecialtyChip specialization={p.specialization} size="xs" />
@@ -260,6 +294,7 @@ export default function AdminPeopleDirectory({
                       <AvatarThumbnail url={p.avatar_url} name={p.full_name ?? "U"} size={28} />
                       {p.full_name}
                     </Link>
+                    {refChip(p)}
                   </td>
                   <td className="py-2 pr-3 text-slate-500">{p.subtitle}</td>
                   {hasSpecialty && (

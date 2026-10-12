@@ -680,6 +680,20 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   working hours", the one readiness item too big to ask for there. Patients
   still approve in one tap. Rules: `src/lib/therapistApproval.ts`; guard:
   `e2e/admin-approve-therapist.spec.ts`.
+- **People -> Patients finds a patient by a reference that is not on their
+  card.** The directory search also matches a Razorpay payment id
+  (`pay_...`), a Razorpay order id (`order_...`), a session code (`SS0004`)
+  and a programme purchase code, and the matched card shows a chip saying
+  which one put it there - the id an admin has in hand from a forwarded bank
+  SMS or Razorpay's dashboard is not a name. Payment and order ids are read
+  from the `payments` ledger (every checkout, whatever it paid for) plus the
+  appointment and purchase rows' own ids for payments older than the ledger,
+  and only for a scope that can open Money: the ids reach the browser with
+  the directory whether or not anyone searches. A reference needs 4
+  characters before it matches, so typing a name never shows a payment chip,
+  and pasted whitespace is ignored. A failed payments read loses those
+  matches only. Rules: `src/lib/paymentSearch.ts`; guard:
+  `e2e/admin-payment-search.spec.ts`.
 - **Admin-configurable behavior** (Meet on/off, join window, the Session
   Completed cutoff - minutes after slot time at which every "Tap to Join"
   control reads "Session Completed" instead, admin's own included, since a
