@@ -144,7 +144,7 @@ total, which moves with every spec added.
 | `catalog-cover-image` | 11 | a cover uploaded, positioned and rendering the same on card, dialog and dashboard |
 | `splash-screen` | 8 | the brand splash's cold-open, reload and long-absence rules |
 | `journey-pace` | 16 | the home walkthrough's admin-configured rotation pace |
-| `session-completed-cutoff` | 11 | the cutoff on every surface that lists a session |
+| `session-completed-cutoff` | 12 | the cutoff on every surface that lists a session; with no Meet link, "you can join from" gives way to "isn't ready yet" once the join time passes |
 | `debug-clock` | 2 | the debug bar's simulated clock moving the completion gate while the debug bar is on; asserts refusals only, since a successful completion writes append-only settlement rows |
 | `finish-session` | 5 | a therapist's Done opening the session note with the Pain Map step; the route refusing Done without a note; the not-started line keeping No-show beside Done; a neuro patient finishing on the note alone, an orthopaedic one refused without the Pain Map (the last two append-only, disposable project only) |
 | `layout-audit` | 81 | every public, patient, therapist, hospital and admin page at 17 viewports covering 20:9, 19.5:9, 22:9, 16:9, 16:10, 5:3, 7:5, 5:4 and the 12.9" iPad: no sideways scroll, nothing off the edge, no clipped text, no overlaps. Read-only; `LAYOUT_ONLY=<substring>` narrows it |
