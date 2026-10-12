@@ -1,3 +1,6 @@
+> **Bug pass in progress:** read `BUG-PASS.md` first and follow it.
+> (Remove this line and that file before merging `bug-pass` to `staging`.)
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
