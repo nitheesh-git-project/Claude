@@ -2,13 +2,16 @@
 
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
+import DeclineApplicationDialog from "@/components/admin/DeclineApplicationDialog";
 
 export default function LeadStatusButtons({
   leadId,
   status,
+  name,
 }: {
   leadId: string;
   status: string;
+  name: string;
 }) {
   // Prop-derived base: the next status is fully known client-side the
   // moment a button is clicked, so the button set updates instantly instead
@@ -18,9 +21,12 @@ export default function LeadStatusButtons({
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(status);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [declineOpen, setDeclineOpen] = useState(false);
   const router = useRouter();
 
-  function setStatus(newStatus: "contacted" | "declined") {
+  // Declining asks why (DeclineApplicationDialog) and lands the inquiry on
+  // People -> Declined; "Mark Contacted" stays one tap.
+  function setStatus(newStatus: "contacted") {
     setError(null);
     startTransition(async () => {
       setOptimisticStatus(newStatus);
@@ -54,13 +60,30 @@ export default function LeadStatusButtons({
         </button>
       )}
       <button
-        onClick={() => setStatus("declined")}
+        type="button"
+        onClick={() => setDeclineOpen(true)}
         disabled={isPending}
         className="bg-red-50 hover:bg-red-100 disabled:opacity-60 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition"
       >
         Decline
       </button>
       {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {declineOpen && (
+        <DeclineApplicationDialog
+          kind="hospital"
+          name={name}
+          endpoint="/api/admin/update-lead-status"
+          body={{ leadId, status: "declined" }}
+          onClose={() => setDeclineOpen(false)}
+          onDeclined={() => {
+            setDeclineOpen(false);
+            startTransition(() => {
+              setOptimisticStatus("declined");
+              router.refresh();
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

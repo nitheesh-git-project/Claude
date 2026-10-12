@@ -622,11 +622,33 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   account, so it must not read "still pending?" and delete in two steps: an
   approval between them was erased. `decline_pending_account()` locks the
   profile row, checks it is a pending therapist or patient under the lock,
-  and deletes the auth user in the same transaction; the route answers 409
+  records the decline (below) and deletes the auth user in the same
+  transaction; the route answers 409
   when it was approved meanwhile and never falls back to the old two-step
   path. Approve flips only `approved = false` rows, reports a repeat as
   success, and a declined account as gone. `admin-multi-admin` H-021 races
   the pair in both orders.
+- **A decline says why, and the person stays listed.** Decline used to be
+  a bare confirm: a signup's account was deleted and a hospital inquiry's
+  status flipped, and nothing said why or kept the person anywhere but one
+  log line. Decline on a pending patient or therapist (Today -> Approvals)
+  and on a B2B lead (People -> Partners) now opens
+  `DeclineApplicationDialog`: a required reason from chips offered per kind
+  of applicant, and a note -- required (ten characters) only for "Other".
+  `decline_pending_account()` and `decline_b2b_lead()` write a snapshot of
+  the applicant (contact details, credentials/specialisation or the
+  inquiry, when they applied, the reason, who declined) to
+  `declined_applications` in the same statement as the decline, so there is
+  no decline without its record. **People -> Declined** lists every row,
+  filterable by Patients / Therapists / Hospitals. The account is still
+  deleted, so the person can apply again -- and when the same email or phone
+  turns up in Approvals or as a new lead, the row says "Declined before"
+  with the date and reason (`findPriorDecline`). The table is append-only by
+  trigger (the one update allowed is `declined_by` going null when an admin
+  account is removed); service role only. The log records the reason code
+  and the note's length, never the note. A declined lead shows its reason on
+  its Partners card too. Rules: `src/lib/declineReasons.ts`; guard:
+  `e2e/admin-decline-application.spec.ts`.
 - **Approving a therapist sets their revenue share in the same step.**
   Approve on a therapist opens `ApproveTherapistDialog`: their credentials
   and specialisation to check, the session share (required), an optional

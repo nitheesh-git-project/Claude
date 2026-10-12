@@ -159,6 +159,10 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       { key: "patients", label: "Patients" },
       { key: "therapists", label: "Therapists" },
       { key: "partners", label: "Partners" },
+      // Every declined signup and hospital inquiry, with the reason. A
+      // declined signup's account is deleted, so this is the only place
+      // the person is still listed.
+      { key: "declined", label: "Declined" },
       // People who signed up while booking and have not paid: their account
       // is locked, and is deleted after a few days if it stays that way.
       // Leads worth a call, never an approval decision.

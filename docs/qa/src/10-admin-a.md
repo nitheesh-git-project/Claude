@@ -83,9 +83,16 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 #### `ADM-APPR-002` - Approve a therapist · P0
 Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign in and reach the dashboard, and their availability routes stop returning 403.
 
-#### `ADM-APPR-003` - Decline an account · P1
-**Steps.** Tap **Decline** on a pending row, leaving the reason blank; then with a reason.
-**Expected Result.** Blank is refused (`A reason is required to decline.`). With a reason, the row leaves the queue, the account does not become approved, and the decline is audited.
+#### `ADM-APPR-003` - Decline an account, with a reason that stays listed · P1
+**Steps.**
+1. Tap **Decline** on a pending patient row and tap **Decline** in the dialog without picking a reason.
+2. Pick **Other** and type `spam`; tap **Decline**.
+3. Pick **Incomplete details**, add the note `No address or phone given`, and tap **Decline**.
+4. Open **People → Declined**.
+5. Sign up again with the same email, then open **Today → Approvals**.
+6. On **People → Partners**, tap **Decline** on a B2B lead, pick **Outside our service area** and confirm.
+
+**Expected Result.** Step 1 is refused in place (`Pick a reason for declining.`), and step 2 is refused too (`at least 10 characters`). Neither one changes anything. After step 3 the row leaves the queue, the account is deleted, and the decline is audited with the reason code and the note's length, never the note itself. Step 4 lists the person with the reason, the note, who declined them and when, plus their email, phone and what they applied with. The Patients / Therapists / Hospitals filters narrow the list. In step 5 the new row shows **Declined before** with the date and reason. In step 6 the lead's card shows the reason, and the lead is also listed on **People → Declined** under Hospitals.
 
 #### `ADM-APPR-004` - Profile change requests · P1
 **Preconditions.** `PAT-PROF-001` submitted a gated field change.

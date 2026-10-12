@@ -47,6 +47,19 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-decline-application.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-approve-therapist.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -2047,6 +2060,27 @@
       "rules": [
         "docs/rules/admin.md",
         "docs/rules/roster.md"
+      ]
+    },
+    {
+      "id": "admin.decline-application",
+      "runner": "admin",
+      "title": "Declining a signup or hospital inquiry asks why and lists it on People -> Declined",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-decline-application.spec.ts",
+          "tests": [
+            "DA-001",
+            "DA-002",
+            "DA-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
       ]
     },
     {

@@ -141,7 +141,8 @@ test.describe("Suite H: two admins", () => {
       fetch(`${BASE}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Cookie: cookie },
-        body: JSON.stringify({ userId }),
+        // A decline carries a reason now; approve ignores the extra fields.
+        body: JSON.stringify({ userId, reasonCode: "duplicate" }),
       });
 
     for (let round = 0; round < 4; round++) {
@@ -182,6 +183,7 @@ test.describe("Suite H: two admins", () => {
         }
       } finally {
         await admin.auth.admin.deleteUser(userId).catch(() => {});
+        await admin.from("declined_applications").delete().eq("source_id", userId);
       }
     }
   });

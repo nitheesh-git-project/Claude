@@ -48,6 +48,9 @@ import { readCheckoutSpeed } from "@/lib/checkoutSpeedServer";
 import AdminAdvancedTab from "@/components/admin/AdminAdvancedTab";
 import DevReachoutsTab, { type DevReachoutRow } from "@/components/admin/DevReachoutsTab";
 import AbandonedCheckoutsTab, { type AbandonedCheckoutRow } from "@/components/admin/AbandonedCheckoutsTab";
+import DeclinedApplicationsTab from "@/components/admin/DeclinedApplicationsTab";
+import PriorDeclineChip from "@/components/admin/PriorDeclineChip";
+import { declineReasonLabel, findPriorDecline, type DeclinedApplication } from "@/lib/declineReasons";
 import { groupDevReachoutNotes, type DevReachoutNoteRow } from "@/lib/devReachout";
 import SettingsJumpNav, { SettingsSection } from "@/components/admin/SettingsJumpNav";
 import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
@@ -343,6 +346,22 @@ export default async function AdminDashboardPage({
   const abandonedCheckoutsPromise: Promise<AbandonedCheckoutRow[] | null> = (async () => {
     const { data, error } = await admin.rpc("abandoned_booking_accounts");
     return error ? null : ((data ?? []) as AbandonedCheckoutRow[]);
+  })().catch(() => null);
+
+  // People -> Declined, and the "declined before" chips on Approvals and the
+  // B2B leads. `null` is a read that failed: the tab says so, and the chips
+  // are simply not shown rather than claiming nobody was declined.
+  const declinedApplicationsPromise: Promise<DeclinedApplication[] | null> = (async () => {
+    const { data, error } = await readAllRowsAsData(() =>
+      admin
+        .from("declined_applications")
+        .select(
+          "id, kind, source_id, full_name, email, phone, details, applied_at, reason_code, reason_note, declined_by, declined_at"
+        )
+        .order("declined_at", { ascending: false })
+        .order("id", { ascending: true })
+    );
+    return error ? null : ((data ?? []) as DeclinedApplication[]);
   })().catch(() => null);
 
   const [
@@ -814,6 +833,7 @@ export default async function AdminDashboardPage({
   ]);
 
   const abandonedCheckouts = await abandonedCheckoutsPromise;
+  const declinedApplications = await declinedApplicationsPromise;
   const abandonedIds = new Set((abandonedCheckouts ?? []).map((a) => a.id));
   const pendingAccounts = pendingAccountsAll
     ? pendingAccountsAll.filter((p) => !abandonedIds.has(p.id))
@@ -1945,12 +1965,22 @@ export default async function AdminDashboardPage({
                       <p className="text-slate-500 mt-1">
                         Registered {formatClinicDateTimeWithZone(p.created_at)}
                       </p>
+                      {/* Somebody turned away before, back with the same
+                          email or phone. Their earlier account was deleted,
+                          so without this they look brand new. */}
+                      {(() => {
+                        const prior = declinedApplications
+                          ? findPriorDecline(p, declinedApplications, ["patient", "therapist"])
+                          : null;
+                        return prior ? <PriorDeclineChip decline={prior} /> : null;
+                      })()}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <DeclineAccountButton
                       userId={p.id}
                       role={isTherapist ? "therapist" : "patient"}
+                      name={p.full_name ?? p.email ?? (isTherapist ? "this therapist" : "this patient")}
                     />
                     <ApproveAccountButton
                       userId={p.id}
@@ -2068,6 +2098,7 @@ export default async function AdminDashboardPage({
               { key: "new", label: "New" },
               { key: "contacted", label: "Contacted" },
               { key: "onboarded", label: "Onboarded" },
+              { key: "declined", label: "Declined" },
             ]}
             items={b2bLeads.map((lead) => ({
               id: lead.id,
@@ -2107,7 +2138,34 @@ export default async function AdminDashboardPage({
                       <dd className="whitespace-pre-line text-slate-800">{lead.org_details}</dd>
                     </>
                   )}
+                  {/* Why it was declined, from the record People -> Declined
+                      lists. A lead declined before reasons were asked has
+                      none, and shows none. */}
+                  {(() => {
+                    const own =
+                      lead.status === "declined"
+                        ? declinedApplications?.find(
+                            (d) => d.kind === "hospital" && d.source_id === lead.id
+                          )
+                        : undefined;
+                    return own ? (
+                      <>
+                        <dt className="font-semibold text-slate-500">Declined</dt>
+                        <dd className="text-slate-800">
+                          {declineReasonLabel(own.reason_code)}
+                          {own.reason_note ? ` - ${own.reason_note}` : ""}
+                        </dd>
+                      </>
+                    ) : null;
+                  })()}
                 </dl>
+                {lead.status !== "declined" &&
+                  (() => {
+                    const prior = declinedApplications
+                      ? findPriorDecline(lead, declinedApplications, ["hospital"])
+                      : null;
+                    return prior ? <PriorDeclineChip decline={prior} /> : null;
+                  })()}
                 {lead.status !== "onboarded" && (
                   <div className="flex items-center gap-3 flex-wrap">
                     <OnboardHospitalForm
@@ -2118,7 +2176,7 @@ export default async function AdminDashboardPage({
                         org_details: lead.org_details,
                       }}
                     />
-                    <LeadStatusButtons leadId={lead.id} status={lead.status} />
+                    <LeadStatusButtons leadId={lead.id} status={lead.status} name={lead.name} />
                   </div>
                 )}
               </div>
@@ -5025,6 +5083,16 @@ export default async function AdminDashboardPage({
     ),
     "people:therapists": therapistsTab,
     "people:partners": b2bPartners,
+    "people:declined": (
+      <DeclinedApplicationsTab
+        rows={scopeCanOpen(viewerScope, "people") ? declinedApplications : []}
+        adminNames={Object.fromEntries(
+          (allProfiles ?? [])
+            .filter((p) => p.role === "admin")
+            .map((p) => [p.id, p.full_name ?? p.email ?? "An admin"])
+        )}
+      />
+    ),
     "people:abandoned": (
       <AbandonedCheckoutsTab
         rows={scopeCanOpen(viewerScope, "people") ? abandonedCheckouts : []}

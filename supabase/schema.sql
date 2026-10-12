@@ -10229,6 +10229,9 @@ begin
     therapist_schedule_state,
     patient_referrals,
     b2b_leads,
+    -- The record of who was turned away goes with the accounts and leads
+    -- the reset removes (declined_applications, at the end of this file).
+    declined_applications,
     home_visit_waitlist,
     home_visit_areas,
     home_visit_packages,
@@ -15674,3 +15677,200 @@ alter table site_settings add column if not exists home_visit_outside_india bool
 -- (src/app/dark-theme.css), and the page follows the device live if it
 -- changes. Configuration, so the debug data reset leaves it alone.
 alter table site_settings add column if not exists follow_device_theme boolean not null default false;
+
+-- ===========================================================================
+-- Declined applications: who was turned away, and why.
+--
+-- Declining a patient or therapist signup deletes the account
+-- (decline_pending_account, above), and declining a hospital inquiry only
+-- set b2b_leads.status. Neither asked why, so a decline left nothing behind
+-- but one "Declined account" line in the activity log: no admin could see
+-- who had been turned away, and a person declined last month reappeared in
+-- Approvals looking brand new.
+--
+-- Each decline now writes a snapshot of the applicant -- the contact details
+-- and what they applied with, since the account itself is gone -- plus a
+-- required reason, in the same transaction as the decline. People ->
+-- Declined lists them, and Approvals matches each new signup against them
+-- by email or phone (src/lib/declineReasons.ts).
+--
+-- `source_id` is the deleted profile's id, or the b2b_leads row's id. No
+-- foreign key: for a signup the row it named no longer exists, which is the
+-- point of keeping a snapshot.
+--
+-- Service role only. Every reader and writer is a route behind
+-- requireAdminScope("people"); the table has RLS on and no policy, so a
+-- browser session -- an admin's included -- reads and writes nothing.
+-- ===========================================================================
+
+create table if not exists declined_applications (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null check (kind in ('patient', 'therapist', 'hospital')),
+  source_id uuid not null,
+  full_name text,
+  email text,
+  phone text,
+  details jsonb not null default '{}'::jsonb,
+  applied_at timestamptz,
+  -- Keep in step with DECLINE_REASONS_BY_KIND in src/lib/declineReasons.ts.
+  reason_code text not null check (reason_code in (
+    'incomplete_details', 'credentials_unverified', 'specialty_not_offered',
+    'outside_service_area', 'duplicate', 'unreachable', 'not_a_fit', 'other'
+  )),
+  reason_note text check (reason_note is null or char_length(reason_note) <= 500),
+  -- `set null` so an admin account can still be removed; the append-only
+  -- guard below lets exactly that update through.
+  declined_by uuid references profiles(id) on delete set null,
+  declined_at timestamptz not null default now(),
+  -- "Other" says what it was, with the same ten-character floor every other
+  -- decline in this file holds.
+  constraint declined_applications_other_needs_note check (
+    reason_code <> 'other' or char_length(btrim(coalesce(reason_note, ''))) >= 10
+  )
+);
+
+create index if not exists declined_applications_declined_at_idx
+  on declined_applications (declined_at desc);
+create index if not exists declined_applications_email_idx
+  on declined_applications (lower(email));
+-- One record per decline: a retried request never lists a person twice.
+create unique index if not exists declined_applications_one_per_source
+  on declined_applications (kind, source_id);
+
+alter table declined_applications enable row level security;
+revoke all on declined_applications from anon, authenticated;
+
+-- A record of a decision, so it is never edited. DELETE stays allowed (the
+-- e2e suite clears its own rows, and the debug reset truncates), and the
+-- one UPDATE let through is the `on delete set null` of declined_by when an
+-- admin account is removed -- everything else about the row is frozen.
+create or replace function public.declined_applications_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.declined_by is null
+     and old.declined_by is not null
+     and (to_jsonb(new) - 'declined_by') = (to_jsonb(old) - 'declined_by') then
+    return new;
+  end if;
+  raise exception
+    'declined_applications is append-only: a decline may be recorded, never edited';
+end;
+$$;
+
+revoke all on function public.declined_applications_is_append_only() from public, anon, authenticated;
+
+drop trigger if exists trg_declined_applications_append_only on declined_applications;
+create trigger trg_declined_applications_append_only
+  before update on declined_applications
+  for each row execute function public.declined_applications_is_append_only();
+
+-- Declining a pending signup, now with its reason and record.
+--
+-- Same lock and same outcomes as the one-argument version above ('declined',
+-- 'not_pending', 'not_found'); what is new is that the applicant's snapshot
+-- is written under the same lock, before the delete. The route validates the
+-- reason first (src/lib/declineReasons.ts); the CHECKs above hold it for any
+-- other caller. The one-argument version is dropped so no caller can decline
+-- without leaving the record.
+create or replace function public.decline_pending_account(
+  p_user_id uuid,
+  p_reason_code text,
+  p_reason_note text,
+  p_declined_by uuid
+)
+returns text
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_profile public.profiles%rowtype;
+begin
+  select * into v_profile
+  from public.profiles
+  where id = p_user_id
+  for update;
+
+  if not found then
+    return 'not_found';
+  end if;
+  if v_profile.approved or v_profile.role not in ('therapist', 'patient') then
+    return 'not_pending';
+  end if;
+
+  insert into public.declined_applications (
+    kind, source_id, full_name, email, phone, details, applied_at,
+    reason_code, reason_note, declined_by
+  ) values (
+    v_profile.role, v_profile.id, v_profile.full_name, v_profile.email, v_profile.phone,
+    jsonb_strip_nulls(jsonb_build_object(
+      'credentials', v_profile.credentials,
+      'specialization', v_profile.specialization
+    )),
+    v_profile.created_at,
+    p_reason_code, nullif(btrim(coalesce(p_reason_note, '')), ''), p_declined_by
+  )
+  on conflict (kind, source_id) do nothing;
+
+  delete from auth.users where id = p_user_id;
+  return 'declined';
+end;
+$$;
+
+revoke all on function public.decline_pending_account(uuid, text, text, uuid) from public, anon, authenticated;
+drop function if exists public.decline_pending_account(uuid);
+
+-- Declining a hospital inquiry: the status and the record in one step.
+--
+-- Returns 'declined', 'already_declined' (nothing written -- the record from
+-- the first decline stands), 'onboarded' (it is a partner now; refused, as
+-- update-lead-status refuses it) or 'not_found'.
+create or replace function public.decline_b2b_lead(
+  p_lead_id uuid,
+  p_reason_code text,
+  p_reason_note text,
+  p_declined_by uuid
+)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_lead public.b2b_leads%rowtype;
+begin
+  select * into v_lead from public.b2b_leads where id = p_lead_id for update;
+  if not found then
+    return 'not_found';
+  end if;
+  if v_lead.status = 'onboarded' then
+    return 'onboarded';
+  end if;
+  if v_lead.status = 'declined' then
+    return 'already_declined';
+  end if;
+
+  update public.b2b_leads set status = 'declined' where id = p_lead_id;
+
+  insert into public.declined_applications (
+    kind, source_id, full_name, email, phone, details, applied_at,
+    reason_code, reason_note, declined_by
+  ) values (
+    'hospital', v_lead.id, v_lead.name, v_lead.email, v_lead.phone,
+    jsonb_strip_nulls(jsonb_build_object(
+      'org_details', v_lead.org_details,
+      'source', v_lead.source
+    )),
+    v_lead.created_at,
+    p_reason_code, nullif(btrim(coalesce(p_reason_note, '')), ''), p_declined_by
+  )
+  on conflict (kind, source_id) do nothing;
+
+  return 'declined';
+end;
+$$;
+
+revoke all on function public.decline_b2b_lead(uuid, text, text, uuid) from public, anon, authenticated;
