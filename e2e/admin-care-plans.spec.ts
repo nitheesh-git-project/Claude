@@ -1087,7 +1087,11 @@ test.describe("The clinic approves a recommendation", () => {
     await expect(page.getByRole("button", { name: /Turn it down/i }).first()).toBeVisible();
     // The card is aged, not dated: an admin has to be able to tell nine
     // minutes from nine hours, because a patient is on the other side of it.
-    await expect(page.getByText(/^Waiting /).first()).toBeVisible();
+    // Scoped to what is on screen: every section stays mounted and hidden
+    // with CSS, and other screens carry "Waiting ..." text of their own (the
+    // Sessions filter's "Waiting on payment", the "Waiting on the patient's
+    // payment" row).
+    await expect(page.getByText(/^Waiting /).filter({ visible: true }).first()).toBeVisible();
     await ctx.close();
   });
 });
