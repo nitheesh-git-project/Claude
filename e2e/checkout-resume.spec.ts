@@ -163,8 +163,25 @@ test.describe("Finishing payment for an unpaid booking", () => {
       return body as { orderId: string; amount: number };
     };
 
+    // The reported order: a first try at full price left an open order, then
+    // a code was applied. The sheet must open at the quoted figure, on a new
+    // order, not at the old order's amount.
+    const fullPrice = await order();
+    expect(fullPrice.amount).toBe(listPricePaise);
+
     const withCode = await order(promo.code);
     expect(withCode.amount).toBe(listPricePaise - DISCOUNT_PAISE);
+    expect(withCode.orderId).not.toBe(fullPrice.orderId);
+    const { data: discounted } = await admin
+      .from("appointments")
+      .select("promo_code_id, razorpay_order_id, amount_paid_paise")
+      .eq("id", id)
+      .single();
+    expect(discounted).toMatchObject({
+      promo_code_id: promo.id,
+      razorpay_order_id: withCode.orderId,
+      amount_paid_paise: listPricePaise - DISCOUNT_PAISE,
+    });
 
     // Same price again: the open order is reused.
     const again = await order(promo.code);
