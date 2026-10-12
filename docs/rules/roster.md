@@ -273,7 +273,10 @@ Availability as periods over hour rows, specialisation as a value, what readines
      at once, from `checkTherapistAssignable` /
      `assignabilityReasons` (`src/lib/therapistAssignability.ts`). The forms
      open `TherapistUnavailableDialog` ("Unable to assign this therapist",
-     the reasons, a link to the Roster). A roster that could not be read is
+     the reasons, and "Open the roster", which closes the dialog and the
+     session drawer and switches in place to the Roster opened on that
+     therapist via the one-shot `view=therapist:<id>` preset,
+     `src/lib/rosterView.ts`). A roster that could not be read is
      a 503 "try again", never "free". The way round it is the roster itself:
      a one-off exception opens the hour. A spec that assigns opens the hour
      with `openTherapistHour` (`e2e/helpers.ts`).

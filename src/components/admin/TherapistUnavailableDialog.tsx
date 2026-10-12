@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useId, useState, type ReactNode } from "react";
-import Link from "next/link";
 import OverlayPortal from "@/components/system/OverlayPortal";
 import { useDialogChrome } from "@/lib/useDialogChrome";
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
 import type { AssignBlock } from "@/lib/therapistAssignability";
+import { ROSTER_THERAPIST_VIEW_PREFIX } from "@/lib/rosterView";
 
 const REASON_ICON: Record<AssignBlock["code"], string> = {
   on_leave: "fa-plane-departure",
@@ -20,9 +21,12 @@ const REASON_ICON: Record<AssignBlock["code"], string> = {
  */
 export default function TherapistUnavailableDialog({
   reasons,
+  therapistId,
   onClose,
 }: {
   reasons: AssignBlock[];
+  /** The therapist the form tried, so the roster opens on their hours. */
+  therapistId: string | null;
   onClose: () => void;
 }) {
   const titleId = useId();
@@ -67,12 +71,19 @@ export default function TherapistUnavailableDialog({
             Pick another therapist or time, or change their hours or leave on the roster first.
           </p>
           <div className="mt-5 flex justify-end gap-2">
-            <Link
-              href="/admin/dashboard?section=sessions&tab=roster"
+            {/* Switches screens in place (every admin screen is already
+                rendered) and closes this dialog on the way. It used to be a
+                plain Link to the same route: a full server render started
+                behind the dialog and the drawer, so the tap read as dead
+                while the page changed underneath. The drawer closes itself
+                when its screen is left (SessionDetailDrawer). */}
+            <AdminScreenLink
+              href={rosterHref(therapistId)}
+              onClick={onClose}
               className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
             >
               Open the roster
-            </Link>
+            </AdminScreenLink>
             <button
               type="button"
               onClick={onClose}
@@ -87,21 +98,37 @@ export default function TherapistUnavailableDialog({
   );
 }
 
-/** For a form: hand it a failed response's body; it opens the dialog and
- *  returns true when that body was "this therapist is unavailable". */
+/** The roster, opened on one therapist when we know which. The `view`
+ *  preset is read by AdminRosterTab (see `ROSTER_THERAPIST_VIEW_PREFIX`). */
+export function rosterHref(therapistId: string | null): string {
+  const base = "/admin/dashboard?section=sessions&tab=roster";
+  return therapistId
+    ? `${base}&view=${encodeURIComponent(`${ROSTER_THERAPIST_VIEW_PREFIX}${therapistId}`)}`
+    : base;
+}
+
+/** For a form: hand it a failed response's body (and the therapist it
+ *  tried); it opens the dialog and returns true when that body was "this
+ *  therapist is unavailable". */
 export function useTherapistUnavailable(): {
-  showIfUnavailable: (data: unknown) => boolean;
+  showIfUnavailable: (data: unknown, therapistId?: string | null) => boolean;
   dialog: ReactNode;
 } {
-  const [reasons, setReasons] = useState<AssignBlock[] | null>(null);
-  const showIfUnavailable = useCallback((data: unknown) => {
+  const [state, setState] = useState<{ reasons: AssignBlock[]; therapistId: string | null } | null>(
+    null
+  );
+  const showIfUnavailable = useCallback((data: unknown, therapistId?: string | null) => {
     const body = data as { code?: string; reasons?: AssignBlock[] } | null;
     if (body?.code !== "therapist_unavailable" || !Array.isArray(body.reasons)) return false;
-    setReasons(body.reasons);
+    setState({ reasons: body.reasons, therapistId: therapistId ?? null });
     return true;
   }, []);
-  const dialog = reasons ? (
-    <TherapistUnavailableDialog reasons={reasons} onClose={() => setReasons(null)} />
+  const dialog = state ? (
+    <TherapistUnavailableDialog
+      reasons={state.reasons}
+      therapistId={state.therapistId}
+      onClose={() => setState(null)}
+    />
   ) : null;
   return { showIfUnavailable, dialog };
 }

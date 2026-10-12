@@ -45,7 +45,7 @@ export default function AssignTherapistForm({
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
-      if (showIfUnavailable(data)) return;
+      if (showIfUnavailable(data, therapistId)) return;
       setError(data.error ?? "Could not assign. Please try again.");
     }
   }

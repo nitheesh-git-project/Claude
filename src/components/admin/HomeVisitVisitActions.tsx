@@ -172,7 +172,7 @@ export function HomeVisitAssignForm({
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         router.refresh();
-      } else if (!showIfUnavailable(data)) {
+      } else if (!showIfUnavailable(data, therapistId)) {
         setError(data.error ?? "Could not assign. Please try again.");
       }
     });

@@ -1,13 +1,14 @@
 "use client";
 
 import ActivityTimeline from "@/components/admin/ActivityTimeline";
-import { useId, useOptimistic, useState, useTransition } from "react";
+import { useEffect, useId, useOptimistic, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import RefundChip from "@/components/admin/RefundChip";
 import { hasRefund } from "@/lib/refundState";
 import OverlayPortal from "@/components/system/OverlayPortal";
 import { FeedbackBody, StarRow } from "@/components/feedback/RatingDisplay";
 import { useDialogChrome } from "@/lib/useDialogChrome";
-import { formatClinicDateTime } from "@/lib/formatDateTime";
+import { clinicDayParts, formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
@@ -353,6 +354,18 @@ export default function SessionDetailDrawer({
   // the row that opened this -- from the one hook every overlay shares.
   const { panelRef, dialogProps } = useDialogChrome({ onClose, labelledBy: titleId });
 
+  // The drawer belongs to the screen it was opened on. Admin screens switch
+  // in place (adminScreenNavigation), and this drawer is portalled above
+  // all of them, so a link out of it -- "Open the roster" in the Unable to
+  // assign dialog -- used to change the screen underneath while the drawer
+  // stayed on top. Leaving the screen closes it.
+  const searchParams = useSearchParams();
+  const screenKey = `${searchParams.get("section") ?? ""}|${searchParams.get("tab") ?? ""}`;
+  const [openedOn] = useState(screenKey);
+  useEffect(() => {
+    if (screenKey !== openedOn) onClose();
+  }, [screenKey, openedOn, onClose]);
+
 
   // One side's rating: who gave it, the stars and the number, the picks and
   // the note (FeedbackBody splits them back out of the saved text), and the
@@ -542,10 +555,19 @@ export default function SessionDetailDrawer({
             </div>
 
             <div>
-              <p className="text-slate-500">Slot (IST)</p>
-              <p className="font-semibold text-slate-800">
-                {a.slot_time ? formatSlotRange(a.slot_time, durationMinutes) : "Time TBD"}
-              </p>
+              <p className="text-slate-500">Date &amp; time</p>
+              {/* The day first: a time on its own reads as today, and this
+                  drawer is opened from lists that span months. */}
+              {a.slot_time ? (
+                <>
+                  <p className="font-semibold text-slate-800">
+                    {clinicDayParts(a.slot_time).weekday}, {formatClinicDate(a.slot_time)}
+                  </p>
+                  <p className="text-slate-600">{formatSlotRange(a.slot_time, durationMinutes)}</p>
+                </>
+              ) : (
+                <p className="font-semibold text-slate-800">Time TBD</p>
+              )}
             </div>
 
             {a.meet_link && (

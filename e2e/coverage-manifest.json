@@ -376,6 +376,7 @@
       "runner": "therapist",
       "levels": [
         "api",
+        "browser",
         "db"
       ],
       "projects": [

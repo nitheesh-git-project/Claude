@@ -62,7 +62,7 @@ Therapist roster, readiness, specialty and the therapist's phone view
 | `therapist.cash-and-payout-requests` A therapist records cash collected at the door and requests a payout | gap | no | - | - | No spec drives /api/therapist/record-cash-collection or /request-payout; payout atomicity is proven in SQL only. Feasible; not yet written. |
 | `therapist.leave` Going on leave blocks new bookings without moving existing ones | gap | no | - | - | therapist-roster covers leave on the roster screen; /api/therapist/set-on-leave itself has no spec. |
 
-Specs owned (6): `assign-availability.spec.ts` (api/db, desktop, local), `roster-read-write-day.spec.ts` (browser/api/db, desktop, local), `therapist-patient-chart.spec.ts` (browser, desktop, local), `therapist-readiness.spec.ts` (browser/db, desktop, local), `therapist-roster.spec.ts` (browser/api/db, desktop, local), `therapist-specialty.spec.ts` (browser/db, desktop, local)
+Specs owned (6): `assign-availability.spec.ts` (api/browser/db, desktop, local), `roster-read-write-day.spec.ts` (browser/api/db, desktop, local), `therapist-patient-chart.spec.ts` (browser, desktop, local), `therapist-readiness.spec.ts` (browser/db, desktop, local), `therapist-roster.spec.ts` (browser/api/db, desktop, local), `therapist-specialty.spec.ts` (browser/db, desktop, local)
 
 ## session
 

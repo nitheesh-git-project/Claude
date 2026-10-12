@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { rosterTherapistFromView } from "@/lib/rosterView";
 import ListPager from "@/components/dashboard/ListPager";
 import FilterChips from "@/components/dashboard/FilterChips";
 import SurfaceCard, { EmptyState, StatusPill } from "@/components/dashboard/SurfaceCard";
@@ -98,7 +100,10 @@ export default function AdminRosterTab({
   // The screen opens with the first therapist already selected, and scrolling
   // on arrival would move a page nobody asked to move. Only a deliberate
   // change earns the scroll.
-  const scrolledFor = useRef<string | null>(selectedId);
+  // Keyed on the selection *and* a request count, so a deep link to the
+  // therapist who is already selected still scrolls to them.
+  const [scrollRequest, setScrollRequest] = useState(0);
+  const scrolledFor = useRef<string | null>(`${selectedId}:0`);
   const [query, setQuery] = useState("");
   // The same rows arranged differently, which is what earns a view switch
   // rather than a second sidebar entry -- the rule Sessions (List/Calendar)
@@ -108,9 +113,29 @@ export default function AdminRosterTab({
   const [view, setView] = useState<"therapists" | "day">("therapists");
   const [filter, setFilter] = useState<RosterFilter>("all");
 
+  // Arriving from "Unable to assign this therapist" (`view=therapist:<id>`):
+  // open on that therapist's schedule, the thing that blocked the assign.
+  // Applied during render, like the Sessions list's presets, because this
+  // screen is already mounted when the admin taps through; search and
+  // filter are cleared so nothing hides the row, and the arrival scrolls
+  // even when they were already the selected one.
+  const presetTherapistId = rosterTherapistFromView(useSearchParams().get("view"));
+  const [appliedPreset, setAppliedPreset] = useState<string | null>(null);
+  if (presetTherapistId !== appliedPreset) {
+    setAppliedPreset(presetTherapistId);
+    if (presetTherapistId && therapists.some((t) => t.id === presetTherapistId)) {
+      setView("therapists");
+      setFilter("all");
+      setQuery("");
+      setSelectedId(presetTherapistId);
+      setScrollRequest((n) => n + 1);
+    }
+  }
+
   useEffect(() => {
-    if (!selectedId || scrolledFor.current === selectedId) return;
-    scrolledFor.current = selectedId;
+    const key = `${selectedId}:${scrollRequest}`;
+    if (!selectedId || scrolledFor.current === key) return;
+    scrolledFor.current = key;
     const node = detailRef.current;
     if (!node) return;
     // Somebody who asked for less movement still needs to arrive at the
@@ -123,7 +148,7 @@ export default function AdminRosterTab({
     // scroll. `tabIndex={-1}` on the region is what makes this focusable
     // without putting it in the tab order.
     node.focus({ preventScroll: true });
-  }, [selectedId]);
+  }, [selectedId, scrollRequest]);
 
   const templateByTherapist = useMemo(() => groupBy(templateRows), [templateRows]);
   const overrideByTherapist = useMemo(() => groupBy(overrideRows), [overrideRows]);
