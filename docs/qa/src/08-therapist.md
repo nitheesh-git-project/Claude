@@ -314,6 +314,24 @@ A second attempt returns `This visit's payment has already been recorded.`
 * On confirming, an already-`approved` `condition_change_requests` row is written, so the triage appears in the ordinary Review History with no new concept and no queue.
 * **Nowhere on a patient-facing screen do the words "triage", "onboarding" or "specialty" appear.** A patient is shown the care ("Orthopaedic care"), never the category word.
 
+#### `THR-HP-010` - "Onboarding needed" on Home and the session card, and the guide · P1
+
+**Preconditions.** Therapist A is assigned to Patient A, who has no condition profile, with a confirmed session booked.
+
+**Steps**
+1. Open `/therapist/dashboard` (Home).
+2. Open **Sessions** and find Patient A's session card.
+3. Tap **How onboarding works** (on the banner or the card) and step through it with **Next**.
+4. Tap **Start onboarding** on the card.
+5. Fill and save the first record (THR-HP-001/002), then reopen Home and Sessions.
+
+**Expected Result**
+* Step 1: an amber banner above the greeting - `<Patient> needs onboarding` (or `N patients need onboarding`), each row with the next session's date and time and **Start onboarding**, and **How onboarding works**. More than three patients: three by name and `And N more - see them on Health Profiles.` The Home feed row `Onboarding needed - <Patient>` is still there too.
+* Step 2: the card carries an amber strip - **Onboarding needed**, `<First name>'s Health Profile is locked until you fill it - do it with them in this session.`, **Start onboarding** and **How onboarding works**. A cancelled session's card has no strip.
+* Step 3: an eight-step guide with dummy data, not part of the first-visit tour: *What onboarding is*, *Before the session*, *Step 1 - four questions decide the condition type* (it plays three dummy patients, one landing on each of Orthopaedic, Neurological and Paediatric with the reason), *Orthopaedic*, *Neurological* and *Paediatric* (each walks that type's real questions with the help line to read aloud, required ones marked), *Save - it's live straight away*, and *If the case turns out to be something else*.
+* Step 4: the patient's Health Profile opens with **Which condition type is this?** already open, and the address bar no longer carries `?start=onboarding` (a reload does not reopen it).
+* Step 5: the banner row and the card strip are gone.
+
 #### `THR-HP-002` - Write the patient's first record (live, no review) · P0
 
 **Steps.** Continue from triage into the seven orthopaedic questions and enter the §8.4 answers. Submit.

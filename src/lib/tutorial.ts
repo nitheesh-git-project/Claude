@@ -47,6 +47,14 @@ export const TUTORIAL_SCENES = [
   "therapist-hp-updates",
   "therapist-earnings",
   "therapist-profile",
+  "onboard-overview",
+  "onboard-prepare",
+  "onboard-triage",
+  "onboard-ortho",
+  "onboard-neuro",
+  "onboard-paeds",
+  "onboard-save",
+  "onboard-change",
   "hospital-feed",
   "hospital-refer",
   "hospital-referrals",
@@ -566,6 +574,99 @@ const HOSPITAL: TutorialChapter[] = [
   },
 ];
 
+/**
+ * Guides: chapters opened only from their own button, never part of the
+ * first-visit tour (which would grow by eight steps for a task some
+ * therapists meet weeks later). Opened by `openTour(GUIDE_SECTION...)`, the
+ * same stage and controls as any (i).
+ */
+export const ONBOARDING_GUIDE_SECTION = "guide:onboarding";
+
+const ONBOARDING_GUIDE: TutorialChapter = {
+  id: "therapist-onboarding-guide",
+  title: "How onboarding works",
+  icon: "fa-clipboard-question",
+  sections: [ONBOARDING_GUIDE_SECTION],
+  steps: [
+    {
+      id: "overview",
+      scene: "onboard-overview",
+      title: "What onboarding is",
+      body: `A new patient has no Health Profile until you start one. Onboarding is that first fill: four questions to decide the condition type, then that type's own questions, asked with the patient in your first session.`,
+      points: [
+        `Until it's done, Home and the session card say "Onboarding needed", and the patient's own Health Profile stays locked.`,
+        "It takes about ten minutes. Do it in the first session, not after it.",
+      ],
+    },
+    {
+      id: "prepare",
+      scene: "onboard-prepare",
+      title: "Before the session",
+      body: "Open the patient's Health Profile from the session card. Read any reports they uploaded - they can add those before onboarding. Then keep the first ten minutes of the session for these questions.",
+      points: [
+        "Ask in the patient's words, and type their answers in theirs. The help line under each question is written to be read aloud.",
+        "For a child, a parent or carer answers. You record who spoke for them first.",
+      ],
+    },
+    {
+      id: "triage",
+      scene: "onboard-triage",
+      title: "Step 1 - four questions decide the condition type",
+      body: "Age, what brought them in, any neurological signs, and - for a child only - any concern about milestones. From those the app suggests Orthopaedic, Neurological or Paediatric, and shows why. You confirm it or pick another.",
+      points: [
+        "A child with a milestone or from-birth concern: Paediatric. Under 18 on its own is not.",
+        "After a stroke or brain or spinal injury, a long-term neurological condition, or any neurological sign: Neurological.",
+        "Everything else - injury, surgery, a long-standing ache: Orthopaedic.",
+      ],
+    },
+    {
+      id: "ortho",
+      scene: "onboard-ortho",
+      title: "Orthopaedic - the pain questions",
+      body: "Seven questions: the main issue, how long, severity today, where it hurts on the body figure, what makes it worse, what helps, anything else. The first three are required.",
+      points: [
+        "Orthopaedic only: record the Pain Map exam in the same session. Done needs it before the session can close.",
+      ],
+    },
+    {
+      id: "neuro",
+      scene: "onboard-neuro",
+      title: "Neurological - function and safety",
+      body: "Seven questions: the condition and when it started, the affected side, how they move indoors, day-to-day independence, symptoms present, falls in the last three months, and their main goal. The first four are required.",
+      points: ["The onset date matters as much as the diagnosis, and falls shape the plan more than almost anything else."],
+    },
+    {
+      id: "paeds",
+      scene: "onboard-paeds",
+      title: "Paediatric - the parent answers",
+      body: "First, who is answering and how they're related to the child. Then seven questions: the main concern, birth history, milestones the child manages today, any diagnosis or tests, equipment, the hardest part of a normal day, and the family's goal. The first three are required.",
+      points: ["Milestones are ticked for what the child does on their own today, even if it's wobbly."],
+    },
+    {
+      id: "save",
+      scene: "onboard-save",
+      title: "Save - it's live straight away",
+      body: `Answers save as a draft as you go, so a dropped call loses nothing - reopening picks up where you stopped. Saving puts the record live with no clinic review, and the patient sees "Your health profile is ready".`,
+      points: [`"Onboarding needed" leaves Home and the session card as soon as it's saved.`],
+    },
+    {
+      id: "change",
+      scene: "onboard-change",
+      title: "If the case turns out to be something else",
+      body: `Use "Change condition type" on their Health Profile: the four questions again, then the new type's set. It's your clinical call, so it saves straight away too.`,
+      points: [
+        `Editing answers later is different: request edit access, and changes wait for the clinic to approve them.`,
+      ],
+    },
+  ],
+};
+
+const GUIDES: Record<TutorialRole, TutorialChapter[]> = {
+  patient: [],
+  therapist: [ONBOARDING_GUIDE],
+  hospital: [],
+};
+
 const TUTORIALS: Record<TutorialRole, TutorialChapter[]> = {
   patient: PATIENT,
   therapist: THERAPIST,
@@ -579,7 +680,11 @@ export function tutorialFor(role: TutorialRole): TutorialChapter[] {
 /** The chapter an (i) for this section opens, or null when no chapter
  *  covers it (the caller then opens the whole tour). */
 export function chapterForSection(role: TutorialRole, section: string): TutorialChapter | null {
-  return TUTORIALS[role].find((c) => c.sections.includes(section)) ?? null;
+  return (
+    TUTORIALS[role].find((c) => c.sections.includes(section)) ??
+    GUIDES[role].find((c) => c.sections.includes(section)) ??
+    null
+  );
 }
 
 const ROLE_BASE: Record<TutorialRole, string> = {

@@ -393,8 +393,9 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // than off the specialty column: `specialty` defaults to ortho, and an
   // autosaved draft creates the row before anyone has decided anything.
   // Isolated for the usual migration-tolerance reason.
+  const needOnboarding = screen === "overview" || screen === "sessions";
   const { data: conditionProfileRows } =
-    screen === "overview" && patientIds.length > 0
+    needOnboarding && patientIds.length > 0
       ? await readAllRowsByIds(patientIds, (chunk) =>
           supabase
             .from("patient_condition_profiles")
@@ -403,6 +404,12 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
             .order("patient_id")
         ).then((r) => ({ data: r.error ? null : r.rows }))
       : { data: [] as { patient_id: string; data: Record<string, string> | null }[] };
+  // Who still needs onboarding, for the Home banner, the feed item and the
+  // session card's flag. Empty when the read failed: "we couldn't check" is
+  // not "every patient needs onboarding", which is what an empty
+  // onboarded-set would otherwise have said. A patient whose only sessions
+  // with this therapist were cancelled is not waiting on them.
+  const onboardingReadOk = conditionProfileRows !== null;
   const onboardedPatientIds = new Set(
     (conditionProfileRows ?? [])
       .filter((r) =>
@@ -411,6 +418,15 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
         )
       )
       .map((r) => r.patient_id)
+  );
+  const onboardingNeededIds = new Set(
+    needOnboarding && onboardingReadOk
+      ? patientIds.filter(
+          (id) =>
+            !onboardedPatientIds.has(id) &&
+            (appointments ?? []).some((a) => a.patient_id === id && a.status !== "cancelled")
+        )
+      : []
   );
 
   const homeVisitPerVisitFeeByPurchaseId = new Map(
@@ -688,8 +704,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     accessGrants: [],
     onboardingPatients:
       screen === "overview"
-        ? patientIds
-            .filter((id) => !onboardedPatientIds.has(id))
+        ? [...onboardingNeededIds]
             .map((id) => ({
               id,
               name: patientNameById.get(id) ?? "a patient",
@@ -796,6 +811,31 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     needAvailability && (!!scheduleStateError || !!availabilitySlotsError || !!upcomingOverridesError);
 
   return {
+    // Patients nobody has onboarded yet (see onboardingNeededIds above):
+    // the session card's flag, and the Home banner with each one's next
+    // session so the therapist can see which first session it belongs in.
+    onboardingNeededIds,
+    onboardingBanner:
+      screen === "overview"
+        ? [...onboardingNeededIds]
+            .map((id) => ({
+              id,
+              name: patientNameById.get(id) ?? "A patient",
+              nextSlot:
+                (appointments ?? [])
+                  .filter(
+                    (a) =>
+                      a.patient_id === id &&
+                      a.slot_time &&
+                      (a.status === "requested" || a.status === "confirmed") &&
+                      new Date(a.slot_time).getTime() >= nowMsForOverview - 60 * 60_000
+                  )
+                  .map((a) => a.slot_time as string)
+                  .sort()[0] ?? null,
+            }))
+            // Soonest first session at the top; nothing booked goes last.
+            .sort((a, b) => (a.nextSlot ?? "~").localeCompare(b.nextSlot ?? "~"))
+        : [],
     // The read every earnings figure and session list here is built from.
     // A failure shows the load banner rather than "₹0" and an empty list.
     //

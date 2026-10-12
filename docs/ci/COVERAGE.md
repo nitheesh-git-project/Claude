@@ -58,11 +58,12 @@ Therapist roster, readiness, specialty and the therapist's phone view
 | `therapist.readiness-and-specialty` A therapist's readiness checklist and specialisation as a value | covered | yes | browser | `therapist-readiness.spec.ts`, `therapist-specialty.spec.ts` | - |
 | `therapist.earnings-and-payouts` A therapist's own earnings and payout history match the admin's figures | gap | no | - | - | Payout arithmetic is covered from the admin side (admin.money-maths) and in payout-atomicity-sql-checks.sql; the therapist's own earnings screen has no spec. |
 | `therapist.patient-chart-in-shell` A patient's chart sits inside the therapist dashboard with My Patients lit and no back link | covered | yes | browser | `therapist-patient-chart.spec.ts` | - |
+| `dashboards.therapist-onboarding` A patient nobody has onboarded: the Home banner, the session card's strip, Start onboarding into the triage, and the How onboarding works guide over every condition type | covered | yes | browser | `therapist-onboarding.spec.ts` | - |
 | `therapist.session-assignment` Assignment, reassignment and no-show handling through the admin and therapist routes | partial | no | api | `assign-availability.spec.ts` | assign-availability.spec.ts drives the admin assign route (availability refusal and the assignment it allows); reassignment and no-show handling are still proven only at the RPC (therapist-slot-sql-checks.sql, concurrency-checks.mjs). |
 | `therapist.cash-and-payout-requests` A therapist records cash collected at the door and requests a payout | gap | no | - | - | No spec drives /api/therapist/record-cash-collection or /request-payout; payout atomicity is proven in SQL only. Feasible; not yet written. |
 | `therapist.leave` Going on leave blocks new bookings without moving existing ones | gap | no | - | - | therapist-roster covers leave on the roster screen; /api/therapist/set-on-leave itself has no spec. |
 
-Specs owned (6): `assign-availability.spec.ts` (api/browser/db, desktop, local), `roster-read-write-day.spec.ts` (browser/api/db, desktop, local), `therapist-patient-chart.spec.ts` (browser, desktop, local), `therapist-readiness.spec.ts` (browser/db, desktop, local), `therapist-roster.spec.ts` (browser/api/db, desktop, local), `therapist-specialty.spec.ts` (browser/db, desktop, local)
+Specs owned (7): `assign-availability.spec.ts` (api/browser/db, desktop, local), `roster-read-write-day.spec.ts` (browser/api/db, desktop, local), `therapist-onboarding.spec.ts` (browser, desktop, local), `therapist-patient-chart.spec.ts` (browser, desktop, local), `therapist-readiness.spec.ts` (browser/db, desktop, local), `therapist-roster.spec.ts` (browser/api/db, desktop, local), `therapist-specialty.spec.ts` (browser/db, desktop, local)
 
 ## session
 

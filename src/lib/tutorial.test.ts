@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
+  ONBOARDING_GUIDE_SECTION,
   TUTORIAL_SCENES,
   chapterForSection,
   tutorialFor,
@@ -132,5 +133,26 @@ describe("feed item start steps", () => {
       const chapter = chapterForSection(role, tutorialSectionForFeedItem(id)!)!;
       expect(chapter.steps.map((s) => s.id), `${role} ${id}`).toContain(tutorialStepForFeedItem(id));
     }
+  });
+});
+
+describe("the onboarding guide", () => {
+  it("opens from its own section for a therapist, and only a therapist", () => {
+    const guide = chapterForSection("therapist", ONBOARDING_GUIDE_SECTION);
+    expect(guide?.title).toBe("How onboarding works");
+    expect(chapterForSection("patient", ONBOARDING_GUIDE_SECTION)).toBeNull();
+    expect(chapterForSection("hospital", ONBOARDING_GUIDE_SECTION)).toBeNull();
+  });
+
+  it("is not part of the first-visit tour", () => {
+    const ids = tutorialFor("therapist").map((c) => c.id);
+    expect(ids).not.toContain(chapterForSection("therapist", ONBOARDING_GUIDE_SECTION)!.id);
+  });
+
+  it("walks every condition type, and every step plays a known scene", () => {
+    const guide = chapterForSection("therapist", ONBOARDING_GUIDE_SECTION)!;
+    const steps = guide.steps.map((s) => s.id);
+    for (const id of ["triage", "ortho", "neuro", "paeds", "save"]) expect(steps).toContain(id);
+    for (const step of guide.steps) expect(TUTORIAL_SCENES).toContain(step.scene);
   });
 });

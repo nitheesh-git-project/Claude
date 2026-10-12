@@ -750,6 +750,17 @@
       "integration": "local",
       "destructive": false
     },
+    "therapist-onboarding.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "home-visit-disabled.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -2204,6 +2215,28 @@
       ],
       "rules": [
         "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "dashboards.therapist-onboarding",
+      "runner": "therapist",
+      "title": "A patient nobody has onboarded: the Home banner, the session card's strip, Start onboarding into the triage, and the How onboarding works guide over every condition type",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-onboarding.spec.ts",
+          "tests": [
+            "OG-001",
+            "OG-002",
+            "OG-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/dashboards.md",
+        "docs/rules/clinical.md"
       ]
     },
     {

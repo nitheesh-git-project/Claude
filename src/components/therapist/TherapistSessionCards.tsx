@@ -13,6 +13,42 @@ import type { TherapistDashboardData } from "@/lib/therapistDashboardData";
 import RevealContactButton from "@/components/therapist/RevealContactButton";
 import { maskPhone } from "@/lib/contactMasking";
 import { formatRupees } from "@/lib/formatMoney";
+import OnboardingGuideButton from "@/components/therapist/OnboardingGuideButton";
+
+// "Onboarding needed" on the card of a patient nobody has onboarded yet --
+// the card is what a therapist has open when the first session starts, and
+// that is when onboarding happens. Not on a cancelled card: that session is
+// not where it will be done.
+function OnboardingStrip({
+  d,
+  a,
+}: {
+  d: TherapistDashboardData;
+  a: TherapistDashboardData["appointments"][number];
+}) {
+  if (a.status === "cancelled" || !d.onboardingNeededIds.has(a.patient_id)) return null;
+  const first = (d.patientMap.get(a.patient_id)?.full_name ?? "This patient").split(" ")[0];
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
+      <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-700">
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-bold text-amber-800">
+          <i className="fa-solid fa-clipboard-question text-[9px]" aria-hidden="true" />
+          Onboarding needed
+        </span>
+        {first}&apos;s Health Profile is locked until you fill it - do it with them in this session.
+      </p>
+      <div className="mt-1.5 flex flex-wrap items-center gap-3">
+        <Link
+          href={`/therapist/dashboard/health-profile/${a.patient_id}?start=onboarding`}
+          className="rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-teal-800"
+        >
+          Start onboarding
+        </Link>
+        <OnboardingGuideButton />
+      </div>
+    </div>
+  );
+}
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -111,6 +147,7 @@ export function renderTherapistSessionCard(
           </p>
         )}
         {a.package_purchase_id && <PackageChip purchaseId={a.package_purchase_id} />}
+        <OnboardingStrip d={d} a={a} />
         <div className="flex items-center gap-2 flex-wrap">
           <JoinSessionButton
             meetLink={a.meet_link}
@@ -324,6 +361,8 @@ export function renderTherapistHomeVisitCard(
               : ""}
           </p>
         )}
+
+        <OnboardingStrip d={d} a={a} />
 
         {/* No JoinSessionButton: there is nothing to join, the therapist is
             travelling to the address above. */}

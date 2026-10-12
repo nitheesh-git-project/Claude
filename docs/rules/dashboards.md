@@ -390,6 +390,31 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
      neither opens nor uses it up.** "We couldn't tell" is not "first visit".
   Guard: `e2e/dashboard-tutorial.spec.ts`. Global setup marks the QA
   accounts seen, since the tour takes every click; only that spec clears it.
+
+  **Guides** are chapters on the same stage that are *not* in the tour,
+  opened only from their own button (`GUIDES` in `src/lib/tutorial.ts`,
+  reached through `chapterForSection`). The one so far is the therapist's
+  **How onboarding works** (`guide:onboarding`): what onboarding is, getting
+  ready, the four triage questions with all three suggestions, each condition
+  type's question set, saving, and changing the type later. Its question
+  scenes (`src/components/tutorial/onboardingScenes.tsx`) read
+  `TRIAGE_QUESTIONS`, `suggestSpecialtyFromTriage` and
+  `questionsForSpecialty` directly, so a changed question set changes the
+  guide with it; the step text names the questions too, so update it in the
+  same commit.
+- **A patient nobody has onboarded is said in three places on the
+  therapist's side**, because until it is done the patient's own Health
+  Profile is locked: the Home feed row, a banner above the greeting
+  (`OnboardingNeededBanner`, three by name with their next session, the rest
+  counted), and an amber strip on that patient's session cards
+  (`OnboardingStrip` in `TherapistSessionCards.tsx`, not on a cancelled
+  one). Each has **Start onboarding**, which links to the patient's Health
+  Profile with `?start=onboarding` so the triage opens on arrival (consumed
+  once, first fill only), and **How onboarding works**. The list is
+  `onboardingNeededIds` in `therapistDashboardData.ts` - a patient with no
+  answers on file and a non-cancelled session with this therapist - and is
+  empty when the record read failed, never "everyone". Guard:
+  `e2e/therapist-onboarding.spec.ts`.
 - **From `2xl` the dashboards use the width by moving blocks, never by adding
   them.** The Overview's blocks are placed by `.overview-grid` (globals.css):
   stacked on a phone; feed and Quick actions side by side from `lg`; from

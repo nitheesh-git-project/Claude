@@ -27,6 +27,16 @@ import {
   TherapistUpdatesScene,
 } from "./therapistScenes";
 import {
+  OnboardChangeScene,
+  OnboardNeuroScene,
+  OnboardOrthoScene,
+  OnboardOverviewScene,
+  OnboardPaedsScene,
+  OnboardPrepareScene,
+  OnboardSaveScene,
+  OnboardTriageScene,
+} from "./onboardingScenes";
+import {
   FinishScene,
   HospitalEarningsScene,
   HospitalFeedScene,
@@ -67,6 +77,14 @@ const SCENES: Record<TutorialScene, (p: SceneProps) => ReactNode> = {
   "therapist-hp-updates": () => <TherapistUpdatesScene />,
   "therapist-earnings": () => <TherapistEarningsScene />,
   "therapist-profile": () => <TherapistProfileScene />,
+  "onboard-overview": () => <OnboardOverviewScene />,
+  "onboard-prepare": () => <OnboardPrepareScene />,
+  "onboard-triage": () => <OnboardTriageScene />,
+  "onboard-ortho": () => <OnboardOrthoScene />,
+  "onboard-neuro": () => <OnboardNeuroScene />,
+  "onboard-paeds": () => <OnboardPaedsScene />,
+  "onboard-save": () => <OnboardSaveScene />,
+  "onboard-change": () => <OnboardChangeScene />,
   "hospital-feed": () => <HospitalFeedScene />,
   "hospital-refer": () => <HospitalReferScene />,
   "hospital-referrals": () => <HospitalReferralsScene />,

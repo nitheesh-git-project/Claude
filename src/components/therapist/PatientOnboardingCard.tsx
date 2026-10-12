@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import OnboardingGuideButton from "@/components/therapist/OnboardingGuideButton";
 import ConditionTriageDialog from "@/components/profile/ConditionTriageDialog";
 import ConditionIntakeWizard from "@/components/profile/ConditionIntakeWizard";
 import {
@@ -49,11 +51,25 @@ export default function PatientOnboardingCard({
   initialAnswers?: Record<string, string>;
   draftSpecialty?: ConditionSpecialty | null;
 }) {
-  const [step, setStep] = useState<"idle" | "triage" | "questions">("idle");
+  const isRetriage = !!currentSpecialty;
+
+  // "Start onboarding" on Home and on the session card links here with
+  // `?start=onboarding`, and means it: the triage opens on arrival instead
+  // of leaving the therapist to find a second "Start onboarding" button.
+  // Only for a first fill -- a re-triage is never started from a link.
+  const startRequested = useSearchParams().get("start") === "onboarding" && !isRetriage;
+  const [step, setStep] = useState<"idle" | "triage" | "questions">(
+    startRequested ? "triage" : "idle"
+  );
+  // Consumed once: a reload after closing the dialog should not reopen it.
+  useEffect(() => {
+    if (!startRequested) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("start");
+    window.history.replaceState(window.history.state, "", url.toString());
+  }, [startRequested]);
   const [chosen, setChosen] = useState<ConditionSpecialty | null>(null);
   const [triageData, setTriageData] = useState<Record<string, string>>(initialTriage ?? {});
-
-  const isRetriage = !!currentSpecialty;
 
   const questions = useMemo(
     () =>
@@ -138,13 +154,16 @@ function FirstFillPrompt({
           </p>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onStart}
-        className="mt-4 rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800"
-      >
-        Start onboarding
-      </button>
+      <div className="mt-4 flex flex-wrap items-center gap-4">
+        <button
+          type="button"
+          onClick={onStart}
+          className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800"
+        >
+          Start onboarding
+        </button>
+        <OnboardingGuideButton />
+      </div>
     </div>
   );
 }
