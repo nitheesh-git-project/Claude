@@ -64,7 +64,7 @@ A hospital is a **referral source**, never a clinical actor. It is **provisioned
 #### `HOS-REF-001` - Submit an online referral · P0
 
 **Steps**
-1. Open `/hospital/dashboard/refer`.
+1. Open `/hospital/dashboard/refer`. On a brand-new partner account only, the dashboard tutorial opens first (`Dashboard tour · dummy data`): step through **Refer a patient** and **Referral status** - the status chip should move through `Pending Review`, `Therapist Assigned`, `Registration Link Sent` and `Registered` - then tap **Done - show my dashboard** on the last step. After this case, the (i) on the **Your Referrals** card replays just the status chapter.
 2. Tap **Patient Full Name**. Enter `QA Referred Patient C`.
 3. Tap **Patient Phone Number**. Pick the country and enter `9876543210`.
 4. Under **Session Type**, select `Online`.

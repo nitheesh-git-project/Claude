@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import TutorialInfoButton from "@/components/tutorial/TutorialInfoButton";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
@@ -215,10 +216,6 @@ export default function DashboardShell({
     return {
       href: targetHref,
       "aria-current": active ? ("page" as const) : undefined,
-      // The guided tour's target (OnboardingTour). Every render carries it
-      // and the tour picks whichever one is on screen, so the tour works at
-      // every width instead of only where the full sidebar shows.
-      "data-tour": `nav-${item.id}`,
       onClick: (e: MouseEvent) => {
         if (!item.href && onBasePage) {
           e.preventDefault();
@@ -577,7 +574,12 @@ export default function DashboardShell({
         <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
             <div className="min-w-0">
-              <h1 className="text-2xl font-bold text-slate-900">{headerTitle}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-slate-900">{headerTitle}</h1>
+                {/* Replays this page's chapter of the dashboard tutorial;
+                    renders nothing where there is no tutorial. */}
+                <TutorialInfoButton label={headerTitle} />
+              </div>
               {headerSubtitle && <div className="mt-1 text-xs text-slate-500">{headerSubtitle}</div>}
             </div>
             {/* Always rendered: every dashboard gets the same control in the

@@ -19,6 +19,7 @@ export default async function Page() {
         <SurfaceCard
           id="referrals"
           title="Your Referrals"
+          info="card:referral-status"
           icon="fa-list-check"
           subtitle="Everyone you've sent, and where each one stands."
         >

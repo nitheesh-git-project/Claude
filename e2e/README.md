@@ -99,6 +99,7 @@ total, which moves with every spec added.
 | `admin-approve-therapist` | 2 | approving a therapist asks for the revenue share and writes it with `approved`; the route refuses one without it from a money-scoped admin |
 | `admin-payment-search` | 1 | a pasted Razorpay payment or order id finds the patient under People -> Patients and the card says which matched. Leaves one never-captured `payments` row (deletes are refused by trigger) for `npm run clean:e2e -- --apply` |
 | `rich-text-profile` | 3 | the admin's display content and the therapist's bio keep headings, bold, paragraphs and lists in the grey saved view and the `/team` popup; Cancel with changes asks first; both routes refuse a body that is not an editor document. Restores the values it changed |
+| `dashboard-tutorial` | 3 | the first-visit tutorial for a patient, therapist and hospital: opens by itself with dummy data, chapter chips jump, Done or a confirmed Skip records it seen and it stays shut, and a page title's or card's (i) replays just that chapter. Clears and restores `onboarding_seen_at` on the QA account it uses |
 | `admin-multi-admin` | 4 | two admins acting at once; an approve and a decline racing on one signup (H-021) |
 | `admin-exposure` | 6 | the back office is not named to anyone outside it |
 | `admin-account-delete` | 3 | a delete that can only succeed on an account with no history |

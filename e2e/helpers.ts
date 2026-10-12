@@ -496,11 +496,11 @@ export async function setQaAdminScope(admin: SupabaseClient, adminId: string, sc
 }
 
 /**
- * Marks a patient's first-run dashboard tour as seen. The tour opens over
- * the dashboard for any patient who has never dismissed it -- every patient
- * on a fresh stack -- and takes every click. For a case that is about
- * something else, mark it seen first (pay-later and session-suggestions did
- * this by hand).
+ * Marks an account's first-visit dashboard tutorial as seen. The tutorial
+ * opens over a patient's, therapist's or hospital's dashboard until it is
+ * finished or skipped, and takes every click. Global setup marks the QA
+ * accounts seen; this is for a case that creates its own account, or that
+ * runs after something cleared the flag.
  */
 export async function markDashboardTourSeen(email: string): Promise<void> {
   const { error } = await adminClient()

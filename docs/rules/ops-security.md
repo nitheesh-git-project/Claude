@@ -35,7 +35,7 @@ They are enforced in **two** places and both must stay in place:
 
 An audit found eight routes with only the first - `acknowledge-payout-request`,
 `withdraw-suggestion`, `hospital/withdraw-referral`, `home-visit/verify`,
-`medical-documents/delete`, `dismiss-onboarding`, `log-payment-failure` and
+`medical-documents/delete`, `dismiss-onboarding` (now `dashboard/tutorial-seen`), `log-payment-failure` and
 `clear-temp-password`. All eight are ownership-scoped, so the reach was "a
 suspended account keeps acting as itself" rather than anything cross-account,
 but that is exactly what this rule exists to stop and the routes read as
@@ -480,7 +480,7 @@ client is the only writer and the log is append-only from any session.
   all three.
   **The rule is wider than booking: a patient-dashboard route answers a
   patient.** An audit found three that did not check --
-  `/api/patient/dismiss-onboarding`, `previous-therapists` and
+  `/api/patient/dismiss-onboarding` (since replaced by `/api/dashboard/tutorial-seen`, which checks the role itself), `previous-therapists` and
   `condition-profile/export` -- each answering a therapist or hospital
   session with a 200. All three act on the caller's **own** row, so nothing
   cross-account leaked, and that is exactly why it survived: the reach was

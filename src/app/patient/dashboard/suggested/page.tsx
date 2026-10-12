@@ -74,7 +74,7 @@ export default async function Page() {
     >
       {nothingWaiting && justPurchased && (
         <div className="mt-8">
-          <SurfaceCard title="Your programme is ready" icon="fa-circle-check">
+          <SurfaceCard title="Your programme is ready" info="card:care-plan" icon="fa-circle-check">
             <p className="text-sm text-slate-700">
               Your therapist&apos;s recommendation is paid for. Your sessions are waiting to
               be booked - pick times that suit you.

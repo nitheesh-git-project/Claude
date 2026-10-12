@@ -148,7 +148,6 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { data: paymentFailures },
     { data: activeCategories },
     { data: ownedPackages },
-    { data: onboardingRow },
     { data: conditionProfile },
     { data: conditionRequests },
     { data: visitDetailRows },
@@ -284,11 +283,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       .eq("payment_status", "paid")
       .order("created_at", { ascending: false }),
 
-    // onboarding_seen_at / patient_condition_profiles.status are both
-    // new/migration-dependent -- kept isolated so an unknown-column error
-    // only hides the welcome modal / health-profile reminder banner, not
-    // the whole dashboard.
-    supabase.from("profiles").select("onboarding_seen_at").eq("id", user.id).maybeSingle(),
+    // patient_condition_profiles.status is migration-dependent -- kept
+    // isolated so an unknown-column error only hides the health-profile
+    // reminder banner, not the whole dashboard. (The first-visit tutorial
+    // reads onboarding_seen_at itself, in TutorialGate.)
     supabase
       .from("patient_condition_profiles")
       .select("status, data, draft_data")
@@ -1052,7 +1050,6 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ownedHomeVisitPackages: ownedHomeVisitPackagesForDisplay,
     homeVisitPackages,
     bookableCategories: hubCategoriesWithCovers,
-    onboardingRow,
     conditionProfile,
     categoryPriceMap,
     categoryTitleMap,

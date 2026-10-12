@@ -1,4 +1,5 @@
 import ImpersonationGate from "@/components/system/ImpersonationGate";
+import TutorialGate from "@/components/tutorial/TutorialGate";
 
 // Exists for one reason: the banner that says an admin is signed in as this
 // therapist. Every screen below renders exactly what they see, which is the
@@ -9,5 +10,11 @@ export default function TherapistDashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <ImpersonationGate>{children}</ImpersonationGate>;
+  // The dashboard tutorial: opens by itself on a first visit, and from any
+  // (i) afterwards. Mounted here so it survives moving between pages.
+  return (
+    <ImpersonationGate>
+      <TutorialGate role="therapist">{children}</TutorialGate>
+    </ImpersonationGate>
+  );
 }

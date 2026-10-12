@@ -108,8 +108,8 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Steps**
 1. Open `/patient/dashboard`.
-2. On a brand-new account only: read the welcome tour that opens over the screen. Confirm it reads `1 of N`, has **Skip**, **Next** and (from step 2) **Back**, and that the highlighted ring sits over the sidebar entry each step names.
-3. Tap **Next** until the last step, then tap **Done**.
+2. On a brand-new account only: the dashboard tutorial opens over the screen, marked `Dashboard tour · dummy data`. Confirm it reads `Step 1 of N`, has **Skip**, **Next**, **Back** (from step 2) and a row of chapter chips, and that each scene animates - on **Booking a session**, the session card moves through `Payment not completed`, `waiting for a therapist`, `confirmed with Dr Ananya Rao`, **Tap to Join** and `Session completed` with stars. Tap the **Health profile** chip and read all three of its steps.
+3. Tap **Next** until the last step, then tap **Done - show my dashboard**. Then tap the (i) beside the page title and confirm it opens just the **Home** chapter as a `Quick guide`; tap **Got it**.
 4. Reload the page.
 5. Read the header: `Welcome back, QA Patient A` with `Your virtual physical therapy dashboard` under it.
 6. Read the four figures across the strip, left to right.
@@ -119,7 +119,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 10. Read the four quick actions at the foot: **Book a session**, the health-profile action, **Your sessions**, **Your payments**.
 
 **Expected Result.**
-* The tour appears **only on the first visit**. Step 3 writes `profiles.onboarding_seen_at` through `/api/patient/dismiss-onboarding`, so the reload at step 4 shows no tour, and it never returns. **Skip** does the same thing as **Done** - both dismiss it permanently.
+* The tour appears **only on the first visit**, and uses dummy data only (Priya, Dr Ananya) - nothing of Patient A's. Step 3 writes `profiles.onboarding_seen_at` through `/api/dashboard/tutorial-seen`, so the reload at step 4 shows no tour, and it never opens by itself again. **Skip** asks `Skip the tour?` once and then does the same thing as **Done**. Any (i) replays its own chapter at any time and never re-marks anything.
 * The strip reads: **Next session** (date + time and the therapist's name, or `-` with `Nothing booked yet`), **Sessions done** (count, `Your history builds up here` at zero), **Package sessions left** (count, `You don't own a package yet` when there are none), and **Health profile**.
 * **Health profile before the therapist's first record reads `-` on a slate accent** with `Your therapist fills this in at your first session` - **not** `0%` on amber. An amber zero here is the `PAT-HP-001` defect: it asserts the patient is behind on something nobody has asked them for.
 * Step 7 navigates to `/patient/dashboard/sessions`; step 8 to `/patient/dashboard/packages`. Every figure is a link and lands on the rows it counted.

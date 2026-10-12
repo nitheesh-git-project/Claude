@@ -71,7 +71,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 **Preconditions.** `THR-AUTH-003`. Best read after `THR-SESS-005` has completed at least one session, so **Notes to write** and **Owed to you** are non-zero.
 
 **Steps**
-1. Open `/therapist/dashboard`.
+1. Open `/therapist/dashboard`. On a brand-new therapist only, the dashboard tutorial opens first (`Dashboard tour · dummy data`): tap the **Health profiles** chip and step through all five of its steps - triage, filling the seven questions, the Pain Map exam, recommending a programme, and later changes through the clinic - then tap **Skip**, confirm **Skip tour**, and check it does not return on reload.
 2. Read the header block: name, credentials, `Your Revenue Share: N%`, `Your Rating: …`.
 3. Read the four figures: **Today**, **Upcoming**, **Notes to write**, **Owed to you**.
 4. Tap **Notes to write**.
@@ -81,6 +81,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 8. Tap Back, then tap each of **Your assigned sessions**, **Patient health profiles** and **Earnings and payouts** in turn, returning each time.
 
 **Expected Result.**
+* **The tutorial explains the health profile from the therapist's side** with dummy data only (Priya, Dr Ananya): who fills it first, that the first fill saves without review and unlocks the patient's profile, and that later changes wait for the clinic. Skip asks once, then records it as seen; the (i) beside any page title replays just that page's chapter.
 * Header: `Welcome, QA Therapist A`, the credentials string, `Your Revenue Share: 60%` (whatever `ADM-PEOP-006` set), and `Your Rating: No ratings yet` until a patient has rated one - then `4.0 (1 rating)`. If an admin has hidden this therapist's rating, the line ends ` - hidden from public pages`.
 * Greeting `Your practice today`. The headline names the next session and its patient, or reads `No sessions booked yet - keep your availability open and the clinic assigns work to it.`
 * **Today** counts today's sessions with `Next at H:MM` beneath, **Upcoming** counts confirmed and awaiting-assignment work, **Notes to write** counts delivered sessions with nothing recorded (amber above zero, emerald at zero with `Every delivered session is written up`), **Owed to you** is a rupee figure with `Not yet requested` / `Payout request under review` / `Payout request sent`.

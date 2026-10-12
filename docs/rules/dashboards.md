@@ -364,8 +364,32 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   strip above its content instead of nested in the sidebar. Anything else
   pinned to the bottom of the screen (toasts, the live-update banner, the
   scroll hint) adds `--app-bottom-inset`, which a `data-tabbar` element sets
-  in `globals.css`, so nothing sits under the bar. The onboarding tour finds
-  its targets by `data-tour="nav-<id>"` on whichever copy is visible.
+  in `globals.css`, so nothing sits under the bar.
+- **The dashboard tutorial is told with dummy data, and its (i) explains
+  the thing it sits beside.** A patient's, therapist's or hospital's first
+  visit opens it over the dashboard (`TutorialGate` in each role's layout,
+  `profiles.onboarding_seen_at` null); Done or a confirmed Skip records it
+  through `/api/dashboard/tutorial-seen` and it never opens by itself again.
+  Four rules:
+  1. **Never the person's own data.** Scenes draw from
+     `TUTORIAL_FIXTURES` and render miniature copies of the screens, not the
+     real components - a tour that read real rows would need every page's
+     loaders, and one that wrote anything would be a tour with side effects.
+  2. **The words are the screens' words.** "waiting for a therapist",
+     "Waiting for the clinic to approve", "Onboarding needed", the five
+     referral labels - a person meets each twice, first with nothing at
+     stake. Change a label on a screen and change it in
+     `src/lib/tutorial.ts` in the same commit.
+  3. **Every dashboard page has a chapter.** The page title's (i) is
+     automatic (`DashboardShell`), and `tutorial.test.ts` walks the app
+     directory and fails on a page no chapter claims - so a new page ships
+     with its explanation or the build says why not. Cards opt in with
+     `SurfaceCard info="card:..."`; Home feed rows map by id prefix
+     (`tutorialSectionForFeedItem`).
+  4. **A failed read does not open it, and an admin viewing as the person
+     neither opens nor uses it up.** "We couldn't tell" is not "first visit".
+  Guard: `e2e/dashboard-tutorial.spec.ts`. Global setup marks the QA
+  accounts seen, since the tour takes every click; only that spec clears it.
 - **From `2xl` the dashboards use the width by moving blocks, never by adding
   them.** The Overview's blocks are placed by `.overview-grid` (globals.css):
   stacked on a phone; feed and Quick actions side by side from `lg`; from

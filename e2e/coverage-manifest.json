@@ -518,6 +518,18 @@
       "integration": "local",
       "destructive": false
     },
+    "dashboard-tutorial.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "date-field.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -2170,6 +2182,27 @@
       ],
       "rules": [
         "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "dashboards.tutorial",
+      "runner": "admin",
+      "title": "First-visit dashboard tutorial with dummy data for patient, therapist and hospital, and the (i) replays",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "dashboard-tutorial.spec.ts",
+          "tests": [
+            "TU-001",
+            "TU-002",
+            "TU-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
       ]
     },
     {

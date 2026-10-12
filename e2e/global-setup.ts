@@ -52,6 +52,16 @@ export default async function globalSetup() {
   await ensureUser(admin, QA_EMAILS.hospital, "QA Hospital", "hospital");
   for (const t of THERAPISTS) await ensureUser(admin, t.email, t.full_name, "therapist");
   for (const p of PATIENTS) await ensureUser(admin, p.email, p.full_name, "patient");
+  // The dashboard tutorial opens by itself over a patient's, therapist's or
+  // hospital's first visit and takes every click. Only
+  // `dashboard-tutorial.spec.ts` is about it, and it clears the flag for the
+  // account it uses; every other spec starts with it seen.
+  await admin
+    .from("profiles")
+    .update({ onboarding_seen_at: new Date().toISOString() })
+    .in("role", ["patient", "therapist", "hospital"])
+    .like("email", "qa.%@example.test")
+    .is("onboarding_seen_at", null);
 
   await admin
     .from("site_settings")

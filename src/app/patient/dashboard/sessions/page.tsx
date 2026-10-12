@@ -40,6 +40,7 @@ export default async function Page() {
     >
       <SurfaceCard
         title="Your Sessions"
+        info="card:session-status"
         icon="fa-calendar-check"
         actions={
           /* ?from=dashboard so Back off the booking page returns here --

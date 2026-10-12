@@ -2451,17 +2451,32 @@ package's `locked_therapist_id`. Edit access is exclusive to one therapist
 per patient at a time - approving a new therapist's request automatically
 revokes any other therapist's currently-approved grant for that patient.
 
-A patient's first dashboard visit also shows a one-time, skippable guided
-spotlight tour (`src/components/patient/OnboardingTour.tsx`,
-`profiles.onboarding_seen_at`) that highlights the actual sidebar nav items
-in sequence. The Health Profile step carries a "Fill it in now" CTA that
-jumps straight there (marking the tour seen, same as Skip/Done) - dropped
-while the record is still the therapist's to write, since sending someone
-to a read-only page with a fill-it-in button is worse than not mentioning
-it. The tour is separate from
-the persistent "complete your health profile" banner on the main patient
-dashboard, which keeps nudging based on intake status regardless of whether
-the tour was seen or skipped.
+**Every dashboard has a tutorial.** A patient's, therapist's or hospital's
+first visit opens an animated tour over the dashboard (`src/lib/tutorial.ts`
+for the content, `src/components/tutorial/` for the stage and scenes). It is
+told with **dummy data** - a pretend patient, Priya, her therapist Dr
+Ananya, one session and one programme - so nothing on screen is the
+person's own, and **Done** fades it away to reveal their real dashboard.
+Each chapter plays a scene of the real screens in miniature, and the scenes
+move: a session card goes from *Payment not completed* to *waiting for a
+therapist* to *confirmed* to *Tap to Join* to *completed and rated*; a
+health profile goes from locked, to *Your health profile is ready*, to an
+edit *Waiting for the clinic to approve*; a referral steps through its five
+statuses. The patient's and the therapist's tours both explain the health
+profile end to end - who fills it first (the therapist, at the first
+session, with no review), what the patient can do before that (upload
+reports), the Pain Map and the progress chart, and how later changes go
+through the clinic.
+
+**Skip** asks once ("You can replay any part of it later") and is as final as
+Done: either records `profiles.onboarding_seen_at` through
+`/api/dashboard/tutorial-seen`, and the tour stops opening by itself. An
+admin viewing as the person neither triggers it nor uses it up. Afterwards an
+**(i)** beside every page title, on the key cards (sessions, programmes,
+earnings, referrals, the progress chart, session notes) and on every Home
+feed update replays just the chapter that explains it. It honours reduced
+motion. The persistent "complete your health profile" banner is separate and
+keeps nudging on intake status regardless.
 
 Beyond the core workflow, a few surfaces exist specifically to make the
 data useful once it's collected, not just to collect it:
@@ -2554,7 +2569,7 @@ data useful once it's collected, not just to collect it:
 
 Deliberately not done: a hard gate blocking booking on intake completion
 (a real business-risk decision, not something to make unilaterally - the
-dashboard banner and onboarding tour are the current nudge mechanism), and
+dashboard banner and the dashboard tutorial are the current nudge mechanism), and
 push/email notifications for any of this workflow's state changes (separate
 planned work).
 
