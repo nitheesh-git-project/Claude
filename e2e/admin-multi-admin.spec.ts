@@ -118,9 +118,13 @@ test.describe("Suite H: two admins", () => {
       // Admin A's next read must reflect it. (With realtime reachable this
       // happens on its own; without it, a reload is what an admin would do.)
       await pageA.reload();
+      // The inbox row is the one carrying an Approve *button*. Matching the
+      // word anywhere in the item also caught the activity log's
+      // "Approved account - QA Pending Signup" entry, which the approval
+      // itself writes, so this could never reach zero.
       const stillPending = pageA
         .locator("li", { hasText: "QA Pending Signup" })
-        .filter({ hasText: /Approve/ });
+        .filter({ has: pageA.getByRole("button", { name: "Approve", exact: true }) });
       await expect(stillPending).toHaveCount(0, { timeout: 30_000 });
     } finally {
       await contextA.close();

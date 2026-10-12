@@ -53,6 +53,9 @@ const ADMIN_REALTIME_TABLES = [
   "profile_change_requests",
   "patient_package_purchases",
   "payment_failure_log",
+  // People -> Declined, and the patient search's Razorpay ids.
+  "declined_applications",
+  "payments",
   "therapist_payout_batches",
   "therapist_availability_template",
   "therapist_availability_override",

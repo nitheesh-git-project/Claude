@@ -15875,6 +15875,24 @@ $$;
 
 revoke all on function public.decline_b2b_lead(uuid, text, text, uuid) from public, anon, authenticated;
 
+-- The admin dashboard reads both of these -- People -> Declined lists
+-- declined_applications, and the patient search matches Razorpay ids from
+-- payments -- so both join the realtime publication (ADMIN_REALTIME_TABLES):
+-- a decline or a payment made by a second admin or the gateway reaches an
+-- open dashboard without a reload. RLS still decides what each subscriber
+-- receives, so a patient's own subscription sees only their own payments.
+do $$
+begin
+  alter publication supabase_realtime add table declined_applications;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table payments;
+exception when duplicate_object then null;
+end $$;
+
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --

@@ -174,6 +174,17 @@ export function probeLayout(): LayoutIssue[] {
     }
   }
 
+  function insideReservedPadding(field: Element, other: { left: number; right: number; top: number; bottom: number }) {
+    if (!field.matches("input, textarea")) return false;
+    const r = field.getBoundingClientRect();
+    const cs = getComputedStyle(field);
+    const padRight = parseFloat(cs.paddingRight) || 0;
+    const padLeft = parseFloat(cs.paddingLeft) || 0;
+    const inside = other.top >= r.top - 1 && other.bottom <= r.bottom + 1 && other.left >= r.left - 1 && other.right <= r.right + 1;
+    if (!inside) return false;
+    return other.left >= r.right - padRight - 1 || other.right <= r.left + padLeft + 1;
+  }
+
   // Overlaps, swept by top edge. Only within one layer: a fixed header over
   // scrolled content is how a fixed header works.
   boxes.sort((a, b) => a.top - b.top);
@@ -194,6 +205,11 @@ export function probeLayout(): LayoutIssue[] {
       const aMedia = a.el.matches("img, svg");
       const bMedia = b.el.matches("img, svg");
       if (aMedia || bMedia) continue;
+      // An adornment inside a text box -- a show/hide button, a clear
+      // button, a search icon -- sits on the input on purpose. It is only
+      // allowed when it lies wholly inside the padding the input reserves
+      // on that side, so typed text can never run under it.
+      if (insideReservedPadding(a.el, b) || insideReservedPadding(b.el, a)) continue;
       const smaller = Math.min((a.right - a.left) * (a.bottom - a.top), (b.right - b.left) * (b.bottom - b.top));
       if (w * h < Math.max(16, smaller * 0.15)) continue;
       const key = `${describe(a.el)}|${describe(b.el)}`;
