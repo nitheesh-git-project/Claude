@@ -122,6 +122,20 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   arose sinks further the longer it goes unanswered, which is backwards for
   the one class of item that is still owed something - a programme paid for
   a month ago with sessions unbooked is the case that made it obvious.
+- **Recommendations are on the admin's Today, every state of them.** A
+  recommendation is where a programme - most of the clinic's revenue -
+  starts, and Today used to say only "N waiting for approval": a patient
+  paying, declining or letting one lapse reached nobody.
+  `buildRecommendationPulse` (`src/lib/recommendationPulse.ts`) turns each
+  plan into the one event its state is, dated from the row: waiting for
+  approval and paid-with-nothing-booked-for-two-days are `needsYou` and
+  pinned; with the patient, lapsing soon, paid, declined (with the reason)
+  and lapsed are news. They render as the Recommendations card above the
+  Activity feed (`AdminRecommendationPulse`, DashboardOverview's
+  `spotlight`), go into the feed itself, and paid-unbooked is an urgent
+  inbox row. Built over the rows the Recommendations screen lists, so the
+  card and the screen agree; amounts only for a scope that can open Money;
+  no link for one that cannot open the screen.
 - **Assigning is not reassigning, and the word has to say which.** A session
   nobody has ever been assigned to offered only "Reschedule / Reassign",
   which reads as editing something that already happened - so the one

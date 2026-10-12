@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { buildRecommendationPulse, type RecommendationPulseRow } from "@/lib/recommendationPulse";
+import AdminRecommendationPulse from "@/components/admin/AdminRecommendationPulse";
 import ActivityLogButton from "@/components/admin/ActivityLogButton";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -4463,6 +4465,108 @@ export default async function AdminDashboardPage({
     };
   });
 
+  // ---- Recommendation pulse (Today) --------------------------------------
+  // What each recommendation is doing now -- paid, declined, lapsing, paid
+  // with nothing booked -- for the Recommendations card on Today and the
+  // Activity feed (src/lib/recommendationPulse.ts). Built over the same rows
+  // the Recommendations screen lists, so the card and the screen agree.
+  //
+  // The answer columns are their own call (they arrived after the rows), and
+  // the purchases behind accepted plans are read only for those plans. Any
+  // failure costs the card its detail, never Today.
+  let recommendationPulseRows: RecommendationPulseRow[] = [];
+  if (canSeeCarePlans && adminCarePlanRows.length > 0) {
+    try {
+      const { data: answerRows } = await admin
+        .from("care_plans")
+        .select("id, accepted_at, accepted_version_id, declined_at, decline_reason")
+        .in("id", carePlanIds);
+      const answers = new Map(
+        ((answerRows ?? []) as {
+          id: string;
+          accepted_at: string | null;
+          accepted_version_id: string | null;
+          declined_at: string | null;
+          decline_reason: string | null;
+        }[]).map((r) => [r.id, r])
+      );
+      const acceptedVersionIds = [
+        ...new Set(
+          adminCarePlanRows
+            .filter((p) => p.status === "accepted")
+            .flatMap((p) => [answers.get(p.id)?.accepted_version_id, p.current_version_id])
+            .filter((id): id is string => !!id)
+        ),
+      ];
+      const purchaseByVersion = new Map<string, { amountPaise: number | null; paidAt: string | null; booked: number }>();
+      if (acceptedVersionIds.length > 0) {
+        const [{ data: sessionBuys }, { data: visitBuys }] = await Promise.all([
+          admin
+            .from("patient_package_purchases")
+            .select("id, care_plan_version_id, amount_paid_paise, paid_at, session_count, sessions_used, payment_status")
+            .in("care_plan_version_id", acceptedVersionIds)
+            .eq("payment_status", "paid"),
+          admin
+            .from("home_visit_package_purchases")
+            .select("id, care_plan_version_id, amount_paid_paise, paid_at, visit_count, visits_used, payment_status")
+            .in("care_plan_version_id", acceptedVersionIds),
+        ]);
+        // Through the ledger helper, like every other balance on this page.
+        const [sessionRows, visitRows] = await Promise.all([
+          applyLedgerSessionBalances(admin, sessionBuys ?? [], { authoritative: ledgerAuthoritative }),
+          applyLedgerVisitBalances(admin, visitBuys ?? [], { authoritative: ledgerAuthoritative }),
+        ]);
+        for (const b of sessionRows) {
+          if (b.care_plan_version_id)
+            purchaseByVersion.set(b.care_plan_version_id, {
+              amountPaise: b.amount_paid_paise ?? null,
+              paidAt: b.paid_at ?? null,
+              booked: b.sessions_used ?? 0,
+            });
+        }
+        for (const b of visitRows) {
+          if (b.care_plan_version_id && b.payment_status !== "unpaid" && b.payment_status !== "failed")
+            purchaseByVersion.set(b.care_plan_version_id, {
+              amountPaise: b.amount_paid_paise ?? null,
+              paidAt: b.paid_at ?? null,
+              booked: b.visits_used ?? 0,
+            });
+        }
+      }
+      recommendationPulseRows = adminCarePlans.map((p) => {
+        const a = answers.get(p.id);
+        const versionId = a?.accepted_version_id ?? adminCarePlanRows.find((r) => r.id === p.id)?.current_version_id ?? null;
+        return {
+          id: p.id,
+          status: p.status,
+          patientName: p.patientName,
+          therapistName: p.therapistName,
+          conditionTitle: p.title,
+          sessionCount: p.sessionCount,
+          pricePaise: p.pricePaise || null,
+          isHomeVisit: p.isHomeVisit,
+          createdAt: p.authoredAt,
+          submittedAt: p.submittedAt,
+          acceptedAt: a?.accepted_at ?? null,
+          declinedAt: a?.declined_at ?? null,
+          declineReason: a?.decline_reason ?? null,
+          expiresAt: p.expiresAt,
+          purchase: versionId ? purchaseByVersion.get(versionId) ?? null : null,
+        };
+      });
+    } catch (err) {
+      console.error("Admin dashboard: could not build the recommendation pulse", err);
+    }
+  }
+  const recommendationsHref = workableSections.includes("sessions")
+    ? adminScreenHref("sessions", "recommendations")
+    : undefined;
+  const recommendationPulse = buildRecommendationPulse(recommendationPulseRows, nowTimestamp(), {
+    href: recommendationsHref ?? "",
+    showMoney: canSeeMoney,
+  });
+  if (!recommendationsHref) for (const e of recommendationPulse.events) delete e.href;
+
   // Completed sessions an admin could write a recommendation against:
   // recent, and only where that patient has no live plan already, since a
   // second one would lose the one-active-plan race anyway and offering it
@@ -4719,6 +4823,18 @@ export default async function AdminDashboardPage({
           urgent: carePlansStaleCount > 0,
         },
         {
+          // Money taken for treatment that is not happening: the patient
+          // paid for a recommendation and has booked nothing for two days
+          // (recommendationPulse.ts). Always urgent -- it only counts once
+          // it is late.
+          label: "Programmes paid with nothing booked",
+          count: recommendationPulse.counts.paidUnbooked,
+          section: "sessions",
+          tab: "recommendations",
+          hint: "The patient paid for a recommendation and hasn't booked a session. Ring them to schedule.",
+          urgent: true,
+        },
+        {
           label: "Care intake submissions to review",
           count: conditionRequestsPendingCount ?? 0,
           section: "people",
@@ -4861,6 +4977,9 @@ export default async function AdminDashboardPage({
     pendingApprovals: queueRollup(pendingAccounts),
     pendingRequests: queueRollup(pendingProfileChanges),
     failedSyncs: queueRollup(googleMeetSyncIssues, (s) => s.slotTime),
+    // Every recommendation event, the two urgent kinds pinned (see
+    // recommendationPulse.ts).
+    recommendations: recommendationPulse.events,
     allowedSections,
   });
 
@@ -5063,6 +5182,16 @@ export default async function AdminDashboardPage({
       greeting={home.greeting}
       headline={home.headline}
       cells={home.cells}
+      spotlight={
+        canSeeCarePlans ? (
+          <AdminRecommendationPulse
+            counts={recommendationPulse.counts}
+            events={recommendationPulse.events}
+            href={recommendationsHref}
+            showMoney={canSeeMoney}
+          />
+        ) : null
+      }
       feed={adminFeed}
       feedTitle="Activity"
       feedEmptyBody="Admin actions and anything waiting on a person appear here."

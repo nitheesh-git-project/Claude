@@ -316,3 +316,49 @@ test("RC-007: a paid recommendation keeps its condition's photo and name on Your
     await db.from("patient_package_purchases").delete().eq("id", purchase.id);
   }
 });
+
+// Today's Recommendations card (src/lib/recommendationPulse.ts): a new
+// recommendation is pinned there as waiting for approval, and once approved
+// it reads as with the patient - both dated from the row, both linking to
+// the Recommendations screen.
+test("RC-008: admin Today shows a recommendation waiting for approval, then with the patient", async ({ page }) => {
+  // The admin dashboard is the heaviest page in the app, loaded twice.
+  test.setTimeout(150_000);
+  await clearOpenPlans();
+  const { data: patient } = await db.from("profiles").select("full_name").eq("id", patientId).single();
+  const name = patient!.full_name as string;
+  const res = await therapist.post(`${BASE}/api/therapist/care-plan/submit`, {
+    data: { patientId, appointmentId, categoryId, sessionCount: 5, handsOnRequired: false, frequencyPerWeek: 2, clinicalRationale: MARKER, instructions: "" },
+  });
+  expect(res.status(), await res.text()).toBe(200);
+  const created = await res.json();
+  const { data: plan } = await db.from("care_plans").select("status").eq("id", created.carePlanId).single();
+
+  await page.context().addCookies(await browserCookiesFor(QA_EMAILS.admin));
+  await page.goto(`${BASE}/admin/dashboard`);
+  await waitForSplashToClear(page);
+  const card = page.locator("#today-recommendations");
+  await expect(card).toBeVisible();
+  await expect(card.getByTestId("recommendation-pulse-counts")).toContainText("Waiting for approval");
+
+  if (plan!.status === "pending_review") {
+    const row = card.getByRole("link", { name: new RegExp(`waiting for your approval - ${name}`) }).first();
+    await expect(row).toBeVisible();
+    await expect(row).toContainText("Needs you");
+    await expect(row).toContainText(`5 sessions of ${CONDITION}`);
+    await expect(row).toHaveAttribute("href", /recommendations/);
+    await card.screenshot({ path: "test-results/recommendation-pulse-pending.png" });
+    const review = await adminCtx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: { carePlanId: created.carePlanId, decision: "approved" },
+    });
+    expect(review.status(), await review.text()).toBe(200);
+  }
+  // The approval reaches Today through the realtime refresh; a reload racing
+  // that refresh can abort, so look again until it shows.
+  const sent = page.locator("#today-recommendations").getByText(`Recommendation with ${name} - waiting on their answer`).first();
+  await expect(async () => {
+    if (!(await sent.isVisible())) await page.goto(`${BASE}/admin/dashboard`).catch(() => {});
+    await expect(sent).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 45_000 });
+  await page.locator("#today-recommendations").screenshot({ path: "test-results/recommendation-pulse-sent.png" });
+});

@@ -687,9 +687,14 @@ export function buildAdminFeed({
   pendingApprovals = EMPTY_QUEUE,
   pendingRequests = EMPTY_QUEUE,
   failedSyncs = EMPTY_QUEUE,
+  recommendations = [],
   allowedSections,
 }: {
   activity: FeedActivityRow[];
+  /** Recommendation events from buildRecommendationPulse, already dated
+   *  from their rows and already scoped (no href when the viewer cannot
+   *  open the screen). */
+  recommendations?: FeedItem[];
   pendingApprovals?: QueueRollup;
   pendingRequests?: QueueRollup;
   failedSyncs?: QueueRollup;
@@ -729,6 +734,7 @@ export function buildAdminFeed({
       .filter(Boolean)
       .join(" · ") || undefined,
   }));
+  items.push(...recommendations);
 
   if (pendingApprovals.count > 0) {
     items.push({
