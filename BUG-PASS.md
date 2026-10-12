@@ -76,6 +76,21 @@ npm run verify                       # lint + unit tests + build, before pushing
   `rowActivation.test.ts` errors. Both were there before the bug pass;
   ignore them.
 
+## Next steps (in order)
+
+1. Fix the owner's next batch of bugs, one at a time, as above.
+2. When the owner says "merge to staging": first **build**
+   `npm run check:merge-ready` (not built yet) -- one script that runs
+   `verify`, `check:coverage`, `check:context-budget`, the specs mapped to
+   the files changed since `origin/staging`, plus `admin-multi-admin` and
+   `layout-audit`. Add the spec conventions below to
+   `docs/rules/testing.md`. Run it, remove the bug-pass pointer + this file,
+   then open a **new** PR bug-pass -> staging and watch CI.
+3. After staging is green: open the staging -> main PR and get it green.
+   The owner merges it and applies `schema.sql` to production by hand.
+4. Two junk payment rows on staging (see fix 7) still need cleanup; ask
+   the owner before lifting the payments trigger.
+
 ## CI: what turned the gate red last time (check before pushing)
 
 Every one of these was catchable locally. Run them before the PR push:
