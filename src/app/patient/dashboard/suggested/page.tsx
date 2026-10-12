@@ -7,6 +7,8 @@ import PatientSuggestionCard from "@/components/packages/PatientSuggestionCard";
 import CarePlanHistory from "@/components/therapist/CarePlanHistory";
 import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
+import { loadConditionCovers } from "@/lib/catalogImageServer";
+import { parseOfferSnapshot } from "@/lib/carePlans";
 
 export const metadata: Metadata = {
   title: "Suggested Sessions | MoveRestore",
@@ -66,6 +68,13 @@ export default async function Page() {
 
   const nothingWaiting = !version && d.pendingSuggestions.length === 0;
 
+  // The condition's photograph as it is now, with the admin's focal point --
+  // the snapshot froze only the URL.
+  const offerCategoryId = version ? parseOfferSnapshot(version.offerSnapshot)?.categoryId ?? null : null;
+  const offerCover = offerCategoryId
+    ? (await loadConditionCovers(admin, [offerCategoryId])).get(offerCategoryId) ?? null
+    : null;
+
   return (
     <PatientDashboardShell
       data={d}
@@ -124,6 +133,7 @@ export default async function Page() {
               instructions: version.instructions,
               expiresAt: version.expiresAt,
               isHomeVisit: version.offerKind === "home_visit_package",
+              cover: offerCover?.src ? offerCover : null,
             }}
             homeVisitEnabled={d.adminSettings.homeVisitEnabled}
             patientName={d.profile?.full_name ?? ""}

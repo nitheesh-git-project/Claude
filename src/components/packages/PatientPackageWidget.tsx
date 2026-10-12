@@ -4,13 +4,16 @@ import { useState } from "react";
 import { computePackageCounts, daysUntilExpiry } from "@/lib/packageProgress";
 import PackageDetailModal from "@/components/packages/PackageDetailModal";
 import PackageBulkScheduler from "@/components/packages/PackageBulkScheduler";
-import Image from "next/image";
+import ProgrammeCover from "@/components/packages/ProgrammeCover";
+import type { ProgrammeCoverImage } from "@/lib/programmeDisplay";
 
 export type PatientPackageCard = {
   id: string;
   purchaseCode: string | null;
   title: string;
-  imageUrl: string | null;
+  /** The programme's photo (its condition's, for a recommended course) -
+   *  src/lib/programmeDisplay.ts. */
+  cover: ProgrammeCoverImage | null;
   sessionCount: number;
   sessionsUsed: number;
   completedCount: number;
@@ -75,25 +78,15 @@ export default function PatientPackageWidget({
 
           return (
             <div key={p.id} className="overflow-hidden rounded-xl border border-slate-200">
-              {p.imageUrl ? (
-                // next/image rather than a raw <img>: these covers come
-                // from Supabase Storage at whatever size they were
-                // uploaded, and the optimizer serves a resized AVIF/WebP
-                // for a box that is only 112px tall. The eslint suppression
-                // that used to sit here was hiding exactly that cost.
-                <Image
-                  src={p.imageUrl}
-                  alt=""
-                  width={400}
-                  height={112}
-                  sizes="(min-width: 768px) 400px, 100vw"
-                  className="h-28 w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-28 w-full items-center justify-center bg-teal-50 text-teal-300">
-                  <i className="fa-solid fa-layer-group text-3xl" />
-                </div>
-              )}
+              {/* Shown whole rather than cropped into a strip (ProgrammeCover),
+                  and the same photo the recommendation carried. */}
+              <ProgrammeCover
+                src={p.cover?.src}
+                focalX={p.cover?.focalX}
+                focalY={p.cover?.focalY}
+                className="h-40"
+                testId="programme-cover"
+              />
               <div className="space-y-2 p-4 text-xs">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-bold text-slate-900">{p.title}</p>

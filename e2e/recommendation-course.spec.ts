@@ -28,6 +28,7 @@ let patientId = "";
 let therapistId = "";
 let categoryId = "";
 let perSessionPaise = 0;
+let categoryImage = "";
 let appointmentId = "";
 let therapist: APIRequestContext;
 let adminCtx: APIRequestContext;
@@ -98,6 +99,8 @@ test.beforeAll(async () => {
   }
   categoryId = cat!.id;
   perSessionPaise = cat!.price_paise;
+  const { data: cover } = await db.from("treatment_categories").select("image_url").eq("id", categoryId).single();
+  categoryImage = cover?.image_url ?? "";
 
   const { data: existing } = await db
     .from("appointments")
@@ -168,7 +171,14 @@ test("RC-003: the patient's video plan shows its photo and count, and no address
   await waitForSplashToClear(page);
   const card = page.locator("#recommendation");
   await expect(card.getByRole("heading", { name: CONDITION })).toBeVisible();
-  await expect(card.getByTestId("care-plan-image")).toBeVisible();
+  // The photo is drawn whole over a blurred copy of itself, never cropped
+  // into a strip (ProgrammeCover).
+  const cover = card.getByTestId("care-plan-image");
+  await expect(cover).toBeVisible();
+  const photo = cover.locator('img[data-cover="photo"]');
+  await expect(photo).toHaveAttribute("src", categoryImage);
+  expect(await photo.evaluate((el) => getComputedStyle(el).objectFit)).toBe("contain");
+  expect((await cover.boundingBox())!.height).toBeGreaterThanOrEqual(200);
   await expect(card.getByText(/4 × ₹/)).toBeVisible();
   await expect(card.getByText("Video sessions")).toBeVisible();
   await expect(card.getByText("Where should we come?")).toHaveCount(0);
@@ -268,4 +278,41 @@ test("RC-006: every other patient screen carries a short link to the recommendat
   await page.waitForURL(/\/patient\/dashboard\/suggested/);
   await expect(page.getByTestId("suggested-teaser")).toHaveCount(0);
   await expect(page.locator("#recommendation")).toBeVisible({ timeout: 30_000 });
+});
+
+// A paid recommendation is bought against a hidden course package with no
+// photo and an internal title, so Your Programmes showed a placeholder block
+// and "<condition> - recommended course". It now carries the condition's
+// photo and name (src/lib/programmeDisplay.ts). The purchase is seeded paid
+// directly - no payment, no ledger - and deleted afterwards.
+test("RC-007: a paid recommendation keeps its condition's photo and name on Your Programmes", async ({ page }) => {
+  const { versionId, version } = await recommendAndApprove({ sessionCount: 4, handsOnRequired: false });
+  const { data: purchase, error } = await db
+    .from("patient_package_purchases")
+    .insert({
+      patient_id: patientId,
+      package_id: version.session_package_id,
+      category_id: categoryId,
+      session_count: 4,
+      amount_paid_paise: perSessionPaise * 4,
+      payment_status: "paid",
+      paid_at: new Date().toISOString(),
+      care_plan_version_id: versionId,
+      locked_therapist_id: therapistId,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`could not seed a purchase: ${error.message}`);
+  try {
+    await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientB));
+    await page.goto(`${BASE}/patient/dashboard/packages`);
+    await waitForSplashToClear(page);
+    const card = page.locator("#your-packages div.rounded-xl", { hasText: `${CONDITION} programme` }).first();
+    await expect(card).toBeVisible();
+    await expect(card.getByText("recommended course")).toHaveCount(0);
+    await expect(card.getByTestId("programme-cover").locator('img[data-cover="photo"]')).toHaveAttribute("src", categoryImage);
+    await card.screenshot({ path: "test-results/recommendation-programme-card.png" });
+  } finally {
+    await db.from("patient_package_purchases").delete().eq("id", purchase.id);
+  }
 });

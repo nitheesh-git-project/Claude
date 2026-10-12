@@ -48,3 +48,51 @@ export async function writeCatalogFocal(
     return false;
   }
 }
+
+export type ConditionCover = {
+  title: string;
+  src: string | null;
+  focalX: number | null;
+  focalY: number | null;
+};
+
+/**
+ * The condition photographs a patient's programmes and recommendations are
+ * drawn with, keyed by `treatment_categories.id`.
+ *
+ * A recommended programme is bought against a hidden "course" package row
+ * that carries no photo of its own, so every screen showing what the patient
+ * bought fell back to a placeholder - the photo they had just seen on the
+ * recommendation vanished the moment they paid. The condition is the one
+ * thing both ends share, so its cover is the answer.
+ *
+ * The focal columns are read in their own call, for the migration-tolerance
+ * reason `writeCatalogFocal` gives: a database one apply behind loses the
+ * positions, never the photographs. Inactive conditions are included - a
+ * programme outlives its condition being taken off sale.
+ */
+export async function loadConditionCovers(
+  admin: SupabaseClient,
+  categoryIds: (string | null | undefined)[]
+): Promise<Map<string, ConditionCover>> {
+  const ids = [...new Set(categoryIds.filter((id): id is string => typeof id === "string" && id.length > 0))];
+  const covers = new Map<string, ConditionCover>();
+  if (ids.length === 0) return covers;
+  const [{ data: rows }, { data: focals }] = await Promise.all([
+    admin.from("treatment_categories").select("id, title, image_url").in("id", ids),
+    admin.from("treatment_categories").select("id, image_focal_x, image_focal_y").in("id", ids),
+  ]);
+  const focalById = new Map(
+    ((focals ?? []) as { id: string; image_focal_x: number | null; image_focal_y: number | null }[]).map((f) => [f.id, f])
+  );
+  for (const r of (rows ?? []) as { id: string; title: string; image_url: string | null }[]) {
+    const f = focalById.get(r.id);
+    covers.set(r.id, {
+      title: r.title,
+      src: r.image_url,
+      focalX: f?.image_focal_x ?? null,
+      focalY: f?.image_focal_y ?? null,
+    });
+  }
+  return covers;
+}

@@ -53,6 +53,16 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   closed: a patient whose third pick clashed used to start the whole flow
   again from a screen that had forgotten why.
 
+- **A programme the patient owns shows its condition's photo and name.**
+  A recommendation is bought against a hidden `care_plan_course` package row
+  with no photo and an internal title, so Your Programmes showed a
+  placeholder and "<condition> - recommended course" right after the patient
+  paid for a card carrying the condition's photograph. `programmeDisplay`
+  (`src/lib/programmeDisplay.ts`) names a course "<condition> programme" and
+  pictures it from `loadConditionCovers` (`catalogImageServer.ts`); a catalog
+  package keeps its own. Photos on programme cards go through
+  `ProgrammeCover`, which shows the photo whole over a blurred copy of
+  itself - a fixed-height `object-cover` strip cut the subject in half.
 - **Session packages lock to one therapist by default.** The first therapist
   assigned to any session on a `patient_package_purchases` row sets
   `locked_therapist_id`; every later session on that purchase auto-assigns,

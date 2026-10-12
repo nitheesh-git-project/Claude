@@ -6,6 +6,7 @@ import { useRouter } from "@/lib/useRouter";
 import { payForCarePlan } from "@/lib/carePlanPayment";
 import AddressForm from "@/components/booking/AddressForm";
 import PackageBulkScheduler from "@/components/packages/PackageBulkScheduler";
+import ProgrammeCover from "@/components/packages/ProgrammeCover";
 import type { HomeVisitAddressForm } from "@/lib/homeVisitPayment";
 import {
   carePlanState,
@@ -32,6 +33,10 @@ export type CarePlanOffer = {
   instructions: string | null;
   expiresAt: string | null;
   isHomeVisit: boolean;
+  /** The condition's photograph as it is now (with its focal point), read
+   *  live so an admin's re-crop reaches an open recommendation. Falls back
+   *  to the snapshot's frozen URL when absent. */
+  cover?: { src: string | null; focalX: number | null; focalY: number | null } | null;
 };
 
 /**
@@ -308,17 +313,16 @@ export default function CarePlanOfferCard({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-teal-200 bg-white shadow-sm">
-      {snapshot?.imageUrl && (
-        // The condition's own photograph, the same one its card on /conditions
-        // carries, so the recommendation reads as that treatment at a glance.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={snapshot.imageUrl}
-          alt=""
-          data-testid="care-plan-image"
-          className="h-36 w-full object-cover sm:h-44"
-        />
-      )}
+      {/* The condition's own photograph, the same one its card on
+          /conditions carries, shown whole so the recommendation reads as
+          that treatment at a glance (ProgrammeCover says why not a crop). */}
+      <ProgrammeCover
+        src={offer.cover?.src ?? snapshot?.imageUrl ?? null}
+        focalX={offer.cover?.focalX}
+        focalY={offer.cover?.focalY}
+        className="h-52 sm:h-72"
+        testId="care-plan-image"
+      />
       <div className="p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

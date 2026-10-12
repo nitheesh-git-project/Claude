@@ -21,8 +21,8 @@ export default async function Page() {
             purchases={d.ownedPackages.map((p) => ({
               id: p.id,
               purchaseCode: p.purchase_code,
-              title: d.ownedPackageInfoMap.get(p.package_id)?.title ?? d.activeCategoryMap.get(p.category_id) ?? "Your programme",
-              imageUrl: d.ownedPackageInfoMap.get(p.package_id)?.image_url ?? null,
+              title: d.programmeDisplayByPurchase.get(p.id)?.title ?? "Your programme",
+              cover: d.programmeDisplayByPurchase.get(p.id)?.cover ?? null,
               sessionCount: p.session_count,
               sessionsUsed: p.sessions_used,
               completedCount: d.completedCountByPurchase.get(p.id) ?? 0,
@@ -47,8 +47,8 @@ export default async function Page() {
             purchases={d.ownedHomeVisitPackages.map((p) => ({
               id: p.id,
               purchaseCode: p.purchase_code,
-              title: d.ownedHomeVisitPackageInfoMap.get(p.package_id)?.title ?? "Home Visit Package",
-              imageUrl: d.ownedHomeVisitPackageInfoMap.get(p.package_id)?.image_url ?? null,
+              title: d.programmeDisplayByPurchase.get(p.id)?.title ?? "Home visits",
+              cover: d.programmeDisplayByPurchase.get(p.id)?.cover ?? null,
               visitCount: p.visit_count,
               visitsUsed: p.visits_used,
               completedCount: d.completedCountByHomeVisitPurchase.get(p.id) ?? 0,

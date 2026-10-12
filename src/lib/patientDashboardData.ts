@@ -26,6 +26,8 @@ import { ensureInviteCode, readInviteSummary } from "@/lib/inviteRewardsServer";
 import type { InviteSettings } from "@/lib/inviteRewards";
 import { loadPatientPayLater } from "@/lib/payLaterSettlementServer";
 import type { ReceiptSettlement } from "@/lib/receipts";
+import { loadConditionCovers } from "@/lib/catalogImageServer";
+import { programmeDisplay, type ProgrammeDisplay } from "@/lib/programmeDisplay";
 
 // Everything the patient dashboard's screens read, loaded once per
 // request.
@@ -560,13 +562,14 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
             // scheduler proposes a run of dates and would otherwise propose
             // one the booking route then refuses, which is a refusal for a
             // schedule the app itself suggested.
-            .select("id, title, image_url, min_gap_hours, max_sessions_per_week")
+            .select("id, title, image_url, category_id, min_gap_hours, max_sessions_per_week")
             .in("id", ownedPackageIds as string[])
         : Promise.resolve({
             data: [] as {
               id: string;
               title: string;
               image_url: string | null;
+              category_id: string | null;
               min_gap_hours: number | null;
               max_sessions_per_week: number | null;
             }[],
@@ -574,9 +577,11 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       ownedHomeVisitPackageIds.length > 0 && needPackageDetail
         ? admin
             .from("home_visit_packages")
-            .select("id, title, image_url")
+            .select("id, title, image_url, category_id")
             .in("id", ownedHomeVisitPackageIds as string[])
-        : Promise.resolve({ data: [] as { id: string; title: string; image_url: string | null }[] }),
+        : Promise.resolve({
+            data: [] as { id: string; title: string; image_url: string | null; category_id: string | null }[],
+          }),
     ]);
   const categoryPriceMap = new Map(
     (categoryPrices ?? []).map((c) => [c.id, c.price_paise])
@@ -586,6 +591,59 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const activeCategoryMap = new Map((activeCategories ?? []).map((c) => [c.id, c.title]));
   const ownedPackageInfoMap = new Map((ownedPackageInfo ?? []).map((p) => [p.id, p]));
   const ownedHomeVisitPackageInfoMap = new Map((ownedHomeVisitPackageInfo ?? []).map((p) => [p.id, p]));
+
+  // Your Programmes' names and photos (src/lib/programmeDisplay.ts). Which
+  // rows are recommendation courses is its own call: care_plan_course is
+  // newer than the rest of these columns, and a database one apply behind
+  // should lose the friendlier name, not the screen.
+  const programmeDisplayByPurchase = new Map<string, ProgrammeDisplay>();
+  if (needPackageDetail && (ownedPackageIds.length > 0 || ownedHomeVisitPackageIds.length > 0)) {
+    const [{ data: courseSessionRows }, { data: courseVisitRows }, covers] = await Promise.all([
+      ownedPackageIds.length > 0
+        ? admin.from("treatment_category_packages").select("id, care_plan_course").in("id", ownedPackageIds as string[])
+        : Promise.resolve({ data: [] as { id: string; care_plan_course: boolean | null }[] }),
+      ownedHomeVisitPackageIds.length > 0
+        ? admin.from("home_visit_packages").select("id, care_plan_course").in("id", ownedHomeVisitPackageIds as string[])
+        : Promise.resolve({ data: [] as { id: string; care_plan_course: boolean | null }[] }),
+      loadConditionCovers(admin, [
+        ...ownedPackagesForDisplay.map((p) => p.category_id),
+        ...(ownedPackageInfo ?? []).map((p) => p.category_id),
+        ...(ownedHomeVisitPackageInfo ?? []).map((p) => p.category_id),
+      ]),
+    ]);
+    const courseIds = new Set(
+      [...(courseSessionRows ?? []), ...(courseVisitRows ?? [])]
+        .filter((r) => r.care_plan_course === true)
+        .map((r) => r.id)
+    );
+    for (const p of ownedPackagesForDisplay) {
+      const info = ownedPackageInfoMap.get(p.package_id);
+      const categoryId = p.category_id ?? info?.category_id ?? null;
+      programmeDisplayByPurchase.set(
+        p.id,
+        programmeDisplay({
+          kind: "session",
+          packageTitle: info?.title ?? activeCategoryMap.get(p.category_id) ?? null,
+          packageImageUrl: info?.image_url ?? null,
+          isCourse: courseIds.has(p.package_id),
+          condition: categoryId ? covers.get(categoryId) : null,
+        })
+      );
+    }
+    for (const p of ownedHomeVisitPackagesForDisplay) {
+      const info = ownedHomeVisitPackageInfoMap.get(p.package_id);
+      programmeDisplayByPurchase.set(
+        p.id,
+        programmeDisplay({
+          kind: "home_visit",
+          packageTitle: info?.title ?? null,
+          packageImageUrl: info?.image_url ?? null,
+          isCourse: courseIds.has(p.package_id),
+          condition: info?.category_id ? covers.get(info.category_id) : null,
+        })
+      );
+    }
+  }
   const purchaseCodeById = new Map(ownedPackagesForDisplay.map((p) => [p.id, p.purchase_code]));
 
   // How often the clinician said, per purchase.
@@ -1058,6 +1116,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ownedPackageInfoMap,
     frequencyByPurchase,
     ownedHomeVisitPackageInfoMap,
+    programmeDisplayByPurchase,
     purchaseCodeById,
     pendingSuggestions,
     unbookedSessionCount: unscheduled.reduce((n, u) => n + u.pending, 0),
