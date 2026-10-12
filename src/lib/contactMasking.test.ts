@@ -75,6 +75,32 @@ describe("canRevealContact", () => {
     }
   });
 
+  it("says when the number opens, and when it closed", () => {
+    // 2026-10-12 18:00 IST.
+    const at = Date.parse("2026-10-12T12:30:00Z");
+    const early = canRevealContact({ ...base, slotTimeMs: at, status: "confirmed", visitMode: "online", nowMs: at - 3 * 3600_000 });
+    expect(early.allowed).toBe(false);
+    if (!early.allowed) expect(early.message).toMatch(/from 5:45\s?pm on 12 Oct 2026/i);
+    const late = canRevealContact({ ...base, slotTimeMs: at, status: "confirmed", visitMode: "online", nowMs: at + 5 * 3600_000 });
+    expect(late.allowed).toBe(false);
+    if (!late.allowed) expect(late.message).toMatch(/closed at/);
+  });
+
+  it("judges a home visit's day in the clinic's zone, not UTC", () => {
+    // A 7:00 AM IST visit is 01:30 UTC. At 00:30 IST the same day (19:00
+    // UTC the day before) the clinic is already on the visit's day.
+    const visit = Date.parse("2026-10-13T01:30:00Z");
+    const justAfterMidnightIst = Date.parse("2026-10-12T19:00:00Z");
+    expect(
+      canRevealContact({ ...base, slotTimeMs: visit, status: "confirmed", visitMode: "home_visit", nowMs: justAfterMidnightIst }).allowed
+    ).toBe(true);
+    // 11:00 PM IST the evening before is not the visit's day.
+    const eveningBeforeIst = Date.parse("2026-10-12T17:30:00Z");
+    expect(
+      canRevealContact({ ...base, slotTimeMs: visit, status: "confirmed", visitMode: "home_visit", nowMs: eveningBeforeIst }).allowed
+    ).toBe(false);
+  });
+
   it("honours an admin-widened window", () => {
     const wide = { ...base, beforeMinutes: 240, afterMinutes: 240 };
     const d = canRevealContact({ ...wide, status: "confirmed", visitMode: "online", nowMs: slot - 3 * 3600_000 });

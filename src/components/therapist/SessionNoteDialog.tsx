@@ -154,7 +154,9 @@ export default function SessionNoteDialog({
     startTransition(async () => {
       const res = await fetch("/api/therapist/session-notes/submit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // The debug bar's clock, which the route's "has it started" gate
+        // reads while the bar is on -- the same clock Done was judged by.
+        headers: { "Content-Type": "application/json", ...debugNowHeaders() },
         body: JSON.stringify({
           appointmentId,
           data: values,

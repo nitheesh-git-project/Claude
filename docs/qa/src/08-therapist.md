@@ -230,13 +230,13 @@ This is the regression that guards the whole design. See `XCFG-ROSTER-001`.
 
 #### `THR-SESS-004` - Reveal a contact inside the join window · P0
 
-**Preconditions.** A confirmed **video** session whose slot is within the join window in **real** time (the route uses the server clock). Reason: this route's window check is server-side.
+**Preconditions.** A confirmed **video** session whose slot is within the join window - in real time, or on the debug bar's simulated clock while the bar is on (the route honours it, like Done).
 **Steps.** Tap **Show number**. Read the number. Then repeat on a session whose slot is a week away, and on a cancelled session.
 **Expected Result**
 * Inside the window: the full number is revealed, and a `contact_reveal_log` row is written. **The log write is not best-effort** - if it fails, the reveal is refused with `Could not show the number just now. Please try again.` A reveal with no trace is the one outcome this route must not produce.
-* Outside the window: refused with the route's own explanation (403).
+* Outside the window: refused (403) with the time it opens - `You can see this number from <time> on <date>.` - or, after it, `This number closed at <time>, after the session.` A home visit outside its day says `You can see this number on <date>, the day of the visit.`
 * Cancelled session: refused.
-* A **home visit** is revealable **any time on the visit's own day**, not merely in a join window - verify this separately.
+* A **home visit** is revealable **any time on the visit's own day in the clinic's zone (IST)**, not merely in a join window - verify this separately, including a 7 AM visit just after midnight.
 * Admin → Settings → User Access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
 
 #### `THR-SESS-005` - Completing a session is gated two ways · P0
@@ -277,7 +277,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 4. Sign in as Patient A and search their entire portal and their exported PDF for the note text.
 
 **Expected Result**
-* Step 1: refused - `You can write the note once the session has taken place.`
+* Step 1: refused - `You can write the note from <date, time>, when the session starts.` (On the debug bar's simulated clock while the bar is on, like Done.)
 * Step 2: saved. It appears on the therapist's chart. **Completion is never blocked on a note** - the nudge is a "Notes to write" figure on Overview and a feed item.
 * Step 3: succeeds, and a `session_note_revisions` row records what it replaced. After 24 hours, editing is refused.
 * Step 4: **the note text appears nowhere the patient can see, including the PDF export.** `session_notes` has no patient select policy and must never get one.

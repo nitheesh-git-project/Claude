@@ -713,7 +713,7 @@ line describing nothing but carelessness. Before real patients exist, remove
   hide the shared Navbar all call the one helper. At real launch, **delete**
   the bar rather than flipping the flag - it is a public flag, and the bar
   names every route including `/admin/login` and `/admin/dashboard`.
-- **The simulated clock moves one server gate, and only behind a server
+- **The simulated clock moves three server gates, and only behind a server
   flag.** The debug bar's clock is a browser-side offset (`debugNow.ts`), so
   on its own it only moved what the UI offered: a therapist simulated "an
   hour after the session", saw Done, tapped it, and was told the session had
@@ -728,8 +728,13 @@ line describing nothing but carelessness. Before real patients exist, remove
   it is on any signed-in therapist can send the header and complete a session
   early. That is acceptable only while there are no real patients, and it
   goes away with the bar - **delete the bar before launch** and the header is
-  ignored. The offset is bounded to a year either way. Every other
-  server-side time check stays on the real clock.
+  ignored. The offset is bounded to a year either way. The same header
+  moves two therapist gates the card already judges on the simulated
+  clock, because one session judged by two clocks reads as broken: the
+  session note's "has it started" check (`session-notes/submit`, which
+  Done opens) and "Show number" (`reveal-contact`). Neither moves money;
+  the note's 24-hour edit lock stays on the real clock. Every other
+  server-side time check stays on the real clock (`e2e/debug-clock.spec.ts`).
 - **No `.env` file that arms the reset is committed, and two have been.**
   `.env.production` armed both the public debug nav and the whole-database
   reset on the live site. `.env.development` then did the same thing one
