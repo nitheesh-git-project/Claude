@@ -99,5 +99,7 @@ export async function POST(request: NextRequest) {
     success: true,
     refunded: result.refunded,
     refundFailed: result.refundFailed ?? false,
+    // The figure only. Razorpay's reason is for the clinic, not the patient.
+    refundPaise: result.refundFailed ? result.refundPaise ?? null : null,
   });
 }

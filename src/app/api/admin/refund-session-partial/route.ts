@@ -9,6 +9,7 @@ import {
   openRefundAttempt,
   succeedRefundAttempt,
   failRefundAttempt,
+  refundRefusalForAdmin,
 } from "@/lib/refundAttempt";
 import { formatRupees } from "@/lib/formatMoney";
 
@@ -304,7 +305,7 @@ export async function POST(request: NextRequest) {
       );
     }
     return NextResponse.json(
-      { error: "Razorpay refused the refund. Nothing was refunded - check Razorpay and retry." },
+      { error: refundRefusalForAdmin(err) },
       { status: 502 }
     );
   }

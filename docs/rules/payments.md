@@ -152,7 +152,9 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   chip answers "what happened to this money"; the patient's line answers "am
   I getting my money back, and when" -- so `manual_pending` is a work queue
   to one and a promise to the other, `failed` is a broken row to one and
-  "please contact us" to the person who is out of pocket, and `not_eligible`
+  "our team is sending it by hand" to the person who is out of pocket (it was
+  "please contact us", which handed the clinic's job to the patient while
+  Money's alert strip already counted it as urgent work), and `not_eligible`
   says **nothing** to the patient, because the cancelled card already
   explains the window and repeating it as a refund line announces a refund to
   somebody who is not getting one. It renders on the session card (with the
@@ -239,6 +241,12 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   `succeeded` with the gateway's own refund id, or `failed` with what it
   said. Every outcome is then either a resolved row or a row stuck at
   `processing`, and the second is exactly the state a person has to look at.
+  What the gateway said is also what the admin is told: every refund
+  refusal, and an admin cancellation whose refund was refused, answers with
+  `refundRefusalForAdmin()` -- Razorpay's own reason in quotes, plus "refunds
+  come out of your Razorpay balance, wait for settlement or add funds" when
+  the reason is the balance. It used to say "check Razorpay", so an unsettled
+  balance read the same as a broken key. The patient never sees the reason.
   Six rules:
   1. **A refund that cannot be recorded is not attempted.** The three admin
      routes put their claim back and answer 503 rather than calling Razorpay

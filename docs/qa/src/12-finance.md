@@ -200,7 +200,7 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 
 #### `FIN-REF-002` - Refund failure at the gateway · P1
 **Steps.** Force a Razorpay refund failure (use a payment that cannot be refunded in test mode).
-**Expected Result.** `Razorpay refused the refund. Nothing was refunded - check Razorpay and retry.` **Nothing is marked refunded locally** - the local state must never claim a refund the gateway did not make.
+**Expected Result.** `Razorpay refused the refund: "<Razorpay's own reason>" ...` - the gateway's words, never a generic "check Razorpay". When the reason is the Razorpay balance, the message also says refunds come out of that balance and to wait for settlement or add funds before retrying. **Nothing is marked refunded locally** - the local state must never claim a refund the gateway did not make.
 
 #### `FIN-REF-003` - A cash refund becomes a manual pending item · P1
 **Steps.** Refund a cash-on-visit home purchase.

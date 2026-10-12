@@ -252,11 +252,11 @@ export function buildPatientFeed({
       });
     }
     {
-      // A refund that failed at the gateway is the one refund state that is
-      // waiting on the patient: nothing in the clinic's own screens will
-      // move it until they get in touch. Pinned like every other needsYou
-      // item, and separate from the cancellation above so it survives a
-      // partial refund on a session that was never cancelled.
+      // A refund that failed at the gateway: the patient is out of pocket
+      // and the clinic's alert strip has it as urgent work. Pinned like every
+      // other needsYou item so it stays in view until it is sent, and
+      // separate from the cancellation above so it survives a partial refund
+      // on a session that was never cancelled.
       const refund = describeRefundForPatient(a);
       if (refund.state === "failed") {
         items.push({
@@ -264,8 +264,8 @@ export function buildPatientFeed({
           at: refund.at ?? when,
           icon: "fa-triangle-exclamation",
           tone: "bad",
-          title: "Refund didn't go through",
-          detail: "Please contact the clinic so we can return this by hand.",
+          title: "Refund delayed",
+          detail: "It didn't go through automatically, so our team is sending it by hand. Contact us if you have a question.",
           href: "/patient/dashboard/payments",
           needsYou: true,
         });

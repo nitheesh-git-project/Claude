@@ -1266,7 +1266,7 @@ and a dash for the date rather than a date nobody recorded. The chip follows
 is the same four states read for the person whose money moved rather than
 for the clinic: `manual_pending` is a queue item to an admin and a promise to
 a patient (`₹500 coming back to you`), `failed` is a broken row to an admin
-and "please contact us" to somebody who is out of pocket, and `not_eligible`
+and "our team is sending it by hand" to somebody who is out of pocket, and `not_eligible`
 says nothing at all - the cancelled session card already explains the window
 it came from, and repeating it as a refund line announces a refund to
 somebody who is not getting one. It appears on the session card (with the

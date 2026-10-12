@@ -279,7 +279,9 @@ export default function SessionDetailDrawer({
       // missed - the session is cancelled either way, but the refund needs
       // manual follow-up.
       setActionError(
-        "Session cancelled, but the automatic refund failed. Please process the refund manually."
+        `Session cancelled, but the refund didn't go through. ${
+          data.refundFailure ?? "Razorpay gave no reason - check the payment in Razorpay."
+        } It's listed under Refunds that failed.`
       );
       return;
     }
