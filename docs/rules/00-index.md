@@ -244,10 +244,11 @@ rg -i "<the thing you are seeing>" docs/rules/
 
 ## The public site
 
-`docs/rules/public-site.md` -- 36 rules
+`docs/rules/public-site.md` -- 37 rules
 
 - The splash greets a cold open, and nothing else
 - The developer pages carry no site chrome
+- Formatted public copy is an allow-listed document, never HTML
 - The developer pages are deliberately outside `MARKETING_PAGES`
 - The eight public pages are one template, not eight layouts
 - The closing band asks for the sale, so it shows the sale

@@ -431,6 +431,25 @@ Eight pages from one design system, the word budgets, why every photograph carri
   an action that would change nothing. The stored setting is left untouched,
   so restoring the account brings the therapist back to whatever the admin
   had chosen rather than to a default.
+- **Formatted public copy is an allow-listed document, never HTML.** A
+  therapist's bio and the admin's display content were printed into a
+  plain `<p>`, so every Enter collapsed into one line on `/team` while the
+  admin's own preview (which kept line breaks) looked fine. Both are now
+  written in `RichTextEditor` and stored as its JSON. Three rules:
+  1. **`src/lib/richText.ts` decides what reaches a page.** A stored value
+     is rebuilt node by node from its allow-list - unknown nodes, marks and
+     attributes are dropped, a link keeps only an http(s), mailto or tel
+     target - by the writing route *and* again at render, since the bio's
+     column is reachable from the therapist's own session.
+  2. **`RichTextView` builds React elements.** No `dangerouslySetInnerHTML`;
+     typography comes from the container, so the admin's grey saved view and
+     the public popup share one renderer and cannot disagree.
+  3. **Old values still read.** Anything that is not a stored document is
+     earlier plain text and becomes paragraphs and line breaks as written.
+  The bio now saves through `/api/therapist/update-bio` rather than a browser
+  RLS update, which is also what lets it revalidate `/team`. The formatting
+  set is brand-safe by decision: no colours, fonts or sizes. Guard:
+  `e2e/rich-text-profile.spec.ts`.
 - **An admin write that a public page renders must invalidate that page.**
   `/`, `/conditions`, `/book`, `/faq`, `/mission` and `/team` are ISR-cached
   (`export const revalidate = 300`), so a catalog or content edit was

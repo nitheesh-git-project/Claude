@@ -13,7 +13,8 @@ import TherapistTeamVisibilityToggle from "@/components/admin/TherapistTeamVisib
 import TherapistNotAvailableToggle from "@/components/admin/TherapistNotAvailableToggle";
 import TherapistContactEditForm from "@/components/admin/TherapistContactEditForm";
 import TherapistNotesForm from "@/components/admin/TherapistNotesForm";
-import TherapistDisplayContentForm from "@/components/admin/TherapistDisplayContentForm";
+import RichTextField from "@/components/RichTextField";
+import RichTextView from "@/components/RichTextView";
 import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareForm";
 import ResetTherapistPasswordButton from "@/components/admin/ResetTherapistPasswordButton";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
@@ -427,7 +428,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             {therapist.languages && (
               <p className="text-slate-600">Languages: {therapist.languages}</p>
             )}
-            {therapist.bio && <p className="text-slate-600">{therapist.bio}</p>}
+            {therapist.bio && <RichTextView value={therapist.bio} className="text-slate-600" />}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
             {/*
@@ -496,9 +497,15 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
         <p className="text-[11px] text-slate-500 mb-3">
           Shown to visitors in this therapist&apos;s /team profile popup, alongside their own bio.
         </p>
-        <TherapistDisplayContentForm
-          therapistId={therapist.id}
-          currentDisplayNote={displayContentRow?.public_display_note ?? ""}
+        <RichTextField
+          label="Public display content"
+          storedValue={displayContentRow?.public_display_note ?? null}
+          endpoint="/api/admin/update-therapist-display-content"
+          body={{ therapistId: therapist.id }}
+          emptyText="Nothing set - the popup shows their own bio only."
+          placeholder="A highlight, focus area or welcome note for visitors..."
+          viewHref="/team"
+          testId="display-content"
         />
       </div>
 

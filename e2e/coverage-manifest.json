@@ -879,6 +879,19 @@
       "integration": "local",
       "destructive": false
     },
+    "rich-text-profile.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "risk-sweep-report.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -2136,6 +2149,27 @@
       ],
       "rules": [
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "public.rich-text-profile",
+      "runner": "admin",
+      "title": "Therapist bio and display content keep their formatting from editor to /team",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "rich-text-profile.spec.ts",
+          "tests": [
+            "RT-001",
+            "RT-002",
+            "RT-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md"
       ]
     },
     {

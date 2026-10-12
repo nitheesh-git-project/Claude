@@ -953,6 +953,20 @@ in every picker that assigns one. **People → Therapists** carries a
 per option, plus *Something else* for free text and *Not set* for nobody
 having said. A therapist who has not said shows no chip at all.
 
+**The bio and the admin's display content are formatted text.** A therapist
+writes their bio (Edit Profile → Public Details → Bio) and an admin writes the
+display content on the therapist's page in the same Docs-style editor
+(`RichTextEditor`, built on Tiptap): headings, bold, italic, underline,
+strikethrough, bulleted and numbered lists, quotes, links, alignment, undo and
+redo. Fonts and colours stay the site's own. Saved, each shows read-only in grey
+exactly as `/team` will show it, with an **Edit** button; Cancel with unsaved
+changes asks first. Both are stored as the editor's JSON in the existing text
+columns, sanitised against an allow-list (`src/lib/richText.ts`) by the route
+that writes them (`/api/therapist/update-bio`,
+`/api/admin/update-therapist-display-content`) and again when rendered, and
+rendered as React elements, never HTML. Older plain-text values still read,
+with their paragraphs and line breaks kept. Both routes revalidate `/team`.
+
 **Years of experience is asked beside it, at both of those doors.**
 `profiles.years_experience` has existed since the first therapist shipped and
 nothing ever wrote it, so the second figure a patient judges a clinician by was

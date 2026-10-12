@@ -100,9 +100,9 @@ The therapist Overview is where a clinician starts every shift: what is on today
 
 **Steps**
 1. In the sidebar tap **Edit Profile**.
-2. Under **Public Details**, tap **Short Bio**. Replace it with `Works with desk-based patients on posture-driven back pain.`
-3. Tap **Languages Spoken**. Enter `English, Kannada, Hindi`.
-4. Tap **Save**.
+2. Under **Public Details → Bio**, tap **Edit** (or **Add**). Type `Works with desk-based patients on posture-driven back pain.`, press Enter, type `Video and home visits.`, then select the words `posture-driven` and tap **Bold** in the toolbar. Tap **Save**.
+3. Under **Public Details**, tap **Edit**, then **Languages Spoken**. Enter `English, Kannada, Hindi` and tap **Save**.
+4. Confirm the bio now shows in grey exactly as typed - two paragraphs, `posture-driven` in bold - with an **Edit** button under it.
 5. Reload the page and confirm both values survived.
 6. Under **Credentials & Specialization**, tap **Years of Experience**. Enter `15`.
 7. Tap **Specialist In** and choose `Neurological` from the dropdown.
@@ -116,6 +116,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 
 **Expected Result.**
 * **Public Details save instantly.** The button reads `Saving...` then `Save`; the values survive the reload at step 5. No admin sees anything.
+* **The bio keeps its formatting everywhere.** The grey saved view, the admin's therapist page and the `/team` popup all show the same two paragraphs with `posture-driven` in bold - never one run-on line. **Cancel** with unsaved changes asks before discarding them.
 * **Credentials do not.** Step 8 shows `Your request has been submitted for admin review.` Each requested field is replaced by its **new** value on a slate panel with an amber `Pending Review` chip and a **Withdraw** link, and **cannot be edited again** until the request is decided. The live public profile still shows the **old** value - `/team` and the patient's therapist card must not change yet.
 * Step 10's **Withdraw** returns the field to an editable control immediately, with the old value.
 * **Specialist In is a dropdown of the eight the clinic recognises.** A therapist whose stored value is free text written before this list existed is offered that value as a ninth option and it is **preselected** - the screen must never show a different specialisation from the one in the database because the stored one had no matching option.
