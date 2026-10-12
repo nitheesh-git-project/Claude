@@ -140,6 +140,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `SessionFilterList` (Upcoming / Past / Cancelled, plus a Video / Home
   visit filter that only appears for people who have both). Add a filter
   rather than a second list.
+- **Status decides a session's tab before its time does**
+  (`src/lib/sessionBucket.ts`). Completed is Past and cancelled is
+  Cancelled whatever the slot says; only an open session is bucketed by
+  time (started-but-unfinished stays under Upcoming for a day). Done can
+  land before the slot's start on the dashboards' real clock - an admin's
+  Done has no time gate and the debug clock moves the therapist's - and a
+  time-first split left those completed sessions under Upcoming.
 - **A different way of looking at the same rows is a view switch, not a
   sidebar entry.** Calendar was its own entry on the patient and therapist
   dashboards and is now a List/Calendar toggle on Sessions

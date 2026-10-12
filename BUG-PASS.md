@@ -78,7 +78,20 @@ npm run verify                       # lint + unit tests + build, before pushing
 
 ## Next steps (in order)
 
-1. Fix the owner's next batch of bugs, one at a time, as above.
+1. Fix the owner's next batch of bugs, one at a time, as above. Batch 2
+   (fixes 16-22) answers, all the recommended option: Today shows every
+   recommendation event (pending approval + paid-unbooked urgent); promo
+   codes on programmes via a per-code "valid on programmes" switch (off by
+   default); Catalog = Conditions with Online sessions then Home visits
+   (clinic default + per-condition override, one visit, no counts/days);
+   programme expiry kept in Settings, shown only near the end; programme
+   sessions land in the admin queue with the programme's therapist
+   pre-picked (suggestions too); IDs `PED_PKG001-0/6` (per-condition code,
+   per-condition counter, `_HV` for home visits, backfill, old codes still
+   searchable); new top-level Programmes admin section replacing Sessions ->
+   Recommendations and Catalog -> Purchases; All Logs shows everyone's
+   actions with Actor/Programme/Patient/Therapist/Condition filters. Item 8
+   is a written end-to-end report, done last.
 2. When the owner says "merge to staging": first **build**
    `npm run check:merge-ready` (not built yet) -- one script that runs
    `verify`, `check:coverage`, `check:context-budget`, the specs mapped to
@@ -133,3 +146,4 @@ Every one of these was catchable locally. Run them before the PR push:
 | 14 | Session note refused "once the session has taken place" after it started | Root cause: debug clock. Note route reads `serverNowMs()` and the dialog sends the offset (like Done); refusal names the time. Opens at session start (owner's choice). Spec: `debug-clock` DC-003 | `7fc1faa` |
 | CI | Gate fixes for PR #97 | ACP-020 visible filter; RES-001 + clinical-continuity mark tour seen; `declined_applications` + `payments` realtime (schema applied to staging twice); layout adornment exemption; H-003 exact Approve match; concurrency refund race order-tolerant | `1d53e42`, `ac1ea47`, `d934d37` |
 | 15 | "You can see this number around the time of the session" during the session | Same debug-clock cause in `reveal-contact`; refusal names when it opens/closed; home-visit day judged in IST not UTC. Spec: DC-004, `contactMasking` unit tests | `7fc1faa` |
+| 16 | Completed session listed under Upcoming on patient/therapist Sessions | `sessionBucket` checks status first: completed is Past whatever the slot (Done can land before the slot on the real clock: admin Done has no gate, debug clock moves the therapist's). Rule in `docs/rules/dashboards.md`. Spec: `finish-session` FS-006 (fails on the old split) | (this commit) |
