@@ -1,5 +1,13 @@
 #!/usr/bin/env node
 // npm run check:merge-ready [-- --e2e [--append-only]] [-- --base <ref>]
+//                            [-- --runner <name>] [-- --skip-static]
+//
+// --runner <name> runs exactly the specs CI's <name> runner owns in
+// e2e/coverage-manifest.json (patient, therapist, session, admin, hospital,
+// platform, integrity), changed or not: the one-to-one local stand-in for a
+// CI runner when Docker (and so the disposable stack) is not available.
+// --skip-static skips verify/coverage/context-budget when an earlier run in
+// the same sitting already passed them.
 //
 // The quality gate, run here before the push instead of learnt from CI
 // after it. Every red gate on the bug-pass PRs was catchable locally -- a
@@ -22,6 +30,9 @@ import { selectSpecs } from "./lib/affectedSpecs.mjs";
 const args = process.argv.slice(2);
 const runE2e = args.includes("--e2e");
 const allowAppendOnly = args.includes("--append-only");
+const skipStatic = args.includes("--skip-static");
+const runnerIdx = args.indexOf("--runner");
+const runner = runnerIdx >= 0 ? args[runnerIdx + 1] : null;
 const baseIdx = args.indexOf("--base");
 const base = baseIdx >= 0 ? args[baseIdx + 1] : "origin/staging";
 const outDir = "test-results/merge-ready";
@@ -55,9 +66,11 @@ function check(name, cmd, cmdArgs, env) {
 }
 
 // 1. Static: what CI's context-budget, coverage-manifest and verify jobs run.
-check("verify (lint + unit + build)", "npm", ["run", "verify"]);
-check("coverage manifest", "npm", ["run", "check:coverage"]);
-check("context budget", "npm", ["run", "check:context-budget"]);
+if (!skipStatic) {
+  check("verify (lint + unit + build)", "npm", ["run", "verify"]);
+  check("coverage manifest", "npm", ["run", "check:coverage"]);
+  check("context budget", "npm", ["run", "check:context-budget"]);
+}
 
 // 2. Which specs this change can reach.
 sh("git", ["fetch", "-q", "origin", base.replace(/^origin\//, "")]);
@@ -75,12 +88,27 @@ const specSources = Object.fromEntries(
     .map((f) => [f, readFileSync(join("e2e", f), "utf8")])
 );
 const sel = selectSpecs(changed, specSources);
+const manifestAll = JSON.parse(readFileSync("e2e/coverage-manifest.json", "utf8"));
+if (runner) {
+  // CI parity: the runner's whole share of the suite, not just what changed.
+  const owned = Object.entries(manifestAll.specs ?? {})
+    .filter(([name, v]) => v.runner === runner && specSources[name])
+    .map(([name]) => name)
+    .sort();
+  if (!owned.length) {
+    console.error(`No specs belong to runner "${runner}" in e2e/coverage-manifest.json.`);
+    process.exit(2);
+  }
+  sel.specs = owned;
+  sel.wholeSuite = false;
+  sel.reasons = Object.fromEntries(owned.map((n) => [n, [`runner ${runner}`]]));
+}
 // Specs the manifest marks destructive stay on CI's disposable stack unless
 // --append-only says the target may keep append-only rows (the care-plan
 // specs write rows no cleaner can delete). admin-degraded-schema drops
 // columns, so it never runs from here at all.
 const NEVER_LOCAL = ["admin-degraded-schema.spec.ts"];
-const manifest = JSON.parse(readFileSync("e2e/coverage-manifest.json", "utf8"));
+const manifest = manifestAll;
 const destructive = sel.specs.filter(
   (s) => NEVER_LOCAL.includes(s) || (manifest.specs?.[s]?.destructive && !allowAppendOnly)
 );
@@ -109,8 +137,8 @@ if (!runE2e) {
   }
   const target = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "(NEXT_PUBLIC_SUPABASE_URL unset)";
   console.log(`\nRunning ${sel.specs.length} spec(s) against ${target} ...`);
-  const jsonFile = join(outDir, "playwright.json");
-  const ok = check("e2e (affected specs)", "npx", ["playwright", "test", ...sel.specs.map((s) => `e2e/${s}`), "--reporter=line,json"], {
+  const jsonFile = join(outDir, runner ? `playwright-${runner}.json` : "playwright.json");
+  const ok = check(runner ? `e2e (runner ${runner})` : "e2e (affected specs)", "npx", ["playwright", "test", ...sel.specs.map((s) => `e2e/${s}`), "--reporter=line,json"], {
     PLAYWRIGHT_JSON_OUTPUT_NAME: jsonFile,
     ...(allowAppendOnly ? { E2E_ALLOW_APPEND_ONLY_WRITES: "1" } : {}),
   });

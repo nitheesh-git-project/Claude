@@ -46,6 +46,11 @@ the production Supabase project, and the owner does it by hand, deliberately.
 with a merge: `supabase/schema.sql` reaches staging's database only when a
 person applies it.
 
+**No push to a PR into `staging` or `main` until every CI runner passes
+locally:** `npm run check:merge-ready`, then `-- --e2e --append-only
+--skip-static --runner <name>` for all seven runners. Fix every red, push
+once; read a red CI run from its failure bundle, never the raw log.
+
 ### Secrets
 
 `SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET` and the Google

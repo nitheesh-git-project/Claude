@@ -98,11 +98,13 @@ npm run verify                       # lint + unit tests + build, before pushing
    implementation plan is in `docs/audit/bug-pass-item5-plan.md` (delete
    with this file).
 2. When the owner says "merge to staging": apply `schema.sql` to staging
-   twice, run `npm run check:merge-ready -- --e2e --append-only` (built in
-   `81a0d1b`; static checks + the specs the branch reaches) and fix
-   anything red. Then remove the bug-pass pointer + this file +
+   twice, then run every CI runner locally (CLAUDE.md rule):
+   `npm run check:merge-ready`, then
+   `npm run check:merge-ready -- --e2e --append-only --skip-static --runner <name>`
+   for patient, therapist, session, admin, hospital, platform, integrity.
+   Fix every red; only then remove the bug-pass pointer + this file +
    `docs/audit/bug-pass-item5-plan.md`, open a **new** PR bug-pass ->
-   staging and watch CI (triage from failure bundles only).
+   staging, push once, and triage CI only from failure bundles.
 3. After staging is green: open the staging -> main PR and get it green.
    The owner merges it and applies `schema.sql` to production by hand.
 4. Two junk payment rows on staging (see fix 7) still need cleanup; ask

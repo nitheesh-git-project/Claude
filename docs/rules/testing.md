@@ -607,7 +607,15 @@ rarely names. `-- --e2e` runs them against the project in `.env.local`,
 which must not hold real patients. Add `--append-only` only when that project
 may keep append-only rows. The destructive specs stay on CI's stack, and
 `admin-degraded-schema` never runs locally. It prints failing tests and their
-first error lines; full logs are in `test-results/merge-ready/`. When CI is
+first error lines; full logs are in `test-results/merge-ready/`.
+**Before any push to a PR into `staging` or `main`, every runner is run
+locally**, because a red CI round costs about 30 minutes and a log read per
+attempt: `npm run check:merge-ready -- --e2e --append-only --skip-static
+--runner <name>` runs exactly the specs the manifest gives that CI runner
+(patient, therapist, session, admin, hospital, platform, integrity), one
+runner at a time against the project in `.env.local`. It stands in for CI's
+disposable stack when Docker is not available. Only when all seven are green
+does the branch get pushed, and it gets pushed once. When CI is
 red anyway, triage from the runner's `failure-bundle-<runner>` /
 `reports-<runner>` artifact, never the raw job log. Fix every red runner, then
 push once.
