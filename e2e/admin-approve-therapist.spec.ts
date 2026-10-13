@@ -5,13 +5,13 @@
 // dialog now collects it, and the route writes it in the same update as
 // `approved`. Rules: src/lib/therapistApproval.ts.
 import { test, expect } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, TEST_PASSWORD } from "./helpers";
 
 async function createPendingTherapist(name: string) {
   const admin = adminClient();
   const { data: created, error } = await admin.auth.admin.createUser({
     email: `qa.approve.${Date.now()}@example.test`,
-    password: "QaTest!2024pass",
+    password: TEST_PASSWORD,
     email_confirm: true,
     user_metadata: { full_name: name },
   });

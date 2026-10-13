@@ -114,13 +114,13 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Preconditions.** `ALLOW_DEBUG_DATA_RESET=true` in the server environment. A Master Admin account exists.
 
-**Test Data.** Admin: `qa.admin@example.test` / `QaTest!2024pass`. Confirmation phrase: `RESET ALL DATA`.
+**Test Data.** Admin: `qa.admin@example.test` / the `E2E_QA_PASSWORD` value. Confirmation phrase: `RESET ALL DATA`.
 
 **Steps**
 
 1. Open `http://localhost:3000/admin/login`.
 2. Tap the **Email Address** field. Enter `qa.admin@example.test`.
-3. Tap the **Password** field. Enter `QaTest!2024pass`.
+3. Tap the **Password** field. Enter the `E2E_QA_PASSWORD` value.
 4. Tap **Sign In**.
 5. Confirm the black **Debug** bar is pinned across the top of the page.
 6. In the Debug bar, tap **Reset data**.

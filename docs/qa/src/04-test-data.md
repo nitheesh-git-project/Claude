@@ -6,11 +6,11 @@ Use these exact values everywhere. Every test in this plan refers to them by lab
 
 ### 8.1 Standard password
 
-**All test accounts use the same password:** `QaTest!2024pass`
+**All test accounts use the same password:** the `E2E_QA_PASSWORD` value from `.env.local` (ask the owner; it is never written in this public repository, and CI generates its own per run)
 
 > **Before typing any of §8.2–§8.9 in by hand, read this.** A data reset deletes every non-admin account, so the twelve logins below stop existing the moment `SETUP-RESET-001` runs. `npm run seed:qa` recreates all of them with this password, prints both hospitals' referral codes, and can be re-run safely - see §6.2. The two accounts an admin would otherwise mint from the back office (a scoped admin in `ADM-SET-026`, a hospital in `HOS-AUTH-002`) hand out a **generated** password shown once and stored nowhere; the seeder gives them this one instead, which is why `Invalid login credentials` on any account named here is a seeding question before it is a bug.
 
-Where a test needs a *second, different* password (a change-password test), use `QaTest!2024new`.
+Where a test needs a *second, different* password (a change-password test), use any other strong password of your own.
 
 ### 8.2 Admin accounts
 
@@ -21,7 +21,7 @@ Where a test needs a *second, different* password (a change-password test), use 
 | **Admin Finance** | `qa.admin.finance@example.test` | `finance` | Proves Sessions and Catalog are blocked. |
 | **Admin Clinical** | `qa.admin.clinical@example.test` | `clinical` | Proves Money, Catalog and Settings are blocked. |
 
-Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated password shown on that screen** - not `QaTest!2024pass`. It stays readable on that admin's own Back office row until they set their own, and if it is lost, **Reset password** on the row issues a new one.
+Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated password shown on that screen** - not the `E2E_QA_PASSWORD` value. It stays readable on that admin's own Back office row until they set their own, and if it is lost, **Reset password** on the row issues a new one.
 
 ### 8.3 Patients
 
@@ -43,7 +43,7 @@ Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `ac
 | --- | --- | --- | --- |
 | Full name | `QA Patient A` | `QA Patient B` | `QA Referred Patient C` |
 | Email | `qa.patient.a@example.test` | `qa.patient.b@example.test` | `qa.patient.c@example.test` |
-| Password | `QaTest!2024pass` | `QaTest!2024pass` | `QaTest!2024pass` |
+| Password | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value |
 | Phone | `+91 98765 43210` | `+91 98765 43211` | `+91 98765 43212` |
 | Date of birth | `1990-04-12` | `1985-11-30` | `1978-02-05` |
 | Gender | `Female` | `Male` | `Female` |
@@ -63,7 +63,7 @@ Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `ac
 | --- | --- |
 | Invalid email | `not-an-email` |
 | Too-short password | `abc12` (5 characters; minimum is 6) |
-| Mismatched confirm password | Password `QaTest!2024pass`, confirm `QaTest!2024pas` |
+| Mismatched confirm password | Password the `E2E_QA_PASSWORD` value, confirm the same value minus its last character |
 | Invalid phone | `12345` |
 | Invalid PIN code | `0560038` (leading zero - the pattern requires `[1-9]` first) and `56003` (5 digits) |
 | Unknown referral code | `ZZZZZZ` |
@@ -134,7 +134,7 @@ Expected suggestion: **Orthopaedic** for Patient A, **Neurological** for Patient
 | --- | --- | --- | --- |
 | Full name | `QA Therapist A` | `QA Therapist B` | `QA Therapist C` |
 | Email | `qa.therapist.a@example.test` | `qa.therapist.b@example.test` | `qa.therapist.c@example.test` |
-| Password | `QaTest!2024pass` | `QaTest!2024pass` | `QaTest!2024pass` |
+| Password | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value |
 | Phone | `+91 90000 10001` | `+91 90000 10002` | `+91 90000 10003` |
 | Qualifications & License / Council Reg No. | `MPT (Ortho), KSCP Reg 44821` | `MPT (Neuro), KSCP Reg 44822` | `BPT, KSCP Reg 44823` |
 | Specialty / display note | `Spine and lower-limb rehabilitation` | `Stroke and neurological rehabilitation` | `Paediatric physiotherapy` |

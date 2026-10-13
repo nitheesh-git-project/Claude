@@ -20,13 +20,13 @@ Two rules shape almost everything on the patient's screens:
 **Feature.** Patient authentication. **Role.** Patient.
 **Purpose.** Confirm the login form authenticates and lands on the dashboard.
 **Preconditions.** Patient A exists and is approved and active (created by `PAT-BOOK-003` or `PAT-AUTH-002`).
-**Test Data.** `qa.patient.a@example.test` / `QaTest!2024pass`.
+**Test Data.** `qa.patient.a@example.test` / the `E2E_QA_PASSWORD` value.
 
 **Steps**
 1. Open `/patient/login`.
 2. Confirm the two tabs **Sign In** and **Register Account** are visible, with **Sign In** active.
 3. Tap the **Email Address** field. Enter `qa.patient.a@example.test`.
-4. Tap the **Password** field. Enter `QaTest!2024pass`.
+4. Tap the **Password** field. Enter the `E2E_QA_PASSWORD` value.
 5. Tap **Sign In**.
 
 **Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Overview**, **Book a Session**, **Health Profile** and **Edit Profile** at minimum, with **Back to Home** at the **foot of the nav, directly above Collapse** (above the profile footer in the mobile drawer, which has no Collapse). The public `Navbar` is **not** rendered on the dashboard. No error banner.
@@ -42,8 +42,8 @@ Two rules shape almost everything on the patient's screens:
 2. Tap **Full Name**. Enter `QA Patient B`.
 3. Tap **Email Address**. Enter `qa.patient.b@example.test`.
 4. Tap the phone field. Enter `+91 98765 43211`.
-5. Tap **Password**. Enter `QaTest!2024pass`.
-6. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+5. Tap **Password**. Enter the `E2E_QA_PASSWORD` value.
+6. Tap **Confirm Password**. Enter the `E2E_QA_PASSWORD` value.
 7. Leave **Referral Code** blank.
 8. Tap **Create Account**.
 
@@ -78,7 +78,7 @@ await fetch("/api/appointments/create", {
 | --- | --- | --- | --- |
 | 1 | Email | `not-an-email` | An invalid-email message; the account is not created |
 | 2 | Password | `abc12` | A minimum-length message; not created |
-| 3 | Confirm Password | `QaTest!2024pas` | A passwords-do-not-match message; not created |
+| 3 | Confirm Password | the same value minus its last character | A passwords-do-not-match message; not created |
 | 4 | Phone | `12345` | An invalid-phone message; not created |
 | 5 | Referral Code | `ZZZZZZ` | `Code not recognized - double-check it or leave blank` in red |
 | 6 | Email | `qa.patient.a@example.test` (already registered) | A "user already registered" style error from Supabase; **no second profile row is created** |
@@ -206,9 +206,9 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 **Steps**
 1. Tap **Full Name**. Enter `QA Patient A`.
 2. Tap **Email**. Enter `qa.patient.a@example.test`.
-3. Tap **Create Password**. Enter `QaTest!2024pass`.
+3. Tap **Create Password**. Enter the `E2E_QA_PASSWORD` value.
 4. Tap the phone field. Enter `+91 98765 43210`.
-5. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+5. Tap **Confirm Password**. Enter the `E2E_QA_PASSWORD` value.
 6. Leave **Referral Code** blank.
 7. Read the teal line naming the service chosen on Step 1 - it must read *"Booking a **QA Back & Spine Care** - ₹1,999, 60 min"* beside its photograph, with a **Change** link. There is no dropdown on this step.
 8. Tap the **Anything else we should know?** box. Enter `Desk job, pain worse after sitting all day. Goal: sit through a full workday.`

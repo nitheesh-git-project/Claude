@@ -41,6 +41,11 @@ async function ensureUser(
 }
 
 export default async function globalSetup() {
+  if (!process.env.E2E_QA_PASSWORD) {
+    throw new Error(
+      "Set E2E_QA_PASSWORD in .env.local: the QA accounts' shared password, kept out of this public repo."
+    );
+  }
   const admin = adminClient();
 
   const qaAdminId = await ensureUser(admin, QA_EMAILS.admin, "QA Admin", "admin");

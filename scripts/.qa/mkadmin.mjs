@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const admin = createClient(url, key, { auth: { persistSession: false } });
-const EMAIL = "qa.admin@example.test", PASS = "QaTest!2024pass";
+const EMAIL = "qa.admin@example.test", PASS = process.env.E2E_QA_PASSWORD;
 
 const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
 let user = list.users.find((u) => u.email === EMAIL);

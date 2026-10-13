@@ -19,7 +19,7 @@ import {
   adminClient,
   browserCookiesFor,
   cookieHeaderFor,
-  profileIdFor,
+  profileIdFor, TEST_PASSWORD
 } from "./helpers";
 
 test.setTimeout(240_000);
@@ -276,7 +276,7 @@ test("LK-006: RLS refuses a locked patient going around the route", async () => 
   });
   const { error: signInError } = await anon.auth.signInWithPassword({
     email: PATIENT,
-    password: "QaTest!2024pass",
+    password: TEST_PASSWORD,
   });
   expect(signInError).toBeNull();
 

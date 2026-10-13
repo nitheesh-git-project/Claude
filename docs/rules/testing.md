@@ -623,6 +623,12 @@ red anyway, triage from the runner's `failure-bundle-<runner>` /
 `reports-<runner>` artifact, never the raw job log. Fix every red runner, then
 push once.
 
+**The QA accounts' password is `E2E_QA_PASSWORD`, never a literal.** The
+repository is public, and the old hard-coded password signed anyone in to
+staging as the QA admin. Specs use `TEST_PASSWORD` from `e2e/helpers.ts`,
+`seed:qa` and global setup refuse to run without the variable, and
+`quality-gate.yml` generates a fresh one per run for the disposable stack.
+
 **Four spec conventions, each learnt from a red gate:**
 - The admin dashboard keeps every section mounted and hides the inactive
   ones, so an admin selector needs `.filter({ visible: true })` or an exact

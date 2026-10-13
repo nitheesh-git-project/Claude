@@ -29,8 +29,8 @@ Five rules shape almost every screen:
 6. Tap **Qualifications & License / Council Reg No.** Enter `MPT (Ortho), KSCP Reg 44821`.
 7. Tap **Specialist In**. It is a **dropdown**, not a text box, and it lists exactly eight: Orthopaedic, Neurological, Paediatric, Sports, Geriatric, Cardiopulmonary, Women's health, General physiotherapy - **General physiotherapy** is the one for somebody who does not specialise. Choose **Orthopaedic**.
 7b. Tap **Years of experience**. Try `abc`, then `-2`, then `2024`, then `61`. Finally enter `9`.
-8. Tap **Password**. Enter `QaTest!2024pass`.
-9. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+8. Tap **Password**. Enter the `E2E_QA_PASSWORD` value.
+9. Tap **Confirm Password**. Enter the `E2E_QA_PASSWORD` value.
 10. Tap **Submit Application**.
 
 **Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`, `specialization='Orthopaedic'` - the exact label, not a code - and `years_experience = 9`.

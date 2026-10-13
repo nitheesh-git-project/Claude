@@ -50,6 +50,9 @@ env:
   NODE_VERSION: "22"
   SUPABASE_CLI_VERSION: "2.54.11"
   NEXT_TELEMETRY_DISABLED: "1"
+  # The QA fixture accounts' shared password on each runner's disposable
+  # stack: generated per run, so no password lives in this public repo.
+  E2E_QA_PASSWORD: "Gate-${{ github.run_id }}-${{ github.run_attempt }}!Qa"
 
 jobs:
   context-budget:

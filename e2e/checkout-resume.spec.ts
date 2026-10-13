@@ -16,7 +16,7 @@ import {
   browserCookiesFor,
   cookieHeaderFor,
   waitForSplashToClear,
-  markDashboardTourSeen,
+  markDashboardTourSeen, TEST_PASSWORD
 } from "./helpers";
 
 const DISCOUNT_PAISE = 20000;
@@ -66,7 +66,7 @@ test.describe("Finishing payment for an unpaid booking", () => {
     patientEmail = `qa.resume.${stamp}@example.test`;
     const { data: created, error } = await admin.auth.admin.createUser({
       email: patientEmail,
-      password: "QaTest!2024pass",
+      password: TEST_PASSWORD,
       email_confirm: true,
       user_metadata: { role: "patient", full_name: `QA Resume ${stamp}` },
     });

@@ -105,6 +105,7 @@ Copy `.env.example` to `.env.local`. Server-only values must **never** take a `N
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | For Meet links | Obtained once with `node scripts/get-google-refresh-token.mjs` |
 | `GOOGLE_CALENDAR_ID` | For Meet links | Calendar the session events are created on |
 | `SUPABASE_ACCESS_TOKEN` | Optional | Personal access token, only for `scripts/run-schema.mjs` |
+| `E2E_QA_PASSWORD` | For tests | Shared password of the QA fixture accounts (`seed:qa`, the e2e suite). Test projects only; never committed - CI generates its own per run |
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional | Exactly `false` hides the pre-launch debug bar |
 | `ALLOW_DEBUG_DATA_RESET` | **Keep unset** | Arms a button that empties every table. Never set it where real data lives |
 | `SUPABASE_MAX_IN_FLIGHT` / `SUPABASE_REQUEST_TIMEOUT_MS` | Optional | Per-instance cap and deadline for Supabase requests (defaults 96 / 20000 ms) |

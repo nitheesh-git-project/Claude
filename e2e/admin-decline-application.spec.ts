@@ -7,13 +7,13 @@
 // Declined lists them, and a returning applicant is flagged in Approvals.
 // Rules: src/lib/declineReasons.ts.
 import { test, expect } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, TEST_PASSWORD } from "./helpers";
 
 async function createPendingPatient(name: string, email: string) {
   const admin = adminClient();
   const { data: created, error } = await admin.auth.admin.createUser({
     email,
-    password: "QaTest!2024pass",
+    password: TEST_PASSWORD,
     email_confirm: true,
     user_metadata: { full_name: name },
   });

@@ -48,7 +48,7 @@ what has already been done. Keep it short; update the log after every fix.
   API instead:
   `curl -s -X POST https://api.supabase.com/v1/projects/hqhhnkjkrpyhudmgmawm/database/query -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"query":"..."}'`
 - Load env in a shell: `set -a; . ./.env.local; set +a`
-- QA accounts are seeded (`npm run seed:qa`). Password `QaTest!2024pass`;
+- QA accounts are seeded (`npm run seed:qa`). Password: the `E2E_QA_PASSWORD` value in `.env.local`;
   admin is `qa.admin@example.test`. Helpers are in `e2e/helpers.ts`.
 
 ## Verifying a fix

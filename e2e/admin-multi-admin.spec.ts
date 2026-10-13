@@ -18,7 +18,7 @@ import {
   clinicSlot,
   cookieHeaderFor,
   openTherapistHour,
-  profileIdFor,
+  profileIdFor, TEST_PASSWORD
 } from "./helpers";
 
 test.describe("Suite H: two admins", () => {
@@ -83,7 +83,7 @@ test.describe("Suite H: two admins", () => {
     const email = `qa.pending.${Date.now()}@example.test`;
     const { data: created } = await admin.auth.admin.createUser({
       email,
-      password: "QaTest!2024pass",
+      password: TEST_PASSWORD,
       email_confirm: true,
       user_metadata: { full_name: "QA Pending Signup" },
     });
@@ -152,7 +152,7 @@ test.describe("Suite H: two admins", () => {
     for (let round = 0; round < 4; round++) {
       const { data: created, error: createError } = await admin.auth.admin.createUser({
         email: `qa.race.${Date.now()}.${round}@example.test`,
-        password: "QaTest!2024pass",
+        password: TEST_PASSWORD,
         email_confirm: true,
         user_metadata: { full_name: "QA Race Signup" },
       });

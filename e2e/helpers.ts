@@ -7,7 +7,10 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 
 export const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
-export const TEST_PASSWORD = "QaTest!2024pass";
+// The QA accounts' shared password. It lives in .env.local (E2E_QA_PASSWORD)
+// and, on CI's disposable stack, is generated per run -- never in this
+// public repository, where anyone could read it and sign in to staging.
+export const TEST_PASSWORD = process.env.E2E_QA_PASSWORD ?? "";
 
 export const SUPABASE_URL = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
 export const SUPABASE_ANON_KEY = requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
