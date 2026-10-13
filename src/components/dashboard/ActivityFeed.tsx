@@ -112,8 +112,8 @@ export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; 
                 <i aria-hidden className={`fa-solid ${item.icon} text-[11px]`} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold leading-snug text-slate-800">{item.title}</p>
-                {item.detail && <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{item.detail}</p>}
+                <p className="break-words text-sm font-semibold leading-snug text-slate-800">{item.title}</p>
+                {item.detail && <p className="mt-0.5 break-words text-xs leading-relaxed text-slate-500">{item.detail}</p>}
               </div>
               <span suppressHydrationWarning className="shrink-0 text-[11px] text-slate-500">
                 {when(item.at)}

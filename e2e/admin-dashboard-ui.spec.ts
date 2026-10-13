@@ -243,6 +243,9 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
   // screen now. The behaviour worth protecting is unchanged: every link out
   // of Today has to land somewhere that can actually action the work.
   test("Today's queue links land on a screen that can act on them", async ({ page }) => {
+    // One full admin dashboard load per screen Today links to, each 5-10s
+    // against a hosted project.
+    test.setTimeout(300_000);
     await page.goto(`${BASE}/admin/dashboard?section=today&tab=overview`);
     await expect(page.getByText("Queues", { exact: true })).toBeVisible();
 
@@ -259,9 +262,21 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
     ].filter(Boolean);
     expect(hrefs.length).toBeGreaterThan(0);
 
+    // One visit per screen: Today links the same section/tab many times with
+    // different filters, and against a hosted project each admin load is
+    // 5-10s, so visiting every link outran the timeout without testing more.
+    const byScreen = new Map<string, string>();
     for (const href of hrefs) {
+      const p = new URL(href, BASE).searchParams;
+      const key = `${p.get("section")}/${p.get("tab")}`;
+      if (!byScreen.has(key)) byScreen.set(key, href);
+    }
+
+    for (const href of byScreen.values()) {
       const target = new URL(href, BASE).searchParams;
-      await page.goto(`${BASE}${href}`);
+      // Only the address it settles on is checked, so there is no need to
+      // wait for every image on a dashboard to load.
+      await page.goto(`${BASE}${href}`, { waitUntil: "domcontentloaded" });
       const landed = new URL(page.url()).searchParams;
       expect(
         `${landed.get("section")}/${landed.get("tab")}`,
