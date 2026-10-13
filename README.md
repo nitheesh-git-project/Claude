@@ -326,6 +326,6 @@ Both branches refuse direct pushes. Hosted on Vercel: set every variable above i
 
 <div align="center">
 
-Private and proprietary · © MoveRestore Physiotherapy · Built by Nitheesh M
+© 2026 MoveRestore Physiotherapy · All rights reserved - see [LICENSE](LICENSE) · Built by Nitheesh M
 
 </div>
