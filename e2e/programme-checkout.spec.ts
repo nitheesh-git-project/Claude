@@ -265,6 +265,9 @@ test("PC-001: Accept & pay on the card goes to Review & pay, and nothing is char
 });
 
 test("PC-002: the page shows the breakdown, and with no code the patient pays the full price", async ({ page }) => {
+  // A recommendation written and approved, then the page and two quotes:
+  // past 30s against a hosted project.
+  test.setTimeout(90_000);
   const versionId = await recommendAndApprove(4);
   const list = perSessionPaise * 4;
 

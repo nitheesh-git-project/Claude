@@ -615,7 +615,10 @@ attempt: `npm run check:merge-ready -- --e2e --append-only --skip-static
 (patient, therapist, session, admin, hospital, platform, integrity), one
 runner at a time against the project in `.env.local`. It stands in for CI's
 disposable stack when Docker is not available. Only when all seven are green
-does the branch get pushed, and it gets pushed once. When CI is
+does the branch get pushed, and it gets pushed once. Start a fresh
+`npm run dev` before each runner, as CI does: one dev server kept up across
+the whole suite grew to 13 GB and was OOM-killed mid-run, and every spec
+after that failed as ECONNREFUSED - the server's death, not the app's. When CI is
 red anyway, triage from the runner's `failure-bundle-<runner>` /
 `reports-<runner>` artifact, never the raw job log. Fix every red runner, then
 push once.
