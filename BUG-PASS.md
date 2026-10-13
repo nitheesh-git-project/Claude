@@ -97,13 +97,12 @@ npm run verify                       # lint + unit tests + build, before pushing
    single first sessions keep today's optional auto-assign. Item 5's
    implementation plan is in `docs/audit/bug-pass-item5-plan.md` (delete
    with this file).
-2. When the owner says "merge to staging": first **build**
-   `npm run check:merge-ready` (not built yet) -- one script that runs
-   `verify`, `check:coverage`, `check:context-budget`, the specs mapped to
-   the files changed since `origin/staging`, plus `admin-multi-admin` and
-   `layout-audit`. Add the spec conventions below to
-   `docs/rules/testing.md`. Run it, remove the bug-pass pointer + this file,
-   then open a **new** PR bug-pass -> staging and watch CI.
+2. When the owner says "merge to staging": apply `schema.sql` to staging
+   twice, run `npm run check:merge-ready -- --e2e --append-only` (built in
+   `81a0d1b`; static checks + the specs the branch reaches) and fix
+   anything red. Then remove the bug-pass pointer + this file +
+   `docs/audit/bug-pass-item5-plan.md`, open a **new** PR bug-pass ->
+   staging and watch CI (triage from failure bundles only).
 3. After staging is green: open the staging -> main PR and get it green.
    The owner merges it and applies `schema.sql` to production by hand.
 4. Two junk payment rows on staging (see fix 7) still need cleanup; ask
