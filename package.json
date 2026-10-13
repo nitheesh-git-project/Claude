@@ -23,7 +23,8 @@
     "check:icon-styles": "node scripts/check-icon-styles.mjs",
     "build:rules-index": "node scripts/build-rules-index.mjs",
     "check:coverage": "node scripts/ci/check-coverage-manifest.mjs",
-    "check:context-budget": "node scripts/ci/check-context-budget.mjs"
+    "check:context-budget": "node scripts/ci/check-context-budget.mjs",
+    "check:merge-ready": "node scripts/ci/merge-ready.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.3.1",

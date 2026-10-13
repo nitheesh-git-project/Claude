@@ -593,6 +593,38 @@ require. Architecture, setup and reproduction are in
   the session, after a caught `duplicate_object` from `alter publication`.
   The hosted Management API never hits this.
 
+**Run `npm run check:merge-ready` before the PR push, not after the red
+run.** Every red gate on the bug-pass PRs was catchable locally, and each one
+cost a push, a seven-runner wait and a log read. The script runs what CI's
+first three jobs run (`verify`, `check:coverage`, `check:context-budget`),
+then lists the specs the change can reach (`scripts/ci/lib/affectedSpecs.mjs`:
+a changed spec, a spec that visits a changed page or calls a changed route,
+or imports a changed `src/lib` module; a changed `e2e/helpers.ts`,
+`global-setup.ts` or `playwright.config.ts` means the whole suite) plus
+`admin-multi-admin` and `layout-audit`, which guard app-wide rules a change
+rarely names. `-- --e2e` runs them against the project in `.env.local`,
+which must not hold real patients. Add `--append-only` only when that project
+may keep append-only rows. The destructive specs stay on CI's stack, and
+`admin-degraded-schema` never runs locally. It prints failing tests and their
+first error lines; full logs are in `test-results/merge-ready/`. When CI is
+red anyway, triage from the runner's `failure-bundle-<runner>` /
+`reports-<runner>` artifact, never the raw job log. Fix every red runner, then
+push once.
+
+**Four spec conventions, each learnt from a red gate:**
+- The admin dashboard keeps every section mounted and hides the inactive
+  ones, so an admin selector needs `.filter({ visible: true })` or an exact
+  role and name; a loose `hasText` matches a hidden twin.
+- A spec that creates its own patient or therapist calls
+  `markDashboardTourSeen(email)`, or the first-visit tutorial covers the page.
+  Global setup marks only the QA accounts.
+- A race spec accepts either order. Two requests that serialise are a valid
+  run: assert the second started after the first resolved and annotate it,
+  rather than assuming they overlapped.
+- A case that makes several round trips to a hosted project (recommend,
+  approve, quote, order) sets `test.setTimeout(90_000)`. From a container,
+  each request takes 3-5 s, and 30 s is not enough.
+
 `npm run check:context-budget` is the gate's first job: it fails when
 `CLAUDE.md` or `AGENTS.md` outgrows its byte budget, gains an `@`-import, or
 the project settings add a SessionStart hook. It measures the repository's

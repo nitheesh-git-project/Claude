@@ -24,7 +24,9 @@ Scripts: `npm run dev`, `npm run build`, `npm start`, `npm run lint`,
 `npm run check:search-path`, `npm run test:e2e`, `npm run seed:qa`,
 `npm run clean:e2e`, and
 `npm run verify` (lint, then unit tests, then build - the one to run before
-pushing).
+pushing), and `npm run check:merge-ready` (verify plus the gate's other
+static jobs, then the specs the change can reach with `-- --e2e` - the one
+to run before opening a PR).
 
 Two further checks need a real database rather than a build, so they are not
 part of `verify`:
