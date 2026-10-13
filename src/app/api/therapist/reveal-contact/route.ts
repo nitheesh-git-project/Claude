@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { canRevealContact } from "@/lib/contactMasking";
+import { serverNowMs } from "@/lib/debugClock";
 
 // Unmasking one patient's number, for one session, and writing down that it
 // happened.
@@ -84,7 +85,11 @@ export async function POST(request: NextRequest) {
         visitMode: appointment.visit_mode ?? "online",
         beforeMinutes: settings.joinWindowMinutes,
         afterMinutes: settings.sessionCompletedAfterMinutes,
-        nowMs: Date.now(),
+        // The debug bar's clock while the bar is on, as for Done and the
+        // session note: the card offering "Show number" during a simulated
+        // session and this route refusing it on the real clock read as the
+        // window being broken. Real clock once the bar is off.
+        nowMs: serverNowMs(request),
       })
     : ({ allowed: true, reason: "masking disabled" } as const);
 

@@ -6,7 +6,7 @@
 // Refusals only, like debug-clock.spec.ts: a successful completion writes
 // append-only `session_settlements` rows this spec could not clean up.
 import { test, expect, request, type APIRequestContext } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, markDashboardTourSeen, pageUntilVisible, profileIdFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, countAcrossPages, markDashboardTourSeen, pageUntilVisible, profileIdFor } from "./helpers";
 
 const db = adminClient();
 const MARKER = "E2E finish-session";
@@ -93,7 +93,12 @@ test("FS-001: a therapist's Done without a session note is refused", async () =>
 });
 
 test("FS-002: Done before the start says so inline, with No Show still beside it", async ({ page }) => {
-  await seed(Date.now() + 26 * HOUR, `${MARKER} future`);
+  // A fixed daytime slot two days ahead (11:00 IST), not "26 hours from
+  // now": run near midnight IST that landed around 01:00 and the card laid
+  // its controls out differently, so the test depended on the clock.
+  const twoDaysIst = new Date(Date.now() + 5.5 * HOUR + 2 * 24 * HOUR);
+  twoDaysIst.setUTCHours(11, 0, 0, 0);
+  await seed(twoDaysIst.getTime() - 5.5 * HOUR, `${MARKER} future`);
   await page.context().addCookies(await browserCookiesFor(QA_EMAILS.therapistA));
   await page.goto(`${BASE}/therapist/dashboard/sessions`);
   const card = page.locator("div.rounded-xl", { hasText: `${MARKER} future` }).first();
@@ -174,4 +179,53 @@ test("FS-005: an orthopaedic patient's Done still needs this session's Pain Map"
   const done = await therapist.post(`${BASE}/api/appointments/complete-session`, { data: { appointmentId: appt.id } });
   expect(done.status()).toBe(409);
   expect((await done.json()).code).toBe("pain_map_required");
+});
+
+// A session finished before its slot's start on the dashboards' clock (an
+// admin's Done has no time gate; the debug clock moves the therapist's) used
+// to stay under Upcoming, because the tab split checked the slot time before
+// the status. Seeded straight as completed with no settlement, so it can be
+// deleted afterwards.
+test("FS-006: a completed session sits under Past even while its slot is ahead", async ({ browser }) => {
+  const concern = `${MARKER} done early`;
+  await db.from("appointments").delete().eq("concern", concern);
+  const slot = new Date(Date.now() + 50 * HOUR);
+  slot.setMinutes(0, 0, 0);
+  const { data, error } = await db
+    .from("appointments")
+    .insert({
+      patient_id: patientId,
+      therapist_id: therapistId,
+      slot_time: slot.toISOString(),
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      payment_status: "paid",
+      duration_minutes: 30,
+      visit_mode: "online",
+      concern,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`could not seed a session: ${error.message}`);
+  try {
+    for (const [email, path] of [
+      [QA_EMAILS.therapistA, "/therapist/dashboard/sessions"],
+      [QA_EMAILS.patientA, "/patient/dashboard/sessions"],
+    ] as const) {
+      await markDashboardTourSeen(email);
+      const context = await browser.newContext();
+      await context.addCookies(await browserCookiesFor(email));
+      const page = await context.newPage();
+      await page.goto(`${BASE}${path}`);
+      const card = page.locator("div.rounded-xl", { hasText: concern }).first();
+      // Upcoming is the default tab; the session must not be on any page of it.
+      await expect(page.getByRole("button", { name: /^Upcoming/ }).first()).toBeVisible();
+      expect(await countAcrossPages(page, "sessions", card)).toBe(0);
+      await page.getByRole("button", { name: /^Past/ }).first().click();
+      expect(await pageUntilVisible(page, "sessions", card)).toBe(true);
+      await context.close();
+    }
+  } finally {
+    await db.from("appointments").delete().eq("id", data.id);
+  }
 });

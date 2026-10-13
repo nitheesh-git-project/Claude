@@ -36,6 +36,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/patient/dashboard` | Overview: four figures, activity feed, quick actions | `PAT-DASH-001` |
 | `/patient/dashboard/book` | Booking hub inside the portal | `PAT-DASH-002` |
 | `/patient/dashboard/suggested` | Suggested Sessions - therapist recommendations and proposed times. **Only in the sidebar when something is waiting** | `PAT-SUGG-001` |
+| `/patient/dashboard/suggested/checkout?plan=<version id>` | Review & pay for a recommended programme: address (home visits), promo code, server-quoted total, Pay. Reached from **Accept & pay**, never from the sidebar | `PAT-CARE-002`, `PAT-CARE-005` |
 | `/patient/dashboard/sessions` | All sessions, List/Calendar toggle, Upcoming/Past/Cancelled + Video/Home visit filters | `PAT-SESS-001` |
 | `/patient/dashboard/packages` | Owned programmes and their remaining credits | `PAT-PKG-001` |
 | `/patient/dashboard/payments` | Receipts | `PAT-PAY-010` |
@@ -80,8 +81,9 @@ Every route below is covered by at least one test. The rightmost column names th
 | Sessions | `new` | New Booking | `ADM-SESS-NEW-001` |
 | Sessions | `roster` | Roster | `ADM-ROST-001` |
 | Sessions | `delivery` | Delivery (operational rates) | `ADM-DELIV-001` |
-| Sessions | `recommendations` | Recommendations - the clinic's review queue, plus every plan | `ADM-CARE-001`, `ADM-CARE-004` |
 | Sessions | `new` | New Booking | `ADM-NEWB-001` |
+| Programmes | `all` | All Programmes - the pipeline, every programme with its ID and progress, the drawer | `ADM-PRG-001` … `ADM-PRG-007` |
+| Programmes | `review` | Recommendations - the clinic's review queue, plus every plan (manage only) | `ADM-CARE-001`, `ADM-CARE-004` |
 | People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001`, `ADM-PEOP-010` |
 | People | `therapists` | Therapists | `ADM-PEOP-005`, `ADM-PEOP-010` |
 | People | `partners` | Partners | `ADM-PEOP-008`, `ADM-PEOP-010` |
@@ -93,10 +95,8 @@ Every route below is covered by at least one test. The rightmost column names th
 | Money | `costs` | Costs + promo codes | `FIN-COST-001`, `ADM-PROMO-001` |
 | Money | `breakdown` | Breakdown | `FIN-BRK-001` |
 | Money | `inputs` | Your Numbers (investments, advertising, what you own and owe) | `FIN-BH-002`, `FIN-BH-003`, `FIN-BH-004` |
-| Catalog | `conditions` | Conditions | `ADM-CAT-001`, `ADM-CAT-004` |
-| Catalog | `packages` | Packages | `ADM-CAT-005` |
+| Catalog | `conditions` | Conditions (Online sessions, then Home visits) | `ADM-CAT-001`, `ADM-CAT-004`, `ADM-CAT-005` |
 | Catalog | `areas` | Service Areas + waitlist | `ADM-CAT-010` |
-| Catalog | `purchases` | Purchases | `ADM-CAT-014` |
 | Logs | `all` | All Activity | `ADM-SET-033`, `ADM-SET-034`, `ADM-LOG-001`, `ADM-LOG-003`, `ADM-LOG-003a` |
 | Logs | `retention` | Archive & Clear | `ADM-LOG-002` |
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |

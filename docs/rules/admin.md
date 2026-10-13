@@ -1,6 +1,6 @@
 # The admin back office
 
-The seven sections, scopes and levels, User Access, the Settings information architecture, System Health, the activity log, exports, and how a count links to its own rows.
+The eight sections, scopes and levels, User Access, the Settings information architecture, System Health, the activity log, exports, and how a count links to its own rows.
 
 **Mostly lives in:** src/lib/adminNav.ts · adminScope.ts · adminHome.ts · systemHealth.ts · activityLog.ts
 
@@ -11,8 +11,8 @@ The seven sections, scopes and levels, User Access, the Settings information arc
 ---
 
 - **The admin dashboard's information architecture lives in
-  `src/lib/adminNav.ts`** - seven sections (Today, Sessions, People, Money,
-  Catalog, Logs, Settings), each with its own screens. The sidebar, the URL
+  `src/lib/adminNav.ts`** - eight sections (Today, Sessions, Programmes,
+  People, Money, Catalog, Logs, Settings), each with its own screens. The sidebar, the URL
   (`?section=&tab=`), the content map in the dashboard page, and the scope
   check all read that one list, so adding a screen is one entry there plus
   one entry in the page's `screens` map. Tab state is written with the
@@ -22,7 +22,26 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   `?section=/?tab=` server-side and passes them to `AdminShell` as
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
-  runs.
+  runs. A screen that moved keeps its old link working through
+  `LEGACY_SCREENS` (Sessions -> Recommendations and Catalog -> Purchases
+  both land on Programmes), and the shell rewrites the address bar to where
+  it lives now.
+- **Programmes is its own section and its own scope.** A recommendation and
+  the purchase it becomes are one programme (`programmes.md`), so the two
+  screens that split it -- Sessions -> Recommendations, Catalog -> Purchases
+  -- moved into one section: **All Programmes** (the pipeline, the list, the
+  drawer) and **Recommendations** (the approval queue, `requiresManage`).
+  `programmes` is a section key in `SECTION_ACCESS`: Master Admin,
+  Operations and Clinical manage it (each held one or both halves before),
+  Finance reads it -- the list and the money in it, never the decisions.
+  The routes moved with it: the four care-plan routes (were `sessions`) and
+  the purchase detail / reassign / extend / restore routes (were `catalog`)
+  guard with `requireAdminScope("programmes")`, and their audit actions sit
+  under `programmes` in `ACTION_DOMAIN`. A refund stays `money` on its own
+  route, so the drawer shows *Refund what is left* to any desk that can
+  open Money -- including Finance, which cannot open the purchase modal.
+  Amounts, discounts and refunds are filled only for a Money desk by the
+  loader itself, so they never reach the page props of one that cannot.
 - **Every session and every person has a timestamped history, built from
   what is already recorded rather than a new event table.** The session
   drawer's "Session history" and the "Activity log" on a patient's or
@@ -428,8 +447,8 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   redo the filtering by hand and, worse, made the number look wrong.
   `adminScreenHref(section, tab, view)` adds a third, optional `?view=`
   preset, and the target screen applies it to its own filters on arrival:
-  `AdminAllSessionsTab` knows `unassigned`, `today`, `cancelled`, `no_show`,
-  `completed`, `home_visit` and `unpaid`; `AdminPayoutsTab` knows `owed` and
+  `AdminAllSessionsTab` knows `unassigned`, `awaiting_payment`, `today`,
+  `cancelled`, `no_show`, `completed`, `home_visit` and `unpaid`; `AdminPayoutsTab` knows `owed` and
   `settled`. Three rules keep it honest. It is **one-shot**:
   `AdminShell.navigate()` deletes `view` on the next tab change, so a preset
   never becomes a filter an admin cannot find the source of, and a repeat
@@ -442,6 +461,30 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   dashboard taps a figure, and an effect would paint the unfiltered table
   first. An unknown preset falls through to cleared filters, so a stale
   link shows everything rather than nothing.
+- **"Sessions with no therapist" is committed sessions only.** It counted
+  every unassigned row that was not cancelled, and the online wizard creates
+  its booking on the first Pay tap -- so every abandoned checkout sat in the
+  admin's assign queue looking like work, and assigning one held a
+  therapist's hour for a session nobody had paid for. `needsTherapist` /
+  `awaitsPatientPayment` (`src/lib/sessionAssignQueue.ts`) split them: an
+  online, prepaid, unpaid, unassigned session not drawn from a purchase is
+  **awaiting payment** -- its own non-urgent inbox row ("Waiting on the
+  patient's payment", `?view=awaiting_payment`), an **Awaiting payment**
+  chip instead of **Tap to assign** on All Sessions and the Schedule panel,
+  and a "Waiting on payment" status option. Paid, on terms, purchase-drawn
+  and home-visit sessions (cash at the door is a commitment) stay in the
+  queue. A paid single consultation assigns itself when the roster has one
+  answer (`roster.md`), so the queue is what that could not place -- plus
+  **every programme session**, which never assigns itself
+  (`programmes.md`): booked from credits, an accepted suggestion, or a visit
+  on a home-visit programme. Those carry their programme's therapist
+  pre-picked (`programmeTherapistFor`, built on the page from the purchase
+  rows and the roster it already loads -- no new table, so nothing new for
+  `ADMIN_REALTIME_TABLES`): the row chip reads "Tap to assign · <name>" (or
+  "<name> not free"), the drawer leads with **Assign <name>** above the
+  ordinary picker, and the Assign forms pre-select them as "Programme
+  therapist". An admin can still open and assign an unpaid one; it just is
+  not presented as work.
 - **A session is listed once.** All Bookings, Session Story, the calendar's
   day panel and the home-visit queue were four lists over the same
   `appointments` rows; they are now one filterable list
@@ -559,6 +602,64 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   entry now on screen would open a different record's history. An entry
   opened from the table clears it, so no back button points at a timeline
   nobody came from.
+- **All Activity is everyone's actions, not only admins'.** The log used to
+  be `admin_activity_log` alone, so a patient booking, a therapist
+  recommending a programme or completing a session, a hospital's referral and
+  a payment arriving were nowhere in it. The feed is now two tables read
+  together: `admin_activity_log` and `user_activity_log` (patients,
+  therapists, hospitals and the system -- see `data-schema.md`). It is a
+  separate table on purpose: the admin log is scope-filtered per desk and
+  carries its own retention purge and gaps table, and mixing patients'
+  actions into it would have put them in front of the three limited desks.
+  Only Master Admin's Logs screen reads the merged feed
+  (`mergeActivityRows`, newest-first, cut to 200 and paged by the same
+  `created_at` cursor from `/api/admin/activity-log`, which reads both); Today
+  -> Activity and the desk screens still show their own desk's admin actions
+  and nothing else. Six rules:
+  1. **Routes write through `recordUserActivity`
+     (`src/lib/userActivityLog.ts`), after the action succeeded, awaited.**
+     Best-effort: it never throws and never fails the booking or payment it
+     describes. The caller passes whichever ids it has (`appointmentId`,
+     `carePlanId`, `packagePurchaseId`, `homeVisitPurchaseId`, ...) and the
+     rest -- patient, therapist, session code, programme ID, condition,
+     every name -- is resolved there and stored with the sentence
+     (`buildUserActivitySummary`), so an entry still reads after a rename.
+     Never take an id, a role or an amount from the client for it. A new
+     action goes in `USER_ACTIVITY_META` (label, Type group, sentence) --
+     the union is derived from it, so it cannot be logged unlabelled.
+  2. **A payment is logged in one place.** `recordPaymentCapture` is the
+     funnel for the three browser callbacks and the webhook, so it writes
+     `payment.captured` / `programme.purchased` (only when `applied`, and
+     under `dedupeKey: payment:<id>`); nothing else logs a payment. Package
+     and home-visit session bookings are logged in `bookPackageSession` /
+     `bookHomeVisitSession` for the same reason -- only when the patient is
+     the actor.
+  3. **Logged today:** booking started / free / pay later / from a programme
+     / home visit, cancel (with whether it was refunded), payment received,
+     programme bought, payment declared, recommendation made / withdrawn /
+     declined, session suggested / withdrawn / accepted / declined, session
+     completed, session note written, Pain Map exam, health profile
+     submitted (patient and therapist), session feedback (both sides), cash
+     collected, payout requested, hospital referral sent / withdrawn, and
+     account created (from the database, as the system). Not logged: a
+     login, a read, and anything an admin does (that is the admin log).
+  4. **Admin entries are filterable too, without touching the routes.**
+     `enrichAdminRows` resolves each entry's `target_id` -- an appointment, a
+     recommendation, a purchase or a profile -- to its patient, therapist,
+     programme ID and condition at read time, so the entries written before
+     the feed existed answer the same filters.
+  5. **The filters are the feed's, and they live in the URL.** Actor role,
+     actor name, Programme ID, Patient, Therapist, Condition, plus the old
+     search / type / dates / money-only, as `al_*` keys
+     (`ACTIVITY_FILTER_PARAMS`), the way Programmes keeps `pg_*`. Programme
+     IDs match without case, spaces or underscores and by prefix. A row with
+     no programme never matches a programme filter. Each row shows the
+     actor's role chip, the programme ID chip and the session code; the
+     export carries every one of those columns.
+  6. **A half-read feed says so.** If the user table cannot be read the
+     screen shows admins only *with a notice saying so*, never as if it were
+     complete. The Archive & Clear export and purge are the admin log's
+     alone.
 - **An audit write is tried twice, and a write that still fails is not
   lost.** `recordAdminActivity` stays best-effort - the action it records
   has already happened - but a single dropped insert used to be the whole of
@@ -622,11 +723,65 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   account, so it must not read "still pending?" and delete in two steps: an
   approval between them was erased. `decline_pending_account()` locks the
   profile row, checks it is a pending therapist or patient under the lock,
-  and deletes the auth user in the same transaction; the route answers 409
+  records the decline (below) and deletes the auth user in the same
+  transaction; the route answers 409
   when it was approved meanwhile and never falls back to the old two-step
   path. Approve flips only `approved = false` rows, reports a repeat as
   success, and a declined account as gone. `admin-multi-admin` H-021 races
   the pair in both orders.
+- **A decline says why, and the person stays listed.** Decline used to be
+  a bare confirm: a signup's account was deleted and a hospital inquiry's
+  status flipped, and nothing said why or kept the person anywhere but one
+  log line. Decline on a pending patient or therapist (Today -> Approvals)
+  and on a B2B lead (People -> Partners) now opens
+  `DeclineApplicationDialog`: a required reason from chips offered per kind
+  of applicant, and a note -- required (ten characters) only for "Other".
+  `decline_pending_account()` and `decline_b2b_lead()` write a snapshot of
+  the applicant (contact details, credentials/specialisation or the
+  inquiry, when they applied, the reason, who declined) to
+  `declined_applications` in the same statement as the decline, so there is
+  no decline without its record. **People -> Declined** lists every row,
+  filterable by Patients / Therapists / Hospitals. The account is still
+  deleted, so the person can apply again -- and when the same email or phone
+  turns up in Approvals or as a new lead, the row says "Declined before"
+  with the date and reason (`findPriorDecline`). The table is append-only by
+  trigger (the one update allowed is `declined_by` going null when an admin
+  account is removed); service role only. The log records the reason code
+  and the note's length, never the note. A declined lead shows its reason on
+  its Partners card too. Rules: `src/lib/declineReasons.ts`; guard:
+  `e2e/admin-decline-application.spec.ts`.
+- **Approving a therapist sets their revenue share in the same step.**
+  Approve on a therapist opens `ApproveTherapistDialog`: their credentials
+  and specialisation to check, the session share (required), an optional
+  separate home-visit share (only while home visits are on; "same rate"
+  saves null, as the profile's form does), Show on /team, and an internal
+  note for the log. `approve-account` writes the rates in the same update as
+  `approved`, and refuses a therapist approval without a share (400
+  `revenue_share_required`) from an admin who can manage `money`. An admin
+  without `money` still approves - the people desk is not held up on
+  finance - sends no share (one sent is a 403 `forbidden_money`, never
+  silently dropped), and the readiness panel keeps saying it is missing.
+  The rates are logged under the profile forms' own actions, so they reach
+  Money's view of the log rather than People's. The dialog ends on "set
+  working hours", the one readiness item too big to ask for there. Patients
+  still approve in one tap. Rules: `src/lib/therapistApproval.ts`; guard:
+  `e2e/admin-approve-therapist.spec.ts`.
+- **People -> Patients finds a patient by a reference that is not on their
+  card.** The directory search also matches a Razorpay payment id
+  (`pay_...`), a Razorpay order id (`order_...`), a session code (`SS0004`)
+  and a programme ID - the current `PED_PKG001`, pasted with or without its
+  progress (`PED_PKG001-2/6` finds it after the count has moved), or the old
+  `SP`/`HS` purchase code - and the matched card shows a chip saying
+  which one put it there - the id an admin has in hand from a forwarded bank
+  SMS or Razorpay's dashboard is not a name. Payment and order ids are read
+  from the `payments` ledger (every checkout, whatever it paid for) plus the
+  appointment and purchase rows' own ids for payments older than the ledger,
+  and only for a scope that can open Money: the ids reach the browser with
+  the directory whether or not anyone searches. A reference needs 4
+  characters before it matches, so typing a name never shows a payment chip,
+  and pasted whitespace is ignored. A failed payments read loses those
+  matches only. Rules: `src/lib/paymentSearch.ts`; guard:
+  `e2e/admin-payment-search.spec.ts`.
 - **Admin-configurable behavior** (Meet on/off, join window, the Session
   Completed cutoff - minutes after slot time at which every "Tap to Join"
   control reads "Session Completed" instead, admin's own included, since a
@@ -684,6 +839,33 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   *Needs a look* with the median of each stage as evidence. The table is not
   published to realtime on purpose -- a row per tap would refresh the
   dashboard for every patient paying.
+
+- **Catalog -> Conditions is the one catalogue, and there is no Packages
+  screen.** The Session Packages and Home Visit Packages editors are gone,
+  with their create/update/delete routes and validators: a recommendation is
+  priced per session from the condition (`loadRecommendableRates`), so a
+  session package was something nobody sold any more, and a home visit is
+  one visit of a condition. The screen is titled **Conditions** with two
+  sections, in this order: **Online sessions** (`TreatmentCategoryManager`,
+  one video session each) and **Home visits** (`HomeVisitPriceList`: the
+  clinic-wide price and visit length, then every active condition as
+  "Clinic-wide (₹X)" with *Set own price*, or "₹Y own price" with *Edit* and
+  *Use clinic-wide*; a banner when home visits are switched off; paged, with
+  All / Own price / Clinic-wide chips). Its controls render only for a scope
+  that can manage Catalog. It saves through
+  `/api/admin/set-home-visit-price`, which re-reads the rows and picks the
+  row itself (the browser sends a condition and paise, never a row id),
+  answers a duplicate insert (23505) with a 409 and a sentence, logs it,
+  and revalidates `/home-visit`. The rows the old editors made are kept --
+  Programmes still names old purchases by them -- and the
+  dashboard selects only the columns those two readers need. A stale
+  `?tab=packages` link lands on Conditions through `findTab`. Deleting a
+  condition removes its own home-visit price rows when nobody bought one,
+  rather than refusing over rows no screen shows; a purchase against one
+  still blocks, named as a home-visit purchase. Detail in `home-visit.md`.
+  Each condition also carries its **Programme code** (`short_code`, 2-4
+  capitals), the prefix of every programme ID for it; the form suggests one
+  from the name and blank lets the database make it (`programmes.md`).
 
 - **Countries & currency lives under Catalog, because it decides what a
   patient is charged.** `catalog` scope, logged as `catalog.update`. Three

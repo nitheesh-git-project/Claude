@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
+import { PROGRAMME_BOOKED_LABEL } from "@/lib/sessionRowStatus";
 import { useRouter } from "@/lib/useRouter";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -243,6 +244,14 @@ export default function PackageBulkScheduler({
                 <p className="text-sm font-semibold text-slate-800">
                   {bookedCount} of {results.length} session{results.length === 1 ? "" : "s"} scheduled.
                 </p>
+                {bookedCount > 0 && (
+                  // Every programme session goes through the clinic: it is
+                  // booked and paid for, and an admin confirms who takes it
+                  // (docs/rules/programmes.md).
+                  <p className="text-xs text-slate-600">
+                    {"The clinic confirms your therapist for each one - the joining details show on your Sessions once it's confirmed."}
+                  </p>
+                )}
                 {failedCount > 0 && (
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                     {failedCount === 1 ? "One time" : `${failedCount} times`}{" "}
@@ -261,7 +270,7 @@ export default function PackageBulkScheduler({
                     >
                       <span>{formatClinicDateTime(r.slotDateTime)}</span>
                       <span className={r.success ? "text-teal-700 font-semibold" : "text-red-600"}>
-                        {r.success ? "Booked" : r.error ?? "Failed"}
+                        {r.success ? PROGRAMME_BOOKED_LABEL : r.error ?? "Failed"}
                       </span>
                     </li>
                   ))}

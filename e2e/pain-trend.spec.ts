@@ -28,9 +28,13 @@ test("PT-001: two exams on the same day are two points, the older one kept", asy
   await markDashboardTourSeen(QA_EMAILS.patientA);
 
   // Two exams of the same area, two hours apart, both today: 8/10 then 3/10.
+  // Back to back, a minute apart: health-profile.spec runs earlier in the
+  // same runner and leaves its own readings for this patient, and two hours
+  // apart those landed between these two, so the line's last two points were
+  // somebody else's.
   const now = Date.now();
   const { error } = await db.from("pain_assessments").insert([
-    { patient_id: patientId, region: "upper_back", side: "na", answers: {}, pain_percent: 80, submitted_by: therapistId, submitted_by_role: "therapist", created_at: new Date(now - 2 * 3_600_000).toISOString() },
+    { patient_id: patientId, region: "upper_back", side: "na", answers: {}, pain_percent: 80, submitted_by: therapistId, submitted_by_role: "therapist", created_at: new Date(now - 120_000).toISOString() },
     { patient_id: patientId, region: "upper_back", side: "na", answers: {}, pain_percent: 30, submitted_by: therapistId, submitted_by_role: "therapist", created_at: new Date(now - 60_000).toISOString() },
   ]);
   expect(error, error?.message).toBeNull();

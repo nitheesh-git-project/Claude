@@ -25,6 +25,7 @@
 // separately, keep the two in step.
 import { test, expect, request, type APIRequestContext } from "@playwright/test";
 import { BASE, QA_EMAILS, adminClient, cookieHeaderFor, profileIdFor } from "./helpers";
+import { SESSION_NOTE_FIELDS } from "../src/lib/sessionNotes";
 
 const db = adminClient();
 const MARKER = "E2E debug-clock";
@@ -115,4 +116,41 @@ test("DC-002: the simulated clock moves the completion gate while the debug bar 
     expect((await res.json()).notYet).toBe(true);
     expect(await statusOf(id)).toBe("confirmed");
   }
+});
+
+// The two therapist gates the card offers on the simulated clock and that
+// used to refuse on the real one: writing the session note (Done opens it),
+// and "Show number". Refusal direction again -- a saved note or a reveal-log
+// row would be a fixture left behind.
+test("DC-003: the session note's 'has it started' gate follows the simulated clock", async () => {
+  test.skip(!BAR_ON, "the header is ignored with the debug bar off (DC-002)");
+  // Started two hours ago; the header winds "now" back four hours.
+  const id = await seedPaidSession(Date.now() - 2 * HOUR);
+  const res = await therapist.post(`${BASE}/api/therapist/session-notes/submit`, {
+    headers: { [HEADER]: String(-4 * HOUR) },
+    // Every required field filled, so the only thing left to refuse on is
+    // the clock.
+    data: {
+      appointmentId: id,
+      data: Object.fromEntries(SESSION_NOTE_FIELDS.map((f) => [f.key, "e2e"])),
+      freeText: "e2e",
+    },
+  });
+  expect(res.status(), "the note route ignored the simulated clock").toBe(400);
+  // Names the time rather than "once the session has taken place".
+  expect((await res.json()).error).toMatch(/^You can write the note from .+, when the session starts\.$/);
+});
+
+test("DC-004: 'Show number' follows the simulated clock and says when it opens", async () => {
+  test.skip(!BAR_ON, "the header is ignored with the debug bar off (DC-002)");
+  const { data: settings } = await db.from("site_settings").select("contact_masking_enabled").maybeSingle();
+  test.skip(settings?.contact_masking_enabled === false, "masking is off, so nothing is refused");
+  // In progress by the real clock; four hours earlier by the header.
+  const id = await seedPaidSession(Date.now());
+  const res = await therapist.post(`${BASE}/api/therapist/reveal-contact`, {
+    headers: { [HEADER]: String(-4 * HOUR) },
+    data: { appointmentId: id },
+  });
+  expect(res.status(), "the reveal route ignored the simulated clock").toBe(403);
+  expect((await res.json()).error).toMatch(/^You can see this number from .+ on .+\.$/);
 });

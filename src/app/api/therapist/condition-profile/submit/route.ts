@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -166,6 +167,14 @@ export async function POST(request: NextRequest) {
     }
     return serverError("therapist/condition-profile/submit", upsertError);
   }
+
+  await recordUserActivity(admin, {
+    action: "health_profile.submitted",
+    actor: { id: user.id, role: "therapist" },
+    patientId,
+    therapistId: user.id,
+    note: "on the patient's behalf",
+  });
 
   return NextResponse.json({ success: true });
 }

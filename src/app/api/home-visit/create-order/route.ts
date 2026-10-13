@@ -9,10 +9,7 @@ import { HOME_VISIT_OUTSIDE_INDIA_ERROR } from "@/lib/countryPricing";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { computeHomeVisitTotal } from "@/lib/homeVisitPricing";
 import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
-import {
-  isDirectlyPurchasable,
-  PROGRAMME_NEEDS_RECOMMENDATION,
-} from "@/lib/consultationFirst";
+import { resolveHomeVisitSaleOnServer } from "@/lib/homeVisitRatesServer";
 
 export type HomeVisitAddressPayload = {
   label?: string | null;
@@ -52,14 +49,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
   const { data: body, error: parseError } = await parseJsonBody<{
+    /** The condition the visit is for -- what the wizard sends. */
+    categoryId?: string;
+    /** An old `?package=` link's price row. Honoured only while it is a
+     *  current price (src/lib/homeVisitRates.ts). */
     packageId?: string;
     address?: HomeVisitAddressPayload;
   }>(request);
   if (parseError) return parseError;
 
-  const { packageId, address } = body;
-  if (!packageId) {
-    return NextResponse.json({ error: "Missing packageId" }, { status: 400 });
+  const { categoryId, packageId, address } = body;
+  if (!categoryId && !packageId) {
+    return NextResponse.json({ error: "Missing categoryId" }, { status: 400 });
   }
   if (!address?.line1?.trim()) {
     return NextResponse.json({ error: "A street address is required." }, { status: 400 });
@@ -117,12 +118,8 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const [{ data: pkg }, { data: settingsRow }, areaLookup] = await Promise.all([
-    admin
-      .from("home_visit_packages")
-      .select("id, title, visit_count, price_paise, travel_fee_included, validity_days, active")
-      .eq("id", packageId)
-      .single(),
+  const [sale, { data: settingsRow }, areaLookup] = await Promise.all([
+    resolveHomeVisitSaleOnServer(admin, { categoryId, packageId }),
     admin.from("site_settings").select("home_visit_enabled").maybeSingle(),
     lookupServiceArea(admin, pincode),
   ]);
@@ -146,21 +143,16 @@ export async function POST(request: NextRequest) {
   if (!(await pricingForRequest(admin, request)).homeVisitsOffered) {
     return NextResponse.json({ error: HOME_VISIT_OUTSIDE_INDIA_ERROR }, { status: 403 });
   }
-  if (!pkg || !pkg.active) {
-    return NextResponse.json({ error: "That package isn't available." }, { status: 400 });
+  // What is sold, and at what price, is decided here from the server's own
+  // rows: one visit for the condition, at its own home-visit price or the
+  // clinic-wide one. Direct purchase is one visit -- that visit IS the
+  // home-visit consultation. A course of visits is a clinical judgement, so
+  // an old link to one is refused with the programme sentence (see
+  // src/lib/consultationFirst.ts).
+  if (!sale.ok) {
+    return NextResponse.json({ error: sale.error }, { status: sale.status });
   }
-
-  // Direct purchase is limited to a single visit -- that visit IS the
-  // home-visit consultation, and it is the only thing a patient decides for
-  // themselves. A course of visits is a clinical judgement about how much
-  // treatment someone needs, so it comes from a care plan a therapist wrote
-  // after seeing them. See src/lib/consultationFirst.ts.
-  if (!isDirectlyPurchasable(pkg.visit_count)) {
-    return NextResponse.json(
-      { error: PROGRAMME_NEEDS_RECOMMENDATION },
-      { status: 403 }
-    );
-  }
+  const rate = sale.rate;
 
   // Re-checked here rather than trusted from the wizard's earlier
   // check-area answer. The areas list is admin-editable and can change
@@ -174,14 +166,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // The amount is resolved entirely here, from the package's own price and
-  // the area's own travel fee. The browser sends a package id and an
+  // The amount is resolved entirely here, from the price row's own price and
+  // the area's own travel fee. The browser sends a condition and an
   // address -- never an amount.
   const total = computeHomeVisitTotal({
-    packagePricePaise: pkg.price_paise,
+    packagePricePaise: rate.pricePaise,
     travelFeePaise: area.travel_fee_paise,
-    travelIncluded: pkg.travel_fee_included,
-    visitCount: pkg.visit_count,
+    travelIncluded: rate.travelFeeIncluded,
+    visitCount: 1,
   });
 
   // Optionally remember the address for next time. Best-effort: a failure
@@ -216,9 +208,9 @@ export async function POST(request: NextRequest) {
     .from("home_visit_package_purchases")
     .insert({
       patient_id: user.id,
-      package_id: pkg.id,
-      visit_count: pkg.visit_count,
-      amount_paid_paise: pkg.price_paise,
+      package_id: rate.packageId,
+      visit_count: 1,
+      amount_paid_paise: rate.pricePaise,
       travel_fee_paise: area.travel_fee_paise,
       payment_mode: "prepaid",
       default_address_id: addressId,
@@ -289,7 +281,8 @@ export async function POST(request: NextRequest) {
     currency: order.currency,
     homeVisitPurchaseId: purchase.id,
     addressId,
-    packageTitle: pkg.title,
+    packageTitle: sale.categoryTitle ? `Home visit - ${sale.categoryTitle}` : "Home visit",
+    categoryId: sale.categoryId,
     breakdown: {
       packagePricePaise: total.packagePricePaise,
       travelFeePaise: total.travelFeePaise,

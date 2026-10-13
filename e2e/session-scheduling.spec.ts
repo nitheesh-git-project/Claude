@@ -140,10 +140,20 @@ test.describe("Booking the sessions a patient paid for", () => {
     purchaseId = await freshPurchase();
   });
 
-  test("SCH-001: five sessions book in one request", async () => {
+  test("SCH-001: five sessions book in one request, and none of them assigns itself", async () => {
     const ctx = await playwrightRequest.newContext({
       extraHTTPHeaders: { cookie: await cookieHeaderFor(QA_EMAILS.patientB) },
     });
+    // Locked to a therapist, the way a programme is once its first session
+    // is assigned. Every session still goes through the admin: booked
+    // `requested` and unassigned, with the lock only pre-picking the
+    // admin's choice (docs/rules/programmes.md). It used to assign and
+    // confirm them here, with no person ever looking.
+    const lockedTherapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
+    await admin
+      .from("patient_package_purchases")
+      .update({ locked_therapist_id: lockedTherapistId })
+      .eq("id", purchaseId);
     // Spaced 3 days apart across three calendar weeks, so neither the
     // 48-hour gap nor the two-a-week cap is in the way.
     const slots = [
@@ -166,6 +176,18 @@ test.describe("Booking the sessions a patient paid for", () => {
       .eq("id", purchaseId)
       .single();
     expect(purchase?.sessions_used, "every session is claimed").toBe(5);
+
+    const { data: booked } = await admin
+      .from("appointments")
+      .select("status, therapist_id, payment_status")
+      .eq("package_purchase_id", purchaseId)
+      .neq("status", "cancelled");
+    expect(booked?.length).toBe(5);
+    for (const row of booked ?? []) {
+      expect(row.status, "waits for the admin's assign").toBe("requested");
+      expect(row.therapist_id, "nobody is put on it by the booking").toBeNull();
+      expect(row.payment_status, "still paid from the programme").toBe("paid");
+    }
 
     await resetPurchase(purchaseId);
     await ctx.dispose();

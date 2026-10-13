@@ -7,6 +7,7 @@ import { mirrorEnsureEntitlement } from "@/lib/sessionCreditMirror";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
+import { resolveVisitCategory } from "@/lib/homeVisitRatesServer";
 import { normalizePincode } from "@/lib/homeVisitAreas";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
 import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR, resolveSlotInstant } from "@/lib/bookingSlots";
@@ -75,6 +76,9 @@ export async function POST(request: NextRequest) {
     timezone?: string;
     notes?: string;
     concern?: string;
+    /** The condition the visit is for. Labels the visit only -- see
+     *  resolveVisitCategory. */
+    categoryId?: string;
     address?: HomeVisitAddressPayload & { id?: string | null };
   }>(request);
   if (parseError) return parseError;
@@ -163,12 +167,12 @@ export async function POST(request: NextRequest) {
   const [{ data: packageRow }, { data: settingsRow }] = await Promise.all([
     admin
       .from("home_visit_packages")
-      .select("validity_days, visit_duration_minutes")
+      .select("validity_days, visit_duration_minutes, category_id")
       .eq("id", purchase.package_id)
       .maybeSingle(),
     admin
       .from("site_settings")
-      .select("home_visit_default_validity_days, home_visit_travel_buffer_minutes")
+      .select("home_visit_default_validity_days")
       .maybeSingle(),
   ]);
 
@@ -176,9 +180,6 @@ export async function POST(request: NextRequest) {
     packageRow?.validity_days ??
     settingsRow?.home_visit_default_validity_days ??
     DEFAULT_ADMIN_SETTINGS.homeVisitDefaultValidityDays;
-  const travelBufferMinutes =
-    settingsRow?.home_visit_travel_buffer_minutes ??
-    DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes;
 
   const paidAt = new Date();
   const expiresAt = new Date(paidAt.getTime() + validityDays * 86_400_000).toISOString();
@@ -302,15 +303,21 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  const visitCategory = await resolveVisitCategory(
+    admin,
+    (packageRow as { category_id?: string | null } | null)?.category_id ?? null,
+    body.categoryId
+  );
+
   const result = await bookHomeVisitSession(admin, {
     purchase: { ...purchase, payment_status: "paid", expires_at: expiresAt },
     slotDateTime,
     timezone,
     notes,
-    concern,
+    concern: concern || visitCategory?.title,
+    categoryId: visitCategory?.categoryId ?? null,
     actorId: user.id,
     visitDurationMinutes: packageRow?.visit_duration_minutes ?? null,
-    travelBufferMinutes,
     address: {
       id: savedAddressId ?? null,
       label: addressForBooking.label ?? null,

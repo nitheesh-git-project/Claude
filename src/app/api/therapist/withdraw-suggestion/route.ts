@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: suggestion } = await admin
     .from("session_suggestions")
-    .select("id, therapist_id, status")
+    .select("id, therapist_id, purchase_id, patient_id, status")
     .eq("id", suggestionId)
     .maybeSingle();
   if (!suggestion) {
@@ -93,6 +94,15 @@ export async function POST(request: NextRequest) {
       status: fresh?.status ?? "accepted",
     });
   }
+
+  await recordUserActivity(admin, {
+    action: "suggestion.withdrawn",
+    actor: { id: user.id, role: "therapist" },
+    packagePurchaseId: suggestion.purchase_id,
+    patientId: suggestion.patient_id,
+    therapistId: user.id,
+    dedupeKey: `suggestion_withdrawn:${suggestion.id}`,
+  });
 
   return NextResponse.json({ success: true, status: "withdrawn" });
 }

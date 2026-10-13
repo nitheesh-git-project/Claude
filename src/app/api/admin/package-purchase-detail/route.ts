@@ -8,7 +8,7 @@ import { applyLedgerSessionBalance, readLedgerAuthoritative } from "@/lib/ledger
 // purchase's full appointment history and event timeline is only ever
 // needed for the one purchase currently open, not all of them at once.
 export async function GET(request: NextRequest) {
-  const adminUser = await requireAdminScope("catalog");
+  const adminUser = await requireAdminScope("programmes");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

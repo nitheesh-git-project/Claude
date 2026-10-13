@@ -1,11 +1,15 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import PayNowButton from "@/components/PayNowButton";
+import { canResumeInWizard, resumeCheckoutHref } from "@/lib/resumeCheckout";
 import CancelSessionButton from "@/components/CancelSessionButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import PackageChip from "@/components/packages/PackageChip";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatClinicDate } from "@/lib/formatDateTime";
+import { patientSessionStatus } from "@/lib/sessionRowStatus";
 import { describeRefundForPatient } from "@/lib/refundState";
 import { describeSessionPaymentForPatient } from "@/lib/sessionPaymentState";
 import { SESSION_FEE_PAISE, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
@@ -31,7 +35,12 @@ export function renderPatientSessionCard(
   a: PatientDashboardData["appointments"][number],
   visit: ReturnType<PatientDashboardData["visitDetailById"]["get"]> | null = null
 ): ReactNode {
-  const { profile, therapistMap, categoryPriceMap, purchaseCodeById, adminSettings } = data;
+  const { profile, therapistMap, categoryPriceMap, purchaseCodeById, programmeTagByPurchase, adminSettings } = data;
+    // The programme this session was drawn from, by its ID and progress
+    // (PED_PKG001-2/6): online sessions carry the purchase on the row, home
+    // visits on the visit detail.
+    const visitPurchaseId = visit?.home_visit_purchase_id ?? null;
+    const visitProgramme = visitPurchaseId ? programmeTagByPurchase.get(visitPurchaseId) ?? null : null;
     const patientRefund = describeRefundForPatient(a);
     // One reading of these columns, shared with the admin chip and the
     // therapist's card, so the three cannot describe one session three ways.
@@ -78,16 +87,34 @@ export function renderPatientSessionCard(
               </span>
             </p>
             {a.package_purchase_id && (
-              <PackageChip purchaseId={a.package_purchase_id} label={purchaseCodeById.get(a.package_purchase_id)} />
+              <PackageChip
+                purchaseId={a.package_purchase_id}
+                label={programmeTagByPurchase.get(a.package_purchase_id)?.display ?? purchaseCodeById.get(a.package_purchase_id)}
+              />
+            )}
+            {visitProgramme && (
+              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+                Part of <ProgrammeIdChip tag={visitProgramme} size="xs" />
+              </p>
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* A programme session waiting on the clinic's assign says
+                "Booked - confirming your therapist" rather than "requested":
+                it is paid for and booked, and what is outstanding is the
+                clinic's (patientSessionStatus). */}
             <span
-              className={`capitalize font-semibold px-3 py-1 rounded-full ${
+              className={`font-semibold px-3 py-1 rounded-full ${
                 a.no_show ? NO_SHOW_STYLE : STATUS_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
               }`}
             >
-              {a.no_show ? "No-Show" : a.status}
+              {patientSessionStatus({
+                status: a.status,
+                no_show: a.no_show,
+                therapist_id: a.therapist_id,
+                package_purchase_id: a.package_purchase_id,
+                home_visit_purchase_id: visit?.home_visit_purchase_id ?? null,
+              }).label}
             </span>
             {/* "No refund" is a decision, and it only means anything on a
                 cancelled session -- so it stays here, with the window it
@@ -143,6 +170,26 @@ export function renderPatientSessionCard(
               >
                 {payment.label}
               </span>
+            ) : a.payment_status === "unpaid" &&
+              canResumeInWizard({
+                visit_mode: data.visitDetailById.get(a.id)?.visit_mode ?? null,
+                payment_terms: a.payment_terms ?? null,
+                package_purchase_id: a.package_purchase_id ?? null,
+                home_visit_purchase_id: data.visitDetailById.get(a.id)?.home_visit_purchase_id ?? null,
+              }) ? (
+              // An online session finishes in the booking wizard's own Step 3
+              // (src/lib/resumeCheckout.ts): the code field, the breakdown and
+              // the same Pay button as the first attempt. Paying from this card
+              // had no code field, so a patient whose first try failed after
+              // applying a code was asked for the full price. No amount on the
+              // label: it can change once a code is applied there.
+              <Link
+                href={resumeCheckoutHref(a.id)}
+                data-testid="resume-checkout"
+                className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+              >
+                Pay now
+              </Link>
             ) : a.payment_status === "unpaid" ? (
               <PayNowButton
                 appointmentId={a.id}

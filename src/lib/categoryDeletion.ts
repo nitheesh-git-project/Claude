@@ -21,8 +21,11 @@ export type CategoryReferences = {
   appointments: number;
   /** Programmes bought under it. */
   packagePurchases: number;
-  /** Home-visit packages filed under it. */
-  homeVisitPackages: number;
+  /** Home-visit purchases made at this condition's own price (or a course
+   *  under it). The price rows themselves are not a blocker: a row nobody
+   *  bought is removed with the condition, since Catalog -> Conditions ->
+   *  Home visits is the only screen that shows it. */
+  homeVisitPurchases: number;
   /** Rows in the reassignment log naming it as an old or new category. */
   reassignments: number;
 };
@@ -30,7 +33,7 @@ export type CategoryReferences = {
 export const NO_REFERENCES: CategoryReferences = {
   appointments: 0,
   packagePurchases: 0,
-  homeVisitPackages: 0,
+  homeVisitPurchases: 0,
   reassignments: 0,
 };
 
@@ -43,7 +46,7 @@ function plural(count: number, one: string, many: string) {
  *
  * Names what is actually holding it rather than "it has bookings": an admin
  * who deleted the last session under a condition and still cannot remove it
- * needs to know a home-visit package is the thing left, or they will keep
+ * needs to know a home-visit purchase is the thing left, or they will keep
  * trying. Counts, because "some sessions" and "one session from a test in
  * March" call for different decisions.
  */
@@ -55,8 +58,8 @@ export function describeCategoryBlockers(
   if (refs.packagePurchases > 0) {
     parts.push(plural(refs.packagePurchases, "programme purchase", "programme purchases"));
   }
-  if (refs.homeVisitPackages > 0) {
-    parts.push(plural(refs.homeVisitPackages, "home-visit package", "home-visit packages"));
+  if (refs.homeVisitPurchases > 0) {
+    parts.push(plural(refs.homeVisitPurchases, "home-visit purchase", "home-visit purchases"));
   }
   if (refs.reassignments > 0) {
     parts.push(plural(refs.reassignments, "reassignment record", "reassignment records"));
@@ -69,7 +72,7 @@ export function describeCategoryBlockers(
       ? parts[0]
       : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
   const total =
-    refs.appointments + refs.packagePurchases + refs.homeVisitPackages + refs.reassignments;
+    refs.appointments + refs.packagePurchases + refs.homeVisitPurchases + refs.reassignments;
 
   return {
     // The alternative is named because it is what the admin actually wants:

@@ -1,18 +1,17 @@
 // What the public booking wizards offer, as one shape.
 //
 // Both wizards ask the same question -- "which of these am I buying?" -- of
-// two different tables: `/book` reads `treatment_categories`,
-// `/book-home-visit` reads `home_visit_packages`. One picker serves both, so
+// the same conditions: `/book` sells one video session of each at its own
+// price, `/book-home-visit` one visit of each at its home-visit price
+// (`src/lib/homeVisitRates.ts`). One picker serves both, so
 // the rows meet here rather than inside the component: the two mappings are a
 // judgement about what a patient is shown (which chips, which price unit,
 // which figures in the detail view) and this codebase keeps that kind of
 // judgement in a dependency-free module with its own tests, not inside a
 // component nobody can run without a browser.
 //
-// It maps only. Nothing here filters: which rows may be sold at all is
-// `isDirectlyPurchasable` in `consultationFirst.ts`, and the callers apply it.
-
-import { computeHomeVisitSavings } from "@/lib/homeVisitProgress";
+// It maps only. Nothing here filters or prices: which conditions carry a
+// home-visit price is `homeVisitRates.ts`, and the callers apply it.
 
 /** One figure in the detail view. Shaped like `StatTile` in
  *  `CatalogVisuals.tsx` so the component can pass it straight through --
@@ -82,23 +81,18 @@ export type CategoryServiceRow = {
   image_focal_y?: number | null;
 };
 
-/** The columns this module reads off `home_visit_packages`. */
-export type HomeVisitServiceRow = {
+/** A condition offered as a home visit: the condition's own copy and cover,
+ *  priced at its home-visit rate (src/lib/homeVisitRates.ts -- its own price,
+ *  else the clinic-wide one). `price_paise` here is the *visit* price, never
+ *  the condition's online consultation price. */
+export type HomeVisitConditionRow = {
   id: string;
   title: string;
   price_paise: number;
-  visit_count: number;
   visit_duration_minutes?: number | null;
-  subtitle?: string | null;
-  description?: string | null;
-  terms?: string | null;
-  badge_label?: string | null;
-  highlight?: boolean | null;
-  benefits?: unknown;
-  compare_at_paise?: number | null;
-  validity_days?: number | null;
   travel_fee_included?: boolean | null;
-  therapist_locked?: boolean | null;
+  description?: string | null;
+  points?: unknown;
   image_url?: string | null;
   image_focal_x?: number | null;
   image_focal_y?: number | null;
@@ -167,11 +161,17 @@ export const GENERAL_CONSULTATION_CATEGORY_ID =
  *    is honest.
  */
 export function defaultCategoryId(
-  rows: { id: string }[],
+  rows: { id: string; title?: string | null }[],
   requestedId?: string | null
 ): string {
   if (requestedId && rows.some((r) => r.id === requestedId)) return requestedId;
-  const general = rows.find((r) => r.id === GENERAL_CONSULTATION_CATEGORY_ID);
+  const general =
+    rows.find((r) => r.id === GENERAL_CONSULTATION_CATEGORY_ID) ??
+    // A database the seed has not reached yet (production before schema.sql
+    // is re-applied) can hold the general consultation under a random id,
+    // and the booking opened on "select one of 8" there. Its title is the
+    // fallback; the seed adopts that row onto the fixed id when it runs.
+    rows.find((r) => (r.title ?? "").trim().toLowerCase() === "general consultation");
   return general ? general.id : "";
 }
 
@@ -206,46 +206,41 @@ export function categoryServiceOption(row: CategoryServiceRow): ServiceOption {
   };
 }
 
-/** A visit at the patient's own address, from a home-visit package.
+/** One visit at the patient's own address, for a condition.
+ *
+ * One visit, always: no visit count, no "each", no validity. A course of
+ * visits is something a therapist recommends after seeing someone, never a
+ * row on this list.
  *
  * The travel chip is the one that matters here: `travel_fee_included` decides
  * whether the advertised price is the whole of it or whether the patient's
  * own area adds a fee at checkout, and that is the question the pincode
  * answer on Step 1 goes on to repeat. */
-export function homeVisitServiceOption(row: HomeVisitServiceRow): ServiceOption {
+export function homeVisitConditionOption(row: HomeVisitConditionRow): ServiceOption {
   const duration = durationOf(row.visit_duration_minutes);
-  const visits = numberOrNull(row.visit_count) ?? 1;
-  const single = visits === 1;
   const travelIncluded = row.travel_fee_included === true;
-  const savings = computeHomeVisitSavings({
-    visitCount: visits,
-    pricePaise: row.price_paise,
-    compareAtPaise: row.compare_at_paise,
-  });
 
   return {
     id: row.id,
     title: row.title,
-    summary: textOrNull(row.subtitle) ?? textOrNull(row.description),
+    summary: textOrNull(row.description),
     about: textOrNull(row.description),
-    terms: textOrNull(row.terms),
+    terms: null,
     imageUrl: textOrNull(row.image_url),
     focalX: numberOrNull(row.image_focal_x),
     focalY: numberOrNull(row.image_focal_y),
-    badge: textOrNull(row.badge_label),
-    highlight: row.highlight === true,
+    badge: null,
+    highlight: false,
     meta: [
-      single ? "Single visit" : `${visits} visits`,
-      `${duration} min${single ? "" : " each"}`,
+      `${duration} min`,
+      "At your address",
       travelIncluded ? "Travel included" : "Travel by area",
-      !single && row.therapist_locked === true ? "Same therapist" : "",
-      row.validity_days ? `Valid ${row.validity_days} days` : "",
-    ].filter(Boolean),
-    points: stringList(row.benefits),
+    ],
+    points: stringList(row.points),
     pricePaise: row.price_paise,
-    compareAtPaise: savings.compareAtPaise,
-    savingsPaise: savings.savingsPaise,
-    priceUnit: single ? "/ visit" : `/ ${visits} visits`,
+    compareAtPaise: null,
+    savingsPaise: null,
+    priceUnit: "/ visit",
     durationMinutes: duration,
     eyebrow: "Home visit",
     stats: [
@@ -255,13 +250,7 @@ export function homeVisitServiceOption(row: HomeVisitServiceRow): ServiceOption 
         value: travelIncluded ? "Included" : "Added for your area",
         icon: "fa-car",
       },
-      { label: "Visits", value: single ? "1 visit" : `${visits} visits`, icon: "fa-house-medical" },
-      ...(row.validity_days
-        ? [{ label: "Book within", value: `${row.validity_days} days`, icon: "fa-calendar-day" }]
-        : []),
-      ...(!single && row.therapist_locked === true
-        ? [{ label: "Therapist", value: "The same one throughout", icon: "fa-user-doctor" }]
-        : []),
+      { label: "With", value: "One therapist, at your door", icon: "fa-user-doctor" },
     ],
     icon: "fa-house-medical",
   };

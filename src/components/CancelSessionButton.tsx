@@ -5,6 +5,7 @@ import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { usePrompt } from "@/lib/usePrompt";
+import { patientRefundDelayedNotice } from "@/lib/refundState";
 import { debugNow, debugNowHeaders } from "@/lib/debugNow";
 import { msUntilCancelCloses, patientCancelClosed } from "@/lib/patientCancelCutoff";
 
@@ -99,12 +100,14 @@ export default function CancelSessionButton({
         }
         return;
       }
+      // A toast, not an error line: the refresh below unmounts this button,
+      // which used to take the failure message with it and leave only the
+      // success toast saying the refund was on its way.
       if (data.refundFailed) {
-        setError(
-          "Session cancelled, but the automatic refund failed - we'll process it manually. Contact us if you don't see it in a few days."
-        );
+        show(patientRefundDelayedNotice(data.refundPaise), "info");
+      } else {
+        show("Session cancelled. Any refund due is on its way.");
       }
-      show("Session cancelled. Any refund due is on its way.");
       router.refresh();
     });
   }

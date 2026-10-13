@@ -10,6 +10,7 @@ import EmailField from "./EmailField";
 import PasswordField from "./PasswordField";
 import { THERAPIST_SPECIALTIES } from "@/lib/therapistSpecialties";
 import { MAX_YEARS_EXPERIENCE } from "@/lib/therapistExperience";
+import PasswordInput from "./PasswordInput";
 
 export default function TherapistAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
@@ -303,8 +304,7 @@ export default function TherapistAuthCard() {
             <div>
               <label className="block">
                 <span className="block font-semibold mb-1">Password</span>
-                <input
-                  type="password"
+                <PasswordInput
                   name="password"
                   autoComplete="current-password"
                   required

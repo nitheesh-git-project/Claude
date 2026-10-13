@@ -129,3 +129,33 @@ begin
   raise notice 'PASS  session_note_revisions refuses UPDATE and DELETE';
 end $$;
 rollback;
+
+-- user_activity_log: the patients', therapists' and hospitals' half of All
+-- Logs. Unlike admin_activity_log it has no purge, so both UPDATE and DELETE
+-- must raise. The sign-up trigger is checked in the same block: inserting a
+-- patient profile must leave exactly one `account.created` entry.
+begin;
+do $$
+declare v_id uuid; v_ok boolean;
+begin
+  insert into user_activity_log (actor_role, action, summary)
+  values ('patient', 'appointment.cancelled', 'probe') returning id into v_id;
+
+  v_ok := false;
+  begin update user_activity_log set summary = 'rewritten' where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: user_activity_log accepted an UPDATE'; end if;
+
+  v_ok := false;
+  begin delete from user_activity_log where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: user_activity_log row was deletable'; end if;
+
+  v_ok := false;
+  begin insert into user_activity_log (actor_role, action, summary) values ('admin', 'x', 'probe');
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: user_activity_log accepted actor_role admin'; end if;
+
+  raise notice 'PASS  user_activity_log refuses UPDATE and DELETE, and only holds non-admin actors';
+end $$;
+rollback;

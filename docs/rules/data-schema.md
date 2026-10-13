@@ -177,9 +177,11 @@ before.
   alter default privileges in schema public grant all on sequences to authenticated, service_role;
   ```
 
-  Tables and sequences only: function EXECUTE is deliberately left alone,
-  because the schema revokes it from `public`, `anon` and `authenticated`
-  and re-granting it wholesale would undo that.
+  Tables and sequences only: function EXECUTE for `anon` and
+  `authenticated` is deliberately left alone, because the schema revokes it
+  from `public`, `anon` and `authenticated` and re-granting it wholesale
+  would undo that. `service_role`'s function EXECUTE is granted by
+  `schema.sql` itself (see the revoke rule below).
 - New columns are migration-dependent - a live database may not have them
   yet. Query such a column in its own isolated call and merge the result in
   (see `src/lib/sessionCode.ts`), so one unknown-column error can't blank
@@ -228,6 +230,22 @@ before.
      `session_note_revisions` takes neither. Verified with
      `scripts/append-only-sql-checks.sql`. A new table whose value is that it
      cannot be rewritten gets its guard in the same change.
+
+     **`user_activity_log` is the same rule for everyone who is not an admin**
+     -- patients, therapists, hospitals and the system (All Logs is both
+     tables). It takes neither UPDATE nor DELETE and has no purge, so unlike
+     the admin log it only ever leaves through the data reset's TRUNCATE
+     (listed in the newest `debug_reset_all_data()`). It has **no foreign
+     keys on purpose**, the posture `admin_activity_gaps` has: the sentence
+     and every name are snapshotted, so an entry still reads after somebody is
+     renamed or deleted, and there is nothing for `clean-e2e-residue.mjs` to
+     unpick. `dedupe_key` (a plain unique index, because PostgREST cannot
+     target a partial one) makes one real-world event one row when two paths
+     report it -- a payment is seen by both the browser callback and the
+     webhook. A `profiles` insert trigger (`log_profile_created`, security
+     definer, all three revokes, swallows its own errors) writes the sign-up
+     entry as the **system**, since an admin creating an account lands there
+     too. Checked in `scripts/append-only-sql-checks.sql`.
   4. **`sessions_granted` and `package_snapshot` are frozen by trigger.**
      A purchase's definition never moves; its balance moves through the
      ledger. Never resolve a purchased entitlement by joining the live
@@ -250,7 +268,7 @@ before.
 
   The flip needed no screen to change. Every surface that shows a balance -
   the patient's widget, the therapist's programme list, both detail modals,
-  the admin Purchases table, the bulk scheduler - reads the same
+  the admin Programmes list, the bulk scheduler - reads the same
   `session_count` / `sessions_used` shape, so `src/lib/ledgerBalances.ts`
   substitutes `sessions_used` on the row **once, where the row is loaded**
   (`sessions_granted - available`), and every consumer follows. Add a new
@@ -336,6 +354,19 @@ before.
   of them. `npm run lint` fails on a violation; `scripts/check-live-grants.mjs`
   checks the running database, since only that catches a revoke that was
   never applied.
+  **Those revokes also take `service_role` with them on a database where it
+  held only the PUBLIC grant, so `service_role` is granted back explicitly.**
+  Production was that database: `claim_promo_code` failed with "permission
+  denied for function" and every promo code was refused as "That code
+  couldn't be applied". The file used to rely on `pg_default_acl` having
+  written `service_role=X` onto each function, which it had on staging and
+  not in production. The last block of `schema.sql` now runs
+  `grant execute on all functions in schema public to service_role` and the
+  matching `alter default privileges ... grant execute on functions to
+  service_role`; `npm run check:grants` fails if either goes, and
+  `check-live-grants.mjs` probes `claim_promo_code` as `service_role`. This
+  is safe to blanket because `service_role` is server-only and bypasses RLS
+  already - it is the opposite of re-granting `anon` or `authenticated`.
   **And `scripts/check-definer-exposure.mjs` asks the question those two do
   not: which definer functions can a browser actually *call*.** It is run by
   hand against a live project, like `check-live-grants.mjs` beside it, and it
@@ -499,6 +530,24 @@ before.
   the one cross-role name lookup RLS can't provide (the other party's name)
   uses the admin client. Don't add a manual ownership branch here or you'll
   duplicate what the policies already guarantee.
+- **A human-readable ID is minted by the database under a lock, never by a
+  route.** Programme IDs (`PED_PKG001`, `programmes.md`) come from
+  `next_programme_code(prefix, kind)`: `programme_code_counters` holds one
+  row per (condition code, `PKG`|`HV`) and the function increments it with
+  `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`, so concurrent inserts
+  serialise on that row and cannot draw the same number. Triggers call it --
+  `care_plans` when `current_version_id` is set, both purchase tables on
+  insert, on a new `care_plan_version_id` and on `payment_status` (the
+  purchase copies its recommendation's ID) -- and the backfill walks rows one
+  statement at a time in creation order (rows inside one UPDATE cannot see
+  each other's new values, and the condition-code picker has to). The
+  counter table has RLS (admin read) and is written only by the definer
+  function, revoked from all three roles. Formatting skips `lpad` past 999,
+  because `lpad` truncates. `treatment_categories.short_code` is picked
+  under `pg_advisory_xact_lock` by its own trigger when blank, with a
+  unique index behind it. The new columns are read in isolated calls
+  (`adminProgrammesServer.ts`, `programmeTagsServer.ts`), so a database
+  without them shows the old SP/HS codes rather than an empty screen.
 - **Business math lives in dependency-free `src/lib/` modules** (`pricing`,
   `adminMetrics`, `therapistEarnings`, `therapistPayouts`, `ratingAggregate`,
   `packageProgress`, `homeVisitPricing`, `homeVisitProgress`,
@@ -577,6 +626,18 @@ Three rules when adding one:
   `therapist_availability_template.therapist_id` looks like a gap in any
   FK audit and is not — `unique (therapist_id, day_of_week, hour)` already
   builds an index led by that column.
+
+**A partial unique index can say "at most one active", and a reconcile
+step comes first.** `home_visit_packages_one_rate_per_category` is unique on
+`coalesce(category_id, nil-uuid)` where `active and visit_count = 1 and not
+care_plan_course`: one clinic-wide home-visit price and at most one own price
+per condition (`home-visit.md`). The `coalesce` is the point -- a plain
+unique on `category_id` treats every `null` as distinct, so it would allow
+any number of clinic-wide rows. The `do $$` block before it switches off
+duplicates first (keeping the cheapest, then the oldest, then the lowest id,
+which `src/lib/homeVisitRates.ts` also picks), because building the index
+over a table that already breaks it fails the whole apply. Rows are switched
+off, never deleted: purchases point at them.
 
 `create index concurrently` cannot run inside a transaction block, which is
 how this file is applied, so the entries here are plain `create index if not

@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import type { ActivityRow } from "@/components/admin/AdminActivityLogTab";
+import { mergeActivityRows } from "@/lib/userActivity";
+import { enrichAdminRows, fetchUserActivityRows, userActivityToRow } from "@/lib/userActivityLog";
 
-// Older entries, a page at a time.
+// Older entries, a page at a time -- admins' and everyone else's together.
+// The feed is two tables (admin_activity_log and user_activity_log); each is
+// read with the same cursor and the two are merged newest-first, so a page
+// is the newest PAGE_SIZE of both. Whatever the merge cuts is older than the
+// new cursor and comes back on the next press.
 //
 // The dashboard's own render carries the newest 200 rows and no more: every
 // one of them holds a jsonb `details` blob, and that page server-renders all
@@ -55,8 +62,11 @@ export async function POST(request: NextRequest) {
   if (targetId) query = query.eq("target_id", targetId);
   if (before) query = query.lt("created_at", before);
 
-  const { data: rows, error } = await query;
-  if (error) {
+  const [{ data: rows, error }, userFeed] = await Promise.all([
+    query,
+    fetchUserActivityRows(admin, { before, limit: PAGE_SIZE, subjectId: targetId }),
+  ]);
+  if (error || !userFeed.ok) {
     return NextResponse.json({ error: "Could not read the log." }, { status: 500 });
   }
 
@@ -73,25 +83,34 @@ export async function POST(request: NextRequest) {
     for (const p of profiles ?? []) names.set(p.id, p.full_name ?? "Unnamed admin");
   }
 
+  const adminRows: ActivityRow[] = (rows ?? []).map((r) => ({
+    id: r.id,
+    actorName: names.get(r.actor_id) ?? "Unknown admin",
+    action: r.action,
+    targetId: r.target_id,
+    targetLabel: r.target_label,
+    amountPaise: r.amount_paise,
+    details: r.details ?? null,
+    createdAt: r.created_at,
+    // The Logs section is Master Admin's, who reads everything, so there
+    // is nothing for the scope filter to do here. Carried anyway because
+    // the row shape is shared with the screen the three desks use.
+    actorScope: null,
+  }));
+  const merged = mergeActivityRows(
+    [
+      await enrichAdminRows(admin, adminRows),
+      userFeed.rows.map((r) => userActivityToRow(r, true)),
+    ],
+    PAGE_SIZE
+  );
+
   return NextResponse.json({
-    rows: (rows ?? []).map((r) => ({
-      id: r.id,
-      actorName: names.get(r.actor_id) ?? "Unknown admin",
-      action: r.action,
-      targetId: r.target_id,
-      targetLabel: r.target_label,
-      amountPaise: r.amount_paise,
-      details: r.details ?? null,
-      createdAt: r.created_at,
-      // The Logs section is Master Admin's, who reads everything, so there
-      // is nothing for the scope filter to do here. Carried anyway because
-      // the row shape is shared with the screen the three desks use.
-      actorScope: null,
-    })),
-    // A short page is the end of the log. A full one may or may not be, so
-    // the button stays and the next call answers it -- offering one more
-    // press that returns nothing is a better failure than hiding entries
-    // behind a button that vanished a row early.
-    hasMore: (rows ?? []).length === PAGE_SIZE,
+    rows: merged,
+    // A short page from both is the end of the log. Either one being full
+    // may or may not be the end, so the button stays and the next call
+    // answers it -- offering one more press that returns nothing is a better
+    // failure than hiding entries behind a button that vanished a row early.
+    hasMore: (rows ?? []).length === PAGE_SIZE || userFeed.rows.length === PAGE_SIZE,
   });
 }

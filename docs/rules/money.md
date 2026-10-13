@@ -108,11 +108,12 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   treated as old: inventing an age would put somebody on a call list because
   of a timestamp nobody could read. It is **not urgent** -- nothing has gone
   wrong and nobody is out of pocket, which is the opposite of every other row
-  there. It links into **Catalog -> Purchases** with `view=unscheduled`,
+  there. It links into **Programmes -> All Programmes** with `view=unscheduled`,
   since the section is chosen by where the work is done and not by which
-  strip the row sits on; the *Nothing booked yet* filter it applies is
-  deliberately distinct from the *Has unscheduled sessions* checkbox beside
-  it. The patient was never stranded -- the balance is on their Programmes
+  strip the row sits on; the preset is the *Paid - nothing booked* stage
+  narrowed by a removable "Paid over 24 hours ago" filter, so the list holds
+  exactly the rows the alert counted -- deliberately not every programme
+  with sessions left. The patient was never stranded -- the balance is on their Programmes
   screen and unbooked sessions are pinned on their dashboard -- and that is
   the failure: every mechanism pointed at the patient, so a purchase made by
   somebody who paid and was then distracted waited on exactly the person who

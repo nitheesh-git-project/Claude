@@ -35,10 +35,52 @@
       "integration": "provider-sandbox",
       "destructive": false
     },
+    "admin-all-logs.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
     "admin-account-delete.spec.ts": {
       "runner": "admin",
       "levels": [
         "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-decline-application.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-approve-therapist.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
         "db"
       ],
       "projects": [
@@ -199,6 +241,18 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-payment-search.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-profile-session-order.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -210,6 +264,23 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "admin-programmes.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/programmes.md",
+        "docs/rules/admin.md"
+      ],
+      "integration": "local",
+      "destructive": true
     },
     "admin-refresh-badge.spec.ts": {
       "runner": "admin",
@@ -338,6 +409,7 @@
       "runner": "therapist",
       "levels": [
         "api",
+        "browser",
         "db"
       ],
       "projects": [
@@ -393,6 +465,19 @@
       "integration": "provider-sandbox",
       "destructive": false
     },
+    "checkout-resume.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "provider-sandbox",
+      "destructive": false
+    },
     "booking-rules.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -431,6 +516,23 @@
       "integration": "local",
       "destructive": false
     },
+    "catalog-home-visit-prices.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/admin.md",
+        "docs/rules/home-visit.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "checkout-speed.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -460,6 +562,18 @@
       "levels": [
         "browser",
         "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "dashboard-tutorial.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
       ],
       "projects": [
         "desktop"
@@ -553,6 +667,24 @@
       "integration": "provider-sandbox",
       "destructive": true
     },
+    "programme-checkout.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/discounts.md",
+        "docs/rules/programmes.md",
+        "docs/rules/payments.md"
+      ],
+      "integration": "provider-sandbox",
+      "destructive": true
+    },
     "pain-trend.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -580,6 +712,24 @@
       ],
       "rules": [
         "docs/rules/booking.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "programme-sessions-via-admin.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/programmes.md",
+        "docs/rules/admin.md",
+        "docs/rules/roster.md"
       ],
       "integration": "local",
       "destructive": false
@@ -686,6 +836,17 @@
       "integration": "local",
       "destructive": false
     },
+    "therapist-onboarding.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "home-visit-disabled.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -769,28 +930,6 @@
       "integration": "local",
       "destructive": false
     },
-    "package-category-picker.spec.ts": {
-      "runner": "admin",
-      "levels": [
-        "browser"
-      ],
-      "projects": [
-        "desktop"
-      ],
-      "integration": "local",
-      "destructive": false
-    },
-    "package-form-flags.spec.ts": {
-      "runner": "admin",
-      "levels": [
-        "browser"
-      ],
-      "projects": [
-        "desktop"
-      ],
-      "integration": "local",
-      "destructive": false
-    },
     "patient-registration.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -820,6 +959,19 @@
     "refund-attempts.spec.ts": {
       "runner": "integrity",
       "levels": [
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "rich-text-profile.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
         "db"
       ],
       "projects": [
@@ -1223,6 +1375,17 @@
             "RETRY-004"
           ],
           "level": "browser"
+        },
+        {
+          "spec": "checkout-resume.spec.ts",
+          "tests": [
+            "RES-001",
+            "RES-002",
+            "RES-003",
+            "RES-004",
+            "RES-005"
+          ],
+          "level": "browser"
         }
       ],
       "rules": [
@@ -1576,7 +1739,8 @@
             "SS-007",
             "SS-008",
             "SS-015",
-            "SS-016"
+            "SS-016",
+            "SS-019"
           ],
           "level": "api"
         }
@@ -1584,6 +1748,30 @@
       "rules": [
         "docs/rules/roster.md",
         "docs/rules/programmes.md"
+      ]
+    },
+    {
+      "id": "session.programme-via-admin",
+      "runner": "session",
+      "title": "Every programme session goes through the admin: booked, accepted and home-visit sessions wait unassigned with the programme therapist pre-picked, one tap assigns and confirms",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "programme-sessions-via-admin.spec.ts",
+          "tests": [
+            "PSA-001",
+            "PSA-002",
+            "PSA-003",
+            "PSA-004",
+            "PSA-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/programmes.md",
+        "docs/rules/admin.md"
       ]
     },
     {
@@ -1677,12 +1865,35 @@
             "RC-003",
             "RC-004",
             "RC-005",
-            "RC-006"
+            "RC-006",
+            "RC-007",
+            "RC-008"
           ],
           "level": "browser"
         }
       ],
       "limitation": "Writes append-only care-plan rows, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; it opens a Razorpay test order but does not drive the payment window."
+    },
+    {
+      "id": "session.programme-checkout",
+      "runner": "session",
+      "title": "Accept & pay leads to a Review & pay page; a code valid on programmes takes its share off the programme and Razorpay opens at that total; a session-only code is refused; no code is full price",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "programme-checkout.spec.ts",
+          "tests": [
+            "PC-001",
+            "PC-002",
+            "PC-003",
+            "PC-004",
+            "PC-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only care-plan rows, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; Razorpay's checkout.js is a stand-in that records the amount it opened at, so no payment is ever completed."
     },
     {
       "id": "patient.pain-trend-per-exam",
@@ -1758,7 +1969,8 @@
             "FS-002",
             "FS-003",
             "FS-004",
-            "FS-005"
+            "FS-005",
+            "FS-006"
           ],
           "level": "browser"
         }
@@ -2016,6 +2228,154 @@
       ]
     },
     {
+      "id": "admin.approve-therapist",
+      "runner": "admin",
+      "title": "Approving a therapist sets their revenue share in the same step",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-approve-therapist.spec.ts",
+          "tests": [
+            "AT-001",
+            "AT-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md",
+        "docs/rules/roster.md"
+      ]
+    },
+    {
+      "id": "admin.decline-application",
+      "runner": "admin",
+      "title": "Declining a signup or hospital inquiry asks why and lists it on People -> Declined",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-decline-application.spec.ts",
+          "tests": [
+            "DA-001",
+            "DA-002",
+            "DA-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.payment-search",
+      "runner": "admin",
+      "title": "People search finds a patient by Razorpay payment or order id",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-payment-search.spec.ts",
+          "tests": [
+            "PS-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.programmes",
+      "runner": "admin",
+      "title": "Programmes follows one programme from recommendation to last session: pipeline filters, ID with progress, search by new and old code, the story in a drawer",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-programmes.spec.ts",
+          "tests": [
+            "PRG-001",
+            "PRG-002",
+            "PRG-003",
+            "PRG-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/programmes.md",
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "public.rich-text-profile",
+      "runner": "admin",
+      "title": "Therapist bio and display content keep their formatting from editor to /team",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "rich-text-profile.spec.ts",
+          "tests": [
+            "RT-001",
+            "RT-002",
+            "RT-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "dashboards.tutorial",
+      "runner": "admin",
+      "title": "First-visit dashboard tutorial with dummy data for patient, therapist and hospital, and the (i) replays",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "dashboard-tutorial.spec.ts",
+          "tests": [
+            "TU-001",
+            "TU-002",
+            "TU-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "dashboards.therapist-onboarding",
+      "runner": "therapist",
+      "title": "A patient nobody has onboarded: the Home banner, the session card's strip, Start onboarding into the triage, and the How onboarding works guide over every condition type",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-onboarding.spec.ts",
+          "tests": [
+            "OG-001",
+            "OG-002",
+            "OG-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/dashboards.md",
+        "docs/rules/clinical.md"
+      ]
+    },
+    {
       "id": "admin.multi-admin",
       "runner": "admin",
       "title": "Two admins at once: realtime coverage, inbox removal, racing approve/decline, double assignment",
@@ -2087,7 +2447,7 @@
     {
       "id": "admin.settings-and-catalogue",
       "runner": "admin",
-      "title": "Settings information architecture, the booking lead time reaching the patient picker, package form switches",
+      "title": "Settings information architecture, the booking lead time reaching the patient picker, and Catalog -> Conditions with its home-visit prices (clinic-wide and per condition) reaching the wizard and recommendations",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -2105,22 +2465,41 @@
           "level": "browser"
         },
         {
-          "spec": "package-category-picker.spec.ts",
+          "spec": "catalog-home-visit-prices.spec.ts",
           "tests": [
-            "PKG-CAT-001"
-          ],
-          "level": "browser"
-        },
-        {
-          "spec": "package-form-flags.spec.ts",
-          "tests": [
-            "PKG-FLAG-001"
+            "HVP-001",
+            "HVP-002",
+            "HVP-003",
+            "HVP-004",
+            "HVP-005"
           ],
           "level": "browser"
         }
       ],
       "rules": [
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.all-logs",
+      "runner": "admin",
+      "title": "All Logs shows everyone's actions: a patient's own cancel is logged with their role, and the Patient and Programme ID filters find it and narrow the list",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-all-logs.spec.ts",
+          "tests": [
+            "ALL-001",
+            "ALL-002",
+            "ALL-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md",
+        "docs/rules/data-schema.md"
       ]
     },
     {
@@ -2922,5 +3301,16 @@
       ]
     }
   ],
-  "removed": []
+  "removed": [
+    {
+      "spec": "package-category-picker.spec.ts",
+      "reason": "The Session Packages editor it drove is gone: Catalog -> Packages was removed (bug pass item 5) because recommendations are priced per session from each condition, so no admin creates a session package any more. The condition picker it guarded has no form left to live on.",
+      "reviewed": "Claude for the owner, 2026-10-13 (bug-pass item 5)"
+    },
+    {
+      "spec": "package-form-flags.spec.ts",
+      "reason": "Both package forms it checked are gone with Catalog -> Packages. Home-visit pricing moved to Catalog -> Conditions -> Home visits (one visit each, no placement switches), covered by catalog-home-visit-prices.spec.ts.",
+      "reviewed": "Claude for the owner, 2026-10-13 (bug-pass item 5)"
+    }
+  ]
 }

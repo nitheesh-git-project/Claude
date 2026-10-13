@@ -62,10 +62,15 @@ if (!url || !serviceKey) {
   process.exit(1);
 }
 
-// The one password every fixture account uses -- test plan §8.1. It is in a
-// published document on purpose: these accounts exist only on a throwaway
-// project, and a tester who cannot sign in is the problem this file solves.
-const PASSWORD = "QaTest!2024pass";
+// The one password every fixture account uses -- test plan §8.1. It comes
+// from E2E_QA_PASSWORD (.env.local; generated per run on CI's disposable
+// stack), never from this file: the repository is public, and a published
+// password signs anyone in to staging as the QA admin.
+const PASSWORD = process.env.E2E_QA_PASSWORD;
+if (!PASSWORD || PASSWORD.length < 10) {
+  console.error("Set E2E_QA_PASSWORD (10+ characters) in .env.local - the QA accounts' shared password.");
+  process.exit(1);
+}
 
 // Test plan §8.2, §8.3, §8.8, §8.9, in the order the execution order needs
 // them. `profile` is merged into the profiles row the handle_new_user trigger

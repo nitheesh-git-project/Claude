@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import PasswordInput from "./PasswordInput";
 
 // Deliberately no pre-auth "forgot password?" link here (unlike the
 // patient/therapist/hospital login cards) -- the admin portal isn't
@@ -77,9 +78,8 @@ export default function AdminLoginCard() {
             <label htmlFor="admin-login-password" className="block font-semibold mb-1">
               Password
             </label>
-            <input
+            <PasswordInput
               id="admin-login-password"
-              type="password"
               name="password"
               autoComplete="current-password"
               required

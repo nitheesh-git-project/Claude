@@ -4,6 +4,7 @@ import {
   describeRefundForPatient,
   hasRefund,
   isPartialRefund,
+  patientRefundDelayedNotice,
 } from "@/lib/refundState";
 
 describe("describeRefund", () => {
@@ -104,11 +105,18 @@ describe("describeRefundForPatient", () => {
     );
   });
 
-  it("tells the patient what to do about a failed refund", () => {
+  it("tells the patient who is fixing a failed refund", () => {
     const r = describeRefundForPatient({ refund_status: "failed" });
     expect(r.state).toBe("failed");
-    expect(r.label).toContain("contact us");
+    expect(r.label).toBe("Refund delayed - our team is sending it by hand");
     expect(r.needsPerson).toBe(true);
+  });
+
+  it("names the amount when a cancellation's refund is refused", () => {
+    expect(patientRefundDelayedNotice(49900)).toBe(
+      "Session cancelled. Your ₹499 refund didn't go through automatically, so our team has been alerted and will send it by hand. You don't need to do anything."
+    );
+    expect(patientRefundDelayedNotice(null)).toMatch(/^Session cancelled\. Your refund didn't go through/);
   });
 
   it("says nothing at all when no refund was due", () => {

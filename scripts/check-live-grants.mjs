@@ -2,7 +2,8 @@
 /**
  * Asks the running database the question check-function-grants.mjs asks of
  * the schema file: can `anon` or `authenticated` execute anything they
- * should not, and does the admin check actually refuse a suspended admin.
+ * should not, can service_role still call what it should, and does the
+ * admin check actually refuse a suspended admin.
  *
  * The static check reads supabase/schema.sql and is what runs in lint. This
  * one needs a real project and is run by hand after applying a schema
@@ -90,6 +91,22 @@ console.log("\n1. Functions must be unreachable by anon");
 for (const [fn, args] of MUST_BE_CLOSED) {
   const status = await callAs(ANON, fn, args);
   record([401, 403, 404].includes(status), `anon cannot call ${fn}`, `HTTP ${status}`);
+}
+
+// The other side of those revokes: on a database whose functions held only
+// the PUBLIC grant, `revoke ... from public` takes service_role's access too,
+// and every RPC the app makes then fails. That is how production refused
+// every promo code. An unknown code returns before touching a row, so this
+// probe is read-only.
+console.log("\n1b. The app's own server can still call them");
+{
+  const status = await callAs(SERVICE, "claim_promo_code", {
+    p_code: "zz-no-such-code",
+    p_patient_id: null,
+    p_appointment_id: null,
+    p_patient_has_paid_before: false,
+  });
+  record(status === 200, "service_role can call claim_promo_code", `HTTP ${status}`);
 }
 
 console.log("\n2. A suspended admin reads nothing");

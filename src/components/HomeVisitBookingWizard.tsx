@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { preloadRazorpayScript } from "@/lib/razorpay";
@@ -13,10 +12,7 @@ import {
 } from "@/lib/bookingPaymentTrouble";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { escapeOffered, type PaymentTryAnswer, type PaymentTryOutcome } from "@/lib/paymentTries";
-import {
-  isDirectlyPurchasable,
-  PROGRAMME_NEEDS_RECOMMENDATION,
-} from "@/lib/consultationFirst";
+import { PROGRAMME_NEEDS_RECOMMENDATION } from "@/lib/consultationFirst";
 import BookingCalendar from "@/components/booking/BookingCalendar";
 import SelectableChipGroup, { type ChipOption } from "@/components/booking/SelectableChipGroup";
 import AddressForm from "@/components/booking/AddressForm";
@@ -44,33 +40,14 @@ import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCo
 import { rateLimitNotice } from "@/lib/rateLimit";
 import ServicePicker from "@/components/booking/ServicePicker";
 import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
-import { homeVisitServiceOption } from "@/lib/serviceOptions";
+import { homeVisitConditionOption, type HomeVisitConditionRow } from "@/lib/serviceOptions";
 import { formatRupees } from "@/lib/formatMoney";
+import PasswordInput from "@/components/auth/PasswordInput";
 
-// The six fields this wizard has always read, plus what the service picker
-// shows. The optional ones are optional for two different reasons: the focal
-// pair is migration-dependent and read in its own query, and the rest are
-// nullable columns an admin may simply not have filled in.
-export type WizardPackage = {
-  id: string;
-  title: string;
-  visit_count: number;
-  price_paise: number;
-  visit_duration_minutes: number;
-  travel_fee_included: boolean;
-  subtitle?: string | null;
-  description?: string | null;
-  terms?: string | null;
-  badge_label?: string | null;
-  highlight?: boolean | null;
-  benefits?: unknown;
-  compare_at_paise?: number | null;
-  validity_days?: number | null;
-  therapist_locked?: boolean | null;
-  image_url?: string | null;
-  image_focal_x?: number | null;
-  image_focal_y?: number | null;
-};
+// What the picker lists: each condition the clinic treats, as one visit at
+// its home-visit price (src/lib/homeVisitRates.ts). The price is a quote;
+// both checkouts re-resolve it on the server from the condition id.
+export type WizardHomeVisitCondition = HomeVisitConditionRow;
 
 type AreaCheck =
   | { state: "idle" }
@@ -84,12 +61,21 @@ function inputCls() {
 }
 
 export default function HomeVisitBookingWizard({
-  packages,
+  conditions,
+  initialCategoryId = "",
+  requestedIsProgramme = false,
   leadTimeHours,
   cashEnabled = false,
   paymentTriesBeforeAccess = DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess,
 }: {
-  packages: WizardPackage[];
+  conditions: WizardHomeVisitCondition[];
+  /** Which condition the picker opens on (`?category=`, an old `?package=`
+   *  link mapped to its condition, or the general consultation). Empty opens
+   *  it unanswered. Resolved by the page. */
+  initialCategoryId?: string;
+  /** An old link to a course of visits, which is recommended rather than
+   *  bought here -- answered rather than swapped for one visit. */
+  requestedIsProgramme?: boolean;
   leadTimeHours: number;
   // site_settings.home_visit_cash_enabled. When false, the wizard never
   // offers "pay at the door" and behaves exactly as it did before this
@@ -99,7 +85,6 @@ export default function HomeVisitBookingWizard({
    *  (`site_settings.payment_tries_before_access`, see paymentTries.ts). */
   paymentTriesBeforeAccess?: number;
 }) {
-  const searchParams = useSearchParams();
   const supabase = createClient();
 
   // Read once at mount rather than on every render -- a Date.now() in the
@@ -148,33 +133,9 @@ export default function HomeVisitBookingWizard({
   const [bookHour, setBookHour] = useState<number | "">("");
   const [autoPicked, setAutoPicked] = useState({ date: true, hour: true });
 
-  // What can actually be bought here: a single visit, which is the
-  // home-visit consultation. A course of visits is a therapist's
-  // recommendation after they have seen someone, so it is never on this
-  // list -- see src/lib/consultationFirst.ts, and both home-visit purchase
-  // routes, which refuse one regardless of what the browser sends.
-  const sellablePackages = useMemo(
-    () => packages.filter((p) => isDirectlyPurchasable(p.visit_count)),
-    [packages]
-  );
-
-  // A link to a programme that is no longer sold this way. Answered rather
-  // than quietly swapped for a different package: charging someone for one
-  // visit when they followed a link expecting six is the failure a removed
-  // checkout must not produce.
-  const requestedPackageId = searchParams.get("package");
-  const requestedIsProgramme =
-    !!requestedPackageId &&
-    packages.some(
-      (p) => p.id === requestedPackageId && !isDirectlyPurchasable(p.visit_count)
-    );
-
   // Step 3 -- who.
-  const [packageId, setPackageId] = useState(
-    () =>
-      (requestedPackageId && !requestedIsProgramme ? requestedPackageId : null) ??
-      sellablePackages[0]?.id ??
-      ""
+  const [categoryId, setCategoryId] = useState(() =>
+    conditions.some((c) => c.id === initialCategoryId) ? initialCategoryId : ""
   );
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -193,40 +154,38 @@ export default function HomeVisitBookingWizard({
   // anyone indifferent between the two.
   const [paymentMode, setPaymentMode] = useState<"prepaid" | "cash">("prepaid");
 
-  const selectedPackage =
-    sellablePackages.find((p) => p.id === packageId) ?? sellablePackages[0] ?? null;
+  const selectedCondition = conditions.find((c) => c.id === categoryId) ?? null;
 
   // Mapped once: these rows arrive as props and never change, and the
   // picker's dialog re-renders on every tap inside it.
   const serviceOptions = useMemo(
-    () => sellablePackages.map((p) => homeVisitServiceOption(p)),
-    [sellablePackages]
+    () => conditions.map((c) => homeVisitConditionOption(c)),
+    [conditions]
   );
   // The same row the picker is showing, so Step 3's statement of it cannot
   // describe the visit differently from the control that chose it.
-  const selectedOption =
-    serviceOptions.find((o) => o.id === selectedPackage?.id) ?? null;
+  const selectedOption = serviceOptions.find((o) => o.id === selectedCondition?.id) ?? null;
 
   // The picker lives on Step 1, above the pincode, because the serviceable
   // answer below it has to say whether travel is charged on top -- and that
-  // is `travel_fee_included` on whichever visit was chosen. Asking for the
-  // pincode first and the package two steps later meant that sentence was
+  // is `travel_fee_included` on whichever condition was chosen. Asking for
+  // the pincode first and the visit two steps later meant that sentence was
   // written before the thing it describes had been picked.
   const servicePicker = (
     <ServicePicker
       rupeesOnly
       options={serviceOptions}
-      value={selectedPackage?.id ?? ""}
-      onChange={setPackageId}
-      label="Your visit"
-      browseHeading="Which visit do you need?"
+      value={selectedCondition?.id ?? ""}
+      onChange={setCategoryId}
+      label="What the visit is for"
+      browseHeading="What do you need help with?"
       browseBlurb={(count) =>
-        `${count} visit${count === 1 ? "" : "s"} available to book, with prices and what each covers.`
+        `${count} condition${count === 1 ? "" : "s"} we treat at home, each with its visit price.`
       }
-      chooseLabel="Choose this visit"
-      aboutTitle="About this visit"
+      chooseLabel="Choose this"
+      aboutTitle="About this condition"
       emptyMessage="No home visits are available to book right now - please contact us directly."
-      singleOptionNote="This is the only visit on offer today, so it is already chosen for you."
+      singleOptionNote="This is the only condition on offer today, so it is already chosen for you."
     />
   );
 
@@ -387,13 +346,13 @@ export default function HomeVisitBookingWizard({
       ? `${bookDate}T${String(bookHour).padStart(2, "0")}:00`
       : "";
 
-  const total = selectedPackage
+  const total = selectedCondition
     ? computeHomeVisitTotal({
-        packagePricePaise: selectedPackage.price_paise,
+        packagePricePaise: selectedCondition.price_paise,
         travelFeePaise:
           areaCheck.state === "serviceable" ? areaCheck.travelFeePaise : 0,
-        travelIncluded: selectedPackage.travel_fee_included,
-        visitCount: selectedPackage.visit_count,
+        travelIncluded: selectedCondition.travel_fee_included === true,
+        visitCount: 1,
       })
     : null;
 
@@ -406,6 +365,10 @@ export default function HomeVisitBookingWizard({
 
   function goToStep2() {
     setError(null);
+    if (!selectedCondition) {
+      setError("Please choose what the visit is for.");
+      return;
+    }
     if (!address.line1.trim()) {
       failField("Please enter your street address.", "hv-address");
       return;
@@ -455,7 +418,7 @@ export default function HomeVisitBookingWizard({
   }
 
   async function handleSubmit() {
-    if (!selectedPackage) return;
+    if (!selectedCondition) return;
     setLoading(true);
     setError(null);
     // Timed and staged only on the gateway path: cash at the door opens no
@@ -494,7 +457,7 @@ export default function HomeVisitBookingWizard({
   }
 
   async function handleSubmitInner() {
-    if (!selectedPackage) return;
+    if (!selectedCondition) return;
 
     if (!isLoggedIn) {
       const { data, error: signUpError } = await supabase.auth.signUp({
@@ -538,7 +501,7 @@ export default function HomeVisitBookingWizard({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            packageId: selectedPackage.id,
+            categoryId: selectedCondition.id,
             address: { ...address, pincode: normalizePincode(address.pincode) },
             slotDateTime,
             timezone,
@@ -576,11 +539,11 @@ export default function HomeVisitBookingWizard({
         timerRef.current?.finish("opened");
         setPayStage("paying");
       },
-      packageId: selectedPackage.id,
+      categoryId: selectedCondition.id,
       address: { ...address, pincode: normalizePincode(address.pincode) },
       name: fullName,
       email,
-      description: selectedPackage.title,
+      description: `Home visit - ${selectedCondition.title}`,
       slotDateTime,
       timezone,
       notes,
@@ -639,11 +602,11 @@ export default function HomeVisitBookingWizard({
     );
   }
 
-  if (sellablePackages.length === 0) {
+  if (conditions.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <p className="text-sm text-slate-600">
-          Home visit packages aren&apos;t available right now.
+          Home visits aren&apos;t available to book right now.
         </p>
         <Link href="/" className="mt-4 inline-block text-xs font-semibold text-teal-700 hover:underline">
           Back to home
@@ -669,7 +632,7 @@ export default function HomeVisitBookingWizard({
             : paymentResult?.visitBookingError ??
               (paymentMode === "cash"
                 ? "We've saved your request. Schedule your visit from your dashboard if it doesn't show up shortly."
-                : "Your package is paid for. Schedule your visit from your dashboard.")}
+                : "Your visit is paid for. Schedule it from your dashboard.")}
         </p>
         {paymentResult?.addressNotSaved && (
           <p className="mt-3 text-xs text-slate-500">
@@ -743,14 +706,14 @@ export default function HomeVisitBookingWizard({
                 <i className="fa-solid fa-circle-check mr-1.5" />
                 Yes - we visit {areaCheck.areaName ? `${areaCheck.areaName}, ` : ""}
                 {areaCheck.city}.
-                {areaCheck.travelFeePaise > 0 && !selectedPackage?.travel_fee_included && (
+                {areaCheck.travelFeePaise > 0 && !selectedCondition?.travel_fee_included && (
                   <span>
                     {" "}
                     Travel to this area is ₹
                     {formatRupees(areaCheck.travelFeePaise)} per visit.
                   </span>
                 )}
-                {selectedPackage?.travel_fee_included && <span> Travel is included.</span>}
+                {selectedCondition?.travel_fee_included && <span> Travel is included.</span>}
               </p>
 
               <div id="hv-address">
@@ -901,7 +864,7 @@ export default function HomeVisitBookingWizard({
               whether travel is added could all be read. Here it is a
               statement with a way back, not a second control over the same
               value -- and it renders whether or not there was a choice to
-              make, which the old dropdown did not: with one sellable package
+              make, which the old dropdown did not: with one sellable visit
               it was absent entirely and the patient reached the payment
               screen never having seen what they were buying. */}
           {selectedOption && (
@@ -949,9 +912,8 @@ export default function HomeVisitBookingWizard({
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Password</span>
-                  <input
+                  <PasswordInput
                     id="hv-password"
-                    type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className={inputCls()}
@@ -959,9 +921,8 @@ export default function HomeVisitBookingWizard({
                 </label>
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-700">Confirm password</span>
-                  <input
+                  <PasswordInput
                     id="hv-confirm-password"
-                    type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className={inputCls()}
@@ -1056,7 +1017,7 @@ export default function HomeVisitBookingWizard({
         </div>
       )}
 
-      {step === 4 && selectedPackage && total && (
+      {step === 4 && selectedCondition && total && (
         <div className="space-y-5">
           <div>
             <h2 className="font-display text-lg font-bold text-slate-900">Review and pay</h2>
@@ -1064,19 +1025,19 @@ export default function HomeVisitBookingWizard({
 
           <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Package</dt>
+              <dt className="text-slate-500">Home visit for</dt>
               <dd className="text-right font-semibold text-slate-900">
-                {selectedPackage.title}
+                {selectedCondition.title}
               </dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Visits</dt>
+              <dt className="text-slate-500">Length</dt>
               <dd className="text-right text-slate-700">
-                {selectedPackage.visit_count} × {selectedPackage.visit_duration_minutes} min
+                {selectedOption?.durationMinutes ?? selectedCondition.visit_duration_minutes} min
               </dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">First visit</dt>
+              <dt className="text-slate-500">When</dt>
               <dd className="text-right text-slate-700">
                 {bookDate && formatDateKeyLong(bookDate)},{" "}
                 {slotDateTime && formatSlotTime(new Date(slotDateTime).toISOString(), timezone)}
@@ -1093,18 +1054,13 @@ export default function HomeVisitBookingWizard({
 
           <dl className="space-y-2 border-t border-slate-200 pt-4 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Package price</dt>
+              <dt className="text-slate-500">Visit</dt>
               <dd className="text-slate-900">
                 ₹{formatRupees(total.packagePricePaise)}
               </dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">
-                Travel
-                {selectedPackage.visit_count > 1 && total.travelLabel === "added" && (
-                  <span className="text-slate-500"> × {selectedPackage.visit_count} visits</span>
-                )}
-              </dt>
+              <dt className="text-slate-500">Travel</dt>
               <dd className="text-slate-900">
                 {total.travelLabel === "included"
                   ? "Included"

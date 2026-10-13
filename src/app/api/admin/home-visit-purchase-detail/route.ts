@@ -6,7 +6,7 @@ import { applyLedgerVisitBalance, readLedgerAuthoritative } from "@/lib/ledgerBa
 // The home-visit twin of /api/admin/package-purchase-detail -- backs the
 // admin Programmes table's tap-to-open detail popup.
 export async function GET(request: NextRequest) {
-  const adminUser = await requireAdminScope("catalog");
+  const adminUser = await requireAdminScope("programmes");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

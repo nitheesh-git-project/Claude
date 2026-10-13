@@ -6,6 +6,8 @@ import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import ProgressLink from "@/components/system/ProgressLink";
 import { countNeedsYou, type FeedItem } from "@/lib/dashboardFeed";
+import { tutorialSectionForFeedItem as sectionFor, tutorialStepForFeedItem as stepFor } from "@/lib/tutorial";
+import TutorialInfoButton from "@/components/tutorial/TutorialInfoButton";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 
 const TONE_DOT: Record<string, string> = {
@@ -110,8 +112,8 @@ export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; 
                 <i aria-hidden className={`fa-solid ${item.icon} text-[11px]`} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold leading-snug text-slate-800">{item.title}</p>
-                {item.detail && <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{item.detail}</p>}
+                <p className="break-words text-sm font-semibold leading-snug text-slate-800">{item.title}</p>
+                {item.detail && <p className="mt-0.5 break-words text-xs leading-relaxed text-slate-500">{item.detail}</p>}
               </div>
               <span suppressHydrationWarning className="shrink-0 text-[11px] text-slate-500">
                 {when(item.at)}
@@ -119,13 +121,26 @@ export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; 
             </div>
           );
           return (
-            <li key={item.id}>
-              {item.href ? (
-                <ProgressLink href={item.href} className="block">
-                  {row}
-                </ProgressLink>
-              ) : (
-                row
+            <li key={item.id} className="flex items-start gap-1">
+              <div className="min-w-0 flex-1">
+                {item.href ? (
+                  <ProgressLink href={item.href} className="block">
+                    {row}
+                  </ProgressLink>
+                ) : (
+                  row
+                )}
+              </div>
+              {/* What this kind of update means, from the dashboard
+                  tutorial. A sibling of the link, never inside it. */}
+              {sectionFor(item.id) && (
+                <TutorialInfoButton
+                  section={sectionFor(item.id)!}
+                  step={stepFor(item.id)}
+                  label="this update"
+                  size="sm"
+                  className="mt-3.5"
+                />
               )}
             </li>
           );

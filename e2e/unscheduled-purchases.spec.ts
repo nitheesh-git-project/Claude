@@ -28,7 +28,7 @@ const DAY = 86_400_000;
 
 test.describe("Suite UP: purchases with nothing booked", () => {
   const purchaseIds: string[] = [];
-  // The codes are what the table prints, so they are what the assertions can
+  // The IDs are what the list prints, so they are what the assertions can
   // tell the two fixtures apart by -- the patient's name is the same on
   // both, which is exactly the confusion a code exists to remove.
   const codes: Record<"stale" | "fresh", string> = { stale: "", fresh: "" };
@@ -87,7 +87,14 @@ test.describe("Suite UP: purchases with nothing booked", () => {
         .single();
       if (error) throw new Error(`could not create the ${label} fixture: ${error.message}`);
       purchaseIds.push(data.id);
-      codes[label] = data.purchase_code ?? "";
+      // The programme ID (PED_PKG001) is what the list prints; the old code
+      // stands in on a database without it.
+      const { data: withId } = await admin
+        .from("patient_package_purchases")
+        .select("programme_code")
+        .eq("id", data.id)
+        .maybeSingle();
+      codes[label] = (withId as { programme_code?: string | null } | null)?.programme_code ?? data.purchase_code ?? "";
     }
   });
 
@@ -102,23 +109,25 @@ test.describe("Suite UP: purchases with nothing booked", () => {
     }
   });
 
+  // Purchases are listed on Programmes -> All Programmes now (Catalog ->
+  // Purchases is gone), under the "Paid - nothing booked" stage. The Money
+  // alert's preset narrows that stage to the day-old ones it counts.
   test("UP-001: the count opens exactly the rows it counted", async ({ page, context }) => {
+    test.setTimeout(90_000);
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
 
     // Straight to the preset the alert row links to, which is what the tap
     // produces -- the link itself is an `AdminScreenLink`, covered by
     // navigation-feedback.spec.ts.
-    await page.goto(`${BASE}/admin/dashboard?section=catalog&tab=purchases&view=unscheduled`);
+    await page.goto(`${BASE}/admin/dashboard?section=programmes&tab=all&view=unscheduled`);
 
-    const nothingBooked = page
-      .getByRole("checkbox", { name: "Nothing booked yet" })
-      .first();
-    await expect(nothingBooked).toBeChecked();
-
-    // The other filters are cleared on arrival, or a remembered package or
-    // status would hide rows the count included -- a list that disagrees
-    // with the number that opened it.
-    await expect(page.getByRole("checkbox", { name: "Has unscheduled sessions" }).first()).not.toBeChecked();
+    const stage = page.getByRole("button", { name: /Paid - nothing booked/ }).filter({ visible: true }).first();
+    await expect(stage).toHaveAttribute("aria-pressed", "true", { timeout: 60_000 });
+    // The age half of the preset is said on screen, and removable.
+    await expect(page.getByRole("button", { name: /Paid over 24 hours ago/ }).filter({ visible: true })).toBeVisible();
+    // The other filters are cleared on arrival, or a remembered condition
+    // would hide rows the count included.
+    await expect(page.getByRole("searchbox", { name: "Search programmes" }).filter({ visible: true })).toHaveValue("");
 
     // The two-day-old purchase is listed and the hour-old one is not. The
     // second half is the one worth pinning: a filter that simply showed
@@ -126,39 +135,53 @@ test.describe("Suite UP: purchases with nothing booked", () => {
     test.skip(!codes.stale || !codes.fresh, "this database does not stamp purchase codes");
     // Across every page: the QA patients carry other specs' purchases, so
     // the list runs past one page and the stale row can sit on page two.
-    // The absence half walks every page too -- missing from page one proves
-    // nothing about page two.
-    const stale = page.getByText(codes.stale, { exact: false });
+    const stale = page.getByText(codes.stale, { exact: false }).filter({ visible: true });
     expect(
-      await pageUntilVisible(page, "purchases", stale, { timeout: 20_000 }),
+      await pageUntilVisible(page, "programmes", stale, { timeout: 20_000 }),
       `${codes.stale} on any page of the list`
     ).toBe(true);
-    expect(await countAcrossPages(page, "purchases", page.getByText(codes.fresh, { exact: false }))).toBe(0);
+    expect(
+      await countAcrossPages(page, "programmes", page.getByText(codes.fresh, { exact: false }).filter({ visible: true }))
+    ).toBe(0);
   });
 
-  test("UP-002: the filter is a filter, and unticking it shows everything again", async ({
+  test("UP-002: the age is a filter, and removing it shows the fresh purchase too", async ({
     page,
     context,
   }) => {
+    test.setTimeout(90_000);
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
-    await page.goto(`${BASE}/admin/dashboard?section=catalog&tab=purchases&view=unscheduled`);
+    await page.goto(`${BASE}/admin/dashboard?section=programmes&tab=all&view=unscheduled`);
 
-    const nothingBooked = page.getByRole("checkbox", { name: "Nothing booked yet" }).first();
-    await expect(nothingBooked).toBeChecked();
-    await nothingBooked.uncheck();
-    await expect(nothingBooked).not.toBeChecked();
+    const age = page.getByRole("button", { name: /Paid over 24 hours ago/ }).filter({ visible: true });
+    await expect(age).toBeVisible({ timeout: 60_000 });
+    await age.click();
+    await expect(age).toHaveCount(0);
+    // Still on the stage: both fixtures have nothing booked.
+    const stage = page.getByRole("button", { name: /Paid - nothing booked/ }).filter({ visible: true }).first();
+    await expect(stage).toHaveAttribute("aria-pressed", "true");
+    test.skip(!codes.fresh, "this database does not stamp purchase codes");
+    expect(
+      await pageUntilVisible(page, "programmes", page.getByText(codes.fresh, { exact: false }).filter({ visible: true }), {
+        timeout: 20_000,
+      })
+    ).toBe(true);
   });
 
-  // Two controls that look alike and mean the same thing are worse than one,
-  // so this pins that they are different: "has sessions left" is true of
-  // nearly every active purchase, and "nothing booked yet" is the run that
-  // never started.
-  test("UP-003: both filters exist and are distinct", async ({ page, context }) => {
+  // The stage is a toggle: tapping it again clears it, and the URL follows,
+  // so a filtered list is always a link to itself.
+  test("UP-003: the stage toggles, and the URL keeps the filter", async ({ page, context }) => {
+    test.setTimeout(90_000);
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
-    await page.goto(`${BASE}/admin/dashboard?section=catalog&tab=purchases`);
+    await page.goto(`${BASE}/admin/dashboard?section=programmes&tab=all`);
 
-    await expect(page.getByRole("checkbox", { name: "Has unscheduled sessions" }).first()).toBeVisible();
-    await expect(page.getByRole("checkbox", { name: "Nothing booked yet" }).first()).toBeVisible();
-    await expect(page.getByRole("checkbox", { name: "Has unscheduled visits" }).first()).toBeVisible();
+    const stage = page.getByRole("button", { name: /Paid - nothing booked/ }).filter({ visible: true }).first();
+    await expect(stage).toHaveAttribute("aria-pressed", "false", { timeout: 60_000 });
+    await stage.click();
+    await expect(stage).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => new URL(page.url()).searchParams.get("pg_stage")).toBe("paid_unbooked");
+    await stage.click();
+    await expect(stage).toHaveAttribute("aria-pressed", "false");
+    await expect.poll(() => new URL(page.url()).searchParams.get("pg_stage")).toBeNull();
   });
 });

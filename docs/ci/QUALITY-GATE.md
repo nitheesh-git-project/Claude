@@ -238,6 +238,15 @@ Every required failure blocks the merge, whatever its priority.
 `docs/ci/INVESTIGATE.md` is the fix-and-retest procedure and the prompt
 to use with Claude Code. No CI job calls an AI service.
 
+## Before the push
+
+`npm run check:merge-ready` runs the static jobs and lists the specs the
+change can reach. `-- --e2e` runs those specs against the project in
+`.env.local` and prints only the failures. Rules and flags:
+`docs/rules/testing.md`, "The pre-merge quality gate". It catches most of
+what a runner would, so a PR's first CI run is a confirmation rather than a
+discovery.
+
 ## Reproducing locally
 
 Needs Docker, the Supabase CLI (the version in the workflow's

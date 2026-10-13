@@ -21,7 +21,7 @@ const MIN_REASON_LENGTH = 10;
 // seen the patient. Withdrawing closes the thread and frees the
 // one-active-plan slot, so the right therapist can recommend properly.
 export async function POST(request: NextRequest) {
-  const adminUser = await requireAdminScope("sessions");
+  const adminUser = await requireAdminScope("programmes");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

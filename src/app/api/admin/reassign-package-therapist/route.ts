@@ -18,7 +18,7 @@ import { serverError } from "@/lib/apiError";
 // the therapist who actually ran them, which is both historically
 // accurate and the correct payout attribution.
 export async function POST(request: NextRequest) {
-  const adminUser = await requireAdminScope("catalog");
+  const adminUser = await requireAdminScope("programmes");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

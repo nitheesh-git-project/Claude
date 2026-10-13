@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Modal from "@/components/admin/Modal";
 import { ADMIN_ACTIVITY_LABELS } from "@/lib/adminActivityLog";
+import { LOG_ROLE_LABEL, rowRole, userActivityLabel } from "@/lib/userActivity";
 import { isFirstValue, readableDetails } from "@/lib/activityDetails";
 import { MIN_RETENTION_DAYS } from "@/lib/activityLog";
 import type { ActivityRow } from "@/components/admin/AdminActivityLogTab";
@@ -23,7 +24,11 @@ export function formatWhen(iso: string) {
 /** How an action reads. Falls through to the stored key rather than hiding
  *  an action nobody has named yet -- an unlabelled row is still evidence. */
 export function describeAction(action: string) {
-  return ADMIN_ACTIVITY_LABELS[action as keyof typeof ADMIN_ACTIVITY_LABELS] ?? action;
+  return (
+    ADMIN_ACTIVITY_LABELS[action as keyof typeof ADMIN_ACTIVITY_LABELS] ??
+    userActivityLabel(action) ??
+    action
+  );
 }
 
 // One entry, in full.
@@ -68,9 +73,19 @@ export default function ActivityDetailDialog({
       backLabel="Back to this record's history"
     >
       <div className="space-y-5">
+        {row.summary && (
+          <p className="rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-700">{row.summary}</p>
+        )}
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Fact label="Admin" value={row.actorName} />
+          <Fact label={LOG_ROLE_LABEL[rowRole(row)]} value={row.actorName} />
           <Fact label="When" value={formatWhen(row.createdAt)} />
+          {/* The feed's subjects -- what the Logs filters run on -- so an
+              entry can be read against the same fields it was found by. */}
+          {row.patientName && <Fact label="Patient" value={row.patientName} />}
+          {row.therapistName && <Fact label="Therapist" value={row.therapistName} />}
+          {row.programmeCode && <Fact label="Programme ID" value={row.programmeCode} />}
+          {row.sessionCode && <Fact label="Session" value={row.sessionCode} />}
+          {row.conditionName && <Fact label="Condition" value={row.conditionName} />}
           <div>
             <dt className="text-[11px] font-semibold text-slate-500">Subject</dt>
             <dd className="mt-0.5 break-words text-xs font-semibold text-slate-800">

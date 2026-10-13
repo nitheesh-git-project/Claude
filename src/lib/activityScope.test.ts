@@ -36,6 +36,7 @@ describe("ACTION_DOMAIN", () => {
     const sections: string[] = [
       "today",
       "sessions",
+      "programmes",
       "people",
       "money",
       "catalog",

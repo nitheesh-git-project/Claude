@@ -10199,6 +10199,8 @@ begin
     admin_activity_log,
     -- Its gaps go with it: a reset empties the history they are missing from.
     admin_activity_gaps,
+    -- Patients', therapists' and hospitals' side of the same history.
+    user_activity_log,
     -- Measurements of bookings the reset removes.
     checkout_timings,
     admin_impersonation_sessions,
@@ -10229,6 +10231,9 @@ begin
     therapist_schedule_state,
     patient_referrals,
     b2b_leads,
+    -- The record of who was turned away goes with the accounts and leads
+    -- the reset removes (declined_applications, at the end of this file).
+    declined_applications,
     home_visit_waitlist,
     home_visit_areas,
     home_visit_packages,
@@ -15674,3 +15679,1250 @@ alter table site_settings add column if not exists home_visit_outside_india bool
 -- (src/app/dark-theme.css), and the page follows the device live if it
 -- changes. Configuration, so the debug data reset leaves it alone.
 alter table site_settings add column if not exists follow_device_theme boolean not null default false;
+
+-- ===========================================================================
+-- Declined applications: who was turned away, and why.
+--
+-- Declining a patient or therapist signup deletes the account
+-- (decline_pending_account, above), and declining a hospital inquiry only
+-- set b2b_leads.status. Neither asked why, so a decline left nothing behind
+-- but one "Declined account" line in the activity log: no admin could see
+-- who had been turned away, and a person declined last month reappeared in
+-- Approvals looking brand new.
+--
+-- Each decline now writes a snapshot of the applicant -- the contact details
+-- and what they applied with, since the account itself is gone -- plus a
+-- required reason, in the same transaction as the decline. People ->
+-- Declined lists them, and Approvals matches each new signup against them
+-- by email or phone (src/lib/declineReasons.ts).
+--
+-- `source_id` is the deleted profile's id, or the b2b_leads row's id. No
+-- foreign key: for a signup the row it named no longer exists, which is the
+-- point of keeping a snapshot.
+--
+-- Service role only. Every reader and writer is a route behind
+-- requireAdminScope("people"); the table has RLS on and no policy, so a
+-- browser session -- an admin's included -- reads and writes nothing.
+-- ===========================================================================
+
+create table if not exists declined_applications (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null check (kind in ('patient', 'therapist', 'hospital')),
+  source_id uuid not null,
+  full_name text,
+  email text,
+  phone text,
+  details jsonb not null default '{}'::jsonb,
+  applied_at timestamptz,
+  -- Keep in step with DECLINE_REASONS_BY_KIND in src/lib/declineReasons.ts.
+  reason_code text not null check (reason_code in (
+    'incomplete_details', 'credentials_unverified', 'specialty_not_offered',
+    'outside_service_area', 'duplicate', 'unreachable', 'not_a_fit', 'other'
+  )),
+  reason_note text check (reason_note is null or char_length(reason_note) <= 500),
+  -- `set null` so an admin account can still be removed; the append-only
+  -- guard below lets exactly that update through.
+  declined_by uuid references profiles(id) on delete set null,
+  declined_at timestamptz not null default now(),
+  -- "Other" says what it was, with the same ten-character floor every other
+  -- decline in this file holds.
+  constraint declined_applications_other_needs_note check (
+    reason_code <> 'other' or char_length(btrim(coalesce(reason_note, ''))) >= 10
+  )
+);
+
+create index if not exists declined_applications_declined_at_idx
+  on declined_applications (declined_at desc);
+create index if not exists declined_applications_email_idx
+  on declined_applications (lower(email));
+-- One record per decline: a retried request never lists a person twice.
+create unique index if not exists declined_applications_one_per_source
+  on declined_applications (kind, source_id);
+
+alter table declined_applications enable row level security;
+revoke all on declined_applications from anon, authenticated;
+
+-- A record of a decision, so it is never edited. DELETE stays allowed (the
+-- e2e suite clears its own rows, and the debug reset truncates), and the
+-- one UPDATE let through is the `on delete set null` of declined_by when an
+-- admin account is removed -- everything else about the row is frozen.
+create or replace function public.declined_applications_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.declined_by is null
+     and old.declined_by is not null
+     and (to_jsonb(new) - 'declined_by') = (to_jsonb(old) - 'declined_by') then
+    return new;
+  end if;
+  raise exception
+    'declined_applications is append-only: a decline may be recorded, never edited';
+end;
+$$;
+
+revoke all on function public.declined_applications_is_append_only() from public, anon, authenticated;
+
+drop trigger if exists trg_declined_applications_append_only on declined_applications;
+create trigger trg_declined_applications_append_only
+  before update on declined_applications
+  for each row execute function public.declined_applications_is_append_only();
+
+-- Declining a pending signup, now with its reason and record.
+--
+-- Same lock and same outcomes as the one-argument version above ('declined',
+-- 'not_pending', 'not_found'); what is new is that the applicant's snapshot
+-- is written under the same lock, before the delete. The route validates the
+-- reason first (src/lib/declineReasons.ts); the CHECKs above hold it for any
+-- other caller. The one-argument version is dropped so no caller can decline
+-- without leaving the record.
+create or replace function public.decline_pending_account(
+  p_user_id uuid,
+  p_reason_code text,
+  p_reason_note text,
+  p_declined_by uuid
+)
+returns text
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_profile public.profiles%rowtype;
+begin
+  select * into v_profile
+  from public.profiles
+  where id = p_user_id
+  for update;
+
+  if not found then
+    return 'not_found';
+  end if;
+  if v_profile.approved or v_profile.role not in ('therapist', 'patient') then
+    return 'not_pending';
+  end if;
+
+  insert into public.declined_applications (
+    kind, source_id, full_name, email, phone, details, applied_at,
+    reason_code, reason_note, declined_by
+  ) values (
+    v_profile.role, v_profile.id, v_profile.full_name, v_profile.email, v_profile.phone,
+    jsonb_strip_nulls(jsonb_build_object(
+      'credentials', v_profile.credentials,
+      'specialization', v_profile.specialization
+    )),
+    v_profile.created_at,
+    p_reason_code, nullif(btrim(coalesce(p_reason_note, '')), ''), p_declined_by
+  )
+  on conflict (kind, source_id) do nothing;
+
+  delete from auth.users where id = p_user_id;
+  return 'declined';
+end;
+$$;
+
+revoke all on function public.decline_pending_account(uuid, text, text, uuid) from public, anon, authenticated;
+drop function if exists public.decline_pending_account(uuid);
+
+-- Declining a hospital inquiry: the status and the record in one step.
+--
+-- Returns 'declined', 'already_declined' (nothing written -- the record from
+-- the first decline stands), 'onboarded' (it is a partner now; refused, as
+-- update-lead-status refuses it) or 'not_found'.
+create or replace function public.decline_b2b_lead(
+  p_lead_id uuid,
+  p_reason_code text,
+  p_reason_note text,
+  p_declined_by uuid
+)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_lead public.b2b_leads%rowtype;
+begin
+  select * into v_lead from public.b2b_leads where id = p_lead_id for update;
+  if not found then
+    return 'not_found';
+  end if;
+  if v_lead.status = 'onboarded' then
+    return 'onboarded';
+  end if;
+  if v_lead.status = 'declined' then
+    return 'already_declined';
+  end if;
+
+  update public.b2b_leads set status = 'declined' where id = p_lead_id;
+
+  insert into public.declined_applications (
+    kind, source_id, full_name, email, phone, details, applied_at,
+    reason_code, reason_note, declined_by
+  ) values (
+    'hospital', v_lead.id, v_lead.name, v_lead.email, v_lead.phone,
+    jsonb_strip_nulls(jsonb_build_object(
+      'org_details', v_lead.org_details,
+      'source', v_lead.source
+    )),
+    v_lead.created_at,
+    p_reason_code, nullif(btrim(coalesce(p_reason_note, '')), ''), p_declined_by
+  )
+  on conflict (kind, source_id) do nothing;
+
+  return 'declined';
+end;
+$$;
+
+revoke all on function public.decline_b2b_lead(uuid, text, text, uuid) from public, anon, authenticated;
+
+-- The admin dashboard reads both of these -- People -> Declined lists
+-- declined_applications, and the patient search matches Razorpay ids from
+-- payments -- so both join the realtime publication (ADMIN_REALTIME_TABLES):
+-- a decline or a payment made by a second admin or the gateway reaches an
+-- open dashboard without a reload. RLS still decides what each subscriber
+-- receives, so a patient's own subscription sees only their own payments.
+do $$
+begin
+  alter publication supabase_realtime add table declined_applications;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table payments;
+exception when duplicate_object then null;
+end $$;
+
+-- ===========================================================================
+-- Promo codes on recommended programmes
+-- ===========================================================================
+-- A recommendation used to open Razorpay straight from its card, so there
+-- was nowhere to type a code. It now has its own review-and-pay page
+-- (/patient/dashboard/suggested/checkout), and a code may take money off the
+-- programme -- but only a code an admin has said may.
+--
+-- `valid_on_programmes` is off by default, and that default is the point: an
+-- existing "20% off your first session" campaign must not silently become
+-- 20% off a twelve-session bundle the day this ships. A code with it on still
+-- works on a single session exactly as before.
+alter table promo_codes add column if not exists valid_on_programmes boolean not null default false;
+
+-- The claim lives on the purchase, the way a session's lives on the
+-- appointment: one place per claim, so the count and the money cannot
+-- disagree. No `on delete` clause, like appointments.promo_code_id -- a
+-- claimed code is never deleted, only paused, and the foreign key is what
+-- holds that for a hand-run DELETE too.
+--
+-- All four money facts beside what was charged: amount_paid_paise keeps its
+-- meaning (what was collected for the programme, travel excluded), and
+-- list_price_paise + discount_paise say what it would have been and how much
+-- the code took off, so the books can tell "sold cheap" from "discounted".
+alter table patient_package_purchases add column if not exists promo_code_id uuid references promo_codes(id);
+alter table patient_package_purchases add column if not exists promo_claimed_at timestamptz;
+alter table patient_package_purchases add column if not exists discount_paise integer not null default 0
+  check (discount_paise >= 0);
+alter table patient_package_purchases add column if not exists list_price_paise integer
+  check (list_price_paise is null or list_price_paise >= 0);
+
+alter table home_visit_package_purchases add column if not exists promo_code_id uuid references promo_codes(id);
+alter table home_visit_package_purchases add column if not exists promo_claimed_at timestamptz;
+alter table home_visit_package_purchases add column if not exists discount_paise integer not null default 0
+  check (discount_paise >= 0);
+alter table home_visit_package_purchases add column if not exists list_price_paise integer
+  check (list_price_paise is null or list_price_paise >= 0);
+
+-- The cap is counted off these, so they are indexed the way appointments'
+-- (promo_code_id, promo_claimed_at desc) is.
+create index if not exists patient_package_purchases_promo_idx
+  on patient_package_purchases (promo_code_id, promo_claimed_at desc)
+  where promo_code_id is not null;
+create index if not exists home_visit_package_purchases_promo_idx
+  on home_visit_package_purchases (promo_code_id, promo_claimed_at desc)
+  where promo_code_id is not null;
+
+-- How many times a code is in use, across every place a claim can live.
+--
+-- One definition, read by both claim functions under the promo row's lock,
+-- so a session checkout and a programme checkout at the same moment are one
+-- race settled by one lock -- "100 uses" means 100 whichever kind of
+-- checkout the hundredth is. What counts is unchanged for a booking (paid,
+-- on pay-later terms, or still inside the 30-minute checkout hold) and the
+-- same for a purchase (paid, or inside the hold); a cancelled or refunded
+-- purchase was never kept, as a cancelled booking is not. `p_patient_id`
+-- null counts everyone; the two exclusions are the row being claimed for, so
+-- re-opening checkout on it is not a second claim.
+create or replace function public.promo_code_claim_count(
+  p_promo_id uuid,
+  p_patient_id uuid,
+  p_exclude_appointment_id uuid,
+  p_exclude_purchase_id uuid
+)
+returns integer
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select (
+    (select count(*) from appointments a
+      where a.promo_code_id = p_promo_id
+        and (p_patient_id is null or a.patient_id = p_patient_id)
+        and a.id is distinct from p_exclude_appointment_id
+        and a.status <> 'cancelled'
+        and (a.payment_status = 'paid'
+             or a.payment_terms = 'pay_later'
+             or a.promo_claimed_at > now() - interval '30 minutes'))
+    + (select count(*) from patient_package_purchases p
+      where p.promo_code_id = p_promo_id
+        and (p_patient_id is null or p.patient_id = p_patient_id)
+        and p.id is distinct from p_exclude_purchase_id
+        and p.status not in ('cancelled', 'refunded')
+        and (p.payment_status = 'paid'
+             or p.promo_claimed_at > now() - interval '30 minutes'))
+    + (select count(*) from home_visit_package_purchases h
+      where h.promo_code_id = p_promo_id
+        and (p_patient_id is null or h.patient_id = p_patient_id)
+        and h.id is distinct from p_exclude_purchase_id
+        and h.status not in ('cancelled', 'refunded')
+        and (h.payment_status = 'paid'
+             or h.promo_claimed_at > now() - interval '30 minutes'))
+  )::integer;
+$$;
+
+revoke all on function public.promo_code_claim_count(uuid, uuid, uuid, uuid) from public;
+revoke all on function public.promo_code_claim_count(uuid, uuid, uuid, uuid) from anon;
+revoke all on function public.promo_code_claim_count(uuid, uuid, uuid, uuid) from authenticated;
+
+-- The session claim, re-created so its cap also counts programme claims.
+-- Same lock, same refusals, same hold, same write -- only the count moved
+-- into promo_code_claim_count() above. This is now the last declaration, so
+-- it is the one that runs.
+create or replace function public.claim_promo_code(
+  p_code text,
+  p_patient_id uuid,
+  p_appointment_id uuid,
+  p_patient_has_paid_before boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_promo promo_codes%rowtype;
+  v_used integer;
+  v_used_by_patient integer;
+begin
+  select * into v_promo from promo_codes
+    where code = upper(btrim(p_code))
+    for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  if not v_promo.active then
+    return jsonb_build_object('ok', false, 'reason', 'inactive');
+  end if;
+  if v_promo.starts_at is not null and now() < v_promo.starts_at then
+    return jsonb_build_object('ok', false, 'reason', 'not_started');
+  end if;
+  if v_promo.ends_at is not null and now() >= v_promo.ends_at then
+    return jsonb_build_object('ok', false, 'reason', 'expired');
+  end if;
+  if v_promo.first_session_only and p_patient_has_paid_before then
+    return jsonb_build_object('ok', false, 'reason', 'first_session_only');
+  end if;
+
+  v_used := public.promo_code_claim_count(v_promo.id, null, p_appointment_id, null);
+  if v_promo.max_redemptions is not null and v_used >= v_promo.max_redemptions then
+    return jsonb_build_object('ok', false, 'reason', 'exhausted');
+  end if;
+
+  v_used_by_patient := public.promo_code_claim_count(v_promo.id, p_patient_id, p_appointment_id, null);
+  if v_used_by_patient >= v_promo.max_per_patient then
+    return jsonb_build_object('ok', false, 'reason', 'already_used');
+  end if;
+
+  update appointments
+    set promo_code_id = v_promo.id,
+        promo_claimed_at = now()
+    where id = p_appointment_id
+      and patient_id = p_patient_id
+      and payment_status <> 'paid';
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'promo_code_id', v_promo.id,
+    'code', v_promo.code,
+    'kind', v_promo.kind,
+    'value', v_promo.value,
+    'min_spend_paise', v_promo.min_spend_paise,
+    'max_per_patient', v_promo.max_per_patient,
+    'first_session_only', v_promo.first_session_only
+  );
+end;
+$$;
+
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from public;
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from anon;
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from authenticated;
+
+-- The programme claim: the same lock and the same count, written onto the
+-- unpaid purchase a recommendation's checkout is paying for. Refuses a code
+-- whose `valid_on_programmes` is off ('not_for_programmes'), and a purchase
+-- that is already paid or is not this patient's ('unknown').
+create or replace function public.claim_promo_code_for_purchase(
+  p_code text,
+  p_patient_id uuid,
+  p_purchase_kind text,
+  p_purchase_id uuid,
+  p_patient_has_paid_before boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_promo promo_codes%rowtype;
+  v_used integer;
+  v_used_by_patient integer;
+begin
+  if p_purchase_kind not in ('session_package', 'home_visit_package') then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  select * into v_promo from promo_codes
+    where code = upper(btrim(p_code))
+    for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  if not v_promo.active then
+    return jsonb_build_object('ok', false, 'reason', 'inactive');
+  end if;
+  if not v_promo.valid_on_programmes then
+    return jsonb_build_object('ok', false, 'reason', 'not_for_programmes');
+  end if;
+  if v_promo.starts_at is not null and now() < v_promo.starts_at then
+    return jsonb_build_object('ok', false, 'reason', 'not_started');
+  end if;
+  if v_promo.ends_at is not null and now() >= v_promo.ends_at then
+    return jsonb_build_object('ok', false, 'reason', 'expired');
+  end if;
+  if v_promo.first_session_only and p_patient_has_paid_before then
+    return jsonb_build_object('ok', false, 'reason', 'first_session_only');
+  end if;
+
+  v_used := public.promo_code_claim_count(v_promo.id, null, null, p_purchase_id);
+  if v_promo.max_redemptions is not null and v_used >= v_promo.max_redemptions then
+    return jsonb_build_object('ok', false, 'reason', 'exhausted');
+  end if;
+
+  v_used_by_patient := public.promo_code_claim_count(v_promo.id, p_patient_id, null, p_purchase_id);
+  if v_used_by_patient >= v_promo.max_per_patient then
+    return jsonb_build_object('ok', false, 'reason', 'already_used');
+  end if;
+
+  if p_purchase_kind = 'session_package' then
+    update patient_package_purchases
+      set promo_code_id = v_promo.id,
+          promo_claimed_at = now()
+      where id = p_purchase_id
+        and patient_id = p_patient_id
+        and payment_status <> 'paid';
+  else
+    update home_visit_package_purchases
+      set promo_code_id = v_promo.id,
+          promo_claimed_at = now()
+      where id = p_purchase_id
+        and patient_id = p_patient_id
+        and payment_status <> 'paid';
+  end if;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'promo_code_id', v_promo.id,
+    'code', v_promo.code,
+    'kind', v_promo.kind,
+    'value', v_promo.value,
+    'min_spend_paise', v_promo.min_spend_paise,
+    'max_per_patient', v_promo.max_per_patient,
+    'first_session_only', v_promo.first_session_only
+  );
+end;
+$$;
+
+revoke all on function public.claim_promo_code_for_purchase(text, uuid, text, uuid, boolean) from public;
+revoke all on function public.claim_promo_code_for_purchase(text, uuid, text, uuid, boolean) from anon;
+revoke all on function public.claim_promo_code_for_purchase(text, uuid, text, uuid, boolean) from authenticated;
+
+-- Taking a code back off an unpaid purchase: a retry without one, a refused
+-- one, or one that turned out to take nothing off. Never touches a paid row.
+create or replace function public.release_promo_code_for_purchase(
+  p_purchase_kind text,
+  p_purchase_id uuid,
+  p_patient_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_purchase_kind = 'session_package' then
+    update patient_package_purchases
+      set promo_code_id = null,
+          promo_claimed_at = null
+      where id = p_purchase_id
+        and patient_id = p_patient_id
+        and payment_status <> 'paid';
+  elsif p_purchase_kind = 'home_visit_package' then
+    update home_visit_package_purchases
+      set promo_code_id = null,
+          promo_claimed_at = null
+      where id = p_purchase_id
+        and patient_id = p_patient_id
+        and payment_status <> 'paid';
+  else
+    return false;
+  end if;
+  return found;
+end;
+$$;
+
+revoke all on function public.release_promo_code_for_purchase(text, uuid, uuid) from public;
+revoke all on function public.release_promo_code_for_purchase(text, uuid, uuid) from anon;
+revoke all on function public.release_promo_code_for_purchase(text, uuid, uuid) from authenticated;
+
+-- ===========================================================================
+-- Home visits are priced per condition, one visit each.
+--
+-- Catalog -> Conditions -> Home visits replaces the old Home Visit Packages
+-- editor. There is one clinic-wide home-visit price, and any condition may
+-- set its own price instead; a visit is always one visit, with no count, no
+-- validity and no days. Travel is still added per visit from Service Areas.
+-- Hands-on recommendations are priced from the same figures
+-- (src/lib/homeVisitRates.ts, loadRecommendableRates).
+--
+-- No new column or table: a price is a `home_visit_packages` row with
+-- `visit_count = 1` and `care_plan_course = false` -- `category_id is null`
+-- for the clinic-wide price, a condition's id for its own. Both purchase
+-- tables need a `package_id`, and every booking route already reads its
+-- terms through one. Multi-visit rows and course rows are left exactly as
+-- they are: old purchases point at them, and they are simply no longer
+-- offered on /home-visit or the booking hub.
+--
+-- 1. Reconcile duplicates. Among active one-visit non-course rows, keep one
+--    per condition (and one clinic-wide): the cheapest, then the oldest,
+--    then the lowest id -- the figure loadRecommendableRates already
+--    charged -- and switch the rest off. Switched off, never deleted.
+-- 2. If single-visit rows exist but none is clinic-wide, create the
+--    clinic-wide price from the cheapest of them, so every condition that
+--    was priced before is still priced after (the old reader fell back to
+--    the cheapest row of any condition).
+-- 3. Price rows carry no validity of their own; the clinic-wide default in
+--    Settings decides when a visit lapses.
+-- 4. The unique partial index makes "at most one active price per key" a
+--    fact rather than a habit, so two admins saving at once get a 23505
+--    (answered 409 by /api/admin/set-home-visit-price) instead of two prices.
+--
+-- Re-runnable: on a second run step 1 finds no duplicates, step 2 finds the
+-- clinic-wide row, step 3 finds nothing to null, and the index exists.
+
+do $$
+declare
+  v_nil constant uuid := '00000000-0000-0000-0000-000000000000';
+begin
+  with ranked as (
+    select
+      id,
+      row_number() over (
+        partition by coalesce(category_id, v_nil)
+        order by price_paise asc, created_at asc, id asc
+      ) as rn
+    from home_visit_packages
+    where active and visit_count = 1 and not care_plan_course
+  )
+  update home_visit_packages p
+     set active = false
+    from ranked r
+   where r.id = p.id
+     and r.rn > 1;
+
+  if not exists (
+    select 1 from home_visit_packages
+     where active and visit_count = 1 and not care_plan_course and category_id is null
+  ) and exists (
+    select 1 from home_visit_packages
+     where active and visit_count = 1 and not care_plan_course
+  ) then
+    insert into home_visit_packages (
+      title, visit_count, price_paise, visit_duration_minutes, travel_fee_included,
+      category_id, active, therapist_locked, recommendable
+    )
+    select 'Home visit', 1, price_paise, visit_duration_minutes, travel_fee_included,
+           null, true, true, true
+      from home_visit_packages
+     where active and visit_count = 1 and not care_plan_course
+     order by price_paise asc, created_at asc, id asc
+     limit 1;
+  end if;
+
+  update home_visit_packages
+     set validity_days = null
+   where active and visit_count = 1 and not care_plan_course
+     and validity_days is not null;
+end $$;
+
+create unique index if not exists home_visit_packages_one_rate_per_category
+  on home_visit_packages ((coalesce(category_id, '00000000-0000-0000-0000-000000000000'::uuid)))
+  where active and visit_count = 1 and not care_plan_course;
+
+-- ---------------------------------------------------------------------
+-- Programme IDs: PED_PKG001, PED_HV001 (bug pass, item 6).
+--
+-- A programme had two codes depending on which table it sat in (SP0001 for
+-- an online course, HS0001 for home visits), neither saying what it was for,
+-- and a recommendation had no code at all until somebody paid for it -- so
+-- an admin could not name the thing they were looking at, and the owner
+-- could not tell one paediatric course from another. Now every programme
+-- carries one ID from the moment its recommendation is published:
+--
+--   <condition code>_<PKG | HV><number>     e.g. PED_PKG001, ORT_HV004
+--
+-- The condition code is `treatment_categories.short_code` (2-4 capitals,
+-- unique, made from the name and editable on Catalog -> Conditions). The
+-- number counts per (condition code, kind) in `programme_code_counters`,
+-- incremented with INSERT ... ON CONFLICT DO UPDATE, which takes the row
+-- lock -- so two programmes written at once serialise on the counter and
+-- can never draw the same number. App code never mints one.
+--
+-- Where the ID lives:
+--   * care_plans.programme_code -- set when a version is first published
+--     (current_version_id set). If an unbought recommendation is rewritten
+--     onto a different condition or mode its ID is re-issued and the old
+--     one kept in previous_programme_codes, so a search still finds it.
+--     Frozen once the plan is accepted.
+--   * patient_package_purchases / home_visit_package_purchases
+--     .programme_code -- copied from the plan for a bought recommendation
+--     (re-synced when the purchase is paid, so a checkout started on an
+--     older version still lands on the plan's ID), minted fresh for an old
+--     catalog course. A single home visit is a consultation, not a
+--     programme, and gets none.
+-- The displayed form appends completed/total (PED_PKG001-2/6); that part is
+-- derived on read (src/lib/programmeId.ts) and never stored, because it
+-- changes with every session.
+--
+-- The old SP/HS purchase_code columns stay exactly as they were and stay
+-- searchable: they are on receipts and in emails already sent.
+--
+-- Re-runnable: columns, constraints, indexes and the table are guarded; the
+-- functions are `create or replace`; every backfill only touches rows whose
+-- code is still null, so a second run assigns nothing and draws no numbers.
+-- ---------------------------------------------------------------------
+
+alter table treatment_categories add column if not exists short_code text;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'treatment_categories_short_code_format'
+  ) then
+    alter table treatment_categories add constraint treatment_categories_short_code_format
+      check (short_code is null or short_code ~ '^[A-Z]{2,4}$');
+  end if;
+end $$;
+
+create unique index if not exists treatment_categories_short_code_unique
+  on treatment_categories (short_code) where short_code is not null;
+
+alter table care_plans add column if not exists programme_code text;
+alter table care_plans add column if not exists previous_programme_codes text[] not null default '{}';
+alter table patient_package_purchases add column if not exists programme_code text;
+alter table home_visit_package_purchases add column if not exists programme_code text;
+
+-- One ID per recommendation thread. Purchases are deliberately not unique:
+-- a patient who started checkout twice for the same recommendation has two
+-- purchase rows (one unpaid) carrying that recommendation's one ID.
+create unique index if not exists care_plans_programme_code_unique
+  on care_plans (programme_code) where programme_code is not null;
+create index if not exists patient_package_purchases_programme_code_idx
+  on patient_package_purchases (programme_code) where programme_code is not null;
+create index if not exists home_visit_package_purchases_programme_code_idx
+  on home_visit_package_purchases (programme_code) where programme_code is not null;
+
+create table if not exists programme_code_counters (
+  prefix text not null check (prefix ~ '^[A-Z]{2,4}$'),
+  kind text not null check (kind in ('PKG', 'HV')),
+  last_value integer not null default 0 check (last_value >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (prefix, kind)
+);
+
+-- RLS in the same change. Read by an admin only; written by
+-- next_programme_code() alone (security definer, below), never by a route.
+alter table programme_code_counters enable row level security;
+
+drop policy if exists "programme_code_counters_select_admin" on programme_code_counters;
+create policy "programme_code_counters_select_admin" on programme_code_counters
+  for select using (is_admin());
+
+revoke insert, update, delete on programme_code_counters from anon, authenticated;
+
+-- The candidate condition codes for a name, best first. Mirrors
+-- conditionCodeCandidates() in src/lib/programmeId.ts exactly (its unit
+-- test pins the same names to the same answers), so the form's suggestion is
+-- the code the database would pick:
+--   1. the first three letters of the first word   (Paediatric -> PAE)
+--   2. the initials of the first four words        (Spine & Posture Rehab -> SPR)
+--   3. the first four letters of the first word
+--   4. the first letter + any two later letters, in order
+--   5. the first letter + AA..ZZ
+create or replace function public.condition_short_code_candidates(p_title text)
+returns text[]
+language plpgsql
+immutable
+set search_path = public
+as $$
+declare
+  v_words text[];
+  v_letters text;
+  v_l text;
+  v_out text[] := '{}';
+  v_first text;
+  i integer;
+  j integer;
+  a integer;
+  b integer;
+begin
+  select coalesce(array_agg(w order by ord), '{}')
+    into v_words
+    from unnest(regexp_split_to_array(upper(coalesce(p_title, '')), '[^A-Z]+'))
+         with ordinality as t(w, ord)
+   where w <> '';
+  v_letters := array_to_string(v_words, '');
+
+  if coalesce(length(v_words[1]), 0) >= 2 then
+    v_out := v_out || left(v_words[1], 3);
+  end if;
+  if coalesce(array_length(v_words, 1), 0) >= 2 then
+    v_out := v_out || (
+      select string_agg(left(w, 1), '' order by ord)
+        from unnest(v_words[1:4]) with ordinality as t(w, ord)
+    );
+  end if;
+  if coalesce(length(v_words[1]), 0) >= 4 then
+    v_out := v_out || left(v_words[1], 4);
+  end if;
+
+  v_l := left(v_letters, 12);
+  if length(v_l) >= 3 then
+    for i in 2..length(v_l) loop
+      for j in (i + 1)..length(v_l) loop
+        v_out := v_out || (substr(v_l, 1, 1) || substr(v_l, i, 1) || substr(v_l, j, 1));
+      end loop;
+    end loop;
+  end if;
+
+  v_first := coalesce(nullif(substr(v_l, 1, 1), ''), 'C');
+  for a in 65..90 loop
+    for b in 65..90 loop
+      v_out := v_out || (v_first || chr(a) || chr(b));
+    end loop;
+  end loop;
+  return v_out;
+end;
+$$;
+
+revoke execute on function public.condition_short_code_candidates(text) from public, anon, authenticated;
+
+create or replace function public.pick_condition_short_code(p_title text, p_self uuid)
+returns text
+language plpgsql
+stable
+set search_path = public
+as $$
+declare
+  c text;
+begin
+  foreach c in array condition_short_code_candidates(p_title) loop
+    if not exists (
+      select 1 from treatment_categories where short_code = c and id is distinct from p_self
+    ) then
+      return c;
+    end if;
+  end loop;
+  return null;
+end;
+$$;
+
+revoke execute on function public.pick_condition_short_code(text, uuid) from public, anon, authenticated;
+
+-- A condition saved with no code gets one. Under an advisory lock, so two
+-- conditions created at once cannot both pick the same free code (the
+-- unique index would refuse the second; this makes it wait instead).
+create or replace function public.assign_condition_short_code()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.short_code is not null then
+    new.short_code := nullif(upper(btrim(new.short_code)), '');
+  end if;
+  if new.short_code is null then
+    perform pg_advisory_xact_lock(hashtext('treatment_categories.short_code'));
+    new.short_code := pick_condition_short_code(new.title, new.id);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_assign_condition_short_code on treatment_categories;
+create trigger trg_assign_condition_short_code
+  before insert or update of short_code on treatment_categories
+  for each row execute function public.assign_condition_short_code();
+
+create or replace function public.programme_prefix_for_category(p_category_id uuid)
+returns text
+language sql
+stable
+set search_path = public
+as $$
+  -- GEN for a programme with no condition (old generic packages, a
+  -- clinic-wide home-visit rate). Shared with a condition that happens to be
+  -- called General-something: one counter, so the numbers still never clash.
+  select coalesce(
+    (select short_code from treatment_categories where id = p_category_id),
+    'GEN'
+  );
+$$;
+
+revoke execute on function public.programme_prefix_for_category(uuid) from public, anon, authenticated;
+
+-- The one place a programme number is drawn.
+create or replace function public.next_programme_code(p_prefix text, p_kind text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_n integer;
+begin
+  if p_prefix is null or p_prefix !~ '^[A-Z]{2,4}$' then
+    p_prefix := 'GEN';
+  end if;
+  if p_kind not in ('PKG', 'HV') then
+    raise exception 'unknown programme kind %', p_kind;
+  end if;
+  insert into programme_code_counters (prefix, kind, last_value)
+  values (p_prefix, p_kind, 1)
+  on conflict (prefix, kind)
+    do update set last_value = programme_code_counters.last_value + 1, updated_at = now()
+  returning last_value into v_n;
+  -- lpad truncates, so a thousandth programme must not go through it.
+  return p_prefix || '_' || p_kind
+      || case when v_n < 1000 then lpad(v_n::text, 3, '0') else v_n::text end;
+end;
+$$;
+
+revoke execute on function public.next_programme_code(text, text) from public, anon, authenticated;
+
+-- What a recommendation version is: its condition code and its kind.
+create or replace function public.programme_code_parts_for_version(p_version_id uuid)
+returns table (prefix text, kind text)
+language sql
+stable
+set search_path = public
+as $$
+  select
+    programme_prefix_for_category(coalesce(
+      case
+        when (v.offer_snapshot ->> 'categoryId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          then (v.offer_snapshot ->> 'categoryId')::uuid
+      end,
+      tcp.category_id,
+      hvp.category_id,
+      cp.category_id
+    )),
+    case when v.offer_kind = 'home_visit_package' then 'HV' else 'PKG' end
+  from care_plan_versions v
+  join care_plans cp on cp.id = v.care_plan_id
+  left join treatment_category_packages tcp on tcp.id = v.session_package_id
+  left join home_visit_packages hvp on hvp.id = v.home_visit_package_id
+  where v.id = p_version_id;
+$$;
+
+revoke execute on function public.programme_code_parts_for_version(uuid) from public, anon, authenticated;
+
+create or replace function public.assign_care_plan_programme_code()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_prefix text;
+  v_kind text;
+begin
+  if new.current_version_id is null then
+    return new;
+  end if;
+  -- Bought: the ID is on a receipt now and never moves.
+  if new.programme_code is not null and new.status = 'accepted' then
+    return new;
+  end if;
+  select p.prefix, p.kind into v_prefix, v_kind
+    from programme_code_parts_for_version(new.current_version_id) p;
+  if v_prefix is null then
+    return new;
+  end if;
+  if new.programme_code is not null
+     and starts_with(new.programme_code, v_prefix || '_' || v_kind) then
+    return new;
+  end if;
+  if new.programme_code is not null then
+    new.previous_programme_codes :=
+      array_append(coalesce(new.previous_programme_codes, '{}'), new.programme_code);
+  end if;
+  new.programme_code := next_programme_code(v_prefix, v_kind);
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_assign_care_plan_programme_code on care_plans;
+create trigger trg_assign_care_plan_programme_code
+  before insert or update of current_version_id on care_plans
+  for each row execute function public.assign_care_plan_programme_code();
+
+create or replace function public.assign_package_purchase_programme_code()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+begin
+  if new.care_plan_version_id is not null then
+    select cp.programme_code into v_code
+      from care_plan_versions v
+      join care_plans cp on cp.id = v.care_plan_id
+     where v.id = new.care_plan_version_id;
+    if v_code is not null and position('_PKG' in v_code) > 0 then
+      new.programme_code := v_code;
+      return new;
+    end if;
+  end if;
+  if new.programme_code is null then
+    new.programme_code := next_programme_code(programme_prefix_for_category(new.category_id), 'PKG');
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_assign_package_purchase_programme_code on patient_package_purchases;
+create trigger trg_assign_package_purchase_programme_code
+  before insert or update of care_plan_version_id, payment_status on patient_package_purchases
+  for each row execute function public.assign_package_purchase_programme_code();
+
+create or replace function public.assign_home_visit_purchase_programme_code()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+  v_category uuid;
+begin
+  if new.care_plan_version_id is not null then
+    select cp.programme_code into v_code
+      from care_plan_versions v
+      join care_plans cp on cp.id = v.care_plan_id
+     where v.id = new.care_plan_version_id;
+    if v_code is not null and position('_HV' in v_code) > 0 then
+      new.programme_code := v_code;
+      return new;
+    end if;
+  end if;
+  -- One visit is a consultation, not a programme.
+  if new.programme_code is null and (coalesce(new.visit_count, 0) >= 2 or new.care_plan_version_id is not null) then
+    select category_id into v_category from home_visit_packages where id = new.package_id;
+    new.programme_code := next_programme_code(programme_prefix_for_category(v_category), 'HV');
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_assign_home_visit_purchase_programme_code on home_visit_package_purchases;
+create trigger trg_assign_home_visit_purchase_programme_code
+  before insert or update of care_plan_version_id, payment_status on home_visit_package_purchases
+  for each row execute function public.assign_home_visit_purchase_programme_code();
+
+-- Backfill, in the order things happened, so the oldest programme of each
+-- condition is _001. One statement per row: rows updated by a single UPDATE
+-- cannot see each other's new codes, and the condition-code picker has to.
+do $$
+declare
+  r record;
+  v_prefix text;
+  v_kind text;
+begin
+  for r in
+    select id from treatment_categories where short_code is null
+     order by display_order, created_at, id
+  loop
+    update treatment_categories set short_code = null where id = r.id;
+  end loop;
+
+  for r in
+    select 'plan'::text as src, cp.id, cp.created_at
+      from care_plans cp
+     where cp.programme_code is null and cp.current_version_id is not null
+    union all
+    select 'pkg', p.id, p.created_at
+      from patient_package_purchases p
+     where p.programme_code is null and p.care_plan_version_id is null
+    union all
+    select 'hv', h.id, h.created_at
+      from home_visit_package_purchases h
+     where h.programme_code is null and h.care_plan_version_id is null and h.visit_count >= 2
+    order by 3, 2
+  loop
+    if r.src = 'plan' then
+      select p.prefix, p.kind into v_prefix, v_kind
+        from care_plans cp, programme_code_parts_for_version(cp.current_version_id) p
+       where cp.id = r.id;
+      if v_prefix is not null then
+        update care_plans set programme_code = next_programme_code(v_prefix, v_kind)
+         where id = r.id and programme_code is null;
+      end if;
+    elsif r.src = 'pkg' then
+      update patient_package_purchases
+         set programme_code = next_programme_code(programme_prefix_for_category(category_id), 'PKG')
+       where id = r.id and programme_code is null;
+    else
+      update home_visit_package_purchases h
+         set programme_code = next_programme_code(
+               programme_prefix_for_category((select category_id from home_visit_packages where id = h.package_id)),
+               'HV')
+       where h.id = r.id and h.programme_code is null;
+    end if;
+  end loop;
+
+  -- A bought recommendation carries its recommendation's ID.
+  update patient_package_purchases p
+     set programme_code = cp.programme_code
+    from care_plan_versions v
+    join care_plans cp on cp.id = v.care_plan_id
+   where p.care_plan_version_id = v.id
+     and p.programme_code is null
+     and cp.programme_code is not null
+     and position('_PKG' in cp.programme_code) > 0;
+  update home_visit_package_purchases h
+     set programme_code = cp.programme_code
+    from care_plan_versions v
+    join care_plans cp on cp.id = v.care_plan_id
+   where h.care_plan_version_id = v.id
+     and h.programme_code is null
+     and cp.programme_code is not null
+     and position('_HV' in cp.programme_code) > 0;
+
+  -- Anything a recommendation could not name gets its own.
+  for r in
+    select id from patient_package_purchases
+     where programme_code is null and care_plan_version_id is not null
+     order by created_at, id
+  loop
+    update patient_package_purchases
+       set programme_code = next_programme_code(programme_prefix_for_category(category_id), 'PKG')
+     where id = r.id;
+  end loop;
+  for r in
+    select id from home_visit_package_purchases
+     where programme_code is null and care_plan_version_id is not null
+     order by created_at, id
+  loop
+    update home_visit_package_purchases h
+       set programme_code = next_programme_code(
+             programme_prefix_for_category((select category_id from home_visit_packages where id = h.package_id)),
+             'HV')
+     where h.id = r.id;
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- user_activity_log: what patients, therapists, hospitals and the system did
+-- ---------------------------------------------------------------------
+-- admin_activity_log answers "what did an admin do". Logs -> All Activity is
+-- meant to answer "what happened", and a patient booking, a therapist
+-- completing a session or recommending a programme, a hospital sending a
+-- referral and a payment arriving left no entry there at all. This is the
+-- other half of that feed. It is a separate table on purpose: the admin log
+-- is scope-filtered per desk, has its own retention purge and its own
+-- gaps table, and mixing patients' actions into it would have put them in
+-- front of the three limited desks.
+--
+-- Written by recordUserActivity() (src/lib/userActivityLog.ts) through the
+-- service-role client, best-effort: a failed write is logged on the server
+-- and never blocks the action it describes. The sentence is stored, not
+-- rebuilt on read, and so are the names -- an entry has to stay readable
+-- after a person is renamed or their account is deleted, which is also why
+-- there are NO foreign keys here (the same posture as admin_activity_gaps).
+--
+-- The subject columns are what the Logs filters run on: patient, therapist,
+-- programme ID (care_plans/purchases.programme_code), condition and the
+-- session. `dedupe_key` makes one real-world event one row when two paths
+-- report it (a payment is seen by the browser callback AND the webhook).
+--
+-- Append-only by trigger, not by RLS: every route writes with the
+-- service-role client, which bypasses RLS entirely. There is no purge --
+-- unlike the admin log, nothing here ever leaves except through the data
+-- reset's TRUNCATE (listed in debug_reset_all_data()).
+create table if not exists user_activity_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid,
+  actor_role text not null check (actor_role in ('patient', 'therapist', 'hospital', 'system')),
+  actor_name text,
+  action text not null check (char_length(action) between 1 and 80),
+  summary text not null check (char_length(summary) between 1 and 400),
+  patient_id uuid,
+  patient_name text,
+  therapist_id uuid,
+  therapist_name text,
+  appointment_id uuid,
+  session_code text,
+  programme_code text,
+  category_id uuid,
+  condition_name text,
+  amount_paise integer,
+  details jsonb,
+  dedupe_key text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists user_activity_log_created_at_idx
+  on user_activity_log (created_at desc);
+create index if not exists user_activity_log_patient_idx
+  on user_activity_log (patient_id, created_at desc) where patient_id is not null;
+create index if not exists user_activity_log_therapist_idx
+  on user_activity_log (therapist_id, created_at desc) where therapist_id is not null;
+create index if not exists user_activity_log_programme_idx
+  on user_activity_log (programme_code) where programme_code is not null;
+create index if not exists user_activity_log_appointment_idx
+  on user_activity_log (appointment_id) where appointment_id is not null;
+-- A plain (not partial) unique index: ON CONFLICT (dedupe_key) from
+-- PostgREST cannot target a partial one, and NULLs never collide.
+create unique index if not exists user_activity_log_dedupe_key_idx
+  on user_activity_log (dedupe_key);
+
+alter table user_activity_log enable row level security;
+
+-- Admins read; nobody writes through the API at all (the absence of an
+-- insert policy, plus the trigger below, is the whole of "append-only").
+drop policy if exists "user_activity_log_select_admin" on user_activity_log;
+create policy "user_activity_log_select_admin" on user_activity_log
+  for select using (is_admin());
+
+drop trigger if exists user_activity_log_no_change on user_activity_log;
+create trigger user_activity_log_no_change
+  before update or delete on user_activity_log
+  for each row execute function communication_evidence_is_append_only();
+
+-- The dashboard reads user_activity_log (Logs -> All Activity), so it
+-- refreshes when one lands -- the rule every table the dashboard reads
+-- follows. On the long cooldown list in AdminShell.tsx.
+do $$
+begin
+  alter publication supabase_realtime add table user_activity_log;
+exception when duplicate_object then null;
+end $$;
+
+-- A new account is the one event no route sees (sign-up is a browser call
+-- to Supabase Auth and the profile row is made by handle_new_user), so it is
+-- logged from the profile insert. The actor is "system", not the person:
+-- an admin creating an account lands here too, and "the patient created
+-- their account" would then be false. Wrapped so that a failure here can
+-- never fail a sign-up.
+create or replace function public.log_profile_created()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  begin
+    if new.role in ('patient', 'therapist', 'hospital') then
+      insert into user_activity_log (
+        actor_role, action, summary,
+        patient_id, patient_name, therapist_id, therapist_name, details
+      ) values (
+        'system',
+        'account.created',
+        'A ' || new.role || ' account was created for ' || coalesce(nullif(new.full_name, ''), 'a new user'),
+        case when new.role = 'patient' then new.id end,
+        case when new.role = 'patient' then new.full_name end,
+        case when new.role = 'therapist' then new.id end,
+        case when new.role = 'therapist' then new.full_name end,
+        jsonb_build_object('role', new.role, 'accountId', new.id)
+      );
+    end if;
+  exception when others then
+    null;
+  end;
+  return new;
+end;
+$$;
+
+revoke all on function public.log_profile_created() from public, anon, authenticated;
+
+drop trigger if exists trg_log_profile_created on profiles;
+create trigger trg_log_profile_created
+  after insert on profiles
+  for each row execute function public.log_profile_created();
+
+-- ---------------------------------------------------------------------
+-- service_role's EXECUTE, written out rather than inherited.
+--
+-- Every RPC this application makes goes through the service-role client,
+-- and the revokes above close each security definer function to PUBLIC,
+-- anon and authenticated. Nothing in this file granted those functions
+-- back to service_role (only revoke_user_sessions and check_rate_limit
+-- named it); it was relying on Supabase's pg_default_acl to have written
+-- `service_role=X` onto each function when it was created.
+--
+-- Production did not have that. Its functions carried only the implicit
+-- PUBLIC grant, so `revoke ... from public` took service_role's access
+-- away with everyone else's, and claim_promo_code failed with
+-- "permission denied for function" -- every promo code refused as "That
+-- code couldn't be applied." The same gap sat under payment capture, the
+-- credit ledger, invites and the therapist schedule writes, each one
+-- waiting for its first call.
+--
+-- So both halves are explicit here: a grant on every function that exists
+-- when this runs, and the default for every function created after it --
+-- including ones appended below this block on a fresh database, since this
+-- file is applied by the same role that owns the schema's defaults.
+-- service_role is server-only and bypasses RLS already; this gives it
+-- nothing it was not meant to have. Re-runnable: a repeated grant is a
+-- no-op. `npm run check:grants` fails if either line goes missing.
+-- ---------------------------------------------------------------------
+grant execute on all functions in schema public to service_role;
+alter default privileges in schema public grant execute on functions to service_role;

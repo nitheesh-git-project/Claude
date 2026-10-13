@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -109,6 +110,19 @@ export async function POST(request: NextRequest) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
+
+  await recordUserActivity(admin, {
+    action: "care_plan.recommended",
+    actor: { id: user.id, role: "therapist" },
+    carePlanId: result.carePlanId,
+    appointmentId: appointmentId ?? null,
+    patientId,
+    therapistId: user.id,
+    categoryId: categoryId ?? null,
+    note: `${sessionCount} sessions`,
+    details: { versionNo: result.versionNo, sessionCount },
+    dedupeKey: `care_plan_version:${result.versionId}`,
+  });
 
   return NextResponse.json({
     success: true,

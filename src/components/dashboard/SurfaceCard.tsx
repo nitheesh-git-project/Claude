@@ -1,3 +1,4 @@
+import TutorialInfoButton from "@/components/tutorial/TutorialInfoButton";
 import type { ReactNode } from "react";
 
 // The one card every dashboard section sits in. Before this, four
@@ -12,6 +13,7 @@ export default function SurfaceCard({
   title,
   subtitle,
   icon,
+  info,
   actions,
   padded = true,
   className = "",
@@ -22,6 +24,9 @@ export default function SurfaceCard({
   subtitle?: ReactNode;
   /** Font Awesome class, e.g. "fa-calendar-day". */
   icon?: string;
+  /** A tutorial section key: puts an (i) beside the title that replays the
+   *  chapter explaining this card (see src/lib/tutorial.ts). */
+  info?: string;
   actions?: ReactNode;
   padded?: boolean;
   className?: string;
@@ -39,6 +44,7 @@ export default function SurfaceCard({
               <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-800">
                 {icon && <i aria-hidden className={`fa-solid ${icon} text-sm text-teal-600`} />}
                 {title}
+                {info && <TutorialInfoButton section={info} label={title} size="sm" />}
               </h2>
             )}
             {subtitle && <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{subtitle}</p>}

@@ -5,6 +5,7 @@ import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import SessionsView from "@/components/dashboard/SessionsView";
 import { renderPatientSessionCard } from "@/components/patient/PatientSessionCard";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
+import { patientSessionStatus } from "@/lib/sessionRowStatus";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
 
 export const metadata: Metadata = {
@@ -27,6 +28,14 @@ export default async function Page() {
     // The desktop list's row: the same words the card leads with.
     title: a.concern ?? "General Consultation",
     detail: a.therapist_id ? d.therapistMap.get(a.therapist_id) ?? undefined : "Therapist not yet assigned",
+    // The card's own status word, so the row and the card agree.
+    statusLabel: patientSessionStatus({
+      status: a.status,
+      no_show: a.no_show,
+      therapist_id: a.therapist_id,
+      package_purchase_id: a.package_purchase_id,
+      home_visit_purchase_id: d.visitDetailById.get(a.id)?.home_visit_purchase_id ?? null,
+    }),
   }));
   const cardsById = Object.fromEntries(
     d.appointments.map((a) => [a.id, renderPatientSessionCard(d, a, d.visitDetailById.get(a.id) ?? null)])
@@ -40,6 +49,7 @@ export default async function Page() {
     >
       <SurfaceCard
         title="Your Sessions"
+        info="card:session-status"
         icon="fa-calendar-check"
         actions={
           /* ?from=dashboard so Back off the booking page returns here --

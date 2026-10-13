@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import {
   readPatientCheckoutStanding,
@@ -355,6 +356,14 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  await recordUserActivity(admin, {
+    action: "appointment.requested",
+    actor: { id: user.id, role: "patient" },
+    appointmentId: created.id,
+    patientId: user.id,
+    categoryId,
+  });
 
   // The payment screen's quote for this booking, in this response, so the
   // wizard goes straight to create-order. A failure here is not a failed

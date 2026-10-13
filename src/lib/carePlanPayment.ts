@@ -7,6 +7,10 @@ type PayForCarePlanArgs = {
    *  of the two is required, and the server refuses without it. */
   addressId?: string | null;
   address?: HomeVisitAddressForm | null;
+  /** The code applied on the review page, by name. The server claims it and
+   *  refuses (409) rather than charging list price if it no longer applies;
+   *  the amount Razorpay opens at is the one it resolved. */
+  promoCode?: string | null;
   name: string;
   email: string;
   description: string;
@@ -21,10 +25,10 @@ type PayForCarePlanArgs = {
 /**
  * Buying the plan a therapist recommended.
  *
- * Deliberately the thinnest possible client: the body carries one id.
- * Price, session count and validity are all resolved server-side from the
- * catalog row the recommendation names, so there is nothing here worth
- * tampering with.
+ * Deliberately the thinnest possible client: the body carries one id (and
+ * a code's name, and where a home visit goes). Price, session count,
+ * validity and the discount are all resolved server-side from rows the
+ * patient cannot edit, so there is nothing here worth tampering with.
  *
  * Structured like payForPackage, including the inner try/catch around the
  * verify call: that handler runs after Razorpay has already taken the
@@ -36,6 +40,7 @@ export async function payForCarePlan({
   carePlanVersionId,
   addressId,
   address,
+  promoCode,
   name,
   email,
   description,
@@ -49,7 +54,7 @@ export async function payForCarePlan({
     const res = await fetch("/api/care-plan/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ carePlanVersionId, addressId, address }),
+      body: JSON.stringify({ carePlanVersionId, addressId, address, promoCode: promoCode ?? null }),
     });
     const orderData = await res.json().catch(() => ({}));
 

@@ -423,6 +423,13 @@ html[data-pricing-pending] [data-price] {
   }
 }
 
+/* Every password box carries its own eye toggle (PasswordInput), so Edge's
+   built-in reveal button would be a second eye beside it. */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
 /* The ring on a control the browser refused.
    Painted from an attribute rather than a class because the chrome that
    sets it (FormValidationChrome) is one listener at the root and knows

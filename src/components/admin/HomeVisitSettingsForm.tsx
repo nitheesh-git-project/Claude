@@ -238,12 +238,14 @@ function TextSetting({
 export default function HomeVisitSettingsForm({
   settings,
   areaCount,
-  packageCount,
+  priceCount,
   commitment,
 }: {
   settings: AdminSettings;
   areaCount: number;
-  packageCount: number;
+  /** Home-visit prices set under Catalog -> Conditions -> Home visits (the
+   *  clinic-wide one and any condition's own). */
+  priceCount: number;
   /**
    * Paid visits still to deliver. `null` means the read failed and
    * `undefined` that this caller does not know -- both say so rather than
@@ -251,7 +253,7 @@ export default function HomeVisitSettingsForm({
    */
   commitment?: { purchases: number; visits: number } | null;
 }) {
-  const notReady = areaCount === 0 || packageCount === 0;
+  const notReady = areaCount === 0 || priceCount === 0;
   const owed = describeHomeVisitCommitment(commitment);
 
   return (
@@ -265,11 +267,11 @@ export default function HomeVisitSettingsForm({
         </p>
         {notReady && (
           <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg p-2 mb-2">
-            {areaCount === 0 && packageCount === 0
-              ? "No service areas and no packages yet - turning this on would advertise a service nothing can be booked against."
+            {areaCount === 0 && priceCount === 0
+              ? "No service areas and no home-visit price yet - turning this on would advertise a service nothing can be booked against."
               : areaCount === 0
                 ? "No service areas yet - every booking attempt would be turned away."
-                : "No packages yet - the Home Visit page would have nothing to sell."}
+                : "No home-visit price yet - set one under Catalog → Conditions → Home visits, or the Home Visit page has nothing to sell."}
           </p>
         )}
         <div className="divide-y divide-slate-100">
@@ -316,8 +318,8 @@ export default function HomeVisitSettingsForm({
             unit="hours"
           />
           <NumberSetting
-            label="Default package validity"
-            hint="Used when a package doesn't set its own validity."
+            label="Default programme validity"
+            hint="How long a patient has to book the visits they bought. Patients only see it when it is close."
             value={settings.homeVisitDefaultValidityDays}
             settingKey="home_visit_default_validity_days"
             min={1}

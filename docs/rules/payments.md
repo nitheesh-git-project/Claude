@@ -78,6 +78,20 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   `computeHomeVisitTotal` to drift from the first, and `payments.amount_paise`
   is read only by the unmatched-payment check on System Health, never by the
   revenue maths.
+  **A recommended programme is quoted before it is ordered.**
+  `/api/care-plan/quote` (a read, the Review & pay page's figures) and
+  `/api/care-plan/create-order` (the authority) share
+  `programmeCheckoutServer.ts` and `programmeCheckoutQuote.ts`, so Razorpay
+  opens at exactly the total the page printed. create-order takes a promo
+  code's **name**, claims it on the unpaid purchase under the promo row lock
+  and answers 409 rather than charging list price when it no longer
+  applies; it reuses an earlier Razorpay order only at the price just
+  resolved (409 while a payment on it is in flight, "already paid" when
+  Razorpay says it was), the same rule as `mintAppointmentOrder`. The
+  purchase's `amount_paid_paise` is the programme after the code, so the
+  verify route's capture fallback records what was charged for a video
+  programme (a home visit's travel stays outside it, as above). See
+  `docs/rules/programmes.md`.
   **`payments` has unique indexes on `razorpay_order_id` and
   `razorpay_payment_id`, and they are the point of the table.** Nothing in
   this database previously stopped one payment id being recorded against
@@ -152,7 +166,9 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   chip answers "what happened to this money"; the patient's line answers "am
   I getting my money back, and when" -- so `manual_pending` is a work queue
   to one and a promise to the other, `failed` is a broken row to one and
-  "please contact us" to the person who is out of pocket, and `not_eligible`
+  "our team is sending it by hand" to the person who is out of pocket (it was
+  "please contact us", which handed the clinic's job to the patient while
+  Money's alert strip already counted it as urgent work), and `not_eligible`
   says **nothing** to the patient, because the cancelled card already
   explains the window and repeating it as a refund line announces a refund to
   somebody who is not getting one. It renders on the session card (with the
@@ -239,6 +255,12 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   `succeeded` with the gateway's own refund id, or `failed` with what it
   said. Every outcome is then either a resolved row or a row stuck at
   `processing`, and the second is exactly the state a person has to look at.
+  What the gateway said is also what the admin is told: every refund
+  refusal, and an admin cancellation whose refund was refused, answers with
+  `refundRefusalForAdmin()` -- Razorpay's own reason in quotes, plus "refunds
+  come out of your Razorpay balance, wait for settlement or add funds" when
+  the reason is the balance. It used to say "check Razorpay", so an unsettled
+  balance read the same as a broken key. The patient never sees the reason.
   Six rules:
   1. **A refund that cannot be recorded is not attempted.** The three admin
      routes put their claim back and answer 503 rather than calling Razorpay

@@ -20,10 +20,12 @@ import { canAutoAssignTo } from "@/lib/therapistReadiness";
  * named.
  *
  * Every part of the answer already existed: the roster says who works when,
- * `findTherapistConflict` says who is already booked, and
- * `bookPackageSession` has assigned-and-confirmed without an admin since
- * packages were built. This is those three wired together for the one case
- * they did not cover.
+ * and `findTherapistConflict` says who is already booked. This is those
+ * wired together for a single paid consultation. It is deliberately **not**
+ * applied to a programme session: those go through the admin with the
+ * programme's therapist pre-picked (docs/rules/programmes.md), the owner's
+ * call -- `bookPackageSession` used to assign-and-confirm without an admin,
+ * and no longer does.
  *
  * **This is not the roster filtering the patient's picker.** That separation
  * is deliberate and stays: `/book` still offers every slot that clears the

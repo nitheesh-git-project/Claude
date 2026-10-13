@@ -18,6 +18,8 @@
 // Dependency-free so the loader, the route and the tests share one
 // definition of what "masked" means.
 
+import { CLINIC_DISPLAY_TIMEZONE, formatClinicDate, formatClinicTime } from "@/lib/formatDateTime";
+
 /** How many trailing digits survive masking. Enough to confirm a number you
  *  already have, not enough to dial one you do not. */
 const VISIBLE_TAIL = 3;
@@ -116,17 +118,16 @@ export function canRevealContact(input: RevealWindowInput): RevealDecision {
   }
 
   if (input.visitMode === "home_visit") {
-    const slot = new Date(input.slotTimeMs);
-    const dayStart = new Date(slot);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(slot);
-    dayEnd.setHours(23, 59, 59, 999);
-    if (input.nowMs >= dayStart.getTime() && input.nowMs <= dayEnd.getTime()) {
+    // The clinic's calendar day, not the runtime's: `setHours(0)` on the
+    // server is UTC midnight, which is 5:30 AM in the clinic, so a 7 AM
+    // visit's number stayed closed until 5:30 AM and a late-evening
+    // visit's opened the evening before.
+    if (CLINIC_DAY_KEY.format(input.nowMs) === CLINIC_DAY_KEY.format(input.slotTimeMs)) {
       return { allowed: true, reason: "home visit on the day of the visit" };
     }
     return {
       allowed: false,
-      message: "You can see this number on the day of the visit.",
+      message: `You can see this number on ${formatClinicDate(input.slotTimeMs)}, the day of the visit.`,
     };
   }
 
@@ -135,8 +136,18 @@ export function canRevealContact(input: RevealWindowInput): RevealDecision {
   if (input.nowMs >= opensAt && input.nowMs <= closesAt) {
     return { allowed: true, reason: "session join window" };
   }
+  // Says when, not "around the time of the session": that read the same
+  // to someone already in the call, and a refusal with no time in it gives
+  // them nothing to do but ask.
   return {
     allowed: false,
-    message: "You can see this number around the time of the session.",
+    message:
+      input.nowMs < opensAt
+        ? `You can see this number from ${formatClinicTime(opensAt)} on ${formatClinicDate(opensAt)}.`
+        : `This number closed at ${formatClinicTime(closesAt)}, after the session.`,
   };
 }
+
+// en-CA formats as YYYY-MM-DD in the clinic's zone -- the same key the
+// rest of the app groups sessions by day with (formatSlotRange.istDateKey).
+const CLINIC_DAY_KEY = new Intl.DateTimeFormat("en-CA", { timeZone: CLINIC_DISPLAY_TIMEZONE });

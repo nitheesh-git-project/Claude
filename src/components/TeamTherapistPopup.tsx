@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
+import RichTextView from "@/components/RichTextView";
 import SpecialtyChip from "@/components/SpecialtyChip";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
@@ -271,14 +272,16 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                     <h4 className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">
                       About
                     </h4>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-700">{open.bio}</p>
+                    <RichTextView value={open.bio} className="mt-2 text-sm leading-relaxed text-slate-700" />
                   </section>
                 )}
 
                 {open.public_display_note && (
-                  <p className="mt-5 rounded-xl border border-teal-100 bg-teal-50 p-4 text-sm leading-relaxed text-teal-900">
-                    {open.public_display_note}
-                  </p>
+                  <RichTextView
+                    value={open.public_display_note}
+                    testId="team-display-note"
+                    className="mt-5 rounded-xl border border-teal-100 bg-teal-50 p-4 text-sm leading-relaxed text-teal-900"
+                  />
                 )}
 
                 {!open.bio && !open.public_display_note && !open.specialization && (

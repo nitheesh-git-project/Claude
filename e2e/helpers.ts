@@ -7,7 +7,10 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 
 export const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
-export const TEST_PASSWORD = "QaTest!2024pass";
+// The QA accounts' shared password. It lives in .env.local (E2E_QA_PASSWORD)
+// and, on CI's disposable stack, is generated per run -- never in this
+// public repository, where anyone could read it and sign in to staging.
+export const TEST_PASSWORD = process.env.E2E_QA_PASSWORD ?? "";
 
 export const SUPABASE_URL = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
 export const SUPABASE_ANON_KEY = requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
@@ -496,11 +499,11 @@ export async function setQaAdminScope(admin: SupabaseClient, adminId: string, sc
 }
 
 /**
- * Marks a patient's first-run dashboard tour as seen. The tour opens over
- * the dashboard for any patient who has never dismissed it -- every patient
- * on a fresh stack -- and takes every click. For a case that is about
- * something else, mark it seen first (pay-later and session-suggestions did
- * this by hand).
+ * Marks an account's first-visit dashboard tutorial as seen. The tutorial
+ * opens over a patient's, therapist's or hospital's dashboard until it is
+ * finished or skipped, and takes every click. Global setup marks the QA
+ * accounts seen; this is for a case that creates its own account, or that
+ * runs after something cleared the flag.
  */
 export async function markDashboardTourSeen(email: string): Promise<void> {
   const { error } = await adminClient()
@@ -535,6 +538,10 @@ export async function openTherapistHour(
   const ist = new Date(new Date(slotIso).getTime() + 5.5 * 3_600_000);
   const date = ist.toISOString().slice(0, 10);
   const hour = ist.getUTCHours();
+  // The roster only holds 06:00-23:00 (a CHECK on the table). A slot outside
+  // that - "two hours from now" run near midnight IST - cannot be opened,
+  // and every route refuses it before looking at the roster anyway.
+  if (hour < 6 || hour > 23) return async () => {};
   const { error } = await admin
     .from("therapist_availability_override")
     .upsert({ therapist_id: therapistId, date, hour, available: true, note: "e2e" }, { onConflict: "therapist_id,date,hour" });

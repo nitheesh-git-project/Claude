@@ -86,8 +86,9 @@ total, which moves with every spec added.
 | `pay-later` | 7 | the grant, a booking with no payment screen, completion putting money in three places at once, a declaration that settles nothing, a write-off that costs the clinic without moving a money figure |
 | `discounts` | 7 | the four acquisition discounts and what each records |
 | `acquisition-codes` | 18 | a promo code quoting with no amount in the request, a redemption cap, a paused campaign, an invite that cannot be self-claimed, and the free-booking path |
-| `unscheduled-purchases` | 3 | a paid purchase nobody ever booked anything against |
-| `session-scheduling` | 6 | booking the sessions a patient paid for |
+| `unscheduled-purchases` | 3 | a paid purchase nobody ever booked anything against, on Programmes -> All Programmes ("Paid - nothing booked", narrowed to the day-old ones the Money alert counts) |
+| `session-scheduling` | 6 | booking the sessions a patient paid for, none of which assigns itself even on a locked programme |
+| `programme-sessions-via-admin` | 5 | every programme session (booked from credits, an accepted suggestion, a visit on a home-visit programme) waiting `requested` and unassigned; the All Sessions row naming the pre-picked programme therapist; one tap on "Assign <name>" confirming it; and a pre-pick no longer free named rather than offered |
 
 ### Authorization, exposure and failure
 
@@ -95,6 +96,12 @@ total, which moves with every spec added.
 | --- | --- | --- |
 | `admin-authz` | 5 | admin route authorization for every role |
 | `admin-scoped-dashboard` | 6 | each scope's own landing screen, and Logs refusing all three limited desks at the screen *and* both routes |
+| `admin-decline-application` | 3 | declining a signup or a hospital inquiry requires a reason, records it on People -> Declined, and flags the same email returning in Approvals; the route refuses a decline without a reason |
+| `admin-approve-therapist` | 2 | approving a therapist asks for the revenue share and writes it with `approved`; the route refuses one without it from a money-scoped admin |
+| `admin-payment-search` | 1 | a pasted Razorpay payment or order id finds the patient under People -> Patients and the card says which matched. Leaves one never-captured `payments` row (deletes are refused by trigger) for `npm run clean:e2e -- --apply` |
+| `rich-text-profile` | 3 | the admin's display content and the therapist's bio keep headings, bold, paragraphs and lists in the grey saved view and the `/team` popup; Cancel with changes asks first; both routes refuse a body that is not an editor document. Restores the values it changed |
+| `therapist-onboarding` | 3 | a patient nobody has onboarded, from the therapist's side: the banner at the top of Home, the "Onboarding needed" strip on the session card, Start onboarding opening the triage (and the `?start=onboarding` it arrived with consumed), the How onboarding works guide stepping through every condition type's real questions, and both gone once a record exists. Wipes and restores QA Patient B's condition record |
+| `dashboard-tutorial` | 3 | the first-visit tutorial for a patient, therapist and hospital: opens by itself with dummy data, chapter chips jump, Done or a confirmed Skip records it seen and it stays shut, and a page title's or card's (i) replays just that chapter. Clears and restores `onboarding_seen_at` on the QA account it uses |
 | `admin-multi-admin` | 4 | two admins acting at once; an approve and a decline racing on one signup (H-021) |
 | `admin-exposure` | 6 | the back office is not named to anyone outside it |
 | `admin-account-delete` | 3 | a delete that can only succeed on an account with no history |
@@ -118,15 +125,18 @@ total, which moves with every spec added.
 | `dev-reachout` | 4 | the footer's developer credit end to end: Contact me → Say hello → Let's talk → a row, a filled honeypot writing nothing, a Master Admin marking it contacted and keeping a dated thread of notes (add, edit, delete), and the switch asking on **both** directions with cancel changing nothing and the credit, the pages and the route following it |
 | `admin-partners-and-credentials` | 6 | the three partner layouts, and a credential still readable after the refresh its own write triggers |
 | `admin-profile-session-order` | 3 | a person's sessions ordered by when they are, not when they were booked |
+| `admin-programmes` | 4 | Programmes: the pipeline counts and filters (and writes `pg_*` into the URL), a recommendation carries its `PED_PKG001` ID from publish and the purchase copies it, completing a session moves `-0/5` to `-1/5` on the list, All Sessions and the session drawer, the new ID / a copied ID with old progress / the old SP code all find it, and the drawer tells the story. Append-only writes: needs `E2E_ALLOW_APPEND_ONLY_WRITES=1` (or the CI stack); closes its recommendation and deletes its purchase and session after |
+| `admin-all-logs` | 3 | Logs -> All Activity shows everyone, not only admins: a patient's real cancel writes a `user_activity_log` row with their role, the Patient filter finds it (chip and all) and narrows the list, and the Programme ID filter finds a fixture entry however it is typed; filters land in the URL as `al_*`. Append-only writes: needs `E2E_ALLOW_APPEND_ONLY_WRITES=1` (or the CI stack); one cancel row per run stays behind by design |
 | `logs-subject-timeline` | 1 | tapping a log entry's subject, and the way back |
 | `account-created-stamp` | 8 | every account saying when it was created, with the time on it |
 | `booking-pay-button-live` | 3 | the pay button tappable while its price loads, with the wait stated rather than enforced |
-| `booking-retry-after-cancel` | 4 | closing the payment sheet, then Back + Pay or a reload, books again at the same slot: the unpaid draft is replaced, never "You already have a session scheduled around this time"; and a new patient's account stays locked (no dashboard link, no approval) until the try limit, which unlocks it with "Your account is ready"; signing in while locked shows Finish your booking (Pay now / Pick another time), while a /patient/register signup still sees Approval Pending; the locked account is listed under People -> Abandoned checkouts and never in Pending Approvals (needs browser egress) |
+| `checkout-resume` | 5 | Pay on an unpaid session reopens the wizard's Step 3 for that booking with the earlier promo code applied again (and removable); a changed price mints a new Razorpay order instead of reusing the old amount, and a dropped code is released from the row; a booking whose time has gone asks for a new one; a paid booking is not checked out again; an unpaid checkout shows as Awaiting payment, never in the admin's Needs a therapist queue |
+| `booking-retry-after-cancel` | 4 | closing the payment sheet, then Back + Pay or a reload, books again at the same slot: the unpaid draft is replaced, never "You already have a session scheduled around this time"; and a new patient's account stays locked (no dashboard link, no approval) until the try limit, which unlocks it with "Your account is ready"; signing in while locked shows Finish your booking (Pay now, which reopens Step 3, / Pick another time), while a /patient/register signup still sees Approval Pending; the locked account is listed under People -> Abandoned checkouts and never in Pending Approvals (needs browser egress) |
 | `activity-timeline` | 2 | a session's history names its booking, payment and assignment with who did each; a patient's Activity log filters by what happened (needs browser egress for the profile screen) |
-| `assign-availability` | 1 | an admin cannot assign a therapist who is not working that hour (409 with the reasons), and opening the hour on the roster lets the same request through |
+| `assign-availability` | 2 | an admin cannot assign a therapist who is not working that hour (409 with the reasons), and opening the hour on the roster lets the same request through; the drawer names the session's date, and "Open the roster" closes the dialog and the drawer and lands on that therapist's hours |
 | `booking-exit-link` | 2 | the way out of the wizard following the account - and never offering `/pending-approval` mid-booking |
 | `checkout-speed` | 5 | create answering with the quote and the Razorpay order in one trip, and the tap-to-sheet timing route |
-| `service-picker` | 11 | the service chosen before the slot, on both wizards |
+| `service-picker` | 11 | the service chosen before the slot, on both wizards; the home-visit wizard picking a condition (one visit, no count) and a `?category=` link landing on it |
 | `health-profile-showcase` | 2 | a sample patient dashboard per specialty, labelled as a sample, that moves on by itself every five seconds and stops for good once a tab is picked |
 | `date-field` | 6 | the clinic's own month grid in place of the browser's panel, including a past date, and Today bringing the grid back to this month |
 | `form-validation-chrome` | 2 | the app's own message in place of the OS tooltip |
@@ -134,19 +144,20 @@ total, which moves with every spec added.
 | `navigation-feedback` | 3 | a tap acknowledged, and a screen already rendered not fetched again |
 | `realtime-reconnect` | 1 | "Live updates paused" draws once and its Refresh reconnects every channel and clears it (the realtime server is stood in for, since sandbox egress cannot carry the socket) |
 | `section-nav` | 7 | the public pages' section rail and scroll arrow |
-| `catalog-detail` | 8 | the public catalog's detail dialogs |
+| `catalog-detail` | 8 | the public catalog's detail dialogs; on `/home-visit` a condition's card at its home-visit price with no count, and its Book button opening the wizard by `?category=` |
 | `catalog-cover-image` | 11 | a cover uploaded, positioned and rendering the same on card, dialog and dashboard |
 | `splash-screen` | 8 | the brand splash's cold-open, reload and long-absence rules |
 | `journey-pace` | 16 | the home walkthrough's admin-configured rotation pace |
-| `session-completed-cutoff` | 11 | the cutoff on every surface that lists a session |
-| `debug-clock` | 2 | the debug bar's simulated clock moving the completion gate while the debug bar is on; asserts refusals only, since a successful completion writes append-only settlement rows |
-| `finish-session` | 5 | a therapist's Done opening the session note with the Pain Map step; the route refusing Done without a note; the not-started line keeping No-show beside Done; a neuro patient finishing on the note alone, an orthopaedic one refused without the Pain Map (the last two append-only, disposable project only) |
-| `layout-audit` | 81 | every public, patient, therapist, hospital and admin page at 17 viewports covering 20:9, 19.5:9, 22:9, 16:9, 16:10, 5:3, 7:5, 5:4 and the 12.9" iPad: no sideways scroll, nothing off the edge, no clipped text, no overlaps. Read-only; `LAYOUT_ONLY=<substring>` narrows it |
+| `session-completed-cutoff` | 12 | the cutoff on every surface that lists a session; with no Meet link, "you can join from" gives way to "isn't ready yet" once the join time passes |
+| `debug-clock` | 4 | the debug bar's simulated clock moving the completion gate, the session note's start check and Show number while the debug bar is on; asserts refusals only, since a successful completion writes append-only settlement rows and a reveal writes an append-only log row |
+| `finish-session` | 6 | a therapist's Done opening the session note with the Pain Map step; the route refusing Done without a note; the not-started line keeping No-show beside Done; a completed session listed under Past (not Upcoming) for both therapist and patient while its slot is still ahead; a neuro patient finishing on the note alone, an orthopaedic one refused without the Pain Map (the last two append-only, disposable project only) |
+| `layout-audit` | 81 | every public, patient, therapist, hospital and admin page at 17 viewports covering 20:9, 19.5:9, 22:9, 16:9, 16:10, 5:3, 7:5, 5:4 and the 12.9" iPad: no sideways scroll, nothing off the edge, no clipped text, no text spilling past its own box (a long word in a column squeezed by buttons), no overlaps (a control lying wholly inside the padding an input reserves for it - the password show/hide button - is an adornment, not an overlap). Read-only; `LAYOUT_ONLY=<substring>` narrows it |
 | `layout-states` | 7 | the same 17-viewport checks on what only exists after a tap: the public menu, the patient More sheet and the admin menu, booking step 2, the programme scheduler, the therapist's finish dialog with a recommendation open, the admin session drawer. Seeds one confirmed session and deletes it |
 | `programme-scheduling-timezone` | 3 | scheduling an owned programme: a zone-less time read in India not the server's zone, an off-the-hour time still refused, and the dashboard scheduler booking a tapped time. Run against a UTC server to reproduce the original bug |
 | `session-feedback` | 2 | a patient rating with stars, a quick pick and a note, then the thank-you and, on a later visit, the summary; a therapist's low score offering what could be better and sending a pick alone. Checks the saved text. Leaves a completed session behind |
 | `pain-trend` | 1 | "Are you getting better?" keeping two same-day exams as two points. Append-only writes - disposable project only |
-| `recommendation-course` | 6 | a recommendation priced as the condition's per-session price x the count; hands-on making it home visits; the patient's card with the condition photo and no address on a video plan; a new address with a pincode reaching checkout; the therapist's number field and live total; the Suggested teaser on every other patient screen. Append-only writes - disposable project only |
+| `recommendation-course` | 8 | a recommendation priced as the condition's per-session price x the count; hands-on making it home visits; the patient's card with the condition photo shown whole (not cropped) and no address on a video plan; a paid recommendation keeping the condition's photo and name on Your Programmes; admin Today's Recommendations card pinning one waiting for approval, then showing it with the patient; Accept & pay linking to Review & pay, where a new address with a pincode reaches checkout; the therapist's number field and live total; the Suggested teaser on every other patient screen. Append-only writes - disposable project only |
+| `programme-checkout` | 5 | Review & pay for a recommended programme: Accept & pay on the card going to the page with no payment from the card; the server-quoted breakdown and full price with no code; a code valid on programmes taking its share off the programme total, Razorpay opened at exactly that figure and the purchase recording list price, discount and claim (a retry without the code releasing it); a session-only code refused with "This code can't be used on a programme." on the page and as a 409 from create-order; an unknown plan showing a way back and no Pay button. Razorpay is a stand-in that records the amount - nothing is paid. Append-only writes - disposable project only |
 | `meet-link-note` | 2 | the note on a patient's and a therapist's online tile saying, as a clock time, when the Meet link shows |
 | `patient-cancel-cutoff` | 3 | the online cancel cut-off: the route refusing inside it, the setting moving it (and its range check), the Cancel button hidden inside it |
 | `therapist-patient-chart` | 1 | a patient's chart inside the therapist dashboard: no back link, the sidebar keeps My Patients lit |
@@ -160,7 +171,7 @@ total, which moves with every spec added.
 | `mobile-smoke` | 8 | public pages and every role's dashboard at phone width (Pixel 7) - no sideways scroll, navigation reachable; runs in the `mobile` project only |
 | `clinical-continuity` | 5 | one patient's record across all three roles: the first fill, the session note (never patient-visible), a recommendation invisible and unbuyable until approved, the approval attributed, and a reopen losing nothing. **Disposable stack only** (`assertDisposableStack`) |
 | `admin-care-plans` | 22 | who may write a recommendation on a therapist's behalf, and the whole review step |
-| `session-suggestions` | 18 | therapist-suggested sessions, including button spam, concurrent answers and a dropped connection |
+| `session-suggestions` | 19 | therapist-suggested sessions, including button spam, concurrent answers, a dropped connection, and a time outside the therapist's own working hours refused up front |
 | `risk-sweep-report` | 3 | the Risk screen naming the rules an incomplete sweep missed instead of saying "Nothing waiting", no warning after a complete one, and the report hidden from the anon key |
 | `hospital-referrals` | 3 | one open referral per patient under five simultaneous submissions, a withdrawn one freeing the number, and the withdraw control saying so when the connection drops |
 | `therapist-roster` | 21 | ranges, exceptions (the admin's and the therapist's own, today onwards), leave, authorization, stale and double-clicked saves, a versionless save refused once a schedule exists, and that no roster change moved a booking |
@@ -169,9 +180,8 @@ total, which moves with every spec added.
 | `therapist-specialty` | 3 | a specialisation as a value rather than a sentence |
 | `therapist-request` | 4 | booking a named specialist from `/team` |
 | `patient-registration` | 7 | self-signup with no email-confirmation step |
-| `consultation-first` | 4 | direct programme purchase is gone, and a stale `?package=` is answered |
-| `package-category-picker` | 1 | a new package's condition is a real picker, not a lock |
-| `package-form-flags` | 1 | the placement switches that decided nothing are gone |
+| `consultation-first` | 4 | direct programme purchase is gone, a stale `?package=` is answered, and an old link to the four-visit home programme gets the programme refusal (403) rather than one visit |
+| `catalog-home-visit-prices` | 5 | Catalog -> Conditions as the one catalogue (Online sessions, then Home visits; `?tab=packages` lands there); set own price and use clinic-wide each leaving exactly one active price row and moving the wizard's quote; the route's 400s, 404 and 403; two admins at once leaving one price (200/409, either order); a hands-on recommendation written at the own price then the clinic-wide one (that last case append-only - disposable project only) |
 | `booking-rules` | 9 | lead time, the cancellation window, and the bulk-scheduler regression |
 | `home-visit-disabled` | 2 | the master switch off, flipped in the **database** rather than through the route - the case the cache could not survive |
 | `dark-mode` | 4 | the Appearance switch: off stays light on a dark device, on follows the device (and live), the brand button keeps its fill, printing stays light |

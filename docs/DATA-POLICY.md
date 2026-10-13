@@ -141,6 +141,7 @@ wrong are exactly the things a restore drill finds:
 | `care_plan_versions`, `care_plan_reviews` | Indefinitely | Nothing. Append-only. |
 | `communication_flags`, `contact_reveal_log` | Indefinitely | Nothing. Append-only by trigger. |
 | `admin_impersonation_sessions` | Indefinitely | Nothing but closing it once. |
+| `declined_applications` (name, email, phone and what a declined applicant sent, plus the reason) | Indefinitely | Nothing in the app. Append-only by trigger. A row can be deleted by hand (service role) when the person asks to be forgotten, and the debug reset truncates it. |
 | Clinical records (`patient_condition_profiles`, `pain_assessments`, `session_notes`) | Indefinitely | Nothing |
 | Uploaded reports | Until the patient deletes one | The patient, or cascade on account deletion |
 | Issued credentials (`*_admin_notes.temp_password`) | Not kept | No password is issued any more - accounts get a one-time sign-in link (`src/lib/accessLink.ts`); `schema.sql` clears any plaintext earlier versions stored |

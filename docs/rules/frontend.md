@@ -310,7 +310,7 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
 - TypeScript throughout; no `any` escapes for convenience.
 - Tailwind utility classes; design tokens and font stacks are composed in
   `src/app/globals.css` (`--font-sans`, `--font-display`). Fonts are
-  self-hosted via `next/font/google` - no runtime request to Google.
+  self-hosted from `src/app/fonts/` via `next/font/local` - no request to Google at build or run time (the build-time download failed CI when Google did not answer).
 - Server components by default; add `"use client"` only where interaction
   requires it.
 - Comments in this codebase explain *why*, especially where a non-obvious
@@ -386,8 +386,8 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   no focusable child doing the same job -- so the detail dialog behind them
   could not be opened without a pointing device at all. That is the whole of
   Logs -> All Activity (the dialog saying what changed from what), All Sessions
-  and the Calendar (the drawer that assigns, reschedules and refunds), Catalog
-  -> Purchases, Money -> Breakdown's two ledgers, and the session list on every
+  and the Calendar (the drawer that assigns, reschedules and refunds),
+  Programmes -> All Programmes, Money -> Breakdown's two ledgers, and the session list on every
   patient and therapist profile. The helper returns props rather than a
   component so it fits any element and changes no layout, and three things
   about it are load-bearing: it does **not** put `role="button"` on a `<tr>`
@@ -483,47 +483,32 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   what needs a real browser is the browser's own handling being overridden.
 - **A control that is disabled everywhere is a rule; one disabled by
   accident is a bug wearing a rule's clothes.** A session package's category
-  is genuinely immutable *after* creation -- live purchases reference it --
-  and `PackageCatalogForm` rendered that lock on the **new**-package form
-  too, with the hint "cannot be changed after creation" underneath it. The
-  form is opened from a flat "+ Add Package" button with no category behind
-  it, so `defaultCategoryId` was never passed and every package ever created
-  was pinned to `categories[0]`, the first condition by display order. The
-  sentence explaining the lock is what made it survive: the screen read as
-  having a reason. It is a real picker at creation now, still a plain
-  read-only line on edit, and its options carry each condition's own list
-  price, because every saving figure on that form is computed against it and
-  choosing blind meant a trip to Conditions and back. A condition that is
-  switched off is labelled rather than dropped -- a package under it is not
-  on sale either way, and an option silently missing reads as data lost.
-  `/api/admin/create-package` already took and re-checked `categoryId`, so
-  nothing server-side moved. `e2e/package-category-picker.spec.ts` is the
-  guard.
+  was genuinely immutable *after* creation -- live purchases reference it --
+  and the old package form rendered that lock on the **new**-package form
+  too, with the hint "cannot be changed after creation" underneath it, so
+  every package ever created was pinned to the first condition by display
+  order. The sentence explaining the lock is what made it survive: the screen
+  read as having a reason. That form is gone (Catalog -> Packages was removed;
+  see `admin.md`), but the rule stands for any form: lock a field where the
+  data requires it (on edit), never at creation, and label a switched-off
+  option rather than dropping it -- an option silently missing reads as data
+  lost.
 - **A switch that decides nothing is worse than no switch.** The
   session-package form carried three placement ticks -- *Show on Home page*,
   *Show on Conditions page*, *Show in Patient Dashboard* -- plus a Badge, a
-  *Feature this package* ring and a Terms box. Every one of them was for the
-  public programme card the consultation-first cutover deleted: `/` and
-  `/conditions` carry no programme catalogue, the booking hub sells one
-  consultation or one visit, and `terms` was selected into the care-plan
-  offer snapshot and rendered on no screen. Three ticked boxes above the one
-  switch that still worked read as a placement somebody chose. They are gone
-  from the form, from `validatePackagePayload`, from the dashboard's select
-  and from the table (`drop column if exists ... restrict` at the end of
-  `schema.sql`, the `show_programme_prices` precedent).
-  **And the switch that does decide it had no control at all.**
-  `recommendable` is what lets a clinician put a programme in front of a
-  patient -- the only route a programme is sold by now -- while Sessions ->
-  Recommendations told admins to "turn one on under Catalog -> Packages", a
-  screen with no such control. Both catalog forms have it now, and the
-  package list chips *Not recommendable* rather than a badge nobody renders.
-  **Home visits are not the same case and were not treated as one.** A visit
-  package is still sold directly (a one-visit package is that patient's
-  consultation), so `/home-visit` and the booking hub both render it: its
-  badge, highlight, terms, `visible_on_home_visit_page` and
-  `visible_in_dashboard` all stay. Only `visible_on_home` goes, because the
-  home page carries a link band to that page and has never listed visit
-  packages. `e2e/package-form-flags.spec.ts` holds both halves.
+  *Feature this package* ring and a Terms box, every one of them for a public
+  programme card the consultation-first cutover had deleted. Three ticked
+  boxes above the one switch that still worked read as a placement somebody
+  chose; they went from the table (`drop column if exists ... restrict` at
+  the end of `schema.sql`, the `show_programme_prices` precedent). The same
+  reasoning later removed both package editors outright: Catalog ->
+  Conditions -> Home visits sets a home visit's price and nothing else -- no
+  badge, highlight, terms, visit count, validity or placement -- because one
+  visit of a condition has nothing else to decide. `recommendable` and the
+  visibility flags stay on the rows (old purchases and recommendations read
+  them) with no control, which is correct now that nothing sets a choice
+  through them: a hands-on recommendation is priced from the condition, and
+  the home-visit pages list conditions.
 - **A session package may hold one session.** `session_count >= 2` was a
   rule from when a package was a bundle sold off a public price list: a
   one-session "package" was the consultation a patient could already buy on
@@ -639,6 +624,22 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
      what the request typed.
   Both routes are unchanged. `e2e/waitlist-serve-area.spec.ts` walks both
   answers against the database.
+
+---
+
+## Password boxes
+
+**Every password box is `PasswordInput`** (`src/components/auth/PasswordInput.tsx`),
+never a bare `<input type="password">`. It is a drop-in that adds the eye
+toggle: mistyping a password you cannot see is the commonest reason a
+sign-in or registration fails on a phone keyboard. The toggle is a real,
+focusable button (`aria-pressed`, "Show password" / "Hide password"), so
+keyboard users get it too and Tab goes password, eye, then the next control.
+The box flips back to hidden when its form submits, because a password
+manager reads the field's type at submit time to decide whether to offer to
+save it. `PasswordField` and `ConfirmPasswordField` are built on it. A spec
+that finds the box by label needs `getByLabel("Password", { exact: true })`,
+or it also matches the toggle.
 
 ---
 

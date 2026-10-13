@@ -188,9 +188,10 @@ export async function POST(request: NextRequest) {
 
   // Package continuity: the first therapist ever assigned to a session on
   // a package purchase locks onto that purchase -- every later session on
-  // the same purchase then auto-assigns them (see
-  // src/lib/bookPackageSession.ts), which is the whole point of selling
-  // "one therapist for your programme". Only fires once per purchase
+  // the same purchase then lands in this queue with them pre-picked
+  // (programmeTherapistFor, src/lib/sessionAssignQueue.ts), one tap to
+  // assign, which is the whole point of selling "one therapist for your
+  // programme". Only fires once per purchase
   // (locked_therapist_id starts null and this only ever sets it, never
   // overwrites it -- see /api/admin/reassign-package-therapist for
   // deliberately moving a locked purchase to someone else) and only when

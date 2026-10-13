@@ -21,7 +21,7 @@ export default async function Page() {
         // reasonably act on, built from reads that never happened. The
         // banner above names what could not be read.
         <div id="earnings" className="mt-8">
-          <SurfaceCard title="Earnings" icon="fa-chart-line">
+          <SurfaceCard title="Earnings" info="card:earnings" icon="fa-chart-line">
             <EmptyState
               icon="fa-triangle-exclamation"
               title="We couldn't load all of your earnings"

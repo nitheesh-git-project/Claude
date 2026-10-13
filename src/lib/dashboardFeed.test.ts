@@ -293,3 +293,23 @@ describe("buildPatientFeed: unbooked sessions", () => {
     expect(unbooked[0].title).toBe("13 sessions still to book across 3 programmes");
   });
 });
+
+describe("buildPatientFeed: a programme session waiting on the clinic", () => {
+  const base = { id: "a1", slot_time: "2026-11-12T12:30:00Z", status: "requested", created_at: "2026-11-01T00:00:00Z" };
+
+  it("says booked - confirming your therapist, not waiting for a therapist", () => {
+    const items = buildPatientFeed({
+      appointments: [{ ...base, awaiting_programme_therapist: true }],
+      conditionRequests: [],
+    });
+    const item = items.find((i) => i.id === "appt-a1");
+    expect(item?.title).toBe("Video session booked - confirming your therapist");
+    expect(item?.tone).toBe("info");
+    expect(item?.detail).toContain("12 Nov 2026");
+  });
+
+  it("keeps the old wording for a single consultation", () => {
+    const items = buildPatientFeed({ appointments: [base], conditionRequests: [] });
+    expect(items.find((i) => i.id === "appt-a1")?.title).toBe("Video session waiting for a therapist");
+  });
+});

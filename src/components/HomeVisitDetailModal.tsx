@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { AnimatePresence, motion } from "motion/react";
-import { computeHomeVisitCounts, daysUntilHomeVisitExpiry, HOME_VISIT_EVENT_LABELS } from "@/lib/homeVisitProgress";
+import { computeHomeVisitCounts, HOME_VISIT_EVENT_LABELS } from "@/lib/homeVisitProgress";
 import { formatRupees } from "@/lib/formatMoney";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -35,6 +35,10 @@ type DetailResponse = {
     visitsUsed: number;
     status: string;
     expiresAt: string | null;
+    /** "3 sessions left - book by 12 Nov", only near the end; null otherwise.
+     *  Worked out by the route (patientExpiryNotice) so it reads the
+     *  clinic's reminder window. Optional for an older response. */
+    expiryNotice?: string | null;
     createdAt: string;
     therapistLocked: boolean;
     paymentMode: string;
@@ -69,7 +73,6 @@ export default function HomeVisitDetailModal({
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
-  const [now] = useState(() => Date.now());
 
   // Held in a ref so `close` is stable and the open/close effect below runs
   // once per mount. Keyed on `onClose`, it re-ran whenever the parent
@@ -125,7 +128,6 @@ export default function HomeVisitDetailModal({
         scheduledCount: data.upcoming.length,
       })
     : null;
-  const daysLeft = data ? daysUntilHomeVisitExpiry(data.purchase.expiresAt, now) : null;
 
   return (
     <AnimatePresence>
@@ -215,14 +217,15 @@ export default function HomeVisitDetailModal({
                       )}
                     </p>
                   )}
-                  <p>
-                    <span className="text-slate-500">Expires:</span>{" "}
-                    {data.purchase.expiresAt
-                      ? `${formatClinicDate(data.purchase.expiresAt)}${
-                          daysLeft !== null ? ` (${daysLeft}d left)` : ""
-                        }`
-                      : "No expiry"}
-                  </p>
+                  {/* No standing expiry date or day count: the programme's
+                      validity is said only near the end, as a date to book
+                      by (owner's call -- see docs/rules/programmes.md). */}
+                  {data.purchase.expiryNotice && (
+                    <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 font-semibold text-amber-800">
+                      <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+                      {data.purchase.expiryNotice}
+                    </p>
+                  )}
                 </div>
 
                 <section>

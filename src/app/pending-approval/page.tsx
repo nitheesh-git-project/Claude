@@ -24,17 +24,13 @@ export default async function PendingApprovalPage() {
   } = await supabase.auth.getUser();
 
   let role: string | null = null;
-  let profileName = "";
-  let profileEmail = "";
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, full_name, email")
+      .select("role")
       .eq("id", user.id)
       .maybeSingle();
     role = profile?.role ?? null;
-    profileName = profile?.full_name ?? "";
-    profileEmail = profile?.email ?? user.email ?? "";
   }
 
   // A patient who signed up inside a booking wizard is not waiting on an
@@ -78,8 +74,6 @@ export default async function PendingApprovalPage() {
     return (
       <FinishBookingCard
         draft={draft}
-        name={profileName}
-        email={profileEmail}
         keptUntilLabel={keptUntil}
         bookHref={draft ? `/book?replaces=${draft.appointmentId}` : "/book"}
       />

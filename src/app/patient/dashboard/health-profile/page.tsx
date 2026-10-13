@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import TutorialInfoButton from "@/components/tutorial/TutorialInfoButton";
 import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "@/components/dashboard/DashboardShell";
@@ -318,7 +319,7 @@ export default async function PatientHealthProfilePage() {
     >
       <div className="mx-auto max-w-5xl space-y-5">
         <div
-          className={`flex items-start gap-3 rounded-2xl border p-4 ${
+          className={`flex flex-wrap items-start gap-3 rounded-2xl border p-4 sm:flex-nowrap ${
             gate.reason === "awaiting_therapist"
               ? "border-slate-200 bg-slate-50 text-slate-600"
               : STATUS_BANNER_STYLE[status]
@@ -384,7 +385,11 @@ export default async function PatientHealthProfilePage() {
               </p>
             )}
           </div>
-          <HealthProfileActions />
+          {/* Beside the text on a wide screen; under it on a phone, where
+              beside it the buttons left the notice a 39px column. */}
+          <div className="flex w-full justify-end sm:w-auto sm:shrink-0">
+            <HealthProfileActions />
+          </div>
         </div>
 
         <SpecialtySnapshotStrip
@@ -443,7 +448,10 @@ export default async function PatientHealthProfilePage() {
 
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="mb-3">
-                <h2 className="font-display text-lg font-bold text-slate-800">Are you getting better?</h2>
+                <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-800">
+                  Are you getting better?
+                  <TutorialInfoButton section="card:health-profile" label="your progress" size="sm" />
+                </h2>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {specialty === "ortho"
                     ? "Your overall pain after each exam, over time - every exam is its own dot."

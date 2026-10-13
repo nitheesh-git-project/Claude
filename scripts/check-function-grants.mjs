@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Fails the lint when a SECURITY DEFINER function in schema.sql is not
- * revoked from PUBLIC.
+ * revoked from PUBLIC, or when the file stops granting service_role its
+ * EXECUTE back explicitly (see the end of this comment).
  *
  * This check exists because of a real, live vulnerability. Postgres grants
  * EXECUTE on every new function to PUBLIC, and Supabase's `anon` and
@@ -29,6 +30,14 @@
  * Like check-realtime-coverage.mjs, this catches a failure with no runtime
  * symptom: the function works, the revoke reports success, and the hole is
  * visible only in pg_proc.proacl.
+ *
+ * The revokes have a cost on the other side. A database whose functions
+ * carry only the PUBLIC grant (production did) loses service_role's access
+ * too, and every RPC the app makes through the service-role client fails
+ * with "permission denied for function" -- claim_promo_code refused every
+ * promo code that way. So the file must also carry
+ * `grant execute on all functions in schema public to service_role` and the
+ * matching `alter default privileges`, and this check fails without them.
  */
 import { readFileSync } from "node:fs";
 
@@ -136,21 +145,42 @@ for (const role of ["public", "anon", "authenticated"]) {
   }
 }
 
+// And the other direction: every one of those revokes also strips
+// service_role on a database whose functions carried only the PUBLIC grant,
+// which is how claim_promo_code came to refuse the app's own server in
+// production. The grant back has to be written, not inherited.
+for (const [label, re] of [
+  [
+    "grant execute on all functions in schema public to service_role",
+    /grant\s+execute\s+on\s+all\s+functions\s+in\s+schema\s+public\s+to\s+[^;]*\bservice_role\b/i,
+  ],
+  [
+    "alter default privileges in schema public grant execute on functions to service_role",
+    /alter\s+default\s+privileges\s+in\s+schema\s+public\s+grant\s+execute\s+on\s+functions\s+to\s+[^;]*\bservice_role\b/i,
+  ],
+]) {
+  if (!re.test(sql)) {
+    failures.push(
+      `Missing "${label}". The revokes above also remove service_role's ` +
+        `access on a database where it only held the PUBLIC grant, and every ` +
+        `RPC this app makes then fails with "permission denied for function".`
+    );
+  }
+}
+
 if (warnings.length) {
   console.warn("Function grant warnings:");
   for (const w of warnings) console.warn("  ! " + w);
 }
 
 if (failures.length) {
-  console.error(
-    `\nFunction EXECUTE grants: ${failures.length} security definer ` +
-      `function(s) in ${SCHEMA} are reachable by anon/authenticated.\n`
-  );
+  console.error(`\nFunction EXECUTE grants: ${failures.length} problem(s) in ${SCHEMA}.\n`);
   for (const f of failures) console.error("  x " + f);
   console.error(
-    "\nUse: revoke all on function public.<name>(<arg types>) from public;\n" +
+    "\nUse: revoke all on function public.<name>(<arg types>) from public, anon, authenticated;\n" +
       "Revoking from anon and authenticated does not remove the implicit " +
-      "PUBLIC grant those roles inherit.\n"
+      "PUBLIC grant those roles inherit. Keep both service_role grant lines " +
+      "in the file.\n"
   );
   process.exit(1);
 }
@@ -158,5 +188,6 @@ if (failures.length) {
 console.log(
   `Function grants OK - ${seen.size} security definer function(s), all ` +
     `revoked from public, anon and authenticated ` +
-    `(${INTENTIONALLY_PUBLIC.size} intentionally reachable).`
+    `(${INTENTIONALLY_PUBLIC.size} intentionally reachable); service_role ` +
+    `granted explicitly.`
 );

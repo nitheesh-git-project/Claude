@@ -68,13 +68,13 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 
 **Feature.** A course of treatment is a clinical recommendation, so the public site does not carry a price list of them. Removed outright rather than hidden behind a setting: a toggle somebody can flip back on is not the rule being gone.
 
-**Preconditions.** Packages P1–P3 exist and are `active` and `recommendable`. That matters - this is an absence tested against rows that genuinely could have rendered. The three "show it here" flags these rows used to carry are gone from the table: they decided where a programme was advertised, and there is nowhere public left for them to decide about.
+**Preconditions.** Old session-package rows exist and are `active` and `recommendable` (seeded by SQL - Catalog → Packages is gone). That matters - this is an absence tested against rows that genuinely could have rendered. The three "show it here" flags these rows used to carry are gone from the table: they decided where a programme was advertised, and there is nowhere public left for them to decide about.
 
 **Steps.** Read `/` and `/conditions` end to end, including inside every programme detail dialog. Then read `/home-visit`.
 **Expected Result**
 * **No session package appears anywhere** - no card, no title, no price, and no "Where this usually leads" list inside a programme's dialog.
 * **No link anywhere matches `/book?package=`.** A card still linking to package checkout would take money for something the server now refuses; this is the assertion that catches a partial revert.
-* `/home-visit` shows **single**-visit packages only. `HV1` (1 visit) is there and books directly; `HV2` (4 visits) is **absent** - it is a recommendation, not a product.
+* `/home-visit` lists **conditions**, each as one visit at its home-visit price (the condition's own, else the clinic-wide one) - no visit count, no "Single visit", no validity, no days. Each books directly through `/book-home-visit?category=<id>`; `HV2` (4 visits) is **absent** - it is a recommendation, not a product.
 * There is **no admin switch** for any of this. "Show programme prices publicly" no longer exists on Settings; if you find it, that is a defect.
 
 #### `PUB-TEAM-001` - Team · P2

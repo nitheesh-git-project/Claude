@@ -9,6 +9,7 @@ import PhoneNumberField from "@/components/PhoneNumberField";
 import ConfirmPasswordField from "./ConfirmPasswordField";
 import EmailField from "./EmailField";
 import PasswordField from "./PasswordField";
+import PasswordInput from "./PasswordInput";
 
 export default function PatientAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
@@ -309,8 +310,7 @@ export default function PatientAuthCard() {
             <div>
               <label className="block">
                 <span className="block font-semibold mb-1">Password</span>
-                <input
-                  type="password"
+                <PasswordInput
                   name="password"
                   autoComplete="current-password"
                   required

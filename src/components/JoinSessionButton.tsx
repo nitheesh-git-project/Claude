@@ -54,8 +54,16 @@ export default function JoinSessionButton({
   // Lazy initializer -- read once on mount rather than on every render
   // (satisfies the "no impure calls during render" rule), mirroring the
   // one-time Date.now() read already used in ProfileSessionList.
+  // Whether the join window has opened at all -- unlike isJoinable, it does
+  // not flip back when the window closes. Only the no-link line reads it:
+  // "you can join from 5:45 PM" is wrong the moment 5:45 has passed.
+  function computeOpened(ms: number | null) {
+    return ms !== null && debugNow() >= ms - beforeMs;
+  }
+
   const [isJoinable, setIsJoinable] = useState(() => computeJoinable(slotTimeMs));
   const [isPastCutoff, setIsPastCutoff] = useState(() => computeCompleted(slotTimeMs));
+  const [hasOpened, setHasOpened] = useState(() => computeOpened(slotTimeMs));
 
   // Re-derive immediately (during render, not in an effect) if this same
   // mounted instance receives a new slotTime -- e.g. an admin reschedule
@@ -68,6 +76,7 @@ export default function JoinSessionButton({
     setTrackedSlotTimeMs(slotTimeMs);
     setIsJoinable(computeJoinable(slotTimeMs));
     setIsPastCutoff(computeCompleted(slotTimeMs));
+    setHasOpened(computeOpened(slotTimeMs));
   }
 
   useEffect(() => {
@@ -109,6 +118,18 @@ export default function JoinSessionButton({
     return () => clearTimeout(timer);
   }, [isPastCutoff, slotTimeMs, completedAfterMs]);
 
+  // The no-link line's one transition: from "you can join from 5:45 PM" to
+  // "the link isn't ready yet" at 5:45. Its own timer because isJoinable's
+  // is skipped on admin surfaces, and this one only ever fires once.
+  useEffect(() => {
+    if (hasOpened || slotTimeMs === null || meetLink) return;
+    const timer = setTimeout(
+      () => setHasOpened(true),
+      Math.max(0, slotTimeMs - beforeMs - debugNow())
+    );
+    return () => clearTimeout(timer);
+  }, [hasOpened, slotTimeMs, beforeMs, meetLink]);
+
   // When the Join button opens, as a clock time in the clinic's zone -- "at
   // 5:45 PM" answers "when do I get my link?" without arithmetic.
   const opensAt =
@@ -118,8 +139,26 @@ export default function JoinSessionButton({
     // No link yet: say where it will appear and when, instead of an empty
     // space where people expect one. The link is created once a therapist is
     // confirmed; the button opens at the join window either way.
+    //
+    // Once the join time has come, "you can join from 5:45 PM" is a promise
+    // already broken, and it used to stay up all the way to the completed
+    // cutoff. From then on the line says the link is late and who can help,
+    // in amber, because now it is something to act on.
     const upcoming = (status === "requested" || status === "confirmed") && !isPastCutoff;
     if (alwaysActive || !upcoming || !opensAt) return null;
+    if (hasOpened) {
+      return (
+        <span
+          role="status"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800"
+        >
+          <i className="fa-solid fa-video-slash text-[10px]" aria-hidden="true" />
+          {status === "requested"
+            ? "No therapist is confirmed for this session yet - please contact the clinic."
+            : "The Meet link isn't ready yet - it will appear here. If it doesn't in a few minutes, contact the clinic."}
+        </span>
+      );
+    }
     return (
       <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600">
         <i className="fa-solid fa-video text-[10px] text-teal-700" aria-hidden="true" />

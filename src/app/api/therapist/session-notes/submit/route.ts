@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -10,6 +11,8 @@ import {
   type SessionNoteData,
 } from "@/lib/sessionNotes";
 import { serverError } from "@/lib/apiError";
+import { serverNowMs } from "@/lib/debugClock";
+import { formatClinicDateTime } from "@/lib/formatDateTime";
 
 /**
  * A therapist records what they did in one of their own sessions.
@@ -113,9 +116,17 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  if (appointment.status !== "completed" && slotMs > Date.now()) {
+  // Read on the debug bar's clock while the bar is on, like Done's own
+  // gate (complete-session): Done opens this note, so a simulated "the
+  // session has started" that let Done open it and then refused the save
+  // was the same session judged by two clocks. With the bar off it is the
+  // real clock. The refusal names the time rather than "once the session
+  // has taken place", which read as broken to someone already in it.
+  if (appointment.status !== "completed" && slotMs > serverNowMs(request)) {
     return NextResponse.json(
-      { error: "You can write the note once the session has taken place." },
+      {
+        error: `You can write the note from ${formatClinicDateTime(slotMs)}, when the session starts.`,
+      },
       { status: 400 }
     );
   }
@@ -184,6 +195,14 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
+    await recordUserActivity(admin, {
+      action: "session_note.written",
+      actor: { id: user.id, role: "therapist" },
+      appointmentId,
+      therapistId: user.id,
+      note: "edited",
+      details: { updated: true },
+    });
     return NextResponse.json({ success: true, updated: true });
   }
 
@@ -198,5 +217,12 @@ export async function POST(request: NextRequest) {
     return serverError("therapist/session-notes/submit", error);
   }
 
+  await recordUserActivity(admin, {
+    action: "session_note.written",
+    actor: { id: user.id, role: "therapist" },
+    appointmentId,
+    therapistId: user.id,
+    details: { updated: false },
+  });
   return NextResponse.json({ success: true, updated: false });
 }

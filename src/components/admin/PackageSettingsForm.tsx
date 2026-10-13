@@ -151,11 +151,9 @@ export default function PackageSettingsForm({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h3 className="font-bold text-sm text-slate-800">Therapist Lock (site-wide)</h3>
+            <h3 className="font-bold text-sm text-slate-800">Therapist lock: pre-pick the programme therapist</h3>
             <p className="text-xs text-slate-500 mt-1 max-w-md">
-              When off, no package locks to a single therapist regardless of each package&apos;s
-              own setting - every session is assigned individually, as before. Turn off only if
-              you no longer want the continuity promise enforced anywhere.
+              {"When on, the first therapist you assign on a programme becomes its therapist. Every later session on it still comes to Sessions with no therapist for you to assign, with them pre-picked - one tap - and a warning if they are no longer free at that time. When off, a programme keeps no therapist and each session is picked from scratch."}
             </p>
           </div>
           <button

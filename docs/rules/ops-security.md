@@ -35,7 +35,7 @@ They are enforced in **two** places and both must stay in place:
 
 An audit found eight routes with only the first - `acknowledge-payout-request`,
 `withdraw-suggestion`, `hospital/withdraw-referral`, `home-visit/verify`,
-`medical-documents/delete`, `dismiss-onboarding`, `log-payment-failure` and
+`medical-documents/delete`, `dismiss-onboarding` (now `dashboard/tutorial-seen`), `log-payment-failure` and
 `clear-temp-password`. All eight are ownership-scoped, so the reach was "a
 suspended account keeps acting as itself" rather than anything cross-account,
 but that is exactly what this rule exists to stop and the routes read as
@@ -480,7 +480,7 @@ client is the only writer and the log is append-only from any session.
   all three.
   **The rule is wider than booking: a patient-dashboard route answers a
   patient.** An audit found three that did not check --
-  `/api/patient/dismiss-onboarding`, `previous-therapists` and
+  `/api/patient/dismiss-onboarding` (since replaced by `/api/dashboard/tutorial-seen`, which checks the role itself), `previous-therapists` and
   `condition-profile/export` -- each answering a therapist or hospital
   session with a 200. All three act on the caller's **own** row, so nothing
   cross-account leaked, and that is exactly why it survived: the reach was
@@ -713,7 +713,7 @@ line describing nothing but carelessness. Before real patients exist, remove
   hide the shared Navbar all call the one helper. At real launch, **delete**
   the bar rather than flipping the flag - it is a public flag, and the bar
   names every route including `/admin/login` and `/admin/dashboard`.
-- **The simulated clock moves one server gate, and only behind a server
+- **The simulated clock moves three server gates, and only behind a server
   flag.** The debug bar's clock is a browser-side offset (`debugNow.ts`), so
   on its own it only moved what the UI offered: a therapist simulated "an
   hour after the session", saw Done, tapped it, and was told the session had
@@ -728,8 +728,13 @@ line describing nothing but carelessness. Before real patients exist, remove
   it is on any signed-in therapist can send the header and complete a session
   early. That is acceptable only while there are no real patients, and it
   goes away with the bar - **delete the bar before launch** and the header is
-  ignored. The offset is bounded to a year either way. Every other
-  server-side time check stays on the real clock.
+  ignored. The offset is bounded to a year either way. The same header
+  moves two therapist gates the card already judges on the simulated
+  clock, because one session judged by two clocks reads as broken: the
+  session note's "has it started" check (`session-notes/submit`, which
+  Done opens) and "Show number" (`reveal-contact`). Neither moves money;
+  the note's 24-hour edit lock stays on the real clock. Every other
+  server-side time check stays on the real clock (`e2e/debug-clock.spec.ts`).
 - **No `.env` file that arms the reset is committed, and two have been.**
   `.env.production` armed both the public debug nav and the whole-database
   reset on the live site. `.env.development` then did the same thing one

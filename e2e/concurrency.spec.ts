@@ -107,8 +107,39 @@ test("refund-home-visit-package: at most one concurrent request reaches Razorpay
   // guarded attempt, not a double-refund.
   const winners = [r1, r2].filter((r) => r.status !== 409);
   const losers = [r1, r2].filter((r) => r.status === 409);
-  expect(winners, JSON.stringify([r1, r2])).toHaveLength(1);
-  expect(losers, JSON.stringify([r1, r2])).toHaveLength(1);
+  // What this route-level race cannot do is force the two requests to
+  // overlap. Each one first fetches the Razorpay order over the network,
+  // and the fake payment's refund is refused almost at once, which releases
+  // the claim -- so when one request's fetch is slow, the other can claim,
+  // fail and release before it arrives, and the second then claims a
+  // genuinely free purchase. That is two refunds one after the other, not
+  // two at once (seen in the quality gate as two 502s). So the property is
+  // asserted from the attempt ledger: the gateway attempts never overlap in
+  // time. A run where the requests did not overlap is annotated, not passed
+  // silently -- the lock itself is proven deterministically at the database
+  // by scripts/concurrency-checks.mjs.
+  const { data: attempts } = await admin
+    .from("refund_attempts")
+    .select("created_at, resolved_at")
+    .eq("home_visit_purchase_id", purchase!.id)
+    .order("created_at", { ascending: true });
+  const evidence = `${JSON.stringify([r1, r2])}; attempts ${JSON.stringify(attempts)}`;
+  expect(attempts!.length, `one gateway attempt per winner: ${evidence}`).toBe(winners.length);
+  if (winners.length === 2) {
+    const [first, second] = attempts!;
+    expect(first.resolved_at, `the first attempt resolved: ${evidence}`).toBeTruthy();
+    expect(
+      new Date(second.created_at).getTime() >= new Date(first.resolved_at!).getTime(),
+      `two attempts were in flight at once: ${evidence}`
+    ).toBe(true);
+    test.info().annotations.push({
+      type: "race-not-overlapped",
+      description: `the two refund requests arrived one after the other; the claim was not exercised on this run`,
+    });
+  } else {
+    expect(winners, evidence).toHaveLength(1);
+    expect(losers, evidence).toHaveLength(1);
+  }
 
   const { data: finalPurchase } = await admin
     .from("home_visit_package_purchases")

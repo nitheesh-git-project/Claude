@@ -10,6 +10,9 @@ import { formatSlotRange, istDateKey } from "@/lib/formatSlotRange";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
+import type { ProgrammeTag } from "@/lib/programmeId";
+import { awaitsPatientPayment, needsTherapist, type ProgrammePick } from "@/lib/sessionAssignQueue";
+import TapToAssignChip from "@/components/admin/TapToAssignChip";
 
 type Person = { id: string; full_name: string | null };
 type Category = {
@@ -39,6 +42,8 @@ export default function AdminCalendarTab({
   homeVisits,
   canSeeMoney,
   canManageSessions,
+  programmePicks = {},
+  programmeTags = {},
 }: {
   appointments: SessionDetailAppointment[];
   people: Person[];
@@ -59,6 +64,15 @@ export default function AdminCalendarTab({
   // flag, and requireAdminScope refuses them regardless -- this is the half
   // that stops them meeting a 403 with nothing explaining it.
   canManageSessions: boolean;
+  // Unassigned programme sessions, keyed by appointment id: the programme's
+  // therapist to pre-pick, and why they can't take it if the roster says so
+  // (built on the server from rows the page already has -- see
+  // programmeTherapistFor). The row's chip names them; the drawer offers
+  // them as one tap.
+  programmePicks?: Record<string, ProgrammePick>;
+  // The programme each session was drawn from (PED_PKG001-2/6), for the
+  // drawer's "Part of" line.
+  programmeTags?: Record<string, ProgrammeTag>;
 }) {
   const peopleMap = useMemo(
     () => new Map(people.map((p) => [p.id, p.full_name ?? "Unknown"])),
@@ -240,13 +254,17 @@ export default function AdminCalendarTab({
                   <td className="py-2 pr-3 text-slate-500 font-mono">{a.session_code ?? "-"}</td>
                   <td className="py-2 pr-3 font-bold text-slate-900">
                     {a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : "Unassigned"}
-                    {!a.therapist_id && a.status !== "cancelled" && (
+                    {needsTherapist(a, homeVisitMap.has(a.id)) && (
                       // Same affordance as the All Sessions row: the click
                       // that opens the drawer is also the click that leads
                       // to the assignment, so say so rather than leaving
                       // "Unassigned" as a bare statement of fact.
-                      <span className="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                        Tap to assign
+                      <TapToAssignChip pick={programmePicks[a.id]} />
+                    )}
+                    {awaitsPatientPayment(a, homeVisitMap.has(a.id)) && (
+                      // Not work yet: it assigns itself once paid.
+                      <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                        Awaiting payment
                       </span>
                     )}
                   </td>
@@ -297,6 +315,8 @@ export default function AdminCalendarTab({
           therapists={therapists}
           categories={categories}
           homeVisit={homeVisitMap.get(selectedAppointment.id) ?? null}
+          programmePick={programmePicks[selectedAppointment.id] ?? null}
+          programmeTag={programmeTags[selectedAppointment.id] ?? null}
           onClose={() => setSelectedAppointment(null)}
         />
       )}

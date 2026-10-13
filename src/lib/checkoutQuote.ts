@@ -220,8 +220,12 @@ export async function resolveCheckoutQuote(
     }
 
     // A code that was claimed but lost to a larger discount is given back,
-    // so it does not go on counting against its own cap.
-    if (promoClaimed && discount.source !== "promo_code") {
+    // so it does not go on counting against its own cap. So is a claim an
+    // earlier attempt at this booking left behind when this checkout carries
+    // no code (or a refused one): the row says which code its price used,
+    // and a retry without one must not leave the old code named on a
+    // booking it took nothing off.
+    if (!promoClaimed || discount.source !== "promo_code") {
       await releasePromoCode(admin, appointment.id, patientId);
     }
   }

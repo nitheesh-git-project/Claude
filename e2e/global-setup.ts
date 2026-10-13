@@ -41,6 +41,11 @@ async function ensureUser(
 }
 
 export default async function globalSetup() {
+  if (!process.env.E2E_QA_PASSWORD) {
+    throw new Error(
+      "Set E2E_QA_PASSWORD in .env.local: the QA accounts' shared password, kept out of this public repo."
+    );
+  }
   const admin = adminClient();
 
   const qaAdminId = await ensureUser(admin, QA_EMAILS.admin, "QA Admin", "admin");
@@ -52,6 +57,16 @@ export default async function globalSetup() {
   await ensureUser(admin, QA_EMAILS.hospital, "QA Hospital", "hospital");
   for (const t of THERAPISTS) await ensureUser(admin, t.email, t.full_name, "therapist");
   for (const p of PATIENTS) await ensureUser(admin, p.email, p.full_name, "patient");
+  // The dashboard tutorial opens by itself over a patient's, therapist's or
+  // hospital's first visit and takes every click. Only
+  // `dashboard-tutorial.spec.ts` is about it, and it clears the flag for the
+  // account it uses; every other spec starts with it seen.
+  await admin
+    .from("profiles")
+    .update({ onboarding_seen_at: new Date().toISOString() })
+    .in("role", ["patient", "therapist", "hospital"])
+    .like("email", "qa.%@example.test")
+    .is("onboarding_seen_at", null);
 
   await admin
     .from("site_settings")
@@ -76,20 +91,39 @@ export default async function globalSetup() {
     });
   }
 
-  const { data: existingSingle } = await admin
-    .from("home_visit_packages")
-    .select("id")
-    .eq("title", "Single Home Visit")
-    .maybeSingle();
+  // The clinic-wide home-visit price (Catalog -> Conditions -> Home visits):
+  // one visit, no condition. Every condition without its own price is sold
+  // at it on /home-visit, the booking hub and the wizard. At most one may be
+  // active (home_visit_packages_one_rate_per_category), so this fixture only
+  // switches itself on when no other clinic-wide price is -- a project whose
+  // admin set one keeps theirs, and the fixture row stays for the specs that
+  // read it by title.
+  const [{ data: existingSingle }, { data: clinicWide }] = await Promise.all([
+    admin
+      .from("home_visit_packages")
+      .select("id, active")
+      .eq("title", "Single Home Visit")
+      .maybeSingle(),
+    admin
+      .from("home_visit_packages")
+      .select("id")
+      .eq("active", true)
+      .eq("visit_count", 1)
+      .eq("care_plan_course", false)
+      .is("category_id", null),
+  ]);
+  const clinicWidePriced = (clinicWide ?? []).length > 0;
   if (!existingSingle) {
     await admin.from("home_visit_packages").insert({
       title: "Single Home Visit",
       visit_count: 1,
       price_paise: 150000,
       travel_fee_included: false,
-      active: true,
+      active: !clinicWidePriced,
       visible_on_home_visit_page: true,
     });
+  } else if (!existingSingle.active && !clinicWidePriced) {
+    await admin.from("home_visit_packages").update({ active: true }).eq("id", existingSingle.id);
   }
 
   const { data: existingProgramme } = await admin

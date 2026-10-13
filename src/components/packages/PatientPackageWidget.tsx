@@ -1,16 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { computePackageCounts, daysUntilExpiry } from "@/lib/packageProgress";
+import { computePackageCounts, patientExpiryNotice } from "@/lib/packageProgress";
 import PackageDetailModal from "@/components/packages/PackageDetailModal";
 import PackageBulkScheduler from "@/components/packages/PackageBulkScheduler";
-import Image from "next/image";
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
+import type { ProgrammeTag } from "@/lib/programmeId";
+import ProgrammeCover from "@/components/packages/ProgrammeCover";
+import type { ProgrammeCoverImage } from "@/lib/programmeDisplay";
 
 export type PatientPackageCard = {
   id: string;
   purchaseCode: string | null;
+  /** The programme's ID with its progress (PED_PKG001-2/6) - the reference
+   *  the patient quotes to the clinic. Falls back to purchaseCode. */
+  programmeTag?: ProgrammeTag | null;
   title: string;
-  imageUrl: string | null;
+  /** The programme's photo (its condition's, for a recommended course) -
+   *  src/lib/programmeDisplay.ts. */
+  cover: ProgrammeCoverImage | null;
   sessionCount: number;
   sessionsUsed: number;
   completedCount: number;
@@ -39,9 +47,11 @@ export default function PatientPackageWidget({
 }: {
   purchases: PatientPackageCard[];
   bulkScheduleMax: number;
-  // Admin-configured (Session Manager → Settings) -- a purchase this close
-  // to expires_at gets a highlighted warning instead of the plain "N days
-  // left" line, so it's visible without opening the detail modal.
+  // Admin-configured (Settings -> Programmes) -- the programme's expiry is
+  // said only inside this many days of it, and only while something is left
+  // to book (patientExpiryNotice). Before that the card shows no clock at
+  // all: the owner's call, since "N days left" from the day of payment reads
+  // as a race the patient never agreed to.
   expiryReminderDays: number;
 }) {
   const [now] = useState(() => Date.now());
@@ -69,37 +79,37 @@ export default function PatientPackageWidget({
             completedCount: p.completedCount,
             scheduledCount: p.scheduledCount,
           });
-          const daysLeft = daysUntilExpiry(p.expiresAt, now);
+          const expiryNotice =
+            p.status === "active"
+              ? patientExpiryNotice(p.expiresAt, counts.pending, now, expiryReminderDays)
+              : null;
           const progressPercent =
             p.sessionCount > 0 ? Math.round(((counts.completed + counts.scheduled) / p.sessionCount) * 100) : 0;
 
           return (
             <div key={p.id} className="overflow-hidden rounded-xl border border-slate-200">
-              {p.imageUrl ? (
-                // next/image rather than a raw <img>: these covers come
-                // from Supabase Storage at whatever size they were
-                // uploaded, and the optimizer serves a resized AVIF/WebP
-                // for a box that is only 112px tall. The eslint suppression
-                // that used to sit here was hiding exactly that cost.
-                <Image
-                  src={p.imageUrl}
-                  alt=""
-                  width={400}
-                  height={112}
-                  sizes="(min-width: 768px) 400px, 100vw"
-                  className="h-28 w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-28 w-full items-center justify-center bg-teal-50 text-teal-300">
-                  <i className="fa-solid fa-layer-group text-3xl" />
-                </div>
-              )}
+              {/* Shown whole rather than cropped into a strip (ProgrammeCover),
+                  and the same photo the recommendation carried. */}
+              <ProgrammeCover
+                src={p.cover?.src}
+                focalX={p.cover?.focalX}
+                focalY={p.cover?.focalY}
+                className="h-40"
+                testId="programme-cover"
+              />
               <div className="space-y-2 p-4 text-xs">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-bold text-slate-900">{p.title}</p>
                   <span className="shrink-0 capitalize text-[11px] font-semibold text-slate-500">{p.status}</span>
                 </div>
-                {p.purchaseCode && <p className="font-mono text-slate-500">{p.purchaseCode}</p>}
+                {p.programmeTag ? (
+                  <p className="flex flex-wrap items-center gap-1.5 text-slate-500">
+                    <ProgrammeIdChip tag={p.programmeTag} />
+                    <span>Quote this ID if you contact the clinic.</span>
+                  </p>
+                ) : (
+                  p.purchaseCode && <p className="font-mono text-slate-500">{p.purchaseCode}</p>
+                )}
 
                 <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full bg-teal-600" style={{ width: `${progressPercent}%` }} />
@@ -114,17 +124,11 @@ export default function PatientPackageWidget({
                     {p.therapistName}
                   </p>
                 )}
-                {daysLeft !== null && p.status === "active" && (
-                  daysLeft <= expiryReminderDays && counts.pending > 0 ? (
-                    <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 font-semibold text-amber-800">
-                      <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
-                      {daysLeft <= 0
-                        ? "Expires today - schedule your remaining sessions now"
-                        : `Only ${daysLeft} day${daysLeft === 1 ? "" : "s"} left to use ${counts.pending} remaining session${counts.pending === 1 ? "" : "s"}`}
-                    </p>
-                  ) : (
-                    <p className="text-slate-500">{daysLeft} day{daysLeft === 1 ? "" : "s"} left</p>
-                  )
+                {expiryNotice && (
+                  <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 font-semibold text-amber-800">
+                    <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+                    {expiryNotice}
+                  </p>
                 )}
 
                 <div className="flex items-center gap-3 pt-2">

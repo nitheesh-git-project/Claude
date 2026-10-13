@@ -325,8 +325,7 @@ export default function CarePlanFields({
                 ? "Travel is included. "
                 : "Plus travel for the patient's area, shown to them before they pay. "
               : ""}
-            {rate.sessionDurationMinutes ? `${rate.sessionDurationMinutes} min each. ` : ""}
-            {rate.validityDays ? `Valid ${rate.validityDays} days from payment.` : ""}
+            {rate.sessionDurationMinutes ? `${rate.sessionDurationMinutes} min each.` : ""}
           </p>
         </div>
       )}

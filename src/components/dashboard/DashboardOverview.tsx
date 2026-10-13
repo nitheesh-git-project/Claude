@@ -37,6 +37,7 @@ export default function DashboardOverview({
   feedEmptyBody,
   actions,
   aside,
+  spotlight,
 }: {
   /** Anything that must be read before the dashboard itself -- today only the
    *  admin's red System Health line. Above the greeting on purpose: a warning
@@ -55,6 +56,10 @@ export default function DashboardOverview({
   /** Anything role-specific that belongs beside the feed rather than in
    *  its own section - the admin's queue counts, a patient's next visit. */
   aside?: ReactNode;
+  /** A card that outranks the feed -- the admin's Recommendations, which is
+   *  where the clinic's revenue starts. Rendered above the feed, in its
+   *  column, so it is read before the log of what happened. */
+  spotlight?: ReactNode;
 }) {
   return (
     // One set of blocks, placed by width (`.overview-grid` in globals.css):
@@ -81,7 +86,8 @@ export default function DashboardOverview({
         <StatStrip cells={cells} footer={stripFooter} />
       </div>
 
-      <div className="ov-feed">
+      <div className="ov-feed space-y-5">
+        {spotlight}
         <SurfaceCard title={feedTitle} icon="fa-bell" subtitle="Newest first. Anything waiting on you is pinned to the top.">
           <ActivityFeed items={feed} emptyBody={feedEmptyBody} />
         </SurfaceCard>

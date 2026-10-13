@@ -1,3 +1,5 @@
+import { formatClinicDateShort } from "@/lib/formatDateTime";
+
 // Dependency-free package math -- pricing/savings and expiry state -- kept
 // separate from rendering so it can be reasoned about (and reused by the
 // admin catalog form's live preview, the public package card, and the
@@ -131,4 +133,27 @@ export function computePackageCounts({
     scheduled: scheduledCount,
     pending: Math.max(sessionCount - sessionsUsed, 0),
   };
+}
+
+// What a patient is told about a programme's expiry: nothing, until it is
+// close. The clinic keeps a validity on every programme (Settings ->
+// package_default_validity_days / home_visit_default_validity_days) so unused
+// credits cannot sit for ever, but a "Valid 90 days" tag on the card and an
+// "N days left" countdown under it read as a clock the patient is racing from
+// the day they pay - the owner's call was to show it only near the end. So
+// this says something only when `computePackageExpiryState` is
+// `expiring_soon` (inside package_expiry_reminder_days) AND there is still
+// something to book; a programme fully booked, expired, or comfortably in
+// date says nothing. The date is the clinic's (formatDateTime.ts), never a
+// count of days.
+export function patientExpiryNotice(
+  expiresAt: string | null,
+  pending: number,
+  nowMs: number,
+  reminderDays: number,
+  noun: "session" | "visit" = "session"
+): string | null {
+  if (pending <= 0) return null;
+  if (computePackageExpiryState(expiresAt, nowMs, reminderDays) !== "expiring_soon") return null;
+  return `${pending} ${noun}${pending === 1 ? "" : "s"} left - book by ${formatClinicDateShort(expiresAt)}`;
 }

@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { checkConditionCode, writeConditionCode } from "@/lib/conditionCodeServer";
 import { writeCatalogFocal } from "@/lib/catalogImageServer";
 import { writeCatalogFeatured } from "@/lib/catalogFeaturedServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -27,11 +28,12 @@ export async function POST(request: NextRequest) {
     durationMinutes?: number;
     ctaLabel?: string;
     specialty?: unknown;
+    shortCode?: unknown;
     displayOrder?: number;
     active?: boolean;
   }>(request);
   if (parseError) return parseError;
-  const { id, title, description, imageUrl, imageFocalX, imageFocalY, featured, points, priceInr, durationMinutes, ctaLabel, specialty, displayOrder, active } = body;
+  const { id, title, description, imageUrl, imageFocalX, imageFocalY, featured, points, priceInr, durationMinutes, ctaLabel, specialty, shortCode, displayOrder, active } = body;
 
   if (!id || !title || priceInr === undefined || durationMinutes === undefined) {
     return NextResponse.json(
@@ -73,6 +75,13 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
+  // The programme code (PED), checked before anything is written so a taken
+  // or malformed one is refused with a sentence rather than half-saving.
+  const codeCheck = await checkConditionCode(admin, shortCode, id);
+  if (!codeCheck.ok) {
+    return NextResponse.json({ error: codeCheck.error }, { status: codeCheck.status });
+  }
+
   // `active` is written only when the request actually carries it.
   //
   // It used to default to `true` whenever the field was absent, which meant
@@ -107,6 +116,7 @@ export async function POST(request: NextRequest) {
   }
 
   await writeSpecialty(admin, id, specialty);
+  const codeWarning = await writeConditionCode(admin, id, codeCheck.code);
   // Its own isolated write, so a database one migration behind loses the
   // position rather than refusing the whole edit -- and reported rather than
   // swallowed, because an admin who drags a focal point and is told the save
@@ -134,7 +144,9 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     ...(focalSaved
-      ? {}
+      ? codeWarning
+        ? { warning: codeWarning }
+        : {}
       : {
           warning:
             "Saved, but the cover's position could not be written - it is still centred.",

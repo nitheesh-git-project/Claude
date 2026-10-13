@@ -33,7 +33,7 @@ export default async function Page() {
       >
         <PatientBookingHub
           categories={d.bookableCategories ?? []}
-          homeVisitPackages={d.hubHomeVisitPackages}
+          homeVisitConditions={d.hubHomeVisitConditions}
         />
       </SurfaceCard>
     </PatientDashboardShell>

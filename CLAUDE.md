@@ -43,6 +43,11 @@ the production Supabase project, and the owner does it by hand, deliberately.
 with a merge: `supabase/schema.sql` reaches staging's database only when a
 person applies it.
 
+**No push to a PR into `staging` or `main` until every CI runner passes
+locally:** `npm run check:merge-ready`, then `-- --e2e --append-only
+--skip-static --runner <name>` for all seven runners. Fix every red, push
+once; read a red CI run from its failure bundle, never the raw log.
+
 ### Secrets
 
 `SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET` and the Google
@@ -82,7 +87,9 @@ Four things in there are not negotiable:
   `authenticated` - all three, every time**, and gets an explicit safe
   `search_path`. Naming only the last two leaves PUBLIC's implicit grant,
   which is how two ledger functions came to be callable by anyone holding the
-  publishable anon key. `npm run lint` fails on either omission.
+  publishable anon key. `npm run lint` fails on either omission. Those
+  revokes can take `service_role` with them, so the file's last block grants
+  it back explicitly - production refused every promo code without it.
 - **Append-only means a trigger, not RLS.** Every route here writes with the
   service-role client, which bypasses RLS entirely, so for a table whose
   whole value is that it cannot be rewritten, "no route updates it" is not
@@ -185,7 +192,7 @@ Not sure which? `docs/rules/00-index.md` lists every rule by its own
 sentence, so `grep` finds the file from a symptom. `rg -l "<the thing>"
 docs/rules/` also works, and is usually faster than guessing.
 
-Other reference, read on demand: `README.md` (the product and setup in full),
+Other reference, read on demand: `docs/PRODUCT-GUIDE.md` (the product and setup in full; `README.md` is the overview),
 `docs/MONEY-MODEL.md`, `docs/LIFECYCLE-STATES.md`, `docs/DATA-POLICY.md`,
 `e2e/README.md` (the suite's inventory), `docs/audit/` (what the audit found).
 
@@ -194,7 +201,7 @@ Other reference, read on demand: `README.md` (the product and setup in full),
 ## Layout
 
 ```
-src/app/                 pages, layouts, API route handlers (189 of them)
+src/app/                 pages, layouts, API route handlers (193 of them)
 src/app/api/**           grouped by audience: admin/, appointments/, patient/,
                          therapist/, hospital/, packages/, razorpay/, and
                          medical-documents/ (the one route every role shares,

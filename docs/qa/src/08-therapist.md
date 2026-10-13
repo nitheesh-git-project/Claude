@@ -29,8 +29,8 @@ Five rules shape almost every screen:
 6. Tap **Qualifications & License / Council Reg No.** Enter `MPT (Ortho), KSCP Reg 44821`.
 7. Tap **Specialist In**. It is a **dropdown**, not a text box, and it lists exactly eight: Orthopaedic, Neurological, Paediatric, Sports, Geriatric, Cardiopulmonary, Women's health, General physiotherapy - **General physiotherapy** is the one for somebody who does not specialise. Choose **Orthopaedic**.
 7b. Tap **Years of experience**. Try `abc`, then `-2`, then `2024`, then `61`. Finally enter `9`.
-8. Tap **Password**. Enter `QaTest!2024pass`.
-9. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+8. Tap **Password**. Enter the `E2E_QA_PASSWORD` value.
+9. Tap **Confirm Password**. Enter the `E2E_QA_PASSWORD` value.
 10. Tap **Submit Application**.
 
 **Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`, `specialization='Orthopaedic'` - the exact label, not a code - and `years_experience = 9`.
@@ -71,7 +71,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 **Preconditions.** `THR-AUTH-003`. Best read after `THR-SESS-005` has completed at least one session, so **Notes to write** and **Owed to you** are non-zero.
 
 **Steps**
-1. Open `/therapist/dashboard`.
+1. Open `/therapist/dashboard`. On a brand-new therapist only, the dashboard tutorial opens first (`Dashboard tour · dummy data`): tap the **Health profiles** chip and step through all five of its steps - triage, filling the seven questions, the Pain Map exam, recommending a programme, and later changes through the clinic - then tap **Skip**, confirm **Skip tour**, and check it does not return on reload.
 2. Read the header block: name, credentials, `Your Revenue Share: N%`, `Your Rating: …`.
 3. Read the four figures: **Today**, **Upcoming**, **Notes to write**, **Owed to you**.
 4. Tap **Notes to write**.
@@ -81,6 +81,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 8. Tap Back, then tap each of **Your assigned sessions**, **Patient health profiles** and **Earnings and payouts** in turn, returning each time.
 
 **Expected Result.**
+* **The tutorial explains the health profile from the therapist's side** with dummy data only (Priya, Dr Ananya): who fills it first, that the first fill saves without review and unlocks the patient's profile, and that later changes wait for the clinic. Skip asks once, then records it as seen; the (i) beside any page title replays just that page's chapter.
 * Header: `Welcome, QA Therapist A`, the credentials string, `Your Revenue Share: 60%` (whatever `ADM-PEOP-006` set), and `Your Rating: No ratings yet` until a patient has rated one - then `4.0 (1 rating)`. If an admin has hidden this therapist's rating, the line ends ` - hidden from public pages`.
 * Greeting `Your practice today`. The headline names the next session and its patient, or reads `No sessions booked yet - keep your availability open and the clinic assigns work to it.`
 * **Today** counts today's sessions with `Next at H:MM` beneath, **Upcoming** counts confirmed and awaiting-assignment work, **Notes to write** counts delivered sessions with nothing recorded (amber above zero, emerald at zero with `Every delivered session is written up`), **Owed to you** is a rupee figure with `Not yet requested` / `Payout request under review` / `Payout request sent`.
@@ -100,9 +101,9 @@ The therapist Overview is where a clinician starts every shift: what is on today
 
 **Steps**
 1. In the sidebar tap **Edit Profile**.
-2. Under **Public Details**, tap **Short Bio**. Replace it with `Works with desk-based patients on posture-driven back pain.`
-3. Tap **Languages Spoken**. Enter `English, Kannada, Hindi`.
-4. Tap **Save**.
+2. Under **Public Details → Bio**, tap **Edit** (or **Add**). Type `Works with desk-based patients on posture-driven back pain.`, press Enter, type `Video and home visits.`, then select the words `posture-driven` and tap **Bold** in the toolbar. Tap **Save**.
+3. Under **Public Details**, tap **Edit**, then **Languages Spoken**. Enter `English, Kannada, Hindi` and tap **Save**.
+4. Confirm the bio now shows in grey exactly as typed - two paragraphs, `posture-driven` in bold - with an **Edit** button under it.
 5. Reload the page and confirm both values survived.
 6. Under **Credentials & Specialization**, tap **Years of Experience**. Enter `15`.
 7. Tap **Specialist In** and choose `Neurological` from the dropdown.
@@ -116,6 +117,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 
 **Expected Result.**
 * **Public Details save instantly.** The button reads `Saving...` then `Save`; the values survive the reload at step 5. No admin sees anything.
+* **The bio keeps its formatting everywhere.** The grey saved view, the admin's therapist page and the `/team` popup all show the same two paragraphs with `posture-driven` in bold - never one run-on line. **Cancel** with unsaved changes asks before discarding them.
 * **Credentials do not.** Step 8 shows `Your request has been submitted for admin review.` Each requested field is replaced by its **new** value on a slate panel with an amber `Pending Review` chip and a **Withdraw** link, and **cannot be edited again** until the request is decided. The live public profile still shows the **old** value - `/team` and the patient's therapist card must not change yet.
 * Step 10's **Withdraw** returns the field to an editable control immediately, with the old value.
 * **Specialist In is a dropdown of the eight the clinic recognises.** A therapist whose stored value is free text written before this list existed is offered that value as a ninth option and it is **preselected** - the screen must never show a different specialisation from the one in the database because the stored one had no matching option.
@@ -228,13 +230,13 @@ This is the regression that guards the whole design. See `XCFG-ROSTER-001`.
 
 #### `THR-SESS-004` - Reveal a contact inside the join window · P0
 
-**Preconditions.** A confirmed **video** session whose slot is within the join window in **real** time (the route uses the server clock). Reason: this route's window check is server-side.
+**Preconditions.** A confirmed **video** session whose slot is within the join window - in real time, or on the debug bar's simulated clock while the bar is on (the route honours it, like Done).
 **Steps.** Tap **Show number**. Read the number. Then repeat on a session whose slot is a week away, and on a cancelled session.
 **Expected Result**
 * Inside the window: the full number is revealed, and a `contact_reveal_log` row is written. **The log write is not best-effort** - if it fails, the reveal is refused with `Could not show the number just now. Please try again.` A reveal with no trace is the one outcome this route must not produce.
-* Outside the window: refused with the route's own explanation (403).
+* Outside the window: refused (403) with the time it opens - `You can see this number from <time> on <date>.` - or, after it, `This number closed at <time>, after the session.` A home visit outside its day says `You can see this number on <date>, the day of the visit.`
 * Cancelled session: refused.
-* A **home visit** is revealable **any time on the visit's own day**, not merely in a join window - verify this separately.
+* A **home visit** is revealable **any time on the visit's own day in the clinic's zone (IST)**, not merely in a join window - verify this separately, including a 7 AM visit just after midnight.
 * Admin → Settings → User Access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
 
 #### `THR-SESS-005` - Completing a session is gated two ways · P0
@@ -275,7 +277,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 4. Sign in as Patient A and search their entire portal and their exported PDF for the note text.
 
 **Expected Result**
-* Step 1: refused - `You can write the note once the session has taken place.`
+* Step 1: refused - `You can write the note from <date, time>, when the session starts.` (On the debug bar's simulated clock while the bar is on, like Done.)
 * Step 2: saved. It appears on the therapist's chart. **Completion is never blocked on a note** - the nudge is a "Notes to write" figure on Overview and a feed item.
 * Step 3: succeeds, and a `session_note_revisions` row records what it replaced. After 24 hours, editing is refused.
 * Step 4: **the note text appears nowhere the patient can see, including the PDF export.** `session_notes` has no patient select policy and must never get one.
@@ -311,6 +313,24 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Step 7: **Orthopaedic** is suggested, **with its reason stated**, and is **not auto-accepted**. The therapist confirms or overrides.
 * On confirming, an already-`approved` `condition_change_requests` row is written, so the triage appears in the ordinary Review History with no new concept and no queue.
 * **Nowhere on a patient-facing screen do the words "triage", "onboarding" or "specialty" appear.** A patient is shown the care ("Orthopaedic care"), never the category word.
+
+#### `THR-HP-010` - "Onboarding needed" on Home and the session card, and the guide · P1
+
+**Preconditions.** Therapist A is assigned to Patient A, who has no condition profile, with a confirmed session booked.
+
+**Steps**
+1. Open `/therapist/dashboard` (Home).
+2. Open **Sessions** and find Patient A's session card.
+3. Tap **How onboarding works** (on the banner or the card) and step through it with **Next**.
+4. Tap **Start onboarding** on the card.
+5. Fill and save the first record (THR-HP-001/002), then reopen Home and Sessions.
+
+**Expected Result**
+* Step 1: an amber banner above the greeting - `<Patient> needs onboarding` (or `N patients need onboarding`), each row with the next session's date and time and **Start onboarding**, and **How onboarding works**. More than three patients: three by name and `And N more - see them on Health Profiles.` The Home feed row `Onboarding needed - <Patient>` is still there too.
+* Step 2: the card carries an amber strip - **Onboarding needed**, `<First name>'s Health Profile is locked until you fill it - do it with them in this session.`, **Start onboarding** and **How onboarding works**. A cancelled session's card has no strip.
+* Step 3: an eight-step guide with dummy data, not part of the first-visit tour: *What onboarding is*, *Before the session*, *Step 1 - four questions decide the condition type* (it plays three dummy patients, one landing on each of Orthopaedic, Neurological and Paediatric with the reason), *Orthopaedic*, *Neurological* and *Paediatric* (each walks that type's real questions with the help line to read aloud, required ones marked), *Save - it's live straight away*, and *If the case turns out to be something else*.
+* Step 4: the patient's Health Profile opens with **Which condition type is this?** already open, and the address bar no longer carries `?start=onboarding` (a reload does not reopen it).
+* Step 5: the banner row and the card strip are gone.
 
 #### `THR-HP-002` - Write the patient's first record (live, no review) · P0
 
@@ -448,16 +468,16 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 **Steps**
 1. On the programme's card, tap the suggest control.
-2. Pick a date and time comfortably beyond the booking lead time.
+2. Pick a date and time comfortably beyond the booking lead time, **inside this therapist's own working hours** (Availability).
 3. Enter the note `Let's keep the two-a-week rhythm while it is working.`
 4. Tap **Send suggestion**.
 5. Tap **Send suggestion** twice more, rapidly, on a second programme.
 
 **Expected Result**
-* Step 4: the control changes to **Waiting on the patient** with a **Withdraw suggestion** option. **No slot is held** - a hold would need releasing, releasing would need a sweep, and there is no scheduled worker. The therapist's calendar is re-checked at acceptance instead.
+* Step 4: the control changes to **Waiting on the patient** with a **Withdraw suggestion** option. **No slot is held** - a hold would need releasing, releasing would need a sweep, and there is no scheduled worker. When the patient accepts, the session goes to the admin's queue with this therapist pre-picked, and the admin's assign re-checks the calendar.
 * No appointment is created and **no credit is spent** - `sessions_used` is unchanged.
 * Step 5: exactly **one** suggestion. The submit is guarded by a **synchronous ref** (a `disabled` attribute lands a render too late), and a partial unique index allows at most **one pending suggestion per purchase**.
-* Negative cases: a slot too soon → `That time is too soon to book. Pick a later slot.`; a programme not locked to this therapist → `That isn't your programme.`; an inactive/unpaid programme → `That programme isn't active.`; a slot after expiry → `That time is after the programme expires.`; no credits → `Every session in this programme is already used.`; the therapist already busy → `You already have a session at that time.` (409); a note over 500 characters → `Your note must be 500 characters or less.`
+* Negative cases: a slot too soon → `That time is too soon to book. Pick a later slot.`; a programme not locked to this therapist → `That isn't your programme.`; an inactive/unpaid programme → `That programme isn't active.`; a slot after expiry → `That time is after the programme expires.`; no credits → `Every session in this programme is already used.`; a time outside this therapist's own working hours (or on leave, or over another session) → `You can only suggest a time inside your own working hours. You're not working <hour> on <date>.` naming every reason (409) - checked up front with the same roster rule the admin's assign uses; the therapist already busy → `... You already have a session at <hour> on <date>.` (409); a note over 500 characters → `Your note must be 500 characters or less.`
 * With the toggle off: `Suggesting sessions is switched off.` (403).
 
 #### `THR-SUGG-002` - Withdraw a suggestion · P2

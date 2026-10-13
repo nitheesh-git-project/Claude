@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
       reason: reason?.trim() || null,
       refunded: result.refunded,
       refundFailed: result.refundFailed ?? false,
+      refundFailure: result.refundFailureForAdmin ?? null,
       overridePayoutSettled: !!overridePayoutSettled,
     },
   });
@@ -63,5 +64,6 @@ export async function POST(request: NextRequest) {
     success: true,
     refunded: result.refunded,
     refundFailed: result.refundFailed ?? false,
+    refundFailure: result.refundFailureForAdmin ?? null,
   });
 }

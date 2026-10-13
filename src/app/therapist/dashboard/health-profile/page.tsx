@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { loadProgrammeTags } from "@/lib/programmeTagsServer";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -131,6 +132,9 @@ export default async function TherapistHealthProfilesPage() {
     lockedPurchases ?? [],
     { authoritative: await readLedgerAuthoritative(admin) }
   );
+  // Each programme's ID with its progress (PED_PKG001-2/6), counted over
+  // every session of it rather than only this therapist's.
+  const programmeTags = await loadProgrammeTags(admin, { packages: programmePurchases.map((p) => p.id) });
 
   // Pending suggestions, read in their own call so a database that hasn't
   // run the latest schema.sql loses the Suggest control rather than this
@@ -283,6 +287,7 @@ export default async function TherapistHealthProfilesPage() {
           programmes={programmePurchases.map((p) => ({
             id: p.id,
             purchaseCode: p.purchase_code,
+            programmeTag: programmeTags.get(p.id) ?? null,
             patientName: patientNameById.get(p.patient_id) ?? "Unknown patient",
             patientCode: null,
             packageTitle: programmePackageTitleById.get(p.package_id) ?? "Session Package",

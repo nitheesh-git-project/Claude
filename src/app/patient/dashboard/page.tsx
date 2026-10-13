@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
-import OnboardingTour from "@/components/patient/OnboardingTour";
 import InviteCard from "@/components/patient/InviteCard";
 import PayLaterWidget from "@/components/patient/PayLaterWidget";
 import { StripProgress } from "@/components/dashboard/StatStrip";
@@ -29,7 +28,6 @@ export default async function PatientDashboardPage() {
       title={`Welcome back, ${d.profile?.full_name ?? "there"}`}
       subtitle="Your virtual physical therapy dashboard"
     >
-      {!d.onboardingRow?.onboarding_seen_at && <OnboardingTour intakeLocked={!d.intakeGate.canEdit} />}
 
       {/* Above everything else on the screen, because it is the one thing
           here that involves money the clinic is waiting for -- and because

@@ -64,7 +64,7 @@ export default function EditBookingForm({
     const data = await res.json().catch(() => ({}));
     setLoading(false);
     if (!res.ok) {
-      if (showIfUnavailable(data)) return;
+      if (showIfUnavailable(data, therapistId)) return;
       setError(data.error ?? "Could not save. Please try again.");
       return;
     }

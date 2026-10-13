@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { recordUserActivity } from "@/lib/userActivityLog";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -71,6 +72,24 @@ export async function recordPaymentCapture(
 
     const row = data as Record<string, unknown> | null;
     if (!row) return null;
+
+    // All Logs: a payment arriving, once. This is the one place every
+    // capture passes through -- the three browser callbacks and the webhook --
+    // so it is recorded here rather than in each, and `applied` is true only
+    // for the call that did the work. The key makes a repeat harmless anyway.
+    if (row.applied === true) {
+      const purchase = Boolean(row.target_package_purchase_id || row.target_home_visit_purchase_id);
+      await recordUserActivity(admin, {
+        action: purchase ? "programme.purchased" : "payment.captured",
+        actor: { id: null, role: "patient" },
+        appointmentId: (row.target_appointment_id as string | null) ?? null,
+        packagePurchaseId: (row.target_package_purchase_id as string | null) ?? null,
+        homeVisitPurchaseId: (row.target_home_visit_purchase_id as string | null) ?? null,
+        amountPaise: amountPaise ?? null,
+        details: { paymentId },
+        dedupeKey: `payment:${paymentId}`,
+      });
+    }
 
     return {
       applied: row.applied === true,

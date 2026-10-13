@@ -130,7 +130,7 @@ test.describe("Suite J: degraded schema", () => {
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.admin));
   });
 
-  test("J-005: a missing admin_activity_log empties only the log screen", async ({ page }) => {
+  test("J-005: a missing admin_activity_log costs only the log screen its admin rows, and says so", async ({ page }) => {
     try {
       sql("drop table if exists admin_activity_log cascade;");
       await dashboardStillWorks(page);
@@ -139,8 +139,11 @@ test.describe("Suite J: degraded schema", () => {
       await expect(
         page.getByRole("heading", { level: 2, name: "All Activity" })
       ).toBeVisible({ timeout: 30_000 });
-      // Empty, and saying so -- not a crash and not a blank panel.
-      await expect(page.getByText(/Nothing logged yet/)).toBeVisible();
+      // Not a crash and not a blank panel: since All Activity also reads
+      // user_activity_log, the patients' side still shows, and the screen
+      // says the admin side could not be read rather than passing the rest
+      // off as the whole history.
+      await expect(page.getByText(/Admin actions couldn't be read/)).toBeVisible();
     } finally {
       restoreSchema();
     }

@@ -17,6 +17,7 @@ export default async function Page() {
       <SurfaceCard
         id="revenue"
         title="Earnings"
+        info="card:earnings"
         icon="fa-chart-line"
         subtitle="Completed sessions for the patients you referred, and your share of each. A session keeps the rate that applied on the day it was delivered."
         className="mt-6"

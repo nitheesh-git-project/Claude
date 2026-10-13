@@ -3,11 +3,9 @@ import HomeVisitOnly, { HomeVisitUnavailable } from "@/components/pricing/HomeVi
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
 import { pickFeatured } from "@/lib/catalogFeatured";
-import HomeVisitPackages, {
-  type PublicHomeVisitPackage,
-} from "@/components/home/HomeVisitPackages";
+import HomeVisitConditions from "@/components/home/HomeVisitConditions";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
-import { isDirectlyPurchasable } from "@/lib/consultationFirst";
+import { loadHomeVisitConditions } from "@/lib/homeVisitRatesServer";
 import PageHero from "@/components/marketing/PageHero";
 import Section from "@/components/marketing/Section";
 import IconCard from "@/components/marketing/IconCard";
@@ -68,16 +66,13 @@ export default async function HomeVisitPage() {
     notFound();
   }
 
-  const [{ data: rawPackages }, { data: areas }] = await Promise.all([
-    supabase
-      .from("home_visit_packages")
-      .select(
-        "id, title, subtitle, image_url, benefits, badge_label, highlight, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked"
-      )
-      .eq("active", true)
-      .eq("visible_on_home_visit_page", true)
-      .order("display_order", { ascending: true })
-      .order("id", { ascending: true }),
+  const [{ conditions: allConditions }, { data: areas }] = await Promise.all([
+    // Every condition the clinic treats, each as one visit at its home-visit
+    // price (Catalog -> Conditions -> Home visits: its own price, else the
+    // clinic-wide one). One visit, always -- a course of visits is a
+    // therapist's recommendation after seeing someone, so the old multi-visit
+    // rows are not advertised here at all.
+    loadHomeVisitConditions(supabase),
 
     supabase
       .from("home_visit_areas")
@@ -87,69 +82,11 @@ export default async function HomeVisitPage() {
       .order("pincode", { ascending: true }),
   ]);
 
-  // The detail dialog's long-form copy and scheduling rules, read in their
-  // own call and merged in -- same migration tolerance as the session
-  // packages on / and /conditions: losing these columns costs the dialog
-  // those fields, not the whole catalogue.
-  const packageIds = (rawPackages ?? []).map((p) => p.id);
-  const { data: packageDetail } = packageIds.length
-    ? await supabase
-        .from("home_visit_packages")
-        .select("id, description, terms, min_gap_hours, max_visits_per_week, max_purchases_per_patient")
-        .in("id", packageIds)
-    : { data: null };
-  const detailById = new Map((packageDetail ?? []).map((d) => [d.id, d]));
-
-  // The focal point of each cover, in its own call again -- these are the
-  // newest columns on this table, and sharing the detail query above would
-  // trade a dialog's whole long-form copy for a picture's position.
-  const { data: packageFocals } = packageIds.length
-    ? await supabase
-        .from("home_visit_packages")
-        .select("id, image_focal_x, image_focal_y")
-        .in("id", packageIds)
-    : { data: null };
-  const focalById = new Map(
-    (packageFocals ?? []).map((f) => [
-      f.id,
-      { image_focal_x: f.image_focal_x, image_focal_y: f.image_focal_y },
-    ])
-  );
-
-  // Which visits lead the page. Its own call for the same reason as the two
-  // above: `featured` is the newest column on this table, so sharing a query
-  // would trade the covers and their positions for the curation on a
-  // database mid-migration. Absent, every row reads as not featured and the
-  // page leads with the first four -- what it did before this existed.
-  const { data: packageFeatured } = packageIds.length
-    ? await supabase
-        .from("home_visit_packages")
-        .select("id, featured")
-        .in("id", packageIds)
-    : { data: null };
-  const featuredById = new Map((packageFeatured ?? []).map((f) => [f.id, f.featured]));
-
-  // Single visits only. Every home visit in this app is a package purchase,
-  // so a one-visit package IS the home-visit consultation and has to stay on
-  // this page -- it is the only way in for a patient who needs to be seen at
-  // home. A multi-visit programme is a clinical recommendation a therapist
-  // writes after seeing someone, so it is not advertised here at all, the
-  // same rule / and /conditions now follow for session programmes.
-  const allPackages = (rawPackages ?? [])
-    .filter((p) => isDirectlyPurchasable(p.visit_count))
-    .map((p) => ({
-      ...p,
-      ...(detailById.get(p.id) ?? {}),
-      ...(focalById.get(p.id) ?? {}),
-      featured: featuredById.get(p.id) ?? false,
-    })) as PublicHomeVisitPackage[];
-
-  // Every package, featured ones first. This page *is* the full list of home
-  // visits, so nothing is held back behind a reveal: it used to lead with
-  // four and a "Show more" whose cards never appeared.
-  const { shown: leadPackages } = pickFeatured(allPackages);
-  const leadIds = new Set(leadPackages.map((p) => p.id));
-  const packages = [...leadPackages, ...allPackages.filter((p) => !leadIds.has(p.id))];
+  // Every condition, featured ones first. This page *is* the full list of
+  // home visits, so nothing is held back behind a reveal.
+  const { shown: leadConditions } = pickFeatured(allConditions);
+  const leadIds = new Set(leadConditions.map((c) => c.id));
+  const conditions = [...leadConditions, ...allConditions.filter((c) => !leadIds.has(c.id))];
 
   const heading =
     settingsRow?.home_visit_page_heading?.trim() || DEFAULT_HOME_VISIT_PAGE_HEADING;
@@ -223,13 +160,13 @@ export default async function HomeVisitPage() {
         tone="tint"
         eyebrow="Book a visit"
         title="Choose your visit"
-        lede="One visit, or a programme with the same physiotherapist."
+        lede="Pick what the visit is for. One visit - if you need more, your therapist will recommend them."
       >
-        {packages.length > 0 ? (
-          <HomeVisitPackages packages={packages} />
+        {conditions.length > 0 ? (
+          <HomeVisitConditions conditions={conditions} />
         ) : (
           <p className="text-center text-sm text-slate-500">
-            Home visit packages are being finalised - please check back shortly.
+            Home visit prices are being finalised - please check back shortly.
           </p>
         )}
       </Section>

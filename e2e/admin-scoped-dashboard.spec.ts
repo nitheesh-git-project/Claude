@@ -61,9 +61,10 @@ async function quickActionSections(page: Page): Promise<string[]> {
 // does show it) even though S-004 below proves they cannot change anything
 // in it.
 const SECTIONS_BY_SCOPE: Record<string, string[]> = {
-  operations: ["today", "sessions", "people", "catalog"],
-  finance: ["today", "sessions", "people", "money"],
-  clinical: ["today", "sessions", "people"],
+  operations: ["today", "sessions", "programmes", "people", "catalog"],
+  // Programmes at view: the list, never the approval queue (S-00x below).
+  finance: ["today", "sessions", "programmes", "people", "money"],
+  clinical: ["today", "sessions", "programmes", "people"],
 };
 
 // The figure each scope's Today leads with -- its own work, not a full
@@ -346,6 +347,14 @@ test.describe("Suite S: scoped admin dashboards", () => {
         expect(href, "finance was offered an action-only Sessions screen").not.toContain(
           "tab=recommendations"
         );
+      }
+      // Programmes is read-only for finance too: the list, never the
+      // approval queue, which is nothing but decisions.
+      const programmeHrefs = await page
+        .locator('[href*="section=programmes"]')
+        .evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
+      for (const href of programmeHrefs) {
+        expect(href, "finance was offered the approval queue").not.toContain("tab=review");
       }
 
       // And the routes refuse regardless of what any screen shows.
