@@ -310,7 +310,7 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
 - TypeScript throughout; no `any` escapes for convenience.
 - Tailwind utility classes; design tokens and font stacks are composed in
   `src/app/globals.css` (`--font-sans`, `--font-display`). Fonts are
-  self-hosted via `next/font/google` - no runtime request to Google.
+  self-hosted from `src/app/fonts/` via `next/font/local` - no request to Google at build or run time (the build-time download failed CI when Google did not answer).
 - Server components by default; add `"use client"` only where interaction
   requires it.
 - Comments in this codebase explain *why*, especially where a non-obvious
