@@ -22,6 +22,8 @@ import {
   type PaymentFailureRow,
   type PayoutBatchRow,
 } from "@/lib/receipts";
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
+import { programmeQueryMatches, type ProgrammeTag } from "@/lib/programmeId";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import type { CsvColumn } from "@/lib/csvExport";
 import DataExportButtons from "@/components/admin/DataExportButtons";
@@ -84,9 +86,18 @@ type AdminReceiptRow = {
   // sessions, so there's no one session_code that fits (see each session's
   // own code inside the payout detail modal instead).
   sessionCode: string | null;
+  /** The programme the money was for (PED_PKG001-2/6): the purchase itself,
+   *  or the programme a session was drawn from. */
+  programme: ProgrammeTag | null;
 };
 
-function PatientTransactionTable({ transactions }: { transactions: PatientTransaction[] }) {
+function PatientTransactionTable({
+  transactions,
+  programmeTagsByPurchase,
+}: {
+  transactions: PatientTransaction[];
+  programmeTagsByPurchase: Record<string, ProgrammeTag>;
+}) {
   if (transactions.length === 0) {
     return (
       <EmptyState
@@ -114,7 +125,14 @@ function PatientTransactionTable({ transactions }: { transactions: PatientTransa
           {transactions.map((t) => (
             <tr key={t.id} className="border-b border-slate-100">
               <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">{formatDateTime(t.date)}</td>
-              <td className="py-2.5 pr-3 text-slate-500 font-mono">{t.sessionCode ?? "-"}</td>
+              <td className="py-2.5 pr-3 text-slate-500 font-mono">
+                {t.sessionCode ??
+                  (t.packagePurchaseId && programmeTagsByPurchase[t.packagePurchaseId] ? (
+                    <ProgrammeIdChip tag={programmeTagsByPurchase[t.packagePurchaseId]} size="xs" />
+                  ) : (
+                    "-"
+                  ))}
+              </td>
               <td className="py-2.5 pr-3 text-slate-500 font-mono">{t.transactionId ?? "-"}</td>
               <td className="py-2.5 pr-3 text-slate-700">{t.modeOfPayment}</td>
               <td className="py-2.5 pr-3 text-right font-semibold text-slate-900">{formatInr(t.amountPaise)}</td>
@@ -186,6 +204,8 @@ export default function AdminPaymentHistoryTab({
   paymentFailures,
   payoutBatches,
   categories,
+  programmeTagsByPurchase = {},
+  programmeTagsByAppointment = {},
 }: {
   patients: Patient[];
   therapists: Therapist[];
@@ -194,6 +214,9 @@ export default function AdminPaymentHistoryTab({
   paymentFailures: PaymentFailureRow[];
   payoutBatches: PayoutBatchRow[];
   categories: Category[];
+  /** Programme IDs with progress, so a row tied to a programme names it. */
+  programmeTagsByPurchase?: Record<string, ProgrammeTag>;
+  programmeTagsByAppointment?: Record<string, ProgrammeTag>;
 }) {
   const [openPatientId, setOpenPatientId] = useState<string | null>(null);
   const [openTherapistId, setOpenTherapistId] = useState<string | null>(null);
@@ -276,6 +299,12 @@ export default function AdminPaymentHistoryTab({
             r.kind !== "settlement" && r.appointmentId
               ? sessionCodeByAppointmentId.get(r.appointmentId) ?? null
               : null,
+          programme:
+            r.kind === "settlement"
+              ? null
+              : (r.packagePurchaseId ? programmeTagsByPurchase[r.packagePurchaseId] : undefined) ??
+                (r.appointmentId ? programmeTagsByAppointment[r.appointmentId] : undefined) ??
+                null,
         });
       }
     }
@@ -296,6 +325,7 @@ export default function AdminPaymentHistoryTab({
           amountPaise: r.amountPaise,
           detail: r,
           sessionCode: null,
+          programme: null,
         });
       }
     }
@@ -310,6 +340,8 @@ export default function AdminPaymentHistoryTab({
     categoryTitleById,
     patientNameById,
     sessionCodeByAppointmentId,
+    programmeTagsByPurchase,
+    programmeTagsByAppointment,
   ]);
 
   // Parsed with an explicit +05:30 offset, same reasoning as
@@ -331,9 +363,12 @@ export default function AdminPaymentHistoryTab({
       if (r.personRole !== role || r.personId !== id) return false;
     }
     if (receiptTypeFilter !== "all" && r.typeLabel !== receiptTypeFilter) return false;
+    // One box for both references: a session ID, or a programme ID (new or
+    // old code, with or without its progress).
     if (
       trimmedReceiptSessionCodeFilter &&
-      !(r.sessionCode ?? "").toLowerCase().includes(trimmedReceiptSessionCodeFilter)
+      !(r.sessionCode ?? "").toLowerCase().includes(trimmedReceiptSessionCodeFilter) &&
+      !(r.programme && programmeQueryMatches(receiptSessionCodeFilter, [r.programme.code, ...r.programme.otherCodes]))
     )
       return false;
     const ms = new Date(r.date).getTime();
@@ -378,6 +413,7 @@ export default function AdminPaymentHistoryTab({
       [
         { header: "Date", value: (r) => r.date },
         { header: "Session ID", value: (r) => r.sessionCode ?? "" },
+        { header: "Programme", value: (r) => r.programme?.display ?? "" },
         { header: "Who", value: (r) => r.personName },
         { header: "Role", value: (r) => r.personRole },
         { header: "Type", value: (r) => r.typeLabel },
@@ -582,12 +618,12 @@ export default function AdminPaymentHistoryTab({
           />
 
           <input
-            aria-label="Filter by session ID"
+            aria-label="Filter by session or programme ID"
             type="text"
             value={receiptSessionCodeFilter}
             onChange={(e) => setReceiptSessionCodeFilter(e.target.value)}
-            placeholder="Filter by Session ID"
-            className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-40"
+            placeholder="Session or programme ID"
+            className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-48"
           />
 
           {(receiptPersonFilter !== "all" ||
@@ -633,7 +669,14 @@ export default function AdminPaymentHistoryTab({
                     <td className="py-2.5 pr-3 text-slate-700 whitespace-nowrap">
                       {formatDateTime(r.date)}
                     </td>
-                    <td className="py-2.5 pr-3 text-slate-500 font-mono">{r.sessionCode ?? "-"}</td>
+                    <td className="py-2.5 pr-3 text-slate-500 font-mono">
+                      {r.sessionCode ?? (r.programme ? null : "-")}
+                      {r.programme && (
+                        <span className={r.sessionCode ? "mt-1 flex" : "flex"}>
+                          <ProgrammeIdChip tag={r.programme} size="xs" />
+                        </span>
+                      )}
+                    </td>
                     <td className="py-2.5 pr-3">
                       <span className="font-bold text-slate-900">{r.personName}</span>
                       <span className="text-slate-500 capitalize"> · {r.personRole}</span>
@@ -677,7 +720,10 @@ export default function AdminPaymentHistoryTab({
           subtitle={`${openPatient.transactions.length} transaction${openPatient.transactions.length === 1 ? "" : "s"} · Total spent ${formatInr(openPatient.summary.totalSpentPaise)}`}
           onClose={() => setOpenPatientId(null)}
         >
-          <PatientTransactionTable transactions={openPatient.transactions} />
+          <PatientTransactionTable
+            transactions={openPatient.transactions}
+            programmeTagsByPurchase={programmeTagsByPurchase}
+          />
         </Modal>
       )}
 

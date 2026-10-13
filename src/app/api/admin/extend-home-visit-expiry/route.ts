@@ -9,7 +9,7 @@ const MAX_REASON_LENGTH = 500;
 
 // The home-visit twin of /api/admin/extend-package-expiry.
 export async function POST(request: NextRequest) {
-  const adminUser = await requireAdminScope("catalog");
+  const adminUser = await requireAdminScope("programmes");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

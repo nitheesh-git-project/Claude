@@ -86,7 +86,7 @@ total, which moves with every spec added.
 | `pay-later` | 7 | the grant, a booking with no payment screen, completion putting money in three places at once, a declaration that settles nothing, a write-off that costs the clinic without moving a money figure |
 | `discounts` | 7 | the four acquisition discounts and what each records |
 | `acquisition-codes` | 18 | a promo code quoting with no amount in the request, a redemption cap, a paused campaign, an invite that cannot be self-claimed, and the free-booking path |
-| `unscheduled-purchases` | 3 | a paid purchase nobody ever booked anything against |
+| `unscheduled-purchases` | 3 | a paid purchase nobody ever booked anything against, on Programmes -> All Programmes ("Paid - nothing booked", narrowed to the day-old ones the Money alert counts) |
 | `session-scheduling` | 6 | booking the sessions a patient paid for, none of which assigns itself even on a locked programme |
 | `programme-sessions-via-admin` | 5 | every programme session (booked from credits, an accepted suggestion, a visit on a home-visit programme) waiting `requested` and unassigned; the All Sessions row naming the pre-picked programme therapist; one tap on "Assign <name>" confirming it; and a pre-pick no longer free named rather than offered |
 
@@ -125,6 +125,7 @@ total, which moves with every spec added.
 | `dev-reachout` | 4 | the footer's developer credit end to end: Contact me → Say hello → Let's talk → a row, a filled honeypot writing nothing, a Master Admin marking it contacted and keeping a dated thread of notes (add, edit, delete), and the switch asking on **both** directions with cancel changing nothing and the credit, the pages and the route following it |
 | `admin-partners-and-credentials` | 6 | the three partner layouts, and a credential still readable after the refresh its own write triggers |
 | `admin-profile-session-order` | 3 | a person's sessions ordered by when they are, not when they were booked |
+| `admin-programmes` | 4 | Programmes: the pipeline counts and filters (and writes `pg_*` into the URL), a recommendation carries its `PED_PKG001` ID from publish and the purchase copies it, completing a session moves `-0/5` to `-1/5` on the list, All Sessions and the session drawer, the new ID / a copied ID with old progress / the old SP code all find it, and the drawer tells the story. Append-only writes: needs `E2E_ALLOW_APPEND_ONLY_WRITES=1` (or the CI stack); closes its recommendation and deletes its purchase and session after |
 | `logs-subject-timeline` | 1 | tapping a log entry's subject, and the way back |
 | `account-created-stamp` | 8 | every account saying when it was created, with the time on it |
 | `booking-pay-button-live` | 3 | the pay button tappable while its price loads, with the wait stated rather than enforced |

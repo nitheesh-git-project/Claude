@@ -252,7 +252,7 @@ before.
 
   The flip needed no screen to change. Every surface that shows a balance -
   the patient's widget, the therapist's programme list, both detail modals,
-  the admin Purchases table, the bulk scheduler - reads the same
+  the admin Programmes list, the bulk scheduler - reads the same
   `session_count` / `sessions_used` shape, so `src/lib/ledgerBalances.ts`
   substitutes `sessions_used` on the row **once, where the row is loaded**
   (`sessions_granted - available`), and every consumer follows. Add a new
@@ -514,6 +514,24 @@ before.
   the one cross-role name lookup RLS can't provide (the other party's name)
   uses the admin client. Don't add a manual ownership branch here or you'll
   duplicate what the policies already guarantee.
+- **A human-readable ID is minted by the database under a lock, never by a
+  route.** Programme IDs (`PED_PKG001`, `programmes.md`) come from
+  `next_programme_code(prefix, kind)`: `programme_code_counters` holds one
+  row per (condition code, `PKG`|`HV`) and the function increments it with
+  `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`, so concurrent inserts
+  serialise on that row and cannot draw the same number. Triggers call it --
+  `care_plans` when `current_version_id` is set, both purchase tables on
+  insert, on a new `care_plan_version_id` and on `payment_status` (the
+  purchase copies its recommendation's ID) -- and the backfill walks rows one
+  statement at a time in creation order (rows inside one UPDATE cannot see
+  each other's new values, and the condition-code picker has to). The
+  counter table has RLS (admin read) and is written only by the definer
+  function, revoked from all three roles. Formatting skips `lpad` past 999,
+  because `lpad` truncates. `treatment_categories.short_code` is picked
+  under `pg_advisory_xact_lock` by its own trigger when blank, with a
+  unique index behind it. The new columns are read in isolated calls
+  (`adminProgrammesServer.ts`, `programmeTagsServer.ts`), so a database
+  without them shows the old SP/HS codes rather than an empty screen.
 - **Business math lives in dependency-free `src/lib/` modules** (`pricing`,
   `adminMetrics`, `therapistEarnings`, `therapistPayouts`, `ratingAggregate`,
   `packageProgress`, `homeVisitPricing`, `homeVisitProgress`,

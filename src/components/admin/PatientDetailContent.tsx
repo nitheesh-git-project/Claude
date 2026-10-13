@@ -19,6 +19,9 @@ import ResetPatientPasswordButton from "@/components/admin/ResetPatientPasswordB
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import PatientProfitChart from "@/components/admin/PatientProfitChart";
 import RatingManager from "@/components/admin/RatingManager";
+import { adminScreenHref } from "@/lib/adminNav";
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
+import { loadPatientProgrammes } from "@/lib/programmeTagsServer";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
 import ClinicalAccessPanel from "@/components/admin/ClinicalAccessPanel";
 import {
@@ -273,6 +276,15 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   // from one map -- this patient's own row plus every therapist on their
   // appointments covers every id ProfileSessionList/SessionDetailDrawer
   // will ever need to resolve on this page.
+  // This patient's programmes, by ID with progress (PED_PKG001-2/6), and
+  // which of their sessions came from which -- for the Programmes card and
+  // the Booking History rows. Only for a desk that can open Programmes, so
+  // the card's link always lands somewhere it can read.
+  const canOpenProgrammes = viewer !== null && scopeCanOpen(viewer.scope, "programmes");
+  const patientProgrammes = canOpenProgrammes
+    ? await loadPatientProgrammes(admin, id)
+    : { programmes: [], tagByAppointment: {} };
+
   const peopleMap = new Map<string, string>([
     [patient.id, patient.full_name ?? "Unknown"],
     ...(sessionTherapists ?? []).map((t) => [t.id, t.full_name ?? "Unknown"] as [string, string]),
@@ -571,6 +583,32 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         />
       </div>
 
+      {patientProgrammes.programmes.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+          <h2 className="font-bold text-sm text-slate-800 mb-1">Programmes</h2>
+          <p className="text-[11px] text-slate-500 mb-3">
+            Each ID reads done/bought - PED_PKG001-2/6 is 2 of 6 sessions done. Open one for its full story.
+          </p>
+          <ul className="space-y-2 text-xs">
+            {patientProgrammes.programmes.map((p) => (
+              <li key={p.purchaseId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2">
+                <span className="flex flex-wrap items-center gap-2">
+                  <ProgrammeIdChip tag={p.tag} />
+                  <span className="text-slate-600">{p.kind === "home_visit" ? "Home visits" : "Video sessions"}</span>
+                  <span className="capitalize font-semibold text-slate-500">{p.status}</span>
+                </span>
+                <a
+                  href={adminScreenHref("programmes", "all", `code:${p.tag.code}`)}
+                  className="font-semibold text-teal-700 hover:underline"
+                >
+                  Open in Programmes
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <h2 className="font-bold text-sm text-slate-800 mb-3">Booking History</h2>
         <p className="text-[11px] text-slate-500 -mt-2 mb-3">
@@ -586,6 +624,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
           therapists={approvedTherapists ?? []}
           categories={categories ?? []}
           emptyMessage="No bookings yet."
+          programmeTags={patientProgrammes.tagByAppointment}
         />
       </div>
 

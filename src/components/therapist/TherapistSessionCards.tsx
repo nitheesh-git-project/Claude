@@ -6,6 +6,7 @@ import SessionNoteButton from "@/components/therapist/SessionNoteButton";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import CollectCashButton from "@/components/CollectCashButton";
 import PackageChip from "@/components/packages/PackageChip";
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatAddressBlock, mapsSearchUrl, visitAddressFromAppointment } from "@/lib/formatAddress";
 import { isNoteEditable, noteEditHoursLeft } from "@/lib/sessionNotes";
@@ -146,7 +147,12 @@ export function renderTherapistSessionCard(
             <span className="font-semibold text-slate-500">Notes:</span> {a.notes}
           </p>
         )}
-        {a.package_purchase_id && <PackageChip purchaseId={a.package_purchase_id} />}
+        {a.package_purchase_id && (
+          <PackageChip
+            purchaseId={a.package_purchase_id}
+            label={d.programmeTagByAppointment.get(a.id)?.display ?? null}
+          />
+        )}
         <OnboardingStrip d={d} a={a} />
         <div className="flex items-center gap-2 flex-wrap">
           <JoinSessionButton
@@ -296,6 +302,11 @@ export function renderTherapistHomeVisitCard(
             </span>
           )}
         </p>
+        {d.programmeTagByAppointment.get(a.id) && (
+          <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+            Part of <ProgrammeIdChip tag={d.programmeTagByAppointment.get(a.id)!} size="xs" />
+          </p>
+        )}
         <p className="text-sm text-slate-500">
           {formatSlotTime(a.slot_time, a.timezone)}
           {a.duration_minutes && ` • ${a.duration_minutes} min`}

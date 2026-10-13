@@ -22,6 +22,8 @@ import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
 import { formatRupees } from "@/lib/formatMoney";
 import { awaitsPatientPayment, needsTherapist, type ProgrammePick } from "@/lib/sessionAssignQueue";
+import { programmeQueryMatches, type ProgrammeTag } from "@/lib/programmeId";
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import TapToAssignChip from "@/components/admin/TapToAssignChip";
 
 // The one list of sessions.
@@ -89,6 +91,7 @@ const FILTER_STORAGE_KEY = "admin.allSessions.filters";
 
 type SavedFilters = {
   sessionCode: string;
+  programme?: string;
   mode: "all" | "online" | "home_visit";
   status: string;
   payment: string;
@@ -109,6 +112,7 @@ export default function AdminAllSessionsTab({
   canSeeMoney,
   canManageSessions,
   programmePicks = {},
+  programmeTags = {},
 }: {
   appointments: SessionDetailAppointment[];
   // Keyed by appointment id on the way in. Only home-visit rows appear here,
@@ -133,6 +137,11 @@ export default function AdminAllSessionsTab({
   // programmeTherapistFor). The row's chip names them; the drawer offers
   // them as one tap.
   programmePicks?: Record<string, ProgrammePick>;
+  // The programme each session was drawn from, keyed by appointment id:
+  // PED_PKG001 with its progress (src/lib/adminProgrammesServer.ts). The row
+  // shows it under the session ID and the Programme filter searches it --
+  // new IDs, the old SP/HS codes, and a pasted PED_PKG001-2/6 all match.
+  programmeTags?: Record<string, ProgrammeTag>;
 }) {
   const peopleMap = useMemo(
     () => new Map(people.map((p) => [p.id, p.full_name ?? "Unknown"])),
@@ -150,6 +159,7 @@ export default function AdminAllSessionsTab({
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [sessionCodeFilter, setSessionCodeFilter] = useState("");
+  const [programmeFilter, setProgrammeFilter] = useState("");
   const [modeFilter, setModeFilter] = useState<"all" | "online" | "home_visit">("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
@@ -173,6 +183,7 @@ export default function AdminAllSessionsTab({
     // is the wrong week on Monday, and a stale range that hides today's
     // sessions looks like missing data.
     if (typeof restored.sessionCode === "string") setSessionCodeFilter(restored.sessionCode);
+    if (typeof restored.programme === "string") setProgrammeFilter(restored.programme);
     if (restored.mode === "all" || restored.mode === "online" || restored.mode === "home_visit") {
       setModeFilter(restored.mode);
     }
@@ -207,12 +218,16 @@ export default function AdminAllSessionsTab({
       setFromDate("");
       setToDate("");
       setSessionCodeFilter("");
+      setProgrammeFilter("");
       setModeFilter("all");
       setStatusFilter("all");
       setPaymentFilter("all");
       setTherapistFilter("all");
       setPatientFilter("all");
-      if (viewParam === "unassigned") setStatusFilter("unassigned");
+      // Programmes -> a programme's drawer links here with its ID, so the
+      // list opens on exactly that programme's sessions.
+      if (viewParam.startsWith("programme:")) setProgrammeFilter(viewParam.slice("programme:".length));
+      else if (viewParam === "unassigned") setStatusFilter("unassigned");
       else if (viewParam === "awaiting_payment") setStatusFilter("awaiting_payment");
       else if (viewParam === "cancelled") setStatusFilter("cancelled");
       else if (viewParam === "no_show") setStatusFilter("no_show");
@@ -241,6 +256,7 @@ export default function AdminAllSessionsTab({
         FILTER_STORAGE_KEY,
         JSON.stringify({
           sessionCode: sessionCodeFilter,
+          programme: programmeFilter,
           mode: modeFilter,
           status: statusFilter,
           payment: paymentFilter,
@@ -254,6 +270,7 @@ export default function AdminAllSessionsTab({
   }, [
     filtersRestored,
     sessionCodeFilter,
+    programmeFilter,
     modeFilter,
     statusFilter,
     paymentFilter,
@@ -278,6 +295,13 @@ export default function AdminAllSessionsTab({
       .filter(
         (a) => !trimmedCodeFilter || (a.session_code ?? "").toLowerCase().includes(trimmedCodeFilter)
       )
+      .filter((a) => {
+        if (!programmeFilter.trim()) return true;
+        const tag = programmeTags[a.id];
+        // "programme" alone: every session drawn from one, against singles.
+        if (programmeFilter.trim().toLowerCase() === "any") return !!tag;
+        return !!tag && programmeQueryMatches(programmeFilter, [tag.code, ...tag.otherCodes]);
+      })
       .filter((a) => {
         if (modeFilter === "all") return true;
         const isVisit = homeVisitMap.has(a.id);
@@ -380,6 +404,8 @@ export default function AdminAllSessionsTab({
     fromDate,
     toDate,
     sessionCodeFilter,
+    programmeFilter,
+    programmeTags,
     modeFilter,
     statusFilter,
     paymentFilter,
@@ -425,6 +451,7 @@ export default function AdminAllSessionsTab({
     setFromDate("");
     setToDate("");
     setSessionCodeFilter("");
+    setProgrammeFilter("");
     setModeFilter("all");
     setStatusFilter("all");
     setPaymentFilter("all");
@@ -436,6 +463,7 @@ export default function AdminAllSessionsTab({
     !!fromDate ||
     !!toDate ||
     !!sessionCodeFilter ||
+    !!programmeFilter ||
     modeFilter !== "all" ||
     statusFilter !== "all" ||
     paymentFilter !== "all" ||
@@ -460,6 +488,7 @@ export default function AdminAllSessionsTab({
 
   const exportColumns: CsvColumn<(typeof rows)[number]>[] = [
     { header: "Session ID", value: (r) => r.a.session_code ?? "" },
+    { header: "Programme", value: (r) => programmeTags[r.a.id]?.display ?? "" },
     { header: "Date", value: (r) => (r.a.slot_time ? istDateKey(r.a.slot_time) : "") },
     {
       header: "Time",
@@ -586,6 +615,15 @@ export default function AdminAllSessionsTab({
             onChange={(e) => setSessionCodeFilter(e.target.value)}
             placeholder="Session ID"
             className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-32"
+          />
+          <input
+            aria-label="Filter by programme ID"
+            type="text"
+            value={programmeFilter}
+            onChange={(e) => setProgrammeFilter(e.target.value)}
+            placeholder="Programme ID"
+            title="A programme ID such as PED_PKG001 (an old SP or HS code works too). Type any to see every programme session."
+            className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-36"
           />
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
             From
@@ -730,7 +768,14 @@ export default function AdminAllSessionsTab({
                   {...rowActivationProps(() => setSelectedId(a.id))}
                   className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition focus:outline-none focus-visible:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600"
                 >
-                  <td className="py-2 pr-3 text-slate-500 font-mono">{a.session_code ?? "-"}</td>
+                  <td className="py-2 pr-3 text-slate-500 font-mono">
+                    {a.session_code ?? "-"}
+                    {programmeTags[a.id] && (
+                      <span className="mt-1 flex">
+                        <ProgrammeIdChip tag={programmeTags[a.id]} size="xs" />
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2 pr-3 text-slate-600 whitespace-nowrap">
                     {a.slot_time
                       ? new Date(a.slot_time).toLocaleDateString("en-IN", {
@@ -851,6 +896,7 @@ export default function AdminAllSessionsTab({
           categories={categories}
           homeVisit={homeVisitMap.get(selected.id) ?? null}
           programmePick={programmePicks[selected.id] ?? null}
+          programmeTag={programmeTags[selected.id] ?? null}
           onClose={() => setSelectedId(null)}
         />
       )}

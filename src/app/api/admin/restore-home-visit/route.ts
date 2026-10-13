@@ -14,7 +14,7 @@ const MAX_REASON_LENGTH = 500;
 // untouched, same counter semantics as sessions_used). Admin override only;
 // never happens automatically.
 export async function POST(request: NextRequest) {
-  const adminUser = await requireAdminScope("catalog");
+  const adminUser = await requireAdminScope("programmes");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

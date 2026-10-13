@@ -30,6 +30,30 @@ describe("matchSearchRef", () => {
   });
 });
 
+describe("matchSearchRef - programme IDs", () => {
+  const PROGRAMMES: SearchRef[] = [
+    { kind: "programme", value: "PED_PKG0010" },
+    { kind: "programme", value: "PED_PKG001" },
+    { kind: "programme", value: "SP0004" },
+    { kind: "programme", value: "ORT_HV002" },
+  ];
+
+  it("finds the new ID exactly, ahead of a longer one containing it", () => {
+    expect(matchSearchRef(PROGRAMMES, "ped_pkg001")).toEqual(PROGRAMMES[1]);
+  });
+
+  it("finds it pasted with progress that has since moved on", () => {
+    expect(matchSearchRef(PROGRAMMES, "PED_PKG001-2/6")).toEqual(PROGRAMMES[1]);
+    expect(matchSearchRef(PROGRAMMES, " ORT_HV002-0/4 ")).toEqual(PROGRAMMES[3]);
+  });
+
+  it("still finds the old purchase code and part of a new one", () => {
+    expect(matchSearchRef(PROGRAMMES, "SP0004")).toEqual(PROGRAMMES[2]);
+    expect(matchSearchRef(PROGRAMMES, "_HV00")).toEqual(PROGRAMMES[3]);
+    expect(matchSearchRef(PROGRAMMES, "NEU_PKG001")).toBeNull();
+  });
+});
+
 describe("groupSearchRefs", () => {
   it("groups by patient and drops blanks and duplicates", () => {
     const grouped = groupSearchRefs([

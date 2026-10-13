@@ -526,16 +526,17 @@ Every dashboard section is a **real route** with its own `page.tsx` and its
 own `loading.tsx`, not an anchor on one long scroll - see "Error and loading
 states" above.
 
-**Admin:** `/admin/login`, `/admin/dashboard`, organised into seven sections
+**Admin:** `/admin/login`, `/admin/dashboard`, organised into eight sections
 (defined once in `src/lib/adminNav.ts`):
 
 | Section | Screens | Answers |
 | --- | --- | --- |
 | **Today** | Today · Approvals · Risk · Activity | What is waiting on me right now. **Activity** is the one feed scoped by desk: a limited scope reads entries whose action belongs to a section it can work *and* whose actor sits at that desk; a Master Admin reads the whole log under **Logs**. |
-| **Sessions** | Schedule · All Sessions · Roster · Delivery · Recommendations · New Booking | What is being delivered, and by whom. **Recommendations** is the review queue - a therapist's care plan waits here before the patient sees it, and it is also where an admin writes one on a clinician's behalf. |
+| **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom. All Sessions has a **Programme** filter (a programme ID such as `PED_PKG001`, an old SP/HS code, or `any`) and each programme session shows its programme's ID with progress. |
+| **Programmes** | All Programmes · Recommendations | Every recommended and bought programme from the therapist's recommendation to its last session. **All Programmes** is the pipeline (Waiting approval → With patient → Paid - nothing booked → In progress → Completed, plus Declined / Not approved / Withdrawn / Lapsed / Expired / Refunded), one list with each programme's ID and progress (`PED_PKG001-2/6` = 2 of 6 done), filters kept in the URL, and a drawer with the whole story, its sessions, its money (Money scope) and its controls. **Recommendations** is the review queue - a therapist's care plan waits here before the patient sees it, and it is also where an admin writes one on a clinician's behalf. Old Sessions → Recommendations and Catalog → Purchases links land here. |
 | **People** | Patients · Therapists · Partners · Declined · Abandoned checkouts | Who is this person, and their whole history - who was declined and why - and who started a booking but never paid |
 | **Money** | Summary · Business Health · Transactions · Payouts · Owed by Patients · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
-| **Catalog** | Conditions · Packages · Service Areas · Purchases | What we sell, at what price, where |
+| **Catalog** | Conditions · Service Areas · Countries & currency | What we sell, at what price, where. Each condition carries a **Programme code** (PED), the prefix of its programme IDs. |
 | **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
 | **Settings** | *Your website:* Brand & Contact · Public Site — *How the clinic runs:* Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions — *Who gets in:* User Access · Sign-in & Security — *Technical:* System Health · Advanced · Dev Reachouts | How the product behaves. Every screen here states what it is and gives one example, under its heading, and the sidebar groups the eleven under four captions - eleven flat labels is a list nobody reads top to bottom. **Dev Reachouts** is the developer's own inbox: the messages left through the footer's "Contact me" link, a note and a contacted flag per message, the switch that shows the credit (it asks before changing in either direction) and the email published on the contact page. |
 
@@ -1097,7 +1098,7 @@ recommendation adds a version; the old one stays readable with what changed
 shown beside it.
 
 **The clinic approves it before the patient sees it.** A submission lands in
-Sessions → Recommendations with the patient shown nothing at all - the plan
+Programmes → Recommendations with the patient shown nothing at all - the plan
 is absent from their dashboard and `/api/care-plan/create-order` refuses it,
 so hiding it is not the only thing standing in the way. An admin can:
 
@@ -1549,7 +1550,13 @@ at checkout and adds travel for that area on top of the programme price.
 Nothing already bought is affected: an existing programme keeps its sessions
 and books them to exhaustion exactly as before.
 
-The clinic can see every recommendation on **Sessions → Recommendations**. An
+The clinic can see every recommendation on **Programmes → Recommendations**,
+and follows each one - recommended, paid for, under way, finished - on
+**Programmes → All Programmes**, under one ID from the start: the condition's
+code, `_PKG` (video) or `_HV` (home visits) and a number per condition, with
+completed/bought appended - `PED_PKG001-0/6` when bought, `PED_PKG001-1/6`
+after the first session. The database mints it (`next_programme_code()`,
+under a row lock); the old SP/HS codes stay searchable. An
 admin can also write one there on a therapist's behalf - the therapist saw the
 patient and said what they wanted recommended, then went on leave or left -
 with the same fields, the same package whitelist and the same requirement of a
@@ -2059,7 +2066,7 @@ condition's online session (price, length, copy, photo) under *Online
 sessions*, then *Home visits* - the clinic-wide home-visit price and visit
 length, and each condition's own price or "Clinic-wide" (saved through
 `/api/admin/set-home-visit-price`). There is no Packages screen; purchases
-stay under **Catalog → Purchases**, and the programme-wide settings -
+are followed on **Programmes → All Programmes**, and the programme-wide settings -
 default validity, the therapist-lock switch, the bulk-scheduler limit, the
 expiry reminder window - sit with every other rule under **Settings →
 Programmes & Home Visits**; see "Session packages" above.
@@ -2273,7 +2280,7 @@ screen's own state alone, unlike a browser reload.
 Your Sessions · Packages · Payments · Health Profile · Edit Profile.
 Therapist: Overview · Availability · Sessions · Earnings · My Patients ·
 Edit Profile. Hospital: Overview · Refer a Patient · Your Referrals ·
-Earnings · Edit Profile. Admin keeps its seven sections
+Earnings · Edit Profile. Admin keeps its eight sections
 (`src/lib/adminNav.ts`).
 
 These lists are the result of repeatedly merging entries that answered the

@@ -2,7 +2,7 @@
 
 Consultation first, how a course of treatment is bought, the therapist lock, what happens after paying, and hospital referrals.
 
-**Mostly lives in:** src/lib/consultationFirst.ts · bookPackageSession.ts · sessionRhythm.ts · unscheduledPurchases.ts
+**Mostly lives in:** src/lib/consultationFirst.ts · bookPackageSession.ts · sessionRhythm.ts · unscheduledPurchases.ts · programmeId.ts · programmePipeline.ts · adminProgrammesServer.ts
 
 > Part of `docs/rules/`. `CLAUDE.md` says which file a task needs; this one
 > is the detail. Keep it current in the same change that makes it wrong --
@@ -10,6 +10,74 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
 
 ---
 
+- **A programme has one ID from the recommendation to its last session,
+  and it reads done over bought: `PED_PKG001-2/6`.** A programme used to
+  have no code while it was a recommendation and then one of two once it
+  was bought (`SP0001` online, `HS0001` home visits), neither saying what
+  it was for, so the owner could not tell one paediatric course from
+  another or follow one from "suggested" to "four done". Now:
+  1. **The condition gives the prefix.** `treatment_categories.short_code`
+     is 2-4 capitals, unique, made from the name when blank (first three
+     letters of the first word, then initials, then four letters, then
+     letter combinations -- `condition_short_code_candidates()` in
+     `schema.sql` and `conditionCodeCandidates()` in
+     `src/lib/programmeId.ts` walk the same list, pinned by a unit test) and
+     editable on Catalog -> Conditions (*Programme code*; blank means "make
+     one"). `checkConditionCode` (`src/lib/conditionCodeServer.ts`) refuses
+     a malformed or taken one with a sentence before anything is written.
+     A programme with no condition (an old generic package, a clinic-wide
+     home-visit rate) uses `GEN`.
+  2. **The database mints the number, never the app.** `PKG` for video
+     sessions, `HV` for home visits, counted per (prefix, kind) in
+     `programme_code_counters` by `next_programme_code()` with
+     `INSERT ... ON CONFLICT DO UPDATE`, which takes the row lock -- two
+     programmes written at once cannot draw the same number. It is minted
+     when a recommendation's version is first published (a trigger on
+     `care_plans.current_version_id`), copied onto the purchase the
+     recommendation becomes (and re-synced when it is paid, so a checkout
+     started on an older version still lands on the plan's ID), and minted
+     fresh for a purchase with no recommendation. A single home visit is a
+     consultation and gets none. An unbought recommendation rewritten onto
+     another condition or mode is re-issued an ID, the old one kept in
+     `previous_programme_codes`; once accepted it never moves. Changing a
+     condition's code later keeps every ID already issued.
+  3. **The "-2/6" is derived, never stored.** Completed sessions over
+     sessions (or visits) bought, from the rows (`programmeTag`,
+     `programmeProgress`), clamped so a bad count cannot print 7/6. Every
+     surface shows it through `ProgrammeIdChip`: admin All Programmes, All
+     Sessions rows and the session drawer ("Part of ..."), a patient's
+     admin page (Programmes card and Booking History), a therapist's admin
+     page, Money -> Transactions, Today's recommendation pulse, the
+     review queue, the patient's Your Programmes and session cards, and the
+     therapist's session cards and Programmes view. On a database without
+     the columns every reader falls back to the old code.
+  4. **Old codes still find it.** `SP`/`HS` codes are on receipts already
+     sent, so every search -- Programmes, All Sessions' Programme filter,
+     People search (`paymentSearch.ts`), Money's receipts filter, the global
+     search -- matches the new ID, a copied ID whose progress has since
+     moved (`PED_PKG001-0/6` finds `PED_PKG001`), and the old code.
+  Existing rows were backfilled in the order they happened, so each
+  condition's oldest programme is `_001`. Guard: `e2e/admin-programmes.spec.ts`.
+- **Programmes is one admin section, and a programme is one row in it.**
+  Sessions -> Recommendations and Catalog -> Purchases are gone (old links
+  land on Programmes through `LEGACY_SCREENS`). **All Programmes** joins
+  each recommendation with the purchase it became
+  (`src/lib/adminProgrammesServer.ts`) and decides one stage per row in
+  `programmeStage` (`src/lib/programmePipeline.ts`): the pipeline
+  *Waiting approval -> With patient -> Paid - nothing booked -> In progress
+  -> Completed*, and the stops *Declined, Not approved, Withdrawn, Lapsed,
+  Expired, Refunded*. A purchase's own state wins over its plan's, and an
+  abandoned checkout is not a programme. The pipeline tiles count over
+  every filter but the stage, so a tap never lands on an empty list; the
+  filters (search, status, condition, therapist, mode, start-date range,
+  and the "paid N hours ago" age the Today and Money counts link with) live
+  in the URL as `pg_*`. The drawer is the programme's whole story
+  (`buildProgrammeTimeline`), its sessions, its money (Money scope only)
+  and the controls its scope can call: approve / turn down, withdraw,
+  change therapist or extend expiry (the existing purchase modals), refund
+  what is left (Money's own route), and a link to its sessions in All
+  Sessions. **Recommendations** (manage only) is the approval queue that
+  used to be on Sessions, unchanged apart from carrying the ID.
 - **A purchase ends in booked sessions, not in a balance.** What a patient
   buys is appointments; a credit balance is an accounting fact about that
   purchase, not the thing itself. Paying for a recommendation used to

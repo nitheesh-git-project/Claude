@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
 import { scopeCanManage, scopeCanOpen } from "@/lib/adminScope";
+import { loadProgrammeTagsForAppointments } from "@/lib/programmeTagsServer";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import TherapistActiveToggle from "@/components/admin/TherapistActiveToggle";
@@ -233,6 +234,11 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
   // from one map -- this therapist's own row plus every patient on their
   // appointments covers every id ProfileSessionList/SessionDetailDrawer
   // will ever need to resolve on this page.
+  // Which programme each of these sessions came from (PED_PKG001-2/6).
+  const programmeTagsByAppointment =
+    viewer !== null && scopeCanOpen(viewer.scope, "programmes")
+      ? await loadProgrammeTagsForAppointments(admin, (appointments ?? []).map((a) => a.id as string))
+      : {};
   const peopleMap = new Map<string, string>([
     [therapist.id, therapist.full_name ?? "Unknown"],
     ...(patients ?? []).map((p) => [p.id, p.full_name ?? "Unknown"] as [string, string]),
@@ -562,6 +568,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           therapists={approvedTherapists ?? []}
           categories={categories ?? []}
           emptyMessage="No sessions assigned yet."
+          programmeTags={programmeTagsByAppointment}
         />
       </div>
 

@@ -4,6 +4,7 @@ import PayNowButton from "@/components/PayNowButton";
 import { canResumeInWizard, resumeCheckoutHref } from "@/lib/resumeCheckout";
 import CancelSessionButton from "@/components/CancelSessionButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import PackageChip from "@/components/packages/PackageChip";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -34,7 +35,12 @@ export function renderPatientSessionCard(
   a: PatientDashboardData["appointments"][number],
   visit: ReturnType<PatientDashboardData["visitDetailById"]["get"]> | null = null
 ): ReactNode {
-  const { profile, therapistMap, categoryPriceMap, purchaseCodeById, adminSettings } = data;
+  const { profile, therapistMap, categoryPriceMap, purchaseCodeById, programmeTagByPurchase, adminSettings } = data;
+    // The programme this session was drawn from, by its ID and progress
+    // (PED_PKG001-2/6): online sessions carry the purchase on the row, home
+    // visits on the visit detail.
+    const visitPurchaseId = visit?.home_visit_purchase_id ?? null;
+    const visitProgramme = visitPurchaseId ? programmeTagByPurchase.get(visitPurchaseId) ?? null : null;
     const patientRefund = describeRefundForPatient(a);
     // One reading of these columns, shared with the admin chip and the
     // therapist's card, so the three cannot describe one session three ways.
@@ -81,7 +87,15 @@ export function renderPatientSessionCard(
               </span>
             </p>
             {a.package_purchase_id && (
-              <PackageChip purchaseId={a.package_purchase_id} label={purchaseCodeById.get(a.package_purchase_id)} />
+              <PackageChip
+                purchaseId={a.package_purchase_id}
+                label={programmeTagByPurchase.get(a.package_purchase_id)?.display ?? purchaseCodeById.get(a.package_purchase_id)}
+              />
+            )}
+            {visitProgramme && (
+              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+                Part of <ProgrammeIdChip tag={visitProgramme} size="xs" />
+              </p>
             )}
           </div>
           <div className="flex items-center gap-2">

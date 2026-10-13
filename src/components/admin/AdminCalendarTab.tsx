@@ -10,6 +10,7 @@ import { formatSlotRange, istDateKey } from "@/lib/formatSlotRange";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
+import type { ProgrammeTag } from "@/lib/programmeId";
 import { awaitsPatientPayment, needsTherapist, type ProgrammePick } from "@/lib/sessionAssignQueue";
 import TapToAssignChip from "@/components/admin/TapToAssignChip";
 
@@ -42,6 +43,7 @@ export default function AdminCalendarTab({
   canSeeMoney,
   canManageSessions,
   programmePicks = {},
+  programmeTags = {},
 }: {
   appointments: SessionDetailAppointment[];
   people: Person[];
@@ -68,6 +70,9 @@ export default function AdminCalendarTab({
   // programmeTherapistFor). The row's chip names them; the drawer offers
   // them as one tap.
   programmePicks?: Record<string, ProgrammePick>;
+  // The programme each session was drawn from (PED_PKG001-2/6), for the
+  // drawer's "Part of" line.
+  programmeTags?: Record<string, ProgrammeTag>;
 }) {
   const peopleMap = useMemo(
     () => new Map(people.map((p) => [p.id, p.full_name ?? "Unknown"])),
@@ -311,6 +316,7 @@ export default function AdminCalendarTab({
           categories={categories}
           homeVisit={homeVisitMap.get(selectedAppointment.id) ?? null}
           programmePick={programmePicks[selectedAppointment.id] ?? null}
+          programmeTag={programmeTags[selectedAppointment.id] ?? null}
           onClose={() => setSelectedAppointment(null)}
         />
       )}

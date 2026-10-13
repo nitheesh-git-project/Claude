@@ -64,6 +64,9 @@ export type AdminCarePlanRow = {
    *  balance surface uses. The commonest reason to turn a recommendation
    *  down, and invisible from this card until it was put on it. */
   unusedSessions: number;
+  /** The programme ID this recommendation carries (PED_PKG001), once it has
+   *  been published. The same ID it keeps on Programmes and after purchase. */
+  programmeCode?: string | null;
 };
 
 const STATE_STYLE: Record<CarePlanState, string> = {
@@ -258,7 +261,14 @@ function PlanCard({ plan, canWithdraw }: { plan: AdminCarePlanRow; canWithdraw: 
         </span>
       </div>
 
-      <p className="mt-2 font-semibold text-slate-800">{plan.title}</p>
+      <p className="mt-2 font-semibold text-slate-800">
+        {plan.title}
+        {plan.programmeCode && (
+          <span className="ml-2 rounded-md bg-indigo-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-indigo-800 ring-1 ring-indigo-200">
+            {plan.programmeCode}
+          </span>
+        )}
+      </p>
       <p className="mt-0.5 text-slate-500">
         <SessionCountPrice plan={plan} />
         {plan.isHomeVisit && " + travel"} · written{" "}
@@ -465,7 +475,14 @@ function ReviewCard({
         </span>
       </div>
 
-      <p className="mt-2 font-semibold text-slate-800">{plan.title}</p>
+      <p className="mt-2 font-semibold text-slate-800">
+        {plan.title}
+        {plan.programmeCode && (
+          <span className="ml-2 rounded-md bg-indigo-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-indigo-800 ring-1 ring-indigo-200">
+            {plan.programmeCode}
+          </span>
+        )}
+      </p>
       <p className="mt-0.5 text-slate-500">
         <SessionCountPrice plan={plan} />
         {plan.isHomeVisit && " + travel per visit"}
@@ -501,7 +518,7 @@ function ReviewCard({
 
       {!canDecide ? (
         <p className="mt-3 text-[11px] text-slate-500">
-          Deciding on a recommendation needs the Sessions scope.
+          Deciding on a recommendation needs the Programmes scope.
         </p>
       ) : mode === "idle" ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">

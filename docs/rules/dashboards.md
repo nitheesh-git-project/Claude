@@ -133,9 +133,23 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   and lapsed are news. They render as the Recommendations card above the
   Activity feed (`AdminRecommendationPulse`, DashboardOverview's
   `spotlight`), go into the feed itself, and paid-unbooked is an urgent
-  inbox row. Built over the rows the Recommendations screen lists, so the
-  card and the screen agree; amounts only for a scope that can open Money;
-  no link for one that cannot open the screen.
+  inbox row. Built over the rows Programmes lists, so the card and the
+  screen agree; amounts only for a scope that can open Money; no link for
+  one that cannot open Programmes. Each event leads with the programme's ID
+  and progress (`PED_PKG001-0/6`) and links to that programme on
+  Programmes -> All Programmes (`?view=code:...`); one waiting for approval
+  links to Programmes -> Recommendations for a desk that manages it, and to
+  the Waiting approval stage for one that only reads. The paid-unbooked
+  inbox row opens the stage narrowed to the same two days
+  (`?view=late:48`).
+- **A programme is named by its ID everywhere it appears.** The patient's
+  Your Programmes cards and session cards, and the therapist's session
+  cards and Programmes view, show `ProgrammeIdChip` -- `PED_PKG001-2/6`,
+  completed over bought, counted across every session of the programme
+  rather than one therapist's share -- read by
+  `src/lib/programmeTagsServer.ts` in its own tolerant call, so a database
+  without the column shows the old SP/HS code instead. The patient is told
+  to quote it; it is the same ID the clinic searches (`programmes.md`).
 - **Assigning is not reassigning, and the word has to say which.** A session
   nobody has ever been assigned to offered only "Reschedule / Reassign",
   which reads as editing something that already happened - so the one

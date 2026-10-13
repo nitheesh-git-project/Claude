@@ -1,4 +1,6 @@
 import "server-only";
+import { loadProgrammeTags } from "@/lib/programmeTagsServer";
+import type { ProgrammeTag } from "@/lib/programmeId";
 import { readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -371,6 +373,23 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // string whether or not its author remembered the rule, and the plaintext
   // number is never in the page at all, so "masked" is not something a
   // reader can defeat with dev tools.
+  // Which programme each session was drawn from, as its ID with progress
+  // (PED_PKG001-2/6) -- the reference the clinic and the patient both use.
+  // Tolerant: a failure costs the chip, never the card.
+  const programmeTagByPurchase = await loadProgrammeTags(admin, {
+    packages: (appointments ?? []).map((a) => a.package_purchase_id).filter((id): id is string => !!id),
+    homeVisits: homeVisitPurchaseIds,
+  });
+  const programmeTagByAppointment = new Map<string, ProgrammeTag>();
+  for (const a of appointments ?? []) {
+    const tag = a.package_purchase_id ? programmeTagByPurchase.get(a.package_purchase_id) : undefined;
+    if (tag) programmeTagByAppointment.set(a.id, tag);
+  }
+  for (const v of visitDetailRows ?? []) {
+    const tag = v.home_visit_purchase_id ? programmeTagByPurchase.get(v.home_visit_purchase_id) : undefined;
+    if (tag) programmeTagByAppointment.set(v.id, tag);
+  }
+
   const maskContacts = await readContactMaskingEnabled(admin);
   const patientMap = new Map(
     (patients ?? []).map((p) => [
@@ -811,6 +830,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     needAvailability && (!!scheduleStateError || !!availabilitySlotsError || !!upcomingOverridesError);
 
   return {
+    programmeTagByAppointment,
     // Patients nobody has onboarded yet (see onboardingNeededIds above):
     // the session card's flag, and the Home banner with each one's next
     // session so the therapist can see which first session it belongs in.

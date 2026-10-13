@@ -1,5 +1,7 @@
 "use client";
 
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
+import type { ProgrammeTag } from "@/lib/programmeId";
 import { useState } from "react";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
@@ -49,6 +51,7 @@ export default function ProfileSessionList({
   emptyMessage,
   canSeeMoney,
   canManageSessions,
+  programmeTags = {},
 }: {
   variant: "therapist" | "patient";
   appointments: SessionDetailAppointment[];
@@ -64,6 +67,8 @@ export default function ProfileSessionList({
   // would see Mark Paid, both answering 403.
   canSeeMoney: boolean;
   canManageSessions: boolean;
+  /** The programme each session came from (PED_PKG001-2/6), by appointment. */
+  programmeTags?: Record<string, ProgrammeTag>;
 }) {
   const [selectedAppointment, setSelectedAppointment] = useState<SessionDetailAppointment | null>(
     null
@@ -149,6 +154,11 @@ export default function ProfileSessionList({
                   <span className="ml-1 font-mono text-slate-500">• {a.session_code}</span>
                 )}
               </p>
+              {programmeTags[a.id] && (
+                <p className="flex flex-wrap items-center gap-1.5 text-slate-500">
+                  Part of <ProgrammeIdChip tag={programmeTags[a.id]} size="xs" />
+                </p>
+              )}
               {variant === "patient" && (
                 <p className="text-slate-500">
                   Therapist:{" "}
@@ -219,6 +229,7 @@ export default function ProfileSessionList({
           categories={categories}
           canSeeMoney={canSeeMoney}
           canManageSessions={canManageSessions}
+          programmeTag={programmeTags[selectedAppointment.id] ?? null}
           onClose={() => setSelectedAppointment(null)}
         />
       )}

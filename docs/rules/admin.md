@@ -1,6 +1,6 @@
 # The admin back office
 
-The seven sections, scopes and levels, User Access, the Settings information architecture, System Health, the activity log, exports, and how a count links to its own rows.
+The eight sections, scopes and levels, User Access, the Settings information architecture, System Health, the activity log, exports, and how a count links to its own rows.
 
 **Mostly lives in:** src/lib/adminNav.ts · adminScope.ts · adminHome.ts · systemHealth.ts · activityLog.ts
 
@@ -11,8 +11,8 @@ The seven sections, scopes and levels, User Access, the Settings information arc
 ---
 
 - **The admin dashboard's information architecture lives in
-  `src/lib/adminNav.ts`** - seven sections (Today, Sessions, People, Money,
-  Catalog, Logs, Settings), each with its own screens. The sidebar, the URL
+  `src/lib/adminNav.ts`** - eight sections (Today, Sessions, Programmes,
+  People, Money, Catalog, Logs, Settings), each with its own screens. The sidebar, the URL
   (`?section=&tab=`), the content map in the dashboard page, and the scope
   check all read that one list, so adding a screen is one entry there plus
   one entry in the page's `screens` map. Tab state is written with the
@@ -22,7 +22,26 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   `?section=/?tab=` server-side and passes them to `AdminShell` as
   `initialSection`/`initialTab`, so a shared deep link server-renders that
   screen instead of painting Today first and jumping once the client effect
-  runs.
+  runs. A screen that moved keeps its old link working through
+  `LEGACY_SCREENS` (Sessions -> Recommendations and Catalog -> Purchases
+  both land on Programmes), and the shell rewrites the address bar to where
+  it lives now.
+- **Programmes is its own section and its own scope.** A recommendation and
+  the purchase it becomes are one programme (`programmes.md`), so the two
+  screens that split it -- Sessions -> Recommendations, Catalog -> Purchases
+  -- moved into one section: **All Programmes** (the pipeline, the list, the
+  drawer) and **Recommendations** (the approval queue, `requiresManage`).
+  `programmes` is a section key in `SECTION_ACCESS`: Master Admin,
+  Operations and Clinical manage it (each held one or both halves before),
+  Finance reads it -- the list and the money in it, never the decisions.
+  The routes moved with it: the four care-plan routes (were `sessions`) and
+  the purchase detail / reassign / extend / restore routes (were `catalog`)
+  guard with `requireAdminScope("programmes")`, and their audit actions sit
+  under `programmes` in `ACTION_DOMAIN`. A refund stays `money` on its own
+  route, so the drawer shows *Refund what is left* to any desk that can
+  open Money -- including Finance, which cannot open the purchase modal.
+  Amounts, discounts and refunds are filled only for a Money desk by the
+  loader itself, so they never reach the page props of one that cannot.
 - **Every session and every person has a timestamped history, built from
   what is already recorded rather than a new event table.** The session
   drawer's "Session history" and the "Activity log" on a patient's or
@@ -692,7 +711,9 @@ The seven sections, scopes and levels, User Access, the Settings information arc
 - **People -> Patients finds a patient by a reference that is not on their
   card.** The directory search also matches a Razorpay payment id
   (`pay_...`), a Razorpay order id (`order_...`), a session code (`SS0004`)
-  and a programme purchase code, and the matched card shows a chip saying
+  and a programme ID - the current `PED_PKG001`, pasted with or without its
+  progress (`PED_PKG001-2/6` finds it after the count has moved), or the old
+  `SP`/`HS` purchase code - and the matched card shows a chip saying
   which one put it there - the id an admin has in hand from a forwarded bank
   SMS or Razorpay's dashboard is not a name. Payment and order ids are read
   from the `payments` ledger (every checkout, whatever it paid for) plus the
@@ -778,12 +799,15 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   row itself (the browser sends a condition and paise, never a row id),
   answers a duplicate insert (23505) with a 409 and a sentence, logs it,
   and revalidates `/home-visit`. The rows the old editors made are kept --
-  Catalog -> Purchases still names old purchases by them -- and the
+  Programmes still names old purchases by them -- and the
   dashboard selects only the columns those two readers need. A stale
   `?tab=packages` link lands on Conditions through `findTab`. Deleting a
   condition removes its own home-visit price rows when nobody bought one,
   rather than refusing over rows no screen shows; a purchase against one
   still blocks, named as a home-visit purchase. Detail in `home-visit.md`.
+  Each condition also carries its **Programme code** (`short_code`, 2-4
+  capitals), the prefix of every programme ID for it; the form suggests one
+  from the name and blank lets the database make it (`programmes.md`).
 
 - **Countries & currency lives under Catalog, because it decides what a
   patient is charged.** `catalog` scope, logged as `catalog.update`. Three

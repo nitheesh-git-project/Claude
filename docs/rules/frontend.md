@@ -386,8 +386,8 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   no focusable child doing the same job -- so the detail dialog behind them
   could not be opened without a pointing device at all. That is the whole of
   Logs -> All Activity (the dialog saying what changed from what), All Sessions
-  and the Calendar (the drawer that assigns, reschedules and refunds), Catalog
-  -> Purchases, Money -> Breakdown's two ledgers, and the session list on every
+  and the Calendar (the drawer that assigns, reschedules and refunds),
+  Programmes -> All Programmes, Money -> Breakdown's two ledgers, and the session list on every
   patient and therapist profile. The helper returns props rather than a
   component so it fits any element and changes no layout, and three things
   about it are load-bearing: it does **not** put `role="button"` on a `<tr>`

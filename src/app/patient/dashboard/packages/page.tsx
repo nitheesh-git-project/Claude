@@ -21,6 +21,7 @@ export default async function Page() {
             purchases={d.ownedPackages.map((p) => ({
               id: p.id,
               purchaseCode: p.purchase_code,
+              programmeTag: d.programmeTagByPurchase.get(p.id) ?? null,
               title: d.programmeDisplayByPurchase.get(p.id)?.title ?? "Your programme",
               cover: d.programmeDisplayByPurchase.get(p.id)?.cover ?? null,
               sessionCount: p.session_count,
@@ -47,6 +48,7 @@ export default async function Page() {
             purchases={d.ownedHomeVisitPackages.map((p) => ({
               id: p.id,
               purchaseCode: p.purchase_code,
+              programmeTag: d.programmeTagByPurchase.get(p.id) ?? null,
               title: d.programmeDisplayByPurchase.get(p.id)?.title ?? "Home visits",
               cover: d.programmeDisplayByPurchase.get(p.id)?.cover ?? null,
               visitCount: p.visit_count,

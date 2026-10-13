@@ -8,7 +8,7 @@ import { serverError } from "@/lib/apiError";
 const MAX_REASON_LENGTH = 500;
 
 export async function POST(request: NextRequest) {
-  const adminUser = await requireAdminScope("catalog");
+  const adminUser = await requireAdminScope("programmes");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

@@ -16291,6 +16291,482 @@ create unique index if not exists home_visit_packages_one_rate_per_category
   where active and visit_count = 1 and not care_plan_course;
 
 -- ---------------------------------------------------------------------
+-- Programme IDs: PED_PKG001, PED_HV001 (bug pass, item 6).
+--
+-- A programme had two codes depending on which table it sat in (SP0001 for
+-- an online course, HS0001 for home visits), neither saying what it was for,
+-- and a recommendation had no code at all until somebody paid for it -- so
+-- an admin could not name the thing they were looking at, and the owner
+-- could not tell one paediatric course from another. Now every programme
+-- carries one ID from the moment its recommendation is published:
+--
+--   <condition code>_<PKG | HV><number>     e.g. PED_PKG001, ORT_HV004
+--
+-- The condition code is `treatment_categories.short_code` (2-4 capitals,
+-- unique, made from the name and editable on Catalog -> Conditions). The
+-- number counts per (condition code, kind) in `programme_code_counters`,
+-- incremented with INSERT ... ON CONFLICT DO UPDATE, which takes the row
+-- lock -- so two programmes written at once serialise on the counter and
+-- can never draw the same number. App code never mints one.
+--
+-- Where the ID lives:
+--   * care_plans.programme_code -- set when a version is first published
+--     (current_version_id set). If an unbought recommendation is rewritten
+--     onto a different condition or mode its ID is re-issued and the old
+--     one kept in previous_programme_codes, so a search still finds it.
+--     Frozen once the plan is accepted.
+--   * patient_package_purchases / home_visit_package_purchases
+--     .programme_code -- copied from the plan for a bought recommendation
+--     (re-synced when the purchase is paid, so a checkout started on an
+--     older version still lands on the plan's ID), minted fresh for an old
+--     catalog course. A single home visit is a consultation, not a
+--     programme, and gets none.
+-- The displayed form appends completed/total (PED_PKG001-2/6); that part is
+-- derived on read (src/lib/programmeId.ts) and never stored, because it
+-- changes with every session.
+--
+-- The old SP/HS purchase_code columns stay exactly as they were and stay
+-- searchable: they are on receipts and in emails already sent.
+--
+-- Re-runnable: columns, constraints, indexes and the table are guarded; the
+-- functions are `create or replace`; every backfill only touches rows whose
+-- code is still null, so a second run assigns nothing and draws no numbers.
+-- ---------------------------------------------------------------------
+
+alter table treatment_categories add column if not exists short_code text;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'treatment_categories_short_code_format'
+  ) then
+    alter table treatment_categories add constraint treatment_categories_short_code_format
+      check (short_code is null or short_code ~ '^[A-Z]{2,4}$');
+  end if;
+end $$;
+
+create unique index if not exists treatment_categories_short_code_unique
+  on treatment_categories (short_code) where short_code is not null;
+
+alter table care_plans add column if not exists programme_code text;
+alter table care_plans add column if not exists previous_programme_codes text[] not null default '{}';
+alter table patient_package_purchases add column if not exists programme_code text;
+alter table home_visit_package_purchases add column if not exists programme_code text;
+
+-- One ID per recommendation thread. Purchases are deliberately not unique:
+-- a patient who started checkout twice for the same recommendation has two
+-- purchase rows (one unpaid) carrying that recommendation's one ID.
+create unique index if not exists care_plans_programme_code_unique
+  on care_plans (programme_code) where programme_code is not null;
+create index if not exists patient_package_purchases_programme_code_idx
+  on patient_package_purchases (programme_code) where programme_code is not null;
+create index if not exists home_visit_package_purchases_programme_code_idx
+  on home_visit_package_purchases (programme_code) where programme_code is not null;
+
+create table if not exists programme_code_counters (
+  prefix text not null check (prefix ~ '^[A-Z]{2,4}$'),
+  kind text not null check (kind in ('PKG', 'HV')),
+  last_value integer not null default 0 check (last_value >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (prefix, kind)
+);
+
+-- RLS in the same change. Read by an admin only; written by
+-- next_programme_code() alone (security definer, below), never by a route.
+alter table programme_code_counters enable row level security;
+
+drop policy if exists "programme_code_counters_select_admin" on programme_code_counters;
+create policy "programme_code_counters_select_admin" on programme_code_counters
+  for select using (is_admin());
+
+revoke insert, update, delete on programme_code_counters from anon, authenticated;
+
+-- The candidate condition codes for a name, best first. Mirrors
+-- conditionCodeCandidates() in src/lib/programmeId.ts exactly (its unit
+-- test pins the same names to the same answers), so the form's suggestion is
+-- the code the database would pick:
+--   1. the first three letters of the first word   (Paediatric -> PAE)
+--   2. the initials of the first four words        (Spine & Posture Rehab -> SPR)
+--   3. the first four letters of the first word
+--   4. the first letter + any two later letters, in order
+--   5. the first letter + AA..ZZ
+create or replace function public.condition_short_code_candidates(p_title text)
+returns text[]
+language plpgsql
+immutable
+set search_path = public
+as $$
+declare
+  v_words text[];
+  v_letters text;
+  v_l text;
+  v_out text[] := '{}';
+  v_first text;
+  i integer;
+  j integer;
+  a integer;
+  b integer;
+begin
+  select coalesce(array_agg(w order by ord), '{}')
+    into v_words
+    from unnest(regexp_split_to_array(upper(coalesce(p_title, '')), '[^A-Z]+'))
+         with ordinality as t(w, ord)
+   where w <> '';
+  v_letters := array_to_string(v_words, '');
+
+  if coalesce(length(v_words[1]), 0) >= 2 then
+    v_out := v_out || left(v_words[1], 3);
+  end if;
+  if coalesce(array_length(v_words, 1), 0) >= 2 then
+    v_out := v_out || (
+      select string_agg(left(w, 1), '' order by ord)
+        from unnest(v_words[1:4]) with ordinality as t(w, ord)
+    );
+  end if;
+  if coalesce(length(v_words[1]), 0) >= 4 then
+    v_out := v_out || left(v_words[1], 4);
+  end if;
+
+  v_l := left(v_letters, 12);
+  if length(v_l) >= 3 then
+    for i in 2..length(v_l) loop
+      for j in (i + 1)..length(v_l) loop
+        v_out := v_out || (substr(v_l, 1, 1) || substr(v_l, i, 1) || substr(v_l, j, 1));
+      end loop;
+    end loop;
+  end if;
+
+  v_first := coalesce(nullif(substr(v_l, 1, 1), ''), 'C');
+  for a in 65..90 loop
+    for b in 65..90 loop
+      v_out := v_out || (v_first || chr(a) || chr(b));
+    end loop;
+  end loop;
+  return v_out;
+end;
+$$;
+
+revoke execute on function public.condition_short_code_candidates(text) from public, anon, authenticated;
+
+create or replace function public.pick_condition_short_code(p_title text, p_self uuid)
+returns text
+language plpgsql
+stable
+set search_path = public
+as $$
+declare
+  c text;
+begin
+  foreach c in array condition_short_code_candidates(p_title) loop
+    if not exists (
+      select 1 from treatment_categories where short_code = c and id is distinct from p_self
+    ) then
+      return c;
+    end if;
+  end loop;
+  return null;
+end;
+$$;
+
+revoke execute on function public.pick_condition_short_code(text, uuid) from public, anon, authenticated;
+
+-- A condition saved with no code gets one. Under an advisory lock, so two
+-- conditions created at once cannot both pick the same free code (the
+-- unique index would refuse the second; this makes it wait instead).
+create or replace function public.assign_condition_short_code()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.short_code is not null then
+    new.short_code := nullif(upper(btrim(new.short_code)), '');
+  end if;
+  if new.short_code is null then
+    perform pg_advisory_xact_lock(hashtext('treatment_categories.short_code'));
+    new.short_code := pick_condition_short_code(new.title, new.id);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_assign_condition_short_code on treatment_categories;
+create trigger trg_assign_condition_short_code
+  before insert or update of short_code on treatment_categories
+  for each row execute function public.assign_condition_short_code();
+
+create or replace function public.programme_prefix_for_category(p_category_id uuid)
+returns text
+language sql
+stable
+set search_path = public
+as $$
+  -- GEN for a programme with no condition (old generic packages, a
+  -- clinic-wide home-visit rate). Shared with a condition that happens to be
+  -- called General-something: one counter, so the numbers still never clash.
+  select coalesce(
+    (select short_code from treatment_categories where id = p_category_id),
+    'GEN'
+  );
+$$;
+
+revoke execute on function public.programme_prefix_for_category(uuid) from public, anon, authenticated;
+
+-- The one place a programme number is drawn.
+create or replace function public.next_programme_code(p_prefix text, p_kind text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_n integer;
+begin
+  if p_prefix is null or p_prefix !~ '^[A-Z]{2,4}$' then
+    p_prefix := 'GEN';
+  end if;
+  if p_kind not in ('PKG', 'HV') then
+    raise exception 'unknown programme kind %', p_kind;
+  end if;
+  insert into programme_code_counters (prefix, kind, last_value)
+  values (p_prefix, p_kind, 1)
+  on conflict (prefix, kind)
+    do update set last_value = programme_code_counters.last_value + 1, updated_at = now()
+  returning last_value into v_n;
+  -- lpad truncates, so a thousandth programme must not go through it.
+  return p_prefix || '_' || p_kind
+      || case when v_n < 1000 then lpad(v_n::text, 3, '0') else v_n::text end;
+end;
+$$;
+
+revoke execute on function public.next_programme_code(text, text) from public, anon, authenticated;
+
+-- What a recommendation version is: its condition code and its kind.
+create or replace function public.programme_code_parts_for_version(p_version_id uuid)
+returns table (prefix text, kind text)
+language sql
+stable
+set search_path = public
+as $$
+  select
+    programme_prefix_for_category(coalesce(
+      case
+        when (v.offer_snapshot ->> 'categoryId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          then (v.offer_snapshot ->> 'categoryId')::uuid
+      end,
+      tcp.category_id,
+      hvp.category_id,
+      cp.category_id
+    )),
+    case when v.offer_kind = 'home_visit_package' then 'HV' else 'PKG' end
+  from care_plan_versions v
+  join care_plans cp on cp.id = v.care_plan_id
+  left join treatment_category_packages tcp on tcp.id = v.session_package_id
+  left join home_visit_packages hvp on hvp.id = v.home_visit_package_id
+  where v.id = p_version_id;
+$$;
+
+revoke execute on function public.programme_code_parts_for_version(uuid) from public, anon, authenticated;
+
+create or replace function public.assign_care_plan_programme_code()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_prefix text;
+  v_kind text;
+begin
+  if new.current_version_id is null then
+    return new;
+  end if;
+  -- Bought: the ID is on a receipt now and never moves.
+  if new.programme_code is not null and new.status = 'accepted' then
+    return new;
+  end if;
+  select p.prefix, p.kind into v_prefix, v_kind
+    from programme_code_parts_for_version(new.current_version_id) p;
+  if v_prefix is null then
+    return new;
+  end if;
+  if new.programme_code is not null
+     and starts_with(new.programme_code, v_prefix || '_' || v_kind) then
+    return new;
+  end if;
+  if new.programme_code is not null then
+    new.previous_programme_codes :=
+      array_append(coalesce(new.previous_programme_codes, '{}'), new.programme_code);
+  end if;
+  new.programme_code := next_programme_code(v_prefix, v_kind);
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_assign_care_plan_programme_code on care_plans;
+create trigger trg_assign_care_plan_programme_code
+  before insert or update of current_version_id on care_plans
+  for each row execute function public.assign_care_plan_programme_code();
+
+create or replace function public.assign_package_purchase_programme_code()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+begin
+  if new.care_plan_version_id is not null then
+    select cp.programme_code into v_code
+      from care_plan_versions v
+      join care_plans cp on cp.id = v.care_plan_id
+     where v.id = new.care_plan_version_id;
+    if v_code is not null and position('_PKG' in v_code) > 0 then
+      new.programme_code := v_code;
+      return new;
+    end if;
+  end if;
+  if new.programme_code is null then
+    new.programme_code := next_programme_code(programme_prefix_for_category(new.category_id), 'PKG');
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_assign_package_purchase_programme_code on patient_package_purchases;
+create trigger trg_assign_package_purchase_programme_code
+  before insert or update of care_plan_version_id, payment_status on patient_package_purchases
+  for each row execute function public.assign_package_purchase_programme_code();
+
+create or replace function public.assign_home_visit_purchase_programme_code()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+  v_category uuid;
+begin
+  if new.care_plan_version_id is not null then
+    select cp.programme_code into v_code
+      from care_plan_versions v
+      join care_plans cp on cp.id = v.care_plan_id
+     where v.id = new.care_plan_version_id;
+    if v_code is not null and position('_HV' in v_code) > 0 then
+      new.programme_code := v_code;
+      return new;
+    end if;
+  end if;
+  -- One visit is a consultation, not a programme.
+  if new.programme_code is null and (coalesce(new.visit_count, 0) >= 2 or new.care_plan_version_id is not null) then
+    select category_id into v_category from home_visit_packages where id = new.package_id;
+    new.programme_code := next_programme_code(programme_prefix_for_category(v_category), 'HV');
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_assign_home_visit_purchase_programme_code on home_visit_package_purchases;
+create trigger trg_assign_home_visit_purchase_programme_code
+  before insert or update of care_plan_version_id, payment_status on home_visit_package_purchases
+  for each row execute function public.assign_home_visit_purchase_programme_code();
+
+-- Backfill, in the order things happened, so the oldest programme of each
+-- condition is _001. One statement per row: rows updated by a single UPDATE
+-- cannot see each other's new codes, and the condition-code picker has to.
+do $$
+declare
+  r record;
+  v_prefix text;
+  v_kind text;
+begin
+  for r in
+    select id from treatment_categories where short_code is null
+     order by display_order, created_at, id
+  loop
+    update treatment_categories set short_code = null where id = r.id;
+  end loop;
+
+  for r in
+    select 'plan'::text as src, cp.id, cp.created_at
+      from care_plans cp
+     where cp.programme_code is null and cp.current_version_id is not null
+    union all
+    select 'pkg', p.id, p.created_at
+      from patient_package_purchases p
+     where p.programme_code is null and p.care_plan_version_id is null
+    union all
+    select 'hv', h.id, h.created_at
+      from home_visit_package_purchases h
+     where h.programme_code is null and h.care_plan_version_id is null and h.visit_count >= 2
+    order by 3, 2
+  loop
+    if r.src = 'plan' then
+      select p.prefix, p.kind into v_prefix, v_kind
+        from care_plans cp, programme_code_parts_for_version(cp.current_version_id) p
+       where cp.id = r.id;
+      if v_prefix is not null then
+        update care_plans set programme_code = next_programme_code(v_prefix, v_kind)
+         where id = r.id and programme_code is null;
+      end if;
+    elsif r.src = 'pkg' then
+      update patient_package_purchases
+         set programme_code = next_programme_code(programme_prefix_for_category(category_id), 'PKG')
+       where id = r.id and programme_code is null;
+    else
+      update home_visit_package_purchases h
+         set programme_code = next_programme_code(
+               programme_prefix_for_category((select category_id from home_visit_packages where id = h.package_id)),
+               'HV')
+       where h.id = r.id and h.programme_code is null;
+    end if;
+  end loop;
+
+  -- A bought recommendation carries its recommendation's ID.
+  update patient_package_purchases p
+     set programme_code = cp.programme_code
+    from care_plan_versions v
+    join care_plans cp on cp.id = v.care_plan_id
+   where p.care_plan_version_id = v.id
+     and p.programme_code is null
+     and cp.programme_code is not null
+     and position('_PKG' in cp.programme_code) > 0;
+  update home_visit_package_purchases h
+     set programme_code = cp.programme_code
+    from care_plan_versions v
+    join care_plans cp on cp.id = v.care_plan_id
+   where h.care_plan_version_id = v.id
+     and h.programme_code is null
+     and cp.programme_code is not null
+     and position('_HV' in cp.programme_code) > 0;
+
+  -- Anything a recommendation could not name gets its own.
+  for r in
+    select id from patient_package_purchases
+     where programme_code is null and care_plan_version_id is not null
+     order by created_at, id
+  loop
+    update patient_package_purchases
+       set programme_code = next_programme_code(programme_prefix_for_category(category_id), 'PKG')
+     where id = r.id;
+  end loop;
+  for r in
+    select id from home_visit_package_purchases
+     where programme_code is null and care_plan_version_id is not null
+     order by created_at, id
+  loop
+    update home_visit_package_purchases h
+       set programme_code = next_programme_code(
+             programme_prefix_for_category((select category_id from home_visit_packages where id = h.package_id)),
+             'HV')
+     where h.id = r.id;
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --
 -- Every RPC this application makes goes through the service-role client,

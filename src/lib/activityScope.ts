@@ -80,11 +80,6 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "therapist.set_weekly_schedule": "sessions",
   "therapist.set_schedule_exception": "sessions",
   "therapist.clear_schedule_exception": "sessions",
-  "care_plan.approve": "sessions",
-  "care_plan.reject": "sessions",
-  "care_plan.edit_and_approve": "sessions",
-  "care_plan.withdraw": "sessions",
-  "care_plan.author_on_behalf": "sessions",
   "rating.clear": "sessions",
   "rating.exclude": "sessions",
   // Clinical records. Guarded as sessions-adjacent capabilities and read by
@@ -132,17 +127,26 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "therapist.set_home_visit_revenue_share": "money",
   "hospital.set_revenue_share": "money",
 
+  // programmes -- a recommendation and the purchase it becomes. These were
+  // `sessions` (recommendations) and `catalog` (purchases) until both moved
+  // into the Programmes section; the routes guard with "programmes" now.
+  "care_plan.approve": "programmes",
+  "care_plan.reject": "programmes",
+  "care_plan.edit_and_approve": "programmes",
+  "care_plan.withdraw": "programmes",
+  "care_plan.author_on_behalf": "programmes",
+  "package.extend_expiry": "programmes",
+  "package.reassign_therapist": "programmes",
+  // Handing a forfeited session back is a programmes-guarded route, and it
+  // is money as well -- isMoneyAction counts it. The domain here answers
+  // "which screen could the reader open", which is All Programmes.
+  "session.restore": "programmes",
+
   // catalog
   "catalog.create": "catalog",
   "catalog.update": "catalog",
   "catalog.delete": "catalog",
-  "package.extend_expiry": "catalog",
-  "package.reassign_therapist": "catalog",
   "home_visit.waitlist_status": "catalog",
-  // Handing a forfeited session back is a catalog-guarded route, and it is
-  // money as well -- isMoneyAction counts it. The domain here answers "which
-  // screen could the reader open", which is the Purchases table.
-  "session.restore": "catalog",
 
   // settings
   "setting.update": "settings",

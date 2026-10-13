@@ -81,8 +81,9 @@ Every route below is covered by at least one test. The rightmost column names th
 | Sessions | `new` | New Booking | `ADM-SESS-NEW-001` |
 | Sessions | `roster` | Roster | `ADM-ROST-001` |
 | Sessions | `delivery` | Delivery (operational rates) | `ADM-DELIV-001` |
-| Sessions | `recommendations` | Recommendations - the clinic's review queue, plus every plan | `ADM-CARE-001`, `ADM-CARE-004` |
 | Sessions | `new` | New Booking | `ADM-NEWB-001` |
+| Programmes | `all` | All Programmes - the pipeline, every programme with its ID and progress, the drawer | `ADM-PRG-001` … `ADM-PRG-007` |
+| Programmes | `review` | Recommendations - the clinic's review queue, plus every plan (manage only) | `ADM-CARE-001`, `ADM-CARE-004` |
 | People | `patients` | Patients (+ condition requests) | `ADM-PEOP-001`, `ADM-PEOP-010` |
 | People | `therapists` | Therapists | `ADM-PEOP-005`, `ADM-PEOP-010` |
 | People | `partners` | Partners | `ADM-PEOP-008`, `ADM-PEOP-010` |
@@ -96,7 +97,6 @@ Every route below is covered by at least one test. The rightmost column names th
 | Money | `inputs` | Your Numbers (investments, advertising, what you own and owe) | `FIN-BH-002`, `FIN-BH-003`, `FIN-BH-004` |
 | Catalog | `conditions` | Conditions (Online sessions, then Home visits) | `ADM-CAT-001`, `ADM-CAT-004`, `ADM-CAT-005` |
 | Catalog | `areas` | Service Areas + waitlist | `ADM-CAT-010` |
-| Catalog | `purchases` | Purchases | `ADM-CAT-014` |
 | Logs | `all` | All Activity | `ADM-SET-033`, `ADM-SET-034`, `ADM-LOG-001`, `ADM-LOG-003`, `ADM-LOG-003a` |
 | Logs | `retention` | Archive & Clear | `ADM-LOG-002` |
 | Settings | `brand` | Brand & Contact | `ADM-SET-001` |

@@ -4,12 +4,17 @@ import { useState } from "react";
 import { computePackageCounts, patientExpiryNotice } from "@/lib/packageProgress";
 import PackageDetailModal from "@/components/packages/PackageDetailModal";
 import PackageBulkScheduler from "@/components/packages/PackageBulkScheduler";
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
+import type { ProgrammeTag } from "@/lib/programmeId";
 import ProgrammeCover from "@/components/packages/ProgrammeCover";
 import type { ProgrammeCoverImage } from "@/lib/programmeDisplay";
 
 export type PatientPackageCard = {
   id: string;
   purchaseCode: string | null;
+  /** The programme's ID with its progress (PED_PKG001-2/6) - the reference
+   *  the patient quotes to the clinic. Falls back to purchaseCode. */
+  programmeTag?: ProgrammeTag | null;
   title: string;
   /** The programme's photo (its condition's, for a recommended course) -
    *  src/lib/programmeDisplay.ts. */
@@ -97,7 +102,14 @@ export default function PatientPackageWidget({
                   <p className="text-sm font-bold text-slate-900">{p.title}</p>
                   <span className="shrink-0 capitalize text-[11px] font-semibold text-slate-500">{p.status}</span>
                 </div>
-                {p.purchaseCode && <p className="font-mono text-slate-500">{p.purchaseCode}</p>}
+                {p.programmeTag ? (
+                  <p className="flex flex-wrap items-center gap-1.5 text-slate-500">
+                    <ProgrammeIdChip tag={p.programmeTag} />
+                    <span>Quote this ID if you contact the clinic.</span>
+                  </p>
+                ) : (
+                  p.purchaseCode && <p className="font-mono text-slate-500">{p.purchaseCode}</p>
+                )}
 
                 <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full bg-teal-600" style={{ width: `${progressPercent}%` }} />

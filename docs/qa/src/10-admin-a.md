@@ -1,6 +1,6 @@
 ---
 
-## 14. Admin test plan - Part A (Today, Sessions, People, Catalog)
+## 14. Admin test plan - Part A (Today, Sessions, Programmes, People, Catalog)
 
 ### 14.0 How the admin dashboard works
 
@@ -364,10 +364,46 @@ await fetch("/api/appointments/confirm-free", {
 **Steps.** As a patient who received a discount, open **Payments** and tap the receipt.
 **Expected Result.** Three lines: the session price struck through, the discount named and negative, and **You paid**. A receipt that silently printed the lower number would tell the patient nothing about having been given something, which is the entire value of an offer.
 
+### 14.2a Programmes
+
+**What this section is.** One programme, from the therapist's recommendation to its last session, as **one row** under **one ID**: the condition's code, `_PKG` (video) or `_HV` (home visits) and a number per condition, with completed/bought appended - `PED_PKG001-0/6` when bought, `PED_PKG001-1/6` after the first session is done. It replaces Sessions → Recommendations (now **Programmes → Recommendations**) and Catalog → Purchases (now **Programmes → All Programmes**).
+
+#### `ADM-PRG-001` - A programme has its ID from the moment it is recommended · P0
+**Preconditions.** Schema applied. A completed session for Patient A run by Therapist A, on a condition whose **Programme code** (Catalog → Conditions) is e.g. `SPI`.
+**Steps.** As Therapist A, recommend 6 sessions. As admin, approve it. Read `care_plans.programme_code`. Then seed or make the purchase (pay for it as the patient) and read the purchase's `programme_code`.
+**Expected Result.** The plan has `SPI_PKG<n>` as soon as it is published (before approval, while waiting); the purchase carries **the same** ID, never a second one. Home-visit recommendations read `SPI_HV<n>`. The next recommendation for the same condition gets the next number; another condition starts at `_001`. A single home visit has **no** programme ID.
+**[SQL]:** two inserts at once into `patient_package_purchases` for the same condition get two different numbers - the counter row is locked by `INSERT ... ON CONFLICT DO UPDATE`.
+
+#### `ADM-PRG-002` - The pipeline counts and filters · P0
+**Steps.** Open **Programmes → All Programmes**. Read the five tiles (Waiting approval, With patient, Paid - nothing booked, In progress, Completed) and the Stopped chips (Declined, Not approved, Withdrawn, Lapsed, Expired, Refunded). Tap **With patient**, then tap it again. Pick a condition, then tap **Completed**.
+**Expected Result.** Each tile's count matches the rows it opens. Tapping filters the list, marks the tile pressed and writes `pg_stage=with_patient` into the URL; tapping again clears it. The counts follow every *other* filter (pick a condition and they all shrink) but not the stage, so a tile never opens an empty list while its count says otherwise. An abandoned checkout is not listed anywhere.
+
+#### `ADM-PRG-003` - The ID moves when a session is completed · P0
+**Steps.** On a bought 6-session programme with nothing booked, read its row. Book a session, have the therapist complete it, and read the row again. Open **Sessions → All Sessions** and that session's drawer. Then check the patient's **Your Programmes** and session card, and the therapist's session card.
+**Expected Result.** `…-0/6` and **Paid - nothing booked** before; `…-1/6` and **In progress** after, with the bar a sixth full. The All Sessions row shows the chip under the session ID; the drawer says **Part of …-1/6** with **Open programme**. The patient and therapist see the same ID and the same `1/6` - counted across every session of the programme, not one therapist's share.
+
+#### `ADM-PRG-004` - Search finds it by new ID, copied ID and old code · P0
+**Steps.** In the search box type the new ID; then paste it with stale progress (`…-0/6` after a session is done); then the old `SP`/`HS` code; then a session code from it; then the patient's name. Repeat the ID in **People → Patients** search, All Sessions' **Programme ID** filter, Money → Transactions' **Session or programme ID** filter and the global search.
+**Expected Result.** Every one finds the programme. The search is in the URL (`pg_q`), so the filtered list is a shareable link.
+
+#### `ADM-PRG-005` - The drawer tells the whole story · P0
+**Steps.** Tap a programme with a completed session.
+**Expected Result.** The drawer shows the ID, stage and mode; patient (linking to their page) and programme therapist; `1 of 6 sessions done · N booked · M still to book`; every session with its code, time, therapist and status; and **What happened**, oldest first: Recommended by, Approved (or Not approved, with the reason), Sent to the patient, Accepted / Declined (with the reason), Paid, each session booked and completed, and Lapsed / Expired / Refunded when they happened. Every date is in IST.
+As **Master Admin** a **Money** block reads list price, discount and code, paid, travel per visit and refunds. As **Operations** or **Clinical** there is **no Money block** and no amounts anywhere on the screen or in its CSV/PDF export.
+
+#### `ADM-PRG-006` - The drawer's controls follow the scope · P0
+**Steps.** Open a programme waiting approval, one with the patient, and a bought one - as Master Admin, Operations, Clinical and Finance.
+**Expected Result.** Waiting approval: **Approve and send to the patient**, **Turn it down** (reason ≥ 10 characters), **Change it before approving** (opens Recommendations). With patient: **Withdraw the recommendation** (reason). Bought: **Change therapist or extend expiry** (the purchase modal) and, for a desk that can open Money, **Refund what is left**. Finance reads Programmes at `view`: it sees the list and the drawer, **no** approve/withdraw/change controls, **Refund what is left** (Money's own route), and Programmes → Recommendations is not in its sidebar. Every route behind a control refuses a scope that cannot call it (403).
+
+#### `ADM-PRG-007` - Empty, failed and moved · P1
+**Steps.** On an empty database open All Programmes; filter to something matching nothing; make the Programmes read fail; open `?section=catalog&tab=purchases`; open a database without the latest schema.
+**Expected Result.** *No programmes yet* explains where they come from; *No programme matches these filters* offers **Clear filters**; a failed read says it **couldn't load** with **Try again** - never an empty list; the old link lands on All Programmes with the address bar rewritten; without the schema rows show their old SP/HS codes and an amber note says the IDs are not set up yet.
+
 #### `ADM-CARE-001` - Recommendations: see every care plan · P0
-**Steps.** Open **Sessions → Recommendations**.
+**Steps.** Open **Programmes → Recommendations**. Then open the old link `?section=sessions&tab=recommendations`.
 **Expected Result.** Three bands, in this order: **Waiting for your decision**, **Waiting on a patient**, **Answered and closed**. Every care plan in the clinic is listed with its patient, therapist, package, status and date. A care plan is now the **only** route by which a patient buys a programme, so the clinic must be able to see them all.
 The first band **renders even when empty**, saying so. A section that disappears when there is nothing in it gives an admin no way to tell "nothing waiting" from "I am on the wrong screen".
+Each card published carries its programme ID (`PED_PKG001`). The old link lands on this screen and the address bar is rewritten to `?section=programmes&tab=review`.
 
 #### `ADM-CARE-004` - Approve a recommendation · P0
 
@@ -386,9 +422,9 @@ The first band **renders even when empty**, saying so. A section that disappears
 
 **Expected Result**
 * Step 1: the count is there, and it turns **urgent** only once something has been waiting over four hours - never merely because the queue is non-empty. A badge that is always on is a badge nobody reads, and this is the one queue with a patient on the other side of it who has been told nothing at all. The hint names how many are late.
-* Step 2: the link lands on `?section=sessions&tab=recommendations` - the figure and the list it opens must agree.
+* Step 2: the link lands on `?section=programmes&tab=review` - the figure and the list it opens must agree.
 * Step 4: the queue is **oldest first** - every other list on this screen is a record and reads newest-first, but this is work, and the person waiting longest is served next. Each badge reads **how long** it has waited (`Waiting 3 hours`), not the date it arrived; past four hours it turns red. A card that reads `2 September` when the thing arrived nine minutes ago tells an admin nothing they can act on.
-* Step 4: where the patient still has unused sessions **or visits** on a live programme, the card says so in amber. The figure comes through the same ledger helper every other balance surface uses, so it cannot disagree with Catalog → Purchases after the ledger switch is flipped. It is **stated, never acted on** - a patient with sessions left may well need a different programme, and the clinician has seen them. This is the commonest reason to turn one down, and an admin previously had to leave the queue to find it out.
+* Step 4: where the patient still has unused sessions **or visits** on a live programme, the card says so in amber. The figure comes through the same ledger helper every other balance surface uses, so it cannot disagree with Programmes → All Programmes after the ledger switch is flipped. It is **stated, never acted on** - a patient with sessions left may well need a different programme, and the clinician has seen them. This is the commonest reason to turn one down, and an admin previously had to leave the queue to find it out.
 * Step 5: **one tap, no reason asked.** Approving is the outcome this queue exists to reach, and demanding a sentence meaning "fine" twenty times a day is how a reason column fills with `ok` and stops being worth reading; a plain approval's evidence is who and when, both already on the row. The plan becomes `active`; `reviewed_by` and `reviewed_at` are stamped; a `care_plan_reviews` row records the decision and the reviewer with a null reason; a `care_plan.approve` audit row is written. **`care_plan_versions.expires_at` is stamped now** - the patient's answering window starts at approval, not at authoring, so a plan that waited in the queue does not arrive with its time already spent.
 * Step 6: the recommendation is now visible and purchasable.
 * Step 7: **409** - `Someone else decided this one first.` The decision is a compare-and-swap on `pending_review`, so two admins in the queue together cannot both decide.
@@ -425,7 +461,7 @@ The setting **fails closed**: with the column unreadable, a submission is held r
 
 #### `ADM-CARE-002` - Withdraw a recommendation · P0
 **Steps.** Withdraw an **active, unpurchased** plan with the reason `Therapist on extended leave; will re-review.` Then attempt to withdraw an **accepted (purchased)** plan.
-**Expected Result.** The active one closes; the patient's offer disappears; a `care_plan.withdraw` audit row is written; the route required `sessions` scope, a **mandatory reason**, and a compare-and-swap on `status='active'` (a stale attempt returns `Someone else closed this recommendation. Refresh to see it.`).
+**Expected Result.** The active one closes; the patient's offer disappears; a `care_plan.withdraw` audit row is written; the route required `programmes` scope, a **mandatory reason**, and a compare-and-swap on `status='active'` (a stale attempt returns `Someone else closed this recommendation. Refresh to see it.`).
 **The purchased plan cannot be withdrawn at all** - the patient has paid and the sessions exist, so the honest lane is a refund or a credit adjustment, each of which has its own screen.
 Withdrawal also covers a plan **still waiting for approval** - refusing would leave the queue holding a thread nobody intends to approve while the patient's one-plan slot stayed taken.
 **There is no admin path to *edit* a version.** Approving with different numbers (`ADM-CARE-006`) writes a **new** one attributed to the clinician; it does not change theirs, and no route anywhere can set a price.
@@ -435,7 +471,7 @@ Withdrawal also covers a plan **still waiting for approval** - refusing would le
 **Feature.** One authoring implementation, three doors. This one exists for when a therapist cannot reach their dashboard - on leave, off sick, gone - and a patient is still waiting to hear.
 
 **Steps**
-1. On **Sessions → Recommendations**, open the authoring panel.
+1. On **Programmes → Recommendations**, open the authoring panel.
 2. Choose the session - it must be a **completed session that the named therapist ran**.
 3. Read which programmes are offered.
 4. Fill the same four clinical fields as `THR-CARE-001`.
@@ -641,6 +677,11 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 
 **Expected Result.** The category is created and appears **immediately** on `/` and `/conditions` - the create route invalidates both ISR-cached pages, so a five-minute wait is now a defect, not expected behaviour - in the `/book` concern dropdown as `QA Back & Spine Care - ₹1,999 / 60 min`, and as an option when creating a package. The cover is an **upload**, not a pasted URL: there is no URL text box on this form any more. A row with no image shows the shared **placeholder panel at the same height**, never a broken-image state.
 
+#### `ADM-CAT-001a` - Each condition has a programme code · P0
+**Steps.** Create `QA Back & Spine Care` leaving **Programme code** blank and read the suggestion under the field. Save, then read the code on its row. Edit it: type `ab1`, then `PEDS` while another condition holds `PEDS`, then `QBS`. Then clear the field and save.
+**Expected Result.** The field suggests a code from the name (first three letters of the first word: `QAB`, or the next free one) and shows what its IDs will look like (`QAB_PKG001`, `QAB_HV001`). Blank saves with the database's own pick, shown as an indigo chip on the row. `ab1` is refused (`Use 2 to 4 letters, A to Z`); a taken code is refused with the other condition named (**409**) and nothing is saved; `QBS` saves. Clearing the field makes one from the name again. Programmes already issued keep their old prefix; the next one uses the new code.
+**[SQL]:** `update treatment_categories set short_code = 'X1'` raises (the format CHECK); two conditions created at once never share a code (an advisory lock and a unique index).
+
 #### `ADM-CAT-003` - Upload a cover, preview it and position it · P0
 **Steps.** On any condition, package or home-visit form, tap **Upload an image** and choose a landscape photograph whose subject is well off-centre. Then tap **Preview & position**, drag the picture until the subject sits where you want it, and tap **Done**. Save the form.
 **Expected Result.** The drop zone becomes a row naming the file with **Preview & position**, **Replace** and **Remove**, and reads `Centred - not positioned yet` until you move it. In the dialog, the **frame stays still and the picture moves inside it** - dragging right moves the picture right - with a rule-of-thirds guide over it and the live focal point shown as two percentages. The three small frames below (**Card**, **Square**, **Dialog**) all move together: that is the point of the feature, and a position correct on one but not the others is a P0. **Done** only stages it; the public page changes when the **form** is saved, and it changes immediately rather than after the five-minute ISR window.
@@ -695,7 +736,7 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 7. Turn **Home Visit enabled** off (Settings → Programmes & Home Visits) and reopen Conditions; turn it back on.
 
 **Expected Result**
-* Step 1: tabs are **Conditions, Service Areas, Countries & currency, Purchases** - no Packages. The URL lands on Conditions.
+* Step 1: tabs are **Conditions, Service Areas, Countries & currency** - no Packages and no Purchases (purchases are on Programmes → All Programmes; the old `?tab=purchases` link lands there). The URL lands on Conditions.
 * The screen is titled **Conditions** with **Online sessions** above **Home visits**, and a footer: *"Travel is added per visit from Service Areas. Hands-on recommendations use these prices..."*.
 * Step 2: a toast names the new figure (*"The clinic-wide home-visit price is now ₹2,499 for 60 minutes"*); every condition without its own price reads `Clinic-wide (₹2,499)`.
 * Step 3: the row reads `₹2,999 own price` with **Edit** and **Use clinic-wide**. Exactly one active one-visit `home_visit_packages` row for that condition, `validity_days` null.
@@ -706,11 +747,11 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 **Negatives:** the messages in §8.12; a price above ₹1,00,000 is refused by the route. Two admins saving the same condition at once leave **one** price (the second gets *"Someone else set this price at the same moment..."*, 409, or edits the first's row).
 
 #### `ADM-CAT-006` - Changing a price never changes what was already sold · P0
-**Steps.** After Patient A has bought a home visit for `QA Knee & Joint Care` at ₹2,999, change its own price to ₹3,500. Then open the patient's visit and the admin's Purchases row.
+**Steps.** After Patient A has bought a home visit for `QA Knee & Joint Care` at ₹2,999, change its own price to ₹3,500. Then open the patient's visit and that programme on Programmes → All Programmes.
 **Expected Result.** The purchase and its visit still read **₹2,999**. A new booking is quoted ₹3,500. **Never resolve what a purchase cost by joining the live price row** - if the old purchase now says ₹3,500, that is a P0 defect.
 
 #### `ADM-CAT-007` - The removed package editors stay removed · P1
-**Steps.** Call `POST /api/admin/create-package`, `/api/admin/update-package`, `/api/admin/delete-package`, `/api/admin/create-home-visit-package`, `/api/admin/update-home-visit-package` and `/api/admin/delete-home-visit-package` as the Master Admin. Then open an old purchase of a session package or a 4-visit home programme on Catalog → Purchases.
+**Steps.** Call `POST /api/admin/create-package`, `/api/admin/update-package`, `/api/admin/delete-package`, `/api/admin/create-home-visit-package`, `/api/admin/update-home-visit-package` and `/api/admin/delete-home-visit-package` as the Master Admin. Then open an old purchase of a session package or a 4-visit home programme on Programmes → All Programmes.
 **Expected Result.** Every route answers **404** - they do not exist. The old purchase still shows its title and keeps booking to exhaustion; its programme rules (minimum gap, weekly cap) still apply in the bulk scheduler.
 
 #### `ADM-CAT-010` - Service areas · P0
@@ -749,9 +790,9 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 **Expected Result.** While it is on, the switch states how many paid visits across how many purchases are still to deliver, and that switching it off does not cancel any of them. Switching off asks first and repeats the number. Switching it back **on** asks nothing - turning a service on takes nothing from anybody. After confirming, `/home-visit` and `/book-home-visit` both return Not Found and the nav link is gone, while an existing purchase still books its remaining visits and staff still see every booked visit.
 **Negative:** make the count's read fail - the line must say *"We could not check how many paid visits are still to deliver."* and never a **0**, which on this switch reads as nothing to lose. The count includes a purchase whose address carries **no** area, which the per-area rows in `ADM-CAT-012` cannot show.
 
-#### `ADM-CAT-014` - Purchases · P1
-**Steps.** Open **Catalog → Purchases**. Open a package purchase's detail modal; then a home-visit purchase's.
-**Expected Result.** Both list every purchase with balances. The detail modals are **viewer-scoped, not role-branched** - the route queries with the caller's own RLS-scoped client, so a row coming back **is** the authorization. Money controls inside the modal render only for an admin with `money` scope.
+#### `ADM-CAT-014` - Purchase controls (now on Programmes) · P1
+**Steps.** Open **Programmes → All Programmes**, open a bought session programme's drawer and tap **Change therapist or extend expiry**; then a home-visit programme's.
+**Expected Result.** Both open the purchase's detail modal with balances; closing it returns to the drawer. The detail modals are **viewer-scoped, not role-branched** - the route queries with the caller's own RLS-scoped client, so a row coming back **is** the authorization. Money controls inside the modal render only for an admin with `money` scope.
 Admin actions available here: **extend expiry** (invalid dates refused with `Invalid newExpiresAt`), **reassign the locked therapist** (touches **future sessions only** - completed ones keep whoever actually ran them), **refund**, **restore a session**, and **grant / reverse / revive credits**.
 
 #### `ADM-CAT-015` - Credit adjustments require a reason · P0

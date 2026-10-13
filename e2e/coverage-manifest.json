@@ -249,6 +249,23 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-programmes.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/programmes.md",
+        "docs/rules/admin.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
     "admin-refresh-badge.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -2252,6 +2269,29 @@
         }
       ],
       "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.programmes",
+      "runner": "admin",
+      "title": "Programmes follows one programme from recommendation to last session: pipeline filters, ID with progress, search by new and old code, the story in a drawer",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-programmes.spec.ts",
+          "tests": [
+            "PRG-001",
+            "PRG-002",
+            "PRG-003",
+            "PRG-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/programmes.md",
         "docs/rules/admin.md"
       ]
     },

@@ -1,6 +1,8 @@
 // Finding a person from a reference that is not on their card: a Razorpay
 // payment id (pay_...), a Razorpay order id (order_...), a session code
-// (SS0004) or a programme purchase code (SP0001). This is what an admin has
+// (SS0004) or a programme ID -- the current PED_PKG001 (pasted with or
+// without its progress, PED_PKG001-2/6) or an old purchase code (SP0001,
+// HS0001), which is still on receipts already sent. This is what an admin has
 // in hand when a patient forwards a bank SMS, or Razorpay's dashboard shows a
 // payment, and the question is "whose is this?".
 //
@@ -8,6 +10,8 @@
 // name/email/ID search stays where it is; this only answers the hidden
 // references and says which one matched, so the card can show *why* it is in
 // the results instead of leaving the admin to wonder.
+
+import { parseProgrammeId } from "./programmeId";
 
 export type SearchRefKind = "payment" | "order" | "session" | "programme";
 
@@ -40,11 +44,15 @@ export function matchSearchRef(
   if (!refs || refs.length === 0) return null;
   const q = normalizeRefQuery(query);
   if (q.length < MIN_REF_QUERY_LENGTH) return null;
+  // A programme ID copied off a screen carries its progress, which has moved
+  // on since ("-2/6" yesterday, "-3/6" today) -- the ID is the part to find.
+  const programmeCode = parseProgrammeId(q)?.code.toLowerCase() ?? null;
+  const needles = programmeCode && programmeCode !== q ? [q, programmeCode] : [q];
   let partial: SearchRef | null = null;
   for (const ref of refs) {
     const value = ref.value.toLowerCase();
-    if (value === q) return ref;
-    if (!partial && value.includes(q)) partial = ref;
+    if (needles.includes(value)) return ref;
+    if (!partial && needles.some((n) => value.includes(n))) partial = ref;
   }
   return partial;
 }

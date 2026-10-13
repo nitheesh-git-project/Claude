@@ -218,7 +218,7 @@ At **Settings → Programmes & Home Visits**, above the package settings.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
-| **Approve recommendations before the patient sees them** | **on** | Off → a therapist's submission publishes on save and the patient sees it immediately, as it did before the review step. On → it lands in Sessions → Recommendations and the patient sees nothing. See `ADM-CARE-004..008`. **Fails closed:** an unreadable column holds the recommendation rather than publishing it. Read in its own query, not through `SITE_SETTINGS_SELECT` - the same treatment **Therapist-Suggested Sessions** gets, so a database one apply behind loses this one control instead of resetting every setting on the page |
+| **Approve recommendations before the patient sees them** | **on** | Off → a therapist's submission publishes on save and the patient sees it immediately, as it did before the review step. On → it lands in Programmes → Recommendations and the patient sees nothing. See `ADM-CARE-004..008`. **Fails closed:** an unreadable column holds the recommendation rather than publishing it. Read in its own query, not through `SITE_SETTINGS_SELECT` - the same treatment **Therapist-Suggested Sessions** gets, so a database one apply behind loses this one control instead of resetting every setting on the page |
 | **How long a recommendation holds** | 30 d | The patient's answering window, counted **from approval**, not from when the therapist wrote it |
 | **Most sessions a week a clinician may ask for** | 5 | A ceiling over the programme's own `max_sessions_per_week`, whichever is lower. Above it: `This programme allows at most N sessions a week.` |
 
@@ -272,7 +272,7 @@ At **Settings → Offers & Discounts**, above Patient invites.
 **Steps**
 1. Open **Settings → System Health** and confirm **Books & Sessions Agree** is `Healthy`, and that **Google Connection** is not red.
 2. On **Settings → Advanced**, switch **Where a patient's remaining sessions are counted** to **Session history**.
-3. Check every surface that shows a balance: the patient's package widget, the therapist's programme list, both purchase detail modals, the admin Purchases table, and the bulk scheduler.
+3. Check every surface that shows a balance: the patient's package widget, the therapist's programme list, both purchase detail modals, the admin Programmes list, and the bulk scheduler.
 4. Turn it back off and check them all again.
 
 **Expected Result.** Every surface reads the same shape and follows the switch **together** - the substitution happens once, where the row is loaded. A refunded package still reads its original `6 sessions` with none pending rather than becoming a 1-session package. A purchase with **no** entitlement behind it is untouched, so a database without the backfill behaves exactly as before.
@@ -530,9 +530,9 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 **Do not report the three full-only routes as violations.** `set-admin-scope`, `debug-reset` and `create-account` guard with an explicit `scope !== "full"` check rather than `requireAdminScope`, deliberately: a section gate would let a scoped admin widen its own access or mint a full admin. They are stricter than the rule, not exceptions to it.
 
 #### `ADM-SET-028` - The section is chosen by the capability, not the button's location · P1
-**Purpose.** A refund is `money` scope **even though its button lives on a Catalog screen**.
-**Steps.** As **Admin Ops** (who *can* open Catalog), open **Catalog → Purchases** and look for the refund control. Then call `POST /api/admin/refund-package` directly.
-**Expected Result.** **The refund control does not render** - a control an admin's scope cannot call must not be shown, or they get a 403 with nothing to explain it. The route returns **403**.
+**Purpose.** A refund is `money` scope **even though its button lives on a Programmes screen**.
+**Steps.** As **Admin Ops** (who *can* manage Programmes), open a bought programme's drawer on **Programmes → All Programmes** and look for the refund control, in the drawer and in its purchase modal. Then call `POST /api/admin/refund-package` directly. Repeat as **Finance**.
+**Expected Result.** For Operations **the refund control does not render** - a control an admin's scope cannot call must not be shown, or they get a 403 with nothing to explain it - and the route returns **403**. Finance, who reads Programmes but manages Money, **does** get **Refund what is left** in the drawer, and the route accepts it.
 
 #### `ADM-SET-029` - Contact controls · P1
 **Steps.** On **Settings → User Access**, change `contact_scan_mode` through `flag_and_block` → `flag_only` → `off`, and toggle `contact_masking_enabled`.

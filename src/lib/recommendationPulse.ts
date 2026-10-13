@@ -46,6 +46,12 @@ export type RecommendationPulseRow = {
   expiresAt: string | null;
   /** The paid purchase, when there is one. */
   purchase: { amountPaise: number | null; paidAt: string | null; booked: number } | null;
+  /** The programme's ID with its progress (PED_PKG001-0/6), when it has
+   *  one. Leads every event's detail, so the ID an admin reads on Today is
+   *  the one they search for on Programmes. */
+  programmeDisplay?: string | null;
+  /** The programme's ID alone, for the event's link. */
+  programmeCode?: string | null;
 };
 
 export type RecommendationPulseCounts = {
@@ -83,10 +89,14 @@ export function buildRecommendationPulse(
   nowMs: number,
   {
     href,
+    hrefFor,
     showMoney,
   }: {
-    /** Where every event links: the screen that lists recommendations. */
+    /** Where an event links when `hrefFor` has nothing better. */
     href: string;
+    /** Where one event links -- the programme itself, or the approval
+     *  queue for one waiting on the clinic. */
+    hrefFor?: (row: RecommendationPulseRow, kind: string) => string | undefined;
     /** False for an admin whose scope cannot open Money: amounts are left
      *  out of the wording and the counts. */
     showMoney: boolean;
@@ -110,12 +120,12 @@ export function buildRecommendationPulse(
       { expires_at: r.expiresAt },
       nowMs
     );
-    const what = `${plural(r.sessionCount, r.isHomeVisit ? "home visit" : "session")} of ${r.conditionTitle}`;
+    const what = `${r.programmeDisplay ? `${r.programmeDisplay} · ` : ""}${plural(r.sessionCount, r.isHomeVisit ? "home visit" : "session")} of ${r.conditionTitle}`;
     const price = showMoney && r.pricePaise !== null ? ` (${rupees(r.pricePaise)})` : "";
     const who = `${r.therapistName} for ${r.patientName}`;
     const push = (suffix: string, at: string | null, icon: string, tone: FeedTone, title: string, detail: string, needsYou = false) => {
       if (!at) return;
-      events.push({ id: `rec-${suffix}-${r.id}`, at, icon, tone, title, detail, href, needsYou });
+      events.push({ id: `rec-${suffix}-${r.id}`, at, icon, tone, title, detail, href: hrefFor?.(r, suffix) ?? href, needsYou });
     };
 
     switch (state) {

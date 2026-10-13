@@ -22,6 +22,9 @@ type Category = {
   active: boolean;
   /** Migration-dependent, read in its own call by the caller. */
   specialty?: string | null;
+  /** The condition's programme code (PED). Undefined when the database has
+   *  no such column yet, which hides the field. */
+  short_code?: string | null;
 };
 
 function DeleteButton({ id, title }: { id: string; title: string }) {
@@ -247,6 +250,13 @@ export default function TreatmentCategoryManager({
   // it, an admin who ticks six sees four on the live site and has no way to
   // tell whether the other two failed to save.
   const featuredCount = countFeatured(categories);
+  // Every other condition's programme code, so the form can say a code is
+  // taken before the save does -- and suggest a free one.
+  const codesKnown = categories.some((c) => c.short_code !== undefined);
+  const takenCodes = (selfId: string | null): string[] | undefined =>
+    codesKnown
+      ? categories.filter((c) => c.id !== selfId && c.short_code).map((c) => c.short_code as string)
+      : undefined;
 
   return (
     <div className="space-y-3">
@@ -276,6 +286,7 @@ export default function TreatmentCategoryManager({
               <li key={cat.id}>
                 <TreatmentCategoryForm
                   category={cat}
+                  takenCodes={takenCodes(cat.id)}
                   onCancel={() => setEditingId(null)}
                 />
               </li>
@@ -293,7 +304,17 @@ export default function TreatmentCategoryManager({
                       onMove={(direction) => handleMove(cat.id, direction)}
                     />
                     <div>
-                      <p className="font-bold text-slate-900">{cat.title}</p>
+                      <p className="font-bold text-slate-900">
+                        {cat.title}
+                        {cat.short_code && (
+                          <span
+                            title="This condition's programme code. Its programmes are numbered under it, e.g. a first video programme is this code + _PKG001."
+                            className="ml-2 rounded-md bg-indigo-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-indigo-800 ring-1 ring-indigo-200"
+                          >
+                            {cat.short_code}
+                          </span>
+                        )}
+                      </p>
                       {cat.description && (
                         <p className="text-slate-500 mt-0.5">{cat.description}</p>
                       )}
@@ -380,6 +401,7 @@ export default function TreatmentCategoryManager({
 
       {addingNew ? (
         <TreatmentCategoryForm
+          takenCodes={takenCodes(null)}
           onCancel={closeAddNew}
           nextDisplayOrder={nextDisplayOrder}
           initialValues={

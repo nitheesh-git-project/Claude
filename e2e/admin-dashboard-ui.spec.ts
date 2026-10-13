@@ -22,7 +22,7 @@ async function signInAsAdmin(page: Page) {
 
 test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
   test.beforeAll(async () => {
-    // Every test here walks all seven sections, which only a full-access admin
+    // Every test here walks all eight sections, which only a full-access admin
     // can see. Stated as a precondition so a narrowed scope fails loudly
     // here instead of surfacing as "the Money button doesn't exist".
     const admin = adminClient();
@@ -179,7 +179,7 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
     for (const url of [
       `${BASE}/admin/dashboard?section=sessions&tab=all`,
       `${BASE}/admin/dashboard?section=money&tab=summary`,
-      `${BASE}/admin/dashboard?section=catalog&tab=purchases`,
+      `${BASE}/admin/dashboard?section=programmes&tab=all`,
     ]) {
       await page.goto(url);
       await page.waitForTimeout(1_000);

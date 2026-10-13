@@ -321,11 +321,11 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 
 #### `XR-CARE-001` - One recommendation, three views · P0
 **Event.** `THR-CARE-001`.
-**Expected Result.** Therapist's chart, patient's Suggested Sessions **and** patient's Health Profile all render **the same rows** - one record, two readers, branching only on whose voice the copy is written in. Admin → Sessions → Recommendations lists it. **All four agree on the package, the session count and the price.**
+**Expected Result.** Therapist's chart, patient's Suggested Sessions **and** patient's Health Profile all render **the same rows** - one record, two readers, branching only on whose voice the copy is written in. Admin → Programmes lists it (Recommendations, and All Programmes under its `…_PKG…` ID). **All four agree on the package, the session count and the price.**
 
 #### `XR-CARE-002` - One purchase, five views · P0
 **Event.** `PAT-CARE-002`.
-**Expected Result.** Patient: Your Packages, `6 sessions · 0 used · 6 remaining`. Therapist: the programme appears in the Programmes view of My Patients with the same balance. Admin: Catalog → Purchases with the same balance and a frozen snapshot. Money: the purchase's cash appears as **Package cash collected** and is recognised session by session as **Recognised revenue** - these are **two different words for two different things and must not be conflated**. Activity Log: nothing (a patient purchase is not an admin action).
+**Expected Result.** Patient: Your Packages, `6 sessions · 0 used · 6 remaining`. Therapist: the programme appears in the Programmes view of My Patients with the same balance. Admin: Programmes → All Programmes with the same balance (`…-0/6`) and a frozen snapshot. Money: the purchase's cash appears as **Package cash collected** and is recognised session by session as **Recognised revenue** - these are **two different words for two different things and must not be conflated**. Activity Log: nothing (a patient purchase is not an admin action).
 
 #### `XR-CREDIT-001` - One credit consumed, four views · P0
 **Event.** The patient books one package session.

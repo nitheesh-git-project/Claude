@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { buildRecommendationPulse, type RecommendationPulseRow } from "@/lib/recommendationPulse";
+import { buildRecommendationPulse, PAID_UNBOOKED_AFTER_MS, type RecommendationPulseRow } from "@/lib/recommendationPulse";
 import AdminRecommendationPulse from "@/components/admin/AdminRecommendationPulse";
 import ActivityLogButton from "@/components/admin/ActivityLogButton";
 import { after } from "next/server";
@@ -31,14 +31,12 @@ import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { sumDiscountsGiven } from "@/lib/discounts";
 import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
 import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
-import PackagePurchasesTable from "@/components/admin/PackagePurchasesTable";
 import PackageSettingsForm from "@/components/admin/PackageSettingsForm";
 import RecommendationSettingsForm from "@/components/admin/RecommendationSettingsForm";
 import FirstSessionOfferForm from "@/components/admin/FirstSessionOfferForm";
 import InviteRewardsForm from "@/components/admin/InviteRewardsForm";
 import PromoCodeManager, { type PromoCodeRow } from "@/components/admin/PromoCodeManager";
 import { readInviteSettings, readPromoCodesEnabled } from "@/lib/acquisitionSettings";
-import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable";
 import HomeVisitPriceList from "@/components/admin/HomeVisitPriceList";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import AdminCountryPricingTab from "@/components/admin/AdminCountryPricingTab";
@@ -123,6 +121,7 @@ import AdminPayoutsTab from "@/components/admin/AdminPayoutsTab";
 import AdminPayoutRequestsTab, { type PayoutRequestRow } from "@/components/admin/AdminPayoutRequestsTab";
 import AdminPaymentHistoryTab from "@/components/admin/AdminPaymentHistoryTab";
 import { groupSearchRefs } from "@/lib/paymentSearch";
+import { loadAdminProgrammes } from "@/lib/adminProgrammesServer";
 import AdminRosterTab from "@/components/admin/AdminRosterTab";
 import SpecialtyChip from "@/components/SpecialtyChip";
 import LeadStatusButtons from "@/components/admin/LeadStatusButtons";
@@ -182,6 +181,7 @@ import { runMaintenanceSweep } from "@/lib/maintenanceSweep";
 import RiskSignalsTab from "@/components/admin/RiskSignalsTab";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import AdminCarePlansTab from "@/components/admin/AdminCarePlansTab";
+import AdminProgrammesTab from "@/components/admin/AdminProgrammesTab";
 import type { AdminCarePlanRow, AuthorableSession } from "@/components/admin/AdminCarePlansTab";
 import type { RecommendableOption } from "@/components/therapist/CarePlanFields";
 import { loadRecommendableRates } from "@/lib/carePlanServer";
@@ -885,6 +885,36 @@ export default async function AdminDashboardPage({
   // refuses them regardless -- the flag is what stops a 403 being the way
   // they find out.
   const canManageSessions = scopeCanManage(viewerScope, "sessions");
+  // Programmes: every recommendation and the purchase it became, joined into
+  // one row each with one ID and its progress (PED_PKG001-2/6). Started here
+  // and awaited where it is used, so its reads run inside the rest of the
+  // page's latency. The same read hands back the ID keyed by appointment and
+  // by purchase, which is how All Sessions, the session drawer and Money's
+  // rows can say which programme a row belongs to. A failure is null: the
+  // screen says it could not load, and the other screens lose only the tag.
+  const canSeeProgrammes = scopeCanOpen(viewerScope, "programmes");
+  const canManageProgrammes = scopeCanManage(viewerScope, "programmes");
+  const programmesRead = canSeeProgrammes
+    ? loadAdminProgrammes(admin, {
+        nowMs: nowTimestamp(),
+        canSeeMoney,
+        canSeeClinical: scopeCanManage(viewerScope, "programmes"),
+      }).catch((err) => {
+        console.error("Admin dashboard: the Programmes read failed", err);
+        return null;
+      })
+    : Promise.resolve(null);
+  // Each condition's short code (PED), the first half of every programme ID.
+  // New with programme IDs, so its own tolerant read: a database without the
+  // column loses the code field on Catalog, never the catalog.
+  const conditionCodesRead = (async () => {
+    try {
+      const { data, error } = await admin.from("treatment_categories").select("id, short_code");
+      return error ? null : ((data ?? []) as { id: string; short_code: string | null }[]);
+    } catch {
+      return null;
+    }
+  })();
 
   // The second batch: everything the migration-tolerance rule keeps OUT of
   // the big Promise.all above.
@@ -2633,7 +2663,17 @@ export default async function AdminDashboardPage({
   // (see paymentRefsRead). The appointment and purchase rows' own payment ids
   // cover payments taken before the payments ledger existed.
   const paymentRefRows = await paymentRefsRead;
+  // Awaited here: People search is the first reader of the programme IDs,
+  // then the session screens below.
+  const programmesData = await programmesRead;
   const searchRefsByPatientId = groupSearchRefs([
+    // Every programme's ID, so pasting PED_PKG001 (or PED_PKG001-2/6) into
+    // People -> Patients finds whose it is. The old SP/HS codes stay below.
+    ...(programmesData?.rows ?? []).map((r) => ({
+      patientId: r.patientId,
+      kind: "programme" as const,
+      value: r.code,
+    })),
     ...appointmentsWithSessionCode.flatMap((a) => [
       { patientId: a.patient_id, kind: "session" as const, value: a.session_code },
       ...(canSeeMoney
@@ -2875,6 +2915,8 @@ export default async function AdminDashboardPage({
     };
   }
 
+  const programmeTagsByAppointment = programmesData?.tagsByAppointment ?? {};
+
   const calendarTab = (
     <AdminCalendarTab
       canSeeMoney={canSeeMoney}
@@ -2885,6 +2927,7 @@ export default async function AdminDashboardPage({
       therapists={approvedTherapists ?? []}
       homeVisits={homeVisitRows}
       programmePicks={programmePicks}
+      programmeTags={programmeTagsByAppointment}
     />
   );
 
@@ -2898,6 +2941,7 @@ export default async function AdminDashboardPage({
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
       programmePicks={programmePicks}
+      programmeTags={programmeTagsByAppointment}
     />
   );
 
@@ -3299,6 +3343,8 @@ export default async function AdminDashboardPage({
       paymentFailures={paymentFailures ?? []}
       payoutBatches={payoutBatches ?? []}
       categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
+      programmeTagsByPurchase={programmesData?.tagsByPurchase ?? {}}
+      programmeTagsByAppointment={programmeTagsByAppointment}
     />
   );
 
@@ -3459,45 +3505,22 @@ export default async function AdminDashboardPage({
     countAwaitingFirstBooking(packagePurchaseRows, nowTimestamp()) +
     countAwaitingFirstBooking(homeVisitPurchaseRows, nowTimestamp());
 
-  const catalogPurchasesTab = (
-    <div className="space-y-8">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Session Package Purchases</h2>
-        <p className="text-xs text-slate-500 mb-4">
-          Every online programme bought, and how much of it has been used.
-        </p>
-        <PackagePurchasesTable
-          canSeeMoney={canSeeMoney}
-          purchases={packagePurchaseRows}
-          packages={(packages ?? []).map((p) => ({ id: p.id, title: p.title }))}
-          categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
-          therapists={activeApprovedTherapists.map((t) => ({
-            id: t.id,
-            full_name: t.full_name,
-            specialization: t.specialization ?? null,
-          }))}
-        />
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Home Visit Purchases</h2>
-        <p className="text-xs text-slate-500 mb-4">
-          The same thing for visits at the patient&apos;s address. A cash-on-visit purchase sits
-          at &ldquo;unpaid&rdquo; for its whole life by design - check the payment mode before
-          reading that as money owed.
-        </p>
-        <HomeVisitPurchasesTable
-          canSeeMoney={canSeeMoney}
-          purchases={homeVisitPurchaseRows}
-          packages={(homeVisitPackages ?? []).map((p) => ({ id: p.id, title: p.title }))}
-          therapists={activeApprovedTherapists.map((t) => ({
-            id: t.id,
-            full_name: t.full_name,
-            specialization: t.specialization ?? null,
-          }))}
-        />
-      </div>
-    </div>
+  // Programmes -> All Programmes: every recommendation and the purchase it
+  // became, as one row each (src/lib/adminProgrammesServer.ts). Replaces
+  // Catalog -> Purchases and the reading half of Sessions -> Recommendations.
+  const programmesAllTab = (
+    <AdminProgrammesTab
+      rows={programmesData?.rows ?? []}
+      conditions={programmesData?.conditions ?? []}
+      therapists={programmesData?.therapists ?? []}
+      allTherapists={activeApprovedTherapists.map((t) => ({ id: t.id, full_name: t.full_name }))}
+      canManage={canManageProgrammes}
+      canSeeMoney={canSeeMoney}
+      failed={programmesData?.failed ?? []}
+      loadFailed={canSeeProgrammes && !programmesData}
+      idsMissing={programmesData?.idsMissing ?? false}
+      nowMs={nowTimestamp()}
+    />
   );
 
   const catalogAreasTab = (
@@ -3596,6 +3619,11 @@ export default async function AdminDashboardPage({
   // session at its own price, and as one home visit at its home-visit price.
   // A course of either is a therapist's recommendation, priced from these
   // same figures -- which is why the old Packages screen went.
+  // Null when the column is not there yet: the form then hides the field.
+  const conditionCodeRows = await conditionCodesRead;
+  const conditionCodeById = conditionCodeRows
+    ? new Map(conditionCodeRows.map((r) => [r.id, r.short_code]))
+    : null;
   const catalogConditionsTab = (
     <div className="space-y-8">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -3627,6 +3655,7 @@ export default async function AdminDashboardPage({
             image_url: categoryImageById.get(c.id) ?? null,
             ...(categoryFocalById.get(c.id) ?? {}),
             specialty: categorySpecialtyById.get(c.id) ?? null,
+            short_code: conditionCodeById?.get(c.id) ?? null,
             featured: categoryFeaturedById.get(c.id) ?? false,
             points: Array.isArray(c.points) ? (c.points as string[]) : [],
           }))}
@@ -4044,7 +4073,9 @@ export default async function AdminDashboardPage({
   // chains, so kicking it off first is what lets the other two run inside
   // its latency instead of after it. Awaited at the point of use, so the
   // code that consumes it is unchanged.
-  const canSeeCarePlans = scopeCanOpen(viewerScope, "sessions");
+  // Recommendations moved to Programmes with the purchases they become, so
+  // the section that decides who reads them is Programmes now.
+  const canSeeCarePlans = canSeeProgrammes;
   const authoringDataPromise = (async () => {
     const [{ data: authorableRows }, recommendablePackages] = await Promise.all([
       canSeeCarePlans
@@ -4565,6 +4596,7 @@ export default async function AdminDashboardPage({
       // old row sorts sensibly rather than to one end.
       submittedAt: submittedAtByPlan.get(p.id) ?? p.created_at,
       unusedSessions: unusedSessionsByPatient.get(p.patient_id) ?? 0,
+      programmeCode: programmesData?.codesByPlan[p.id] ?? null,
     };
   });
 
@@ -4577,6 +4609,9 @@ export default async function AdminDashboardPage({
   // The answer columns are their own call (they arrived after the rows), and
   // the purchases behind accepted plans are read only for those plans. Any
   // failure costs the card its detail, never Today.
+  const programmeRowByPlan = new Map(
+    (programmesData?.rows ?? []).filter((r) => r.carePlanId).map((r) => [r.carePlanId as string, r])
+  );
   let recommendationPulseRows: RecommendationPulseRow[] = [];
   if (canSeeCarePlans && adminCarePlanRows.length > 0) {
     try {
@@ -4655,17 +4690,31 @@ export default async function AdminDashboardPage({
           declineReason: a?.decline_reason ?? null,
           expiresAt: p.expiresAt,
           purchase: versionId ? purchaseByVersion.get(versionId) ?? null : null,
+          programmeDisplay: programmeRowByPlan.get(p.id)?.display ?? null,
+          programmeCode: programmeRowByPlan.get(p.id)?.code ?? null,
         };
       });
     } catch (err) {
       console.error("Admin dashboard: could not build the recommendation pulse", err);
     }
   }
-  const recommendationsHref = workableSections.includes("sessions")
-    ? adminScreenHref("sessions", "recommendations")
-    : undefined;
+  // Today's pulse links into Programmes: each event to its own programme,
+  // one waiting on the clinic to the approval queue (or, for a desk that
+  // only reads Programmes, to that stage of the list).
+  const recommendationsHref = canSeeProgrammes ? adminScreenHref("programmes", "all") : undefined;
   const recommendationPulse = buildRecommendationPulse(recommendationPulseRows, nowTimestamp(), {
     href: recommendationsHref ?? "",
+    hrefFor: (row, kind) => {
+      if (!canSeeProgrammes) return undefined;
+      if (kind === "review") {
+        return canManageProgrammes
+          ? adminScreenHref("programmes", "review")
+          : adminScreenHref("programmes", "all", "stage:waiting_approval");
+      }
+      return row.programmeCode
+        ? adminScreenHref("programmes", "all", `code:${row.programmeCode}`)
+        : recommendationsHref;
+    },
     showMoney: canSeeMoney,
   });
   if (!recommendationsHref) for (const e of recommendationPulse.events) delete e.href;
@@ -4703,7 +4752,7 @@ export default async function AdminDashboardPage({
 
   const adminPackageOptions: RecommendableOption[] = recommendablePackages;
 
-  const sessionsRecommendationsTab = (
+  const programmesReviewTab = (
     <AdminCarePlansTab
       nowMs={nowTimestamp()}
       plans={adminCarePlans}
@@ -4915,8 +4964,8 @@ export default async function AdminDashboardPage({
           // has already ended.
           label: "Recommendations waiting for approval",
           count: carePlansPendingCount,
-          section: "sessions",
-          tab: "recommendations",
+          section: "programmes",
+          tab: "review",
           hint:
             carePlansStaleCount > 0
               ? `A therapist recommended a programme. ${carePlansStaleCount} ${
@@ -4932,8 +4981,11 @@ export default async function AdminDashboardPage({
           // it is late.
           label: "Programmes paid with nothing booked",
           count: recommendationPulse.counts.paidUnbooked,
-          section: "sessions",
-          tab: "recommendations",
+          section: "programmes",
+          tab: "all",
+          // The same two days the pulse counts by, so the list opens on
+          // exactly these rows.
+          view: `late:${PAID_UNBOOKED_AFTER_MS / 3_600_000}`,
           hint: "The patient paid for a recommendation and hasn't booked a session. Ring them to schedule.",
           urgent: true,
         },
@@ -5054,7 +5106,6 @@ export default async function AdminDashboardPage({
 
   // Read by the global search below, which links into these two sections.
   const canOpenSessionsSection = allowedSections.includes("sessions");
-  const canOpenCatalog = allowedSections.includes("catalog");
 
   // The queues this admin can actually open, their own domain first, and
   // what they add up to. The strip's "Needs you" figure reads this same
@@ -5351,31 +5402,24 @@ export default async function AdminDashboardPage({
           profileMap.get(a.patient_id)?.full_name ?? "",
           a.therapist_id ? profileMap.get(a.therapist_id)?.full_name ?? "" : "",
           a.concern ?? "",
+          programmeTagsByAppointment[a.id]?.code ?? "",
         ],
         kind: "Session" as const,
         href: adminScreenHref("sessions", "all"),
         hint: `${profileMap.get(a.patient_id)?.full_name ?? "Unknown"} · ${a.status}`,
       })),
-    ...(canOpenCatalog ? packagePurchaseRows : [])
-      .filter((p) => p.purchaseCode)
-      .map((p) => ({
-        id: p.id,
-        label: p.purchaseCode as string,
-        terms: [p.patientName, p.packageTitle, p.patientCode ?? ""],
-        kind: "Purchase" as const,
-        href: adminScreenHref("catalog", "purchases"),
-        hint: `${p.patientName} · ${p.packageTitle}`,
-      })),
-    ...(canOpenCatalog ? homeVisitPurchaseRows : [])
-      .filter((p) => p.purchaseCode)
-      .map((p) => ({
-        id: p.id,
-        label: p.purchaseCode as string,
-        terms: [p.patientName, p.packageTitle, p.patientCode ?? ""],
-        kind: "Purchase" as const,
-        href: adminScreenHref("catalog", "purchases"),
-        hint: `${p.patientName} · ${p.packageTitle}`,
-      })),
+    // One entry per programme, under its ID with progress. The old SP/HS
+    // code and the condition are search terms, so either finds it.
+    ...(canSeeProgrammes ? programmesData?.rows ?? [] : []).map((r) => ({
+      id: r.key,
+      label: r.display,
+      terms: [r.code ?? "", ...r.otherCodes, r.patientName, r.conditionTitle, r.therapistName ?? ""],
+      kind: "Programme" as const,
+      href: r.code
+        ? adminScreenHref("programmes", "all", `code:${r.code}`)
+        : adminScreenHref("programmes", "all"),
+      hint: `${r.patientName} · ${r.conditionTitle}`,
+    })),
   ];
 
   // Every screen, keyed "<section>:<tab>" exactly as ADMIN_SECTIONS defines
@@ -5520,7 +5564,8 @@ export default async function AdminDashboardPage({
         </div>
       </>
     ),
-    "sessions:recommendations": sessionsRecommendationsTab,
+    "programmes:all": programmesAllTab,
+    "programmes:review": programmesReviewTab,
     "sessions:delivery": deliveryTab,
     "catalog:conditions": (
       <>
@@ -5538,12 +5583,6 @@ export default async function AdminDashboardPage({
       <>
         {catalogStrip}
         {catalogCountriesTab}
-      </>
-    ),
-    "catalog:purchases": (
-      <>
-        {catalogStrip}
-        {catalogPurchasesTab}
       </>
     ),
     "settings:brand": settingsBrandTab,
@@ -5571,6 +5610,10 @@ export default async function AdminDashboardPage({
   const badges: Record<string, number> = {
     "today:overview": inboxTotal,
     "sessions:all": unassignedTotal,
+    // Waiting on the clinic's decision, and paid with nothing booked: the
+    // two programme states that are somebody's job right now.
+    "programmes:review": carePlansPendingCount,
+    "programmes:all": recommendationPulse.counts.paidUnbooked,
     "today:approvals": (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0),
     "today:risk": openRiskCount,
     "people:patients": conditionsBadgeCount,

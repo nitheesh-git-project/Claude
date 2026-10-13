@@ -348,8 +348,8 @@ test("RC-007: a paid recommendation keeps its condition's photo and name on Your
 
 // Today's Recommendations card (src/lib/recommendationPulse.ts): a new
 // recommendation is pinned there as waiting for approval, and once approved
-// it reads as with the patient - both dated from the row, both linking to
-// the Recommendations screen.
+// it reads as with the patient - both dated from the row, the first linking
+// to Programmes -> Recommendations (the approval queue).
 test("RC-008: admin Today shows a recommendation waiting for approval, then with the patient", async ({ page }) => {
   // The admin dashboard is the heaviest page in the app, loaded twice.
   test.setTimeout(150_000);
@@ -375,7 +375,10 @@ test("RC-008: admin Today shows a recommendation waiting for approval, then with
     await expect(row).toBeVisible();
     await expect(row).toContainText("Needs you");
     await expect(row).toContainText(`5 sessions of ${CONDITION}`);
-    await expect(row).toHaveAttribute("href", /recommendations/);
+    // Programmes -> Recommendations is the approval queue now, and the row
+    // leads with the recommendation's programme ID (…_PKG…-0/5).
+    await expect(row).toHaveAttribute("href", /section=programmes&tab=review/);
+    await expect(row).toContainText(/[A-Z]{2,4}_PKG\d{3,}-0\/5/);
     await card.screenshot({ path: "test-results/recommendation-pulse-pending.png" });
     const review = await adminCtx.post(`${BASE}/api/admin/review-care-plan`, {
       data: { carePlanId: created.carePlanId, decision: "approved" },

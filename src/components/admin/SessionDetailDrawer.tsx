@@ -15,6 +15,9 @@ import EditBookingForm from "@/components/admin/EditBookingForm";
 import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
 import ProgrammeTherapistAssign from "@/components/admin/ProgrammeTherapistAssign";
 import type { ProgrammePick } from "@/lib/sessionAssignQueue";
+import type { ProgrammeTag } from "@/lib/programmeId";
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
+import { adminScreenHref } from "@/lib/adminNav";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
@@ -135,6 +138,7 @@ export default function SessionDetailDrawer({
   canSeeMoney = true,
   canManageSessions = true,
   programmePick = null,
+  programmeTag = null,
   onClose,
 }: {
   appointment: SessionDetailAppointment;
@@ -161,6 +165,9 @@ export default function SessionDetailDrawer({
   // button (or the reason it can't), with the ordinary picker below for
   // someone else. Absent everywhere else, including the person pages.
   programmePick?: ProgrammePick | null;
+  // The programme this session was drawn from, when it was: "Part of
+  // PED_PKG001-2/6", linking to that programme on Programmes.
+  programmeTag?: ProgrammeTag | null;
   onClose: () => void;
 }) {
   const [reopening, setReopening] = useState(false);
@@ -480,6 +487,17 @@ export default function SessionDetailDrawer({
               </h3>
               {a.session_code && (
                 <p className="font-mono text-[11px] text-slate-500 mt-0.5">{a.session_code}</p>
+              )}
+              {programmeTag && (
+                <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
+                  Part of <ProgrammeIdChip tag={programmeTag} size="xs" />
+                  <a
+                    href={adminScreenHref("programmes", "all", `code:${programmeTag.code}`)}
+                    className="font-semibold text-teal-700 hover:underline"
+                  >
+                    Open programme
+                  </a>
+                </p>
               )}
             </div>
             <button

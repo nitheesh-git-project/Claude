@@ -139,7 +139,7 @@ describe("buildAdminHome", () => {
   it("names what a limited scope cannot open, and tells a full admin nothing", () => {
     expect(buildAdminHome("full", ZERO).accessNote).toBeNull();
     const note = buildAdminHome("clinical", ZERO).accessNote;
-    expect(note?.sections).toEqual(["Today", "Sessions", "People"]);
+    expect(note?.sections).toEqual(["Today", "Sessions", "Programmes", "People"]);
     expect(note?.withheld).toEqual(["Money", "Catalog", "Logs", "Settings"]);
   });
 

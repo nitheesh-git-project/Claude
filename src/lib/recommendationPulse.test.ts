@@ -106,4 +106,24 @@ describe("buildRecommendationPulse", () => {
     );
     expect(events.map((e) => e.id)).toEqual(["rec-review-b", "rec-sent-a"]);
   });
+
+  it("leads with the programme ID and links each event to its programme", () => {
+    const { events } = buildRecommendationPulse(
+      [
+        { ...base, id: "a", programmeDisplay: "SPI_PKG004-0/6", programmeCode: "SPI_PKG004" },
+        { ...base, id: "b", status: "pending_review", programmeDisplay: "SPI_PKG005-0/6", programmeCode: "SPI_PKG005" },
+      ],
+      NOW,
+      {
+        ...opts,
+        hrefFor: (r, kind) => (kind === "review" ? "/review" : `/programmes?code=${r.programmeCode}`),
+      }
+    );
+    const sent = events.find((e) => e.id === "rec-sent-a")!;
+    expect((sent.detail ?? "").startsWith("SPI_PKG004-0/6 · 6 sessions of Spine Conditions")).toBe(true);
+    expect(sent.href).toBe("/programmes?code=SPI_PKG004");
+    expect(events.find((e) => e.id === "rec-review-b")!.href).toBe("/review");
+    // No hrefFor: every event keeps the one link it had.
+    expect(one({}).events[0].href).toBe(opts.href);
+  });
 });

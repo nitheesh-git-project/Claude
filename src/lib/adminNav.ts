@@ -1,6 +1,6 @@
 // The admin dashboard's information architecture, in one place.
 //
-// Seven sections, each one a job an admin actually does, rather than the 16
+// Eight sections, each one a job an admin actually does, rather than the 16
 // feature-shaped tabs this replaced (a session used to be listed on four of
 // them, settings lived on four, and "what needs me now" lived on none). The
 // sidebar, the URL (?section=&tab=), the per-screen content map in
@@ -14,6 +14,7 @@
 export type AdminSectionKey =
   | "today"
   | "sessions"
+  | "programmes"
   | "people"
   | "money"
   | "catalog"
@@ -131,22 +132,42 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // financial screen answered an operational question -- a no-show rate
       // is about how the clinic runs, not about its books.
       { key: "delivery", label: "Delivery" },
-      // Every programme a patient can buy now comes from one of these, so
-      // the clinic needs to be able to see them and stop a wrong one --
-      // under Sessions because a recommendation is about what is being
-      // delivered, not about the books.
-      {
-        key: "recommendations",
-        label: "Recommendations",
-        // Approve, turn down, rewrite, withdraw: there is no reading half
-        // left once the decisions are gone.
-        requiresManage: true,
-      },
       {
         key: "new",
         label: "New Booking",
         // A form, and nothing else.
         requiresManage: true,
+      },
+    ],
+  },
+  // A programme from the therapist's recommendation to its last session.
+  // It used to be two screens that never met -- Sessions -> Recommendations
+  // until the patient paid, Catalog -> Purchases after, with a different
+  // code on each side -- so nobody could follow one programme through.
+  // Both live here now (old links land here through LEGACY_SCREENS), and
+  // every row carries one ID with its progress: PED_PKG001-2/6.
+  {
+    key: "programmes",
+    label: "Programmes",
+    icon: "fa-layer-group",
+    blurb: "Every recommended and bought programme, and how far along it is.",
+    tabs: [
+      {
+        key: "all",
+        label: "All Programmes",
+        blurb:
+          "Every programme in one list - recommended, paid for, under way and finished - with how many of its sessions are done.",
+        example: "Find PED_PKG001, see that 2 of its 6 sessions are done, and who the next one is with.",
+      },
+      {
+        key: "review",
+        label: "Recommendations",
+        // Approve, turn down, rewrite, withdraw, write one on a therapist's
+        // behalf: there is no reading half left once the decisions are
+        // gone, and All Programmes is the reading half.
+        requiresManage: true,
+        blurb: "Approve, change or turn down what a therapist recommended, or write one for them.",
+        example: "Approve Dr Meera's six-session recommendation so the patient sees it.",
       },
     ],
   },
@@ -286,7 +307,8 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "What visitors outside India see and pay, in their own currency.",
         example: "Charge visitors in the US 100% more, shown in dollars and rounded up to .99.",
       },
-      { key: "purchases", label: "Purchases" },
+      // Purchases moved to Programmes -> All Programmes, beside the
+      // recommendations they came from.
     ],
   },
   {
@@ -451,6 +473,17 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
 // hand-edited query string, or a section this admin's scope can't open all
 // land somewhere valid rather than on a blank page -- the shell never
 // renders a section that isn't in `allowed`.
+/**
+ * Screens that moved, and where an old link should land. A bookmark, an
+ * e-mail or a note in somebody's head saying "Sessions -> Recommendations"
+ * must open the screen that does that job now, not fall back to the first
+ * tab of a section that no longer has it.
+ */
+export const LEGACY_SCREENS: Record<string, { section: AdminSectionKey; tab: string }> = {
+  "sessions:recommendations": { section: "programmes", tab: "review" },
+  "catalog:purchases": { section: "programmes", tab: "all" },
+};
+
 export function findTab(
   sectionParam: string | null,
   tabParam: string | null,
@@ -473,6 +506,16 @@ export function findTab(
     tabs: visibleTabs(s, manageable.includes(s.key), limitedScope),
   }));
   const fallback = usable[0] ?? ADMIN_SECTIONS[0];
+  const moved = LEGACY_SCREENS[`${sectionParam ?? ""}:${tabParam ?? ""}`];
+  if (moved) {
+    const target = usable.find((s) => s.key === moved.section);
+    // The review screen is manage-only; a desk reading Programmes at
+    // `view` lands on the list, which is the reading half of the same job.
+    if (target) {
+      const tab = target.tabs.find((t) => t.key === moved.tab) ?? target.tabs[0];
+      return { section: target.key, tab: tab.key };
+    }
+  }
   const section = usable.find((s) => s.key === sectionParam) ?? fallback;
   const tab = section.tabs.find((t) => t.key === tabParam) ?? section.tabs[0];
   return { section: section.key, tab: tab.key };

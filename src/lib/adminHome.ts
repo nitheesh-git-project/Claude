@@ -229,7 +229,7 @@ function recommendationsCell(scope: AdminScope, counts: AdminHomeCounts): AdminH
             )} been waiting too long`
           : "The patient cannot see these until they are approved",
     accent: queueAccent(counts.carePlansPending, counts.carePlansStale > 0),
-    href: link(scope, "sessions", "recommendations"),
+    href: link(scope, "programmes", "review"),
   };
 }
 
@@ -560,8 +560,8 @@ const ACTIONS: Record<AdminScope, AdminActionSpec[]> = {
       label: "Recommendations",
       hint: "Approve, change or turn down a programme",
       icon: "fa-clipboard-check",
-      section: "sessions",
-      tab: "recommendations",
+      section: "programmes",
+      tab: "review",
       primary: true,
     },
     {

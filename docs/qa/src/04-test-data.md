@@ -186,7 +186,7 @@ Negative values for validation tests: Price `0`, Price `-100`, Price `abc`, Sess
 
 ### 8.11 Session packages (programmes)
 
-**Not created any more.** Catalog → Packages was removed: a therapist's recommendation is priced per session from the condition (its online price, or its home-visit price when hands-on), so there is no admin programme to set up. Any old `treatment_category_packages` rows and the purchases that point at them keep working and are named on Catalog → Purchases; a test that needs an old purchase seeds it by SQL and says so.
+**Not created any more.** Catalog → Packages was removed: a therapist's recommendation is priced per session from the condition (its online price, or its home-visit price when hands-on), so there is no admin programme to set up. Any old `treatment_category_packages` rows and the purchases that point at them keep working and are named on Programmes → All Programmes; a test that needs an old purchase seeds it by SQL and says so.
 
 ### 8.12 Home-visit prices
 

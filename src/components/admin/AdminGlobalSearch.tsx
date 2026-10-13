@@ -17,7 +17,7 @@ export type SearchEntity = {
   label: string;
   /** Everything matchable that isn't the label: email, phone, codes. */
   terms: string[];
-  kind: "Patient" | "Therapist" | "Partner" | "Session" | "Purchase";
+  kind: "Patient" | "Therapist" | "Partner" | "Session" | "Programme";
   href: string;
   /** One line of context under the result, e.g. a session's date. */
   hint?: string | null;
@@ -28,7 +28,7 @@ const KIND_STYLES: Record<SearchEntity["kind"], string> = {
   Therapist: "bg-purple-50 text-purple-700",
   Partner: "bg-blue-50 text-blue-700",
   Session: "bg-amber-50 text-amber-700",
-  Purchase: "bg-slate-100 text-slate-600",
+  Programme: "bg-indigo-50 text-indigo-700",
 };
 
 const MAX_RESULTS = 12;

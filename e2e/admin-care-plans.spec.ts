@@ -102,14 +102,21 @@ test.describe("Admin reach over recommendations", () => {
     expect(res.status()).not.toBe(200);
   });
 
-  test("ACP-007: the Recommendations screen is on Sessions and renders", async ({ browser }) => {
+  // Recommendations moved to Programmes with the purchases they become. An
+  // old Sessions -> Recommendations link still lands on the screen, and the
+  // address bar is rewritten to where it lives now.
+  test("ACP-007: the Recommendations screen is on Programmes, and the old link lands on it", async ({ browser }) => {
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     const page = await ctx.newPage();
     await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=recommendations`);
-    await expect(page.getByText("Waiting on a patient")).toBeVisible({ timeout: 30_000 });
-    const landed = new URL(page.url()).searchParams;
-    expect(`${landed.get("section")}/${landed.get("tab")}`).toBe("sessions/recommendations");
+    await expect(page.getByText("Waiting on a patient").filter({ visible: true })).toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(() => {
+        const landed = new URL(page.url()).searchParams;
+        return `${landed.get("section")}/${landed.get("tab")}`;
+      })
+      .toBe("programmes/review");
     await ctx.close();
   });
 });
@@ -463,7 +470,7 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     const page = await ctx.newPage();
-    await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=recommendations`);
+    await page.goto(`${BASE}/admin/dashboard?section=programmes&tab=review`);
 
     const picker = page.getByLabel("Which session does this follow?");
     await expect(picker).toBeVisible({ timeout: 30_000 });
@@ -501,7 +508,7 @@ test.describe("Admin writes a recommendation on a therapist's behalf", () => {
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     const page = await ctx.newPage();
-    await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=recommendations`);
+    await page.goto(`${BASE}/admin/dashboard?section=programmes&tab=review`);
 
     const picker = page.getByLabel("Which session does this follow?");
     await expect(picker).toBeVisible({ timeout: 30_000 });
@@ -1081,7 +1088,7 @@ test.describe("The clinic approves a recommendation", () => {
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     const page = await ctx.newPage();
-    await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=recommendations`);
+    await page.goto(`${BASE}/admin/dashboard?section=programmes&tab=review`);
     await expect(page.getByText("Waiting for your decision")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Approve", exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /Turn it down/i }).first()).toBeVisible();

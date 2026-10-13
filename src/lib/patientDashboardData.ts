@@ -1,4 +1,5 @@
 import "server-only";
+import { readProgrammeCodes, tagsForPurchases } from "@/lib/programmeTagsServer";
 import { readAllRowsAsData } from "@/lib/supabase/readAllRows";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -756,6 +757,31 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     }
   }
 
+  // Each programme's ID with its progress (PED_PKG001-2/6): the reference
+  // the patient quotes to the clinic, the same one the admin searches. Its
+  // own read; without the column the old SP/HS code stands in.
+  const programmeCodes = await readProgrammeCodes(admin, {
+    packages: ownedPackagesForDisplay.map((p) => p.id),
+    homeVisits: ownedHomeVisitPackagesForDisplay.map((p) => p.id),
+  });
+  const programmeTagByPurchase = tagsForPurchases(programmeCodes, [
+    ...ownedPackagesForDisplay.map((p) => ({
+      id: p.id,
+      legacyCode: p.purchase_code ?? null,
+      done: completedCountByPurchase.get(p.id) ?? 0,
+      total: p.session_count,
+    })),
+    // A single home visit is a consultation, not a programme, and has no ID.
+    ...ownedHomeVisitPackagesForDisplay
+      .filter((p) => (p.visit_count ?? 0) >= 2 || programmeCodes.has(p.id))
+      .map((p) => ({
+        id: p.id,
+        legacyCode: p.purchase_code ?? null,
+        done: completedCountByHomeVisitPurchase.get(p.id) ?? 0,
+        total: p.visit_count,
+      })),
+  ]);
+
   const hasOwnedHomeVisitPackages =
     ownedHomeVisitPackagesForDisplay.length > 0;
 
@@ -1102,6 +1128,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ownedHomeVisitPackageInfoMap,
     programmeDisplayByPurchase,
     purchaseCodeById,
+    programmeTagByPurchase,
     pendingSuggestions,
     unbookedSessionCount: unscheduled.reduce((n, u) => n + u.pending, 0),
     completedCountByPurchase,
