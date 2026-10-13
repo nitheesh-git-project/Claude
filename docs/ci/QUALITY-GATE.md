@@ -68,16 +68,16 @@ and three things read it through `scripts/ci/lib/shards.mjs`: the `plan`
 job (the matrix), `run-runner.mjs --shard i/n` (which files a shard runs),
 and the verdict (which summaries must exist). Today:
 
-| Runner | Jobs | Measured spec time per job |
+| Runner | Jobs | Measured spec time per job (sharded run on PR #100, warm caches) |
 | --- | --- | --- |
-| `admin` | 8 | ~220 s |
-| `platform` | 2 | ~235 s |
-| `money` | 2 | ~220 s |
-| `therapist` | 1 | ~190 s |
-| `session` | 1 | ~160 s |
-| `patient` | 2 | ~140 s |
-| `integrity` | 1 | ~45 s plus its scripts |
-| `hospital` | 1 | ~15 s |
+| `admin` | 8 | ~195 s |
+| `money` | 2 | ~180 s |
+| `therapist` | 1 | ~155 s |
+| `patient` | 2 | ~150 s |
+| `platform` | 3 | ~140 s |
+| `session` | 1 | ~120 s |
+| `integrity` | 1 | ~40 s plus its scripts |
+| `hospital` | 1 | ~15 s (also saves the Supabase image cache) |
 
 `node scripts/ci/plan-shards.mjs` prints the current figures. How a runner
 is split:

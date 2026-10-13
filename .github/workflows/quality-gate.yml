@@ -172,15 +172,38 @@ jobs:
       # first and overlap npm ci, the browser and the caches. No secrets
       # reach this step. The provisioning step below waits for its verdict
       # (stack-start.status) and fails the job if it failed twice.
+      # The stack's images, cached per CLI version and config: one restore
+      # from the Actions cache beats 19 jobs each pulling them from the
+      # registry. The load runs in the background ahead of the stack start;
+      # a miss just pulls as before, and the hospital job (the shortest)
+      # saves them for the next run (below).
+      - name: Restore the Supabase images
+        id: sbimages
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/sb-images
+          key: sb-images-v1-${{ runner.os }}-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
+
       - name: Start the local Supabase stack (in the background)
-        run: nohup scripts/ci/provision-local-stack.sh --start-only > /dev/null 2>&1 &
+        run: |
+          nohup sh -c '[ -f /tmp/sb-images/images.tar ] && docker load -q -i /tmp/sb-images/images.tar; scripts/ci/provision-local-stack.sh --start-only' > /dev/null 2>&1 &
         env:
           ARTIFACT_DIR: ${{ env.ARTIFACTS }}/provision
 
-      - run: npm ci --no-audit --no-fund
+      # node_modules itself, keyed on the lockfile: a hit skips npm ci.
+      - name: Restore node_modules
+        id: nodemodules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-v1-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('package-lock.json') }}
+      - if: steps.nodemodules.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --no-fund
 
       # Chromium, keyed on the exact Playwright version the lockfile
-      # installed. On a hit only the system libraries are checked.
+      # installed. On a hit nothing else is needed: ubuntu-latest already
+      # ships Chromium's system libraries (install-deps found every one of
+      # them present and cost ~20s per job).
       - name: Playwright version
         id: playwright
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
@@ -193,9 +216,6 @@ jobs:
       - name: Install Chromium for Playwright
         if: steps.browsers.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
-      - name: Chromium's system libraries
-        if: steps.browsers.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
 
       # next dev's Turbopack cache (on by default since Next 16.1), per
       # runner: a shard opens the same pages as the runner's other shards,
@@ -218,6 +238,18 @@ jobs:
           GATE_STACK_STARTING: background
           NEXT_PUBLIC_RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_TEST_KEY_ID }}
           RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_TEST_KEY_SECRET }}
+
+      - name: Pack the Supabase images for the cache
+        if: success() && steps.sbimages.outputs.cache-hit != 'true' && matrix.label == 'hospital'
+        run: |
+          mkdir -p /tmp/sb-images
+          docker save -o /tmp/sb-images/images.tar $(docker ps --format '{{.Image}}' | sort -u)
+      - name: Save the Supabase images
+        if: success() && steps.sbimages.outputs.cache-hit != 'true' && matrix.label == 'hospital'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/sb-images
+          key: sb-images-v1-${{ runner.os }}-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
 
       - name: Run the ${{ matrix.label }} runner
         run: node scripts/ci/run-runner.mjs ${{ matrix.runner }} --shard ${{ matrix.shard }}/${{ matrix.total }}
