@@ -57,6 +57,7 @@ export default function AdminLogsTab({
   rows,
   conditions,
   everyoneUnavailable = false,
+  adminUnavailable = false,
   gaps = [],
   gapsTotal = 0,
 }: {
@@ -68,6 +69,10 @@ export default function AdminLogsTab({
   /** The patients', therapists' and hospitals' half of the log could not be
    *  read. Said out loud: a feed of admins alone must not read as complete. */
   everyoneUnavailable?: boolean;
+  /** The admin log could not be read (an outage, or a database without the
+   *  table): what remains is everyone else's side, and the screen says so
+   *  rather than passing it off as the whole history. */
+  adminUnavailable?: boolean;
   /** Actions the log could not record -- see ActivityGapsNotice. */
   gaps?: ActivityGap[];
   gapsTotal?: number;
@@ -206,6 +211,14 @@ export default function AdminLogsTab({
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <ActivityGapsNotice gaps={gaps} total={gapsTotal} />
+        {adminUnavailable && (
+          <p
+            role="alert"
+            className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800"
+          >
+            {"Admin actions couldn't be read just now, so this list shows what patients, therapists, hospitals and the system did. Nothing has been lost - reload to try again."}
+          </p>
+        )}
         {everyoneUnavailable && (
           <p
             role="alert"

@@ -419,7 +419,7 @@ export default async function AdminDashboardPage({
     { data: homeVisitShareRows },
     { data: homeVisitPurchases },
     { data: adminScopeRows },
-    { data: activityLogRows },
+    { data: activityLogRows, error: activityLogError },
     { data: businessExpenseRows },
 
   ] = await Promise.all([
@@ -4803,6 +4803,7 @@ export default async function AdminDashboardPage({
       rows={everyoneRows}
       conditions={(treatmentCategories ?? []).map((c) => c.title)}
       everyoneUnavailable={everyoneUnavailable}
+      adminUnavailable={!!activityLogError}
       gaps={activityGaps}
       gapsTotal={activityGapsTotal}
     />
