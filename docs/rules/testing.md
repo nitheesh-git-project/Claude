@@ -607,7 +607,7 @@ rarely names. `-- --e2e` runs them against the project in `.env.local`,
 which must not hold real patients. Add `--append-only` only when that project
 may keep append-only rows. The destructive specs stay on CI's stack, and
 `admin-degraded-schema` never runs locally. It prints failing tests and their
-first error lines; full logs are in `test-results/merge-ready/`.
+first error lines; full logs are in `.merge-ready/`.
 **Before any push to a PR into `staging` or `main`, every runner is run
 locally**, because a red CI round costs about 30 minutes and a log read per
 attempt: `npm run check:merge-ready -- --e2e --append-only --skip-static

@@ -16,7 +16,7 @@
 // seven-runner wait and a log read. This runs the same static checks CI's
 // first jobs run, then only the Playwright specs the change can reach
 // (scripts/ci/lib/affectedSpecs.mjs), and prints failures and nothing else.
-// Full output goes to test-results/merge-ready/, read only on a failure.
+// Full output goes to .merge-ready/, read only on a failure.
 //
 // Without --e2e it stops after the static checks and prints the specs it
 // would run. --e2e is opt-in because the specs write to whichever Supabase
@@ -35,7 +35,9 @@ const runnerIdx = args.indexOf("--runner");
 const runner = runnerIdx >= 0 ? args[runnerIdx + 1] : null;
 const baseIdx = args.indexOf("--base");
 const base = baseIdx >= 0 ? args[baseIdx + 1] : "origin/staging";
-const outDir = "test-results/merge-ready";
+// Not under test-results/: Playwright empties that folder at the start of
+// every run, which deleted these logs mid-run.
+const outDir = ".merge-ready";
 mkdirSync(outDir, { recursive: true });
 
 const results = [];
