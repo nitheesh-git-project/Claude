@@ -23,7 +23,7 @@ pull request -> staging | main
   └─ plan                runner-shards.json -> the job matrix (seconds)
         │  (only `plan` gates the runners; the other three run beside them)
         ▼
-  runner (<runner> or <runner>-<i>of<n>)   18 parallel jobs: 8 runners, some split into shards
+  runner (<runner> or <runner>-<i>of<n>)   19 parallel jobs: 8 runners, some split into shards
         │  each on its own machine with its own disposable Supabase stack
         ▼
   quality-gate           if: always(); green only if every job above succeeded
@@ -101,7 +101,7 @@ is split:
   and a split would leave them on another machine. The validator refuses
   the config.
 - **Every shard must have a spec**, and the total stays at or under
-  `maxRunnerJobs` (18): GitHub runs 20 jobs at once on this plan, `verify`
+  `maxRunnerJobs` (19): GitHub runs 20 jobs at once on this plan, `verify`
   takes one, and a queued job is minutes on the critical path.
 - A shard's artifacts, summary and job are named by its label
   (`admin-2of8`); an unsplit runner keeps its plain name (`hospital`).
@@ -136,7 +136,7 @@ admin runner's tests 32. Now:
   login and dashboard pages once, in parallel (at most
   `GATE_WARMUP_SECONDS`, default 90), so their first compile is not charged
   to a spec's timeout. It never fails the runner.
-- **Concurrency**: 18 runner jobs plus `verify` fit GitHub's 20. That is
+- **Concurrency**: 19 runner jobs plus `verify` fit GitHub's 20. That is
   also why `ci.yml` no longer runs on pull requests.
 
 `scripts/ci/run-runner.mjs <runner> [--shard i/n]` does this, in order

@@ -1,12 +1,12 @@
 {
   "description": "How many parallel jobs each quality-gate runner is split into, and how its spec files are spread across them. The one source for the workflow's matrix (scripts/ci/plan-shards.mjs), for scripts/ci/run-runner.mjs --shard i/n, and for the gate's list of summaries it must see (scripts/ci/lib/gate.mjs). Rules and validation: scripts/ci/lib/shards.mjs; docs/ci/QUALITY-GATE.md, 'Shards'.",
-  "maxRunnerJobs": 18,
+  "maxRunnerJobs": 19,
   "shards": {
     "patient": 2,
     "money": 2,
     "therapist": 1,
     "session": 1,
-    "admin": 8,
+    "admin": 9,
     "hospital": 1,
     "platform": 2,
     "integrity": 1
