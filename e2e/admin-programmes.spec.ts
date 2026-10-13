@@ -100,6 +100,9 @@ test.beforeAll(async () => {
         price_paise: 49900,
         duration_minutes: 60,
         active: true,
+        // The same photo recommendation-course and programme-checkout seed it
+        // with: whichever spec creates it first, theirs check the cover.
+        image_url: "/photos/care-back.jpg",
       })
       .select("id, price_paise")
       .single();
