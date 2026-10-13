@@ -239,6 +239,8 @@ test.afterAll(async () => {
 });
 
 test("PC-001: Accept & pay on the card goes to Review & pay, and nothing is charged from the card", async ({ page }) => {
+  // First visit to the Suggested page compiles it on a cold dev server.
+  test.setTimeout(90_000);
   const versionId = await recommendAndApprove(4);
   await stubRazorpay(page);
   const orders: string[] = [];
