@@ -616,6 +616,29 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * When the log is exhausted the button is replaced by *"That is the whole log"*.
 * Both exports carry **exactly the filtered rows**, with a Category column, and the note under the button says filters and exports run over what is loaded.
 
+#### `ADM-LOG-004` - Everyone's actions, and the Actor / Programme / Patient / Therapist / Condition filters · P1
+
+**Feature.** All Activity is not only admins. Patients, therapists, hospitals and the system leave entries too, each with the role of who acted, and the programme ID, session code, patient, therapist and condition it was about. Master Admin only; the three limited desks still read only their own desk's admin actions on Today -> Activity.
+
+**Steps**
+1. As a patient, start a booking, then cancel an unpaid future session. As that patient's therapist, complete a session, write a session note and recommend a programme (or suggest a session). As the hospital, send a referral. Pay for one session through Razorpay (test mode).
+2. As a Master Admin open **Logs -> All Activity**.
+3. Set **Any actor** to **Patient**, then **Therapist**, then **Hospital**, then **System** (sign-ups show here), then **Admin**.
+4. Type the patient's name into **Patient**, the therapist's into **Therapist**, then a programme ID such as `PED_PKG001` (also `ped pkg001` and just `PED`) into **Programme ID**; pick a condition from **Any condition**.
+5. Copy the address bar, open it in a new tab, then press **Clear filters**.
+6. Tap a patient's row. Tap a session's row and press **See everything done to this record**.
+7. Export CSV with a filter applied.
+
+**Expected Result**
+* Every row has a coloured **role chip** (Admin / Patient / Therapist / Hospital / System), the actor's name, a plain sentence under the action ("Asha Rao cancelled a session (session MR-0042, programme PED_PKG001, with Dr Mehta)"), the **programme ID chip** where there is one, and the session code.
+* Each actor filter shows only that role. A payment appears **once** however it was reported (browser and webhook). Cancelling a paid session shows whether the refund went through.
+* The Patient, Therapist and Programme filters narrow the list for admin entries too (a refund against that patient's session carries the patient and programme), and a row with no programme never matches a Programme ID filter. Programme IDs match without case, spaces or underscores, and by prefix.
+* Every filter is in the address bar as `al_*`; the copied link opens the same filtered view and **Clear filters** empties them all.
+* The dialog for a patient's or therapist's entry shows the role, patient, therapist, programme ID, session and condition. The record history lists admin **and** patient/therapist entries for that session or person.
+* The export has Actor role, Programme ID, Session, Patient, Therapist, Condition and "What happened" columns.
+* If the patient/therapist side of the log cannot be read, a notice says the list shows admin actions only - it never reads as complete.
+* Nothing here can be edited or deleted: the entries are append-only, and **Archive & Clear** only ever touches the admin log.
+
 #### `ADM-LOG-003a` - One subject's whole history · P1
 
 **Feature.** The log answers *"what did this admin do"* well and *"what happened to this patient"* badly - and the second is the question asked when somebody complains. Tapping an entry's subject fetches every entry recorded against that record.

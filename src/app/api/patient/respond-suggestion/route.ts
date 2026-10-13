@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -90,6 +91,14 @@ export async function POST(request: NextRequest) {
     if (error) {
       return serverError("patient/respond-suggestion", error);
     }
+    await recordUserActivity(admin, {
+      action: "suggestion.declined",
+      actor: { id: user.id, role: "patient" },
+      packagePurchaseId: suggestion.purchase_id,
+      patientId: user.id,
+      therapistId: suggestion.therapist_id,
+      dedupeKey: `suggestion_declined:${suggestion.id}`,
+    });
     return NextResponse.json({ success: true, status: "declined" });
   }
 
@@ -227,6 +236,16 @@ export async function POST(request: NextRequest) {
     .from("session_suggestions")
     .update({ appointment_id: result.appointmentId })
     .eq("id", suggestion.id);
+
+  await recordUserActivity(admin, {
+    action: "suggestion.accepted",
+    actor: { id: user.id, role: "patient" },
+    appointmentId: result.appointmentId,
+    packagePurchaseId: suggestion.purchase_id,
+    patientId: user.id,
+    therapistId: suggestion.therapist_id,
+    dedupeKey: `suggestion_accepted:${suggestion.id}`,
+  });
 
   return NextResponse.json({
     success: true,

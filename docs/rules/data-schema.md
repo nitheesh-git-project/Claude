@@ -230,6 +230,22 @@ before.
      `session_note_revisions` takes neither. Verified with
      `scripts/append-only-sql-checks.sql`. A new table whose value is that it
      cannot be rewritten gets its guard in the same change.
+
+     **`user_activity_log` is the same rule for everyone who is not an admin**
+     -- patients, therapists, hospitals and the system (All Logs is both
+     tables). It takes neither UPDATE nor DELETE and has no purge, so unlike
+     the admin log it only ever leaves through the data reset's TRUNCATE
+     (listed in the newest `debug_reset_all_data()`). It has **no foreign
+     keys on purpose**, the posture `admin_activity_gaps` has: the sentence
+     and every name are snapshotted, so an entry still reads after somebody is
+     renamed or deleted, and there is nothing for `clean-e2e-residue.mjs` to
+     unpick. `dedupe_key` (a plain unique index, because PostgREST cannot
+     target a partial one) makes one real-world event one row when two paths
+     report it -- a payment is seen by both the browser callback and the
+     webhook. A `profiles` insert trigger (`log_profile_created`, security
+     definer, all three revokes, swallows its own errors) writes the sign-up
+     entry as the **system**, since an admin creating an account lands there
+     too. Checked in `scripts/append-only-sql-checks.sql`.
   4. **`sessions_granted` and `package_snapshot` are frozen by trigger.**
      A purchase's definition never moves; its balance moves through the
      ledger. Never resolve a purchased entitlement by joining the live

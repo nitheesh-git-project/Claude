@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
 
   const { data: referral, error: readError } = await admin
     .from("patient_referrals")
-    .select("status, hospital_id")
+    .select("status, hospital_id, patient_name")
     .eq("id", referralId)
     .maybeSingle();
   if (readError) return serverError("hospital/withdraw-referral", readError);
@@ -106,6 +107,13 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  await recordUserActivity(admin, {
+    action: "referral.withdrawn",
+    actor: { id: user.id, role: "hospital" },
+    patientName: referral.patient_name,
+    dedupeKey: `referral_withdrawn:${referralId}`,
+  });
 
   return NextResponse.json({ success: true });
 }

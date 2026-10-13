@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -187,6 +188,14 @@ export async function POST(request: NextRequest) {
   if (insertError) {
     return serverError("therapist/pain-assessments/submit", insertError);
   }
+
+  await recordUserActivity(admin, {
+    action: "pain_assessment.recorded",
+    actor: { id: user.id, role: "therapist" },
+    patientId,
+    therapistId: user.id,
+    details: { region },
+  });
 
   return NextResponse.json({ success: true });
 }

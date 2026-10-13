@@ -1,6 +1,21 @@
 import { ACTION_DOMAIN, type ActionDomain } from "@/lib/activityScope";
 import { ADMIN_ACTIVITY_LABELS, isMoneyAction } from "@/lib/adminActivityLog";
 import { ADMIN_SECTIONS } from "@/lib/adminNav";
+import {
+  EMPTY_SUBJECT_FILTERS,
+  SUBJECT_FILTER_PARAMS,
+  hasSubjectFilters,
+  parseSubjectFilters,
+  writeSubjectFilters,
+  USER_GROUPS,
+  USER_GROUP_LABEL,
+  matchesSubjectFilters,
+  userActivityGroup,
+  userActivityLabel,
+  type ActivitySubjectFields,
+  type SubjectFilters,
+  type UserActivityGroup,
+} from "@/lib/userActivity";
 
 // The Logs section's own decisions, with the database and the browser taken
 // out so they can be reasoned about and tested.
@@ -23,17 +38,20 @@ import { ADMIN_SECTIONS } from "@/lib/adminNav";
  * actions is a second thing to update when a route moves, and the one that
  * goes stale is always the one nobody enforces.
  */
-export type ActivityCategory = ActionDomain | "other";
+export type ActivityCategory = ActionDomain | UserActivityGroup | "other";
 
 const SECTION_LABEL = new Map(ADMIN_SECTIONS.map((s) => [s.key as string, s.label]));
 
 export function activityCategory(action: string): ActivityCategory {
-  return ACTION_DOMAIN[action] ?? "other";
+  // Patients', therapists' and hospitals' actions have no admin section --
+  // they group by what they were about (Booking, Payment, Programme...).
+  return ACTION_DOMAIN[action] ?? userActivityGroup(action) ?? "other";
 }
 
 export function activityCategoryLabel(category: ActivityCategory): string {
   if (category === "full_only") return "Master Admin only";
   if (category === "other") return "Other";
+  if ((USER_GROUPS as string[]).includes(category)) return USER_GROUP_LABEL[category as UserActivityGroup];
   return SECTION_LABEL.get(category) ?? category;
 }
 
@@ -49,6 +67,7 @@ export function activityCategoriesPresent(rows: { action: string }[]): ActivityC
   const ordered: ActivityCategory[] = [
     ...ADMIN_SECTIONS.map((s) => s.key as ActivityCategory),
     "full_only",
+    ...USER_GROUPS,
     "other",
   ];
   return ordered.filter((c) => present.has(c));
@@ -62,7 +81,10 @@ export type SearchableEntry = {
   actorName: string;
   action: string;
   targetLabel: string | null;
-};
+} & Pick<
+  ActivitySubjectFields,
+  "summary" | "patientName" | "therapistName" | "programmeCode" | "sessionCode" | "conditionName"
+>;
 
 /**
  * Whether one entry answers a typed query.
@@ -80,16 +102,25 @@ export function matchesActivityQuery(entry: SearchableEntry, query: string): boo
     entry.actorName,
     entry.targetLabel ?? "",
     entry.action,
-    ADMIN_ACTIVITY_LABELS[entry.action as keyof typeof ADMIN_ACTIVITY_LABELS] ?? "",
+    ADMIN_ACTIVITY_LABELS[entry.action as keyof typeof ADMIN_ACTIVITY_LABELS] ??
+      userActivityLabel(entry.action) ??
+      "",
+    // The feed's own subjects: a search for a patient's name or a programme
+    // ID should find the entries about them, whoever acted.
+    entry.summary ?? "",
+    entry.patientName ?? "",
+    entry.therapistName ?? "",
+    entry.programmeCode ?? "",
+    entry.sessionCode ?? "",
+    entry.conditionName ?? "",
   ]
     .join(" ")
     .toLowerCase();
   return terms.every((term) => haystack.includes(term));
 }
 
-export type ActivityFilters = {
+export type ActivityFilters = SubjectFilters & {
   query: string;
-  actorName: string | "all";
   category: ActivityCategory | "all";
   moneyOnly: boolean;
   /** Inclusive yyyy-mm-dd bounds, compared against the entry's own date. */
@@ -98,19 +129,76 @@ export type ActivityFilters = {
 };
 
 export const EMPTY_ACTIVITY_FILTERS: ActivityFilters = {
+  ...EMPTY_SUBJECT_FILTERS,
   query: "",
-  actorName: "all",
   category: "all",
   moneyOnly: false,
   fromDate: "",
   toDate: "",
 };
 
+/** The URL keys for every filter on the Logs screen. Prefixed `al_` so they
+ *  cannot collide with another screen's, as `pg_` does for Programmes. */
+export const ACTIVITY_FILTER_PARAMS = {
+  ...SUBJECT_FILTER_PARAMS,
+  query: "al_q",
+  category: "al_type",
+  moneyOnly: "al_money",
+  fromDate: "al_from",
+  toDate: "al_to",
+} as const;
+
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Filters from a query string. Anything unreadable is simply not applied. */
+export function parseActivityFilters(params: { get(key: string): string | null }): ActivityFilters {
+  const read = (key: string) => (params.get(key) ?? "").trim();
+  const from = read(ACTIVITY_FILTER_PARAMS.fromDate);
+  const to = read(ACTIVITY_FILTER_PARAMS.toDate);
+  const category = read(ACTIVITY_FILTER_PARAMS.category);
+  return {
+    ...parseSubjectFilters(params),
+    query: read(ACTIVITY_FILTER_PARAMS.query).slice(0, 80),
+    // Any text is a legal category: one nobody has entries for just matches
+    // nothing, which is the honest answer to a stale link.
+    category: (category || "all") as ActivityFilters["category"],
+    moneyOnly: read(ACTIVITY_FILTER_PARAMS.moneyOnly) === "1",
+    fromDate: DATE_KEY.test(from) ? from : "",
+    toDate: DATE_KEY.test(to) ? to : "",
+  };
+}
+
+/** Writes the filters into `params`, removing the ones that are off. */
+export function writeActivityFilters(params: URLSearchParams, filters: ActivityFilters): URLSearchParams {
+  writeSubjectFilters(params, filters);
+  const set = (key: string, value: string) => {
+    if (value) params.set(key, value);
+    else params.delete(key);
+  };
+  set(ACTIVITY_FILTER_PARAMS.query, filters.query.trim());
+  set(ACTIVITY_FILTER_PARAMS.category, filters.category === "all" ? "" : filters.category);
+  set(ACTIVITY_FILTER_PARAMS.moneyOnly, filters.moneyOnly ? "1" : "");
+  set(ACTIVITY_FILTER_PARAMS.fromDate, filters.fromDate);
+  set(ACTIVITY_FILTER_PARAMS.toDate, filters.toDate);
+  return params;
+}
+
+export function hasActivityFilters(filters: ActivityFilters): boolean {
+  return (
+    hasSubjectFilters(filters) ||
+    filters.query.trim() !== "" ||
+    filters.category !== "all" ||
+    filters.moneyOnly ||
+    filters.fromDate !== "" ||
+    filters.toDate !== ""
+  );
+}
+
 export function filterActivityRows<
-  T extends SearchableEntry & { createdAt: string },
+  T extends SearchableEntry & ActivitySubjectFields & { createdAt: string },
 >(rows: T[], filters: ActivityFilters): T[] {
   return rows.filter((row) => {
-    if (filters.actorName !== "all" && row.actorName !== filters.actorName) return false;
+    if (!matchesSubjectFilters(row, filters)) return false;
     if (filters.category !== "all" && activityCategory(row.action) !== filters.category) {
       return false;
     }

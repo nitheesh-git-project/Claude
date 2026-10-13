@@ -35,6 +35,22 @@
       "integration": "provider-sandbox",
       "destructive": false
     },
+    "admin-all-logs.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
     "admin-account-delete.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -2462,6 +2478,28 @@
       ],
       "rules": [
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.all-logs",
+      "runner": "admin",
+      "title": "All Logs shows everyone's actions: a patient's own cancel is logged with their role, and the Patient and Programme ID filters find it and narrow the list",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-all-logs.spec.ts",
+          "tests": [
+            "ALL-001",
+            "ALL-002",
+            "ALL-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md",
+        "docs/rules/data-schema.md"
       ]
     },
     {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -194,6 +195,14 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
+    await recordUserActivity(admin, {
+      action: "session_note.written",
+      actor: { id: user.id, role: "therapist" },
+      appointmentId,
+      therapistId: user.id,
+      note: "edited",
+      details: { updated: true },
+    });
     return NextResponse.json({ success: true, updated: true });
   }
 
@@ -208,5 +217,12 @@ export async function POST(request: NextRequest) {
     return serverError("therapist/session-notes/submit", error);
   }
 
+  await recordUserActivity(admin, {
+    action: "session_note.written",
+    actor: { id: user.id, role: "therapist" },
+    appointmentId,
+    therapistId: user.id,
+    details: { updated: false },
+  });
   return NextResponse.json({ success: true, updated: false });
 }

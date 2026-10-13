@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActive, isPatientProfile, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
 import { pricingForRequest } from "@/lib/countryPricingServer";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { isGatewayPayable } from "@/lib/discounts";
 import { confirmPayLaterAppointment } from "@/lib/confirmPaidAppointment";
 import { readPayLaterBookingEligibility } from "@/lib/payLaterSettingsServer";
@@ -213,6 +214,15 @@ export async function POST(request: NextRequest) {
   // `settleInvitesOnCapture` is deliberately NOT called. An inviter's reward
   // is earned when their friend's first session is **paid for**, and nothing
   // has been paid for yet -- that happens when this patient settles.
+
+  await recordUserActivity(admin, {
+    action: "appointment.booked_pay_later",
+    actor: { id: user.id, role: "patient" },
+    appointmentId: appointment.id,
+    patientId: user.id,
+    amountPaise: quote.totalPaise,
+    dedupeKey: `booked_pay_later:${appointment.id}`,
+  });
 
   return NextResponse.json({
     success: true,

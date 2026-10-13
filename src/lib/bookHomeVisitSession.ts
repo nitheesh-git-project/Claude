@@ -1,4 +1,5 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
 import type { VisitAddress } from "@/lib/formatAddress";
@@ -319,6 +320,18 @@ export async function bookHomeVisitSession(
       purchase.id,
       eventError
     );
+  }
+
+  // All Logs: the patient's own booking of a home visit (an admin booking on
+  // their behalf is the admin log's `session.create`).
+  if (actorId === purchase.patient_id) {
+    await recordUserActivity(admin, {
+      action: "home_visit.booked",
+      actor: { id: actorId, role: "patient" },
+      appointmentId: appointment.id,
+      homeVisitPurchaseId: purchase.id,
+      patientId: purchase.patient_id,
+    });
   }
 
   return { success: true, appointmentId: appointment.id };

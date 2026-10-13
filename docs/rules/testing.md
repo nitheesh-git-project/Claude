@@ -431,7 +431,8 @@ update).
 it asserts **both** halves of each one: the single mutation the table
 legitimately needs still lands, and every other one raises. Checking only the
 refusals would pass just as well on a trigger that had broken the feature --
-so it proves `admin_activity_log` still deletes for the retention purge,
+so it proves `admin_activity_log` still deletes for the retention purge
+(and that `user_activity_log` refuses both UPDATE and DELETE),
 `payment_webhook_events` still takes its `processed_at` update, and `payments`
 still makes the created -> captured transition, alongside the nine refusals.
 It runs inside one transaction and ends in ROLLBACK, and it **builds its own

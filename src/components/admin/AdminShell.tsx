@@ -146,6 +146,11 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   // Logs screen and stops every tap in the back office costing two rebuilds.
   "admin_activity_log",
   "admin_activity_gaps",
+  // The other half of All Activity: what patients, therapists, hospitals
+  // and the system did. Written on nearly every booking and payment, so it
+  // is on the long cooldown for the same reason the admin log is -- the
+  // action it describes already refreshed the page through its own table.
+  "user_activity_log",
   // Campaigns are admin-edited catalog data like the rest of this list, and
   // the editor already sees their own change -- so the long cooldown is
   // right and the operational one would be wasted rebuilds.

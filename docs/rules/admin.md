@@ -602,6 +602,64 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   entry now on screen would open a different record's history. An entry
   opened from the table clears it, so no back button points at a timeline
   nobody came from.
+- **All Activity is everyone's actions, not only admins'.** The log used to
+  be `admin_activity_log` alone, so a patient booking, a therapist
+  recommending a programme or completing a session, a hospital's referral and
+  a payment arriving were nowhere in it. The feed is now two tables read
+  together: `admin_activity_log` and `user_activity_log` (patients,
+  therapists, hospitals and the system -- see `data-schema.md`). It is a
+  separate table on purpose: the admin log is scope-filtered per desk and
+  carries its own retention purge and gaps table, and mixing patients'
+  actions into it would have put them in front of the three limited desks.
+  Only Master Admin's Logs screen reads the merged feed
+  (`mergeActivityRows`, newest-first, cut to 200 and paged by the same
+  `created_at` cursor from `/api/admin/activity-log`, which reads both); Today
+  -> Activity and the desk screens still show their own desk's admin actions
+  and nothing else. Six rules:
+  1. **Routes write through `recordUserActivity`
+     (`src/lib/userActivityLog.ts`), after the action succeeded, awaited.**
+     Best-effort: it never throws and never fails the booking or payment it
+     describes. The caller passes whichever ids it has (`appointmentId`,
+     `carePlanId`, `packagePurchaseId`, `homeVisitPurchaseId`, ...) and the
+     rest -- patient, therapist, session code, programme ID, condition,
+     every name -- is resolved there and stored with the sentence
+     (`buildUserActivitySummary`), so an entry still reads after a rename.
+     Never take an id, a role or an amount from the client for it. A new
+     action goes in `USER_ACTIVITY_META` (label, Type group, sentence) --
+     the union is derived from it, so it cannot be logged unlabelled.
+  2. **A payment is logged in one place.** `recordPaymentCapture` is the
+     funnel for the three browser callbacks and the webhook, so it writes
+     `payment.captured` / `programme.purchased` (only when `applied`, and
+     under `dedupeKey: payment:<id>`); nothing else logs a payment. Package
+     and home-visit session bookings are logged in `bookPackageSession` /
+     `bookHomeVisitSession` for the same reason -- only when the patient is
+     the actor.
+  3. **Logged today:** booking started / free / pay later / from a programme
+     / home visit, cancel (with whether it was refunded), payment received,
+     programme bought, payment declared, recommendation made / withdrawn /
+     declined, session suggested / withdrawn / accepted / declined, session
+     completed, session note written, Pain Map exam, health profile
+     submitted (patient and therapist), session feedback (both sides), cash
+     collected, payout requested, hospital referral sent / withdrawn, and
+     account created (from the database, as the system). Not logged: a
+     login, a read, and anything an admin does (that is the admin log).
+  4. **Admin entries are filterable too, without touching the routes.**
+     `enrichAdminRows` resolves each entry's `target_id` -- an appointment, a
+     recommendation, a purchase or a profile -- to its patient, therapist,
+     programme ID and condition at read time, so the entries written before
+     the feed existed answer the same filters.
+  5. **The filters are the feed's, and they live in the URL.** Actor role,
+     actor name, Programme ID, Patient, Therapist, Condition, plus the old
+     search / type / dates / money-only, as `al_*` keys
+     (`ACTIVITY_FILTER_PARAMS`), the way Programmes keeps `pg_*`. Programme
+     IDs match without case, spaces or underscores and by prefix. A row with
+     no programme never matches a programme filter. Each row shows the
+     actor's role chip, the programme ID chip and the session code; the
+     export carries every one of those columns.
+  6. **A half-read feed says so.** If the user table cannot be read the
+     screen shows admins only *with a notice saying so*, never as if it were
+     complete. The Archive & Clear export and purge are the admin log's
+     alone.
 - **An audit write is tried twice, and a write that still fails is not
   lost.** `recordAdminActivity` stays best-effort - the action it records
   has already happened - but a single dropped insert used to be the whole of

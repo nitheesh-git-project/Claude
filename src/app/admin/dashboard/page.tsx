@@ -89,6 +89,8 @@ import { loadAccountingHealth, accountingProblemCount } from "@/lib/accountingHe
 import { buildSystemHealth, summarizeHealth } from "@/lib/systemHealth";
 import { rateLimitIdentifierStats } from "@/lib/rateLimitServer";
 import { activityScopeNote, filterActivityForViewer } from "@/lib/activityScope";
+import { mergeActivityRows } from "@/lib/userActivity";
+import { enrichAdminRows, fetchUserActivityRows, userActivityToRow } from "@/lib/userActivityLog";
 import { riskRulesForSections } from "@/lib/riskSignals";
 import { googleConnectionCheckedAt } from "@/lib/googleConnectionHealth";
 import {
@@ -4777,12 +4779,32 @@ export default async function AdminDashboardPage({
   // below -- unfiltered, since `filterActivityForViewer` leaves a full
   // scope's list untouched -- plus a search, a category filter, and older
   // pages fetched on demand rather than carried in every render.
+  //
+  // Master Admin only, so the extra reads below are not spent on the three
+  // limited desks. Admin entries get their patient / therapist / programme /
+  // condition resolved from the row each one named; the patients',
+  // therapists' and hospitals' side comes from user_activity_log. The two
+  // are merged newest-first and cut to the same 200 the admin log alone was.
+  let everyoneRows = activityRows;
+  let everyoneUnavailable = false;
+  if (viewerScope === "full") {
+    const [userFeed, enrichedAdminRows] = await Promise.all([
+      fetchUserActivityRows(admin, { limit: 200 }),
+      enrichAdminRows(admin, activityRows),
+    ]);
+    everyoneUnavailable = !userFeed.ok;
+    everyoneRows = mergeActivityRows(
+      [enrichedAdminRows, userFeed.rows.map((r) => userActivityToRow(r, true))],
+      200
+    );
+  }
   const logsTab = (
     <AdminLogsTab
-      rows={activityRows}
+      rows={everyoneRows}
+      conditions={(treatmentCategories ?? []).map((c) => c.title)}
+      everyoneUnavailable={everyoneUnavailable}
       gaps={activityGaps}
       gapsTotal={activityGapsTotal}
-      actors={adminRows.map((a) => ({ id: a.id, name: a.fullName ?? "Unnamed admin" }))}
     />
   );
 

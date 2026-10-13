@@ -10199,6 +10199,8 @@ begin
     admin_activity_log,
     -- Its gaps go with it: a reset empties the history they are missing from.
     admin_activity_gaps,
+    -- Patients', therapists' and hospitals' side of the same history.
+    user_activity_log,
     -- Measurements of bookings the reset removes.
     checkout_timings,
     admin_impersonation_sessions,
@@ -16765,6 +16767,136 @@ begin
      where h.id = r.id;
   end loop;
 end $$;
+
+-- ---------------------------------------------------------------------
+-- user_activity_log: what patients, therapists, hospitals and the system did
+-- ---------------------------------------------------------------------
+-- admin_activity_log answers "what did an admin do". Logs -> All Activity is
+-- meant to answer "what happened", and a patient booking, a therapist
+-- completing a session or recommending a programme, a hospital sending a
+-- referral and a payment arriving left no entry there at all. This is the
+-- other half of that feed. It is a separate table on purpose: the admin log
+-- is scope-filtered per desk, has its own retention purge and its own
+-- gaps table, and mixing patients' actions into it would have put them in
+-- front of the three limited desks.
+--
+-- Written by recordUserActivity() (src/lib/userActivityLog.ts) through the
+-- service-role client, best-effort: a failed write is logged on the server
+-- and never blocks the action it describes. The sentence is stored, not
+-- rebuilt on read, and so are the names -- an entry has to stay readable
+-- after a person is renamed or their account is deleted, which is also why
+-- there are NO foreign keys here (the same posture as admin_activity_gaps).
+--
+-- The subject columns are what the Logs filters run on: patient, therapist,
+-- programme ID (care_plans/purchases.programme_code), condition and the
+-- session. `dedupe_key` makes one real-world event one row when two paths
+-- report it (a payment is seen by the browser callback AND the webhook).
+--
+-- Append-only by trigger, not by RLS: every route writes with the
+-- service-role client, which bypasses RLS entirely. There is no purge --
+-- unlike the admin log, nothing here ever leaves except through the data
+-- reset's TRUNCATE (listed in debug_reset_all_data()).
+create table if not exists user_activity_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid,
+  actor_role text not null check (actor_role in ('patient', 'therapist', 'hospital', 'system')),
+  actor_name text,
+  action text not null check (char_length(action) between 1 and 80),
+  summary text not null check (char_length(summary) between 1 and 400),
+  patient_id uuid,
+  patient_name text,
+  therapist_id uuid,
+  therapist_name text,
+  appointment_id uuid,
+  session_code text,
+  programme_code text,
+  category_id uuid,
+  condition_name text,
+  amount_paise integer,
+  details jsonb,
+  dedupe_key text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists user_activity_log_created_at_idx
+  on user_activity_log (created_at desc);
+create index if not exists user_activity_log_patient_idx
+  on user_activity_log (patient_id, created_at desc) where patient_id is not null;
+create index if not exists user_activity_log_therapist_idx
+  on user_activity_log (therapist_id, created_at desc) where therapist_id is not null;
+create index if not exists user_activity_log_programme_idx
+  on user_activity_log (programme_code) where programme_code is not null;
+create index if not exists user_activity_log_appointment_idx
+  on user_activity_log (appointment_id) where appointment_id is not null;
+-- A plain (not partial) unique index: ON CONFLICT (dedupe_key) from
+-- PostgREST cannot target a partial one, and NULLs never collide.
+create unique index if not exists user_activity_log_dedupe_key_idx
+  on user_activity_log (dedupe_key);
+
+alter table user_activity_log enable row level security;
+
+-- Admins read; nobody writes through the API at all (the absence of an
+-- insert policy, plus the trigger below, is the whole of "append-only").
+drop policy if exists "user_activity_log_select_admin" on user_activity_log;
+create policy "user_activity_log_select_admin" on user_activity_log
+  for select using (is_admin());
+
+drop trigger if exists user_activity_log_no_change on user_activity_log;
+create trigger user_activity_log_no_change
+  before update or delete on user_activity_log
+  for each row execute function communication_evidence_is_append_only();
+
+-- The dashboard reads user_activity_log (Logs -> All Activity), so it
+-- refreshes when one lands -- the rule every table the dashboard reads
+-- follows. On the long cooldown list in AdminShell.tsx.
+do $$
+begin
+  alter publication supabase_realtime add table user_activity_log;
+exception when duplicate_object then null;
+end $$;
+
+-- A new account is the one event no route sees (sign-up is a browser call
+-- to Supabase Auth and the profile row is made by handle_new_user), so it is
+-- logged from the profile insert. The actor is "system", not the person:
+-- an admin creating an account lands here too, and "the patient created
+-- their account" would then be false. Wrapped so that a failure here can
+-- never fail a sign-up.
+create or replace function public.log_profile_created()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  begin
+    if new.role in ('patient', 'therapist', 'hospital') then
+      insert into user_activity_log (
+        actor_role, action, summary,
+        patient_id, patient_name, therapist_id, therapist_name, details
+      ) values (
+        'system',
+        'account.created',
+        'A ' || new.role || ' account was created for ' || coalesce(nullif(new.full_name, ''), 'a new user'),
+        case when new.role = 'patient' then new.id end,
+        case when new.role = 'patient' then new.full_name end,
+        case when new.role = 'therapist' then new.id end,
+        case when new.role = 'therapist' then new.full_name end,
+        jsonb_build_object('role', new.role, 'accountId', new.id)
+      );
+    end if;
+  exception when others then
+    null;
+  end;
+  return new;
+end;
+$$;
+
+revoke all on function public.log_profile_created() from public, anon, authenticated;
+
+drop trigger if exists trg_log_profile_created on profiles;
+create trigger trg_log_profile_created
+  after insert on profiles
+  for each row execute function public.log_profile_created();
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.

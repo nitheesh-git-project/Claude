@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -216,6 +217,15 @@ export async function POST(request: NextRequest) {
         "The cash is recorded on this visit, but the programme's history entry couldn't be written. Let the clinic know so they can note it.";
     }
   }
+
+  await recordUserActivity(admin, {
+    action: "cash.collected",
+    actor: { id: user.id, role: "therapist" },
+    appointmentId,
+    therapistId: user.id,
+    amountPaise,
+    dedupeKey: `cash_collected:${appointmentId}`,
+  });
 
   return NextResponse.json({ success: true, amountPaise, ...(warning ? { warning } : {}) });
 }

@@ -2,6 +2,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { mirrorReserve } from "@/lib/sessionCreditMirror";
 import { decrementUsedCounter } from "@/lib/purchaseCounter";
+import { recordUserActivity } from "@/lib/userActivityLog";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -261,6 +262,18 @@ export async function bookPackageSession(
     });
   } catch (eventError) {
     console.error("Failed to log session_scheduled event for purchase", purchase.id, eventError);
+  }
+
+  // All Logs. Only the patient's own booking: an admin booking on a
+  // patient's behalf is the admin log's `session.create`.
+  if (actorId === purchase.patient_id) {
+    await recordUserActivity(admin, {
+      action: "appointment.booked_from_programme",
+      actor: { id: actorId, role: "patient" },
+      appointmentId: appointment.id,
+      packagePurchaseId: purchase.id,
+      patientId: purchase.patient_id,
+    });
   }
 
   return { success: true, appointmentId: appointment.id };

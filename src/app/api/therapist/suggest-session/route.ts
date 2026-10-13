@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -274,6 +275,16 @@ export async function POST(request: NextRequest) {
     }
     return serverError("therapist/suggest-session", insertError);
   }
+
+  await recordUserActivity(admin, {
+    action: "suggestion.sent",
+    actor: { id: user.id, role: "therapist" },
+    packagePurchaseId: purchase.id,
+    patientId: purchase.patient_id,
+    therapistId: user.id,
+    details: { slotTime: new Date(slotMs).toISOString() },
+    dedupeKey: `suggestion_sent:${created.id}`,
+  });
 
   return NextResponse.json({ success: true, suggestionId: created.id });
 }

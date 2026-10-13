@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -88,6 +89,14 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ success: true, alreadyClosed: true });
   }
+
+  await recordUserActivity(admin, {
+    action: "care_plan.withdrawn",
+    actor: { id: user.id, role: "therapist" },
+    carePlanId,
+    therapistId: user.id,
+    dedupeKey: `care_plan_withdrawn:${carePlanId}`,
+  });
 
   return NextResponse.json({ success: true });
 }
