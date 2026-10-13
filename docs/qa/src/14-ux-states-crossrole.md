@@ -329,7 +329,7 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 
 #### `XR-CREDIT-001` - One credit consumed, four views · P0
 **Event.** The patient books one package session.
-**Expected Result.** Patient widget: `1 used · 5 remaining`. Therapist: the session appears, auto-assigned and auto-confirmed with its own Meet link. Admin Purchases: the same balance. **[SQL]** the ledger holds exactly one `reserve:<appointment_id>` row. Flipping the ledger-authority switch must not change any of these four figures while the ledger and the counters agree.
+**Expected Result.** Patient widget: `1 used · 5 remaining`, and the session card reads **Booked - confirming your therapist**. Admin: the session is in **Sessions with no therapist**, `requested` and unassigned, its row reading **Tap to assign · <locked therapist>**; one tap on **Assign <name>** confirms it with its own Meet link, and only then does the therapist see it. Admin Purchases: the same balance. **[SQL]** the ledger holds exactly one `reserve:<appointment_id>` row. Flipping the ledger-authority switch must not change any of these four figures while the ledger and the counters agree.
 
 #### `XR-PAYOUT-001` - One settlement, four views · P0
 **Event.** `FIN-PAY-002`.
@@ -345,7 +345,7 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 
 #### `XR-SUGG-001` - One suggestion, two views · P1
 **Event.** `THR-SUGG-001` → `PAT-SUGG-002`.
-**Expected Result.** While pending: therapist sees **Waiting on the patient**, patient sees the card. After acceptance: therapist sees the booked session, patient sees it under Upcoming, and exactly one credit has moved.
+**Expected Result.** While pending: therapist sees **Waiting on the patient**, patient sees the card. After acceptance: the patient sees **Accepted - clinic confirming** and the session under Upcoming as **Booked - confirming your therapist**; the admin sees it in Sessions with no therapist with the suggesting therapist pre-picked; exactly one credit has moved. After the admin's one-tap assign: the therapist sees the confirmed session.
 
 #### `XR-NAV-001` - A signed-in account is never stranded on the public site · P0
 **Steps.** Sign in as a patient and open `/`. Then repeat with the profile lookup failing (block the `profiles` request in devtools, or sign in as an account whose profile row is momentarily unreadable). Repeat as an unapproved patient and as a suspended one.

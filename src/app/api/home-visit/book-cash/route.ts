@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     admin
       .from("site_settings")
       .select(
-        "home_visit_enabled, home_visit_cash_enabled, home_visit_default_validity_days, home_visit_travel_buffer_minutes"
+        "home_visit_enabled, home_visit_cash_enabled, home_visit_default_validity_days"
       )
       .maybeSingle(),
     lookupServiceArea(admin, pincode),
@@ -220,9 +220,6 @@ export async function POST(request: NextRequest) {
     settingsRow?.home_visit_default_validity_days ??
     DEFAULT_ADMIN_SETTINGS.homeVisitDefaultValidityDays;
   const expiresAt = new Date(Date.now() + validityDays * 86_400_000).toISOString();
-  const travelBufferMinutes =
-    settingsRow?.home_visit_travel_buffer_minutes ??
-    DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes;
 
   const { data: purchase, error: insertError } = await admin
     .from("home_visit_package_purchases")
@@ -289,7 +286,6 @@ export async function POST(request: NextRequest) {
     concern,
     actorId: user.id,
     visitDurationMinutes: pkg.visit_duration_minutes,
-    travelBufferMinutes,
     address: {
       id: addressId,
       label: address.label ?? null,

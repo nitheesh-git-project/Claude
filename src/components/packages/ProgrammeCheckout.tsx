@@ -342,7 +342,6 @@ export default function ProgrammeCheckout({
             <div className="mt-3 flex flex-wrap gap-2">
               <Tag>{offer.isHomeVisit ? "At your home" : "Video sessions"}</Tag>
               {offer.handsOnRequired && <Tag>Hands-on treatment</Tag>}
-              {snapshot?.validityDays ? <Tag>Valid {snapshot.validityDays} days</Tag> : null}
             </div>
 
             {snapshot && (
@@ -600,9 +599,10 @@ export default function ProgrammeCheckout({
             </p>
             <p>
               <i aria-hidden className="fa-solid fa-calendar-check mr-1 text-teal-600" />
-              {snapshot?.validityDays
-                ? `You book each ${noun} yourself afterwards, at times that suit you, within ${snapshot.validityDays} days.`
-                : `You book each ${noun} yourself afterwards, at times that suit you.`}
+              {/* No "within N days": the validity is said only near its end
+                  (patientExpiryNotice), never as a clock from the day of
+                  payment. */}
+              {`You book each ${noun} yourself afterwards, at times that suit you, and the clinic confirms each one.`}
             </p>
             {offer.expiresAt && (
               <p>

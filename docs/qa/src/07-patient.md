@@ -577,7 +577,7 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 **Preconditions.** `THR-SUGG-001` has proposed a slot on an active programme with credits remaining.
 **Steps.** Open `/patient/dashboard/suggested`. Read the card. Tap **Accept this time**.
-**Expected Result.** The card resolves to a booked state. An appointment is created via the package-session path: **auto-assigned to the locked therapist, auto-confirmed, and given its own Meet link**. `sessions_used` on the purchase increases by exactly **one**. A `reserve`/`consume` ledger entry is written with an idempotency key derived from the appointment id. The therapist's dashboard shows the new session. **A declined suggestion would have claimed nothing** - a suggestion is its own row, never an appointment in a new status.
+**Expected Result.** The card resolves to **Accepted - clinic confirming**. An appointment is created via the package-session path, **`requested` and unassigned** - never assigned or confirmed by the accept. It appears in Admin → Sessions with no therapist with the locked therapist pre-picked (`ADM-SESS-005`); once the admin assigns it, it is confirmed and gets its Meet link. Until then the patient's session card reads **Booked - confirming your therapist**. `sessions_used` on the purchase increases by exactly **one**. A `reserve`/`consume` ledger entry is written with an idempotency key derived from the appointment id. The therapist's dashboard shows the new session once it is assigned. **A declined suggestion would have claimed nothing** - a suggestion is its own row, never an appointment in a new status.
 
 #### `PAT-SUGG-003` - Decline · P2
 **Steps.** Tap **Decline** on a pending suggestion. **Expected Result.** The card shows `Declined`. No appointment. No credit moves. The therapist's control shows the declined state.
@@ -656,7 +656,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 **Preconditions.** `PAT-CARE-002` complete: 6 credits, therapist locked.
 **Steps.** Open `/patient/dashboard/packages`. Use the bulk scheduler to book **3** sessions, respecting the package's rules (min gap 24h, max 3/week).
-**Expected Result.** Three appointments are created, each **auto-assigned to the locked therapist, auto-confirmed, each with its own Meet link** - never through the admin's per-session assign flow. The widget reads `6 sessions · 3 used · 3 remaining`. Three `reserve` ledger entries exist, each keyed `reserve:<appointment_id>`.
+**Expected Result.** Three appointments are created, each **`requested` and unassigned** - every programme session goes through the admin. The scheduler's result rows and each session card read **Booked - confirming your therapist**, and the Home feed says "Video session booked - confirming your therapist". In Admin → Sessions with no therapist each row reads **Tap to assign · <locked therapist>**, and one tap on **Assign <name>** in the drawer confirms it and creates its Meet link. The widget reads `6 sessions · 3 used · 3 remaining`. Three `reserve` ledger entries exist, each keyed `reserve:<appointment_id>`.
 **Boundary.** Attempting a 4th session in the same week is refused by the package's max-per-week rule. Attempting more than `package_bulk_schedule_max` (default 8) slots in one request is refused with `Too many slots in one request.` Two slots less than 24h apart are refused by the minimum-gap rule.
 
 #### `PAT-PKG-002` - Credits cannot be overdrawn · P0 **[SQL]**
@@ -664,8 +664,13 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 **Expected Result.** Refused with `Every session in this programme is already used.` In the database, a ledger row that would overdraw fails the CHECK constraint and takes its transaction with it - **an impossible balance is impossible, not merely unwritten**.
 
 #### `PAT-PKG-003` - A locked therapist's clash never fails the booking · P1
-**Preconditions.** The locked therapist already has a session at the requested time.
-**Expected Result.** The booking still succeeds, but the session lands **`requested` and unassigned** in the admin queue rather than failing. The patient is not told to pick another time.
+**Preconditions.** The locked therapist already has a session at the requested time (or is not working that hour).
+**Expected Result.** The booking still succeeds and lands **`requested` and unassigned** in the admin queue, as every programme session does. The patient is not told to pick another time. In the admin queue the row reads **<name> not free** and the drawer says *"<name> is no longer free at this time - pick someone else or move it."* instead of offering the one-tap Assign.
+
+#### `PAT-PKG-005` - The programme's expiry is shown only near its end · P1
+**Preconditions.** Two active programmes with sessions left: one expiring in 60 days, one inside `package_expiry_reminder_days` (default 14).
+**Steps.** Open `/patient/dashboard/packages`, then each programme's **Manage** detail. Also read the recommendation card, the Review & pay page and the catalog cards.
+**Expected Result.** The 60-day programme shows **no** expiry line and no day count anywhere. The near one shows one amber line *"N sessions left - book by <date>"* (the date in the clinic's zone), on the card and in its detail - never "N days left", "Valid 90 days" or "Use them within N days". No patient or therapist screen prints a validity in days; admin screens still show the expiry date.
 
 #### `PAT-PKG-004` - An expired programme · P2
 **Preconditions.** A purchase whose `expires_at` has passed.

@@ -11,15 +11,28 @@ export default function AssignTherapistForm({
   appointmentId,
   therapists,
   preferredTherapistId,
+  programmeTherapistId,
+  programmeTherapistFree = true,
 }: {
   appointmentId: string;
   therapists: { id: string; full_name: string; specialization?: string | null }[];
   preferredTherapistId?: string | null;
+  /** A programme session's own therapist (programmeTherapistFor): selected
+   *  first and labelled "Programme therapist", ahead of a patient's request.
+   *  Not pre-selected when the roster says they can no longer take the time
+   *  -- the drawer says so above, and choosing someone else is the job. */
+  programmeTherapistId?: string | null;
+  programmeTherapistFree?: boolean;
 }) {
   const preferredIsAvailable =
     !!preferredTherapistId && therapists.some((t) => t.id === preferredTherapistId);
+  const programmeIsListed =
+    !!programmeTherapistId && therapists.some((t) => t.id === programmeTherapistId);
   const [therapistId, setTherapistId] = useState(
-    (preferredIsAvailable ? preferredTherapistId : null) ?? therapists[0]?.id ?? ""
+    (programmeIsListed && programmeTherapistFree ? programmeTherapistId : null) ??
+      (preferredIsAvailable ? preferredTherapistId : null) ??
+      therapists[0]?.id ??
+      ""
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +74,11 @@ export default function AssignTherapistForm({
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      {preferredTherapistId && (
+      {programmeIsListed ? (
+        <span className="text-[11px] text-teal-700 font-semibold">
+          {programmeTherapistFree ? "Programme therapist" : "Programme therapist isn't free - choose someone"}
+        </span>
+      ) : preferredTherapistId && (
         <span className="text-[11px] text-teal-700 font-semibold">
           {preferredIsAvailable ? "Patient requested this therapist" : "Patient's requested therapist isn't available"}
         </span>
@@ -81,7 +98,11 @@ export default function AssignTherapistForm({
             {specialtyLabel(t.specialization)
               ? `${t.full_name} - ${specialtyLabel(t.specialization)}`
               : t.full_name}
-            {t.id === preferredTherapistId ? " (requested)" : ""}
+            {t.id === programmeTherapistId
+              ? " (programme therapist)"
+              : t.id === preferredTherapistId
+                ? " (requested)"
+                : ""}
           </option>
         ))}
       </select>

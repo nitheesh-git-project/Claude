@@ -205,7 +205,7 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
 | **Assign a Therapist Automatically** | **off** | See `ADM-SET-021` |
-| **Therapist Lock (site-wide)** | on | Off → later sessions on a purchase are not auto-assigned to the first therapist |
+| **Therapist lock: pre-pick the programme therapist** | on | On → the first therapist assigned on a programme becomes its therapist, and every later session on it reaches Sessions with no therapist with them **pre-picked** (one tap to assign) - never auto-assigned. Off → no new programme keeps a therapist; each session is picked from scratch |
 | **Where a patient's remaining sessions are counted** (Settings → **Advanced**) | **Running total** | See `ADM-SET-019` |
 | **Therapist-Suggested Sessions** | **on for a fresh database** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent. The column default is now true, but that only applies to a new `site_settings` row - **an existing database keeps its current value until an admin toggles it, or a reset restores defaults.** Check the toggle before running `THR-SUGG-*` rather than assuming |
 | **Default Validity** | 90 d | A new purchase's expiry when the package leaves it blank |
@@ -718,7 +718,7 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 10 | Package min gap / max per week | Catalog → Packages | The bulk scheduler | Violating slots are refused | `ADM-CAT-007` |
 | 11 | Package default validity | Settings → Programmes & Home Visits | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
 | 12 | Bulk scheduler limit | Settings → Programmes & Home Visits | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
-| 13 | Therapist lock switch | Settings → Programmes & Home Visits | Auto-assignment of later package sessions | Off → later sessions are not auto-assigned | `ADM-SET-018` |
+| 13 | Therapist lock switch | Settings → Programmes & Home Visits | The pre-pick on later programme sessions in Sessions with no therapist | Off → no therapist pre-picked on a new programme | `ADM-SET-018` |
 | 14 | Therapist suggestions switch | Settings → Programmes & Home Visits | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
 | 15 | Ledger authority | Settings → Programmes & Home Visits | Six balance surfaces | All six follow together | `ADM-SET-019` |
 | 16 | Service area created/deleted | Catalog → Service Areas | `/book-home-visit` check; every purchase route | Serviceable ↔ waitlist | `ADM-CAT-010` |

@@ -15,6 +15,7 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 import { countAnswered, patientIntakeGate, questionsForSpecialty } from "@/lib/conditionIntake";
 import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
 import { buildPatientFeed } from "@/lib/dashboardFeed";
+import { isBookedAwaitingTherapist } from "@/lib/sessionRowStatus";
 import { computePackageCounts } from "@/lib/packageProgress";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { expireDueHomeVisitPurchases } from "@/lib/expireHomeVisitPurchases";
@@ -900,6 +901,13 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       payment_terms: a.payment_terms,
       created_at: a.slot_time,
       therapist_name: a.therapist_id ? therapistMap.get(a.therapist_id) ?? null : null,
+      awaiting_programme_therapist: isBookedAwaitingTherapist({
+        status: a.status,
+        no_show: a.no_show,
+        therapist_id: a.therapist_id,
+        package_purchase_id: a.package_purchase_id,
+        home_visit_purchase_id: visitDetailById.get(a.id)?.home_visit_purchase_id ?? null,
+      }),
       refund_status: a.refund_status,
       ...refundDetailById.get(a.id),
     })),

@@ -150,11 +150,21 @@ export function HomeVisitAddressEditor({
 export function HomeVisitAssignForm({
   visit,
   therapists,
+  programmeTherapistId,
+  programmeTherapistFree = true,
 }: {
   visit: HomeVisitRow;
   therapists: { id: string; full_name: string }[];
+  /** A visit programme's own therapist (programmeTherapistFor): selected
+   *  and marked "Programme therapist" while the roster says they are free. */
+  programmeTherapistId?: string | null;
+  programmeTherapistFree?: boolean;
 }) {
-  const [therapistId, setTherapistId] = useState(visit.therapist_id ?? "");
+  const programmeIsListed =
+    !!programmeTherapistId && therapists.some((t) => t.id === programmeTherapistId);
+  const [therapistId, setTherapistId] = useState(
+    visit.therapist_id ?? (programmeIsListed && programmeTherapistFree ? programmeTherapistId ?? "" : "")
+  );
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -181,7 +191,13 @@ export function HomeVisitAssignForm({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
+        {programmeIsListed && !visit.therapist_id && (
+          <span className="text-[11px] font-semibold text-teal-700">
+            {programmeTherapistFree ? "Programme therapist" : "Programme therapist isn't free - choose someone"}
+          </span>
+        )}
         <select
+          aria-label="Therapist to assign"
           value={therapistId}
           onChange={(e) => setTherapistId(e.target.value)}
           className="rounded-lg border border-slate-300 p-2 text-xs"
@@ -190,6 +206,7 @@ export function HomeVisitAssignForm({
           {therapists.map((t) => (
             <option key={t.id} value={t.id}>
               {t.full_name}
+              {t.id === programmeTherapistId ? " (programme therapist)" : ""}
             </option>
           ))}
         </select>

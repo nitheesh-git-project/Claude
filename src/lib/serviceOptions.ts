@@ -239,7 +239,8 @@ export function homeVisitServiceOption(row: HomeVisitServiceRow): ServiceOption 
       `${duration} min${single ? "" : " each"}`,
       travelIncluded ? "Travel included" : "Travel by area",
       !single && row.therapist_locked === true ? "Same therapist" : "",
-      row.validity_days ? `Valid ${row.validity_days} days` : "",
+      // No "Valid N days": a validity is said only near its end, to someone
+      // who owns the visit (patientExpiryNotice), never on what is for sale.
     ].filter(Boolean),
     points: stringList(row.benefits),
     pricePaise: row.price_paise,
@@ -256,9 +257,6 @@ export function homeVisitServiceOption(row: HomeVisitServiceRow): ServiceOption 
         icon: "fa-car",
       },
       { label: "Visits", value: single ? "1 visit" : `${visits} visits`, icon: "fa-house-medical" },
-      ...(row.validity_days
-        ? [{ label: "Book within", value: `${row.validity_days} days`, icon: "fa-calendar-day" }]
-        : []),
       ...(!single && row.therapist_locked === true
         ? [{ label: "Therapist", value: "The same one throughout", icon: "fa-user-doctor" }]
         : []),

@@ -666,6 +666,24 @@
       "integration": "local",
       "destructive": false
     },
+    "programme-sessions-via-admin.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/programmes.md",
+        "docs/rules/admin.md",
+        "docs/rules/roster.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "layout-audit.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -1693,7 +1711,8 @@
             "SS-007",
             "SS-008",
             "SS-015",
-            "SS-016"
+            "SS-016",
+            "SS-019"
           ],
           "level": "api"
         }
@@ -1701,6 +1720,30 @@
       "rules": [
         "docs/rules/roster.md",
         "docs/rules/programmes.md"
+      ]
+    },
+    {
+      "id": "session.programme-via-admin",
+      "runner": "session",
+      "title": "Every programme session goes through the admin: booked, accepted and home-visit sessions wait unassigned with the programme therapist pre-picked, one tap assigns and confirms",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "programme-sessions-via-admin.spec.ts",
+          "tests": [
+            "PSA-001",
+            "PSA-002",
+            "PSA-003",
+            "PSA-004",
+            "PSA-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/programmes.md",
+        "docs/rules/admin.md"
       ]
     },
     {

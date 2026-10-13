@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { computeHomeVisitCounts, daysUntilHomeVisitExpiry } from "@/lib/homeVisitProgress";
+import { computeHomeVisitCounts } from "@/lib/homeVisitProgress";
+import { patientExpiryNotice } from "@/lib/packageProgress";
 import HomeVisitDetailModal from "@/components/HomeVisitDetailModal";
 import HomeVisitBulkScheduler from "@/components/HomeVisitBulkScheduler";
 import ProgrammeCover from "@/components/packages/ProgrammeCover";
@@ -65,7 +66,11 @@ export default function HomeVisitPackageWidget({
             completedCount: p.completedCount,
             scheduledCount: p.scheduledCount,
           });
-          const daysLeft = daysUntilHomeVisitExpiry(p.expiresAt, now);
+          // Said only near the end, as a date -- see PatientPackageWidget.
+          const expiryNotice =
+            p.status === "active"
+              ? patientExpiryNotice(p.expiresAt, counts.pending, now, expiryReminderDays, "visit")
+              : null;
           const progressPercent =
             p.visitCount > 0 ? Math.round(((counts.completed + counts.scheduled) / p.visitCount) * 100) : 0;
 
@@ -106,17 +111,11 @@ export default function HomeVisitPackageWidget({
                     Pay at the door
                   </p>
                 )}
-                {daysLeft !== null && p.status === "active" && (
-                  daysLeft <= expiryReminderDays && counts.pending > 0 ? (
-                    <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 font-semibold text-amber-800">
-                      <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
-                      {daysLeft <= 0
-                        ? "Expires today - schedule your remaining visits now"
-                        : `Only ${daysLeft} day${daysLeft === 1 ? "" : "s"} left to use ${counts.pending} remaining visit${counts.pending === 1 ? "" : "s"}`}
-                    </p>
-                  ) : (
-                    <p className="text-slate-500">{daysLeft} day{daysLeft === 1 ? "" : "s"} left</p>
-                  )
+                {expiryNotice && (
+                  <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 font-semibold text-amber-800">
+                    <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+                    {expiryNotice}
+                  </p>
                 )}
 
                 <div className="flex items-center gap-3 pt-2">

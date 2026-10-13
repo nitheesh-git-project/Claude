@@ -300,10 +300,25 @@ Availability as periods over hour rows, specialisation as a value, what readines
      a suggestion claims nothing, and storing it as an appointment would
      either spend a session every decline had to refund or leave a row the
      counter deliberately ignores. Only acceptance calls
-     `bookPackageSession()`, which is what makes the count move.
+     `bookPackageSession()`, which is what makes the count move. **An
+     accepted suggestion is not assigned**: like every programme session it
+     lands `requested` and unassigned in the admin's "Sessions with no
+     therapist" with the programme's (locked) therapist -- the one who
+     suggested it -- pre-picked, and one tap there assigns and confirms it
+     (`programmes.md`). The patient reads "Accepted - clinic confirming".
   2. No slot is held. A hold needs releasing, releasing needs a sweep, and
      there is no scheduled worker -- so the therapist's calendar is
-     re-checked at acceptance instead.
+     re-checked by the admin's assign instead, and the queue says when the
+     pre-picked therapist is no longer free. What keeps that rare is the
+     suggestion itself: **a therapist may only suggest a time inside their
+     own working hours.** `suggest-session` runs the assign's own check
+     (`checkTherapistAssignable`) up front and refuses with one sentence in
+     the therapist's voice naming every reason (`suggestRefusal` in
+     `src/lib/sessionSuggestions.ts`: "You can only suggest a time inside
+     your own working hours. You're not working 6 PM - 7 PM on 12 Nov
+     2026."), 409 `therapist_unavailable`; a roster it could not read is the
+     route's 503 "we couldn't check", never "free". Without it a patient
+     could accept a time the admin's assign would then refuse.
   3. Nothing writes an "expired" status. A pending suggestion simply stops
      being acceptable once its slot is inside the booking lead time, computed
      by `suggestionState()` in `src/lib/sessionSuggestions.ts` everywhere it
@@ -319,8 +334,9 @@ Availability as periods over hour rows, specialisation as a value, what readines
   simultaneous taps came back as neither a suggestion nor a duplicate; 96
   taps in bursts of 12 never produced two suggestions). SS-003 now prints
   every status and accepts only 409 or that explicit 503 beside the single
-  200. The advisory calendar check (`findTherapistConflict`) still reads a
-  failure as "no conflict"; acceptance re-checks it. Both dashboards' controls guard submits with a
+  200. The roster check is no longer advisory: a failed read is 503 like every
+  other read in the route, and an hour they are not working, leave, or a clash
+  is a refusal. Both dashboards' controls guard submits with a
   synchronous ref (a `disabled` attribute lands a render too late) and never
   clear optimistically, so a request that dies on a bad connection leaves the
   person exactly where they were. Gated by

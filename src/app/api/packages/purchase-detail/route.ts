@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { applyLedgerSessionBalance, readLedgerAuthoritative } from "@/lib/ledgerBalances";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
+import { patientExpiryNotice } from "@/lib/packageProgress";
 
 // Self-service counterpart to /api/admin/package-purchase-detail -- backs
 // the shared PackageDetailModal in patient/therapist mode. Deliberately
@@ -87,6 +89,22 @@ export async function GET(request: NextRequest) {
   ]);
 
   const now = Date.now();
+  // The expiry is said only near the end, as "N left - book by <date>"
+  // (patientExpiryNotice) -- never a countdown from the day of payment. A
+  // settings read that fails falls back to the default window, which only
+  // decides whether a reminder shows; it gates nothing.
+  const { data: settingsRow } = await admin.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle();
+  const pendingForNotice = Math.max(purchase.session_count - purchase.sessions_used, 0);
+  const expiryNotice =
+    purchase.status === "active"
+      ? patientExpiryNotice(
+          purchase.expires_at,
+          pendingForNotice,
+          now,
+          parseAdminSettings(settingsRow).packageExpiryReminderDays,
+          "session"
+        )
+      : null;
   const completed = (appointments ?? []).filter((a) => a.status === "completed");
   const upcoming = (appointments ?? []).filter(
     (a) => a.status !== "completed" && a.status !== "cancelled" && a.slot_time && new Date(a.slot_time).getTime() > now
@@ -105,6 +123,7 @@ export async function GET(request: NextRequest) {
       sessionsUsed: purchase.sessions_used,
       status: purchase.status,
       expiresAt: purchase.expires_at,
+      expiryNotice,
       createdAt: purchase.created_at,
       therapistLocked: packageRow?.therapist_locked ?? true,
       therapistName: viewerIsPatient

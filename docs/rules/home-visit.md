@@ -220,11 +220,18 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   dialog nobody reads. `describeHomeVisitCommitment` answers three ways rather
   than two, and the confirm is awaited before the transition, per the deadlock
   rule.
-  A locked
-  therapist's conflict check is padded by
-  `home_visit_travel_buffer_minutes` on both sides of the new slot
-  (`findTherapistConflict`'s `bufferMinutes` option) since a therapist
-  finishing one visit cannot be at another minutes later; online passes 0.
+  A visit booked on a home-visit programme is **not** assigned at booking:
+  `bookHomeVisitSession` inserts it `requested` and unassigned, and it waits
+  in "Sessions with no therapist" with the programme's locked therapist
+  pre-picked (`programmes.md`). The travel buffer
+  (`home_visit_travel_buffer_minutes`, padded on both sides of the new slot by
+  `findTherapistConflict`'s `bufferMinutes` option, since a therapist
+  finishing one visit cannot be at another minutes later; online passes 0)
+  therefore applies **at assign time** -- in `/api/admin/assign-appointment`
+  and in the queue's own "no longer free" warning -- rather than at booking.
+  Assigning a prepaid visit confirms it and sends the calendar invite with
+  the address; an unpaid cash visit is assigned and stays `requested`, as
+  before.
   Cash-on-visit purchases legitimately sit at `payment_status: 'unpaid'`
   for their whole life with real confirmed visits hanging off them - never
   assume `payment_status` reflects whether money changed hands for a home

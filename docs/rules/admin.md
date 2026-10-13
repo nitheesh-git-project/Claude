@@ -454,9 +454,18 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   chip instead of **Tap to assign** on All Sessions and the Schedule panel,
   and a "Waiting on payment" status option. Paid, on terms, purchase-drawn
   and home-visit sessions (cash at the door is a commitment) stay in the
-  queue. A paid session assigns itself when the roster has one answer
-  (`roster.md`), so the queue is what that could not place. An admin can
-  still open and assign an unpaid one; it just is not presented as work.
+  queue. A paid single consultation assigns itself when the roster has one
+  answer (`roster.md`), so the queue is what that could not place -- plus
+  **every programme session**, which never assigns itself
+  (`programmes.md`): booked from credits, an accepted suggestion, or a visit
+  on a home-visit programme. Those carry their programme's therapist
+  pre-picked (`programmeTherapistFor`, built on the page from the purchase
+  rows and the roster it already loads -- no new table, so nothing new for
+  `ADMIN_REALTIME_TABLES`): the row chip reads "Tap to assign · <name>" (or
+  "<name> not free"), the drawer leads with **Assign <name>** above the
+  ordinary picker, and the Assign forms pre-select them as "Programme
+  therapist". An admin can still open and assign an unpaid one; it just is
+  not presented as work.
 - **A session is listed once.** All Bookings, Session Story, the calendar's
   day panel and the home-visit queue were four lists over the same
   `appointments` rows; they are now one filterable list

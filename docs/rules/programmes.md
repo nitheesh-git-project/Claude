@@ -63,23 +63,69 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   package keeps its own. Photos on programme cards go through
   `ProgrammeCover`, which shows the photo whole over a blurred copy of
   itself - a fixed-height `object-cover` strip cut the subject in half.
-- **Session packages lock to one therapist by default.** The first therapist
-  assigned to any session on a `patient_package_purchases` row sets
-  `locked_therapist_id`; every later session on that purchase auto-assigns,
-  auto-confirms, and gets its own Meet link via
-  `src/lib/bookPackageSession.ts`, never through the normal per-session admin
-  assignment flow. `sessions_used` counts sessions **claimed** (scheduled or
-  completed), not completed - see the counter-semantics comment beside
-  `patient_package_purchases` in `schema.sql`. A scheduling conflict on the
-  locked therapist never fails the booking; the session lands `requested`
-  and unassigned in the admin queue instead. Reassigning a whole programme
-  (`/api/admin/reassign-package-therapist`) only ever touches future
-  sessions - completed ones keep whoever actually ran them. A patient can
-  schedule several remaining sessions in one request via
-  `/api/appointments/book-package-sessions`, which loops
+- **A programme keeps one therapist, and every one of its sessions still
+  goes through the admin.** The first therapist assigned to any session on a
+  purchase sets `locked_therapist_id` (online: when the package and the
+  site-wide **Therapist lock** switch allow it; a recommendation sets it at
+  purchase). That lock **pre-picks** the admin's choice; it never assigns.
+  Every session booked against a programme -- the patient's own
+  (`book-with-package`, `book-package-sessions`), a therapist's suggestion
+  the patient accepted (`respond-suggestion`), and a visit on a home-visit
+  programme (`book-visits`) -- is inserted `requested` and unassigned by
+  `bookPackageSession` / `bookHomeVisitSession` and lands in "Sessions with
+  no therapist". It used to reserve the locked therapist (or the suggester),
+  confirm the session and make its Meet link on the spot, so no person ever
+  looked at a programme session; the owner's call is that they all reach the
+  admin. `programmeTherapistFor` (`src/lib/sessionAssignQueue.ts`) reads the
+  purchase's lock **at render time** -- never copied onto the session -- so
+  a programme reassigned through `/api/admin/reassign-package-therapist`
+  moves the pre-pick of every session still waiting. The All Sessions and
+  calendar rows read "Tap to assign · <name>"; the drawer leads with one
+  primary **Assign <name>** (`ProgrammeTherapistAssign`) above the ordinary
+  picker, which also pre-selects them as "Programme therapist". Assigning is
+  the ordinary `/api/admin/assign-appointment`: it confirms a paid session and
+  makes the Meet link or the home visit's calendar invite, and still does not
+  confirm an unpaid cash visit. **No slot is held while it waits** -- a hold
+  needs a release and a sweep, and there is no worker -- so the page checks
+  the roster it already has (`assignabilityFromRoster`,
+  `src/lib/therapistAssignability.ts`) and, when the therapist can no longer
+  take that time, the row says "<name> not free" and the drawer "<name> is no
+  longer free at this time - pick someone else or move it" in place of the
+  one tap; the assign route re-checks regardless. Payment is untouched: a
+  prepaid session is `paid` from the purchase, a cash visit `unpaid`. The
+  patient reads **"Booked - confirming your therapist"** on the session card,
+  the Sessions list, the Home feed and the scheduler's result rows
+  (`patientSessionStatus` / `isBookedAwaitingTherapist`,
+  `src/lib/sessionRowStatus.ts`). A single first consultation is not a
+  programme session and keeps today's optional auto-assign
+  (`autoAssignTherapist.ts`).
+  `sessions_used` counts sessions **claimed** (scheduled or completed), not
+  completed - see the counter-semantics comment beside
+  `patient_package_purchases` in `schema.sql`. Reassigning a whole programme
+  only ever touches future sessions - completed ones keep whoever actually
+  ran them. A patient can schedule several remaining sessions in one request
+  via `/api/appointments/book-package-sessions`, which loops
   `bookPackageSession()` per slot after enforcing the package's own
   minimum-gap/max-per-week rules and the bulk limit - it's the batch-level
-  rules layer, not a second booking implementation.
+  rules layer, not a second booking implementation. Guard:
+  `e2e/programme-sessions-via-admin.spec.ts`, and SCH-001 in
+  `session-scheduling`.
+- **A programme's expiry is said only near its end, as a date.** Every
+  purchase keeps the clinic's validity (`package_default_validity_days`,
+  `home_visit_default_validity_days`) so unused credits cannot sit for ever,
+  and the routes still refuse a slot past it. But "Valid 90 days", "Use them
+  within 90 days" and an "N days left" countdown from the day of payment read
+  as a clock the patient never agreed to race, so no patient or therapist
+  surface prints a validity in days: not the recommendation card, the Review
+  & pay page, the therapist's recommendation form, the catalog cards, the
+  programme widgets or their detail modals. The one thing said is
+  `patientExpiryNotice` (`src/lib/packageProgress.ts`): "3 sessions left -
+  book by 12 Nov", only while `computePackageExpiryState` is `expiring_soon`
+  (inside `package_expiry_reminder_days`) **and** something is left to book,
+  dated through `formatDateTime.ts`. The detail modals get it from their
+  routes (`/api/packages/purchase-detail`, `/api/home-visit/purchase-detail`
+  return `expiryNotice`) so it reads the clinic's window. Admin screens keep
+  the full expiry date and countdown - the clinic needs it.
 - **Treatment volume is never sold before an assessment.** The rule lives in
   `src/lib/consultationFirst.ts` and is a property of the thing being sold,
   not a feature flag: a catalog row may be bought directly only when it is a

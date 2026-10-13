@@ -87,7 +87,8 @@ total, which moves with every spec added.
 | `discounts` | 7 | the four acquisition discounts and what each records |
 | `acquisition-codes` | 18 | a promo code quoting with no amount in the request, a redemption cap, a paused campaign, an invite that cannot be self-claimed, and the free-booking path |
 | `unscheduled-purchases` | 3 | a paid purchase nobody ever booked anything against |
-| `session-scheduling` | 6 | booking the sessions a patient paid for |
+| `session-scheduling` | 6 | booking the sessions a patient paid for, none of which assigns itself even on a locked programme |
+| `programme-sessions-via-admin` | 5 | every programme session (booked from credits, an accepted suggestion, a visit on a home-visit programme) waiting `requested` and unassigned; the All Sessions row naming the pre-picked programme therapist; one tap on "Assign <name>" confirming it; and a pre-pick no longer free named rather than offered |
 
 ### Authorization, exposure and failure
 
@@ -168,7 +169,7 @@ total, which moves with every spec added.
 | `mobile-smoke` | 8 | public pages and every role's dashboard at phone width (Pixel 7) - no sideways scroll, navigation reachable; runs in the `mobile` project only |
 | `clinical-continuity` | 5 | one patient's record across all three roles: the first fill, the session note (never patient-visible), a recommendation invisible and unbuyable until approved, the approval attributed, and a reopen losing nothing. **Disposable stack only** (`assertDisposableStack`) |
 | `admin-care-plans` | 22 | who may write a recommendation on a therapist's behalf, and the whole review step |
-| `session-suggestions` | 18 | therapist-suggested sessions, including button spam, concurrent answers and a dropped connection |
+| `session-suggestions` | 19 | therapist-suggested sessions, including button spam, concurrent answers, a dropped connection, and a time outside the therapist's own working hours refused up front |
 | `risk-sweep-report` | 3 | the Risk screen naming the rules an incomplete sweep missed instead of saying "Nothing waiting", no warning after a complete one, and the report hidden from the anon key |
 | `hospital-referrals` | 3 | one open referral per patient under five simultaneous submissions, a withdrawn one freeing the number, and the withdraw control saying so when the connection drops |
 | `therapist-roster` | 21 | ranges, exceptions (the admin's and the therapist's own, today onwards), leave, authorization, stale and double-clicked saves, a versionless save refused once a schedule exists, and that no roster change moved a booking |

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { computePackageCounts, daysUntilExpiry } from "@/lib/packageProgress";
+import { computePackageCounts, patientExpiryNotice } from "@/lib/packageProgress";
 import PackageDetailModal from "@/components/packages/PackageDetailModal";
 import PackageBulkScheduler from "@/components/packages/PackageBulkScheduler";
 import ProgrammeCover from "@/components/packages/ProgrammeCover";
@@ -42,9 +42,11 @@ export default function PatientPackageWidget({
 }: {
   purchases: PatientPackageCard[];
   bulkScheduleMax: number;
-  // Admin-configured (Session Manager → Settings) -- a purchase this close
-  // to expires_at gets a highlighted warning instead of the plain "N days
-  // left" line, so it's visible without opening the detail modal.
+  // Admin-configured (Settings -> Programmes) -- the programme's expiry is
+  // said only inside this many days of it, and only while something is left
+  // to book (patientExpiryNotice). Before that the card shows no clock at
+  // all: the owner's call, since "N days left" from the day of payment reads
+  // as a race the patient never agreed to.
   expiryReminderDays: number;
 }) {
   const [now] = useState(() => Date.now());
@@ -72,7 +74,10 @@ export default function PatientPackageWidget({
             completedCount: p.completedCount,
             scheduledCount: p.scheduledCount,
           });
-          const daysLeft = daysUntilExpiry(p.expiresAt, now);
+          const expiryNotice =
+            p.status === "active"
+              ? patientExpiryNotice(p.expiresAt, counts.pending, now, expiryReminderDays)
+              : null;
           const progressPercent =
             p.sessionCount > 0 ? Math.round(((counts.completed + counts.scheduled) / p.sessionCount) * 100) : 0;
 
@@ -107,17 +112,11 @@ export default function PatientPackageWidget({
                     {p.therapistName}
                   </p>
                 )}
-                {daysLeft !== null && p.status === "active" && (
-                  daysLeft <= expiryReminderDays && counts.pending > 0 ? (
-                    <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 font-semibold text-amber-800">
-                      <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
-                      {daysLeft <= 0
-                        ? "Expires today - schedule your remaining sessions now"
-                        : `Only ${daysLeft} day${daysLeft === 1 ? "" : "s"} left to use ${counts.pending} remaining session${counts.pending === 1 ? "" : "s"}`}
-                    </p>
-                  ) : (
-                    <p className="text-slate-500">{daysLeft} day{daysLeft === 1 ? "" : "s"} left</p>
-                  )
+                {expiryNotice && (
+                  <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1 font-semibold text-amber-800">
+                    <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+                    {expiryNotice}
+                  </p>
                 )}
 
                 <div className="flex items-center gap-3 pt-2">

@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
       readHomeVisitPackageTerms(admin, purchase.id, purchase.package_id),
       admin
         .from("site_settings")
-        .select("home_visit_bulk_schedule_max, home_visit_travel_buffer_minutes")
+        .select("home_visit_bulk_schedule_max")
         .maybeSingle(),
       admin
         .from("appointments")
@@ -158,8 +158,6 @@ export async function POST(request: NextRequest) {
 
   const bulkMax =
     settingsRow?.home_visit_bulk_schedule_max ?? DEFAULT_ADMIN_SETTINGS.homeVisitBulkScheduleMax;
-  const travelBufferMinutes =
-    settingsRow?.home_visit_travel_buffer_minutes ?? DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes;
   const pendingCount = Math.max(purchase.visit_count - purchase.visits_used, 0);
   const allowedCount = Math.min(bulkMax, pendingCount);
 
@@ -235,7 +233,6 @@ export async function POST(request: NextRequest) {
       actorId: user.id,
       address: addressInput,
       visitDurationMinutes: packageTerms.sessionDurationMinutes,
-      travelBufferMinutes,
     });
 
     if (result.success) {

@@ -223,6 +223,18 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 | Restore a cancelled/no-show session | Allowed only from those two states (`Only a cancelled or completed (no-show) session can be restored.`); a second attempt: `This session has already been restored.` |
 | Mark paid by cash | A session already paid: `This session is already marked as paid` |
 
+#### `ADM-SESS-005` - A programme session arrives with its therapist pre-picked · P0
+
+**Preconditions.** A programme locked to `QA Therapist A`, with `QA Therapist A` rostered for the hour. The patient books one session from it (`PAT-PKG-001`), or accepts a suggestion (`PAT-SUGG-002`), or books a visit on a home-visit programme.
+
+**Steps**
+1. Open Today → **Sessions with no therapist**.
+2. Find the session's row on All Sessions and read its chip.
+3. Open the drawer and tap **Assign QA Therapist A**.
+4. Repeat with a second session whose hour you first close on `QA Therapist A`'s roster.
+
+**Expected Result.** The session was never assigned by the booking: it is `requested`, unassigned, and counted in Sessions with no therapist (the Today hint says programme sessions have their therapist pre-picked). The row reads **Tap to assign · QA Therapist A**. The drawer leads with **Programme therapist: QA Therapist A** and one primary **Assign QA Therapist A** button above the ordinary picker, which also pre-selects them marked "(programme therapist)". One tap assigns and confirms a paid session and creates its Meet link (a home visit's calendar invite carries the address; an unpaid cash visit is assigned and stays `requested`). For the closed hour the row reads **QA Therapist A not free**, and the drawer shows *"QA Therapist A is no longer free at this time - pick someone else or move it."* with the reasons, and **no** one-tap button - nothing was held for them while it waited. Reassigning the whole programme (Purchases → Reassign) changes the pre-pick of every session still waiting. A single first consultation is unchanged: it auto-assigns only when **Assign a Therapist Automatically** is on and the roster has one answer.
+
 #### `ADM-ROST-001` - The Roster opens on therapists, not on a date · P0
 
 **Feature.** The Roster is the clinic's planning record. It opens on a **list of therapists** rather than a calendar date and an eighteen-column grid, and it uses the **same editor** the therapist's own screen uses.

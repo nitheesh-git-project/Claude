@@ -184,7 +184,7 @@ const PATIENT: TutorialChapter[] = [
         id: "suggested",
         scene: "patient-suggested",
         title: "Your therapist can suggest your next session",
-        body: `After a session, your therapist may suggest a time for the next one. Tap "Accept this time" to book it in one go, or Decline and pick your own.`,
+        body: `After a session, your therapist may suggest a time for the next one. Tap "Accept this time" to book it in one go, or Decline and pick your own. An accepted time shows "Accepted - clinic confirming" until the clinic confirms your therapist.`,
       },
     ],
   },
@@ -202,6 +202,7 @@ const PATIENT: TutorialChapter[] = [
         points: [
           `Accept & pay opens a Review & pay page first: the full total, a box for a promo code if you have one, then Pay.`,
           `Then you'll see "6 sessions still to book" - pick each time whenever it suits you.`,
+          `Each one you book shows "Booked - confirming your therapist" until the clinic confirms who runs it - then it's Confirmed.`,
         ],
       },
     ],

@@ -257,10 +257,9 @@ describe("homeVisitServiceOption", () => {
     expect(many.stats.find((s) => s.label === "Therapist")?.value).toBe("The same one throughout");
   });
 
-  it("states the validity only when the row has one", () => {
-    expect(homeVisitServiceOption(visit).meta).toContain("Valid 30 days");
-    expect(homeVisitServiceOption({ ...visit, validity_days: null }).meta).not.toContain(
-      "Valid 30 days"
-    );
+  it("never states a validity in days, even when the row has one", () => {
+    const option = homeVisitServiceOption(visit);
+    expect(option.meta.join(" ")).not.toMatch(/\bdays?\b/);
+    expect(option.stats.find((s) => s.label === "Book within")).toBeUndefined();
   });
 });

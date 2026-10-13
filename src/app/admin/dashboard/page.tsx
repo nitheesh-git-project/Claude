@@ -53,7 +53,14 @@ import AbandonedCheckoutsTab, { type AbandonedCheckoutRow } from "@/components/a
 import DeclinedApplicationsTab from "@/components/admin/DeclinedApplicationsTab";
 import PriorDeclineChip from "@/components/admin/PriorDeclineChip";
 import { declineReasonLabel, findPriorDecline, type DeclinedApplication } from "@/lib/declineReasons";
-import { awaitsPatientPayment, needsTherapist } from "@/lib/sessionAssignQueue";
+import {
+  awaitsPatientPayment,
+  needsTherapist,
+  programmeTherapistFor,
+  type ProgrammeLocks,
+  type ProgrammePick,
+} from "@/lib/sessionAssignQueue";
+import { assignabilityFromRoster } from "@/lib/therapistAssignability";
 import { groupDevReachoutNotes, type DevReachoutNoteRow } from "@/lib/devReachout";
 import SettingsJumpNav, { SettingsSection } from "@/components/admin/SettingsJumpNav";
 import AdminHealthBanner from "@/components/admin/AdminHealthBanner";
@@ -2810,6 +2817,69 @@ export default async function AdminDashboardPage({
       : null,
   }));
 
+  // Programme sessions reach the admin with their therapist pre-picked.
+  // Every session booked against a programme (the patient's own, an
+  // accepted suggestion, a visit on a home-visit programme) lands in
+  // "Sessions with no therapist" unassigned; the purchase's locked therapist
+  // is offered as one tap -- or, when the roster this page already holds
+  // says they can no longer take that time, named as no longer free.
+  // Everything is computed from rows already loaded here (no new table, so
+  // nothing new for ADMIN_REALTIME_TABLES); the assign route re-checks.
+  const programmeLocks: ProgrammeLocks = {
+    packagePurchases: new Map(
+      (packagePurchaseSummaries ?? []).map((p) => [p.id as string, (p.locked_therapist_id as string | null) ?? null])
+    ),
+    homeVisitPurchases: new Map(
+      (homeVisitPurchases ?? []).map((p) => [p.id as string, (p.locked_therapist_id as string | null) ?? null])
+    ),
+  };
+  const homeVisitPurchaseByAppointment = new Map(
+    (homeVisitAppointments ?? []).map((v) => [v.id as string, (v.home_visit_purchase_id as string | null) ?? null])
+  );
+  const activeTherapistIds = new Set(
+    (approvedTherapists ?? []).filter((t) => t.active !== false).map((t) => t.id as string)
+  );
+  const leaveDatesById = new Map(
+    (leaveDetailRows ?? []).map((r) => [
+      r.id as string,
+      { from: (r.on_leave_from as string | null) ?? null, to: (r.on_leave_to as string | null) ?? null },
+    ])
+  );
+  const programmePicks: Record<string, ProgrammePick> = {};
+  for (const a of appointmentsWithSessionCode) {
+    if (!a.slot_time) continue;
+    const isVisit = homeVisitPurchaseByAppointment.has(a.id);
+    const therapistId = programmeTherapistFor(
+      {
+        therapist_id: a.therapist_id ?? null,
+        status: a.status,
+        package_purchase_id: a.package_purchase_id ?? null,
+        home_visit_purchase_id: homeVisitPurchaseByAppointment.get(a.id) ?? null,
+      },
+      programmeLocks
+    );
+    if (!therapistId) continue;
+    const blocks = activeTherapistIds.has(therapistId)
+      ? assignabilityFromRoster({
+          slotTime: a.slot_time,
+          durationMinutes: a.duration_minutes ?? null,
+          bufferMinutes: isVisit ? adminSettings.homeVisitTravelBufferMinutes : 0,
+          excludeAppointmentId: a.id,
+          onLeave: onLeaveMap.get(therapistId) === true,
+          leaveFrom: leaveDatesById.get(therapistId)?.from ?? null,
+          leaveTo: leaveDatesById.get(therapistId)?.to ?? null,
+          template: (availabilityTemplateRows ?? []).filter((r) => r.therapist_id === therapistId),
+          overrides: (availabilityOverrideRows ?? []).filter((r) => r.therapist_id === therapistId),
+          bookings: appointmentsWithSessionCode.filter((b) => b.therapist_id === therapistId),
+        }).map((b) => b.message)
+      : ["Is no longer an active, approved therapist."];
+    programmePicks[a.id] = {
+      therapistId,
+      therapistName: profileMap.get(therapistId)?.full_name ?? "Programme therapist",
+      blocks,
+    };
+  }
+
   const calendarTab = (
     <AdminCalendarTab
       canSeeMoney={canSeeMoney}
@@ -2819,6 +2889,7 @@ export default async function AdminDashboardPage({
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
       homeVisits={homeVisitRows}
+      programmePicks={programmePicks}
     />
   );
 
@@ -2831,6 +2902,7 @@ export default async function AdminDashboardPage({
       people={allPeople}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
+      programmePicks={programmePicks}
     />
   );
 
@@ -4814,7 +4886,7 @@ export default async function AdminDashboardPage({
           // Opens All Sessions already filtered to exactly these rows --
           // the count and the list it links to have to agree.
           view: "unassigned",
-          hint: "Booked and nobody is assigned to run them yet.",
+          hint: "Booked and nobody is assigned to run them yet. Programme sessions have their therapist pre-picked - one tap to assign.",
           urgent: unassignedToday > 0,
         },
         {

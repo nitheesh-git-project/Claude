@@ -468,16 +468,16 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 **Steps**
 1. On the programme's card, tap the suggest control.
-2. Pick a date and time comfortably beyond the booking lead time.
+2. Pick a date and time comfortably beyond the booking lead time, **inside this therapist's own working hours** (Availability).
 3. Enter the note `Let's keep the two-a-week rhythm while it is working.`
 4. Tap **Send suggestion**.
 5. Tap **Send suggestion** twice more, rapidly, on a second programme.
 
 **Expected Result**
-* Step 4: the control changes to **Waiting on the patient** with a **Withdraw suggestion** option. **No slot is held** - a hold would need releasing, releasing would need a sweep, and there is no scheduled worker. The therapist's calendar is re-checked at acceptance instead.
+* Step 4: the control changes to **Waiting on the patient** with a **Withdraw suggestion** option. **No slot is held** - a hold would need releasing, releasing would need a sweep, and there is no scheduled worker. When the patient accepts, the session goes to the admin's queue with this therapist pre-picked, and the admin's assign re-checks the calendar.
 * No appointment is created and **no credit is spent** - `sessions_used` is unchanged.
 * Step 5: exactly **one** suggestion. The submit is guarded by a **synchronous ref** (a `disabled` attribute lands a render too late), and a partial unique index allows at most **one pending suggestion per purchase**.
-* Negative cases: a slot too soon → `That time is too soon to book. Pick a later slot.`; a programme not locked to this therapist → `That isn't your programme.`; an inactive/unpaid programme → `That programme isn't active.`; a slot after expiry → `That time is after the programme expires.`; no credits → `Every session in this programme is already used.`; the therapist already busy → `You already have a session at that time.` (409); a note over 500 characters → `Your note must be 500 characters or less.`
+* Negative cases: a slot too soon → `That time is too soon to book. Pick a later slot.`; a programme not locked to this therapist → `That isn't your programme.`; an inactive/unpaid programme → `That programme isn't active.`; a slot after expiry → `That time is after the programme expires.`; no credits → `Every session in this programme is already used.`; a time outside this therapist's own working hours (or on leave, or over another session) → `You can only suggest a time inside your own working hours. You're not working <hour> on <date>.` naming every reason (409) - checked up front with the same roster rule the admin's assign uses; the therapist already busy → `... You already have a session at <hour> on <date>.` (409); a note over 500 characters → `Your note must be 500 characters or less.`
 * With the toggle off: `Suggesting sessions is switched off.` (403).
 
 #### `THR-SUGG-002` - Withdraw a suggestion · P2

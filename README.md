@@ -1437,12 +1437,16 @@ clears - an abandoned checkout never eats into a validity window - using the
 package's own `validity_days` or the site default. When a package has
 `therapist_locked` on (the default) and the site-wide switch
 (`package_therapist_lock_enabled`) allows it, the first therapist assigned to
-any session on a purchase locks onto `locked_therapist_id`; every later
-session booked on that purchase (`src/lib/bookPackageSession.ts`)
-auto-assigns that therapist, auto-confirms (payment is already collected),
-and creates its own Meet link - a scheduling conflict never costs the
-patient a session, it just leaves that one `requested` and unassigned for
-the admin queue. Admin can reassign a whole programme to a new therapist in
+any session on a purchase locks onto `locked_therapist_id`. That lock
+**pre-picks** the admin's choice and never assigns: every session booked on a
+programme (`src/lib/bookPackageSession.ts`, `bookHomeVisitSession.ts`) - by
+the patient, by accepting a therapist's suggestion, or a visit on a
+home-visit programme - lands `requested` and unassigned in "Sessions with no
+therapist", with the programme's therapist offered as one tap ("Assign
+<name>" in the session drawer), which confirms a paid session and makes its
+Meet link. Nothing is held while it waits; the queue says when the
+pre-picked therapist is no longer free. The patient reads "Booked -
+confirming your therapist". Admin can reassign a whole programme to a new therapist in
 one action, extend or view a purchase's expiry, restore a forfeited session,
 or issue a pro-rata refund on the unused balance (which also cancels any
 still-scheduled future sessions). `sessions_used` counts sessions
@@ -1451,7 +1455,9 @@ next to `patient_package_purchases` in `supabase/schema.sql` for the exact
 completed/scheduled/pending math every surface relies on.
 
 The patient dashboard's **Your Packages** widget shows that math per
-purchase - progress, days left, the locked therapist - with a **Schedule
+purchase - progress and the locked therapist, with no expiry clock until the
+end is near ("3 sessions left - book by 12 Nov", inside
+`package_expiry_reminder_days`) - with a **Schedule
 sessions** button opening a multi-select calendar
 (`src/components/packages/PackageBulkScheduler.tsx`) that books up to
 `package_bulk_schedule_max` sessions in one request via
@@ -1471,11 +1477,15 @@ every purchase locked to that therapist the same way.
 therapist can propose the next session on a programme locked to them, from
 **Programme Patients**. The patient sees it on their dashboard and accepts or
 declines - nothing is scheduled, and no session is spent, until they accept.
-Accepting goes through the same `bookPackageSession()` every other package
-booking uses, so gap rules, expiry, conflict checks and the Meet link behave
-identically. A suggestion holds no slot (the therapist's calendar is
-re-checked at acceptance) and is never marked expired by a sweep: it simply
-stops being acceptable once its slot falls inside the booking lead time. At
+A therapist may only suggest a time inside their own working hours (the
+admin assign's roster check, run up front). Accepting goes through the same
+`bookPackageSession()` every other package booking uses, so gap rules and
+expiry behave identically - and, like every programme session, the accepted
+one lands `requested` and unassigned in the admin's queue with the
+therapist pre-picked ("Accepted - clinic confirming" for the patient). A
+suggestion holds no slot (the admin's assign re-checks the calendar) and is
+never marked expired by a sweep: it simply stops being acceptable once its
+slot falls inside the booking lead time. At
 most one can be waiting per purchase; the therapist can withdraw it.
 Routes: `/api/therapist/suggest-session`,
 `/api/therapist/withdraw-suggestion`, `/api/patient/respond-suggestion`.
@@ -1500,6 +1510,8 @@ check, and assigns a therapist only when the answer is unambiguous:
 
 Zero candidates, or two or more, and it does nothing: the session stays
 `requested` and unassigned in the admin's queue, exactly as it did before.
+It applies to a single paid consultation only; a programme session always
+goes through the admin, with its programme therapist pre-picked.
 Assigning the wrong clinician is far worse than the wait this removes, so the
 tie-break is deliberately "don't". It never throws - a booking must not fail
 because an optional convenience could not be computed.
@@ -1682,11 +1694,11 @@ only appear once a patient actually has that kind of session.
   race-safe claim-and-book implementation every entry point shares (single
   purchase, bulk scheduler, hospital referral conversion). When a package
   has `therapist_locked` on, the first therapist assigned to any visit on a
-  purchase locks onto it for the rest of the programme, auto-confirming
-  later visits (a scheduling conflict never costs the patient a visit - it
-  just lands `requested` and unassigned for the admin queue instead). The
-  conflict check is padded by `home_visit_travel_buffer_minutes` on both
-  sides of the new slot, since a therapist finishing one visit cannot be at
+  purchase locks onto it for the rest of the programme as its pre-picked
+  therapist: later visits land `requested` and unassigned in the admin's
+  queue with them offered as one tap, never assigned at booking. The
+  assign's conflict check is padded by `home_visit_travel_buffer_minutes` on
+  both sides of the slot, since a therapist finishing one visit cannot be at
   another minutes later - an online session needs no such padding. The
   patient dashboard's **Your Home Visit Packages** widget mirrors **Your
   Packages**: progress, expiry warning, a **Schedule visits** button

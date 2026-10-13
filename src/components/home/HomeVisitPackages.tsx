@@ -107,7 +107,6 @@ export default function HomeVisitPackages({
           `${pkg.visit_duration_minutes} min${isSingle ? "" : " each"}`,
           pkg.travel_fee_included ? "Travel included" : "Travel by area",
           !isSingle && pkg.therapist_locked ? "Same therapist" : "",
-          pkg.validity_days ? `Valid ${pkg.validity_days} days` : "",
         ].filter(Boolean);
 
         return (
@@ -202,13 +201,8 @@ function HomeVisitPackageDetail({
       value: pkg.travel_fee_included ? "Included" : "Charged by area",
       icon: "fa-car-side",
     });
-    if (pkg.validity_days) {
-      stats.push({
-        label: "Validity",
-        value: `${pkg.validity_days} days`,
-        icon: "fa-hourglass-half",
-      });
-    }
+    // No "Validity: N days" -- a validity is said only near its end, to
+    // someone who owns the visit, never on what is for sale.
     if (!isSingle) {
       stats.push({
         label: "Therapist",

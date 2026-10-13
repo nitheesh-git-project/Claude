@@ -45,3 +45,66 @@ export function needsTherapist(row: AssignQueueRow, isHomeVisit: boolean): boole
     !row.therapist_id && row.status !== "cancelled" && !awaitsPatientPayment(row, isHomeVisit)
   );
 }
+
+/**
+ * Every programme session reaches a person. A session booked against a
+ * programme -- by the patient, by accepting a therapist's suggestion, or a
+ * visit on a home-visit programme -- lands here `requested` and unassigned
+ * (bookPackageSession / bookHomeVisitSession no longer assign it), and the
+ * admin assigns it. What makes that one tap rather than a search is the
+ * pre-pick: the programme's own therapist, the purchase's
+ * `locked_therapist_id`.
+ *
+ * Read from the purchase at render time, never copied onto the session: a
+ * programme reassigned to someone else (/api/admin/reassign-*-therapist)
+ * changes the pre-pick of every session still waiting, straight away.
+ * Nothing is reserved for them while the session waits, so whether they are
+ * still free is a separate question (`assignabilityFromRoster`), asked when
+ * the queue renders and again, authoritatively, by the assign route.
+ */
+export type ProgrammeQueueRow = {
+  therapist_id: string | null;
+  status: string;
+  package_purchase_id?: string | null;
+  home_visit_purchase_id?: string | null;
+};
+
+export type ProgrammeLocks = {
+  /** patient_package_purchases.id -> locked_therapist_id */
+  packagePurchases: ReadonlyMap<string, string | null>;
+  /** home_visit_package_purchases.id -> locked_therapist_id */
+  homeVisitPurchases: ReadonlyMap<string, string | null>;
+};
+
+/** The therapist to pre-pick for an unassigned programme session, or null. */
+export function programmeTherapistFor(row: ProgrammeQueueRow, locks: ProgrammeLocks): string | null {
+  if (row.therapist_id || row.status !== "requested") return null;
+  if (row.package_purchase_id) {
+    const locked = locks.packagePurchases.get(row.package_purchase_id);
+    if (locked) return locked;
+  }
+  if (row.home_visit_purchase_id) {
+    const locked = locks.homeVisitPurchases.get(row.home_visit_purchase_id);
+    if (locked) return locked;
+  }
+  return null;
+}
+
+/**
+ * What the queue row and the session drawer carry for a pre-picked session:
+ * who, and -- when they can no longer be assigned at that time -- why not,
+ * in the "Unable to assign" dialog's own sentences. An empty `blocks` means
+ * the one-tap "Assign <name>" is offered; anything in it replaces that with
+ * "<name> is no longer free at this time".
+ */
+export type ProgrammePick = {
+  therapistId: string;
+  therapistName: string;
+  blocks: string[];
+};
+
+/** "<name> is no longer free at this time - pick someone else or move it." */
+export function programmePickWarning(pick: ProgrammePick): string | null {
+  if (pick.blocks.length === 0) return null;
+  return `${pick.therapistName} is no longer free at this time - pick someone else or move it.`;
+}

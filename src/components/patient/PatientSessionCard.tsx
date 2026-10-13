@@ -8,6 +8,7 @@ import PackageChip from "@/components/packages/PackageChip";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatClinicDate } from "@/lib/formatDateTime";
+import { patientSessionStatus } from "@/lib/sessionRowStatus";
 import { describeRefundForPatient } from "@/lib/refundState";
 import { describeSessionPaymentForPatient } from "@/lib/sessionPaymentState";
 import { SESSION_FEE_PAISE, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
@@ -84,12 +85,22 @@ export function renderPatientSessionCard(
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* A programme session waiting on the clinic's assign says
+                "Booked - confirming your therapist" rather than "requested":
+                it is paid for and booked, and what is outstanding is the
+                clinic's (patientSessionStatus). */}
             <span
-              className={`capitalize font-semibold px-3 py-1 rounded-full ${
+              className={`font-semibold px-3 py-1 rounded-full ${
                 a.no_show ? NO_SHOW_STYLE : STATUS_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
               }`}
             >
-              {a.no_show ? "No-Show" : a.status}
+              {patientSessionStatus({
+                status: a.status,
+                no_show: a.no_show,
+                therapist_id: a.therapist_id,
+                package_purchase_id: a.package_purchase_id,
+                home_visit_purchase_id: visit?.home_visit_purchase_id ?? null,
+              }).label}
             </span>
             {/* "No refund" is a decision, and it only means anything on a
                 cancelled session -- so it stays here, with the window it

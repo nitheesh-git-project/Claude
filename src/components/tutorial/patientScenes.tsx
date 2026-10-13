@@ -208,8 +208,10 @@ export function PatientSuggestedScene() {
           </motion.div>
         ) : (
           <motion.div key="booked" {...swap}>
-            <FeedRow icon="fa-calendar-check" tone="good" title={`Video session confirmed with ${F.therapist}`} detail={F.whenNext} highlight />
-            <p className="mt-2 text-center text-[10px] text-slate-500"><Chip tone="good" icon="fa-check">Booked</Chip></p>
+            {/* Accepting books it; the clinic then confirms the therapist, as
+                for every programme session (the screens' own words). */}
+            <FeedRow icon="fa-hourglass-half" tone="info" title="Video session booked - confirming your therapist" detail={F.whenNext} highlight />
+            <p className="mt-2 text-center text-[10px] text-slate-500"><Chip tone="info" icon="fa-check">Accepted - clinic confirming</Chip></p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -241,6 +243,9 @@ export function PatientProgrammeScene() {
         {phase >= 2 && (
           <motion.div key="book" {...swap} className="space-y-2">
             <FeedRow icon="fa-calendar-plus" tone="warn" title={`${6 - booked} sessions still to book`} detail={`${F.programme} - you've paid for these. Pick your times whenever suits you.`} highlight />
+            {booked > 0 && (
+              <FeedRow icon="fa-hourglass-half" tone="info" title="Video session booked - confirming your therapist" detail={F.whenNext} delay={0.2} />
+            )}
             <div className="flex justify-center gap-1.5 pt-1">
               {[0, 1, 2, 3, 4, 5].map((i) => (
                 <motion.span

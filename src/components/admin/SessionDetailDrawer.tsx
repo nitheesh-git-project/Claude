@@ -13,6 +13,8 @@ import { useRouter } from "@/lib/useRouter";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
 import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
+import ProgrammeTherapistAssign from "@/components/admin/ProgrammeTherapistAssign";
+import type { ProgrammePick } from "@/lib/sessionAssignQueue";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
@@ -132,6 +134,7 @@ export default function SessionDetailDrawer({
   homeVisit,
   canSeeMoney = true,
   canManageSessions = true,
+  programmePick = null,
   onClose,
 }: {
   appointment: SessionDetailAppointment;
@@ -152,6 +155,12 @@ export default function SessionDetailDrawer({
   // person pages, which every scope can open, pass the real values.
   canSeeMoney?: boolean;
   canManageSessions?: boolean;
+  // A programme session waiting in "Sessions with no therapist": the
+  // programme's own therapist, pre-picked, and whether the roster says they
+  // can still take this time. Leads the assign section as one primary
+  // button (or the reason it can't), with the ordinary picker below for
+  // someone else. Absent everywhere else, including the person pages.
+  programmePick?: ProgrammePick | null;
   onClose: () => void;
 }) {
   const [reopening, setReopening] = useState(false);
@@ -657,12 +666,21 @@ export default function SessionDetailDrawer({
                   </p>
                 ) : (
                   <>
+                    {needsAssigning && programmePick && (
+                      <ProgrammeTherapistAssign
+                        appointmentId={a.id}
+                        pick={programmePick}
+                        confirms={a.payment_status === "paid" || a.payment_terms === "pay_later"}
+                      />
+                    )}
                     {needsAssigning && (
                       <div className="mb-2">
                         <AssignTherapistForm
                           appointmentId={a.id}
                           therapists={therapists.filter((t) => t.active !== false)}
                           preferredTherapistId={a.preferred_therapist_id ?? null}
+                          programmeTherapistId={programmePick?.therapistId ?? null}
+                          programmeTherapistFree={!programmePick || programmePick.blocks.length === 0}
                         />
                         <p className="mt-1 text-[11px] text-slate-500">
                           Confirms the session at the time it was booked for. Use the
@@ -775,10 +793,21 @@ export default function SessionDetailDrawer({
                     runs the same route as an online session -- the padding
                     for travel time is applied server-side, not here. */}
                 {canManageSessions && homeVisit.status !== "cancelled" && homeVisit.status !== "completed" && (
-                  <HomeVisitAssignForm
-                    visit={homeVisit}
-                    therapists={therapists.filter((t) => t.active !== false)}
-                  />
+                  <>
+                    {!homeVisit.therapist_id && programmePick && (
+                      <ProgrammeTherapistAssign
+                        appointmentId={a.id}
+                        pick={programmePick}
+                        confirms={homeVisit.payment_status === "paid"}
+                      />
+                    )}
+                    <HomeVisitAssignForm
+                      visit={homeVisit}
+                      therapists={therapists.filter((t) => t.active !== false)}
+                      programmeTherapistId={programmePick?.therapistId ?? null}
+                      programmeTherapistFree={!programmePick || programmePick.blocks.length === 0}
+                    />
+                  </>
                 )}
               </div>
             )}

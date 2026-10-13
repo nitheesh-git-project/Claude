@@ -187,7 +187,6 @@ export default function PatientBookingHub({
                     `${p.visit_duration_minutes} min${isSingle ? "" : " each"}`,
                     p.travel_fee_included ? "Travel included" : "Travel by area",
                     !isSingle && p.therapist_locked ? "Same therapist" : "",
-                    p.validity_days ? `Valid ${p.validity_days} days` : "",
                   ].filter(Boolean),
                   points: benefits,
                   pricePaise: p.price_paise,

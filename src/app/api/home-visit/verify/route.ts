@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle(),
     admin
       .from("site_settings")
-      .select("home_visit_default_validity_days, home_visit_travel_buffer_minutes")
+      .select("home_visit_default_validity_days")
       .maybeSingle(),
   ]);
 
@@ -176,9 +176,6 @@ export async function POST(request: NextRequest) {
     packageRow?.validity_days ??
     settingsRow?.home_visit_default_validity_days ??
     DEFAULT_ADMIN_SETTINGS.homeVisitDefaultValidityDays;
-  const travelBufferMinutes =
-    settingsRow?.home_visit_travel_buffer_minutes ??
-    DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes;
 
   const paidAt = new Date();
   const expiresAt = new Date(paidAt.getTime() + validityDays * 86_400_000).toISOString();
@@ -310,7 +307,6 @@ export async function POST(request: NextRequest) {
     concern,
     actorId: user.id,
     visitDurationMinutes: packageRow?.visit_duration_minutes ?? null,
-    travelBufferMinutes,
     address: {
       id: savedAddressId ?? null,
       label: addressForBooking.label ?? null,

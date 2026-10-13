@@ -200,7 +200,8 @@ export default function CarePlanOfferCard({
       <div className="mt-4 flex flex-wrap gap-2">
         <Tag>{offer.isHomeVisit ? "At your home" : "Video sessions"}</Tag>
         {offer.handsOnRequired && <Tag>Hands-on treatment</Tag>}
-        {snapshot?.validityDays && <Tag>Valid {snapshot.validityDays} days</Tag>}
+        {/* No "Valid N days" tag: the programme's validity is said only
+            near its end, as a date to book by (patientExpiryNotice). */}
       </div>
 
       {offer.clinicalRationale && (
@@ -385,7 +386,6 @@ export function PaidAndUnscheduled({
           </h2>
           <p className="mt-1 text-sm text-slate-600">
             {offer.therapistName} will run {sessionCount === 1 ? "it" : "them"}.
-            {validityDays ? ` Use them within ${validityDays} days.` : ""}
           </p>
         </div>
       </div>

@@ -154,6 +154,19 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `SessionFilterList` (Upcoming / Past / Cancelled, plus a Video / Home
   visit filter that only appears for people who have both). Add a filter
   rather than a second list.
+- **A programme session waiting on the clinic says "Booked - confirming
+  your therapist".** Every programme session reaches the admin unassigned
+  (`programmes.md`), so for a while it is `requested` with nobody on it --
+  and "Requested" read as though the patient had asked for something that
+  might be refused, about a session that is paid for and booked.
+  `patientSessionStatus` (`src/lib/sessionRowStatus.ts`) is the one reading:
+  `requested`, unassigned and drawn from a purchase is "Booked - confirming
+  your therapist" on the session card, the Sessions list row
+  (`FilterableSession.statusLabel`), the Home feed ("Video session booked -
+  confirming your therapist", `awaiting_programme_therapist` on
+  `FeedAppointment`) and both bulk schedulers' result rows. A single
+  consultation keeps "Requested" / "waiting for a therapist"; an accepted
+  suggestion reads "Accepted - clinic confirming".
 - **Status decides a session's tab before its time does**
   (`src/lib/sessionBucket.ts`). Completed is Past and cancelled is
   Cancelled whatever the slot says; only an open session is bucketed by

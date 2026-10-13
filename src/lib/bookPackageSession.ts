@@ -1,17 +1,17 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { mirrorReserve } from "@/lib/sessionCreditMirror";
-import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
 import { decrementUsedCounter } from "@/lib/purchaseCounter";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
-// The purchase row shape this needs -- a subset of patient_package_purchases
-// plus the two package-level rules (session_duration_minutes,
-// therapist_locked) a caller reads once from treatment_category_packages
-// and threads through, since the purchase itself only snapshots
+// The purchase row shape this needs -- a subset of patient_package_purchases.
+// The package-level session length is threaded through separately
+// (sessionDurationMinutesOverride), since the purchase itself only snapshots
 // session_count/amount_paid_paise, not the package's other rules.
+// `locked_therapist_id` is carried for callers' own checks; this function no
+// longer reads it -- the lock pre-picks the admin's assign, it does not
+// assign (see below).
 export type PurchaseForBooking = {
   id: string;
   patient_id: string;
@@ -26,7 +26,7 @@ export type PurchaseForBooking = {
 };
 
 export type BookPackageSessionResult =
-  | { success: true; appointmentId: string; assignedTherapistId: string | null }
+  | { success: true; appointmentId: string }
   | {
       success: false;
       status: number;
@@ -50,13 +50,18 @@ export type BookPackageSessionResult =
  * scheduler) shares exactly one race-safe implementation instead of three
  * copies that could quietly drift apart.
  *
- * When the purchase already has a locked_therapist_id (see schema.sql's
- * Session Packages v2 section), this auto-assigns that therapist and
- * auto-confirms the session -- payment is already collected, so there is
- * nothing left for an admin to approve. A scheduling conflict on the
- * locked therapist never fails the booking: the session is still created,
- * just unassigned and 'requested', so it lands in the normal admin
- * assignment queue instead of costing the patient their session.
+ * **Every session it books is `requested` and unassigned, and goes through
+ * the admin.** It used to reserve the purchase's locked therapist (or the
+ * therapist who suggested the time), confirm the session and make its Meet
+ * link on the spot, so a programme session never reached a person. The
+ * owner's call: every programme session lands in "Sessions with no
+ * therapist", with the programme's therapist pre-picked
+ * (`programmeTherapistFor`, src/lib/sessionAssignQueue.ts) and one tap to
+ * assign through /api/admin/assign-appointment -- which confirms a paid
+ * session and makes the Meet link, exactly as for any other. No slot is held
+ * while it waits; the queue row says when the pre-picked therapist is no
+ * longer free. It is still paid (`payment_status: 'paid'`): payment was
+ * collected with the purchase.
  *
  * Never throws for an expected failure -- every rejection comes back as
  * `{ success: false, status, error }` so callers (a route handler, or the
@@ -73,7 +78,6 @@ export async function bookPackageSession(
     actorId,
     sessionDurationMinutesOverride,
     preferredTherapistId,
-    assignTherapistId,
   }: {
     purchase: PurchaseForBooking;
     slotDateTime: string;
@@ -89,19 +93,11 @@ export async function bookPackageSession(
     // this function looking up the package row itself) since callers
     // already have it loaded from their own package fetch.
     sessionDurationMinutesOverride?: number | null;
-    // Only meaningful when the purchase isn't already locked to a
-    // therapist (session 1, from the booking wizard's "continue with same
-    // therapist" picker) -- a hint the admin sees on the assignment queue,
-    // same as appointments.preferred_therapist_id on a direct booking.
-    // Never auto-assigns; auto-assignment only ever happens from an
-    // existing lock, never from a preference.
+    // A hint the admin sees on the assignment queue, same as
+    // appointments.preferred_therapist_id on a direct booking (session 1,
+    // from the booking wizard's "continue with same therapist" picker).
+    // Never assigns -- nothing here does.
     preferredTherapistId?: string | null;
-    // The therapist to reserve when the purchase has no lock -- the one who
-    // proposed this exact time in a session suggestion. Without it an
-    // accepted suggestion landed unassigned in the admin's queue, and the
-    // therapist who had offered the slot lost it. Ignored when a lock
-    // exists: the lock decides.
-    assignTherapistId?: string | null;
   }
 ): Promise<BookPackageSessionResult> {
   if (purchase.payment_status !== "paid") {
@@ -170,22 +166,10 @@ export async function bookPackageSession(
     ? Math.round(purchase.amount_paid_paise / purchase.session_count)
     : 0;
 
-  // The session is inserted UNASSIGNED, and the locked therapist is then
-  // reserved through the one atomic claim.
-  //
-  // It used to check for a clash and then insert with `therapist_id` set,
-  // which is the read-then-write this codebase has now removed everywhere
-  // else: two sessions on the same locked therapist at overlapping times
-  // both passed the check before either insert landed, and the clinic owed
-  // two patients the same hour. Inserting unassigned first gives the claim
-  // a real appointment id to lock against, and costs nothing when it
-  // succeeds -- the row is assigned and confirmed a moment later, in one
-  // statement.
-  //
-  // When the claim is refused the session simply stays `requested` and
-  // unassigned, which is exactly the documented behaviour for a locked
-  // therapist who is busy: a scheduling clash never fails the booking, it
-  // lands in the admin's queue.
+  // The session is inserted UNASSIGNED and `requested`, and stays that way
+  // until an admin assigns it (see this function's header). Reserving the
+  // locked therapist here is what used to put a programme session on a
+  // therapist's diary with no person ever looking at it.
   const { data: appointment, error: insertError } = await admin
     .from("appointments")
     .insert({
@@ -255,38 +239,6 @@ export async function bookPackageSession(
     };
   }
 
-  // Reserve the locked therapist, if there is one. Atomic: the overlap
-  // test, the compare-and-set and the write happen together under a row
-  // lock on that therapist.
-  let assignedTherapistId: string | null = null;
-  let shouldAutoConfirm = false;
-  const reserveTherapistId = purchase.locked_therapist_id ?? assignTherapistId ?? null;
-  if (reserveTherapistId) {
-    const claim = await claimTherapistSlot(admin, {
-      appointmentId: appointment.id,
-      therapistId: reserveTherapistId,
-      expectUnassigned: true,
-      // Paid already, and a locked therapist who is free leaves nothing
-      // for an admin to approve -- so the confirmation happens in the same
-      // statement as the assignment, and a session can never be confirmed
-      // with nobody on it.
-      confirm: true,
-    });
-    if (claim.ok) {
-      assignedTherapistId = reserveTherapistId;
-      shouldAutoConfirm = true;
-      // The preference was only ever a fallback for an unassigned session.
-      await admin
-        .from("appointments")
-        .update({ preferred_therapist_id: null })
-        .eq("id", appointment.id);
-    }
-    // Refused: the session stays `requested` and unassigned in the admin's
-    // queue. That is the documented outcome for a busy locked therapist,
-    // and it is deliberately not an error -- a clash must never fail a
-    // booking the patient has already paid for.
-  }
-
   // Dual-write: the counter above is still what the app reads, and this
   // records the same claim in the ledger that will replace it. Never fails
   // the booking -- see sessionCreditMirror.ts for why.
@@ -297,21 +249,6 @@ export async function bookPackageSession(
     actorRole: actorId === purchase.patient_id ? "patient" : "admin",
   });
 
-  if (shouldAutoConfirm && assignedTherapistId) {
-    // Same call every other paid-and-assigned confirmation path makes
-    // (razorpay/verify, admin/assign-appointment, mark-paid-by-cash) --
-    // never blocks the booking; a failure is recorded on the appointment
-    // and left for the admin's Feature Control retry.
-    await createMeetEventForConfirmedAppointment(admin, {
-      appointmentId: appointment.id,
-      patientId: purchase.patient_id,
-      therapistId: assignedTherapistId,
-      slotTime: new Date(slotDateTime).toISOString(),
-      durationMinutes,
-      timezone: timezone || null,
-    });
-  }
-
   // Best-effort audit trail -- never lets a logging failure fail a
   // booking that already succeeded.
   try {
@@ -320,11 +257,11 @@ export async function bookPackageSession(
       event_type: "session_scheduled",
       actor_id: actorId,
       appointment_id: appointment.id,
-      detail: { slotDateTime, assignedTherapistId },
+      detail: { slotDateTime },
     });
   } catch (eventError) {
     console.error("Failed to log session_scheduled event for purchase", purchase.id, eventError);
   }
 
-  return { success: true, appointmentId: appointment.id, assignedTherapistId };
+  return { success: true, appointmentId: appointment.id };
 }
