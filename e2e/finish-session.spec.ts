@@ -93,7 +93,12 @@ test("FS-001: a therapist's Done without a session note is refused", async () =>
 });
 
 test("FS-002: Done before the start says so inline, with No Show still beside it", async ({ page }) => {
-  await seed(Date.now() + 26 * HOUR, `${MARKER} future`);
+  // A fixed daytime slot two days ahead (11:00 IST), not "26 hours from
+  // now": run near midnight IST that landed around 01:00 and the card laid
+  // its controls out differently, so the test depended on the clock.
+  const twoDaysIst = new Date(Date.now() + 5.5 * HOUR + 2 * 24 * HOUR);
+  twoDaysIst.setUTCHours(11, 0, 0, 0);
+  await seed(twoDaysIst.getTime() - 5.5 * HOUR, `${MARKER} future`);
   await page.context().addCookies(await browserCookiesFor(QA_EMAILS.therapistA));
   await page.goto(`${BASE}/therapist/dashboard/sessions`);
   const card = page.locator("div.rounded-xl", { hasText: `${MARKER} future` }).first();

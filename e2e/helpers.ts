@@ -538,6 +538,10 @@ export async function openTherapistHour(
   const ist = new Date(new Date(slotIso).getTime() + 5.5 * 3_600_000);
   const date = ist.toISOString().slice(0, 10);
   const hour = ist.getUTCHours();
+  // The roster only holds 06:00-23:00 (a CHECK on the table). A slot outside
+  // that - "two hours from now" run near midnight IST - cannot be opened,
+  // and every route refuses it before looking at the roster anyway.
+  if (hour < 6 || hour > 23) return async () => {};
   const { error } = await admin
     .from("therapist_availability_override")
     .upsert({ therapist_id: therapistId, date, hour, available: true, note: "e2e" }, { onConflict: "therapist_id,date,hour" });
