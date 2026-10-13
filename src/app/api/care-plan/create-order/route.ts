@@ -4,8 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { pricingForRequest } from "@/lib/countryPricingServer";
-import { HOME_VISIT_OUTSIDE_INDIA_ERROR, priceForCountry } from "@/lib/countryPricing";
-import { computeHomeVisitTotal } from "@/lib/homeVisitPricing";
+import { HOME_VISIT_OUTSIDE_INDIA_ERROR } from "@/lib/countryPricing";
 import {
   resolveHomeVisitAddress,
   type HomeVisitAddressPayload,
@@ -16,17 +15,23 @@ import {
   isPatientProfile,
   profileCheckUnavailable,
 } from "@/lib/supabase/requireActiveProfile";
-import { resolveCourseRate, resolveRecommendablePackage } from "@/lib/carePlanServer";
 import {
-  buildCourseSnapshot,
-  parseOfferSnapshot,
-  carePlanState,
-  type CarePlanOfferSnapshot,
-} from "@/lib/carePlans";
+  findProgrammePurchase,
+  homeVisitRefusal,
+  loadProgrammeForCheckout,
+  programmeListPricePaise,
+} from "@/lib/programmeCheckoutServer";
+import { resolveProgrammeQuote } from "@/lib/programmeCheckoutQuote";
+import { claimPromoCodeForPurchase, releasePromoCodeForPurchase } from "@/lib/promoCodesServer";
+import { readPromoCodesEnabled } from "@/lib/acquisitionSettings";
+import { countPriorCommittedSessions } from "@/lib/priorSessionsServer";
+import type { DiscountOutcome } from "@/lib/discounts";
 
 // Buying the plan a therapist recommended.
 //
-// The patient sends one thing: which recommendation they are accepting.
+// The patient sends one thing that decides the price: which recommendation
+// they are accepting (plus, optionally, a promo code's name and, for home
+// visits, where).
 // Everything else -- what it costs, how many sessions it is, how long it
 // lasts -- is re-derived here from the catalog row the version names. A
 // body that carried a price or a session count would be a body worth
@@ -57,6 +62,9 @@ export async function POST(request: NextRequest) {
     // patient already has on file, or a new one to save.
     addressId?: string | null;
     address?: HomeVisitAddressPayload | null;
+    // The name of a promo code the patient applied on the review page --
+    // an identifier, never an amount. Every figure comes from its row.
+    promoCode?: string | null;
   }>(request);
   if (parseError) return parseError;
 
@@ -88,111 +96,17 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  const { data: version } = await admin
-    .from("care_plan_versions")
-    .select(
-      "id, care_plan_id, offer_kind, session_package_id, home_visit_package_id, offer_snapshot, is_current, expires_at"
-    )
-    .eq("id", carePlanVersionId)
-    .maybeSingle();
-
-  if (!version) {
-    return NextResponse.json({ error: "That recommendation no longer exists." }, { status: 404 });
+  // Which plan, whether it may be bought now, and what the catalog prices it
+  // at -- the same checks /api/care-plan/quote makes, from the same module,
+  // so the page cannot be shown a price for a plan this route then refuses.
+  const loaded = await loadProgrammeForCheckout(admin, user.id, carePlanVersionId);
+  if (!loaded.ok) {
+    return NextResponse.json({ error: loaded.error }, { status: loaded.status });
   }
-
-  const { data: plan } = await admin
-    .from("care_plans")
-    .select("id, patient_id, therapist_id, status")
-    .eq("id", version.care_plan_id)
-    .maybeSingle();
-
-  if (!plan || plan.patient_id !== user.id) {
-    return NextResponse.json({ error: "That recommendation isn't yours." }, { status: 403 });
-  }
-
-  // Only the version the therapist currently stands behind is purchasable.
-  // An older one is what they used to think.
-  if (!version.is_current) {
-    return NextResponse.json(
-      {
-        error:
-          "Your therapist has updated this recommendation. Refresh to see the current one.",
-      },
-      { status: 409 }
-    );
-  }
-
-  const state = carePlanState(
-    { status: plan.status as never },
-    { expires_at: version.expires_at },
-    Date.now()
-  );
-  if (state === "accepted") {
-    return NextResponse.json(
-      { error: "You've already bought this plan." },
-      { status: 409 }
-    );
-  }
-  if (state !== "awaiting_patient") {
-    return NextResponse.json(
-      {
-        error:
-          state === "lapsed"
-            ? "This recommendation has expired. Ask your therapist to send a fresh one."
-            : "This recommendation is no longer open.",
-      },
-      { status: 409 }
-    );
-  }
-
-  const packageId = version.session_package_id ?? version.home_visit_package_id;
-  if (!packageId) {
-    return NextResponse.json({ error: "That recommendation is incomplete." }, { status: 400 });
-  }
-
-  const offerKind = version.offer_kind as "session_package" | "home_visit_package";
-  // A per-session recommendation is re-priced from the condition's live
-  // per-session rate; an older one written against an admin programme is
-  // re-read from that programme. Either way the patient is charged what the
-  // catalog says now, and refused rather than charged a different figure
-  // than the card they read.
-  const snapshot = parseOfferSnapshot(version.offer_snapshot);
-  let live: { snapshot: CarePlanOfferSnapshot; categoryId: string | null } | null;
-  if (snapshot?.course && snapshot.categoryId) {
-    const rate = await resolveCourseRate(admin, offerKind, snapshot.categoryId);
-    live = rate
-      ? { snapshot: buildCourseSnapshot(rate, snapshot.sessionCount), categoryId: rate.categoryId }
-      : null;
-  } else {
-    live = await resolveRecommendablePackage(admin, offerKind, packageId);
-  }
-  if (!live) {
-    return NextResponse.json(
-      {
-        error:
-          "The treatment your therapist recommended is no longer available. They'll need to send a new recommendation.",
-      },
-      { status: 409 }
-    );
-  }
-
-  if (
-    snapshot &&
-    (snapshot.pricePaise !== live.snapshot.pricePaise ||
-      snapshot.sessionCount !== live.snapshot.sessionCount)
-  ) {
-    return NextResponse.json(
-      {
-        error:
-          "The price of this treatment has changed since your therapist recommended it. We've asked them to confirm it before you pay.",
-      },
-      { status: 409 }
-    );
-  }
-
-  if (!live.snapshot.pricePaise || live.snapshot.pricePaise <= 0) {
-    return NextResponse.json({ error: "That programme has no price set." }, { status: 400 });
-  }
+  const programme = loaded.programme;
+  const offerKind = programme.offerKind;
+  const live = { snapshot: programme.snapshot, categoryId: programme.categoryId };
+  const packageId = programme.packageId;
 
   // A recommended home visit needs somewhere to be delivered, and this is
   // the point at which that is decided.
@@ -202,48 +116,22 @@ export async function POST(request: NextRequest) {
   // /api/home-visit/book-visits refuses outright without the first ("this
   // package has no saved address on file" -- discovered by the patient
   // after paying), and the second is what the therapist is reimbursed for
-  // travelling. It survived Phase 6 because a multi-visit programme could
-  // still be bought the old way; it cannot now, so it is fixed here.
+  // travelling.
   // The visitor's country: an online programme is priced for it, and a home
   // visit is refused outside India unless an admin has allowed it.
   const requestPricing = await pricingForRequest(admin, request);
 
   let resolvedAddress: ResolvedHomeVisitAddress | null = null;
   if (offerKind === "home_visit_package") {
-    if (!requestPricing.homeVisitsOffered) {
-      return NextResponse.json(
-        { error: HOME_VISIT_OUTSIDE_INDIA_ERROR },
-        { status: 403 }
-      );
-    }
-    // The master switch, checked here as it is on the direct route. An
-    // admin who turns home visits off has stopped the service; a
-    // recommendation written before that must not stay purchasable, or the
-    // clinic takes money for visits it is not making.
-    //
-    // A failed read is not the switch being off. It still refuses -- taking
-    // money for a visit nobody has confirmed we still make is the worse
-    // direction -- but it says which of the two happened, because "the
-    // clinic has stopped doing home visits" and "we could not check just
-    // now" send the patient to two different places. 503 rather than 403
-    // for the same reason: the caller can retry one and not the other.
-    const { data: settingsRow, error: settingsError } = await admin
-      .from("site_settings")
-      .select("home_visit_enabled")
-      .maybeSingle();
-    if (settingsError) {
-      console.error("care-plan/create-order: could not read home_visit_enabled", settingsError.message);
-      return NextResponse.json(
-        { error: "We couldn't start that payment just now. Please try again." },
-        { status: 503 }
-      );
-    }
-    if (settingsRow?.home_visit_enabled !== true) {
-      return NextResponse.json(
-        { error: "Home visits aren't available right now. Please talk to your therapist." },
-        { status: 403 }
-      );
-    }
+    // Outside India, and the master switch: an admin who turns home visits
+    // off has stopped the service, and a recommendation written before that
+    // must not stay purchasable. A failed read still refuses, as a 503.
+    const refusal = await homeVisitRefusal(
+      admin,
+      requestPricing.homeVisitsOffered,
+      HOME_VISIT_OUTSIDE_INDIA_ERROR
+    );
+    if (refusal) return NextResponse.json({ error: refusal.error }, { status: refusal.status });
 
     const resolution = await resolveHomeVisitAddress(admin, user.id, {
       addressId: body.addressId,
@@ -255,42 +143,20 @@ export async function POST(request: NextRequest) {
     resolvedAddress = resolution.address;
   }
 
-  // Travel is a pass-through reimbursement paid to the therapist in full
-  // and never revenue, so it is added to what is charged and carried on the
-  // purchase separately -- never folded into the programme price, or a
-  // therapist ends up funding their own transport.
-  const total = resolvedAddress
-    ? computeHomeVisitTotal({
-        packagePricePaise: live.snapshot.pricePaise,
-        travelFeePaise: resolvedAddress.travelFeePaise,
-        travelIncluded: live.snapshot.travelFeeIncluded,
-        visitCount: live.snapshot.sessionCount,
-      })
-    : null;
-  // Outside India an online programme costs the rupee equal of its local
-  // price (raised, converted, rounded up to .99) -- the figure the card
-  // showed. A home-visit programme is delivered in India and stays in rupees.
-  const amountPaise =
-    offerKind === "session_package" && requestPricing.pricing
-      ? priceForCountry(live.snapshot.pricePaise, requestPricing.pricing).chargePaise
-      : live.snapshot.pricePaise;
-  const chargePaise = total ? total.totalPaise : amountPaise;
-
-  const table =
-    offerKind === "session_package"
-      ? "patient_package_purchases"
-      : "home_visit_package_purchases";
+  // The programme line as charged: outside India an online programme costs
+  // the rupee equal of its local price, the figure the page showed. A
+  // home-visit programme is delivered in India and stays in rupees.
+  const listPricePaise = programmeListPricePaise(programme, requestPricing.pricing);
+  const table = programme.table;
+  const typedPromoCode = (body.promoCode ?? "").trim();
 
   // Idempotency before the order is minted: the unique index on
   // care_plan_version_id means a second Accept finds the first purchase
   // rather than creating a parallel one. A purchase that is still unpaid is
   // reused, so a patient who abandoned checkout and came back does not
-  // accumulate orders.
-  const { data: existingPurchase } = await admin
-    .from(table)
-    .select("id, payment_status, razorpay_order_id")
-    .eq("care_plan_version_id", carePlanVersionId)
-    .maybeSingle();
+  // accumulate orders -- and its figures are rewritten below, because the
+  // address, the travel and the code may all have changed since.
+  const existingPurchase = await findProgrammePurchase(admin, programme);
 
   if (existingPurchase?.payment_status === "paid") {
     return NextResponse.json({ error: "You've already bought this plan." }, { status: 409 });
@@ -301,10 +167,12 @@ export async function POST(request: NextRequest) {
   if (!purchaseId) {
     // Continuity: the therapist who recommended it is the one who delivers
     // it, which is the point of recommending after seeing someone.
-    const lockedTherapistId = live.snapshot.therapistLocked ? plan.therapist_id : null;
+    const lockedTherapistId = live.snapshot.therapistLocked ? programme.therapistId : null;
 
-    // The two branches are written out rather than unioned into one object:
-    // the tables genuinely have different columns (session_count vs
+    // Inserted at list price; the code (if any) is claimed against this row
+    // next, and the figures the order is minted at are written back with
+    // its id. The two branches are written out rather than unioned into one
+    // object: the tables genuinely have different columns (session_count vs
     // visit_count, and only the online one carries a category), and a union
     // here is a shape the query builder cannot check.
     const created =
@@ -316,7 +184,7 @@ export async function POST(request: NextRequest) {
               package_id: packageId,
               category_id: live.categoryId,
               session_count: live.snapshot.sessionCount,
-              amount_paid_paise: amountPaise,
+              amount_paid_paise: listPricePaise,
               care_plan_version_id: carePlanVersionId,
               locked_therapist_id: lockedTherapistId,
             })
@@ -328,7 +196,7 @@ export async function POST(request: NextRequest) {
               patient_id: user.id,
               package_id: packageId,
               visit_count: live.snapshot.sessionCount,
-              amount_paid_paise: amountPaise,
+              amount_paid_paise: listPricePaise,
               travel_fee_paise: resolvedAddress?.travelFeePaise ?? 0,
               payment_mode: "prepaid",
               default_address_id: resolvedAddress?.addressId ?? null,
@@ -357,6 +225,57 @@ export async function POST(request: NextRequest) {
     }
     purchaseId = created.data.id;
   }
+  const purchaseRowId: string = purchaseId!;
+
+  // The code, claimed under the same row lock a session's claim takes, so a
+  // code's cap is one number across sessions and programmes. A refused code
+  // refuses the checkout: the page showed a total with it applied, and
+  // charging more than that is the one outcome a payment screen must never
+  // produce. A retry carrying no code (or a refused one) gives back any
+  // claim an earlier attempt left on this purchase, so the row names the
+  // code its price actually used.
+  let promoOutcome: DiscountOutcome | null = null;
+  if (typedPromoCode) {
+    const enabled = await readPromoCodesEnabled(admin);
+    const claim = enabled
+      ? await claimPromoCodeForPurchase(admin, {
+          code: typedPromoCode,
+          patientId: user.id,
+          purchaseKind: offerKind,
+          purchaseId: purchaseRowId,
+          listPricePaise,
+          patientHasPaidBefore: await patientHasPaidBefore(admin, user.id),
+        })
+      : ({ ok: false, reason: "unknown", message: "That code isn't recognised." } as const);
+    if (!claim.ok) {
+      await releasePromoCodeForPurchase(admin, offerKind, purchaseRowId, user.id);
+      return NextResponse.json({ error: claim.message }, { status: 409 });
+    }
+    promoOutcome = claim.outcome;
+  } else if (existingPurchase) {
+    await releasePromoCodeForPurchase(admin, offerKind, purchaseRowId, user.id);
+  }
+
+  const quote = resolveProgrammeQuote({
+    listPricePaise,
+    sessionCount: live.snapshot.sessionCount,
+    travel: resolvedAddress
+      ? { state: "ready", perVisitPaise: resolvedAddress.travelFeePaise }
+      : { state: "none" },
+    travelIncluded: live.snapshot.travelFeeIncluded,
+    promo: promoOutcome,
+  });
+  if (quote.promoRefusal) {
+    // A code that would leave nothing to pay for the programme: refused with
+    // its own sentence rather than turned into a token charge or a purchase
+    // nobody paid for (see programmeCheckoutQuote.ts).
+    await releasePromoCodeForPurchase(admin, offerKind, purchaseRowId, user.id);
+    return NextResponse.json({ error: quote.promoRefusal }, { status: 409 });
+  }
+  if (quote.totalPaise === null || !quote.payable) {
+    return NextResponse.json({ error: "That programme has no price set." }, { status: 400 });
+  }
+  const chargePaise = quote.totalPaise;
 
   let razorpay: Razorpay;
   try {
@@ -372,30 +291,126 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let order;
-  try {
-    order = await razorpay.orders.create({
-      // The charge, which for a home visit is the programme plus travel.
-      // amount_paid_paise on the purchase stays the programme price alone,
-      // so travel never lands in revenue.
-      amount: chargePaise,
-      currency: "INR",
-      receipt: purchaseId,
-    });
-  } catch (err) {
-    console.error("Razorpay order creation failed for care plan purchase", purchaseId, err);
-    return NextResponse.json(
-      { error: "Could not start payment. Please try again." },
-      { status: 500 }
-    );
+  // An earlier attempt's order, reused only at the price just resolved --
+  // the rule mintAppointmentOrder follows for a session. Handing an old
+  // order back before re-pricing is how a code applied after a failed try
+  // showed its discount on the page while the sheet charged the old amount.
+  let reusable: { id: string; amount: number; currency: string } | null = null;
+  if (existingPurchase?.razorpay_order_id) {
+    try {
+      const prior = await razorpay.orders.fetch(existingPurchase.razorpay_order_id);
+      if (prior.status === "paid") {
+        // Razorpay already has this money; the browser callback never
+        // landed. The webhook fulfils the purchase from that capture, so
+        // the honest answer is "already paid", never a second order.
+        return NextResponse.json(
+          {
+            alreadyPaid: true,
+            error:
+              "This programme was already paid for in a previous attempt - no need to pay again. Refresh in a moment to see it.",
+          },
+          { status: 409 }
+        );
+      }
+      if (prior.status === "created" || prior.status === "attempted") {
+        reusable = { id: prior.id, amount: Number(prior.amount), currency: prior.currency };
+      }
+    } catch (err) {
+      // Too old for Razorpay to still have, most likely. Mint a fresh one
+      // rather than blocking the patient from paying at all.
+      console.error(
+        "Failed to re-check prior Razorpay order for care plan purchase",
+        existingPurchase.razorpay_order_id,
+        err
+      );
+    }
   }
 
-  const { error: updateError } = await admin
+  if (reusable && reusable.amount !== chargePaise) {
+    // The price moved (a code added, removed or run out, or a different
+    // address). Replacing the order is safe only if no payment against it is
+    // still in flight -- an authorised one may yet capture, and minting a
+    // second order beside it is how a patient pays twice. A lookup that
+    // fails is "try again", never "nothing in flight".
+    try {
+      const priorPayments = await razorpay.orders.fetchPayments(reusable.id);
+      const inFlight = priorPayments.items.some(
+        (p) => p.status === "created" || p.status === "authorized" || p.status === "captured"
+      );
+      if (inFlight) {
+        return NextResponse.json(
+          {
+            error:
+              "Your last payment for this programme is still being processed. Wait a minute, then refresh before trying again.",
+          },
+          { status: 409 }
+        );
+      }
+    } catch (err) {
+      console.error("Failed to check payments on prior Razorpay order", reusable.id, err);
+      return NextResponse.json(
+        { error: "We couldn't check your last payment attempt just now. Please try again." },
+        { status: 503 }
+      );
+    }
+    reusable = null;
+  }
+
+  let order: { id: string; amount: number | string; currency: string };
+  if (reusable) {
+    order = reusable;
+  } else {
+    try {
+      order = await razorpay.orders.create({
+        // The charge, which for a home visit is the programme plus travel.
+        // amount_paid_paise on the purchase stays the programme line alone,
+        // so travel never lands in revenue.
+        amount: chargePaise,
+        currency: "INR",
+        receipt: purchaseRowId,
+      });
+    } catch (err) {
+      console.error("Razorpay order creation failed for care plan purchase", purchaseRowId, err);
+      return NextResponse.json(
+        { error: "Could not start payment. Please try again." },
+        { status: 500 }
+      );
+    }
+  }
+
+  // The figures this order was minted at, written beside its id so verify,
+  // the webhook and every later booking read the same programme price.
+  // amount_paid_paise is what is collected for the programme (after the
+  // code, before travel); list_price_paise and discount_paise say what it
+  // would have been and what came off. Each session booked against the
+  // purchase is then amount_paid_paise / count, so revenue and the
+  // therapist's share read the discounted figure exactly as a discounted
+  // single session does.
+  const baseUpdate: Record<string, unknown> = {
+    razorpay_order_id: order.id,
+    amount_paid_paise: quote.payablePaise,
+  };
+  if (resolvedAddress) {
+    baseUpdate.travel_fee_paise = resolvedAddress.travelFeePaise;
+    baseUpdate.default_address_id = resolvedAddress.addressId;
+  }
+  const discountFacts = {
+    list_price_paise: quote.listPricePaise,
+    discount_paise: quote.discountPaise,
+  };
+  let { error: updateError } = await admin
     .from(table)
-    .update({ razorpay_order_id: order.id })
-    .eq("id", purchaseId);
+    .update({ ...baseUpdate, ...discountFacts })
+    .eq("id", purchaseRowId);
+  if (updateError?.code === "42703" && quote.discountPaise === 0) {
+    // A database one apply behind has no discount columns. With nothing
+    // taken off there is nothing for them to record, so the order still
+    // goes ahead; with a discount it must not, or the books would hold a
+    // reduced price with no record of why.
+    ({ error: updateError } = await admin.from(table).update(baseUpdate).eq("id", purchaseRowId));
+  }
   if (updateError) {
-    console.error("Failed to save razorpay_order_id for care plan purchase", purchaseId, updateError);
+    console.error("Failed to save the order for care plan purchase", purchaseRowId, updateError);
     return NextResponse.json(
       { error: "Could not start payment. Please try again." },
       { status: 500 }
@@ -404,16 +419,32 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     orderId: order.id,
-    amount: order.amount,
+    amount: Number(order.amount),
     currency: order.currency,
-    purchaseId,
+    purchaseId: purchaseRowId,
     offerKind,
-    breakdown: total
-      ? {
-          packagePricePaise: total.packagePricePaise,
-          travelFeePaise: total.travelFeePaise,
-          totalPaise: total.totalPaise,
-        }
-      : null,
+    breakdown: {
+      listPricePaise: quote.listPricePaise,
+      discountPaise: quote.discountPaise,
+      packagePricePaise: quote.payablePaise,
+      travelFeePaise: quote.travelPerVisitPaise ?? 0,
+      travelPaise: quote.travelPaise,
+      totalPaise: quote.totalPaise,
+    },
   });
+}
+
+/**
+ * Whether a `first_session_only` code is closed to this patient -- the same
+ * question, through the same query, the session checkout asks. Unreadable
+ * means "has been here before", which costs such a code rather than giving
+ * one away.
+ */
+async function patientHasPaidBefore(
+  admin: ReturnType<typeof createAdminClient>,
+  patientId: string
+): Promise<boolean> {
+  const prior = await countPriorCommittedSessions(admin, patientId);
+  if (prior.failed) return true;
+  return (prior.count ?? 0) > 0;
 }

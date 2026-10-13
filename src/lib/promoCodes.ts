@@ -53,7 +53,20 @@ export type PromoCode = {
   minSpendPaise: number;
   /** Restrict to a patient who has never paid for a session. */
   firstSessionOnly: boolean;
+  /** Whether it may also take money off a programme a therapist
+   *  recommended. Off by default: a "20% off your first session" campaign
+   *  must not silently become 20% off a twelve-session bundle. Absent reads
+   *  as off. */
+  validOnProgrammes?: boolean;
 };
+
+/** What a code is being claimed against. A single session is what every
+ *  code was written for; a programme is a recommended course of them, and
+ *  only a code with `validOnProgrammes` on may touch one. */
+export type PromoTarget = "session" | "programme";
+
+/** The sentence a patient reads when a session-only code meets a programme. */
+export const PROMO_NOT_FOR_PROGRAMMES_MESSAGE = "This code can't be used on a programme.";
 
 export const PROMO_CODE_MIN_LENGTH = 3;
 export const PROMO_CODE_MAX_LENGTH = 24;
@@ -92,6 +105,7 @@ export const PROMO_REJECTIONS = [
   "first_session_only",
   "min_spend",
   "no_effect",
+  "not_for_programmes",
 ] as const;
 export type PromoRejection = (typeof PROMO_REJECTIONS)[number];
 
@@ -110,6 +124,8 @@ export type PromoContext = {
   patientRedemptions: number;
   /** Whether this patient has ever paid for a session. */
   patientHasPaidBefore: boolean;
+  /** A single session unless said otherwise. */
+  target?: PromoTarget;
 };
 
 /**
@@ -125,6 +141,17 @@ export function evaluatePromoCode(promo: PromoCode, ctx: PromoContext): PromoEva
 
   if (!promo.active) {
     return { ok: false, reason: "inactive", message: "That code is no longer available." };
+  }
+
+  // Asked before the window and the caps: a patient told "that code has
+  // expired" about a code that was never going to work on a programme tries
+  // again next month, and is refused again.
+  if (ctx.target === "programme" && promo.validOnProgrammes !== true) {
+    return {
+      ok: false,
+      reason: "not_for_programmes",
+      message: PROMO_NOT_FOR_PROGRAMMES_MESSAGE,
+    };
   }
 
   const now = ctx.now.getTime();
@@ -228,7 +255,7 @@ export function describePromoCode(promo: PromoCode): string {
       : `${formatRupees(promo.value)} off`;
   const cap =
     promo.maxRedemptions === null ? "unlimited uses" : `${promo.maxRedemptions} uses`;
-  return `${off} · ${cap}`;
+  return promo.validOnProgrammes ? `${off} · ${cap} · programmes too` : `${off} · ${cap}`;
 }
 
 /**

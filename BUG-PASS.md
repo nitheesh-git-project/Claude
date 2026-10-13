@@ -91,7 +91,12 @@ npm run verify                       # lint + unit tests + build, before pushing
    searchable); new top-level Programmes admin section replacing Sessions ->
    Recommendations and Catalog -> Purchases; All Logs shows everyone's
    actions with Actor/Programme/Patient/Therapist/Condition filters. Item 8
-   is a written end-to-end report, done last.
+   is a written end-to-end report, done last. Item 5 extras: no slot hold
+   while a programme session waits for assign (queue row warns "Dr X is no
+   longer free" instead); a therapist suggests only inside their own hours;
+   single first sessions keep today's optional auto-assign. Item 5's
+   implementation plan is in `docs/audit/bug-pass-item5-plan.md` (delete
+   with this file).
 2. When the owner says "merge to staging": first **build**
    `npm run check:merge-ready` (not built yet) -- one script that runs
    `verify`, `check:coverage`, `check:context-budget`, the specs mapped to
@@ -149,3 +154,4 @@ Every one of these was catchable locally. Run them before the PR push:
 | 16 | Completed session listed under Upcoming on patient/therapist Sessions | `sessionBucket` checks status first: completed is Past whatever the slot (Done can land before the slot on the real clock: admin Done has no gate, debug clock moves the therapist's). Rule in `docs/rules/dashboards.md`. Spec: `finish-session` FS-006 (fails on the old split) | `96ec8c3` |
 | 17 | Recommendation photo cropped; paid recommendation showed a placeholder and "- recommended course" on Your Programmes | `ProgrammeCover` shows the photo whole over a blurred copy (offer card h-52/sm:h-72, programme cards h-40); offer reads the condition's live photo + focal (`loadConditionCovers`); `programmeDisplay` names a course "<condition> programme" and uses the condition photo. Specs: `recommendation-course` RC-003 (object-fit contain), RC-007 | `1d2ff7d` |
 | 18 | Recommendations not on admin Today | `buildRecommendationPulse` (`src/lib/recommendationPulse.ts`): one event per plan, dated from the row; waiting approval + paid-nothing-booked (2 days) pinned `needsYou`; with patient / lapsing / paid (amount, Money scope only) / declined (reason) / lapsed as news. `AdminRecommendationPulse` card above Activity (DashboardOverview `spotlight`), events in the feed, urgent inbox row. Spec: `recommendation-course` RC-008 | `fcebddf` |
+| 19 | Accept & pay opened Razorpay straight from the card, so no promo code | New `/patient/dashboard/suggested/checkout?plan=<version>` Review & pay page (cover, therapist, sessions x price, how often, rationale; home-visit address + travel moved here from the card; promo field; server-quoted breakdown; Pay opens Razorpay at the discounted total). Card's Accept & pay is now a link. Promo codes get a "Valid on recommended programmes" switch (off by default, Money -> Costs); claim on the purchase row (`claim_promo_code_for_purchase` / release), one cap across sessions + programmes (`promo_code_claim_count`); purchases record `list_price_paise` + `discount_paise`, `amount_paid_paise` = charged (so sessions/payouts read the discounted figure). A code that would make it free is refused. Re-prices before reusing an order (409 if a payment is in flight). New `/api/care-plan/quote`. Schema applied to staging twice. Specs: `programme-checkout` PC-001-005, RC-003/004 updated | (this commit) |

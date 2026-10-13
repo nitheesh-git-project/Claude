@@ -78,6 +78,20 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   `computeHomeVisitTotal` to drift from the first, and `payments.amount_paise`
   is read only by the unmatched-payment check on System Health, never by the
   revenue maths.
+  **A recommended programme is quoted before it is ordered.**
+  `/api/care-plan/quote` (a read, the Review & pay page's figures) and
+  `/api/care-plan/create-order` (the authority) share
+  `programmeCheckoutServer.ts` and `programmeCheckoutQuote.ts`, so Razorpay
+  opens at exactly the total the page printed. create-order takes a promo
+  code's **name**, claims it on the unpaid purchase under the promo row lock
+  and answers 409 rather than charging list price when it no longer
+  applies; it reuses an earlier Razorpay order only at the price just
+  resolved (409 while a payment on it is in flight, "already paid" when
+  Razorpay says it was), the same rule as `mintAppointmentOrder`. The
+  purchase's `amount_paid_paise` is the programme after the code, so the
+  verify route's capture fallback records what was charged for a video
+  programme (a home visit's travel stays outside it, as above). See
+  `docs/rules/programmes.md`.
   **`payments` has unique indexes on `razorpay_order_id` and
   `razorpay_payment_id`, and they are the point of the table.** Nothing in
   this database previously stopped one payment id being recorded against

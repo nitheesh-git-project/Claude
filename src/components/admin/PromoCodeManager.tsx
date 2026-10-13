@@ -16,7 +16,8 @@ import DateField from "@/components/system/DateField";
 
 export type PromoCodeRow = PromoCode & {
   description: string | null;
-  /** How many bookings have claimed it. A claimed code is never deleted --
+  /** How many bookings and programmes have claimed it. A claimed code is
+   *  never deleted --
    *  a paid session pointing at a campaign nobody can name cannot answer
    *  which rule gave the money away. */
   claims: number;
@@ -83,6 +84,7 @@ function CampaignForm({
     existing?.minSpendPaise ? String(existing.minSpendPaise / 100) : ""
   );
   const [firstSessionOnly, setFirstSessionOnly] = useState(existing?.firstSessionOnly ?? false);
+  const [validOnProgrammes, setValidOnProgrammes] = useState(existing?.validOnProgrammes ?? false);
   const [description, setDescription] = useState(existing?.description ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -110,6 +112,7 @@ function CampaignForm({
         maxPerPatient: Number(maxPerPatient) || 1,
         minSpendPaise: minSpend.trim() === "" ? 0 : Math.round(Number(minSpend) * 100),
         firstSessionOnly,
+        validOnProgrammes,
         description: description.trim() || null,
       }),
     });
@@ -264,6 +267,22 @@ function CampaignForm({
         </span>
       </label>
 
+      {/* Off by default, so a campaign written for single sessions never
+          quietly discounts a whole course of treatment. */}
+      <label className="flex items-start gap-2 text-xs text-slate-700">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={validOnProgrammes}
+          onChange={(e) => setValidOnProgrammes(e.target.checked)}
+        />
+        <span>
+          Valid on recommended programmes - the code also comes off the whole price of a
+          programme a therapist recommended (never travel). Leave off to keep it to single
+          sessions.
+        </span>
+      </label>
+
       <div>
         <label className={labelCls()} htmlFor="promo-description">
           What this campaign is for (only you see this)
@@ -371,6 +390,8 @@ export default function PromoCodeManager({
         maxPerPatient: row.maxPerPatient,
         minSpendPaise: row.minSpendPaise,
         firstSessionOnly: row.firstSessionOnly,
+        // Carried through, or pausing a code would switch it off programmes.
+        validOnProgrammes: row.validOnProgrammes === true,
         description: row.description,
       });
       startTransition(() => router.refresh());

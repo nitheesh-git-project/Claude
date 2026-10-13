@@ -15893,6 +15893,319 @@ begin
 exception when duplicate_object then null;
 end $$;
 
+-- ===========================================================================
+-- Promo codes on recommended programmes
+-- ===========================================================================
+-- A recommendation used to open Razorpay straight from its card, so there
+-- was nowhere to type a code. It now has its own review-and-pay page
+-- (/patient/dashboard/suggested/checkout), and a code may take money off the
+-- programme -- but only a code an admin has said may.
+--
+-- `valid_on_programmes` is off by default, and that default is the point: an
+-- existing "20% off your first session" campaign must not silently become
+-- 20% off a twelve-session bundle the day this ships. A code with it on still
+-- works on a single session exactly as before.
+alter table promo_codes add column if not exists valid_on_programmes boolean not null default false;
+
+-- The claim lives on the purchase, the way a session's lives on the
+-- appointment: one place per claim, so the count and the money cannot
+-- disagree. No `on delete` clause, like appointments.promo_code_id -- a
+-- claimed code is never deleted, only paused, and the foreign key is what
+-- holds that for a hand-run DELETE too.
+--
+-- All four money facts beside what was charged: amount_paid_paise keeps its
+-- meaning (what was collected for the programme, travel excluded), and
+-- list_price_paise + discount_paise say what it would have been and how much
+-- the code took off, so the books can tell "sold cheap" from "discounted".
+alter table patient_package_purchases add column if not exists promo_code_id uuid references promo_codes(id);
+alter table patient_package_purchases add column if not exists promo_claimed_at timestamptz;
+alter table patient_package_purchases add column if not exists discount_paise integer not null default 0
+  check (discount_paise >= 0);
+alter table patient_package_purchases add column if not exists list_price_paise integer
+  check (list_price_paise is null or list_price_paise >= 0);
+
+alter table home_visit_package_purchases add column if not exists promo_code_id uuid references promo_codes(id);
+alter table home_visit_package_purchases add column if not exists promo_claimed_at timestamptz;
+alter table home_visit_package_purchases add column if not exists discount_paise integer not null default 0
+  check (discount_paise >= 0);
+alter table home_visit_package_purchases add column if not exists list_price_paise integer
+  check (list_price_paise is null or list_price_paise >= 0);
+
+-- The cap is counted off these, so they are indexed the way appointments'
+-- (promo_code_id, promo_claimed_at desc) is.
+create index if not exists patient_package_purchases_promo_idx
+  on patient_package_purchases (promo_code_id, promo_claimed_at desc)
+  where promo_code_id is not null;
+create index if not exists home_visit_package_purchases_promo_idx
+  on home_visit_package_purchases (promo_code_id, promo_claimed_at desc)
+  where promo_code_id is not null;
+
+-- How many times a code is in use, across every place a claim can live.
+--
+-- One definition, read by both claim functions under the promo row's lock,
+-- so a session checkout and a programme checkout at the same moment are one
+-- race settled by one lock -- "100 uses" means 100 whichever kind of
+-- checkout the hundredth is. What counts is unchanged for a booking (paid,
+-- on pay-later terms, or still inside the 30-minute checkout hold) and the
+-- same for a purchase (paid, or inside the hold); a cancelled or refunded
+-- purchase was never kept, as a cancelled booking is not. `p_patient_id`
+-- null counts everyone; the two exclusions are the row being claimed for, so
+-- re-opening checkout on it is not a second claim.
+create or replace function public.promo_code_claim_count(
+  p_promo_id uuid,
+  p_patient_id uuid,
+  p_exclude_appointment_id uuid,
+  p_exclude_purchase_id uuid
+)
+returns integer
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select (
+    (select count(*) from appointments a
+      where a.promo_code_id = p_promo_id
+        and (p_patient_id is null or a.patient_id = p_patient_id)
+        and a.id is distinct from p_exclude_appointment_id
+        and a.status <> 'cancelled'
+        and (a.payment_status = 'paid'
+             or a.payment_terms = 'pay_later'
+             or a.promo_claimed_at > now() - interval '30 minutes'))
+    + (select count(*) from patient_package_purchases p
+      where p.promo_code_id = p_promo_id
+        and (p_patient_id is null or p.patient_id = p_patient_id)
+        and p.id is distinct from p_exclude_purchase_id
+        and p.status not in ('cancelled', 'refunded')
+        and (p.payment_status = 'paid'
+             or p.promo_claimed_at > now() - interval '30 minutes'))
+    + (select count(*) from home_visit_package_purchases h
+      where h.promo_code_id = p_promo_id
+        and (p_patient_id is null or h.patient_id = p_patient_id)
+        and h.id is distinct from p_exclude_purchase_id
+        and h.status not in ('cancelled', 'refunded')
+        and (h.payment_status = 'paid'
+             or h.promo_claimed_at > now() - interval '30 minutes'))
+  )::integer;
+$$;
+
+revoke all on function public.promo_code_claim_count(uuid, uuid, uuid, uuid) from public;
+revoke all on function public.promo_code_claim_count(uuid, uuid, uuid, uuid) from anon;
+revoke all on function public.promo_code_claim_count(uuid, uuid, uuid, uuid) from authenticated;
+
+-- The session claim, re-created so its cap also counts programme claims.
+-- Same lock, same refusals, same hold, same write -- only the count moved
+-- into promo_code_claim_count() above. This is now the last declaration, so
+-- it is the one that runs.
+create or replace function public.claim_promo_code(
+  p_code text,
+  p_patient_id uuid,
+  p_appointment_id uuid,
+  p_patient_has_paid_before boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_promo promo_codes%rowtype;
+  v_used integer;
+  v_used_by_patient integer;
+begin
+  select * into v_promo from promo_codes
+    where code = upper(btrim(p_code))
+    for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  if not v_promo.active then
+    return jsonb_build_object('ok', false, 'reason', 'inactive');
+  end if;
+  if v_promo.starts_at is not null and now() < v_promo.starts_at then
+    return jsonb_build_object('ok', false, 'reason', 'not_started');
+  end if;
+  if v_promo.ends_at is not null and now() >= v_promo.ends_at then
+    return jsonb_build_object('ok', false, 'reason', 'expired');
+  end if;
+  if v_promo.first_session_only and p_patient_has_paid_before then
+    return jsonb_build_object('ok', false, 'reason', 'first_session_only');
+  end if;
+
+  v_used := public.promo_code_claim_count(v_promo.id, null, p_appointment_id, null);
+  if v_promo.max_redemptions is not null and v_used >= v_promo.max_redemptions then
+    return jsonb_build_object('ok', false, 'reason', 'exhausted');
+  end if;
+
+  v_used_by_patient := public.promo_code_claim_count(v_promo.id, p_patient_id, p_appointment_id, null);
+  if v_used_by_patient >= v_promo.max_per_patient then
+    return jsonb_build_object('ok', false, 'reason', 'already_used');
+  end if;
+
+  update appointments
+    set promo_code_id = v_promo.id,
+        promo_claimed_at = now()
+    where id = p_appointment_id
+      and patient_id = p_patient_id
+      and payment_status <> 'paid';
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'promo_code_id', v_promo.id,
+    'code', v_promo.code,
+    'kind', v_promo.kind,
+    'value', v_promo.value,
+    'min_spend_paise', v_promo.min_spend_paise,
+    'max_per_patient', v_promo.max_per_patient,
+    'first_session_only', v_promo.first_session_only
+  );
+end;
+$$;
+
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from public;
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from anon;
+revoke all on function public.claim_promo_code(text, uuid, uuid, boolean) from authenticated;
+
+-- The programme claim: the same lock and the same count, written onto the
+-- unpaid purchase a recommendation's checkout is paying for. Refuses a code
+-- whose `valid_on_programmes` is off ('not_for_programmes'), and a purchase
+-- that is already paid or is not this patient's ('unknown').
+create or replace function public.claim_promo_code_for_purchase(
+  p_code text,
+  p_patient_id uuid,
+  p_purchase_kind text,
+  p_purchase_id uuid,
+  p_patient_has_paid_before boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_promo promo_codes%rowtype;
+  v_used integer;
+  v_used_by_patient integer;
+begin
+  if p_purchase_kind not in ('session_package', 'home_visit_package') then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  select * into v_promo from promo_codes
+    where code = upper(btrim(p_code))
+    for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  if not v_promo.active then
+    return jsonb_build_object('ok', false, 'reason', 'inactive');
+  end if;
+  if not v_promo.valid_on_programmes then
+    return jsonb_build_object('ok', false, 'reason', 'not_for_programmes');
+  end if;
+  if v_promo.starts_at is not null and now() < v_promo.starts_at then
+    return jsonb_build_object('ok', false, 'reason', 'not_started');
+  end if;
+  if v_promo.ends_at is not null and now() >= v_promo.ends_at then
+    return jsonb_build_object('ok', false, 'reason', 'expired');
+  end if;
+  if v_promo.first_session_only and p_patient_has_paid_before then
+    return jsonb_build_object('ok', false, 'reason', 'first_session_only');
+  end if;
+
+  v_used := public.promo_code_claim_count(v_promo.id, null, null, p_purchase_id);
+  if v_promo.max_redemptions is not null and v_used >= v_promo.max_redemptions then
+    return jsonb_build_object('ok', false, 'reason', 'exhausted');
+  end if;
+
+  v_used_by_patient := public.promo_code_claim_count(v_promo.id, p_patient_id, null, p_purchase_id);
+  if v_used_by_patient >= v_promo.max_per_patient then
+    return jsonb_build_object('ok', false, 'reason', 'already_used');
+  end if;
+
+  if p_purchase_kind = 'session_package' then
+    update patient_package_purchases
+      set promo_code_id = v_promo.id,
+          promo_claimed_at = now()
+      where id = p_purchase_id
+        and patient_id = p_patient_id
+        and payment_status <> 'paid';
+  else
+    update home_visit_package_purchases
+      set promo_code_id = v_promo.id,
+          promo_claimed_at = now()
+      where id = p_purchase_id
+        and patient_id = p_patient_id
+        and payment_status <> 'paid';
+  end if;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'unknown');
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'promo_code_id', v_promo.id,
+    'code', v_promo.code,
+    'kind', v_promo.kind,
+    'value', v_promo.value,
+    'min_spend_paise', v_promo.min_spend_paise,
+    'max_per_patient', v_promo.max_per_patient,
+    'first_session_only', v_promo.first_session_only
+  );
+end;
+$$;
+
+revoke all on function public.claim_promo_code_for_purchase(text, uuid, text, uuid, boolean) from public;
+revoke all on function public.claim_promo_code_for_purchase(text, uuid, text, uuid, boolean) from anon;
+revoke all on function public.claim_promo_code_for_purchase(text, uuid, text, uuid, boolean) from authenticated;
+
+-- Taking a code back off an unpaid purchase: a retry without one, a refused
+-- one, or one that turned out to take nothing off. Never touches a paid row.
+create or replace function public.release_promo_code_for_purchase(
+  p_purchase_kind text,
+  p_purchase_id uuid,
+  p_patient_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_purchase_kind = 'session_package' then
+    update patient_package_purchases
+      set promo_code_id = null,
+          promo_claimed_at = null
+      where id = p_purchase_id
+        and patient_id = p_patient_id
+        and payment_status <> 'paid';
+  elsif p_purchase_kind = 'home_visit_package' then
+    update home_visit_package_purchases
+      set promo_code_id = null,
+          promo_claimed_at = null
+      where id = p_purchase_id
+        and patient_id = p_patient_id
+        and payment_status <> 'paid';
+  else
+    return false;
+  end if;
+  return found;
+end;
+$$;
+
+revoke all on function public.release_promo_code_for_purchase(text, uuid, uuid) from public;
+revoke all on function public.release_promo_code_for_purchase(text, uuid, uuid) from anon;
+revoke all on function public.release_promo_code_for_purchase(text, uuid, uuid) from authenticated;
+
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --

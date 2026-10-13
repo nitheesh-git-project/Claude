@@ -304,6 +304,10 @@ The date is picked from the **clinic's own calendar popover**, never the browser
 **Steps.** Create a code capped at **1** total use. Open checkout for it as patient A and pay. Then try it as patient B.
 **Expected Result.** Patient B is refused with *"That code has been fully claimed."* Repeat with patient A abandoning checkout instead of paying: after **30 minutes** the claim frees up and patient B can use it. A cap that can be exceeded by opening two checkouts is a P0 defect.
 
+#### `ADM-PROMO-004` - "Valid on recommended programmes" is per code, and off by default · P0
+**Steps.** Create a code and look at the **Valid on recommended programmes** box before saving. Save it unticked; then edit it, tick the box and save; then **Pause** and **Resume** it from the list.
+**Expected Result.** The box is **unticked** on a new code. Unticked, the code works at step 3 of the booking wizard but is refused on a programme's Review & pay (`PAT-CARE-005`). Ticked, the list line ends *"· programmes too"* and the code works on both. The `promo.update` audit row's details include `valid_on_programmes`. Pausing and resuming keep the box as it was - a pause that quietly switched a code off programmes is a defect. The cap counts claims on sessions **and** programmes together: a code capped at 1 and claimed by a programme is *"fully claimed"* for a session too.
+
 #### `PAT-PAY-FREE-001` - The payment screen quotes what it charges · P0
 **Steps.** As a patient with a first-session offer running (say 25% off), reach step 3 of the booking wizard.
 **Expected Result.** The summary shows the session fee **struck through**, the discount named on its own line, and a **Total**. The button reads **Pay ₹<total> Now** with that same total. If the button quotes the list price while Razorpay opens at the discounted figure - or the reverse - that is a P0 defect: quoting one number and charging another is the one thing a payment screen must never do.

@@ -598,20 +598,21 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 #### `PAT-CARE-002` - Accept and pay for a recommended programme · P0
 
-**Steps.** Tap the buy/accept action on the offer card. Complete Razorpay with `success@razorpay`.
+**Steps.** Tap **Accept & pay** on the offer card. It opens **Review & pay** (`/patient/dashboard/suggested/checkout?plan=<version id>`), not Razorpay. Read the page, tap **Pay ₹<total>**, and complete Razorpay with `success@razorpay`.
 **Expected Result**
-* The price charged is **re-derived server-side** from the live catalog row. It must equal the amount shown on the card.
+* **The card itself never opens Razorpay.** Review & pay shows the programme (photo, *Recommended by*, sessions × per-session price, how often, video or at home, the therapist's reason), a **Your total** box with the programme line and **Total to pay**, a *Have a promo code?* link while promo codes are on, and a **Back** / **Pay ₹<total>** pair. Its figures come from `/api/care-plan/quote`.
+* The price charged is **re-derived server-side** from the live catalog row. It must equal the **Total to pay** on Review & pay, and the Razorpay sheet must open at exactly that figure.
 * A `patient_package_purchases` row is created with a **frozen `package_snapshot`** and `sessions_granted = 6`.
 * **Session credits are granted: exactly 6.** Not 5, not 12.
 * The care plan's status becomes `accepted`. **The thread is now closed** - a later recommendation opens a *new* plan with `supersedes_id` set.
-* The payment does **not** refresh into an empty screen. In place of the offer card the patient reads *"Payment received - N sessions are yours"*, who will run them, and one next step. **If the screen goes blank after paying, that is a P0 defect** - it is the highest-intent moment in the product.
+* The payment does **not** refresh into an empty screen. In place of the Review & pay page the patient reads *"Payment received - N sessions are yours"*, who will run them, and one next step. **If the screen goes blank after paying, that is a P0 defect** - it is the highest-intent moment in the product.
 * **Your Programmes** appears in the sidebar (not "Your Packages") and lists the programme with `6 sessions`, `0 used`, `6 remaining`.
 * A second attempt to buy the same plan is refused: `You've already bought this plan.`
 
 #### `PAT-CARE-003` - A recommended home-visit programme quotes travel correctly · P0
 
 **Preconditions.** A care plan recommending HV2 (4 visits), patient address in a ₹150 area.
-**Expected Result.** The offer card shows **programme + travel + total** as three figures, with travel charged **per visit**: `₹8,999 + (₹150 × 4) = ₹9,599`. A card that printed `₹8,999` on a button that charged `₹9,599` would be a P0 defect - travel is per visit, not per purchase.
+**Expected Result.** The offer card carries no address and its button reads just **Accept & pay**. On Review & pay, **Where should we come?** lists the patient's saved addresses and *Somewhere else* (pincode + address form); until a served pincode is known the travel line reads *Needs your address* and Pay is disabled. Then **Your total** shows **programme + travel + total** as three figures, with travel charged **per visit**: `₹8,999 + (₹150 × 4) = ₹9,599`. A card that printed `₹8,999` on a button that charged `₹9,599` would be a P0 defect - travel is per visit, not per purchase.
 Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/create-order` must refuse the purchase with `Home visits aren't available right now. Please talk to your therapist.` A recommendation written before the service stopped must not stay purchasable.
 
 #### `PAT-SCHED-001` - The scheduler opens answered, not empty · P0
@@ -637,6 +638,16 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 **Feature.** The one thing a patient can buy and then receive nothing for. Paying is the hard part and it is done; what is left is a calendar step on a screen they have to think to visit.
 **Steps.** Pay for a programme and tap **I'll do it later**. Open `/patient/dashboard`.
 **Expected Result.** The activity feed carries a **needsYou** item - *"N sessions still to book"* - naming the programme and linking to Your Programmes. It stays until the balance is spent and disappears when it is. The figure must agree with the Your Programmes card exactly; a feed claiming a balance that screen disagrees with is a P0.
+
+#### `PAT-CARE-005` - A promo code on a recommended programme · P0
+**Preconditions.** Promo codes on. Two codes: `PROG20` (20% off) with **Valid on recommended programmes** ticked, and `WELCOME200` (₹200 off) without it. A recommended 4-session video programme waiting for the patient.
+**Steps.** Open Review & pay. Tap *Have a promo code?*, apply `WELCOME200`. Remove it, apply `PROG20`, tap **Pay**, and close the Razorpay sheet without paying. Back on the page, remove the code and tap Pay again.
+**Expected Result**
+* `WELCOME200` is refused beside the field with *"This code can't be used on a programme."* and the total does not move. An existing session campaign silently discounting a whole programme is a P0 defect.
+* `PROG20` shows **PROG20 applied - ₹X off**, the programme line struck through, a **Promo code PROG20 −₹X** line, and **Total to pay** 20% lower. The button reads **Pay ₹<discounted>** and the Razorpay sheet opens at **exactly** that figure. On a home visit, travel is added **after** the code and never discounted.
+* The purchase row records `amount_paid_paise` = the discounted programme, `list_price_paise` = the full programme, `discount_paise` = the difference and `promo_code_id` = `PROG20`.
+* Paying again with the code removed opens Razorpay at the **full** price and gives the claim back (`promo_code_id` cleared).
+* A programme-valid code that would make the whole programme free is refused with *"That code would cover this whole programme, which can't be paid for online…"* - a programme has no free-confirmation path.
 
 #### `PAT-CARE-004` - A declined or withdrawn recommendation · P2
 **Steps.** Decline a recommendation from the offer card. Separately, have an admin withdraw one (`ADM-CARE-002`). **Expected Result.** Declining closes it for the patient; withdrawing removes it from the patient's offers with the plan marked withdrawn. **A purchased plan can never be withdrawn** - the honest lane is a refund.

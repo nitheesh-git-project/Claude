@@ -119,15 +119,15 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   outcome a removed checkout must not produce. Existing purchases are
   untouched and keep booking to exhaustion.
   A recommended home visit collects an address at checkout
-  (`src/lib/homeVisitAddress.ts`, shared with the direct route) - the offer
-  card adds its own **Pincode** field above the shared `AddressForm`, which
-  leaves the pincode to the wizard's area step; without it a new address
-  could never be complete and every pay attempt said "Add the address these
-  visits should come to" (`e2e/recommendation-course.spec.ts`) - and sets
-  `default_address_id` and `travel_fee_paise`. The offer card quotes the fee
-  for that address through `/api/home-visit/check-area` and shows
+  (`src/lib/homeVisitAddress.ts`, shared with the direct route) - the
+  Review & pay page adds its own **Pincode** field above the shared
+  `AddressForm`, which leaves the pincode to the wizard's area step; without
+  it a new address could never be complete and every pay attempt said "Add
+  the address these visits should come to" (`e2e/recommendation-course.spec.ts`)
+  - and sets `default_address_id` and `travel_fee_paise`. The page quotes the
+  fee for that address through `/api/care-plan/quote` and shows
   programme + travel + total, because travel is charged **per visit** and the
-  card previously printed the programme price on a button that charged more
+  card once printed the programme price on a button that charged more
   - a four-visit programme in a ₹150 area was ₹600 out. Quoting a different
   figure than you charge is the one thing a payment screen must never do.
   `/api/care-plan/create-order` also re-checks `home_visit_enabled`: an admin
@@ -136,6 +136,46 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   `/api/home-visit/book-visits` refuses outright and the therapist funds
   their own transport - both were missing while a programme could still be
   bought the old way, and neither is optional now that it cannot.
+
+- **A recommendation is paid for on its own Review & pay page, never from
+  the card.** "Accept & pay" on the Suggested card used to open Razorpay
+  directly, so a patient holding a promo code had nowhere to type it and read
+  the total for the first time inside the payment sheet. It is now a link to
+  `/patient/dashboard/suggested/checkout?plan=<version id>`
+  (`ProgrammeCheckout`), built to read like step 3 of the booking wizard:
+  the programme, the address for a home visit, *Have a promo code?*, a
+  **Your total** box, and Back / **Pay ₹<total>**. Four rules hold it:
+  1. **Every figure is the server's.** `/api/care-plan/quote` (a read) and
+     `/api/care-plan/create-order` (the authority) resolve the plan through
+     `programmeCheckoutServer.ts` and the price through the dependency-free
+     `programmeCheckoutQuote.ts`, so the page cannot print a total the order
+     does not charge, and refuses the same plans (not this patient's, not
+     current, answered, lapsed, re-priced). The body names the version, a
+     code and an address; never an amount.
+  2. **A code comes off the programme, never travel**, and only a code whose
+     **Valid on recommended programmes** switch is on (see
+     `docs/rules/discounts.md`). A code that would leave less than the gateway
+     minimum on the programme is refused with a sentence: a programme has no
+     free-confirmation path, and a purchase "paid" with no payment would mint
+     credits from nothing.
+  3. **The purchase records what was charged.** `amount_paid_paise` is the
+     programme after the code (travel still kept apart), with
+     `list_price_paise`, `discount_paise` and `promo_code_id` beside it. Each
+     session booked against it is `amount_paid_paise / count`
+     (`bookPackageSession`, `bookHomeVisitSession`), so revenue and the
+     therapist's share read the discounted figure exactly as a discounted
+     single session's do.
+  4. **A retry reuses an order only at the price just resolved** - the
+     `mintAppointmentOrder` rule. An unpaid purchase for the version is
+     reused and its figures, address and travel rewritten; its Razorpay order
+     is reused only when the amount matches, a new one minted otherwise, 409
+     while a payment on the old one is in flight, and "already paid" (the
+     webhook fulfils it) when Razorpay says the old one was paid. A retry
+     with no code releases the earlier claim.
+  The paid confirmation and scheduler (`PaidAndUnscheduled`) render on the
+  page itself, through the same component even after the realtime refresh
+  marks the plan accepted, so the scheduler is not unmounted under the
+  patient. Suggested keeps showing "Your programme is ready".
 
 - **A referral is checked by the server the way a booking is.** Over-long
   text is refused with a sentence, never cut (`REFERRAL_LIMITS` in

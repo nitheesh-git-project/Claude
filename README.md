@@ -1237,8 +1237,10 @@ alongside as the record of money. Every webhook Razorpay sends is stored in
 `payment_webhook_events`, deduplicated on its event id, which is what makes
 "process each event once" a database guarantee rather than something the
 route has to remember. Session packages are bought the same way
-through the recommendation the therapist wrote, via
-`/api/care-plan/create-order` and `/api/care-plan/verify`; later sessions on
+through the recommendation the therapist wrote: **Accept & pay** opens a
+Review & pay page (`/patient/dashboard/suggested/checkout`, quoted by
+`/api/care-plan/quote`) with the address for a home visit, a promo code and
+the total, then `/api/care-plan/create-order` and `/api/care-plan/verify`; later sessions on
 it are redeemed with `/api/appointments/book-with-package` and
 `src/lib/bookPackageSession.ts`. The standard
 session fee lives in `src/lib/pricing.ts`. The online full-refund
@@ -1362,6 +1364,14 @@ after half an hour. If a code cannot be applied at the moment of payment,
 checkout refuses and says why rather than quietly charging full price. A
 code that has been used is never deleted, only paused, so the bookings that
 used it keep their record.
+
+A code applies to a **programme a therapist recommended** only when its
+**Valid on recommended programmes** box is ticked - off by default, so a
+campaign written for single sessions never quietly discounts a whole course
+of treatment. It then comes off the programme's price (never travel) on the
+Review & pay page, and Razorpay opens at the discounted total. One cap covers
+sessions and programmes together. A code that would make a whole programme
+free is refused; the patient pays the full price or asks the clinic.
 
 **When a discount covers the whole session**, the booking is confirmed
 without a payment. The payment step shows the session fee, the discount and

@@ -9,6 +9,12 @@ function formatInr(paise: number) {
   return `₹${formatRupees(paise)}`;
 }
 
+/** What a check of a typed code came back with. */
+export type PromoPreviewAnswer =
+  | { applies: true; code: string; discountPaise: number; pricing: CountryPricing | null }
+  | { applies: false; message: string }
+  | { error: string };
+
 /**
  * "Have a code?" at checkout.
  *
@@ -28,6 +34,8 @@ export default function PromoCodeField({
   appointmentId,
   initialCode = null,
   onApplied,
+  preview,
+  label = "Have a code?",
 }: {
   categoryId?: string | null;
   appointmentId?: string | null;
@@ -39,6 +47,13 @@ export default function PromoCodeField({
   /** The applied code, or null when it is cleared. The parent sends it on to
    *  checkout; it never sends an amount. */
   onApplied: (code: string | null) => void;
+  /** How a code is checked, when it is not a session's. A programme's
+   *  review page asks its own quote route, so the code is judged against the
+   *  programme (and its "valid on programmes" switch) rather than a single
+   *  session's price. Defaults to /api/patient/promo-code/preview. */
+  preview?: (code: string) => Promise<PromoPreviewAnswer>;
+  /** The collapsed link's wording. */
+  label?: string;
 }) {
   const [open, setOpen] = useState(Boolean(initialCode));
   const [code, setCode] = useState(initialCode ?? "");
@@ -74,24 +89,15 @@ export default function PromoCodeField({
     setChecking(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/patient/promo-code/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: normalized,
-          ...(appointmentId ? { appointmentId } : {}),
-          ...(categoryId ? { categoryId } : {}),
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setMessage(data.error ?? "That code couldn't be checked. Please try again.");
+      const answer = preview ? await preview(normalized) : await previewSessionCode(normalized);
+      if ("error" in answer) {
+        setMessage(answer.error);
         return;
       }
-      if (!data.applies) {
+      if (!answer.applies) {
         setApplied(null);
         onApplied(null);
-        const reason = data.message ?? "That code isn't recognised.";
+        const reason = answer.message || "That code isn't recognised.";
         setMessage(
           fromEarlierTry
             ? `${normalized} from your last try can't be used now: ${reason}`
@@ -99,8 +105,8 @@ export default function PromoCodeField({
         );
         return;
       }
-      setApplied({ code: data.code, discountPaise: data.discountPaise, pricing: data.pricing ?? null });
-      onApplied(data.code);
+      setApplied({ code: answer.code, discountPaise: answer.discountPaise, pricing: answer.pricing });
+      onApplied(answer.code);
       setMessage(null);
     } catch {
       setMessage("Could not reach the server. Please try again.");
@@ -108,6 +114,33 @@ export default function PromoCodeField({
       inFlight.current = false;
       setChecking(false);
     }
+  }
+
+  /** The session preview: a booking, or the category the wizard is about to
+   *  book. */
+  async function previewSessionCode(normalized: string): Promise<PromoPreviewAnswer> {
+    const res = await fetch("/api/patient/promo-code/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: normalized,
+        ...(appointmentId ? { appointmentId } : {}),
+        ...(categoryId ? { categoryId } : {}),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: data.error ?? "That code couldn't be checked. Please try again." };
+    }
+    if (!data.applies) {
+      return { applies: false, message: data.message ?? "That code isn't recognised." };
+    }
+    return {
+      applies: true,
+      code: data.code,
+      discountPaise: data.discountPaise,
+      pricing: data.pricing ?? null,
+    };
   }
 
   function clear() {
@@ -142,7 +175,7 @@ export default function PromoCodeField({
         onClick={() => setOpen(true)}
         className="text-[11px] font-semibold text-slate-500 underline"
       >
-        Have a code?
+        {label}
       </button>
     );
   }

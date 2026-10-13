@@ -200,6 +200,7 @@ const PATIENT: TutorialChapter[] = [
         title: "A programme is a course of sessions",
         body: `When your therapist recommends one, the clinic checks it first and then it appears as "Your therapist recommended a programme". Accept it to pay once for every session.`,
         points: [
+          `Accept & pay opens a Review & pay page first: the full total, a box for a promo code if you have one, then Pay.`,
           `Then you'll see "6 sessions still to book" - pick each time whenever it suits you.`,
         ],
       },

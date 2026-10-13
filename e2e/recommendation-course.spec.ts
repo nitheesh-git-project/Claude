@@ -2,8 +2,9 @@
 // condition's per-session price times the count (src/lib/carePlans.ts).
 // "Needs hands-on treatment" is the one switch between video sessions and
 // home visits, and only a home-visit plan asks the patient where to come --
-// where a new address now takes a pincode, without which paying always
-// said "Add the address these visits should come to".
+// on the Review & pay page now (e2e/programme-checkout.spec.ts covers the
+// rest of it), where a new address takes a pincode, without which paying
+// always said "Add the address these visits should come to".
 //
 // Writes append-only care-plan versions and reviews, so it runs on a
 // disposable project only (the same opt-in clinical-continuity uses).
@@ -182,36 +183,64 @@ test("RC-003: the patient's video plan shows its photo and count, and no address
   await expect(card.getByText(/4 × ₹/)).toBeVisible();
   await expect(card.getByText("Video sessions")).toBeVisible();
   await expect(card.getByText("Where should we come?")).toHaveCount(0);
+  // Accept & pay leads to the review page rather than opening Razorpay.
+  await expect(card.getByRole("link", { name: /^Accept & pay/ })).toHaveAttribute(
+    "href",
+    /\/patient\/dashboard\/suggested\/checkout\?plan=/
+  );
   await card.screenshot({ path: "test-results/recommendation-video.png" });
 });
 
-test("RC-004: hands-on makes it home visits, and a new address with a pincode goes through", async ({ page }) => {
-  const { version } = await recommendAndApprove({ sessionCount: 3, handsOnRequired: true });
+test("RC-004: hands-on makes it home visits, and a new address with a pincode goes through on Review & pay", async ({ page }) => {
+  // Recommend, approve, two pages and three priced round trips: past 30s.
+  test.setTimeout(90_000);
+  const { version, versionId } = await recommendAndApprove({ sessionCount: 3, handsOnRequired: true });
   expect(version.offer_kind).toBe("home_visit_package");
   expect((version.offer_snapshot as Record<string, unknown>).sessionCount).toBe(3);
 
   const { data: area } = await db.from("home_visit_areas").select("pincode").eq("active", true).limit(1).single();
+  // Razorpay's sheet is a stand-in that closes at once: the order is real,
+  // nothing is paid, and no browser egress is needed to reach it.
+  await page.route("https://checkout.razorpay.com/**", (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: `window.Razorpay = function (options) {
+        this.on = function () {};
+        this.open = function () { setTimeout(function () { options.modal && options.modal.ondismiss && options.modal.ondismiss(); }, 200); };
+      };`,
+    })
+  );
   await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientB));
   await page.goto(`${BASE}/patient/dashboard/suggested`);
   await waitForSplashToClear(page);
   const card = page.locator("#recommendation");
-  await expect(card.getByText("Where should we come?")).toBeVisible();
-  const elsewhere = card.getByLabel("Somewhere else");
+  // The address moved to the review page: the card only links there.
+  await expect(card.getByText("Where should we come?")).toHaveCount(0);
+  const accept = card.getByRole("link", { name: /^Accept & pay/ });
+  await expect(accept).toHaveAttribute("href", new RegExp(`/patient/dashboard/suggested/checkout\\?plan=${versionId}`));
+  await accept.click();
+  await page.waitForURL(/\/patient\/dashboard\/suggested\/checkout/);
+  await waitForSplashToClear(page);
+
+  await expect(page.getByText("Where should we come?")).toBeVisible();
+  const elsewhere = page.getByLabel("Somewhere else");
   if (await elsewhere.count()) await elsewhere.check();
-  await card.getByLabel("Pincode").fill(area!.pincode);
-  await card.getByLabel("Flat / house number and street").fill("12A Test Street");
-  await expect(card.getByText("Total")).toBeVisible();
+  await page.getByLabel("Pincode").fill(area!.pincode);
+  await page.getByLabel("Flat / house number and street").fill("12A Test Street");
+  const breakdown = page.getByTestId("programme-breakdown");
+  await expect(breakdown.getByTestId("breakdown-travel")).not.toContainText("Needs your address");
+  await expect(breakdown.getByTestId("breakdown-total")).toContainText("₹");
 
   const order = page.waitForResponse((r) => r.url().includes("/api/care-plan/create-order"));
-  await card.getByRole("button", { name: /^Accept & pay/ }).click();
+  await page.getByRole("button", { name: /^Pay ₹/ }).click();
   const res = await order;
   const body = await res.json().catch(() => ({}));
   // The address reached the server and was accepted; only Razorpay's own
   // window is left, which this spec does not drive.
   expect(body.error ?? "").not.toContain("address");
   expect(res.status(), JSON.stringify(body)).toBe(200);
-  await expect(card.getByText("Add the address these visits should come to.")).toHaveCount(0);
-  await card.screenshot({ path: "test-results/recommendation-home.png" });
+  await expect(page.getByText("Add the address these visits should come to.")).toHaveCount(0);
+  await page.screenshot({ path: "test-results/recommendation-home.png" });
 });
 
 test("RC-005: the therapist's picker takes a number and shows the total live", async ({ page }) => {

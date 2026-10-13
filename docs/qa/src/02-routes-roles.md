@@ -36,6 +36,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/patient/dashboard` | Overview: four figures, activity feed, quick actions | `PAT-DASH-001` |
 | `/patient/dashboard/book` | Booking hub inside the portal | `PAT-DASH-002` |
 | `/patient/dashboard/suggested` | Suggested Sessions - therapist recommendations and proposed times. **Only in the sidebar when something is waiting** | `PAT-SUGG-001` |
+| `/patient/dashboard/suggested/checkout?plan=<version id>` | Review & pay for a recommended programme: address (home visits), promo code, server-quoted total, Pay. Reached from **Accept & pay**, never from the sidebar | `PAT-CARE-002`, `PAT-CARE-005` |
 | `/patient/dashboard/sessions` | All sessions, List/Calendar toggle, Upcoming/Past/Cancelled + Video/Home visit filters | `PAT-SESS-001` |
 | `/patient/dashboard/packages` | Owned programmes and their remaining credits | `PAT-PKG-001` |
 | `/patient/dashboard/payments` | Receipts | `PAT-PAY-010` |

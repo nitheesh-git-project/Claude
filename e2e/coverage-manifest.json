@@ -617,6 +617,24 @@
       "integration": "provider-sandbox",
       "destructive": true
     },
+    "programme-checkout.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/discounts.md",
+        "docs/rules/programmes.md",
+        "docs/rules/payments.md"
+      ],
+      "integration": "provider-sandbox",
+      "destructive": true
+    },
     "pain-trend.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -1784,6 +1802,27 @@
         }
       ],
       "limitation": "Writes append-only care-plan rows, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; it opens a Razorpay test order but does not drive the payment window."
+    },
+    {
+      "id": "session.programme-checkout",
+      "runner": "session",
+      "title": "Accept & pay leads to a Review & pay page; a code valid on programmes takes its share off the programme and Razorpay opens at that total; a session-only code is refused; no code is full price",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "programme-checkout.spec.ts",
+          "tests": [
+            "PC-001",
+            "PC-002",
+            "PC-003",
+            "PC-004",
+            "PC-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only care-plan rows, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; Razorpay's checkout.js is a stand-in that records the amount it opened at, so no payment is ever completed."
     },
     {
       "id": "patient.pain-trend-per-exam",

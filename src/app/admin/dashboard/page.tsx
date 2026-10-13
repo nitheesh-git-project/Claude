@@ -1544,14 +1544,51 @@ export default async function AdminDashboardPage({
         if (!row.promo_code_id) continue;
         claims.set(row.promo_code_id, (claims.get(row.promo_code_id) ?? 0) + 1);
       }
-      // A walk that hit its bound has produced a floor, not a count. Every
-      // code is marked as claimed rather than reporting a number that is
-      // too low, because the only decision this feeds is whether deleting
-      // is safe, and "we could not finish counting" must answer that the
-      // same way "it has claims" does.
-      if (truncated) {
+      // A code valid on programmes can also be claimed by a recommended
+      // programme's purchase, so those count too. Each table in its own
+      // walk: a database one apply behind has no promo_code_id on them
+      // (42703), which is a real zero rather than an unread count.
+      let purchaseWalkFailed = false;
+      for (const table of ["patient_package_purchases", "home_visit_package_purchases"] as const) {
+        const walked = await readAllRows<{ promo_code_id: string | null }>(() =>
+          admin.from(table).select("promo_code_id").in("promo_code_id", codeIds)
+        );
+        if (walked.error) {
+          if ((walked.error as { code?: string }).code !== "42703") purchaseWalkFailed = true;
+          continue;
+        }
+        for (const row of walked.rows) {
+          if (!row.promo_code_id) continue;
+          claims.set(row.promo_code_id, (claims.get(row.promo_code_id) ?? 0) + 1);
+        }
+        if (walked.truncated) purchaseWalkFailed = true;
+      }
+      // A walk that hit its bound (or failed) has produced a floor, not a
+      // count. Every code is marked as claimed rather than reporting a
+      // number that is too low, because the only decision this feeds is
+      // whether deleting is safe, and "we could not finish counting" must
+      // answer that the same way "it has claims" does.
+      if (truncated || purchaseWalkFailed) {
         for (const id of codeIds) {
           if (!claims.has(id)) claims.set(id, 1);
+        }
+      }
+    }
+    // "Valid on recommended programmes", read on its own: the newest column
+    // on promo_codes, so a database one apply behind loses this one switch
+    // (read as off, which is its default) rather than the whole list.
+    const validOnProgrammes = new Set<string>();
+    if (rows.length > 0) {
+      const { data: switches, error: switchError } = await admin
+        .from("promo_codes")
+        .select("id, valid_on_programmes")
+        .in(
+          "id",
+          rows.map((row) => row.id)
+        );
+      if (!switchError) {
+        for (const row of (switches ?? []) as { id: string; valid_on_programmes: boolean | null }[]) {
+          if (row.valid_on_programmes === true) validOnProgrammes.add(row.id);
         }
       }
     }
@@ -1567,6 +1604,7 @@ export default async function AdminDashboardPage({
       maxPerPatient: row.max_per_patient,
       minSpendPaise: row.min_spend_paise,
       firstSessionOnly: row.first_session_only,
+      validOnProgrammes: validOnProgrammes.has(row.id),
       description: row.description,
       claims: claims.get(row.id) ?? 0,
     }));
