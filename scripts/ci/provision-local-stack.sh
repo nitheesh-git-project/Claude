@@ -63,19 +63,22 @@ STATUS_FILE="$ARTIFACT_DIR/stack-start.status"
 START_LOG="$ARTIFACT_DIR/stack-start.log"
 
 # Best effort: a failed or skipped pre-pull only means the CLI pulls the
-# image itself. The CLI pulls from public.ecr.aws/supabase/<name>:<tag>.
+# image itself. The CLI pulls from $SUPABASE_INTERNAL_IMAGE_REGISTRY (the
+# workflow sets ghcr.io), else public.ecr.aws: the pre-pull must use the same
+# registry, or every image is downloaded twice and the two compete.
 prepull() {
   local list
   list="$(supabase services -o json 2>/dev/null | node -e '
     const keep = new Set(process.argv[1].split(" "));
+    const registry = process.argv[2] || "public.ecr.aws";
     let raw = ""; process.stdin.on("data", (c) => (raw += c)).on("end", () => {
       try {
         for (const s of JSON.parse(raw)) {
           const name = String(s.name).split("/").pop();
-          if (keep.has(name) && s.local) console.log(`public.ecr.aws/supabase/${name}:${s.local}`);
+          if (keep.has(name) && s.local) console.log(`${registry}/supabase/${name}:${s.local}`);
         }
       } catch {}
-    });' "$PREPULL_SERVICES" 2>/dev/null)" || return 0
+    });' "$PREPULL_SERVICES" "${SUPABASE_INTERNAL_IMAGE_REGISTRY:-public.ecr.aws}" 2>/dev/null)" || return 0
   [ -n "$list" ] || return 0
   echo "Pre-pulling in parallel: $(echo $list)"
   for image in $list; do docker pull -q "$image" > /dev/null 2>&1 & done
