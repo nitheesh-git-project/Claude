@@ -161,11 +161,17 @@ export const GENERAL_CONSULTATION_CATEGORY_ID =
  *    is honest.
  */
 export function defaultCategoryId(
-  rows: { id: string }[],
+  rows: { id: string; title?: string | null }[],
   requestedId?: string | null
 ): string {
   if (requestedId && rows.some((r) => r.id === requestedId)) return requestedId;
-  const general = rows.find((r) => r.id === GENERAL_CONSULTATION_CATEGORY_ID);
+  const general =
+    rows.find((r) => r.id === GENERAL_CONSULTATION_CATEGORY_ID) ??
+    // A database the seed has not reached yet (production before schema.sql
+    // is re-applied) can hold the general consultation under a random id,
+    // and the booking opened on "select one of 8" there. Its title is the
+    // fallback; the seed adopts that row onto the fixed id when it runs.
+    rows.find((r) => (r.title ?? "").trim().toLowerCase() === "general consultation");
   return general ? general.id : "";
 }
 

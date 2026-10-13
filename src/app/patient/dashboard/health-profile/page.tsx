@@ -319,7 +319,7 @@ export default async function PatientHealthProfilePage() {
     >
       <div className="mx-auto max-w-5xl space-y-5">
         <div
-          className={`flex items-start gap-3 rounded-2xl border p-4 ${
+          className={`flex flex-wrap items-start gap-3 rounded-2xl border p-4 sm:flex-nowrap ${
             gate.reason === "awaiting_therapist"
               ? "border-slate-200 bg-slate-50 text-slate-600"
               : STATUS_BANNER_STYLE[status]
@@ -385,7 +385,11 @@ export default async function PatientHealthProfilePage() {
               </p>
             )}
           </div>
-          <HealthProfileActions />
+          {/* Beside the text on a wide screen; under it on a phone, where
+              beside it the buttons left the notice a 39px column. */}
+          <div className="flex w-full justify-end sm:w-auto sm:shrink-0">
+            <HealthProfileActions />
+          </div>
         </div>
 
         <SpecialtySnapshotStrip

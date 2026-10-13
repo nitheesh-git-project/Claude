@@ -98,7 +98,7 @@ export default function HealthProfileSteps({
             <i aria-hidden className={`fa-solid ${step.icon} text-xs text-teal-600`} />
             <p className="text-sm font-bold text-slate-800">{step.title}</p>
           </div>
-          <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{step.body}</p>
+          <p className="mt-1.5 break-words text-xs leading-relaxed text-slate-500 hyphens-auto">{step.body}</p>
         </li>
       ))}
     </ol>

@@ -152,6 +152,14 @@ describe("defaultCategoryId", () => {
     expect(defaultCategoryId([])).toBe("");
   });
 
+  it("finds the general consultation by title when it sits under another id", () => {
+    // Production held it under a random id and /book opened on "select one
+    // of 8". The title is the fallback; the fixed id still wins.
+    const renamedId = { id: "cat-general-old", title: " General consultation " };
+    expect(defaultCategoryId([back, renamedId, knee])).toBe("cat-general-old");
+    expect(defaultCategoryId([renamedId, general])).toBe(GENERAL_CONSULTATION_CATEGORY_ID);
+  });
+
   it("ignores a link naming a condition that is not on offer", () => {
     // A stale bookmark, or a category an admin switched off. It must not
     // preselect something that is not in the list, and it must still fall

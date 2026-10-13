@@ -314,7 +314,7 @@ export function PatientHealthLockedScene() {
       <div className="space-y-2.5">
         <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 p-2.5">
           <motion.i className="fa-solid fa-lock mt-0.5 text-sky-700" aria-hidden="true" animate={{ rotate: [0, -12, 12, 0] }} transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 2 }} />
-          <p className="text-[10px] leading-snug text-sky-900">Your therapist fills this in with you at your first session. Any scans or reports you already have can go here now.</p>
+          <p className="min-w-0 break-words text-[10px] leading-snug text-sky-900">Your therapist fills this in with you at your first session. Any scans or reports you already have can go here now.</p>
         </div>
         <div className="grid grid-cols-3 gap-1.5 opacity-50">
           {["Your condition", "Pain Map", "Progress"].map((t) => (

@@ -13,11 +13,14 @@
 //                      without a scroll container around it to hold it.
 //   - "clipped-text":  text cut off by overflow:hidden with no ellipsis or
 //                      line clamp saying so on purpose.
+//   - "spilled-text":  text wider than its own box with nothing clipping it,
+//                      so it runs over its neighbours (a long word in a
+//                      column squeezed by buttons).
 //   - "overlap":       two pieces of visible text or controls on top of each
 //                      other, measured on what is actually visible (each
 //                      box clipped by its overflow ancestors).
 export type LayoutIssue = {
-  kind: "page-overflow" | "container-overflow" | "offscreen" | "clipped-text" | "overlap";
+  kind: "page-overflow" | "container-overflow" | "offscreen" | "clipped-text" | "spilled-text" | "overlap";
   where: string;
   detail: string;
 };
@@ -157,6 +160,14 @@ export function probeLayout(): LayoutIssue[] {
       const intended = cs.textOverflow === "ellipsis" || cs.webkitLineClamp !== "none" && cs.webkitLineClamp !== "";
       if (clips && !intended && el.scrollWidth > el.clientWidth + 2) {
         issues.push({ kind: "clipped-text", where: describe(el), detail: `${el.scrollWidth - el.clientWidth}px of text cut off` });
+      }
+      // Spilled text: a word wider than its column, with nothing clipping
+      // it, so it runs under whatever sits beside it (a long condition name
+      // squeezed by buttons on a phone). Inline boxes have no width of
+      // their own to measure, so only block-level text is judged.
+      const blockish = cs.display !== "inline" && el.clientWidth > 0;
+      if (!clips && blockish && cs.whiteSpace !== "nowrap" && el.scrollWidth > el.clientWidth + 2) {
+        issues.push({ kind: "spilled-text", where: describe(el), detail: `${el.scrollWidth - el.clientWidth}px of text past its box` });
       }
     }
 
