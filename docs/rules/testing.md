@@ -671,7 +671,7 @@ asserted to the millisecond rather than waited out.
 
 ## Keeping the docs current
 
-`README.md`, `CLAUDE.md` and `docs/rules/*.md` describe the app itself, so they go
+`README.md`, `docs/PRODUCT-GUIDE.md`, `CLAUDE.md` and `docs/rules/*.md` describe the app itself, so they go
 stale the moment the app changes. Update them **in the same change** that
 makes them wrong - do not leave it for later, and do not merge to `staging`
 without checking. Anything in this list means the docs need a look:

@@ -244,7 +244,7 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   `visits_used` counts visits **claimed** (scheduled or completed), never
   completed - identical rule to `sessions_used`, see the counter-semantics
   comment beside `home_visit_package_purchases` in `schema.sql`. See the
-  "Home Visit" section in README.md for the full flow.
+  "Home Visit" section in docs/PRODUCT-GUIDE.md for the full flow.
 
 - **A home visit is one visit of a condition, at one of two prices.**
   Catalog -> Conditions -> Home visits holds one **clinic-wide** price and,

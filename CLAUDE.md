@@ -190,7 +190,7 @@ Not sure which? `docs/rules/00-index.md` lists every rule by its own
 sentence, so `grep` finds the file from a symptom. `rg -l "<the thing>"
 docs/rules/` also works, and is usually faster than guessing.
 
-Other reference, read on demand: `README.md` (the product and setup in full),
+Other reference, read on demand: `docs/PRODUCT-GUIDE.md` (the product and setup in full; `README.md` is the overview),
 `docs/MONEY-MODEL.md`, `docs/LIFECYCLE-STATES.md`, `docs/DATA-POLICY.md`,
 `e2e/README.md` (the suite's inventory), `docs/audit/` (what the audit found).
 
