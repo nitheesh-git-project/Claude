@@ -371,13 +371,13 @@ The Reset data button calls `/api/admin/debug-reset`, which calls the database f
 
 **Preconditions.** `ALLOW_DEBUG_DATA_RESET=true` in the server environment. A Master Admin account exists.
 
-**Test Data.** Admin: `qa.admin@example.test` / `QaTest!2024pass`. Confirmation phrase: `RESET ALL DATA`.
+**Test Data.** Admin: `qa.admin@example.test` / the `E2E_QA_PASSWORD` value. Confirmation phrase: `RESET ALL DATA`.
 
 **Steps**
 
 1. Open `http://localhost:3000/admin/login`.
 2. Tap the **Email Address** field. Enter `qa.admin@example.test`.
-3. Tap the **Password** field. Enter `QaTest!2024pass`.
+3. Tap the **Password** field. Enter the `E2E_QA_PASSWORD` value.
 4. Tap **Sign In**.
 5. Confirm the black **Debug** bar is pinned across the top of the page.
 6. In the Debug bar, tap **Reset data**.
@@ -608,11 +608,11 @@ Use these exact values everywhere. Every test in this plan refers to them by lab
 
 ### 8.1 Standard password
 
-**All test accounts use the same password:** `QaTest!2024pass`
+**All test accounts use the same password:** the `E2E_QA_PASSWORD` value
 
 > **Before typing any of §8.2–§8.9 in by hand, read this.** A data reset deletes every non-admin account, so the twelve logins below stop existing the moment `SETUP-RESET-001` runs. `npm run seed:qa` recreates all of them with this password, prints both hospitals' referral codes, and can be re-run safely - see §6.2. The two accounts an admin would otherwise mint from the back office (a scoped admin in `ADM-SET-026`, a hospital in `HOS-AUTH-002`) hand out a **generated** password shown once and stored nowhere; the seeder gives them this one instead, which is why `Invalid login credentials` on any account named here is a seeding question before it is a bug.
 
-Where a test needs a *second, different* password (a change-password test), use `QaTest!2024new`.
+Where a test needs a *second, different* password (a change-password test), use any other strong password of your own.
 
 ### 8.2 Admin accounts
 
@@ -623,7 +623,7 @@ Where a test needs a *second, different* password (a change-password test), use 
 | **Admin Finance** | `qa.admin.finance@example.test` | `finance` | Proves Sessions and Catalog are blocked. |
 | **Admin Clinical** | `qa.admin.clinical@example.test` | `clinical` | Proves Money, Catalog and Settings are blocked. |
 
-Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated password shown on that screen** - not `QaTest!2024pass`. It stays readable on that admin's own Back office row until they set their own, and if it is lost, **Reset password** on the row issues a new one.
+Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated password shown on that screen** - not the `E2E_QA_PASSWORD` value. It stays readable on that admin's own Back office row until they set their own, and if it is lost, **Reset password** on the row issues a new one.
 
 ### 8.3 Patients
 
@@ -645,7 +645,7 @@ Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `ac
 | --- | --- | --- | --- |
 | Full name | `QA Patient A` | `QA Patient B` | `QA Referred Patient C` |
 | Email | `qa.patient.a@example.test` | `qa.patient.b@example.test` | `qa.patient.c@example.test` |
-| Password | `QaTest!2024pass` | `QaTest!2024pass` | `QaTest!2024pass` |
+| Password | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value |
 | Phone | `+91 98765 43210` | `+91 98765 43211` | `+91 98765 43212` |
 | Date of birth | `1990-04-12` | `1985-11-30` | `1978-02-05` |
 | Gender | `Female` | `Male` | `Female` |
@@ -665,7 +665,7 @@ Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `ac
 | --- | --- |
 | Invalid email | `not-an-email` |
 | Too-short password | `abc12` (5 characters; minimum is 6) |
-| Mismatched confirm password | Password `QaTest!2024pass`, confirm `QaTest!2024pas` |
+| Mismatched confirm password | Password the `E2E_QA_PASSWORD` value, confirm the same value minus its last character |
 | Invalid phone | `12345` |
 | Invalid PIN code | `0560038` (leading zero - the pattern requires `[1-9]` first) and `56003` (5 digits) |
 | Unknown referral code | `ZZZZZZ` |
@@ -736,7 +736,7 @@ Expected suggestion: **Orthopaedic** for Patient A, **Neurological** for Patient
 | --- | --- | --- | --- |
 | Full name | `QA Therapist A` | `QA Therapist B` | `QA Therapist C` |
 | Email | `qa.therapist.a@example.test` | `qa.therapist.b@example.test` | `qa.therapist.c@example.test` |
-| Password | `QaTest!2024pass` | `QaTest!2024pass` | `QaTest!2024pass` |
+| Password | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value |
 | Phone | `+91 90000 10001` | `+91 90000 10002` | `+91 90000 10003` |
 | Qualifications & License / Council Reg No. | `MPT (Ortho), KSCP Reg 44821` | `MPT (Neuro), KSCP Reg 44822` | `BPT, KSCP Reg 44823` |
 | Specialty / display note | `Spine and lower-limb rehabilitation` | `Stroke and neurological rehabilitation` | `Paediatric physiotherapy` |
@@ -1192,13 +1192,13 @@ Two rules shape almost everything on the patient's screens:
 **Feature.** Patient authentication. **Role.** Patient.
 **Purpose.** Confirm the login form authenticates and lands on the dashboard.
 **Preconditions.** Patient A exists and is approved and active (created by `PAT-BOOK-003` or `PAT-AUTH-002`).
-**Test Data.** `qa.patient.a@example.test` / `QaTest!2024pass`.
+**Test Data.** `qa.patient.a@example.test` / the `E2E_QA_PASSWORD` value.
 
 **Steps**
 1. Open `/patient/login`.
 2. Confirm the two tabs **Sign In** and **Register Account** are visible, with **Sign In** active.
 3. Tap the **Email Address** field. Enter `qa.patient.a@example.test`.
-4. Tap the **Password** field. Enter `QaTest!2024pass`.
+4. Tap the **Password** field. Enter the `E2E_QA_PASSWORD` value.
 5. Tap **Sign In**.
 
 **Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Overview**, **Book a Session**, **Health Profile** and **Edit Profile** at minimum, with **Back to Home** at the **foot of the nav, directly above Collapse** (above the profile footer in the mobile drawer, which has no Collapse). The public `Navbar` is **not** rendered on the dashboard. No error banner.
@@ -1214,8 +1214,8 @@ Two rules shape almost everything on the patient's screens:
 2. Tap **Full Name**. Enter `QA Patient B`.
 3. Tap **Email Address**. Enter `qa.patient.b@example.test`.
 4. Tap the phone field. Enter `+91 98765 43211`.
-5. Tap **Password**. Enter `QaTest!2024pass`.
-6. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+5. Tap **Password**. Enter the `E2E_QA_PASSWORD` value.
+6. Tap **Confirm Password**. Enter the `E2E_QA_PASSWORD` value.
 7. Leave **Referral Code** blank.
 8. Tap **Create Account**.
 
@@ -1250,7 +1250,7 @@ await fetch("/api/appointments/create", {
 | --- | --- | --- | --- |
 | 1 | Email | `not-an-email` | An invalid-email message; the account is not created |
 | 2 | Password | `abc12` | A minimum-length message; not created |
-| 3 | Confirm Password | `QaTest!2024pas` | A passwords-do-not-match message; not created |
+| 3 | Confirm Password | the same value minus its last character | A passwords-do-not-match message; not created |
 | 4 | Phone | `12345` | An invalid-phone message; not created |
 | 5 | Referral Code | `ZZZZZZ` | `Code not recognized - double-check it or leave blank` in red |
 | 6 | Email | `qa.patient.a@example.test` (already registered) | A "user already registered" style error from Supabase; **no second profile row is created** |
@@ -1378,9 +1378,9 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 **Steps**
 1. Tap **Full Name**. Enter `QA Patient A`.
 2. Tap **Email**. Enter `qa.patient.a@example.test`.
-3. Tap **Create Password**. Enter `QaTest!2024pass`.
+3. Tap **Create Password**. Enter the `E2E_QA_PASSWORD` value.
 4. Tap the phone field. Enter `+91 98765 43210`.
-5. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+5. Tap **Confirm Password**. Enter the `E2E_QA_PASSWORD` value.
 6. Leave **Referral Code** blank.
 7. Read the teal line naming the service chosen on Step 1 - it must read *"Booking a **QA Back & Spine Care** - ₹1,999, 60 min"* beside its photograph, with a **Change** link. There is no dropdown on this step.
 8. Tap the **Anything else we should know?** box. Enter `Desk job, pain worse after sitting all day. Goal: sit through a full workday.`
@@ -1894,8 +1894,8 @@ Five rules shape almost every screen:
 6. Tap **Qualifications & License / Council Reg No.** Enter `MPT (Ortho), KSCP Reg 44821`.
 7. Tap **Specialist In**. It is a **dropdown**, not a text box, and it lists exactly eight: Orthopaedic, Neurological, Paediatric, Sports, Geriatric, Cardiopulmonary, Women's health, General physiotherapy - **General physiotherapy** is the one for somebody who does not specialise. Choose **Orthopaedic**.
 7b. Tap **Years of experience**. Try `abc`, then `-2`, then `2024`, then `61`. Finally enter `9`.
-8. Tap **Password**. Enter `QaTest!2024pass`.
-9. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+8. Tap **Password**. Enter the `E2E_QA_PASSWORD` value.
+9. Tap **Confirm Password**. Enter the `E2E_QA_PASSWORD` value.
 10. Tap **Submit Application**.
 
 **Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`, `specialization='Orthopaedic'` - the exact label, not a code - and `years_experience = 9`.
