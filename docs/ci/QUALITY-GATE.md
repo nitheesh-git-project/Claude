@@ -77,7 +77,7 @@ and the verdict (which summaries must exist). Today:
 | `platform` | 3 | ~140 s |
 | `session` | 1 | ~120 s |
 | `integrity` | 1 | ~40 s plus its scripts |
-| `hospital` | 1 | ~15 s (also saves the Supabase image cache) |
+| `hospital` | 1 | ~15 s |
 
 `node scripts/ci/plan-shards.mjs` prints the current figures. How a runner
 is split:
@@ -131,7 +131,9 @@ admin runner's tests 32. Now:
   under 2 GB). Turbopack checks every entry against the files on disk, so
   an old entry costs time, never correctness. Docker images are not cached:
   restoring a multi-gigabyte tarball and `docker load`-ing it costs about
-  what the parallel pull costs, so it would add a moving part for nothing.
+  more than the parallel pull once 19 jobs restore at once (measured: the
+  stack was ready ~3 minutes later, and a cached `node_modules` restored
+  slower than `npm ci`), so neither is cached.
 - **Warm-up**: once `next dev` answers, the runner requests the main public,
   login and dashboard pages once, in parallel (at most
   `GATE_WARMUP_SECONDS`, default 90), so their first compile is not charged
