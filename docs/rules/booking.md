@@ -130,8 +130,8 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   4. **With exactly one option there is no picker.** It is stated as chosen,
      with its photograph, its price and a way to read the detail -- a dialog
      that opens to show a single card asks somebody to tap twice to confirm
-     the only thing on offer. `/book-home-visit` keeps its default-to-first
-     initializer, so that case behaves exactly as it did.
+     the only thing on offer. Both wizards open on the general consultation
+     (`defaultCategoryId`), or on the only condition when there is one.
   5. **Continue appears once a service is chosen**, which is `serviceChosen`
      in `BookingStepOne`'s `ready`. Step 1 has always revealed it only when
      the screen is complete; a disabled control would be a new pattern there.
@@ -141,6 +141,21 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   still reaches a patient through a recommendation alone.
   `e2e/service-picker.spec.ts` is the guard, driven as screens because no
   route, no request body and no row changed.
+  **Both pickers list conditions, and a home visit is one visit of one.**
+  `/book-home-visit` used to list `home_visit_packages` rows -- a "Single
+  visit", a "4 visits" -- so a patient chose a package rather than saying
+  what was wrong. It lists the same conditions `/book` does now, each priced
+  at its home-visit rate (`src/lib/homeVisitRates.ts`: the condition's own
+  price, else the clinic-wide one; `homeVisitConditionOption` maps it, with
+  no count, no "each", no validity and no days). Cards on `/home-visit` and
+  the booking hub link `?category=<id>`. An old `?package=<id>` link is
+  resolved by the page: a condition's own price opens that condition, the
+  clinic-wide row the general consultation, and a course of visits gets the
+  programme answer rather than one visit. The browser sends a condition;
+  `create-order` and `book-cash` resolve the price row on the server
+  (`resolveHomeVisitSaleOnServer`), honour a legacy `packageId` only while it
+  is a current price row, and put the condition on the appointment
+  (`category_id`, and `concern` when the patient wrote none).
 
   **A slot starts on the hour, and the routes say so.** `isWholeHourSlot()` in
   `bookingSlots.ts` refuses anything else at all ten doors that write a slot

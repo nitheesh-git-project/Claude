@@ -1417,18 +1417,22 @@ the therapist absorbs it.
 price, an optional struck-through compare-at price (derived from the
 category's per-session price when left blank), promises, validity, and
 per-programme rules (minimum gap between sessions, max sessions/week, max
-purchases/patient) - configured field-by-field in the admin **Session
-Manager** tab, not Site Content or Feature Control.
+purchases/patient). There is no editor for them any more: a therapist's
+recommendation is priced per session from the condition, so Catalog ->
+Packages was removed and the old rows are kept only for the purchases and
+recommendations that point at them.
 
 **They are not advertised anywhere public.** A course of treatment is a
 clinical recommendation, so `/` and `/conditions` carry no programme
 catalogue at all: they show treatment categories with their consultation
 price, and a programme's detail dialog no longer lists the courses it leads
-to. Programme cards go to `/book?category=<id>`. `/home-visit` shows
-**single**-visit packages only, which still book directly
-(`/book-home-visit?package=<id>`) because that visit is the home-visit
+to. Programme cards go to `/book?category=<id>`. `/home-visit` lists every
+condition as **one** home visit at its home-visit price, booked directly
+(`/book-home-visit?category=<id>`), because that visit is the home-visit
 consultation and the only way in for a patient who needs to be seen at home.
-Multi-visit home programmes are recommended, not sold. The
+Multi-visit home programmes are recommended, not sold; an old
+`?package=<id>` link still resolves (to its condition, or to the general
+consultation) and a link to a course of visits is answered, not sold. The
 `show_programme_prices` switch that used to gate this is retired: the
 columns remain in `schema.sql` and nothing reads them.
 
@@ -1655,10 +1659,10 @@ ways - it carries an address snapshot instead of a Meet link, a travel fee
 on top of the package price, it can be paid in cash at the door as well as
 prepaid, and its session code starts `HV####` instead of `SS####`. Anyone
 can book either mode; there is no such thing as an "online patient" - the
-patient dashboard's **Book a Session** section always offers all three
-products (single online consultation, online session package, home visit
-package), and history sections (**Your Sessions** / **Your Home Visits**)
-only appear once a patient actually has that kind of session.
+patient dashboard's **Book a Session** section always offers both (one
+online consultation per condition, one home visit per condition), and
+history sections (**Your Sessions** / **Your Home Visits**) only appear once
+a patient actually has that kind of session.
 
 - *Serviceability and pricing.* Admin maintains a pincode-level service-area
   list (`home_visit_areas`, bulk pincode paste supported) with a travel fee
@@ -1668,10 +1672,15 @@ only appear once a patient actually has that kind of session.
   a pass-through reimbursement paid to the therapist in full
   (`src/lib/homeVisitPricing.ts`) and deliberately excluded from revenue -
   folding it into the package price would mean the therapist funds their own
-  transport out of their own cut. `home_visit_packages` is a separate
-  catalog from the online session packages; a one-off visit is just a
-  1-visit package, so there are exactly three purchasable products, not
-  four.
+  transport out of their own cut. The visit itself is priced under
+  **Catalog → Conditions → Home visits**: one clinic-wide price, and any
+  condition may set its own (`src/lib/homeVisitRates.ts`; stored as
+  one-visit `home_visit_packages` rows, `category_id` null for the
+  clinic-wide one, at most one active per condition by a unique partial
+  index). One visit, no count, no validity, no days. Both checkouts take
+  the condition and resolve the price row on the server
+  (`resolveHomeVisitSaleOnServer`), and hands-on recommendations are written
+  at exactly these prices.
 - *Address.* `patient_addresses` is the patient's reusable address book
   (label, lines, landmark, pincode, optional map pin, contact phone, access
   notes); every booked visit snapshots its own copy onto the appointment
@@ -2045,12 +2054,15 @@ Brand & Contact Details fields save individually (click Edit on a field,
 change it, Save) via `/api/admin/update-setting`, same as every other
 `site_settings` column; the root layout reads them on every request to pass
 into `Navbar`/`Footer`, so a change is live everywhere those render, not
-just on the admin page. Session packages live under **Catalog → Packages**
-(beside the home-visit packages) and **Catalog → Purchases**; their
-package-wide settings - visibility, default validity, the therapist-lock
-switch, the bulk-scheduler limit, the expiry reminder window - sit with
-every other rule under **Settings → Programmes & Home Visits**; see
-"Session packages" above.
+just on the admin page. **Catalog → Conditions** is the one catalogue: each
+condition's online session (price, length, copy, photo) under *Online
+sessions*, then *Home visits* - the clinic-wide home-visit price and visit
+length, and each condition's own price or "Clinic-wide" (saved through
+`/api/admin/set-home-visit-price`). There is no Packages screen; purchases
+stay under **Catalog → Purchases**, and the programme-wide settings -
+default validity, the therapist-lock switch, the bulk-scheduler limit, the
+expiry reminder window - sit with every other rule under **Settings →
+Programmes & Home Visits**; see "Session packages" above.
 
 **Admin scopes, activity log, and admin-created bookings.** `profiles.
 admin_scope` is one of `full`, `operations`, `finance`, `clinical` (see

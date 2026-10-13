@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   categoryServiceOption,
-  homeVisitServiceOption,
+  homeVisitConditionOption,
   defaultCategoryId,
   DEFAULT_SERVICE_DURATION_MINUTES,
   GENERAL_CONSULTATION_CATEGORY_ID,
@@ -20,17 +20,15 @@ const category = {
   image_focal_y: 30,
 };
 
+// A condition offered as a home visit, at its home-visit price.
 const visit = {
-  id: "hv-1",
-  title: "Single Home Visit",
+  id: "cat-1",
+  title: "Back & Neck Pain",
   price_paise: 180000,
-  visit_count: 1,
   visit_duration_minutes: 60,
-  subtitle: "One therapist, at your address.",
-  description: "A full assessment where you actually move.",
-  benefits: ["Assessment at home", "Written plan"],
   travel_fee_included: false,
-  validity_days: 30,
+  description: "Desk-related stiffness and sciatica.",
+  points: ["Posture screening", "Home exercise plan"],
 };
 
 describe("categoryServiceOption", () => {
@@ -171,29 +169,25 @@ describe("defaultCategoryId", () => {
   });
 });
 
-describe("homeVisitServiceOption", () => {
-  it("words a single visit as one visit", () => {
-    const o = homeVisitServiceOption(visit);
+describe("homeVisitConditionOption", () => {
+  it("is one visit of a condition, at the visit price, with no count anywhere", () => {
+    const o = homeVisitConditionOption(visit);
+    expect(o.id).toBe("cat-1");
+    expect(o.title).toBe("Back & Neck Pain");
+    expect(o.pricePaise).toBe(180000);
     expect(o.priceUnit).toBe("/ visit");
-    expect(o.meta).toContain("Single visit");
-    expect(o.meta).toContain("60 min");
-    expect(o.stats.find((s) => s.label === "Visits")?.value).toBe("1 visit");
-  });
-
-  it("words several visits as several, and says each of the duration", () => {
-    const o = homeVisitServiceOption({ ...visit, visit_count: 4 });
-    expect(o.priceUnit).toBe("/ 4 visits");
-    expect(o.meta).toContain("4 visits");
-    expect(o.meta).toContain("60 min each");
-    expect(o.stats.find((s) => s.label === "Visits")?.value).toBe("4 visits");
+    expect(o.meta).toEqual(["60 min", "At your address", "Travel by area"]);
+    const words = [...o.meta, o.priceUnit, ...o.stats.map((s) => `${s.label} ${s.value}`)].join(" ");
+    expect(words).not.toMatch(/single visit|\d+ visits?\b|each|same therapist/i);
+    expect(o.stats.find((s) => s.label === "Visits")).toBeUndefined();
   });
 
   it("says whether travel is included, in the chip and in the figures", () => {
-    const added = homeVisitServiceOption(visit);
+    const added = homeVisitConditionOption(visit);
     expect(added.meta).toContain("Travel by area");
     expect(added.stats.find((s) => s.label === "Travel")?.value).toBe("Added for your area");
 
-    const included = homeVisitServiceOption({ ...visit, travel_fee_included: true });
+    const included = homeVisitConditionOption({ ...visit, travel_fee_included: true });
     expect(included.meta).toContain("Travel included");
     expect(included.stats.find((s) => s.label === "Travel")?.value).toBe("Included");
   });
@@ -201,64 +195,39 @@ describe("homeVisitServiceOption", () => {
   // An absent column must not read as "travel is included" -- that is the
   // direction that quotes a patient less than they will be charged.
   it("treats an absent travel flag as travel being added", () => {
-    const o = homeVisitServiceOption({ ...visit, travel_fee_included: undefined });
+    const o = homeVisitConditionOption({ ...visit, travel_fee_included: undefined });
     expect(o.meta).toContain("Travel by area");
   });
 
-  it("prefers the subtitle over the description as the one-line summary", () => {
-    const o = homeVisitServiceOption(visit);
-    expect(o.summary).toBe("One therapist, at your address.");
-    expect(o.about).toBe("A full assessment where you actually move.");
+  it("uses the condition's own copy and points", () => {
+    const o = homeVisitConditionOption(visit);
+    expect(o.summary).toBe("Desk-related stiffness and sciatica.");
+    expect(o.about).toBe("Desk-related stiffness and sciatica.");
+    expect(o.points).toEqual(["Posture screening", "Home exercise plan"]);
+    expect(homeVisitConditionOption({ ...visit, points: { a: 1 } }).points).toEqual([]);
   });
 
-  it("falls back to the description when there is no subtitle", () => {
-    const o = homeVisitServiceOption({ ...visit, subtitle: null });
-    expect(o.summary).toBe("A full assessment where you actually move.");
-  });
-
-  // Same null-not-zero rule computeHomeVisitSavings already follows: nothing
-  // to compare against means no strike-through at all, never "Save 0".
-  it("offers no saving when there is nothing to compare against", () => {
-    const o = homeVisitServiceOption(visit);
+  it("offers no badge, no compare-at and no saving", () => {
+    const o = homeVisitConditionOption(visit);
+    expect(o.badge).toBeNull();
     expect(o.compareAtPaise).toBeNull();
     expect(o.savingsPaise).toBeNull();
   });
 
-  it("carries the saving when a compare-at price is set above the price", () => {
-    const o = homeVisitServiceOption({ ...visit, compare_at_paise: 250000 });
-    expect(o.compareAtPaise).toBe(250000);
-    expect(o.savingsPaise).toBe(70000);
-  });
-
-  it("ignores a compare-at price at or below the price", () => {
-    const o = homeVisitServiceOption({ ...visit, compare_at_paise: 180000 });
-    expect(o.compareAtPaise).toBeNull();
-  });
-
-  it("reads benefits as a list and refuses anything that is not one", () => {
-    expect(homeVisitServiceOption(visit).points).toEqual(["Assessment at home", "Written plan"]);
-    expect(homeVisitServiceOption({ ...visit, benefits: { a: 1 } }).points).toEqual([]);
+  it("falls back to the column's own default length when it is missing", () => {
+    const o = homeVisitConditionOption({ ...visit, visit_duration_minutes: null });
+    expect(o.durationMinutes).toBe(DEFAULT_SERVICE_DURATION_MINUTES);
   });
 
   it("never turns an absent focal point into a number", () => {
-    const o = homeVisitServiceOption(visit);
+    const o = homeVisitConditionOption(visit);
     expect(o.focalX).toBeNull();
     expect(o.focalY).toBeNull();
     expect(focalPosition({ image_focal_x: o.focalX, image_focal_y: o.focalY })).toBe("50% 50%");
   });
 
-  it("names the therapist lock only when there is more than one visit to lock", () => {
-    const single = homeVisitServiceOption({ ...visit, therapist_locked: true });
-    expect(single.meta).not.toContain("Same therapist");
-    expect(single.stats.find((s) => s.label === "Therapist")).toBeUndefined();
-
-    const many = homeVisitServiceOption({ ...visit, visit_count: 3, therapist_locked: true });
-    expect(many.meta).toContain("Same therapist");
-    expect(many.stats.find((s) => s.label === "Therapist")?.value).toBe("The same one throughout");
-  });
-
-  it("never states a validity in days, even when the row has one", () => {
-    const option = homeVisitServiceOption(visit);
+  it("never states a validity in days", () => {
+    const option = homeVisitConditionOption(visit);
     expect(option.meta.join(" ")).not.toMatch(/\bdays?\b/);
     expect(option.stats.find((s) => s.label === "Book within")).toBeUndefined();
   });

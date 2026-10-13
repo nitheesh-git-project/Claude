@@ -94,8 +94,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Money | `costs` | Costs + promo codes | `FIN-COST-001`, `ADM-PROMO-001` |
 | Money | `breakdown` | Breakdown | `FIN-BRK-001` |
 | Money | `inputs` | Your Numbers (investments, advertising, what you own and owe) | `FIN-BH-002`, `FIN-BH-003`, `FIN-BH-004` |
-| Catalog | `conditions` | Conditions | `ADM-CAT-001`, `ADM-CAT-004` |
-| Catalog | `packages` | Packages | `ADM-CAT-005` |
+| Catalog | `conditions` | Conditions (Online sessions, then Home visits) | `ADM-CAT-001`, `ADM-CAT-004`, `ADM-CAT-005` |
 | Catalog | `areas` | Service Areas + waitlist | `ADM-CAT-010` |
 | Catalog | `purchases` | Purchases | `ADM-CAT-014` |
 | Logs | `all` | All Activity | `ADM-SET-033`, `ADM-SET-034`, `ADM-LOG-001`, `ADM-LOG-003`, `ADM-LOG-003a` |

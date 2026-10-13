@@ -1,6 +1,7 @@
-import { computeHomeVisitSavings } from "@/lib/homeVisitProgress";
 import HomeVisitOnly from "@/components/pricing/HomeVisitOnly";
 import CatalogCard from "@/components/catalog/CatalogCard";
+import { homeVisitConditionOption, type HomeVisitConditionRow } from "@/lib/serviceOptions";
+import { homeVisitBookHref } from "@/lib/homeVisitRates";
 
 export type HubCategory = {
   id: string;
@@ -15,24 +16,8 @@ export type HubCategory = {
   cta_label: string | null;
 };
 
-export type HubHomeVisitPackage = {
-  id: string;
-  title: string;
-  subtitle: string | null;
-  badge_label: string | null;
-  visit_count: number;
-  price_paise: number;
-  compare_at_paise: number | null;
-  visit_duration_minutes: number;
-  validity_days: number | null;
-  travel_fee_included: boolean;
-  therapist_locked?: boolean;
-  benefits?: unknown;
-  highlight?: boolean;
-  image_url?: string | null;
-  image_focal_x?: number | null;
-  image_focal_y?: number | null;
-};
+/** A condition offered as one home visit, at its home-visit price. */
+export type HubHomeVisitCondition = HomeVisitConditionRow;
 
 function Group({
   title,
@@ -105,13 +90,13 @@ function Group({
  */
 export default function PatientBookingHub({
   categories,
-  homeVisitPackages,
+  homeVisitConditions,
 }: {
   categories: HubCategory[];
-  homeVisitPackages: HubHomeVisitPackage[];
+  homeVisitConditions: HubHomeVisitCondition[];
 }) {
   const hasAnything =
-    categories.length > 0 || homeVisitPackages.length > 0;
+    categories.length > 0 || homeVisitConditions.length > 0;
 
   if (!hasAnything) {
     return (
@@ -153,53 +138,35 @@ export default function PatientBookingHub({
         </Group>
       )}
 
-      {homeVisitPackages.length > 0 && (
+      {homeVisitConditions.length > 0 && (
         <HomeVisitOnly>
         <Group
           title="Home visits"
-          blurb="A therapist comes to you. We'll check your pincode before anything is charged."
+          blurb="One visit from a therapist at your address. We'll check your pincode before anything is charged."
           tone="home"
           icon="fa-house-medical"
-          count={homeVisitPackages.length}
+          count={homeVisitConditions.length}
         >
-          {homeVisitPackages.map((p) => {
-            const savings = computeHomeVisitSavings({
-              visitCount: p.visit_count,
-              pricePaise: p.price_paise,
-              compareAtPaise: p.compare_at_paise,
-            });
-            const isSingle = p.visit_count === 1;
-            const benefits = Array.isArray(p.benefits) ? (p.benefits as string[]) : [];
+          {homeVisitConditions.map((c) => {
+            const option = homeVisitConditionOption(c);
             return (
               <CatalogCard
-                key={p.id}
+                key={c.id}
                 data={{
-                  id: p.id,
-                  title: p.title,
-                  summary: p.subtitle,
-                  imageUrl: p.image_url ?? null,
-                  focalX: p.image_focal_x,
-                  focalY: p.image_focal_y,
-                  badge: p.badge_label,
-                  highlight: p.highlight,
-                  meta: [
-                    isSingle ? "Single visit" : `${p.visit_count} visits`,
-                    `${p.visit_duration_minutes} min${isSingle ? "" : " each"}`,
-                    p.travel_fee_included ? "Travel included" : "Travel by area",
-                    !isSingle && p.therapist_locked ? "Same therapist" : "",
-                  ].filter(Boolean),
-                  points: benefits,
-                  pricePaise: p.price_paise,
+                  id: option.id,
+                  title: option.title,
+                  summary: option.summary,
+                  imageUrl: option.imageUrl,
+                  focalX: option.focalX,
+                  focalY: option.focalY,
+                  meta: option.meta,
+                  points: option.points,
+                  pricePaise: option.pricePaise,
                   rupeesOnly: true,
-                  compareAtPaise: savings.compareAtPaise,
-                  savingsPaise:
-                    savings.compareAtPaise === null
-                      ? null
-                      : savings.compareAtPaise - p.price_paise,
-                  priceUnit: isSingle ? "/ visit" : `/ ${p.visit_count} visits`,
-                  bookHref: `/book-home-visit?package=${p.id}`,
-                  bookLabel: isSingle ? "Book this visit" : "Book a first visit",
-                  icon: "fa-house-medical",
+                  priceUnit: option.priceUnit,
+                  bookHref: homeVisitBookHref(c.id),
+                  bookLabel: "Book a home visit",
+                  icon: option.icon,
                 }}
               />
             );

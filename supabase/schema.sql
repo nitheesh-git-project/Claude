@@ -16206,6 +16206,90 @@ revoke all on function public.release_promo_code_for_purchase(text, uuid, uuid) 
 revoke all on function public.release_promo_code_for_purchase(text, uuid, uuid) from anon;
 revoke all on function public.release_promo_code_for_purchase(text, uuid, uuid) from authenticated;
 
+-- ===========================================================================
+-- Home visits are priced per condition, one visit each.
+--
+-- Catalog -> Conditions -> Home visits replaces the old Home Visit Packages
+-- editor. There is one clinic-wide home-visit price, and any condition may
+-- set its own price instead; a visit is always one visit, with no count, no
+-- validity and no days. Travel is still added per visit from Service Areas.
+-- Hands-on recommendations are priced from the same figures
+-- (src/lib/homeVisitRates.ts, loadRecommendableRates).
+--
+-- No new column or table: a price is a `home_visit_packages` row with
+-- `visit_count = 1` and `care_plan_course = false` -- `category_id is null`
+-- for the clinic-wide price, a condition's id for its own. Both purchase
+-- tables need a `package_id`, and every booking route already reads its
+-- terms through one. Multi-visit rows and course rows are left exactly as
+-- they are: old purchases point at them, and they are simply no longer
+-- offered on /home-visit or the booking hub.
+--
+-- 1. Reconcile duplicates. Among active one-visit non-course rows, keep one
+--    per condition (and one clinic-wide): the cheapest, then the oldest,
+--    then the lowest id -- the figure loadRecommendableRates already
+--    charged -- and switch the rest off. Switched off, never deleted.
+-- 2. If single-visit rows exist but none is clinic-wide, create the
+--    clinic-wide price from the cheapest of them, so every condition that
+--    was priced before is still priced after (the old reader fell back to
+--    the cheapest row of any condition).
+-- 3. Price rows carry no validity of their own; the clinic-wide default in
+--    Settings decides when a visit lapses.
+-- 4. The unique partial index makes "at most one active price per key" a
+--    fact rather than a habit, so two admins saving at once get a 23505
+--    (answered 409 by /api/admin/set-home-visit-price) instead of two prices.
+--
+-- Re-runnable: on a second run step 1 finds no duplicates, step 2 finds the
+-- clinic-wide row, step 3 finds nothing to null, and the index exists.
+
+do $$
+declare
+  v_nil constant uuid := '00000000-0000-0000-0000-000000000000';
+begin
+  with ranked as (
+    select
+      id,
+      row_number() over (
+        partition by coalesce(category_id, v_nil)
+        order by price_paise asc, created_at asc, id asc
+      ) as rn
+    from home_visit_packages
+    where active and visit_count = 1 and not care_plan_course
+  )
+  update home_visit_packages p
+     set active = false
+    from ranked r
+   where r.id = p.id
+     and r.rn > 1;
+
+  if not exists (
+    select 1 from home_visit_packages
+     where active and visit_count = 1 and not care_plan_course and category_id is null
+  ) and exists (
+    select 1 from home_visit_packages
+     where active and visit_count = 1 and not care_plan_course
+  ) then
+    insert into home_visit_packages (
+      title, visit_count, price_paise, visit_duration_minutes, travel_fee_included,
+      category_id, active, therapist_locked, recommendable
+    )
+    select 'Home visit', 1, price_paise, visit_duration_minutes, travel_fee_included,
+           null, true, true, true
+      from home_visit_packages
+     where active and visit_count = 1 and not care_plan_course
+     order by price_paise asc, created_at asc, id asc
+     limit 1;
+  end if;
+
+  update home_visit_packages
+     set validity_days = null
+   where active and visit_count = 1 and not care_plan_course
+     and validity_days is not null;
+end $$;
+
+create unique index if not exists home_visit_packages_one_rate_per_category
+  on home_visit_packages ((coalesce(category_id, '00000000-0000-0000-0000-000000000000'::uuid)))
+  where active and visit_count = 1 and not care_plan_course;
+
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --

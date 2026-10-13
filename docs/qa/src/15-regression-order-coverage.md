@@ -8,7 +8,7 @@ Each journey is an end-to-end run through the product, executed in one sitting. 
 
 ```
 SETUP-RESET-001
-  → SETUP-CAT-001 (three conditions)  → SETUP-PKG-001 (P1, P2, P3)
+  → SETUP-CAT-001 (three conditions)  → SETUP-HVPKG-001 (home-visit prices)
   → ADM-SET-026 (scoped admins)       → ADM-PEOP-006 (revenue shares)
   → THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
   → PAT-BOOK-002 → PAT-BOOK-003 (book + pay)
@@ -100,7 +100,7 @@ ADM-SET (pay_later_enabled on, at Money -> Owed by Patients)
 
 ```
 SETUP-RESET-001
-   └─ SETUP-CAT-001 ─┬─ SETUP-PKG-001 ─┐
+   └─ SETUP-CAT-001 ─┬─ SETUP-HVPKG-001 ┐
                      └─ PAT-BOOK-002 ──┤
 THR-AUTH-001 → ADM-APPR-002 → THR-AVAIL-001
                                        │

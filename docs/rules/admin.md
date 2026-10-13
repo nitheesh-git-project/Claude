@@ -761,6 +761,30 @@ The seven sections, scopes and levels, User Access, the Settings information arc
   published to realtime on purpose -- a row per tap would refresh the
   dashboard for every patient paying.
 
+- **Catalog -> Conditions is the one catalogue, and there is no Packages
+  screen.** The Session Packages and Home Visit Packages editors are gone,
+  with their create/update/delete routes and validators: a recommendation is
+  priced per session from the condition (`loadRecommendableRates`), so a
+  session package was something nobody sold any more, and a home visit is
+  one visit of a condition. The screen is titled **Conditions** with two
+  sections, in this order: **Online sessions** (`TreatmentCategoryManager`,
+  one video session each) and **Home visits** (`HomeVisitPriceList`: the
+  clinic-wide price and visit length, then every active condition as
+  "Clinic-wide (₹X)" with *Set own price*, or "₹Y own price" with *Edit* and
+  *Use clinic-wide*; a banner when home visits are switched off; paged, with
+  All / Own price / Clinic-wide chips). Its controls render only for a scope
+  that can manage Catalog. It saves through
+  `/api/admin/set-home-visit-price`, which re-reads the rows and picks the
+  row itself (the browser sends a condition and paise, never a row id),
+  answers a duplicate insert (23505) with a 409 and a sentence, logs it,
+  and revalidates `/home-visit`. The rows the old editors made are kept --
+  Catalog -> Purchases still names old purchases by them -- and the
+  dashboard selects only the columns those two readers need. A stale
+  `?tab=packages` link lands on Conditions through `findTab`. Deleting a
+  condition removes its own home-visit price rows when nobody bought one,
+  rather than refusing over rows no screen shows; a purchase against one
+  still blocks, named as a home-visit purchase. Detail in `home-visit.md`.
+
 - **Countries & currency lives under Catalog, because it decides what a
   patient is charged.** `catalog` scope, logged as `catalog.update`. Three
   switches save on their own (local prices on/off, visitors may choose their

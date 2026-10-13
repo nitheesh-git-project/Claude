@@ -134,7 +134,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Feature.** `/patient/dashboard/book`. **Role.** Patient.
 **Purpose.** Prove the portal's booking hub offers exactly the two things a patient may buy directly, and nothing that must come from a recommendation.
-**Preconditions.** `SETUP-CAT-001` has created the three categories. For the home-visit half: `ADM-SET-013` on, `SETUP-AREA-001` and `SETUP-HVPKG-001` done (HV1 = 1 visit, HV2 = 4 visits).
+**Preconditions.** `SETUP-CAT-001` has created the three categories. For the home-visit half: `ADM-SET-013` on, `SETUP-AREA-001` and `SETUP-HVPKG-001` done (clinic-wide price ₹2,499; `QA Knee & Joint Care` at its own ₹2,999), and the legacy HV2 row (4 visits) seeded as in §8.12.
 **Test Data.** None entered.
 
 **Steps**
@@ -143,7 +143,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 3. Read every card under **Single online consultation**.
 4. Read every card under **Home visits**.
 5. Tap the card titled `QA Back & Spine Care`.
-6. Tap the browser's Back button, then tap the HV1 card.
+6. Tap the browser's Back button, then tap **Book a home visit** on the `QA Knee & Joint Care` card under **Home visits**.
 7. Return to `/patient/dashboard/book`. Ask an admin to switch **Home Visit** off (`ADM-SET-013`), then reload this screen.
 
 **Expected Result.**
@@ -151,10 +151,10 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 * Group 1 is `Single online consultation` - `One video session with a therapist, booked for a specific concern.` One card per **active** treatment category, each showing its title, description, `N min · online` and its consultation price.
 * **Each group's heading reads as a level above the cards, not as one of them.** A filled square tile in the mode's own colour - **teal** with a video glyph for online, **amber** with a house glyph for home visits - then the heading in the display face, a count chip (`2 OPTIONS`), the one-line blurb, and a hairline that starts in that colour and fades out. The two headings used to be `text-sm font-bold` slate, the identical weight and ink the card titles below them use, so the sections did not separate and the line telling a patient which one comes to their house disappeared into the list. If a heading is the same size and weight as the card titles under it, that regression is back.
 * The count chip must **agree with the cards beneath it** - three cards, `3 OPTIONS`; one card, `1 OPTION` singular.
-* Group 2 is `Home visits` - `A therapist comes to you. We'll check your pincode before anything is charged.` **HV1 (1 visit) appears. HV2 (4 visits) does not.** A multi-visit home package is a programme and comes from a care plan; if HV2 is on this screen that is the P0 `PAT-HV-005` defect. Each card carries `Single visit · N min at home` and either `Travel included` or `Travel charged separately, by area`.
+* Group 2 is `Home visits` - `One visit from a therapist at your address. We'll check your pincode before anything is charged.` **One card per active condition**, each priced at its home-visit price: `QA Knee & Joint Care` at **₹2,999 / visit** (its own price), the other two at **₹2,499 / visit** (clinic-wide). **HV2 (4 visits) does not appear**, and neither does a card titled after a price row; if either is on this screen that is the P0 `PAT-HV-005` defect. Each card carries `N min`, `At your address` and either `Travel included` or `Travel by area` - **no visit count, no "Single visit", no validity and no days anywhere**.
 * **No session package (programme) appears anywhere on this screen**, at any price, with or without a Buy control.
-* Step 5 navigates to `/book?category=<id>` with that category preselected. Step 6 navigates to `/book-home-visit?package=<id>`.
-* After step 7 the **Home visits** group is **absent** entirely and the sidebar's home-visit affordances go with it. With no categories **and** no home-visit packages the whole card reads `Nothing is available to book right now - please check back shortly.`
+* Step 5 navigates to `/book?category=<id>` with that category preselected. Step 6 navigates to `/book-home-visit?category=<id>` with `QA Knee & Joint Care` already chosen at ₹2,999.
+* After step 7 the **Home visits** group is **absent** entirely and the sidebar's home-visit affordances go with it. With no categories (and so no home visits) the whole card reads `Nothing is available to book right now - please check back shortly.`
 **Cleanup.** Switch **Home Visit** back on if later home-visit tests follow.
 
 ---
@@ -403,7 +403,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 
 ### 11.5 Home visit (patient)
 
-> **Preconditions for this whole sub-section:** `ADM-SET-013` has switched **Home Visit enabled** on, `SETUP-AREA-001` has created Area 1 (`560038`, ₹150/visit), and `SETUP-HVPKG-001` has created HV1 (1 visit) and HV2 (4 visits).
+> **Preconditions for this whole sub-section:** `ADM-SET-013` has switched **Home Visit enabled** on, `SETUP-AREA-001` has created Area 1 (`560038`, ₹150/visit), and `SETUP-HVPKG-001` has set the clinic-wide home-visit price (₹2,499) and `QA Knee & Joint Care`'s own price (₹2,999). HV2 (4 visits) is seeded by SQL where a case needs it (§8.12).
 
 #### `PAT-HV-001` - The public home-visit page appears only when enabled · P1
 
@@ -415,7 +415,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 **Test Data.** Pincode `560038`; address from Patient A §8.3.
 
 **Steps**
-1. Open `/book-home-visit`. Confirm the header reads **Step 1 of 4**, and that the **visit** is named at the top of the screen, *above* the pincode field. With one bookable visit in the catalogue it is already chosen - its photograph, `₹price · N min`, whether travel is added, a **View details** link and the line *"This is the only visit on offer today, so it is already chosen for you."* - and there is **no Change button**, because there is nothing to change to. With two or more, a picker opens a dialog of cards exactly as `/book` does.
+1. Open `/book-home-visit`. Confirm the header reads **Step 1 of 4**, and that **what the visit is for** is named at the top of the screen, *above* the pincode field: it opens on the general consultation (as `/book` does), with its photograph, `₹2,499 · 60 min`, a **View details** link and a **Change** button. Tap **Change**: a dialog of condition cards, exactly as `/book`, each at its home-visit price (`QA Back & Spine Care` ₹2,499, `QA Knee & Joint Care` ₹2,999) and none carrying a visit count or days. Choose `QA Back & Spine Care`.
 2. Tap the **Pincode** field. Enter `560038`.
 3. Tap **Check**.
 4. Read the confirmation line. It must agree with the visit named above it: a visit whose price already covers travel reads *"Travel is included"*, and one that does not quotes the per-visit travel fee for this area. That is why the visit is chosen before the pincode is asked for.
@@ -423,7 +423,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 6. Tap **Continue**.
 7. On **When suits you?** pick a date at least 24 hours out and an arrival time.
 8. Tap **Continue**.
-9. On **About you**, read the teal line naming the visit chosen on Step 1 - it must name `QA Home Visit - Single` with its price and length, and carry a **Change** link. There is no package dropdown on this step. Complete the identity fields (or confirm the "booking as" strip if signed in).
+9. On **About you**, read the teal line naming the condition chosen on Step 1 - it must name `QA Back & Spine Care` with its visit price and length, and carry a **Change** link. There is no package dropdown on this step. Complete the identity fields (or confirm the "booking as" strip if signed in).
 10. Tap **Continue**.
 11. On **Review and pay**, read every line of the price breakdown.
 12. Choose **Pay online**, tap the pay button, and complete with `success@razorpay`.
@@ -431,14 +431,15 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 **Expected Result**
 * Step 4: a teal line - *"Yes - we visit Indiranagar, Bengaluru. Travel to this area is ₹150 per visit."*
 * Step 7: the copy states home visits need at least **24 hours'** notice (the `home_visit_lead_time_hours` setting, deliberately longer than the online 12).
-* Step 11: the breakdown shows **programme price**, **travel**, and **total** as three separate figures - `₹2,499` + `₹150` = `₹2,649`. **The button must charge exactly the total shown.** Quoting one figure and charging another is a P0 defect.
-* Step 12: a confirmation screen. A `home_visit_package_purchases` row exists with `payment_mode='online'`, `payment_status='paid'`, `travel_fee_paise=15000`, a `default_address_id`, and a **snapshot** of the package.
+* Step 11: the breakdown reads **Home visit for** `QA Back & Spine Care`, the **length**, the time and address, then **visit**, **travel**, and **total** as three separate figures - `₹2,499` + `₹150` = `₹2,649`. **The button must charge exactly the total shown.** Quoting one figure and charging another is a P0 defect.
+* Step 12: a confirmation screen. A `home_visit_package_purchases` row exists with `visit_count=1`, `payment_mode='online'`, `payment_status='paid'`, `travel_fee_paise=15000`, a `default_address_id`, and `package_id` pointing at the **clinic-wide** price row. The visit's appointment carries `category_id` = `QA Back & Spine Care` (and that title as its concern when none was typed).
+* Repeat with `QA Knee & Joint Care`: the purchase is ₹2,999 and points at that condition's **own** price row. Tampering the request body to send another condition's price row as `packageId` alongside the `categoryId` changes nothing - the server prices the condition.
 * The visit's address is **snapshotted onto the appointment** (`visit_address_*`), not referenced live - editing the saved address later must not rewrite a delivered visit.
 
 #### `PAT-HV-003` - Unserviceable pincode → waitlist · P1
 
 **Steps.** Open `/book-home-visit`, enter `560025`, tap **Check**. Then enter `QA Patient B` and `+91 98765 43211` and tap **Tell me when you do**.
-**Expected Result.** An amber panel: *"We don't visit 560025 yet."* plus *"Leave your number and we'll tell you the moment we do. Nothing has been charged."* No address form appears and no package can be chosen. After submitting: *"Thanks - we'll be in touch."* The panel also offers a link to an **online consultation**, which is available anywhere. Admin → Catalog → Service Areas shows the waitlist entry, and its badge count increases.
+**Expected Result.** An amber panel: *"We don't visit 560025 yet."* plus *"Leave your number and we'll tell you the moment we do. Nothing has been charged."* No address form appears and nothing can be paid for. After submitting: *"Thanks - we'll be in touch."* The panel also offers a link to an **online consultation**, which is available anywhere. Admin → Catalog → Service Areas shows the waitlist entry, and its badge count increases.
 
 #### `PAT-HV-004` - Pincode validation · P2
 
@@ -451,8 +452,8 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 
 #### `PAT-HV-005` - A multi-visit home package cannot be bought directly · P0
 
-**Steps.** In the Step 3 package picker, attempt to select `QA Home Visit Recovery - 4 Visits`. If the UI offers it, proceed and attempt payment. Also call the API directly: `POST /api/home-visit/create-order` with HV2's id.
-**Expected Result.** The multi-visit package is **not offered** for direct purchase, and the API refuses it. Only a **one-visit** home package is directly purchasable - that is the patient's home consultation. HV2 can only reach a patient through a therapist's care plan.
+**Steps.** Open the Step 1 picker on `/book-home-visit` and look for `QA Home Visit Recovery - 4 Visits`. Open `/book-home-visit?package=<HV2 id>`. Then call the API directly: `POST /api/home-visit/create-order` and `/api/home-visit/book-cash` with `packageId` = HV2's id.
+**Expected Result.** HV2 is **not offered** - the picker lists conditions only. The old link shows *"Courses of visits come from your therapist now"* with **Book a first visit**, never a payment step for one visit. Both routes answer **403** with the programme sentence (*"A course of treatment is arranged by your therapist..."*). An old `?package=` link to the **clinic-wide** price row still opens the wizard (on the general consultation), and one to a condition's own price row opens on that condition. HV2 can only reach a patient through a therapist's care plan.
 
 #### `PAT-HV-006` - Cash on visit · P1
 
@@ -611,8 +612,8 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 #### `PAT-CARE-003` - A recommended home-visit programme quotes travel correctly · P0
 
-**Preconditions.** A care plan recommending HV2 (4 visits), patient address in a ₹150 area.
-**Expected Result.** The offer card carries no address and its button reads just **Accept & pay**. On Review & pay, **Where should we come?** lists the patient's saved addresses and *Somewhere else* (pincode + address form); until a served pincode is known the travel line reads *Needs your address* and Pay is disabled. Then **Your total** shows **programme + travel + total** as three figures, with travel charged **per visit**: `₹8,999 + (₹150 × 4) = ₹9,599`. A card that printed `₹8,999` on a button that charged `₹9,599` would be a P0 defect - travel is per visit, not per purchase.
+**Preconditions.** A hands-on care plan for 4 visits of `QA Back & Spine Care` (priced at the clinic-wide ₹2,499 a visit, so ₹9,996), patient address in a ₹150 area.
+**Expected Result.** The offer card carries no address and its button reads just **Accept & pay**. On Review & pay, **Where should we come?** lists the patient's saved addresses and *Somewhere else* (pincode + address form); until a served pincode is known the travel line reads *Needs your address* and Pay is disabled. Then **Your total** shows **programme + travel + total** as three figures, with travel charged **per visit**: `₹9,996 + (₹150 × 4) = ₹10,596`. A card that printed `₹9,996` on a button that charged `₹10,596` would be a P0 defect - travel is per visit, not per purchase. Set `QA Back & Spine Care`'s own home-visit price and write a new plan: it is priced at the own price instead - a hands-on recommendation always uses the condition's current home-visit price.
 Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/create-order` must refuse the purchase with `Home visits aren't available right now. Please talk to your therapist.` A recommendation written before the service stopped must not stay purchasable.
 
 #### `PAT-SCHED-001` - The scheduler opens answered, not empty · P0

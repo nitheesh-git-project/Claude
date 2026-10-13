@@ -27,6 +27,10 @@ import { serverError } from "@/lib/apiError";
 //      The foreign keys involved (appointments, patient_package_purchases,
 //      home_visit_packages, appointment_reassignment_log) carry no ON DELETE
 //      behaviour, so Postgres refuses outright -- see describeCategoryBlockers.
+//      A condition's home-visit price rows are the exception: nothing but
+//      Catalog -> Conditions -> Home visits shows them, so one nobody bought
+//      is removed with the condition rather than named as a blocker the
+//      admin has no screen to clear. Only a purchase against one blocks.
 //   2. The delete asks for the row back (`.select("id")`), so "removed
 //      nothing" is distinguishable from "removed it".
 //   3. Nothing removed and nothing blocking is reported as a refusal rather
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
   // late table, and a database without it must still be able to delete an
   // unused category rather than being told something it cannot see is in the
   // way.
-  const [appointments, packagePurchases, homeVisitPackages, reassignOld, reassignNew] =
+  const [appointments, packagePurchases, homeVisitRows, reassignOld, reassignNew] =
     await Promise.all([
       admin
         .from("appointments")
@@ -75,10 +79,7 @@ export async function POST(request: NextRequest) {
         .from("patient_package_purchases")
         .select("id", { count: "exact", head: true })
         .eq("category_id", id),
-      admin
-        .from("home_visit_packages")
-        .select("id", { count: "exact", head: true })
-        .eq("category_id", id),
+      admin.from("home_visit_packages").select("id").eq("category_id", id),
       admin
         .from("appointment_reassignment_log")
         .select("id", { count: "exact", head: true })
@@ -89,15 +90,53 @@ export async function POST(request: NextRequest) {
         .eq("new_category_id", id),
     ]);
 
+  // A failed read of the price rows is "can't check", never "nothing there":
+  // deleting on a guess would meet the foreign key and say something vaguer.
+  if (homeVisitRows.error) {
+    return serverError("admin/delete-treatment-category", homeVisitRows.error);
+  }
+  const homeVisitRowIds = (homeVisitRows.data ?? []).map((r) => r.id as string);
+  const homeVisitPurchases = homeVisitRowIds.length
+    ? await admin
+        .from("home_visit_package_purchases")
+        .select("id", { count: "exact", head: true })
+        .in("package_id", homeVisitRowIds)
+    : { count: 0, error: null };
+  if (homeVisitPurchases.error) {
+    return serverError("admin/delete-treatment-category", homeVisitPurchases.error);
+  }
+
   const blockers = describeCategoryBlockers({
     appointments: appointments.count ?? 0,
     packagePurchases: packagePurchases.count ?? 0,
-    homeVisitPackages: homeVisitPackages.count ?? 0,
+    homeVisitPurchases: homeVisitPurchases.count ?? 0,
     reassignments: (reassignOld.count ?? 0) + (reassignNew.count ?? 0),
   });
 
   if (blockers) {
     return NextResponse.json({ error: blockers.message }, { status: 409 });
+  }
+
+  // The condition's own home-visit price rows go first (nobody bought one --
+  // counted above). Recommendations that named one keep their snapshot; the
+  // column pointing at the row is `on delete set null`.
+  if (homeVisitRowIds.length) {
+    const { error: rowsError } = await admin
+      .from("home_visit_packages")
+      .delete()
+      .in("id", homeVisitRowIds);
+    if (rowsError) {
+      if (rowsError.code === "23503") {
+        return NextResponse.json(
+          {
+            error:
+              "Someone bought a home visit for this condition while you were looking at it, so it can no longer be deleted. Turn it off instead to hide it from patients.",
+          },
+          { status: 409 }
+        );
+      }
+      return serverError("admin/delete-treatment-category", rowsError);
+    }
   }
 
   const { data: deleted, error } = await admin
@@ -144,6 +183,7 @@ export async function POST(request: NextRequest) {
   revalidatePath("/");
   revalidatePath("/conditions");
   revalidatePath("/book");
+  revalidatePath("/home-visit");
 
   return NextResponse.json({ success: true });
 }

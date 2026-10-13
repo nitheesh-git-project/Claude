@@ -101,6 +101,7 @@ export async function bookHomeVisitSession(
     timezone,
     notes,
     concern,
+    categoryId,
     actorId,
     address,
     visitDurationMinutes,
@@ -111,6 +112,10 @@ export async function bookHomeVisitSession(
     timezone?: string | null;
     notes?: string | null;
     concern?: string | null;
+    // The condition the visit is for (a single visit bought from
+    // /book-home-visit). A label, like `concern`: the price was fixed by the
+    // purchase. Absent for programme visits, which carry none.
+    categoryId?: string | null;
     // Who to attribute the home_visit_purchase_events row to -- the patient
     // for a self-service booking, an admin's id when scheduling on their
     // behalf.
@@ -212,6 +217,7 @@ export async function bookHomeVisitSession(
       slot_time: new Date(slotDateTime).toISOString(),
       timezone: timezone || null,
       concern: concern || "Home Physiotherapy Visit",
+      category_id: categoryId || null,
       duration_minutes: durationMinutes,
       notes: notes || null,
       status: "requested",

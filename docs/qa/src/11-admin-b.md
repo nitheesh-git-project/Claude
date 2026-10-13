@@ -520,7 +520,7 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 | Operations | `?section=settings&tab=booking` | `POST /api/admin/update-setting` | Same |
 | Finance | `?section=sessions&tab=all` - **reachable, read-only** | `POST /api/admin/assign-appointment` | Page **opens** and shows the list with no action buttons; route **403** |
 | Finance | `?section=sessions&tab=new` | `POST /api/admin/create-booking` | Tab is **not in the sidebar** and the URL falls back to an allowed screen; route **403** |
-| Finance | `?section=catalog&tab=packages` | `POST /api/admin/create-package` | Same |
+| Finance | `?section=catalog&tab=conditions` | `POST /api/admin/set-home-visit-price` | Same |
 | Clinical | `?section=money&tab=summary` | `POST /api/admin/refund-package` | Same |
 | Clinical | `?section=settings&tab=team` | `POST /api/admin/set-admin-scope` | Same |
 | All three | `?section=today&tab=risk` | - | The tab opens with **only the signals that desk can act on**, and the flagged-message and reveal-log trails and the threshold editor are absent (`ADM-RISK-004`) |
@@ -712,10 +712,10 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 4 | Treatment category price | Catalog → Conditions | `/book` header, Step 3 fee, the Razorpay amount | All three show the new price; an old cached page still charges the new one | `ADM-CAT-002` |
 | 5 | Treatment category duration | Catalog → Conditions | The appointment's `duration_minutes`; overlap checks | A new booking stores the new duration | `ADM-CAT-002` |
 | 6 | Category active/inactive | Catalog → Conditions | The concern dropdown; the create route | Absent from the dropdown; API returns 409 | `PAT-BOOK-013` |
-| 7 | Package definition | Catalog → Packages | The therapist's recommendation dropdown | The new package is offered for its condition only | `THR-CARE-001` |
-| 8 | Package price | Catalog → Packages | The patient's offer card and what is charged | Card and charge both move - **for new plans only** | `PAT-CARE-002` |
-| 9 | Package edited after purchase | Catalog → Packages | An existing purchase | **Nothing changes** - snapshot frozen | `ADM-CAT-006` |
-| 10 | Package min gap / max per week | Catalog → Packages | The bulk scheduler | Violating slots are refused | `ADM-CAT-007` |
+| 7 | Clinic-wide home-visit price | Catalog → Conditions → Home visits | `/home-visit`, the booking hub, `/book-home-visit`, both checkouts, a hands-on recommendation | Every condition without its own price moves to the new figure | `ADM-CAT-005` |
+| 8 | A condition's own home-visit price | Catalog → Conditions → Home visits | The same surfaces for that condition only; the patient's offer card and charge | Card and charge both move - **for new plans and new bookings only** | `ADM-CAT-005`, `PAT-CARE-003` |
+| 9 | Home-visit price changed after purchase | Catalog → Conditions → Home visits | An existing purchase | **Nothing changes** - the purchase keeps its amount | `ADM-CAT-006` |
+| 10 | Old programme rules (min gap / max per week) | No screen - legacy rows | The bulk scheduler on an old purchase | Violating slots are still refused | `ADM-CAT-007` |
 | 11 | Package default validity | Settings → Programmes & Home Visits | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
 | 12 | Bulk scheduler limit | Settings → Programmes & Home Visits | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
 | 13 | Therapist lock switch | Settings → Programmes & Home Visits | The pre-pick on later programme sessions in Sessions with no therapist | Off → no therapist pre-picked on a new programme | `ADM-SET-018` |

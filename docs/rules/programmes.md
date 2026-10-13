@@ -155,11 +155,12 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   home visit in this app is a `home_visit_packages` purchase and
   `/api/appointments/create` books `visit_mode: 'online'` only, so applying
   "no direct package purchase" literally to both catalogs would leave a
-  patient who needs to be seen at home with **no entry point at all**. A
-  one-visit home package is that patient's consultation and stays
-  purchasable; `visit_count > 1` is refused by both
-  `/api/home-visit/create-order` and `/api/home-visit/book-cash` (paying at
-  the door is a payment method, not a different product).
+  patient who needs to be seen at home with **no entry point at all**. One
+  home visit of a condition is that patient's consultation and stays
+  purchasable, at the condition's home-visit price (`home-visit.md`); an old
+  link to a `visit_count > 1` row is refused with the programme sentence by
+  both `/api/home-visit/create-order` and `/api/home-visit/book-cash`
+  (paying at the door is a payment method, not a different product).
   Both wizards **answer** a stale `?package=` link rather than ignoring it -
   taking a different amount of money than somebody came for is the one
   outcome a removed checkout must not produce. Existing purchases are

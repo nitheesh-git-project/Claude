@@ -1,4 +1,4 @@
-// The public catalog's detail dialogs -- programmes and the single home
+// The public catalog's detail dialogs -- conditions online and as a home
 // visit -- driven through a real browser.
 //
 // Session programmes are no longer advertised publicly at all: a course of
@@ -12,8 +12,7 @@
 // booking route survives the redesign, neither of which is visible from the
 // API. The booking links are the money-critical part here -- a card that
 // opens a dialog instead of navigating is exactly the change that can
-// silently drop the `?package=` / `?category=` parameter the booking wizard
-// reads.
+// silently drop the `?category=` parameter both booking wizards read.
 import { test, expect, type Page } from "@playwright/test";
 import { adminClient, BASE } from "./helpers";
 
@@ -153,18 +152,21 @@ test.describe("Catalog detail dialogs", () => {
     }
   });
 
-  test("CD-003: the single home visit opens its dialog, and the programme is absent", async ({
+  test("CD-003: a condition's home visit opens its dialog; no programme and no count", async ({
     page,
   }) => {
-    // Both seeded by global-setup. A one-visit home package IS the
-    // home-visit consultation and has to stay -- it is the only way in for
-    // a patient who needs to be seen at home -- while the four-visit
-    // programme is a recommendation and must not be advertised.
+    // /home-visit lists conditions, each as one visit at its home-visit
+    // price -- the seeded condition has no own price, so it shows the
+    // clinic-wide one global-setup seeds. Neither the price row's own title
+    // nor the four-visit programme is a card: one is a price, the other a
+    // recommendation.
     await page.goto(`${BASE}/home-visit`);
     await expect(
       page.getByText("4-Visit Home Recovery Programme", { exact: false })
     ).toHaveCount(0);
-    await assertDialogContract(page, "Single Home Visit", "Single Home Visit");
+    await expect(page.getByText("Single Home Visit", { exact: false })).toHaveCount(0);
+    await expect(page.getByText(/Single visit|\d+ visits\b/)).toHaveCount(0);
+    await assertDialogContract(page, CATEGORY_TITLE, CATEGORY_TITLE);
   });
 
   test("CD-004: a programme card sells a first session, never a course of them", async ({
@@ -194,18 +196,23 @@ test.describe("Catalog detail dialogs", () => {
     await expect(dialog.getByText(PACKAGE_TITLE, { exact: false })).toHaveCount(0);
   });
 
-  test("CD-005: the dialog's book button starts a first session", async ({ page }) => {
+  test("CD-005: the home-visit dialog's book button opens the wizard on that condition", async ({
+    page,
+  }) => {
     await page.goto(`${BASE}/home-visit`);
-    await page.getByText("Single Home Visit", { exact: false }).first().click();
-    await page.getByRole("dialog").getByRole("link", { name: /Book this visit/i }).click();
-    // The destination is the home-visit booking page carrying the single
-    // visit's id -- asserted on the URL rather than on the wizard's
-    // contents, because the wizard resolves the signed-in role against
-    // Supabase from the browser and that egress is not available in every
-    // environment this suite runs in (see AGENTS.md). A single visit keeps
-    // its `?package=`, unlike a programme, because it is the consultation.
+    await page.getByText(CATEGORY_TITLE, { exact: false }).first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    // One visit, said as one visit: no count, no validity, no days.
+    await expect(dialog).not.toContainText(/\d+ visits\b|\bdays?\b|Single visit/);
+    await dialog.getByRole("link", { name: /Book a home visit/i }).click();
+    // Asserted on the URL rather than on the wizard's contents, because the
+    // wizard resolves the signed-in role against Supabase from the browser
+    // and that egress is not available in every environment this suite runs
+    // in (see AGENTS.md). The condition travels as `?category=`; the server
+    // prices it again at checkout.
     await page.waitForURL(/\/book-home-visit(\?|$)/);
-    expect(new URL(page.url()).searchParams.get("package")).not.toBeNull();
+    expect(new URL(page.url()).searchParams.get("category")).toBe(categoryId);
   });
 
   test("CD-007: a stale programme link explains itself instead of selling one session", async ({

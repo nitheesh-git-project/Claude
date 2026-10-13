@@ -320,9 +320,10 @@ Eight pages from one design system, the word budgets, why every photograph carri
 - **The home page leads with four, and the full list is one tap away.** It
   rendered every active condition -- ten cards and climbing -- so the page
   whose job is to say what this clinic *is* spent most of its length being an
-  index of itself. `treatment_categories.featured` and
-  `home_visit_packages.featured` pick which four lead, ticked on the admin's
-  own Conditions and Home Visit screens; `pickFeatured()` in
+  index of itself. `treatment_categories.featured` picks which four lead,
+  ticked on the admin's Conditions screen, and `/home-visit` puts the same
+  ticked conditions first (`home_visit_packages.featured` is no longer read:
+  home-visit cards are conditions now); `pickFeatured()` in
   `src/lib/catalogFeatured.ts` is the rule, dependency-free so a judgement
   about what a visitor sees is unit-tested rather than only clicked. Five
   things hold it:
@@ -339,27 +340,41 @@ Eight pages from one design system, the word budgets, why every photograph carri
      the screen that sets it rather than discovered on the live site.
   4. **The two pages differ because their lists do.** `/` links on to
      `/conditions`, which still shows everything; `/home-visit` shows every
-     package, featured ones first, because it *is* its own full list and has
+     condition, featured ones first, because it *is* its own full list and has
      nowhere to send anybody. (It used to lead with four and reveal the rest,
      and the revealed cards never appeared: `Stagger` animates its children
-     once, so cards added later stayed hidden. `HomeVisitPackages` keys it on
-     the reveal for any caller that still passes `leadCount`.) `hasMore`
+     once, so cards added later stayed hidden -- key it on the reveal if a
+     reveal ever comes back.) `hasMore`
      gates the home page's link -- a control opening a list identical to the
      one above it is a dead end with a label on it.
-  5. **`featured` is not `highlight`.** The home-visit form already had a
+  5. **`featured` is not `highlight`.** The old home-visit package form had a
      control labelled "Feature this package" that drew the teal ring; it
-     reads "Highlight with a ring" now. Two controls called Feature, meaning
+     read "Highlight with a ring" until that form went. Two controls called Feature, meaning
      different things, is the one-word-one-concept rule broken in the one
      place an admin meets both.
   The patient dashboard's booking hub deliberately keeps showing everything:
   it is the screen somebody opens *to* book, so trimming it hides what they
   came for.
-  **A revalidate belongs after the isolated writes, not before them.** Both
-  home-visit catalog routes called `revalidatePath("/home-visit")` before
+  **A revalidate belongs after the isolated writes, not before them.** The
+  old home-visit catalog routes called `revalidatePath("/home-visit")` before
   `writeCatalogFocal`, so the page was rebuilt from the row as it was a
   moment earlier and a repositioned cover waited out the full ISR window --
   the exact failure the revalidate exists to prevent, in the call that exists
-  to prevent it.
+  to prevent it. `/api/admin/set-home-visit-price` revalidates after its last
+  write for the same reason.
+
+- **A home-visit card is a condition, sold as one visit.** `/home-visit`
+  and the patient booking hub list every active condition at its home-visit
+  price (`src/lib/homeVisitRates.ts`: its own price, else the clinic-wide
+  one), with the condition's photo, copy and points, through
+  `HomeVisitConditions` and `homeVisitConditionOption` -- the same mapping
+  the wizard's picker reads, so card, dialog and picker cannot describe one
+  visit three ways. Nothing on them carries a count ("Single visit", "4
+  visits", "each"), a validity or a day: one visit, and "if you need more,
+  your therapist will recommend them". Book links
+  `/book-home-visit?category=<id>`. A condition with no price (no own price
+  and no clinic-wide one) is left out rather than shown at a guess, and the
+  old multi-visit rows are never cards.
 
 - **Ordering a list is one save of the whole list, never a pairwise swap.**
   The Conditions screen moved a category by swapping two rows'
@@ -398,8 +413,10 @@ Eight pages from one design system, the word budgets, why every photograph carri
      Postgres refuses outright. `describeCategoryBlockers()` in
      `src/lib/categoryDeletion.ts` turns the counts into the sentence, with
      the alternative (turn it off) named -- "it has bookings" sends an admin
-     to delete sessions and be refused a second time by a home-visit package
-     they were never told about.
+     to delete sessions and be refused a second time by something they were
+     never told about. The condition's own home-visit price rows are removed
+     with it when nobody bought one (no screen but Conditions -> Home visits
+     shows them); a purchase against one is named as a home-visit purchase.
   2. **Ask for the row back** (`.delete().eq(...).select("id")`), so
      "removed nothing" is distinguishable from "removed it". Nothing removed
      and nothing blocking is a 500 saying so, never a success: at that point

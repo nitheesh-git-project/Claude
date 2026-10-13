@@ -397,7 +397,7 @@ The first band **renders even when empty**, saying so. A section that disappears
 
 **Feature.** Checkout re-reads the package and refuses on a mismatch rather than charging a different amount. On its own that means the *patient* discovers the clinic's stale data, by having their payment refused at the last step.
 
-**Steps.** With a recommendation queued, go to **Catalog → Packages** and change that package's price. Come back and tap **Approve**. Then tap **Turn it down**.
+**Steps.** With a recommendation queued, go to **Catalog → Conditions** and change that condition's price (its online price for a video plan, its home-visit price for a hands-on one). Come back and tap **Approve**. Then tap **Turn it down**.
 **Expected Result.** The approval is **refused** with a sentence naming the drift - *"This was written at ₹9,000 and the programme now costs ₹9,500. Approving it would quote one figure and charge another."* The plan is still queued and `reviewed_by` is still null: refused, not half-applied. Deactivating the package or clearing its **recommendable** flag refuses the same way.
 **Turning it down still works.** Refusing to let an admin close a thread because its package moved would trap exactly the recommendation that most needs closing.
 
@@ -667,7 +667,7 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 **Steps**
 1. Create `QA Spare Condition` and, without booking anything under it, delete it.
 2. On a condition with a booked session (`QA Back & Spine Care`), tap **Delete** and read the dialog.
-3. Delete every session under some condition, leave **one home-visit package** filed against it, and delete it again.
+3. Give a spare condition its own home-visit price (nobody buys it) and delete it. Then on a condition whose own home-visit price **was** bought, with every session under it deleted, delete it again.
 4. In a second tab, delete a condition; in the first tab, tap **Delete** on the same row.
 5. Tap **Delete**, and with the request in flight, drop the network.
 6. Open **Logs → All Activity**.
@@ -675,25 +675,43 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **
 **Expected Result**
 * Step 1 deletes, the row leaves the list, and `/` and `/conditions` update immediately.
 * Step 2 opens a **dialog** - not an 11px line clipped beside the button - naming the counts (`2 sessions and 1 programme purchase still use this condition…`) and saying to **turn it off instead**, with what that preserves. HTTP **409**.
-* Step 3 names the **home-visit package** specifically. A refusal that says "it has bookings" sends an admin to delete sessions and be refused a second time by something they were never told about.
+* Step 3: the first deletes - its unbought price row goes with it, because no screen but Conditions → Home visits shows it. The second is refused naming the **home-visit purchase** specifically. A refusal that says "it has bookings" sends an admin to delete sessions and be refused a second time by something they were never told about.
 * Step 4 answers **404** with `That condition has already been deleted. Refresh to see the current list.`
 * Step 5 says `Could not reach the server. Nothing has changed.` - previously the thrown request left the transition with nothing on screen at all.
 * The log's row names the **condition's title**, not "Treatment category": the row is gone by then, so the log is the only thing left that can say which one it was.
 **Never `{ success: true }` on a delete that removed nothing.** If the row is still listed after a success and a refresh, that is a P0 - it is the exact defect this case was written for.
 
-#### `ADM-CAT-005` - Create a session package · P0
-**Steps.** Create Package P1 exactly as specified in §8.11.
-**Expected Result.** Saved. The **Category is set once at creation and locked afterwards** - live purchases reference it. The package becomes available to therapists as a recommendable programme for that condition **only**. On the public site it appears as a card with **no Buy button**, showing instead *"Arranged by your therapist after your first session."*
-**Negatives:** the five validation messages in §8.11.
+#### `ADM-CAT-005` - Home-visit prices: clinic-wide, and a condition's own · P0
 
-#### `ADM-CAT-006` - Editing a package never changes what was already sold · P0
-**Steps.** After Patient A has purchased P1 (6 sessions, ₹9,999), change P1 to 4 sessions and ₹12,000. Then open the patient's package widget and the admin's Purchases row.
-**Expected Result.** The purchase still reads **6 sessions** at the price paid. `sessions_granted` and `package_snapshot` are **frozen by trigger**. **Never resolve a purchased entitlement by joining the live catalog row** - if the patient's widget now says 4 sessions, that is a P0 defect.
-**[SQL] confirmation:** attempting `update patient_package_purchases set sessions_granted = 4 where id='<id>'` **raises**.
+**Feature.** Catalog → Conditions is the one catalogue: **Online sessions** (one video session per condition) then **Home visits** - one clinic-wide price and visit length, and any condition may set its own price. One visit each: there is no visit count, validity or day to set. There is no Packages screen.
 
-#### `ADM-CAT-007` - Package rules reach the booking · P1
-**Steps.** With P1's minimum gap `24h` and max `3`/week, have the patient attempt to book two sessions 12 hours apart, and four in one week.
-**Expected Result.** Both refused by the batch rules layer, with readable messages. Changing the rule in the catalog changes the refusal for **new** scheduling attempts.
+**Steps**
+1. Open **Catalog**. Read the tabs, then open `?section=catalog&tab=packages` by URL.
+2. On **Conditions**, scroll to **Home visits**. Set the clinic-wide price to `2499` and the visit length to `60` (§8.12); Save.
+3. On `QA Knee & Joint Care`'s row tap **Set own price**, enter `2999`, Save.
+4. Open `/book-home-visit?category=<Knee id>` in a private window, then `/home-visit`.
+5. Back on the row tap **Use clinic-wide**; reload the wizard.
+6. Set `QA Knee & Joint Care`'s own price again (`2999`) for later tests.
+7. Turn **Home Visit enabled** off (Settings → Programmes & Home Visits) and reopen Conditions; turn it back on.
+
+**Expected Result**
+* Step 1: tabs are **Conditions, Service Areas, Countries & currency, Purchases** - no Packages. The URL lands on Conditions.
+* The screen is titled **Conditions** with **Online sessions** above **Home visits**, and a footer: *"Travel is added per visit from Service Areas. Hands-on recommendations use these prices..."*.
+* Step 2: a toast names the new figure (*"The clinic-wide home-visit price is now ₹2,499 for 60 minutes"*); every condition without its own price reads `Clinic-wide (₹2,499)`.
+* Step 3: the row reads `₹2,999 own price` with **Edit** and **Use clinic-wide**. Exactly one active one-visit `home_visit_packages` row for that condition, `validity_days` null.
+* Step 4: the wizard opens on `QA Knee & Joint Care` at **₹2,999**; `/home-visit` (within its 5-minute cache) shows it at ₹2,999 and the others at ₹2,499, with no visit counts or days.
+* Step 5: the row reads `Clinic-wide (₹2,499)` again and the wizard quotes ₹2,499. The own row is switched **off**, not deleted.
+* Step 7: an amber banner says home visits are switched off and links to Settings → Programmes & Home Visits.
+* The Finance admin cannot open Catalog at all, and `POST /api/admin/set-home-visit-price` answers them **403**. Should a scope ever hold Catalog at `view`, the prices show with **no** Set/Edit/Use clinic-wide controls.
+**Negatives:** the messages in §8.12; a price above ₹1,00,000 is refused by the route. Two admins saving the same condition at once leave **one** price (the second gets *"Someone else set this price at the same moment..."*, 409, or edits the first's row).
+
+#### `ADM-CAT-006` - Changing a price never changes what was already sold · P0
+**Steps.** After Patient A has bought a home visit for `QA Knee & Joint Care` at ₹2,999, change its own price to ₹3,500. Then open the patient's visit and the admin's Purchases row.
+**Expected Result.** The purchase and its visit still read **₹2,999**. A new booking is quoted ₹3,500. **Never resolve what a purchase cost by joining the live price row** - if the old purchase now says ₹3,500, that is a P0 defect.
+
+#### `ADM-CAT-007` - The removed package editors stay removed · P1
+**Steps.** Call `POST /api/admin/create-package`, `/api/admin/update-package`, `/api/admin/delete-package`, `/api/admin/create-home-visit-package`, `/api/admin/update-home-visit-package` and `/api/admin/delete-home-visit-package` as the Master Admin. Then open an old purchase of a session package or a 4-visit home programme on Catalog → Purchases.
+**Expected Result.** Every route answers **404** - they do not exist. The old purchase still shows its title and keeps booking to exhaustion; its programme rules (minimum gap, weekly cap) still apply in the bulk scheduler.
 
 #### `ADM-CAT-010` - Service areas · P0
 **Steps.** Create Area 1 and Area 2 from §8.13. Then try to create a third area containing `560038`.

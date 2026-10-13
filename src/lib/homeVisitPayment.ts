@@ -31,7 +31,10 @@ export type HomeVisitAddressForm = {
 };
 
 type PayForHomeVisitArgs = {
-  packageId: string;
+  /** The condition the visit is for. The server prices it (its own
+   *  home-visit price, else the clinic-wide one) -- never an amount or a
+   *  price row from here. */
+  categoryId: string;
   address: HomeVisitAddressForm;
   name: string;
   email: string;
@@ -48,7 +51,7 @@ type PayForHomeVisitArgs = {
 };
 
 /**
- * Creates a Razorpay order for a home visit package and opens Checkout.
+ * Creates a Razorpay order for one home visit and opens Checkout.
  *
  * Mirrors payForPackage() in packagePayment.ts. The one meaningful
  * difference is the address: it goes up with the order rather than only
@@ -57,7 +60,7 @@ type PayForHomeVisitArgs = {
  * decided before Checkout opens, never after.
  */
 export async function payForHomeVisit({
-  packageId,
+  categoryId,
   address,
   name,
   email,
@@ -77,7 +80,7 @@ export async function payForHomeVisit({
     const orderRequest = fetch("/api/home-visit/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ packageId, address }),
+      body: JSON.stringify({ categoryId, address }),
     });
     orderRequest.catch(() => {});
     await loadRazorpayScript();
@@ -118,6 +121,7 @@ export async function payForHomeVisit({
               timezone,
               notes,
               concern,
+              categoryId,
               // The id create-order just wrote, so verify re-reads the copy
               // that actually passed the serviceability check rather than
               // trusting this payload again.

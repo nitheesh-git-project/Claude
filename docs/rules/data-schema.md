@@ -593,6 +593,18 @@ Three rules when adding one:
   FK audit and is not — `unique (therapist_id, day_of_week, hour)` already
   builds an index led by that column.
 
+**A partial unique index can say "at most one active", and a reconcile
+step comes first.** `home_visit_packages_one_rate_per_category` is unique on
+`coalesce(category_id, nil-uuid)` where `active and visit_count = 1 and not
+care_plan_course`: one clinic-wide home-visit price and at most one own price
+per condition (`home-visit.md`). The `coalesce` is the point -- a plain
+unique on `category_id` treats every `null` as distinct, so it would allow
+any number of clinic-wide rows. The `do $$` block before it switches off
+duplicates first (keeping the cheapest, then the oldest, then the lowest id,
+which `src/lib/homeVisitRates.ts` also picks), because building the index
+over a table that already breaks it fails the whole apply. Rows are switched
+off, never deleted: purchases point at them.
+
 `create index concurrently` cannot run inside a transaction block, which is
 how this file is applied, so the entries here are plain `create index if not
 exists`. On a table with real volume that takes a lock that blocks writes for

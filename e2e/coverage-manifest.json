@@ -483,6 +483,23 @@
       "integration": "local",
       "destructive": false
     },
+    "catalog-home-visit-prices.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/admin.md",
+        "docs/rules/home-visit.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "checkout-speed.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -871,28 +888,6 @@
     },
     "numeric-input.spec.ts": {
       "runner": "platform",
-      "levels": [
-        "browser"
-      ],
-      "projects": [
-        "desktop"
-      ],
-      "integration": "local",
-      "destructive": false
-    },
-    "package-category-picker.spec.ts": {
-      "runner": "admin",
-      "levels": [
-        "browser"
-      ],
-      "projects": [
-        "desktop"
-      ],
-      "integration": "local",
-      "destructive": false
-    },
-    "package-form-flags.spec.ts": {
-      "runner": "admin",
       "levels": [
         "browser"
       ],
@@ -2396,7 +2391,7 @@
     {
       "id": "admin.settings-and-catalogue",
       "runner": "admin",
-      "title": "Settings information architecture, the booking lead time reaching the patient picker, package form switches",
+      "title": "Settings information architecture, the booking lead time reaching the patient picker, and Catalog -> Conditions with its home-visit prices (clinic-wide and per condition) reaching the wizard and recommendations",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -2414,16 +2409,13 @@
           "level": "browser"
         },
         {
-          "spec": "package-category-picker.spec.ts",
+          "spec": "catalog-home-visit-prices.spec.ts",
           "tests": [
-            "PKG-CAT-001"
-          ],
-          "level": "browser"
-        },
-        {
-          "spec": "package-form-flags.spec.ts",
-          "tests": [
-            "PKG-FLAG-001"
+            "HVP-001",
+            "HVP-002",
+            "HVP-003",
+            "HVP-004",
+            "HVP-005"
           ],
           "level": "browser"
         }
@@ -3231,5 +3223,16 @@
       ]
     }
   ],
-  "removed": []
+  "removed": [
+    {
+      "spec": "package-category-picker.spec.ts",
+      "reason": "The Session Packages editor it drove is gone: Catalog -> Packages was removed (bug pass item 5) because recommendations are priced per session from each condition, so no admin creates a session package any more. The condition picker it guarded has no form left to live on.",
+      "reviewed": "Claude for the owner, 2026-10-13 (bug-pass item 5)"
+    },
+    {
+      "spec": "package-form-flags.spec.ts",
+      "reason": "Both package forms it checked are gone with Catalog -> Packages. Home-visit pricing moved to Catalog -> Conditions -> Home visits (one visit each, no placement switches), covered by catalog-home-visit-prices.spec.ts.",
+      "reviewed": "Claude for the owner, 2026-10-13 (bug-pass item 5)"
+    }
+  ]
 }

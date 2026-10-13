@@ -729,8 +729,8 @@ function AuthorOnBehalf({
         title="No programme to recommend"
         body={
           options.length === 0
-            ? "No package is marked recommendable. Turn one on under Catalog → Packages."
-            : "No recommendable package matches this session's treatment. Add one for that category under Catalog → Packages, or pick another session."
+            ? "No condition has a price to recommend at. Turn one on, or set its price, under Catalog → Conditions."
+            : "This session's condition has no price to recommend at. Check it under Catalog → Conditions, or pick another session."
         }
       />
     ) : null;

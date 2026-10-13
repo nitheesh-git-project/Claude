@@ -340,45 +340,43 @@ test.describe("Public booking service picker", () => {
     ).toBeVisible();
   });
 
-  test("SP-009: the home visit states its visit, and agrees about travel", async ({ page }) => {
+  test("SP-009: the home visit states which condition it is for, with no count", async ({ page }) => {
+    // The home-visit picker lists conditions now, each as one visit at its
+    // home-visit price (its own, else the clinic-wide one -- global-setup
+    // seeds the clinic-wide "Single Home Visit" row). A plain Book tap opens
+    // on the general consultation, the same default /book uses.
+    const admin = adminClient();
+    const { data: general } = await admin
+      .from("treatment_categories")
+      .select("title")
+      .eq("id", "00000000-0000-0000-0000-000000000001")
+      .eq("active", true)
+      .maybeSingle();
+    test.skip(!general, "no general consultation in this project");
+
     await page.goto(`${BASE}/book-home-visit`);
 
-    const admin = adminClient();
-    const { data: visits } = await admin
-      .from("home_visit_packages")
-      .select("title, visit_count, travel_fee_included")
-      .eq("active", true)
-      // What the wizard sells: a recommendation's course row is only ever
-      // bought through its care plan, and the page leaves it out the same way.
-      .eq("care_plan_course", false)
-      .order("display_order", { ascending: true })
-      .order("id", { ascending: true });
-    const sellable = (visits ?? []).filter((v) => (v.visit_count ?? 0) <= 1);
-    test.skip(sellable.length === 0, "no directly bookable home visit in this project");
+    // Whatever the catalogue holds, the patient is told what the visit is
+    // for before the pincode is asked for.
+    const chosen = page.getByRole("heading", { name: general!.title });
+    await expect(chosen).toBeVisible();
+    // The seeded conditions are on offer too, so there is something to change to.
+    await expect(page.getByRole("button", { name: "Change" })).toBeVisible();
+    // One visit, always: no count and no days on what is for sale.
+    await expect(page.getByText(/Single visit|\d+ visits\b|\bdays?\b/)).toHaveCount(0);
 
-    // Whatever the catalogue holds, the patient is told what they are
-    // buying before the pincode is asked for. The old dropdown rendered
-    // nothing at all when there was only one sellable package, which is the
-    // case this asserts against.
-    await expect(page.getByRole("heading", { name: sellable[0].title })).toBeVisible();
-
-    if (sellable.length === 1) {
-      // Nothing to change to, so no control offering it.
-      await expect(page.getByRole("button", { name: "Change" })).toHaveCount(0);
-      await expect(page.getByText("only visit on offer today", { exact: false })).toBeVisible();
-    } else {
-      await expect(page.getByRole("button", { name: "Change" })).toBeVisible();
-    }
-
-    // The visit is chosen above the pincode precisely because the
+    // The condition is chosen above the pincode precisely because the
     // serviceable answer has to say whether travel is added on top.
-    const visitHeading = page.getByRole("heading", { name: sellable[0].title });
     const pincode = page.getByPlaceholder("600020");
-    const visitBox = await visitHeading.boundingBox();
+    const visitBox = await chosen.boundingBox();
     const pincodeBox = await pincode.boundingBox();
     expect(visitBox).not.toBeNull();
     expect(pincodeBox).not.toBeNull();
     expect(visitBox!.y).toBeLessThan(pincodeBox!.y);
+
+    // And a deep link from a home-visit card lands on that condition.
+    await page.goto(`${BASE}/book-home-visit?category=${coveredId}`);
+    await expect(page.getByRole("heading", { name: WITH_COVER })).toBeVisible();
   });
 
   test("SP-010: a condition with no cover renders at the same height as one with", async ({

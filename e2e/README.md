@@ -134,7 +134,7 @@ total, which moves with every spec added.
 | `assign-availability` | 2 | an admin cannot assign a therapist who is not working that hour (409 with the reasons), and opening the hour on the roster lets the same request through; the drawer names the session's date, and "Open the roster" closes the dialog and the drawer and lands on that therapist's hours |
 | `booking-exit-link` | 2 | the way out of the wizard following the account - and never offering `/pending-approval` mid-booking |
 | `checkout-speed` | 5 | create answering with the quote and the Razorpay order in one trip, and the tap-to-sheet timing route |
-| `service-picker` | 11 | the service chosen before the slot, on both wizards |
+| `service-picker` | 11 | the service chosen before the slot, on both wizards; the home-visit wizard picking a condition (one visit, no count) and a `?category=` link landing on it |
 | `health-profile-showcase` | 2 | a sample patient dashboard per specialty, labelled as a sample, that moves on by itself every five seconds and stops for good once a tab is picked |
 | `date-field` | 6 | the clinic's own month grid in place of the browser's panel, including a past date, and Today bringing the grid back to this month |
 | `form-validation-chrome` | 2 | the app's own message in place of the OS tooltip |
@@ -142,7 +142,7 @@ total, which moves with every spec added.
 | `navigation-feedback` | 3 | a tap acknowledged, and a screen already rendered not fetched again |
 | `realtime-reconnect` | 1 | "Live updates paused" draws once and its Refresh reconnects every channel and clears it (the realtime server is stood in for, since sandbox egress cannot carry the socket) |
 | `section-nav` | 7 | the public pages' section rail and scroll arrow |
-| `catalog-detail` | 8 | the public catalog's detail dialogs |
+| `catalog-detail` | 8 | the public catalog's detail dialogs; on `/home-visit` a condition's card at its home-visit price with no count, and its Book button opening the wizard by `?category=` |
 | `catalog-cover-image` | 11 | a cover uploaded, positioned and rendering the same on card, dialog and dashboard |
 | `splash-screen` | 8 | the brand splash's cold-open, reload and long-absence rules |
 | `journey-pace` | 16 | the home walkthrough's admin-configured rotation pace |
@@ -178,9 +178,8 @@ total, which moves with every spec added.
 | `therapist-specialty` | 3 | a specialisation as a value rather than a sentence |
 | `therapist-request` | 4 | booking a named specialist from `/team` |
 | `patient-registration` | 7 | self-signup with no email-confirmation step |
-| `consultation-first` | 4 | direct programme purchase is gone, and a stale `?package=` is answered |
-| `package-category-picker` | 1 | a new package's condition is a real picker, not a lock |
-| `package-form-flags` | 1 | the placement switches that decided nothing are gone |
+| `consultation-first` | 4 | direct programme purchase is gone, a stale `?package=` is answered, and an old link to the four-visit home programme gets the programme refusal (403) rather than one visit |
+| `catalog-home-visit-prices` | 5 | Catalog -> Conditions as the one catalogue (Online sessions, then Home visits; `?tab=packages` lands there); set own price and use clinic-wide each leaving exactly one active price row and moving the wizard's quote; the route's 400s, 404 and 403; two admins at once leaving one price (200/409, either order); a hands-on recommendation written at the own price then the clinic-wide one (that last case append-only - disposable project only) |
 | `booking-rules` | 9 | lead time, the cancellation window, and the bulk-scheduler regression |
 | `home-visit-disabled` | 2 | the master switch off, flipped in the **database** rather than through the route - the case the cache could not survive |
 | `dark-mode` | 4 | the Appearance switch: off stays light on a dark device, on follows the device (and live), the brand button keeps its fill, printing stays light |

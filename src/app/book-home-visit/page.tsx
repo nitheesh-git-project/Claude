@@ -4,11 +4,12 @@ import BookingExitLink from "@/components/booking/BookingExitLink";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
-import HomeVisitBookingWizard, {
-  type WizardPackage,
-} from "@/components/HomeVisitBookingWizard";
+import HomeVisitBookingWizard from "@/components/HomeVisitBookingWizard";
 import { Reveal } from "@/components/motion/primitives";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
+import { loadHomeVisitConditions } from "@/lib/homeVisitRatesServer";
+import { categoryForLegacyPackageLink } from "@/lib/homeVisitRates";
+import { defaultCategoryId } from "@/lib/serviceOptions";
 
 export const metadata: Metadata = {
   title: "Book a Home Visit | MoveRestore",
@@ -34,7 +35,14 @@ export const metadata: Metadata = {
 // same revalidate keeps it honest.
 export const dynamic = "force-dynamic";
 
-export default async function BookHomeVisitPage() {
+export default async function BookHomeVisitPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string | string[]; package?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const requestedCategory = typeof params.category === "string" ? params.category : null;
+  const requestedPackage = typeof params.package === "string" ? params.package : null;
   const supabase = createPublicClient();
 
   const [{ data: settingsRow }, { data: triesRow }] = await Promise.all([
@@ -51,42 +59,34 @@ export default async function BookHomeVisitPage() {
     notFound();
   }
 
-  // Everything the service picker's card and detail view read. All of these
-  // except the focal pair are original columns on this table, so they come
-  // in the one query; `image_url` among them, which is why /home-visit has
-  // always been able to show a photograph and this page has not.
-  const { data: packages } = await supabase
-    .from("home_visit_packages")
-    // One string literal rather than a concatenation: supabase-js infers the
-    // row type from the literal, and joining two halves with `+` throws that
-    // away and hands every caller `GenericStringError`.
-    // prettier-ignore
-    .select("id, title, visit_count, price_paise, visit_duration_minutes, travel_fee_included, subtitle, description, terms, badge_label, highlight, benefits, compare_at_paise, validity_days, therapist_locked, image_url")
-    .eq("active", true)
-    // Not a course row: those exist only for recommendations (carePlanServer.ts).
-    .eq("care_plan_course", false)
-    .order("display_order", { ascending: true })
-    .order("id", { ascending: true });
+  // Every condition, each as one visit at its home-visit price (its own
+  // price, else the clinic-wide one -- src/lib/homeVisitRates.ts). The price
+  // shown here is a quote; both checkouts re-resolve it from the condition.
+  const { conditions } = await loadHomeVisitConditions(supabase);
 
-  // Where the subject of each cover sits. Its own call, because these two
-  // are migration-dependent where every column above is not: folded in, an
-  // unapplied migration would take the whole booking funnel down rather
-  // than costing the photographs their position.
-  const { data: packageFocals } = await supabase
-    .from("home_visit_packages")
-    .select("id, image_focal_x, image_focal_y")
-    .eq("active", true);
-
-  const focalByPackageId = new Map(
-    (packageFocals ?? []).map((row) => [
-      row.id,
-      { image_focal_x: row.image_focal_x, image_focal_y: row.image_focal_y },
-    ])
-  );
-  const wizardPackages = (packages ?? []).map((p) => ({
-    ...p,
-    ...(focalByPackageId.get(p.id) ?? {}),
-  })) as WizardPackage[];
+  // Which condition the picker opens on. `?category=` is what the cards on
+  // /home-visit and the booking hub send. `?package=` is the old link to a
+  // price row: a condition's own price opens that condition, the clinic-wide
+  // one opens the general consultation, and a course of visits is answered
+  // as a programme rather than quietly swapped for a single visit.
+  const offeredIds = new Set(conditions.map((c) => c.id));
+  // The general consultation, or the only condition there is -- never the
+  // first by display order (see defaultCategoryId): with several and no
+  // general one, the picker opens unanswered.
+  const fallbackCategoryId =
+    defaultCategoryId(conditions) || (conditions.length === 1 ? conditions[0].id : "");
+  let initialCategoryId = defaultCategoryId(conditions, requestedCategory) || fallbackCategoryId;
+  let requestedIsProgramme = false;
+  if (!requestedCategory && requestedPackage) {
+    const { data: legacyRow } = await supabase
+      .from("home_visit_packages")
+      .select("category_id, visit_count")
+      .eq("id", requestedPackage)
+      .maybeSingle();
+    const answer = categoryForLegacyPackageLink(legacyRow ?? null, offeredIds, fallbackCategoryId);
+    if (answer.programme) requestedIsProgramme = true;
+    else initialCategoryId = answer.categoryId;
+  }
 
   const leadTimeHours =
     settingsRow?.home_visit_lead_time_hours ?? DEFAULT_ADMIN_SETTINGS.homeVisitLeadTimeHours;
@@ -108,7 +108,9 @@ export default async function BookHomeVisitPage() {
         </Reveal>
         <Suspense fallback={null}>
           <HomeVisitBookingWizard
-            packages={wizardPackages}
+            conditions={conditions}
+            initialCategoryId={initialCategoryId}
+            requestedIsProgramme={requestedIsProgramme}
             leadTimeHours={leadTimeHours}
             cashEnabled={cashEnabled}
             paymentTriesBeforeAccess={

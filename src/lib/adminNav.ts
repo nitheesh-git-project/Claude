@@ -267,8 +267,16 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     icon: "fa-tags",
     blurb: "What we sell, at what price, and where.",
     tabs: [
-      { key: "conditions", label: "Conditions" },
-      { key: "packages", label: "Packages" },
+      // One catalogue: each condition is sold as one online session and as
+      // one home visit. A course of either is a therapist's recommendation at
+      // these prices, which is why there is no Packages screen any more --
+      // an old ?tab=packages link falls back here through findTab.
+      {
+        key: "conditions",
+        label: "Conditions",
+        blurb: "What we treat, and what one session of each costs - online and at home.",
+        example: "Set Knee pain's home visit to its own price, or let it use the clinic-wide one.",
+      },
       { key: "areas", label: "Service Areas" },
       // Prices for visitors outside India. In Catalog because it decides
       // what a patient is charged, the same as every other screen here.

@@ -31,7 +31,6 @@ import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { sumDiscountsGiven } from "@/lib/discounts";
 import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
 import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
-import PackageCatalogManager from "@/components/admin/PackageCatalogManager";
 import PackagePurchasesTable from "@/components/admin/PackagePurchasesTable";
 import PackageSettingsForm from "@/components/admin/PackageSettingsForm";
 import RecommendationSettingsForm from "@/components/admin/RecommendationSettingsForm";
@@ -40,7 +39,7 @@ import InviteRewardsForm from "@/components/admin/InviteRewardsForm";
 import PromoCodeManager, { type PromoCodeRow } from "@/components/admin/PromoCodeManager";
 import { readInviteSettings, readPromoCodesEnabled } from "@/lib/acquisitionSettings";
 import HomeVisitPurchasesTable from "@/components/admin/HomeVisitPurchasesTable";
-import HomeVisitPackageManager from "@/components/admin/HomeVisitPackageManager";
+import HomeVisitPriceList from "@/components/admin/HomeVisitPriceList";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import AdminCountryPricingTab from "@/components/admin/AdminCountryPricingTab";
 import { readCountryPricingAdmin } from "@/lib/countryPricingServer";
@@ -133,6 +132,8 @@ import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswor
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
+import { clinicWideHomeVisitRate, isHomeVisitPriceRow } from "@/lib/homeVisitRates";
+import { formatInr } from "@/lib/formatMoney";
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
@@ -660,13 +661,12 @@ export default async function AdminDashboardPage({
       .order("display_order", { ascending: true })
       .order("id", { ascending: true }),
 
-    // Session Manager's Catalog section -- every column the admin catalog
-    // form can edit (see PackageCatalogForm / validatePackagePayload.ts).
+    // Titles for Catalog -> Purchases. The Session Packages editor is gone
+    // (recommendations are priced per session from each condition), but old
+    // purchases still point at these rows and are named by them.
     admin
       .from("treatment_category_packages")
-      .select(
-        "id, package_code, category_id, title, subtitle, description, image_url, promises, session_count, price_paise, compare_at_paise, display_order, therapist_rate_basis, validity_days, session_duration_minutes, therapist_locked, min_gap_hours, max_sessions_per_week, max_purchases_per_patient, recommendable, active"
-      )
+      .select("id, title")
       // Course rows are the hidden anchors per-session recommendations
       // hang off (carePlanServer.ts), not programmes anyone edits.
       .eq("care_plan_course", false)
@@ -735,10 +735,13 @@ export default async function AdminDashboardPage({
     // hasn't re-run schema.sql each query fails on its own and comes back
     // as null -- emptying only the Home Visit tab, not the rest of this
     // page, same reasoning as the condition tables above.
+    // Two readers: Catalog -> Purchases names old purchases by these rows,
+    // and Catalog -> Conditions -> Home visits reads the price rows among
+    // them (one visit, active -- src/lib/homeVisitRates.ts).
     admin
       .from("home_visit_packages")
       .select(
-        "id, package_code, title, subtitle, description, image_url, benefits, badge_label, highlight, terms, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked, min_gap_hours, max_visits_per_week, max_purchases_per_patient, category_id, display_order, visible_on_home_visit_page, visible_in_dashboard, recommendable, active"
+        "id, title, category_id, visit_count, price_paise, visit_duration_minutes, travel_fee_included, active, created_at"
       )
       .eq("care_plan_course", false)
       .order("display_order", { ascending: true })
@@ -945,7 +948,6 @@ export default async function AdminDashboardPage({
     categorySpecialtyRows,
     categoryFocalRows,
     categoryFeaturedRows,
-    homeVisitFeaturedRows,
     testimonialAvatarRows,
     refundDetailRows,
     googleConnection,
@@ -1046,10 +1048,6 @@ export default async function AdminDashboardPage({
     // would blank the dashboard rather than cost the curation.
     guard(
       async () => (await admin.from("treatment_categories").select("id, featured")).data,
-      null as { id: string; featured: boolean | null }[] | null
-    ),
-    guard(
-      async () => (await admin.from("home_visit_packages").select("id, featured")).data,
       null as { id: string; featured: boolean | null }[] | null
     ),
     guard(
@@ -1635,9 +1633,6 @@ export default async function AdminDashboardPage({
 
   const categoryFeaturedById = new Map(
     (categoryFeaturedRows ?? []).map((row) => [row.id, row.featured === true])
-  );
-  const homeVisitFeaturedById = new Map(
-    (homeVisitFeaturedRows ?? []).map((row) => [row.id, row.featured === true])
   );
 
   // And the condition type, newer still, in its own call for the same
@@ -3393,51 +3388,6 @@ export default async function AdminDashboardPage({
     createdAt: p.created_at,
   }));
 
-  // The Session Manager tab used to own three unrelated things at once --
-  // a catalog, a purchases table and a settings form. Each now sits with its
-  // own kind: catalog and purchases next to their home-visit equivalents
-  // under Catalog, settings with every other setting.
-  const catalogPackagesTab = (
-    <div className="space-y-8">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Session Packages</h2>
-        <p className="text-xs text-slate-500 mb-4">
-          Bundles of online sessions, priced against a condition category.
-        </p>
-        <PackageCatalogManager
-          packages={packages ?? []}
-          categories={(treatmentCategories ?? []).map((c) => ({
-            id: c.id,
-            title: c.title,
-            price_paise: c.price_paise,
-            // Passed so the picker can say which conditions are switched
-            // off rather than offering them as though they were on sale.
-            active: c.active,
-          }))}
-        />
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Home Visit Packages</h2>
-        <p className="text-xs text-slate-500 mb-4">
-          Bundles of visits delivered at the patient&apos;s address. Different fields from the
-          online packages above - visits rather than sessions, and travel is part of the deal -
-          so they keep their own editor while living on the same screen.
-        </p>
-        <HomeVisitPackageManager
-          packages={(homeVisitPackages ?? []).map((p) => ({
-            ...p,
-            // benefits is jsonb -- defaults to '[]' in the schema, but a row
-            // written before that default (or by hand) can still be null.
-            benefits: Array.isArray(p.benefits) ? (p.benefits as string[]) : [],
-            featured: homeVisitFeaturedById.get(p.id) ?? false,
-          }))}
-          categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
-        />
-      </div>
-    </div>
-  );
-
   // An area is "in use" if any visit already points at it. patient_addresses
   // also reference areas, but an address is editable by its owner and never
   // needs the historical fee context a delivered visit does, so a visit is
@@ -3576,7 +3526,8 @@ export default async function AdminDashboardPage({
   // one section where the question is "what does a patient see?", and that
   // was only answerable by opening all four tabs and counting.
   const activeCategoryCount = (treatmentCategories ?? []).filter((c) => c.active).length;
-  const visiblePackageCount = (packages ?? []).filter((p) => p.active).length;
+  const homeVisitPriceRows = (homeVisitPackages ?? []).filter(isHomeVisitPriceRow);
+  const clinicWideVisit = clinicWideHomeVisitRate(homeVisitPriceRows);
   const countryPricing = await countryPricingRead;
   const catalogCountriesTab = countryPricing ? (
     <AdminCountryPricingTab
@@ -3615,10 +3566,14 @@ export default async function AdminDashboardPage({
             accent: "bg-teal-500",
           },
           {
-            label: "Programmes",
-            value: String(visiblePackageCount),
-            note: "Therapists can recommend these",
-            accent: visiblePackageCount > 0 ? "bg-blue-500" : "bg-slate-400",
+            label: "Home visit price",
+            value: clinicWideVisit ? formatInr(clinicWideVisit.pricePaise) : "Not set",
+            note: !adminSettings.homeVisitEnabled
+              ? "Home visits are switched off"
+              : clinicWideVisit
+                ? "Clinic-wide, one visit"
+                : "Set it under Home visits below",
+            accent: clinicWideVisit && adminSettings.homeVisitEnabled ? "bg-amber-500" : "bg-slate-400",
           },
           {
             label: "Service areas",
@@ -3637,23 +3592,61 @@ export default async function AdminDashboardPage({
     </div>
   );
 
+  // Conditions is the one catalogue: each condition is sold as one video
+  // session at its own price, and as one home visit at its home-visit price.
+  // A course of either is a therapist's recommendation, priced from these
+  // same figures -- which is why the old Packages screen went.
   const catalogConditionsTab = (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Conditions Treated</h2>
-      <p className="text-xs text-slate-500 mb-4">
-        Controls what shows on the public /conditions page, and what patients can pick (and get
-        charged) in the booking wizard.
-      </p>
-      <TreatmentCategoryManager
-        categories={(treatmentCategories ?? []).map((c) => ({
-          ...c,
-          image_url: categoryImageById.get(c.id) ?? null,
-          ...(categoryFocalById.get(c.id) ?? {}),
-          specialty: categorySpecialtyById.get(c.id) ?? null,
-          featured: categoryFeaturedById.get(c.id) ?? false,
-          points: Array.isArray(c.points) ? (c.points as string[]) : [],
-        }))}
-      />
+    <div className="space-y-8">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-display font-bold text-xl text-slate-800 mb-1">Conditions</h2>
+        <p className="text-xs text-slate-500">
+          What we treat, and what one session of each costs - online and at home. A course of
+          sessions is never set here: a therapist recommends one after seeing the patient, at
+          these same prices.
+        </p>
+        <nav aria-label="Conditions sections" className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+          <a href="#catalog-online" className="rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-teal-800 hover:border-teal-400">
+            Online sessions
+          </a>
+          <a href="#catalog-home-visits" className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800 hover:border-amber-400">
+            Home visits
+          </a>
+        </nav>
+      </div>
+
+      <section id="catalog-online" className="scroll-mt-24 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 className="font-display font-bold text-lg text-slate-800 mb-1">Online sessions</h3>
+        <p className="text-xs text-slate-500 mb-4">
+          One video session per condition, at the price shown. Controls what shows on the public
+          /conditions page, and what patients can pick (and get charged) in the booking wizard.
+        </p>
+        <TreatmentCategoryManager
+          categories={(treatmentCategories ?? []).map((c) => ({
+            ...c,
+            image_url: categoryImageById.get(c.id) ?? null,
+            ...(categoryFocalById.get(c.id) ?? {}),
+            specialty: categorySpecialtyById.get(c.id) ?? null,
+            featured: categoryFeaturedById.get(c.id) ?? false,
+            points: Array.isArray(c.points) ? (c.points as string[]) : [],
+          }))}
+        />
+      </section>
+
+      <section id="catalog-home-visits" className="scroll-mt-24 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 className="font-display font-bold text-lg text-slate-800 mb-1">Home visits</h3>
+        <p className="text-xs text-slate-500 mb-4">
+          {"One visit at the patient's address. Every condition uses the clinic-wide price unless you set its own."}
+        </p>
+        <HomeVisitPriceList
+          canManage={workableSections.includes("catalog")}
+          homeVisitEnabled={adminSettings.homeVisitEnabled}
+          priceRows={homeVisitPriceRows}
+          conditions={(treatmentCategories ?? [])
+            .filter((c) => c.active)
+            .map((c) => ({ id: c.id, title: c.title }))}
+        />
+      </section>
     </div>
   );
 
@@ -3854,7 +3847,7 @@ export default async function AdminDashboardPage({
         <HomeVisitSettingsForm
           settings={adminSettings}
           areaCount={(homeVisitAreas ?? []).length}
-          packageCount={(homeVisitPackages ?? []).length}
+          priceCount={homeVisitPriceRows.length}
           commitment={homeVisitCommitmentTotal}
         />
       </SettingsSection>
@@ -5533,12 +5526,6 @@ export default async function AdminDashboardPage({
       <>
         {catalogStrip}
         {catalogConditionsTab}
-      </>
-    ),
-    "catalog:packages": (
-      <>
-        {catalogStrip}
-        {catalogPackagesTab}
       </>
     ),
     "catalog:areas": (

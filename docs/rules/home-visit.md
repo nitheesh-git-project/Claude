@@ -2,7 +2,7 @@
 
 A delivery mode rather than a parallel booking system: service areas, the travel fee, cash at the door - plus calendar events, Meet links and the waiting room.
 
-**Mostly lives in:** src/lib/homeVisitPricing.ts · homeVisitAreaCommitments.ts · googleMeetSpace.ts · meetSyncState.ts
+**Mostly lives in:** src/lib/homeVisitPricing.ts · homeVisitRates.ts · homeVisitAreaCommitments.ts · googleMeetSpace.ts · meetSyncState.ts
 
 > Part of `docs/rules/`. `CLAUDE.md` says which file a task needs; this one
 > is the detail. Keep it current in the same change that makes it wrong --
@@ -245,6 +245,32 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   completed - identical rule to `sessions_used`, see the counter-semantics
   comment beside `home_visit_package_purchases` in `schema.sql`. See the
   "Home Visit" section in README.md for the full flow.
+
+- **A home visit is one visit of a condition, at one of two prices.**
+  Catalog -> Conditions -> Home visits holds one **clinic-wide** price and,
+  for any condition, its **own** price; there is no visit count, no validity
+  and no days to set, and travel is still added per visit from Service Areas.
+  They are `home_visit_packages` rows -- `visit_count = 1`,
+  `care_plan_course = false`, `category_id is null` for the clinic-wide one
+  -- because both purchase tables need a `package_id` and every booking
+  route reads its terms through one; the unique partial index
+  `home_visit_packages_one_rate_per_category` allows one active price per
+  key. `src/lib/homeVisitRates.ts` is the only rule (own, else clinic-wide,
+  else not on sale -- **never another condition's price**, which the old
+  "cheapest of any" fallback in `loadRecommendableRates` did), and every
+  reader goes through it: `/home-visit`, `/book-home-visit`, the patient
+  booking hub, both checkouts (`resolveHomeVisitSaleOnServer`) and the
+  hands-on recommendation picker, so a recommendation is written at exactly
+  the price the condition is sold at. `/api/admin/set-home-visit-price`
+  (`catalog` scope, logged as `catalog.update`/`catalog.create`) edits a
+  price in place -- a purchase snapshots its amount -- and "Use clinic-wide"
+  switches the condition's row off rather than deleting it, because old
+  purchases point at it. The visit length is the clinic's: saving it on the
+  clinic-wide row moves every own row with it. Multi-visit rows and course
+  rows are untouched and keep working for the purchases that hang off them;
+  they are simply never offered. The hospital-referral home visit is still
+  priced from the online condition price in `checkoutQuote.ts` (a known
+  follow-up).
 
 - **Outside India home visits are not offered, unless an admin allows it.**
   One switch on Catalog -> Countries & currency (`home_visit_outside_india`,

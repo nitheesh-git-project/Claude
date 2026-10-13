@@ -301,9 +301,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   1. **A therapist picks a condition and a number, never a price.** The
      price is that condition's per-session price times the count
      (`buildCourseSnapshot()` in `src/lib/carePlans.ts`): the condition's
-     own `treatment_categories.price_paise` for video sessions, the single
-     home-visit price (a one-visit `home_visit_packages` row, the
-     condition's own over a general one) when **Needs hands-on treatment**
+     own `treatment_categories.price_paise` for video sessions, the
+     condition's home-visit price (`src/lib/homeVisitRates.ts`: its own
+     price, else the clinic-wide one, set under Catalog -> Conditions -> Home
+     visits -- never another condition's) when **Needs hands-on treatment**
      is ticked - which is the *only* switch between video and home visits
      (`offerKindFor()`), so a plan can never say hands-on and sell video.
      The count is 1-30. All of it is resolved by `loadRecommendableRates()` /
