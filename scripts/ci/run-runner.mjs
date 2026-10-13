@@ -2,7 +2,15 @@
 // Runs one quality-gate runner end to end on the provisioned local stack and
 // writes its verdict.
 //
-//   node scripts/ci/run-runner.mjs <patient|therapist|session|admin|hospital|platform|integrity>
+//   node scripts/ci/run-runner.mjs <runner> [--shard i/n]
+//
+// <runner> is one of lib/manifest.mjs's RUNNERS. With --shard, only shard i
+// of n runs (lib/shards.mjs decides which files, from
+// scripts/ci/runner-shards.json): whole files spread by measured duration,
+// plus a 1/n slice -- Playwright's own --shard -- of each file the config
+// splits. Without it the whole runner runs, every shard's files in turn,
+// which is what reproducing a runner locally wants. Artifacts go to
+// e2e-artifacts/<label>/, the label being `admin-2of8` or, unsplit, `admin`.
 //
 // 1. Preflight (scripts/ci/preflight.mjs). An unsafe target stops here and
 //    nothing else runs. A blocked one (no Razorpay test keys) still runs the
@@ -12,11 +20,13 @@
 // 3. Starts one `next dev` for the whole runner (the browser specs must run
 //    against dev, not start -- see docs/rules/testing.md) with the egress
 //    guard preloaded, so any server-side call to a host that is not
-//    loopback, the Razorpay test API or a font host is refused and logged.
+//    loopback, the Razorpay test API or a font host is refused and logged,
+//    then requests the main pages once, in parallel, so their first compile
+//    is not charged to the first spec that opens them (never fatal).
 // 4. Integrity scripts that build their own fixtures, then the specs per
 //    Playwright project (destructive ones in a separate, final invocation),
 //    then the SQL checks that read rows the specs leave behind.
-// 5. Writes e2e-artifacts/<runner>/summary.json and summary.md (sanitised),
+// 5. Writes e2e-artifacts/<label>/summary.json and summary.md (sanitised),
 //    appends the summary to $GITHUB_STEP_SUMMARY, and exits 0 only on
 //    `passed`. The verdict rules are in lib/runner.mjs and are unit-tested.
 //
@@ -30,17 +40,22 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { RUNNERS } from "./lib/manifest.mjs";
 import { planRunner, renderSummaryMarkdown, summarize } from "./lib/runner.mjs";
+import { parseShardArg, shardLabel } from "./lib/shards.mjs";
 import { sanitize, sanitizeDeep, truncate } from "./lib/sanitize.mjs";
 import { runPreflight, reportPreflight } from "./preflight.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const runner = process.argv[2];
-if (!RUNNERS.includes(runner)) {
-  console.error(`usage: run-runner.mjs <${RUNNERS.join("|")}>`);
+const shardAt = process.argv.indexOf("--shard");
+const shard = shardAt > 0 ? parseShardArg(process.argv[shardAt + 1]) : { index: 1, total: 1 };
+if (!RUNNERS.includes(runner) || !shard) {
+  console.error(`usage: run-runner.mjs <${RUNNERS.join("|")}> [--shard i/n]`);
   process.exit(2);
 }
+const shardConfig = JSON.parse(readFileSync(path.join(root, "scripts", "ci", "runner-shards.json"), "utf8"));
+const label = shardLabel(runner, shard.index, shard.total);
 
-const artifacts = path.join(root, "e2e-artifacts", runner);
+const artifacts = path.join(root, "e2e-artifacts", label);
 mkdirSync(artifacts, { recursive: true });
 const egressLog = path.join(artifacts, "egress-denied.log");
 const guard = path.join(root, "scripts", "ci", "egress-guard.mjs");
@@ -102,14 +117,16 @@ function runScript(script) {
 // the sanitiser on its way to the job log and to logs/playwright-*.log.
 // Lines are scrubbed whole; a secret split across two chunks would slip past
 // a per-chunk scrub.
-function runPlaywright(project, phase, files) {
+function runPlaywright(project, phase, files, playwrightShard) {
   const dir = path.join(artifacts, `${project}-${phase}`);
-  console.log(`::group::Playwright ${project} (${phase}): ${files.length} spec(s)`);
+  const sliced = playwrightShard ? ` (tests ${playwrightShard} of the file)` : "";
+  console.log(`::group::Playwright ${project} (${phase}): ${files.length} spec(s)${sliced}`);
   mkdirSync(path.join(artifacts, "logs"), { recursive: true });
   const logFile = path.join(artifacts, "logs", `playwright-${project}-${phase}.log`);
   writeFileSync(logFile, "");
   return new Promise((resolve) => {
-    const child = spawn("npx", ["playwright", "test", `--project=${project}`, ...files.map((f) => `e2e/${f}`)], {
+    const args = ["playwright", "test", `--project=${project}`, ...(playwrightShard ? [`--shard=${playwrightShard}`] : [])];
+    const child = spawn("npx", [...args, ...files.map((f) => `e2e/${f}`)], {
       cwd: root,
       env: { ...childEnv, E2E_ARTIFACT_DIR: dir },
       stdio: ["ignore", "pipe", "pipe"],
@@ -241,7 +258,7 @@ function finish(summary) {
   writeFileSync(path.join(artifacts, "summary.md"), markdown);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
   console.log(markdown);
-  if (!clean.passed) console.log(`::error title=Runner ${runner} ${clean.status}::see the job summary and the failure-bundle-${runner} artifact`);
+  if (!clean.passed) console.log(`::error title=Runner ${label} ${clean.status}::see the job summary and the failure-bundle-${label} artifact`);
   process.exit(clean.passed ? 0 : 1);
 }
 
@@ -256,7 +273,7 @@ if (existsSync(provisionDir)) {
 }
 
 const manifest = JSON.parse(readFileSync(path.join(root, "e2e", "coverage-manifest.json"), "utf8"));
-const plan = planRunner(manifest, runner);
+const plan = planRunner(manifest, runner, { ...shard, config: shardConfig });
 const id = identity();
 
 const preflight = runPreflight(process.env);
@@ -284,6 +301,64 @@ if (!server.child) {
     })
   );
 }
+
+// Warm-up: `next dev` compiles a route on its first request, and on a fresh
+// machine that first request is some spec's first step, inside its timeout.
+// Asking for the main pages once, all at once, moves that compile here.
+// Anonymous requests are enough to compile the public pages, the login pages
+// and the proxy the dashboards sit behind. Nothing here can fail the runner:
+// every error is logged and ignored, and the whole thing stops waiting after
+// GATE_WARMUP_SECONDS (default 90).
+const WARMUP_PATHS = [
+  "/",
+  "/get-started",
+  "/book",
+  "/book-home-visit",
+  "/conditions",
+  "/home-visit",
+  "/how-it-works",
+  "/patient/login",
+  "/therapist/login",
+  "/hospital/login",
+  "/admin/login",
+  "/dashboard",
+  "/patient/dashboard",
+  "/therapist/dashboard",
+  "/hospital/dashboard",
+  "/admin/dashboard",
+];
+
+function warmOne(pathname, timeoutMs) {
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const req = http.get(new URL(pathname, baseUrl), { agent: false, timeout: timeoutMs }, (res) => {
+      res.resume();
+      res.on("end", () => resolve(`${pathname} ${res.statusCode} ${Date.now() - started}ms`));
+      res.on("error", () => resolve(`${pathname} ${res.statusCode} (body cut) ${Date.now() - started}ms`));
+    });
+    req.on("timeout", () => req.destroy(new Error("timed out")));
+    req.on("error", (error) => resolve(`${pathname} not warmed (${error?.code ?? error?.message ?? error})`));
+  });
+}
+
+async function warmUp() {
+  const seconds = Number(process.env.GATE_WARMUP_SECONDS) >= 0 ? Number(process.env.GATE_WARMUP_SECONDS) : 90;
+  if (seconds === 0) return;
+  const started = Date.now();
+  console.log(`::group::Warm-up: ${WARMUP_PATHS.length} pages, at most ${seconds}s`);
+  try {
+    const all = Promise.all(WARMUP_PATHS.map((p) => warmOne(p, seconds * 1000)));
+    const cap = new Promise((resolve) => setTimeout(() => resolve(null), seconds * 1000).unref());
+    const lines = await Promise.race([all, cap]);
+    console.log(lines ? lines.join("\n") : `stopped waiting after ${seconds}s; the rest compile on first use`);
+  } catch (error) {
+    console.log(`warm-up skipped: ${error?.message ?? error}`);
+  }
+  console.log(`warm-up took ${Math.round((Date.now() - started) / 1000)}s`);
+  console.log("::endgroup::");
+}
+
+await warmUp();
 
 // One Playwright invocation per spec file, with the dev server checked in
 // between. `next dev` compiles every route a runner touches into one
@@ -367,7 +442,7 @@ async function runFiles(project, phase, files) {
       playwright.push({ project, phase: `${phase}-${stem}`, exitCode: null, report: null });
       continue;
     }
-    playwright.push(await runPlaywright(project, `${phase}-${stem}`, [file]));
+    playwright.push(await runPlaywright(project, `${phase}-${stem}`, [file], plan.playwrightShard[file]));
   }
 }
 

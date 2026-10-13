@@ -2,10 +2,11 @@
   "version": 1,
   "description": "Who owns which Playwright spec, and which product flows those specs prove. Validated by scripts/ci/check-coverage-manifest.mjs (npm run check:coverage); human-readable gap list in docs/ci/COVERAGE.md.",
   "runners": {
-    "patient": "Patient booking, intake, checkout, discounts, pay later, isolation and the patient's phone view",
+    "patient": "Patient booking, intake, the booking wizard, isolation and the patient's phone view",
+    "money": "Money end to end: checkout and its resume, discounts, promo codes and invites, pay later, programme and package purchases, care plans and recommendations, the admin money screens, payment search and the refund-attempt ledger",
     "therapist": "Therapist roster, readiness, specialty and the therapist's phone view",
-    "session": "Session lifecycle: scheduling, suggestions, completion, clinical continuity, care-plan review",
-    "admin": "The back office: authorization, exposure, money screens, validation, navigation, lifecycle",
+    "session": "Session lifecycle: scheduling, suggestions, completion, clinical continuity",
+    "admin": "The back office: authorization, exposure, validation, navigation, lifecycle, layout",
     "hospital": "Hospital (B2B) referrals and tenant isolation",
     "platform": "The public site and shared UI: navigation, splash, catalog, form controls, mobile smoke",
     "integrity": "Storage-layer and destructive checks: SQL check files, authorization and concurrency scripts, live grants, refund ledger, degraded schema"
@@ -24,7 +25,7 @@
       "destructive": false
     },
     "acquisition-codes.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "api",
         "db"
@@ -103,7 +104,7 @@
       "destructive": false
     },
     "admin-care-plans.spec.ts": {
-      "runner": "session",
+      "runner": "money",
       "levels": [
         "browser",
         "api",
@@ -193,7 +194,7 @@
       "destructive": false
     },
     "admin-money.spec.ts": {
-      "runner": "admin",
+      "runner": "money",
       "levels": [
         "api",
         "db"
@@ -242,7 +243,7 @@
       "destructive": false
     },
     "admin-payment-search.spec.ts": {
-      "runner": "admin",
+      "runner": "money",
       "levels": [
         "browser",
         "db"
@@ -266,7 +267,7 @@
       "destructive": false
     },
     "admin-programmes.spec.ts": {
-      "runner": "admin",
+      "runner": "money",
       "levels": [
         "api",
         "db",
@@ -443,7 +444,7 @@
       "destructive": false
     },
     "booking-pay-button-live.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "browser"
       ],
@@ -466,7 +467,7 @@
       "destructive": false
     },
     "checkout-resume.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "browser",
         "api",
@@ -517,7 +518,7 @@
       "destructive": false
     },
     "catalog-home-visit-prices.spec.ts": {
-      "runner": "admin",
+      "runner": "money",
       "levels": [
         "browser",
         "api",
@@ -651,7 +652,7 @@
       "destructive": false
     },
     "recommendation-course.spec.ts": {
-      "runner": "session",
+      "runner": "money",
       "levels": [
         "api",
         "db",
@@ -668,7 +669,7 @@
       "destructive": true
     },
     "programme-checkout.spec.ts": {
-      "runner": "session",
+      "runner": "money",
       "levels": [
         "api",
         "db",
@@ -717,7 +718,7 @@
       "destructive": false
     },
     "programme-sessions-via-admin.spec.ts": {
-      "runner": "session",
+      "runner": "money",
       "levels": [
         "api",
         "db",
@@ -788,7 +789,7 @@
       "destructive": false
     },
     "discounts.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "api",
         "db"
@@ -944,7 +945,7 @@
       "destructive": false
     },
     "pay-later.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "browser",
         "api",
@@ -957,7 +958,7 @@
       "destructive": false
     },
     "refund-attempts.spec.ts": {
-      "runner": "integrity",
+      "runner": "money",
       "levels": [
         "db"
       ],
@@ -1131,7 +1132,7 @@
       "destructive": false
     },
     "unscheduled-purchases.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "browser",
         "db"
@@ -1442,7 +1443,7 @@
     },
     {
       "id": "patient.promo-and-invite",
-      "runner": "patient",
+      "runner": "money",
       "title": "Promo codes quote with no amount in the request, caps hold, paused codes do nothing, invites cannot be self-claimed",
       "required": true,
       "status": "covered",
@@ -1479,7 +1480,7 @@
     },
     {
       "id": "patient.free-booking",
-      "runner": "patient",
+      "runner": "money",
       "title": "A 100%-off booking resolves to zero, confirms with no payment row, and refuses anything still owed",
       "required": true,
       "status": "covered",
@@ -1504,7 +1505,7 @@
     },
     {
       "id": "patient.pay-later",
-      "runner": "patient",
+      "runner": "money",
       "title": "Pay later end to end: grant, a booking with no payment screen, completion, declaration, settlement, write-off",
       "required": true,
       "status": "covered",
@@ -1529,7 +1530,7 @@
     },
     {
       "id": "patient.unscheduled-purchases",
-      "runner": "patient",
+      "runner": "money",
       "title": "A paid purchase nobody booked against is counted and opens exactly the rows it counted",
       "required": true,
       "status": "covered",
@@ -1752,7 +1753,7 @@
     },
     {
       "id": "session.programme-via-admin",
-      "runner": "session",
+      "runner": "money",
       "title": "Every programme session goes through the admin: booked, accepted and home-visit sessions wait unassigned with the programme therapist pre-picked, one tap assigns and confirms",
       "required": true,
       "status": "covered",
@@ -1852,7 +1853,7 @@
     },
     {
       "id": "session.recommendation-course",
-      "runner": "session",
+      "runner": "money",
       "title": "A recommendation is a condition x a session count at the per-session price; hands-on makes it home visits, and its address checkout goes through",
       "required": true,
       "status": "covered",
@@ -1876,7 +1877,7 @@
     },
     {
       "id": "session.programme-checkout",
-      "runner": "session",
+      "runner": "money",
       "title": "Accept & pay leads to a Review & pay page; a code valid on programmes takes its share off the programme and Razorpay opens at that total; a session-only code is refused; no code is full price",
       "required": true,
       "status": "covered",
@@ -2000,7 +2001,7 @@
     },
     {
       "id": "session.care-plan-review",
-      "runner": "session",
+      "runner": "money",
       "title": "A therapist's recommendation is queued and invisible, refused at checkout, then approved, declined or approved with changes",
       "required": true,
       "status": "covered",
@@ -2108,7 +2109,7 @@
     },
     {
       "id": "admin.money-maths",
-      "runner": "admin",
+      "runner": "money",
       "title": "Payout and refund arithmetic: travel fee, cash netting, unconfigured share, refund window setting, activity-log attribution",
       "required": true,
       "status": "covered",
@@ -2271,7 +2272,7 @@
     },
     {
       "id": "admin.payment-search",
-      "runner": "admin",
+      "runner": "money",
       "title": "People search finds a patient by Razorpay payment or order id",
       "required": true,
       "status": "covered",
@@ -2290,7 +2291,7 @@
     },
     {
       "id": "admin.programmes",
-      "runner": "admin",
+      "runner": "money",
       "title": "Programmes follows one programme from recommendation to last session: pipeline filters, ID with progress, search by new and old code, the story in a drawer",
       "required": true,
       "status": "covered",

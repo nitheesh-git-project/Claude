@@ -18,7 +18,8 @@
 // credential was absent -- nothing was proven), `unsafe` or `empty`. None of
 // those is a pass.
 
-import { PROJECTS, selectSpecs } from "./manifest.mjs";
+import { PROJECTS } from "./manifest.mjs";
+import { assignShards, runnerSpecs, shardLabel } from "./shards.mjs";
 
 export const STATUSES = ["passed", "failed", "blocked", "unsafe", "empty"];
 
@@ -34,20 +35,33 @@ const AFTER_SPECS = new Set([
 const NEVER_RUN = new Set(["scripts/debug-reset-sql-checks.sql"]);
 
 /**
- * What a runner will execute.
+ * What a runner -- or one shard of it -- will execute.
  *
  * Destructive specs go last within their project and run as a separate
  * Playwright invocation, so a dropped column cannot leak into an ordinary
  * spec's view of the schema even if its restore fails.
  *
- * @returns {{runner: string,
+ * With `shard` (lib/shards.mjs), only that shard's files are planned, and a
+ * file the config splits is run with Playwright's own `--shard=i/n`
+ * (`playwrightShard[file]`). The integrity scripts run on shard 1 only; a
+ * runner that owns any cannot be split at all (validateShardConfig).
+ *
+ * @param {{index?: number, total?: number, config?: object}} [shard]
+ * @returns {{runner: string, label: string, shard: {index: number, total: number},
  *            projects: {project: string, files: string[], destructive: string[]}[],
+ *            playwrightShard: Record<string, string>, specs: string[],
  *            scriptsBeforeSpecs: string[], scriptsAfterSpecs: string[],
  *            total: number}}
  */
-export function planRunner(manifest, runner) {
+export function planRunner(manifest, runner, shard = {}) {
+  const total = Number.isInteger(shard.total) && shard.total > 1 ? shard.total : 1;
+  const index = total > 1 && Number.isInteger(shard.index) ? shard.index : 1;
+  const mine = assignShards(runnerSpecs(manifest, runner), total, shard.config)[index - 1] ?? [];
+  const playwrightShard = {};
+  for (const s of mine) if (s.split) playwrightShard[s.file] = `${index}/${total}`;
+
   const projects = PROJECTS.map((project) => {
-    const selected = selectSpecs(manifest, runner, project);
+    const selected = mine.filter((s) => s.project === project);
     return {
       project,
       files: selected.filter((s) => !s.destructive).map((s) => s.file),
@@ -56,19 +70,25 @@ export function planRunner(manifest, runner) {
   }).filter((p) => p.files.length + p.destructive.length > 0);
 
   const scripts = [];
-  for (const flow of manifest?.flows ?? []) {
-    if (flow.runner !== runner) continue;
-    for (const script of flow.scripts ?? []) {
-      if (!NEVER_RUN.has(script) && !scripts.includes(script)) scripts.push(script);
+  if (index === 1) {
+    for (const flow of manifest?.flows ?? []) {
+      if (flow.runner !== runner) continue;
+      for (const script of flow.scripts ?? []) {
+        if (!NEVER_RUN.has(script) && !scripts.includes(script)) scripts.push(script);
+      }
     }
   }
-  const total = projects.reduce((n, p) => n + p.files.length + p.destructive.length, 0);
+  const count = projects.reduce((n, p) => n + p.files.length + p.destructive.length, 0);
   return {
     runner,
+    label: shardLabel(runner, index, total),
+    shard: { index, total },
     projects,
+    playwrightShard,
+    specs: mine.map((s) => s.file),
     scriptsBeforeSpecs: scripts.filter((s) => !AFTER_SPECS.has(s)),
     scriptsAfterSpecs: scripts.filter((s) => AFTER_SPECS.has(s)),
-    total,
+    total: count,
   };
 }
 
@@ -192,6 +212,11 @@ export function summarize(input) {
 
   return {
     runner,
+    label: plan?.label ?? runner,
+    shard: plan?.shard ?? { index: 1, total: 1 },
+    // What this shard was given to run, so the gate can prove the shards
+    // together ran every spec the manifest gives the runner.
+    specs: plan?.specs ?? [],
     status,
     passed: status === "passed",
     notes,
@@ -214,7 +239,7 @@ export function summarize(input) {
 export function renderSummaryMarkdown(summary) {
   const icon = summary.passed ? "PASSED" : summary.status.toUpperCase();
   const lines = [
-    `## Runner \`${summary.runner}\`: ${icon}`,
+    `## Runner \`${summary.label ?? summary.runner}\`: ${icon}`,
     "",
     `Tests: ${summary.counts.total} (passed ${summary.counts.passed}, failed ${summary.counts.failed}, ` +
       `flaky ${summary.counts.flaky}, skipped ${summary.counts.skipped}, undeclared skips ${summary.counts.undeclaredSkips})`,

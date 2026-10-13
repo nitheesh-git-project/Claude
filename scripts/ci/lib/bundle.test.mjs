@@ -44,6 +44,12 @@ describe("buildFailureBundle", () => {
     expect(md).not.toContain("someone@gmail.com");
   });
 
+  it("names the shard and reproduces just that shard when a split runner failed", () => {
+    const md = buildFailureBundle({ runner: "admin", shard: { index: 2, total: 8 }, summary: null, manifest, changedFiles: [] });
+    expect(md).toContain("# Failure bundle: runner `admin-2of8`");
+    expect(md).toContain("node scripts/ci/run-runner.mjs admin --shard 2/8");
+  });
+
   it("says the runner never finished when there is no summary", () => {
     const md = buildFailureBundle({ runner: "admin", summary: null, manifest, changedFiles: [] });
     expect(md).toContain("wrote no summary.json");
