@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     maxPerPatient?: number;
     minSpendPaise?: number;
     firstSessionOnly?: boolean;
+    validOnProgrammes?: boolean;
     description?: string | null;
   }>(request);
   if (parseError) return parseError;
@@ -105,6 +106,11 @@ export async function POST(request: NextRequest) {
     max_per_patient: maxPerPatient,
     min_spend_paise: minSpendPaise,
     first_session_only: body.firstSessionOnly === true,
+    // Off unless an admin turns it on for this code: an existing "20% off a
+    // first session" campaign must not silently become 20% off a
+    // twelve-session programme. In `row`, so the promo.* audit row records
+    // it beside every other rule of the campaign.
+    valid_on_programmes: body.validOnProgrammes === true,
     description: body.description?.trim() || null,
   };
 

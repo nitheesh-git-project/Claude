@@ -53,7 +53,10 @@ async function freshPurchase(): Promise<{ id: string; code: string | null }> {
     .single();
   if (error) throw new Error(error.message);
   purchases.push(data.id);
-  return { id: data.id, code: data.purchase_code };
+  // Your Programmes names a programme by its ID (PED_PKG001-0/3); the old
+  // code stands in on a database without the new column.
+  const { data: withId } = await db.from("patient_package_purchases").select("programme_code").eq("id", data.id).maybeSingle();
+  return { id: data.id, code: (withId as { programme_code?: string | null } | null)?.programme_code ?? data.purchase_code };
 }
 
 test.beforeAll(async () => {
@@ -152,7 +155,7 @@ test("PST-003: a patient picks a time in the scheduler and it books", async ({ p
   await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientB));
   await page.goto(`${BASE}/patient/dashboard/packages`);
   await waitForSplashToClear(page);
-  const card = page.locator("div", { has: page.getByText(code ?? "", { exact: true }) }).filter({
+  const card = page.locator("div", { has: page.getByText(code ?? "", { exact: false }) }).filter({
     has: page.getByRole("button", { name: "Schedule sessions" }),
   }).last();
   await card.getByRole("button", { name: "Schedule sessions" }).click();

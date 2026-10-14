@@ -4,6 +4,11 @@ import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import CatalogImageField from "@/components/admin/CatalogImageField";
 import { FOCAL_DEFAULT } from "@/lib/catalogImage";
+import {
+  conditionCodeProblem,
+  normaliseConditionCode,
+  suggestConditionCode,
+} from "@/lib/programmeId";
 
 type Category = {
   id: string;
@@ -26,6 +31,8 @@ type Category = {
    *  and optional on the type, so a caller reading it from a database
    *  without the column hands through undefined rather than failing. */
   specialty?: string | null;
+  /** The programme code (PED). Migration-dependent like the rest. */
+  short_code?: string | null;
 };
 
 type NewCategoryValues = Omit<Category, "id">;
@@ -34,6 +41,7 @@ export default function TreatmentCategoryForm({
   category,
   initialValues,
   nextDisplayOrder,
+  takenCodes,
   onCancel,
 }: {
   category?: Category;
@@ -47,6 +55,10 @@ export default function TreatmentCategoryForm({
    * renumbers 1..n, so this only has to be right at the moment of creation.
    */
   nextDisplayOrder?: number;
+  /** Every other condition's programme code. Undefined when the database has
+   *  no codes yet, which hides the field rather than offering one it cannot
+   *  save. */
+  takenCodes?: string[];
   onCancel?: () => void;
 }) {
   const isEdit = !!category;
@@ -74,6 +86,14 @@ export default function TreatmentCategoryForm({
   );
   const [ctaLabel, setCtaLabel] = useState(defaults?.cta_label ?? "Book Assessment");
   const [specialty, setSpecialty] = useState(defaults?.specialty ?? "");
+  // A new condition (or a duplicate) starts blank: the code is suggested
+  // from the name as it is typed, and blank means "make one from the name".
+  const [shortCode, setShortCode] = useState(isEdit ? category?.short_code ?? "" : "");
+  const codesEnabled = takenCodes !== undefined;
+  const suggestedCode = codesEnabled ? suggestConditionCode(title, takenCodes ?? []) : null;
+  const codeProblem = codesEnabled ? conditionCodeProblem(shortCode, takenCodes ?? []) : null;
+  const codeChanged =
+    isEdit && normaliseConditionCode(shortCode) !== (category?.short_code ?? "");
   const newOrderDefault = String(nextDisplayOrder ?? 0);
   const [displayOrder, setDisplayOrder] = useState(
     defaults ? String(defaults.display_order) : newOrderDefault
@@ -86,6 +106,10 @@ export default function TreatmentCategoryForm({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (codeProblem) {
+      setError(codeProblem);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -106,6 +130,9 @@ export default function TreatmentCategoryForm({
       durationMinutes,
       ctaLabel,
       specialty: specialty || null,
+      // Sent only when the field is on screen and, on an edit, only when it
+      // changed -- a blank on a new condition means "make one from the name".
+      ...(codesEnabled && (!isEdit || codeChanged) ? { shortCode: normaliseConditionCode(shortCode) } : {}),
       displayOrder,
       active,
       featured,
@@ -136,6 +163,7 @@ export default function TreatmentCategoryForm({
       setDurationMinutes("60");
       setCtaLabel("Book Assessment");
       setDisplayOrder(newOrderDefault);
+      setShortCode("");
     }
     onCancel?.();
     router.refresh();
@@ -282,6 +310,33 @@ export default function TreatmentCategoryForm({
           see it.
         </p>
       </div>
+      {codesEnabled && (
+        <div>
+          <label htmlFor={`category-code-${category?.id ?? draftId}`} className="block font-semibold mb-1">
+            Programme code
+          </label>
+          <input
+            id={`category-code-${category?.id ?? draftId}`}
+            value={shortCode}
+            onChange={(e) => setShortCode(normaliseConditionCode(e.target.value).slice(0, 4))}
+            placeholder={suggestedCode ?? "PED"}
+            maxLength={4}
+            autoCapitalize="characters"
+            aria-describedby={`category-code-help-${category?.id ?? draftId}`}
+            className="w-28 p-2 rounded-lg border border-slate-300 font-mono uppercase"
+          />
+          {codeProblem && <p className="mt-1 text-[11px] font-semibold text-red-600">{codeProblem}</p>}
+          <p id={`category-code-help-${category?.id ?? draftId}`} className="text-[11px] text-slate-500 mt-1">
+            {"2 to 4 letters that start every programme ID for this condition: "}
+            <span className="font-mono">{(normaliseConditionCode(shortCode) || suggestedCode || "PED") + "_PKG001"}</span>
+            {" for video sessions, "}
+            <span className="font-mono">{(normaliseConditionCode(shortCode) || suggestedCode || "PED") + "_HV001"}</span>
+            {" for home visits. Leave it blank to make one from the name"}
+            {suggestedCode && !shortCode ? ` (${suggestedCode})` : ""}
+            {". Changing it later keeps the IDs programmes already have; new ones use the new code."}
+          </p>
+        </div>
+      )}
       <label className="flex items-center gap-2 font-semibold">
         <input
           type="checkbox"

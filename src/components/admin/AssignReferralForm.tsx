@@ -92,7 +92,7 @@ export default function AssignReferralForm({
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
-      if (showIfUnavailable(data)) return;
+      if (showIfUnavailable(data, therapistId)) return;
       setError(data.error ?? "Could not assign. Please try again.");
       return;
     }

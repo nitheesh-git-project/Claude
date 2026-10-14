@@ -9,7 +9,7 @@ import { AdminScreenNavigationProvider } from "@/lib/adminScreenNavigation";
 import AdminGlobalSearch, { type SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import { useLeavingPage } from "@/lib/useLeavingPage";
-import { ADMIN_SECTIONS, findTab, visibleTabs, type AdminSectionKey } from "@/lib/adminNav";
+import { ADMIN_SECTIONS, findTab, visibleTabs, type AdminSectionKey, LEGACY_SCREENS } from "@/lib/adminNav";
 import { adminShortcuts, filterAdminScreens } from "@/lib/adminMobileNav";
 
 // Every base table this page's Promise.all queries (src/app/admin/dashboard/
@@ -53,6 +53,9 @@ const ADMIN_REALTIME_TABLES = [
   "profile_change_requests",
   "patient_package_purchases",
   "payment_failure_log",
+  // People -> Declined, and the patient search's Razorpay ids.
+  "declined_applications",
+  "payments",
   "therapist_payout_batches",
   "therapist_availability_template",
   "therapist_availability_override",
@@ -143,6 +146,11 @@ const ADMIN_CATALOG_REALTIME_TABLES = [
   // Logs screen and stops every tap in the back office costing two rebuilds.
   "admin_activity_log",
   "admin_activity_gaps",
+  // The other half of All Activity: what patients, therapists, hospitals
+  // and the system did. Written on nearly every booking and payment, so it
+  // is on the long cooldown for the same reason the admin log is -- the
+  // action it describes already refreshed the page through its own table.
+  "user_activity_log",
   // Campaigns are admin-edited catalog data like the rest of this list, and
   // the editor already sees their own change -- so the long cooldown is
   // right and the operational one would be wasted rebuilds.
@@ -320,6 +328,14 @@ export default function AdminShell({
       );
       setSectionKey(found.section);
       setTabKey(found.tab);
+      // A screen that moved (Sessions -> Recommendations, Catalog ->
+      // Purchases) answers with where it lives now, in the address bar too,
+      // so the link an admin copies next is the current one.
+      if (LEGACY_SCREENS[`${params.get("section") ?? ""}:${params.get("tab") ?? ""}`]) {
+        params.set("section", found.section);
+        params.set("tab", found.tab);
+        window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+      }
     }
     applyFromLocation();
     window.addEventListener("popstate", applyFromLocation);
@@ -341,6 +357,13 @@ export default function AdminShell({
     // re-applying that filter every time they came back to the tab -- and
     // would also stop a repeat tap on the same row from re-applying it.
     params.delete("view");
+    // A screen's own filters (Programmes keeps its in pg_* keys) describe
+    // that screen only. Carried onto another they are noise in a link
+    // somebody copies; the screen keeps them in its own state and writes
+    // them back when it is shown again.
+    if (nextSection !== "programmes") {
+      for (const key of [...params.keys()]) if (key.startsWith("pg_")) params.delete(key);
+    }
     // ...unless this navigation *is* one of those presets. A Today count
     // linking to the rows it counted carries `view`, and it has to survive
     // into the URL for the target screen to read it -- `useSearchParams`

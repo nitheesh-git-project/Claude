@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -103,6 +104,16 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  await recordUserActivity(admin, {
+    action: "feedback.submitted",
+    actor: { id: user.id, role: "patient" },
+    appointmentId,
+    patientId: user.id,
+    note: `${rating}/5`,
+    details: { rating },
+    dedupeKey: `feedback_patient:${appointmentId}`,
+  });
 
   return NextResponse.json({ success: true });
 }

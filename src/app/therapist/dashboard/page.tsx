@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import TherapistDashboardShell from "@/components/therapist/TherapistDashboardShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import { loadTherapistDashboard } from "@/lib/therapistDashboardData";
+import OnboardingNeededBanner from "@/components/therapist/OnboardingNeededBanner";
 
 export const metadata: Metadata = {
   title: "Therapist Dashboard | MoveRestore",
@@ -46,6 +47,13 @@ export default async function TherapistDashboardPage() {
       }
     >
       <DashboardOverview
+        // Above the greeting while a patient waits on onboarding: their own
+        // Health Profile is locked until it is done.
+        banner={
+          d.onboardingBanner.length > 0 ? (
+            <OnboardingNeededBanner patients={d.onboardingBanner} />
+          ) : undefined
+        }
         greeting="Your practice today"
         headline={
           d.nextSession?.slot_time

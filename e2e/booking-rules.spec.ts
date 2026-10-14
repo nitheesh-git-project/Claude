@@ -72,19 +72,15 @@ test.describe("home-visit lead time (regression for the bulk scheduler bug)", ()
 
 test.describe("home-visit area gating", () => {
   test("create-order rejects a pincode with no serviceable area, even for a signed-in patient", async () => {
-    const admin = adminClient();
-    const { data: pkg } = await admin
-      .from("home_visit_packages")
-      .select("id")
-      .eq("title", "Single Home Visit")
-      .single();
+    // The wizard sends the condition the visit is for; the server prices it
+    // (the general consultation, at the clinic-wide price global-setup seeds).
     const patientCookie = await cookieHeaderFor(QA_EMAILS.patientA);
 
     const res = await fetch(`${BASE}/api/home-visit/create-order`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: patientCookie },
       body: JSON.stringify({
-        packageId: pkg!.id,
+        categoryId: "00000000-0000-0000-0000-000000000001",
         address: { line1: "1 Nowhere Serviceable Street", pincode: "999999" },
       }),
     });

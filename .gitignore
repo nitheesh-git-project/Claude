@@ -83,3 +83,6 @@ devserver.log
 # quality gate output
 /e2e-artifacts/
 /.gate.env
+
+# check:merge-ready logs
+/.merge-ready/

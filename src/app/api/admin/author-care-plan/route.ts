@@ -27,7 +27,7 @@ const MIN_REASON_LENGTH = 10;
 // the therapist would be a quiet lie about who was at the keyboard; recording
 // only the admin would be a louder one about whose clinical judgement it is.
 export async function POST(request: NextRequest) {
-  const adminUser = await requireAdminScope("sessions");
+  const adminUser = await requireAdminScope("programmes");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

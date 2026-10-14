@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isWellFormedPromoCode, normalizePromoCode } from "@/lib/promoCodes";
 import { formatRupees } from "@/lib/formatMoney";
 import { formatPaiseForCountry, type CountryPricing } from "@/lib/countryPricing";
@@ -8,6 +8,12 @@ import { formatPaiseForCountry, type CountryPricing } from "@/lib/countryPricing
 function formatInr(paise: number) {
   return `₹${formatRupees(paise)}`;
 }
+
+/** What a check of a typed code came back with. */
+export type PromoPreviewAnswer =
+  | { applies: true; code: string; discountPaise: number; pricing: CountryPricing | null }
+  | { applies: false; message: string }
+  | { error: string };
 
 /**
  * "Have a code?" at checkout.
@@ -26,16 +32,31 @@ function formatInr(paise: number) {
 export default function PromoCodeField({
   categoryId,
   appointmentId,
+  initialCode = null,
   onApplied,
+  preview,
+  label = "Have a code?",
 }: {
   categoryId?: string | null;
   appointmentId?: string | null;
+  /** A code applied on an earlier, unpaid attempt at this booking. Checked
+   *  again on mount -- shown as applied, or with the reason it no longer is
+   *  -- so a patient finishing payment later neither loses it silently nor
+   *  is charged for one that has since run out. */
+  initialCode?: string | null;
   /** The applied code, or null when it is cleared. The parent sends it on to
    *  checkout; it never sends an amount. */
   onApplied: (code: string | null) => void;
+  /** How a code is checked, when it is not a session's. A programme's
+   *  review page asks its own quote route, so the code is judged against the
+   *  programme (and its "valid on programmes" switch) rather than a single
+   *  session's price. Defaults to /api/patient/promo-code/preview. */
+  preview?: (code: string) => Promise<PromoPreviewAnswer>;
+  /** The collapsed link's wording. */
+  label?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [code, setCode] = useState("");
+  const [open, setOpen] = useState(Boolean(initialCode));
+  const [code, setCode] = useState(initialCode ?? "");
   const [checking, setChecking] = useState(false);
   const [applied, setApplied] = useState<{
     code: string;
@@ -48,9 +69,18 @@ export default function PromoCodeField({
   // render too late to stop a double tap.
   const inFlight = useRef(false);
 
-  async function check() {
+  // The earlier attempt's code, re-checked once.
+  const initialChecked = useRef(false);
+  useEffect(() => {
+    if (!initialCode || initialChecked.current) return;
+    initialChecked.current = true;
+    void check(initialCode, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCode]);
+
+  async function check(typed: string = code, fromEarlierTry = false) {
     if (inFlight.current) return;
-    const normalized = normalizePromoCode(code);
+    const normalized = normalizePromoCode(typed);
     if (!isWellFormedPromoCode(normalized)) {
       setMessage("That code isn't recognised.");
       return;
@@ -59,28 +89,24 @@ export default function PromoCodeField({
     setChecking(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/patient/promo-code/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: normalized,
-          ...(appointmentId ? { appointmentId } : {}),
-          ...(categoryId ? { categoryId } : {}),
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setMessage(data.error ?? "That code couldn't be checked. Please try again.");
+      const answer = preview ? await preview(normalized) : await previewSessionCode(normalized);
+      if ("error" in answer) {
+        setMessage(answer.error);
         return;
       }
-      if (!data.applies) {
+      if (!answer.applies) {
         setApplied(null);
         onApplied(null);
-        setMessage(data.message ?? "That code isn't recognised.");
+        const reason = answer.message || "That code isn't recognised.";
+        setMessage(
+          fromEarlierTry
+            ? `${normalized} from your last try can't be used now: ${reason}`
+            : reason
+        );
         return;
       }
-      setApplied({ code: data.code, discountPaise: data.discountPaise, pricing: data.pricing ?? null });
-      onApplied(data.code);
+      setApplied({ code: answer.code, discountPaise: answer.discountPaise, pricing: answer.pricing });
+      onApplied(answer.code);
       setMessage(null);
     } catch {
       setMessage("Could not reach the server. Please try again.");
@@ -88,6 +114,33 @@ export default function PromoCodeField({
       inFlight.current = false;
       setChecking(false);
     }
+  }
+
+  /** The session preview: a booking, or the category the wizard is about to
+   *  book. */
+  async function previewSessionCode(normalized: string): Promise<PromoPreviewAnswer> {
+    const res = await fetch("/api/patient/promo-code/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: normalized,
+        ...(appointmentId ? { appointmentId } : {}),
+        ...(categoryId ? { categoryId } : {}),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: data.error ?? "That code couldn't be checked. Please try again." };
+    }
+    if (!data.applies) {
+      return { applies: false, message: data.message ?? "That code isn't recognised." };
+    }
+    return {
+      applies: true,
+      code: data.code,
+      discountPaise: data.discountPaise,
+      pricing: data.pricing ?? null,
+    };
   }
 
   function clear() {
@@ -122,7 +175,7 @@ export default function PromoCodeField({
         onClick={() => setOpen(true)}
         className="text-[11px] font-semibold text-slate-500 underline"
       >
-        Have a code?
+        {label}
       </button>
     );
   }
@@ -147,7 +200,7 @@ export default function PromoCodeField({
         />
         <button
           type="button"
-          onClick={check}
+          onClick={() => void check()}
           disabled={checking}
           className="rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-60"
         >

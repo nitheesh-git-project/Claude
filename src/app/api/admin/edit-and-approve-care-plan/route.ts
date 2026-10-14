@@ -27,7 +27,7 @@ import { recordReview, validateReviewReason } from "@/lib/carePlanReview";
 // admin changing the numbers is changing WHICH admin-configured programme is
 // being recommended, never what one costs.
 export async function POST(request: NextRequest) {
-  const adminUser = await requireAdminScope("sessions");
+  const adminUser = await requireAdminScope("programmes");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

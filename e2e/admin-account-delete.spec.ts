@@ -21,7 +21,7 @@
 // first one only happens inside GoTrue's own cascade, and the second is about
 // which sentence a person reads.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS, adminClient } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, adminClient, TEST_PASSWORD } from "./helpers";
 
 const SLOW = 240_000;
 const MARKER = "ZZ QA delete";
@@ -32,7 +32,7 @@ async function makeAccount(admin: Admin, label: string, patch?: Record<string, u
   const email = `zz.qa.delete.${Date.now()}.${Math.random().toString(36).slice(2, 7)}@example.test`;
   const { data, error } = await admin.auth.admin.createUser({
     email,
-    password: "QaTest!2024pass",
+    password: TEST_PASSWORD,
     email_confirm: true,
     user_metadata: { full_name: `${MARKER} ${label}` },
   });

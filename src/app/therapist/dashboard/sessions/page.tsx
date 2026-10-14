@@ -43,7 +43,7 @@ export default async function Page() {
       title="Sessions"
       subtitle="Everything assigned to you - video consultations and home visits together."
     >
-      <SurfaceCard title="Assigned sessions" icon="fa-clipboard-list">
+      <SurfaceCard title="Assigned sessions" info="card:session-status" icon="fa-clipboard-list">
         <SessionsView
           sessions={sessions}
           cardsById={cardsById}

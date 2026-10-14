@@ -5,7 +5,7 @@ import {
   adminClient,
   browserCookiesFor,
   chooseAnyServiceOnStepOne,
-  waitForSplashToClear,
+  waitForSplashToClear, TEST_PASSWORD
 } from "./helpers";
 
 /**
@@ -151,8 +151,8 @@ test.describe("a new patient's payment tries", () => {
     await page.getByLabel("Full Name").fill("E2E New Patient");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Phone number", { exact: false }).first().fill("9876543210");
-    await page.getByLabel(/Create Password/).fill("QaTest!2024pass");
-    await page.getByLabel("Confirm Password").fill("QaTest!2024pass");
+    await page.getByLabel(/Create Password/).fill(TEST_PASSWORD);
+    await page.getByLabel("Confirm Password").fill(TEST_PASSWORD);
     await page.getByRole("checkbox").first().check();
     await page.getByRole("button", { name: /Review Booking/i }).click();
 
@@ -198,7 +198,7 @@ test.describe("signing in to a locked booking account", () => {
     const make = async (email: string, signupSource?: string) => {
       const { data, error } = await adminClient().auth.admin.createUser({
         email,
-        password: "QaTest!2024pass",
+        password: TEST_PASSWORD,
         email_confirm: true,
         user_metadata: { role: "patient", full_name: "E2E Locked", ...(signupSource ? { signup_source: signupSource } : {}) },
       });
@@ -231,7 +231,12 @@ test.describe("signing in to a locked booking account", () => {
       await expect(page).toHaveURL(/\/pending-approval/, { timeout: 60_000 });
       await expect(page.getByRole("heading", { name: "Finish your booking" })).toBeVisible();
       await expect(page.getByText(/is waiting for payment/)).toBeVisible();
-      await expect(page.getByRole("button", { name: "Pay now" })).toBeVisible();
+      // Pay now finishes in the wizard's own Step 3 (code field and all),
+      // not in a Razorpay sheet opened from this card.
+      await expect(page.getByRole("link", { name: "Pay now" })).toHaveAttribute(
+        "href",
+        `/book?resume=${draft!.id}`
+      );
       await expect(page.getByRole("link", { name: "Pick another time" })).toHaveAttribute(
         "href",
         `/book?replaces=${draft!.id}`
@@ -261,7 +266,7 @@ test.describe("abandoned checkouts in the back office", () => {
     const email = `e2e.abandoned.${Date.now()}@example.test`;
     const { data, error } = await adminClient().auth.admin.createUser({
       email,
-      password: "QaTest!2024pass",
+      password: TEST_PASSWORD,
       email_confirm: true,
       user_metadata: { role: "patient", full_name: "E2E Abandoned Lead", signup_source: "booking" },
     });

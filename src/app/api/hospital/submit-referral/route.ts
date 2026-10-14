@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -278,6 +279,14 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  await recordUserActivity(admin, {
+    action: "referral.submitted",
+    actor: { id: user.id, role: "hospital" },
+    patientName,
+    note: `${visitMode === "home_visit" ? "home visit" : "video"} referral`,
+    details: { visitMode },
+  });
 
   return NextResponse.json({ success: true });
 }

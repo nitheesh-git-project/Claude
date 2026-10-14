@@ -256,7 +256,9 @@ test.describe("Catalog cover images", () => {
     // column with its own default, so asserting a label here would fail on a
     // catalogue somebody had worded differently -- which is a passing product
     // and a broken test.
-    await expect(page.getByText("Cover point one")).toBeVisible();
+    // The condition is listed twice since home visits are priced per
+    // condition (an online card and a home-visit card); either will do.
+    await expect(page.getByText("Cover point one").first()).toBeVisible();
     await expect(
       page.locator(`a[href="/book?category=${categoryId}"]`).first()
     ).toBeVisible();

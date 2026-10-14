@@ -1,4 +1,5 @@
 import "server-only";
+import { readProgrammeCodes, tagsForPurchases } from "@/lib/programmeTagsServer";
 import { readAllRowsAsData } from "@/lib/supabase/readAllRows";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -15,17 +16,21 @@ import { mergeMeetLinks } from "@/lib/meetLink";
 import { countAnswered, patientIntakeGate, questionsForSpecialty } from "@/lib/conditionIntake";
 import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
 import { buildPatientFeed } from "@/lib/dashboardFeed";
+import { isBookedAwaitingTherapist } from "@/lib/sessionRowStatus";
 import { computePackageCounts } from "@/lib/packageProgress";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { expireDueHomeVisitPurchases } from "@/lib/expireHomeVisitPurchases";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import type { StatCell } from "@/components/dashboard/StatStrip";
-import { isDirectlyPurchasable } from "@/lib/consultationFirst";
+import { homeVisitRatesFor, type HomeVisitPriceRow } from "@/lib/homeVisitRates";
+import { loadHomeVisitPriceRows } from "@/lib/homeVisitRatesServer";
 import { readInviteSettings } from "@/lib/acquisitionSettings";
 import { ensureInviteCode, readInviteSummary } from "@/lib/inviteRewardsServer";
 import type { InviteSettings } from "@/lib/inviteRewards";
 import { loadPatientPayLater } from "@/lib/payLaterSettlementServer";
 import type { ReceiptSettlement } from "@/lib/receipts";
+import { loadConditionCovers } from "@/lib/catalogImageServer";
+import { programmeDisplay, type ProgrammeDisplay } from "@/lib/programmeDisplay";
 
 // Everything the patient dashboard's screens read, loaded once per
 // request.
@@ -61,22 +66,6 @@ type HubCategoryRow = {
   cta_label: string | null;
 };
 
-type HubHomeVisitPackageRow = {
-  id: string;
-  title: string;
-  subtitle: string | null;
-  image_url: string | null;
-  benefits: unknown;
-  badge_label: string | null;
-  highlight: boolean | null;
-  visit_count: number;
-  price_paise: number;
-  compare_at_paise: number | null;
-  visit_duration_minutes: number | null;
-  validity_days: number | null;
-  travel_fee_included: boolean | null;
-  therapist_locked: boolean | null;
-};
 
 /** Stands in for a query this screen doesn't need, so the destructuring
  *  below stays positional and every caller still gets the same shape. */
@@ -148,16 +137,14 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     { data: paymentFailures },
     { data: activeCategories },
     { data: ownedPackages },
-    { data: onboardingRow },
     { data: conditionProfile },
     { data: conditionRequests },
     { data: visitDetailRows },
-    { data: homeVisitPackages },
+    homeVisitPriceRows,
     { data: ownedHomeVisitPackages },
     { data: bookableCategories },
     { data: hubCategoryImages },
     { data: hubCategoryFocals },
-    { data: hubHomeVisitFocals },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
 
@@ -284,11 +271,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       .eq("payment_status", "paid")
       .order("created_at", { ascending: false }),
 
-    // onboarding_seen_at / patient_condition_profiles.status are both
-    // new/migration-dependent -- kept isolated so an unknown-column error
-    // only hides the welcome modal / health-profile reminder banner, not
-    // the whole dashboard.
-    supabase.from("profiles").select("onboarding_seen_at").eq("id", user.id).maybeSingle(),
+    // patient_condition_profiles.status is migration-dependent -- kept
+    // isolated so an unknown-column error only hides the health-profile
+    // reminder banner, not the whole dashboard. (The first-visit tutorial
+    // reads onboarding_seen_at itself, in TutorialGate.)
     supabase
       .from("patient_condition_profiles")
       .select("status, data, draft_data")
@@ -326,17 +312,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         .order("id")
     ),
 
-    // The Book a Session hub's home-visit group.
-    needHub
-      ? supabase
-          .from("home_visit_packages")
-          .select(
-            "id, title, subtitle, image_url, benefits, badge_label, highlight, visit_count, price_paise, compare_at_paise, visit_duration_minutes, validity_days, travel_fee_included, therapist_locked"
-          )
-          .eq("active", true)
-          .eq("visible_in_dashboard", true)
-          .order("display_order", { ascending: true })
-      : emptyRows<HubHomeVisitPackageRow>(),
+    // The Book a Session hub's home-visit group: the home-visit price rows
+    // (Catalog -> Conditions -> Home visits), priced onto the conditions
+    // below by src/lib/homeVisitRates.ts.
+    needHub ? loadHomeVisitPriceRows(supabase) : Promise.resolve([] as HomeVisitPriceRow[]),
 
     // Cash-on-visit purchases legitimately sit at payment_status 'unpaid'
     // for the life of the programme (see home_visit_package_purchases'
@@ -379,12 +358,6 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     needHub
       ? supabase
           .from("treatment_categories")
-          .select("id, image_focal_x, image_focal_y")
-          .eq("active", true)
-      : emptyRows<{ id: string; image_focal_x: number | null; image_focal_y: number | null }>(),
-    needHub
-      ? supabase
-          .from("home_visit_packages")
           .select("id, image_focal_x, image_focal_y")
           .eq("active", true)
       : emptyRows<{ id: string; image_focal_x: number | null; image_focal_y: number | null }>(),
@@ -562,13 +535,14 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
             // scheduler proposes a run of dates and would otherwise propose
             // one the booking route then refuses, which is a refusal for a
             // schedule the app itself suggested.
-            .select("id, title, image_url, min_gap_hours, max_sessions_per_week")
+            .select("id, title, image_url, category_id, min_gap_hours, max_sessions_per_week")
             .in("id", ownedPackageIds as string[])
         : Promise.resolve({
             data: [] as {
               id: string;
               title: string;
               image_url: string | null;
+              category_id: string | null;
               min_gap_hours: number | null;
               max_sessions_per_week: number | null;
             }[],
@@ -576,9 +550,11 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       ownedHomeVisitPackageIds.length > 0 && needPackageDetail
         ? admin
             .from("home_visit_packages")
-            .select("id, title, image_url")
+            .select("id, title, image_url, category_id")
             .in("id", ownedHomeVisitPackageIds as string[])
-        : Promise.resolve({ data: [] as { id: string; title: string; image_url: string | null }[] }),
+        : Promise.resolve({
+            data: [] as { id: string; title: string; image_url: string | null; category_id: string | null }[],
+          }),
     ]);
   const categoryPriceMap = new Map(
     (categoryPrices ?? []).map((c) => [c.id, c.price_paise])
@@ -588,6 +564,59 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const activeCategoryMap = new Map((activeCategories ?? []).map((c) => [c.id, c.title]));
   const ownedPackageInfoMap = new Map((ownedPackageInfo ?? []).map((p) => [p.id, p]));
   const ownedHomeVisitPackageInfoMap = new Map((ownedHomeVisitPackageInfo ?? []).map((p) => [p.id, p]));
+
+  // Your Programmes' names and photos (src/lib/programmeDisplay.ts). Which
+  // rows are recommendation courses is its own call: care_plan_course is
+  // newer than the rest of these columns, and a database one apply behind
+  // should lose the friendlier name, not the screen.
+  const programmeDisplayByPurchase = new Map<string, ProgrammeDisplay>();
+  if (needPackageDetail && (ownedPackageIds.length > 0 || ownedHomeVisitPackageIds.length > 0)) {
+    const [{ data: courseSessionRows }, { data: courseVisitRows }, covers] = await Promise.all([
+      ownedPackageIds.length > 0
+        ? admin.from("treatment_category_packages").select("id, care_plan_course").in("id", ownedPackageIds as string[])
+        : Promise.resolve({ data: [] as { id: string; care_plan_course: boolean | null }[] }),
+      ownedHomeVisitPackageIds.length > 0
+        ? admin.from("home_visit_packages").select("id, care_plan_course").in("id", ownedHomeVisitPackageIds as string[])
+        : Promise.resolve({ data: [] as { id: string; care_plan_course: boolean | null }[] }),
+      loadConditionCovers(admin, [
+        ...ownedPackagesForDisplay.map((p) => p.category_id),
+        ...(ownedPackageInfo ?? []).map((p) => p.category_id),
+        ...(ownedHomeVisitPackageInfo ?? []).map((p) => p.category_id),
+      ]),
+    ]);
+    const courseIds = new Set(
+      [...(courseSessionRows ?? []), ...(courseVisitRows ?? [])]
+        .filter((r) => r.care_plan_course === true)
+        .map((r) => r.id)
+    );
+    for (const p of ownedPackagesForDisplay) {
+      const info = ownedPackageInfoMap.get(p.package_id);
+      const categoryId = p.category_id ?? info?.category_id ?? null;
+      programmeDisplayByPurchase.set(
+        p.id,
+        programmeDisplay({
+          kind: "session",
+          packageTitle: info?.title ?? activeCategoryMap.get(p.category_id) ?? null,
+          packageImageUrl: info?.image_url ?? null,
+          isCourse: courseIds.has(p.package_id),
+          condition: categoryId ? covers.get(categoryId) : null,
+        })
+      );
+    }
+    for (const p of ownedHomeVisitPackagesForDisplay) {
+      const info = ownedHomeVisitPackageInfoMap.get(p.package_id);
+      programmeDisplayByPurchase.set(
+        p.id,
+        programmeDisplay({
+          kind: "home_visit",
+          packageTitle: info?.title ?? null,
+          packageImageUrl: info?.image_url ?? null,
+          isCourse: courseIds.has(p.package_id),
+          condition: info?.category_id ? covers.get(info.category_id) : null,
+        })
+      );
+    }
+  }
   const purchaseCodeById = new Map(ownedPackagesForDisplay.map((p) => [p.id, p.purchase_code]));
 
   // How often the clinician said, per purchase.
@@ -728,6 +757,31 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     }
   }
 
+  // Each programme's ID with its progress (PED_PKG001-2/6): the reference
+  // the patient quotes to the clinic, the same one the admin searches. Its
+  // own read; without the column the old SP/HS code stands in.
+  const programmeCodes = await readProgrammeCodes(admin, {
+    packages: ownedPackagesForDisplay.map((p) => p.id),
+    homeVisits: ownedHomeVisitPackagesForDisplay.map((p) => p.id),
+  });
+  const programmeTagByPurchase = tagsForPurchases(programmeCodes, [
+    ...ownedPackagesForDisplay.map((p) => ({
+      id: p.id,
+      legacyCode: p.purchase_code ?? null,
+      done: completedCountByPurchase.get(p.id) ?? 0,
+      total: p.session_count,
+    })),
+    // A single home visit is a consultation, not a programme, and has no ID.
+    ...ownedHomeVisitPackagesForDisplay
+      .filter((p) => (p.visit_count ?? 0) >= 2 || programmeCodes.has(p.id))
+      .map((p) => ({
+        id: p.id,
+        legacyCode: p.purchase_code ?? null,
+        done: completedCountByHomeVisitPurchase.get(p.id) ?? 0,
+        total: p.visit_count,
+      })),
+  ]);
+
   const hasOwnedHomeVisitPackages =
     ownedHomeVisitPackagesForDisplay.length > 0;
 
@@ -793,12 +847,6 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       { image_focal_x: r.image_focal_x, image_focal_y: r.image_focal_y },
     ])
   );
-  const hubHomeVisitFocalById = new Map(
-    (hubHomeVisitFocals ?? []).map((r) => [
-      r.id,
-      { image_focal_x: r.image_focal_x, image_focal_y: r.image_focal_y },
-    ])
-  );
   const hubCategoriesWithCovers = (bookableCategories ?? []).map((c) => ({
     ...c,
     duration_minutes: c.duration_minutes ?? 60,
@@ -844,6 +892,13 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       payment_terms: a.payment_terms,
       created_at: a.slot_time,
       therapist_name: a.therapist_id ? therapistMap.get(a.therapist_id) ?? null : null,
+      awaiting_programme_therapist: isBookedAwaitingTherapist({
+        status: a.status,
+        no_show: a.no_show,
+        therapist_id: a.therapist_id,
+        package_purchase_id: a.package_purchase_id,
+        home_visit_purchase_id: visitDetailById.get(a.id)?.home_visit_purchase_id ?? null,
+      }),
       refund_status: a.refund_status,
       ...refundDetailById.get(a.id),
     })),
@@ -946,15 +1001,27 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // the booking hub offers what a patient can decide for themselves: one
   // online consultation, or one visit at home.
   //
-  // The single home visit is deliberately still here. Every home visit in
-  // this app is a package purchase and /api/appointments/create books
-  // online only, so a one-visit package IS the home-visit consultation --
-  // dropping it would leave a patient who needs to be seen at home with no
-  // way in at all.
-  const hubHomeVisitPackages = adminSettings.homeVisitEnabled
-    ? (homeVisitPackages ?? [])
-        .filter((p) => isDirectlyPurchasable(p.visit_count))
-        .map((p) => ({ ...p, ...(hubHomeVisitFocalById.get(p.id) ?? {}) }))
+  // The home visit is one visit of a condition, at that condition's
+  // home-visit price (its own price, else the clinic-wide one) -- the same
+  // rule /home-visit and both checkouts use. /api/appointments/create books
+  // online only, so this is the one way in for a patient who needs to be
+  // seen at home. A failed price read shows no home visits rather than a
+  // guessed figure.
+  const hubHomeVisitConditions = adminSettings.homeVisitEnabled
+    ? homeVisitRatesFor(hubCategoriesWithCovers, homeVisitPriceRows ?? []).map(
+        ({ category, rate }) => ({
+          id: category.id,
+          title: category.title,
+          description: category.description,
+          points: category.points,
+          image_url: category.image_url,
+          image_focal_x: (category as { image_focal_x?: number | null }).image_focal_x ?? null,
+          image_focal_y: (category as { image_focal_y?: number | null }).image_focal_y ?? null,
+          price_paise: rate.pricePaise,
+          visit_duration_minutes: rate.durationMinutes,
+          travel_fee_included: rate.travelFeeIncluded,
+        })
+      )
     : [];
 
   // ---- Invites ------------------------------------------------------
@@ -1050,9 +1117,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       screen === "suggested" ? null : buildSuggestedTeaser(activeCarePlan, pendingSuggestions.length, nowTimestamp()),
     ownedPackages: ownedPackagesForDisplay,
     ownedHomeVisitPackages: ownedHomeVisitPackagesForDisplay,
-    homeVisitPackages,
     bookableCategories: hubCategoriesWithCovers,
-    onboardingRow,
     conditionProfile,
     categoryPriceMap,
     categoryTitleMap,
@@ -1061,14 +1126,16 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ownedPackageInfoMap,
     frequencyByPurchase,
     ownedHomeVisitPackageInfoMap,
+    programmeDisplayByPurchase,
     purchaseCodeById,
+    programmeTagByPurchase,
     pendingSuggestions,
     unbookedSessionCount: unscheduled.reduce((n, u) => n + u.pending, 0),
     completedCountByPurchase,
     scheduledCountByPurchase,
     completedCountByHomeVisitPurchase,
     scheduledCountByHomeVisitPurchase,
-    hubHomeVisitPackages,
+    hubHomeVisitConditions,
     hasOwnedPackages,
     hasOwnedHomeVisitPackages,
     navItems,

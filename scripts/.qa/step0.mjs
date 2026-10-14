@@ -7,7 +7,7 @@ const SVC = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const admin = createClient(URL_, SVC, { auth: { persistSession: false } });
 
-async function cookieFor(email, password = "QaTest!2024pass") {
+async function cookieFor(email, password = process.env.E2E_QA_PASSWORD) {
   const anon = createClient(URL_, ANON, { auth: { persistSession: false } });
   const { data, error } = await anon.auth.signInWithPassword({ email, password });
   if (error || !data.session) throw new Error(`sign-in failed: ${error?.message}`);

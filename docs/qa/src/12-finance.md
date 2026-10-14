@@ -200,7 +200,7 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 
 #### `FIN-REF-002` - Refund failure at the gateway · P1
 **Steps.** Force a Razorpay refund failure (use a payment that cannot be refunded in test mode).
-**Expected Result.** `Razorpay refused the refund. Nothing was refunded - check Razorpay and retry.` **Nothing is marked refunded locally** - the local state must never claim a refund the gateway did not make.
+**Expected Result.** `Razorpay refused the refund: "<Razorpay's own reason>" ...` - the gateway's words, never a generic "check Razorpay". When the reason is the Razorpay balance, the message also says refunds come out of that balance and to wait for settlement or add funds before retrying. **Nothing is marked refunded locally** - the local state must never claim a refund the gateway did not make.
 
 #### `FIN-REF-003` - A cash refund becomes a manual pending item · P1
 **Steps.** Refund a cash-on-visit home purchase.
@@ -232,14 +232,14 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 
 **Preconditions.** One paid programme bought **two days ago** with no session ever booked; one **cash** home-visit purchase agreed at the door two days ago with no visit booked; one paid programme bought two days ago with one session already booked; one paid programme bought **an hour ago** with nothing booked; one abandoned checkout (unpaid, no cash mode); one refunded purchase with nothing booked.
 **Steps.** Read the Money alerts strip, then tap **Paid programmes with nothing booked**.
-**Expected Result.** The row reads **2** - the paid programme and the cash home visit, and nothing else. Tapping it opens **Catalog → Purchases** with **Nothing booked yet** ticked on both tables and every other filter cleared, listing exactly those two. The row is **not urgent**: nothing has gone wrong and nobody is out of pocket, and marking it so would flatten the difference between this and cash a therapist is holding.
+**Expected Result.** The row reads **2** - the paid programme and the cash home visit, and nothing else. Tapping it opens **Programmes → All Programmes** on the **Paid - nothing booked** stage narrowed by a removable **Paid over 24 hours ago** chip, every other filter cleared, listing exactly those two. The row is **not urgent**: nothing has gone wrong and nobody is out of pocket, and marking it so would flatten the difference between this and cash a therapist is holding.
 **Negative, four ways, and each is a row that must *not* appear.** The purchase with one session booked is out - the finding is the run that never started, not "has sessions left", which is true of nearly every active purchase and would count almost all of them. The hour-old one is out, because a purchase on its way to the scheduler is the normal case and a row that is on every time anybody buys anything is a row nobody reads. The abandoned checkout is out - it is not a purchase, and ringing them means ringing somebody who never bought anything. The refunded one is out - it is a decision somebody already made.
 **The cash half is the sharp one:** a cash-on-visit purchase sits at `unpaid` for its **whole life** by design, so a check written on payment status alone drops every one of them and reports a clean screen.
 
-#### `FIN-SCHED-002` - "Nothing booked yet" is not "has sessions left" · P1
+#### `FIN-SCHED-002` - "Paid - nothing booked" is not "has sessions left" · P1
 
-**Steps.** On **Catalog → Purchases**, tick **Has unscheduled sessions**, read the count, then untick it and tick **Nothing booked yet**.
-**Expected Result.** Two different lists, and the second is a subset of the first. The first is nearly every active purchase; the second is only those with no session ever completed and none currently scheduled. Two controls that looked alike and meant the same thing would be worse than one.
+**Steps.** On **Programmes → All Programmes**, tap **Not finished**, read the count, then tap **Paid - nothing booked**.
+**Expected Result.** Two different lists, and the second is a subset of the first. The first is every programme still under way (including ones with sessions booked or done); the second is only those with no session ever completed and none currently booked. Removing the **Paid over 24 hours ago** chip, when it is on, adds the fresh purchases back.
 
 #### `FIN-REF-012` - The All Sessions export carries no money to a desk that cannot see it · P1
 **Steps.** As **Operations**, then as **Clinical**, open **Sessions → All Sessions** and export both CSV and PDF. Repeat as **Master Admin** and as **Finance**.

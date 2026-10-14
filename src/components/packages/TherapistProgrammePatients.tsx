@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { computePackageCounts } from "@/lib/packageProgress";
 import PackageDetailModal from "@/components/packages/PackageDetailModal";
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
+import type { ProgrammeTag } from "@/lib/programmeId";
 import SuggestSessionControl, {
   type PendingSuggestion,
 } from "@/components/packages/SuggestSessionControl";
@@ -10,6 +12,8 @@ import SuggestSessionControl, {
 export type ProgrammePatientRow = {
   id: string;
   purchaseCode: string | null;
+  /** The programme's ID with its progress (PED_PKG001-2/6). */
+  programmeTag?: ProgrammeTag | null;
   patientName: string;
   patientCode: string | null;
   packageTitle: string;
@@ -72,8 +76,13 @@ export default function TherapistProgrammePatients({
                       {p.patientName}
                       {p.patientCode && <span className="ml-1.5 font-mono font-normal text-slate-500">{p.patientCode}</span>}
                     </p>
-                    <p className="mt-1 text-slate-500">
-                      {p.packageTitle} {p.purchaseCode && <span className="font-mono text-slate-500">· {p.purchaseCode}</span>}
+                    <p className="mt-1 flex flex-wrap items-center gap-1.5 text-slate-500">
+                      {p.packageTitle}
+                      {p.programmeTag ? (
+                        <ProgrammeIdChip tag={p.programmeTag} size="xs" />
+                      ) : (
+                        p.purchaseCode && <span className="font-mono text-slate-500">· {p.purchaseCode}</span>
+                      )}
                     </p>
                   </div>
                   <span className="shrink-0 capitalize font-semibold text-slate-500">{p.status}</span>

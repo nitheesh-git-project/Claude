@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { checkConditionCode, writeConditionCode } from "@/lib/conditionCodeServer";
 import { writeCatalogFocal } from "@/lib/catalogImageServer";
 import { writeCatalogFeatured } from "@/lib/catalogFeaturedServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -26,10 +27,11 @@ export async function POST(request: NextRequest) {
     durationMinutes?: number;
     ctaLabel?: string;
     specialty?: unknown;
+    shortCode?: unknown;
     displayOrder?: number;
   }>(request);
   if (parseError) return parseError;
-  const { title, description, imageUrl, imageFocalX, imageFocalY, featured, points, priceInr, durationMinutes, ctaLabel, specialty, displayOrder } = body;
+  const { title, description, imageUrl, imageFocalX, imageFocalY, featured, points, priceInr, durationMinutes, ctaLabel, specialty, shortCode, displayOrder } = body;
 
   if (!title || priceInr === undefined || durationMinutes === undefined) {
     return NextResponse.json(
@@ -70,6 +72,13 @@ export async function POST(request: NextRequest) {
     : [];
 
   const admin = createAdminClient();
+
+  // The programme code (PED), checked before anything is written so a taken
+  // or malformed one is refused with a sentence rather than half-saving.
+  const codeCheck = await checkConditionCode(admin, shortCode, null);
+  if (!codeCheck.ok) {
+    return NextResponse.json({ error: codeCheck.error }, { status: codeCheck.status });
+  }
   const { data, error } = await admin
     .from("treatment_categories")
     .insert({
@@ -90,6 +99,8 @@ export async function POST(request: NextRequest) {
   }
 
   await writeSpecialty(admin, data.id, specialty);
+  // Blank on a new condition: the insert trigger already made one from the name.
+  const codeWarning = await writeConditionCode(admin, data.id, codeCheck.code ?? undefined);
   // Its own isolated write, so a database one migration behind loses the
   // position rather than refusing the whole edit -- and reported rather than
   // swallowed, because an admin who drags a focal point and is told the save
@@ -117,7 +128,9 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true, id: data.id,
     ...(focalSaved
-      ? {}
+      ? codeWarning
+        ? { warning: codeWarning }
+        : {}
       : {
           warning:
             "Saved, but the cover's position could not be written - it is still centred.",

@@ -72,7 +72,7 @@ Understanding this model is what makes a payment defect report useful.
 | Single online session | `/api/razorpay/create-order` | `/api/razorpay/verify` | One appointment |
 | Home visit (prepaid) | `/api/home-visit/create-order` | `/api/home-visit/verify` | A `home_visit_package_purchases` row |
 | Home visit (cash at the door) | *(none)* | `/api/home-visit/book-cash` | Same, `payment_mode='cash'`, `payment_status='unpaid'` |
-| Care-plan programme | `/api/care-plan/create-order` | `/api/care-plan/verify` | A `patient_package_purchases` or home-visit purchase, plus session credits |
+| Care-plan programme | `/api/care-plan/create-order` (quoted first by `/api/care-plan/quote` on Review & pay) | `/api/care-plan/verify` | A `patient_package_purchases` or home-visit purchase, plus session credits; a promo code valid on programmes is claimed on the purchase |
 | Webhook (all of the above) | - | `/api/razorpay/webhook` | Confirms whichever the order pointed at |
 
 **Direct programme checkout no longer exists.** `/api/packages/create-order` and `/api/packages/verify` are deleted. `/book?package=<id>` shows a "Programmes come from your therapist now" page instead of quietly selling one session to somebody who came to buy six.

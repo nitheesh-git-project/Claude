@@ -12,11 +12,14 @@ import {
   AVAILABILITY_HOURS,
   computeDayAvailability,
   formatHourRange,
+  type OverrideRow,
   type SlotState,
+  type TemplateRow,
 } from "@/lib/therapistAvailability";
 import { clinicDateKey, clinicHour } from "@/lib/clinicWeek";
 import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { formatClinicDate } from "@/lib/formatDateTime";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 
 export type AssignBlockCode = "on_leave" | "no_schedule" | "not_working_that_hour" | "already_booked";
 
@@ -59,6 +62,63 @@ export function assignabilityReasons(input: {
     });
   }
   return reasons;
+}
+
+/**
+ * The same judgement as `checkTherapistAssignable`, over rows a screen has
+ * already loaded rather than a fresh read -- the admin dashboard has the
+ * whole roster, every leave flag and every session in hand. It is what the
+ * "Sessions with no therapist" queue uses to say a programme session's
+ * pre-picked therapist "is no longer free at this time" instead of offering
+ * a one-tap assign that would come back 409: nothing is held for them while
+ * the session waits (docs/rules/programmes.md). Advisory only -- the assign
+ * route re-reads the roster and is the authority.
+ *
+ * Bookings are matched the way `findTherapistConflict` matches them: any of
+ * the therapist's non-cancelled sessions overlapping the slot (padded by
+ * `bufferMinutes` for a home visit), excluding the session being assigned.
+ */
+export function assignabilityFromRoster(input: {
+  slotTime: string;
+  durationMinutes: number | null;
+  bufferMinutes?: number;
+  excludeAppointmentId?: string;
+  onLeave: boolean;
+  leaveFrom?: string | null;
+  leaveTo?: string | null;
+  /** This therapist's weekly template rows. */
+  template: TemplateRow[];
+  /** This therapist's one-off exceptions (any dates; the slot's is picked). */
+  overrides: OverrideRow[];
+  /** This therapist's sessions. */
+  bookings: { id: string; slot_time: string | null; duration_minutes: number | null; status: string }[];
+}): AssignBlock[] {
+  const slotMs = new Date(input.slotTime).getTime();
+  if (Number.isNaN(slotMs)) return [];
+  const dateKey = clinicDateKey(slotMs);
+  const hour = clinicHour(slotMs);
+  const slotState = AVAILABILITY_HOURS.includes(hour)
+    ? computeDayAvailability(dateKey, input.template, input.overrides)[hour] ?? null
+    : null;
+  const bufferMs = Math.max(0, input.bufferMinutes ?? 0) * 60_000;
+  const start = slotMs - bufferMs;
+  const end = slotMs + (input.durationMinutes ?? BASE_DURATION_MINUTES) * 60_000 + bufferMs;
+  const alreadyBooked = input.bookings.some((b) => {
+    if (b.id === input.excludeAppointmentId || b.status === "cancelled" || !b.slot_time) return false;
+    const otherStart = new Date(b.slot_time).getTime();
+    const otherEnd = otherStart + (b.duration_minutes ?? BASE_DURATION_MINUTES) * 60_000;
+    return start < otherEnd && otherStart < end;
+  });
+  return assignabilityReasons({
+    onLeave: input.onLeave,
+    leaveFrom: input.leaveFrom,
+    leaveTo: input.leaveTo,
+    weeklyHourCount: input.template.length,
+    slotState,
+    hourLabel: formatHourRange(hour),
+    dateLabel: formatClinicDate(input.slotTime),
+    alreadyBooked,
+  });
 }
 
 export type AssignabilityResult =

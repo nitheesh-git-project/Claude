@@ -6,6 +6,12 @@
 // and a patient joining a call found it under Past. A session still open
 // (requested or confirmed) stays under Upcoming for a day after its start,
 // which is the work still in front of somebody; after that it is past.
+//
+// A finished session is past whatever its slot says. Done can be pressed
+// before the slot's start on the dashboards' clock -- an admin completes
+// from the back office with no time gate, and the debug clock lets a
+// therapist's Done run ahead of the real time the dashboards bucket by --
+// and checking the time first left those completed sessions under Upcoming.
 // Dependency-free so it can be tested without rendering.
 
 export type SessionBucket = "upcoming" | "past" | "cancelled";
@@ -18,6 +24,7 @@ export function sessionBucket(
   nowMs: number
 ): SessionBucket {
   if (s.status === "cancelled") return "cancelled";
+  if (s.status === "completed") return "past";
   if (!s.slotTime) return "past";
   const at = new Date(s.slotTime).getTime();
   if (Number.isNaN(at)) return "past";

@@ -85,6 +85,7 @@ const SECTION_ACCESS: Record<AdminScope, Record<AdminSectionKey, AccessLevel>> =
   full: {
     today: "manage",
     sessions: "manage",
+    programmes: "manage",
     people: "manage",
     money: "manage",
     catalog: "manage",
@@ -94,6 +95,9 @@ const SECTION_ACCESS: Record<AdminScope, Record<AdminSectionKey, AccessLevel>> =
   operations: {
     today: "manage",
     sessions: "manage",
+    // Operations held both halves before Programmes existed (Sessions ->
+    // Recommendations and Catalog -> Purchases), so it keeps both here.
+    programmes: "manage",
     people: "manage",
     money: "none",
     catalog: "manage",
@@ -122,6 +126,11 @@ const SECTION_ACCESS: Record<AdminScope, Record<AdminSectionKey, AccessLevel>> =
     // sessions they are reconciling.
     people: "view",
     sessions: "view",
+    // Read, for the same reason as Sessions: "what was this programme
+    // payment for, and how much of it has been delivered?" is a finance
+    // question, and reassigning or extending one is not. A refund is still
+    // `money` on its own route, so Finance keeps that button.
+    programmes: "view",
     money: "manage",
     catalog: "none",
     logs: "none",
@@ -130,6 +139,11 @@ const SECTION_ACCESS: Record<AdminScope, Record<AdminSectionKey, AccessLevel>> =
   clinical: {
     today: "manage",
     sessions: "manage",
+    // Approving a recommendation was always Clinical's (it sat under
+    // Sessions); the programme it becomes now sits beside it, so Clinical
+    // also reassigns a programme's therapist and extends its expiry. Money
+    // figures stay hidden -- those follow `money`, which Clinical lacks.
+    programmes: "manage",
     people: "manage",
     money: "none",
     catalog: "none",
@@ -210,8 +224,16 @@ export const ADMIN_CAPABILITY_GROUPS: { section: AdminSectionKey; title: string;
       { label: "Assign or change a session's therapist", section: "sessions", writes: true },
       { label: "Reschedule or cancel a session", section: "sessions", writes: true },
       { label: "Book a session on a patient's behalf", section: "sessions", writes: true },
-      { label: "Approve or turn down a recommendation", section: "sessions", writes: true },
       { label: "Edit a therapist's working hours", section: "sessions", writes: true },
+    ],
+  },
+  {
+    section: "programmes",
+    title: "Programmes",
+    capabilities: [
+      { label: "See every programme and how far along it is", section: "programmes", writes: false },
+      { label: "Approve or turn down a recommendation", section: "programmes", writes: true },
+      { label: "Change a programme's therapist or extend its expiry", section: "programmes", writes: true },
     ],
   },
   {

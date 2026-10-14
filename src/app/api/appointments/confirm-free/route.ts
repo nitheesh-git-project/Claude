@@ -13,6 +13,7 @@ import { pricingForRequest } from "@/lib/countryPricingServer";
 import { isGatewayPayable } from "@/lib/discounts";
 import { confirmPaidAppointment } from "@/lib/confirmPaidAppointment";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
+import { recordUserActivity } from "@/lib/userActivityLog";
 
 // A booking a discount took to nothing.
 //
@@ -158,6 +159,14 @@ export async function POST(request: NextRequest) {
   // having completed a session is what turns their inviter's promise into a
   // reward. A free session counts for both -- the friend really did come.
   await settleInvitesOnCapture(admin, appointment.id);
+
+  await recordUserActivity(admin, {
+    action: "appointment.booked_free",
+    actor: { id: user.id, role: "patient" },
+    appointmentId: appointment.id,
+    patientId: user.id,
+    dedupeKey: `booked_free:${appointment.id}`,
+  });
 
   return NextResponse.json({
     success: true,

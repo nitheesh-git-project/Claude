@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { BASE, QA_EMAILS, cookieHeaderFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, cookieHeaderFor } from "./helpers";
+import { PROGRAMME_NEEDS_RECOMMENDATION } from "../src/lib/consultationFirst";
 
 const FAKE_ID = "00000000-0000-4000-8000-000000000000";
 
@@ -59,11 +60,31 @@ test.describe("Direct programme purchase is gone", () => {
       // exhaustively without a fixture per case.
       expect(res.status(), `${path} must not succeed`).not.toBe(200);
     }
+
+    // And the real one, by its id: the old `?package=` path still reaches the
+    // checkout, and a course of visits is answered as a programme rather
+    // than sold as one visit (src/lib/homeVisitRates.ts resolveHomeVisitSale).
+    const { data: programme } = await adminClient()
+      .from("home_visit_packages")
+      .select("id")
+      .eq("title", "4-Visit Home Recovery Programme")
+      .maybeSingle();
+    test.skip(!programme, "the four-visit fixture is missing");
+    const res = await request.post(`${BASE}/api/home-visit/create-order`, {
+      headers: { cookie, "content-type": "application/json" },
+      data: { packageId: programme!.id, address },
+    });
+    expect(res.status()).toBe(403);
+    expect((await res.json()).error).toBe(PROGRAMME_NEEDS_RECOMMENDATION);
   });
 
   test("CF-004: the booking hub offers no multi-session programme", async ({ page }) => {
     await page.goto(`${BASE}/patient/dashboard/book`);
     await expect(page.locator('a[href*="/book?package="]')).toHaveCount(0);
     await expect(page.getByText(/Online session packages/i)).toHaveCount(0);
+    // Home visits are one visit of a condition: no count on any card, and
+    // each links to the wizard by condition rather than by price row.
+    await expect(page.getByText(/Single visit|\d+ visits\b/)).toHaveCount(0);
+    await expect(page.locator('a[href*="/book-home-visit?package="]')).toHaveCount(0);
   });
 });

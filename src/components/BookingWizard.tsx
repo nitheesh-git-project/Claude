@@ -41,6 +41,8 @@ import { specialtyLabel } from "@/lib/therapistSpecialties";
 import { formatRupees } from "@/lib/formatMoney";
 import { usePricing } from "@/components/pricing/PricingProvider";
 import { formatPaiseForCountry, type CountryPricing } from "@/lib/countryPricing";
+import { wizardSlotParts } from "@/lib/resumeCheckout";
+import PasswordInput from "@/components/auth/PasswordInput";
 
 // The four fields this wizard has always read, plus what the service picker
 // shows. Everything after `duration_minutes` is optional because it arrives
@@ -164,6 +166,26 @@ export default function BookingWizard({
   // Seeded from `?replaces=` when the finish-booking screen sends a locked
   // patient here to pick another time for the draft they left unpaid.
   const replacedDraftRef = useRef<string | null>(searchParams.get("replaces"));
+  // `?resume=<id>`: Pay on an unpaid session sends the patient here, to this
+  // same Step 3, rather than opening Razorpay from the dashboard card with no
+  // code field and no breakdown (src/lib/resumeCheckout.ts). Loaded once the
+  // sign-in check has finished; until then the wizard shows its loading
+  // state rather than flashing Step 1.
+  const resumeIdParam = searchParams.get("resume");
+  const [resuming, setResuming] = useState(Boolean(resumeIdParam));
+  // The booking's own slot, shown on Step 3 instead of the picker's: the
+  // picker only holds whole hours in this browser's zone, and the summary
+  // must describe the session being paid for exactly.
+  const [resumedSlotIso, setResumedSlotIso] = useState<string | null>(null);
+  // The code the failed attempt had applied, handed to the code field so it
+  // is re-checked and shown -- applied again, or the reason it no longer is.
+  const [resumedPromoCode, setResumedPromoCode] = useState<string | null>(null);
+  // Said above Step 1 when the resumed booking's time has gone, or instead of
+  // the wizard when it cannot be finished here at all.
+  const [resumeNotice, setResumeNotice] = useState<string | null>(null);
+  const [resumeBlocked, setResumeBlocked] = useState<{ message: string; signIn: boolean } | null>(
+    null
+  );
   // The code the patient applied, if any. Held as a string and sent to
   // checkout as one -- the amount it is worth is never in this component.
   const [promoCode, setPromoCode] = useState<string | null>(null);
@@ -212,10 +234,10 @@ export default function BookingWizard({
   // free, confirm on terms -- is decided on the answer that is about to
   // arrive rather than on the one it replaces.
   const quoteInFlight = useRef<Promise<CheckoutQuoteResponse | null> | null>(null);
-  // Bumped whenever a newer answer lands from somewhere other than
-  // refreshQuote (the quote that rides back on the create response). A quote
-  // request started before that bump must not paint over it when it
-  // finishes late -- the first tap no longer waits for it.
+  // Bumped by every quote request (refreshQuote) and whenever a newer answer
+  // lands from somewhere else (the quote that rides back on the create
+  // response). A quote request started before the latest bump must not paint
+  // over it when it finishes late -- the first tap no longer waits for it.
   const quoteGeneration = useRef(0);
 
   /** The quote to act on: whatever is in flight, else what is on screen.
@@ -279,7 +301,11 @@ export default function BookingWizard({
   // debug bar's simulate-time box working on this line as well as on the
   // calendar.
   const cancellationWindow = describeCancellationWindow({
-    slotMs: slotDateTime ? new Date(slotDateTime).getTime() : null,
+    slotMs: resumedSlotIso
+      ? new Date(resumedSlotIso).getTime()
+      : slotDateTime
+        ? new Date(slotDateTime).getTime()
+        : null,
     refundWindowHours,
     nowMs,
   });
@@ -793,6 +819,9 @@ export default function BookingWizard({
     if (createdQuote) {
       quoteGeneration.current += 1;
       setQuote(createdQuote);
+      // Supersedes any quote still in flight, which will no longer end the
+      // wait itself (refreshQuote clears it only for the newest request).
+      setQuoting(false);
       identified = createdQuote;
     } else {
       identified = await refreshQuote(newAppointmentId, promoCode);
@@ -901,7 +930,11 @@ export default function BookingWizard({
   ): Promise<CheckoutQuoteResponse | null> {
     if (!categoryId && !id) return Promise.resolve(null);
     setQuoting(true);
-    const generation = quoteGeneration.current;
+    // Each request claims the next generation, so only the newest one may
+    // paint. Applying and then removing a code (or the resume path's own
+    // quote racing the code field's) starts overlapping requests, and an
+    // older one landing last used to put a removed discount back on screen.
+    const generation = ++quoteGeneration.current;
     const run = (async (): Promise<CheckoutQuoteResponse | null> => {
       try {
         const res = await fetch("/api/appointments/quote", {
@@ -928,7 +961,10 @@ export default function BookingWizard({
         // Same reasoning.
         return null;
       } finally {
-        setQuoting(false);
+        // Only the newest request ends the wait: an older one finishing
+        // first used to clear "Checking the latest price" while the figure
+        // it was about to replace was still on screen.
+        if (generation === quoteGeneration.current) setQuoting(false);
       }
     })();
     // Published so a tap can await it. The inner function swallows every
@@ -941,6 +977,99 @@ export default function BookingWizard({
     });
     return run;
   }
+
+  // Loads the booking `?resume=` names, once the sign-in check has finished.
+  useEffect(() => {
+    if (!resumeIdParam || checkingAuth || !resuming) return;
+    if (!isLoggedIn) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setResumeBlocked({
+        message: "Sign in to finish paying for your booking.",
+        signIn: true,
+      });
+      setResuming(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/appointments/resume", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ appointmentId: resumeIdParam }),
+        });
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (!res.ok || !data) {
+          setResumeBlocked({
+            message: data?.error ?? "We couldn't load that booking. Please try again from your dashboard.",
+            signIn: false,
+          });
+          return;
+        }
+        if (data.state === "paid" || data.state === "not_resumable") {
+          setResumeBlocked({ message: data.message, signIn: false });
+          return;
+        }
+        const booking = data.appointment as {
+          id: string;
+          categoryId: string | null;
+          slotTime: string;
+          notes: string | null;
+          preferredLanguage: string | null;
+          preferredTherapistId: string | null;
+        };
+        if (booking.categoryId && categories.some((c) => c.id === booking.categoryId)) {
+          setCategoryId(booking.categoryId);
+        }
+        if (booking.notes) setNotes(booking.notes);
+        if (booking.preferredLanguage && bookingLanguages.includes(booking.preferredLanguage)) {
+          setLanguage(booking.preferredLanguage);
+          setAutoPicked((prev) => ({ ...prev, language: false }));
+        }
+        if (booking.preferredTherapistId) setPreferredTherapistId(booking.preferredTherapistId);
+        // They agreed to the consent terms when they made this booking.
+        setConsent(true);
+        if (data.state === "pick_new_time") {
+          // Booking again replaces this draft (create's replacesAppointmentId).
+          replacedDraftRef.current = booking.id;
+          setResumeNotice(
+            `The time you picked${
+              booking.slotTime ? ` (${formatClinicDateTime(booking.slotTime)})` : ""
+            } isn't available any more. Pick a new time - everything else is kept.`
+          );
+          setStep(1);
+          return;
+        }
+        const parts = wizardSlotParts(booking.slotTime);
+        if (parts) {
+          setBookDate(parts.dateKey);
+          setBookHour(parts.hour);
+          setAutoPicked((prev) => ({ ...prev, date: false, hour: false }));
+        }
+        const code = typeof data.promoCode === "string" ? data.promoCode : null;
+        setResumedSlotIso(booking.slotTime);
+        setResumedPromoCode(code);
+        setPromoCode(code);
+        setAppointmentId(booking.id);
+        setStep(3);
+        void refreshQuote(booking.id, code);
+      } catch {
+        if (!cancelled) {
+          setResumeBlocked({
+            message: "Could not reach the server. Please check your connection and try again.",
+            signIn: false,
+          });
+        }
+      } finally {
+        if (!cancelled) setResuming(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeIdParam, checkingAuth, isLoggedIn]);
 
   /**
    * What the payment screen's primary button does.
@@ -1077,7 +1206,7 @@ export default function BookingWizard({
     </div>
   );
 
-  if (checkingAuth) {
+  if (checkingAuth || resuming) {
     return (
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
         {header}
@@ -1096,6 +1225,37 @@ export default function BookingWizard({
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
         {header}
         <WrongAccountForBooking role={signedInRole} name={fullName} email={email} />
+      </div>
+    );
+  }
+
+  // A `?resume=` link this checkout cannot finish: paid already, cancelled,
+  // paid a different way, or a signed-out visitor. Said in words, with the
+  // way forward, rather than dropping them into a fresh booking.
+  if (resumeBlocked) {
+    return (
+      <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+        {header}
+        <div className="p-8 text-center" data-testid="resume-blocked">
+          <i className="fa-solid fa-circle-info text-teal-600 text-4xl mb-4"></i>
+          <p className="text-sm leading-relaxed text-slate-700">{resumeBlocked.message}</p>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Link
+              href={resumeBlocked.signIn ? "/patient/login" : "/patient/dashboard/sessions"}
+              className="inline-block rounded-xl bg-teal-700 px-6 py-3 text-sm font-bold text-white transition hover:bg-teal-800"
+            >
+              {resumeBlocked.signIn ? "Sign in" : "Your sessions"}
+            </Link>
+            {!resumeBlocked.signIn && (
+              <Link
+                href="/book"
+                className="inline-block rounded-xl bg-slate-100 px-6 py-3 text-sm font-bold text-slate-800 transition hover:bg-slate-200"
+              >
+                Book a new session
+              </Link>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -1216,6 +1376,11 @@ export default function BookingWizard({
           {error}
         </div>
       )}
+      {resumeNotice && step === 1 && (
+        <div role="status" className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          {resumeNotice}
+        </div>
+      )}
 
       {step === 1 && (
         <BookingStepOne
@@ -1296,9 +1461,8 @@ export default function BookingWizard({
                       (for portal access)
                     </span>
                   </span>
-                  <input
+                  <PasswordInput
                     id="bw-password"
-                    type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     minLength={6}
@@ -1541,7 +1705,9 @@ export default function BookingWizard({
                 Preferred Time
               </span>
               <span className="font-bold text-slate-900">
-                {slotDateTime && formatClinicDateTime(slotDateTime)}
+                {resumedSlotIso
+                  ? formatClinicDateTime(resumedSlotIso)
+                  : slotDateTime && formatClinicDateTime(slotDateTime)}
               </span>
             </div>
             <div className="flex justify-between text-xs">
@@ -1613,6 +1779,7 @@ export default function BookingWizard({
               <PromoCodeField
                 categoryId={selectedCategory?.id ?? null}
                 appointmentId={appointmentId}
+                initialCode={resumedPromoCode}
                 onApplied={(code) => {
                   setPromoCode(code);
                   // Re-quoted rather than adjusted here: the code may not be
@@ -1684,6 +1851,7 @@ export default function BookingWizard({
                 // their own slot nor ends up with a second unpaid session.
                 if (appointmentId) replacedDraftRef.current = appointmentId;
                 setAppointmentId(null);
+                setResumedSlotIso(null);
                 setFailedAttempts(0);
                 setError(null);
                 setStep(2);

@@ -33,7 +33,7 @@ export type MoneyAlert = {
   hint: string;
   /** Which admin section the fix lives in, so an unreachable one is dropped
    *  rather than rendered as a link that lands somewhere else. */
-  section: "money" | "settings" | "sessions" | "catalog";
+  section: "money" | "settings" | "sessions" | "catalog" | "programmes";
   tab: string;
   /** Preset the target screen applies to its own filters on arrival. */
   view?: string;
@@ -195,11 +195,13 @@ export function buildMoneyAlerts(
       label: "Paid programmes with nothing booked",
       count: counts.purchasesUnscheduled ?? 0,
       hint: "They paid and never picked a date. Ring them and book the first session - the scheduler proposes the whole run from their own plan.",
-      // Catalog, because that is where Purchases lives -- the section is
-      // chosen by where the work is done, never by which strip the row sits
-      // on, the same rule a failed session refund follows into Sessions.
-      section: "catalog",
-      tab: "purchases",
+      // Programmes, because that is where a paid programme is followed --
+      // the section is chosen by where the work is done, never by which
+      // strip the row sits on, the same rule a failed session refund follows
+      // into Sessions. The preset opens the "Paid - nothing booked" stage,
+      // narrowed to the same day-old ones this row counts.
+      section: "programmes",
+      tab: "all",
       view: "unscheduled",
       // Money taken for work not begun. Not urgent: nothing has gone wrong
       // and nobody is out of pocket -- it is a patient who needs a phone

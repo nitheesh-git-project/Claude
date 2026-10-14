@@ -7,7 +7,8 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 // Deleting a campaign that never went anywhere.
 //
 // **A claimed code is never deleted, only paused.** The claim is recorded on
-// the booking (`appointments.promo_code_id`), so removing the row would
+// the booking (`appointments.promo_code_id`) or the programme purchase
+// (`*_package_purchases.promo_code_id`), so removing the row would
 // leave paid sessions pointing at a campaign nobody can name -- and the one
 // question a discount has to be able to answer afterwards is which rule gave
 // it away. An admin who wants a code to stop working switches `active` off,
@@ -36,13 +37,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "That code no longer exists." }, { status: 404 });
   }
 
-  const { count, error: countError } = await admin
-    .from("appointments")
-    .select("id", { count: "exact", head: true })
-    .eq("promo_code_id", id);
+  // A claim lives on a booking or, since codes can apply to a recommended
+  // programme, on that programme's purchase -- so all three are asked.
+  const counts = await Promise.all(
+    (["appointments", "patient_package_purchases", "home_visit_package_purchases"] as const).map(
+      (table) =>
+        admin.from(table).select("id", { count: "exact", head: true }).eq("promo_code_id", id)
+    )
+  );
+  // An unreadable count refuses the delete. The safe direction for "I
+  // don't know whether anyone used this" is to keep the record. The one
+  // exception is a purchase table without the claim column yet (42703): no
+  // programme can have claimed the code there.
+  const countError = counts.find(
+    (r, i) => r.error && !(i > 0 && r.error.code === "42703")
+  )?.error;
+  const count = counts.reduce((sum, r) => sum + (r.error ? 0 : r.count ?? 0), 0);
   if (countError) {
-    // An unreadable count refuses the delete. The safe direction for "I
-    // don't know whether anyone used this" is to keep the record.
     return NextResponse.json(
       { error: "Could not check whether this code has been used. Please try again." },
       { status: 500 }

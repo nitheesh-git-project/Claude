@@ -36,7 +36,7 @@ async function setCutoff(minutes: number) {
   if (error) throw new Error(`could not set the cutoff: ${error.message}`);
 }
 
-async function seedSession(opts: { minutesOld: number; status?: string }) {
+async function seedSession(opts: { minutesOld: number; status?: string; meetLink?: string | null }) {
   const { data, error } = await db
     .from("appointments")
     .insert({
@@ -45,7 +45,7 @@ async function seedSession(opts: { minutesOld: number; status?: string }) {
       slot_time: minutesAgo(opts.minutesOld),
       status: opts.status ?? "confirmed",
       duration_minutes: 30,
-      meet_link: "https://meet.google.com/e2e-cutoff-test",
+      meet_link: opts.meetLink === undefined ? "https://meet.google.com/e2e-cutoff-test" : opts.meetLink,
       concern: MARKER,
     })
     .select("id, session_code")
@@ -327,6 +327,25 @@ test.describe("Session Completed cutoff", () => {
     const page = await ctx.newPage();
     await openPatientDashboard(page, seeded.session_code!);
     await expect(joinButton(page, seeded.session_code!).first()).toHaveText("Session Cancelled");
+    await ctx.close();
+  });
+  test("SC-012 with no Meet link, the 'join from' line gives way once the join time has passed", async ({ browser }) => {
+    // Ten minutes in, no link: "you can join from <time>" would be a time
+    // already gone, so the card says the link is late and who can help.
+    const late = await seedSession({ minutesOld: 10, meetLink: null });
+    // Three hours out, no link: the line still says where and when.
+    const ahead = await seedSession({ minutesOld: -180, meetLink: null });
+    const ctx = await browser.newContext();
+    await ctx.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/patient/dashboard/sessions`, { waitUntil: "domcontentloaded" });
+    await showAllSessions(page);
+    const card = (code: string) => page.getByText(code).locator("xpath=ancestor::li[1]");
+    const lateLine = card(late.session_code!).getByText(/The Meet link isn't ready yet/);
+    expect(await pageUntilVisible(page, "sessions", lateLine, { timeout: 60_000 })).toBe(true);
+    await expect(card(late.session_code!).getByText(/you can join from/)).toHaveCount(0);
+    const aheadLine = card(ahead.session_code!).getByText(/The Meet link will show here - you can join from/);
+    expect(await pageUntilVisible(page, "sessions", aheadLine, { timeout: 60_000 })).toBe(true);
     await ctx.close();
   });
 });

@@ -102,6 +102,12 @@ export type FeedAppointment = {
   therapist_name?: string | null;
   patient_name?: string | null;
   session_code?: string | null;
+  /** Booked against a programme (an online package or a home-visit
+   *  purchase) and still waiting on the clinic's assign -- the patient's
+   *  item then says "booked - confirming your therapist" rather than
+   *  "waiting for a therapist" (isBookedAwaitingTherapist). Optional: a feed
+   *  built without it keeps the old wording. */
+  awaiting_programme_therapist?: boolean;
   /** Optional, and read through describeRefundForPatient -- a feed built
    *  from a select that did not ask for these simply says nothing about a
    *  refund rather than guessing there wasn't one. */
@@ -212,7 +218,20 @@ export function buildPatientFeed({
   for (const a of appointments) {
     const when = a.slot_time ?? a.created_at ?? "";
     const mode = a.visit_mode === "home_visit" ? "Home visit" : "Video session";
-    if (a.status === "requested") {
+    if (a.status === "requested" && a.awaiting_programme_therapist) {
+      // Paid from a programme and booked; the clinic confirms who takes it.
+      items.push({
+        id: `appt-${a.id}`,
+        at: a.created_at ?? when,
+        icon: "fa-hourglass-half",
+        tone: "info",
+        title: `${mode} booked - confirming your therapist`,
+        detail: when
+          ? `${formatClinicDateTime(when)}. The clinic is confirming your therapist - you'll see the joining details here once it's confirmed.`
+          : "The clinic is confirming your therapist - you'll see the joining details here once it's confirmed.",
+        href: "/patient/dashboard/sessions",
+      });
+    } else if (a.status === "requested") {
       items.push({
         id: `appt-${a.id}`,
         at: a.created_at ?? when,
@@ -252,11 +271,11 @@ export function buildPatientFeed({
       });
     }
     {
-      // A refund that failed at the gateway is the one refund state that is
-      // waiting on the patient: nothing in the clinic's own screens will
-      // move it until they get in touch. Pinned like every other needsYou
-      // item, and separate from the cancellation above so it survives a
-      // partial refund on a session that was never cancelled.
+      // A refund that failed at the gateway: the patient is out of pocket
+      // and the clinic's alert strip has it as urgent work. Pinned like every
+      // other needsYou item so it stays in view until it is sent, and
+      // separate from the cancellation above so it survives a partial refund
+      // on a session that was never cancelled.
       const refund = describeRefundForPatient(a);
       if (refund.state === "failed") {
         items.push({
@@ -264,8 +283,8 @@ export function buildPatientFeed({
           at: refund.at ?? when,
           icon: "fa-triangle-exclamation",
           tone: "bad",
-          title: "Refund didn't go through",
-          detail: "Please contact the clinic so we can return this by hand.",
+          title: "Refund delayed",
+          detail: "It didn't go through automatically, so our team is sending it by hand. Contact us if you have a question.",
           href: "/patient/dashboard/payments",
           needsYou: true,
         });
@@ -687,9 +706,14 @@ export function buildAdminFeed({
   pendingApprovals = EMPTY_QUEUE,
   pendingRequests = EMPTY_QUEUE,
   failedSyncs = EMPTY_QUEUE,
+  recommendations = [],
   allowedSections,
 }: {
   activity: FeedActivityRow[];
+  /** Recommendation events from buildRecommendationPulse, already dated
+   *  from their rows and already scoped (no href when the viewer cannot
+   *  open the screen). */
+  recommendations?: FeedItem[];
   pendingApprovals?: QueueRollup;
   pendingRequests?: QueueRollup;
   failedSyncs?: QueueRollup;
@@ -729,6 +753,7 @@ export function buildAdminFeed({
       .filter(Boolean)
       .join(" · ") || undefined,
   }));
+  items.push(...recommendations);
 
   if (pendingApprovals.count > 0) {
     items.push({

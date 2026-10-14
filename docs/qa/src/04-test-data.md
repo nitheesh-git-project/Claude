@@ -6,11 +6,11 @@ Use these exact values everywhere. Every test in this plan refers to them by lab
 
 ### 8.1 Standard password
 
-**All test accounts use the same password:** `QaTest!2024pass`
+**All test accounts use the same password:** the `E2E_QA_PASSWORD` value from `.env.local` (ask the owner; it is never written in this public repository, and CI generates its own per run)
 
 > **Before typing any of §8.2–§8.9 in by hand, read this.** A data reset deletes every non-admin account, so the twelve logins below stop existing the moment `SETUP-RESET-001` runs. `npm run seed:qa` recreates all of them with this password, prints both hospitals' referral codes, and can be re-run safely - see §6.2. The two accounts an admin would otherwise mint from the back office (a scoped admin in `ADM-SET-026`, a hospital in `HOS-AUTH-002`) hand out a **generated** password shown once and stored nowhere; the seeder gives them this one instead, which is why `Invalid login credentials` on any account named here is a seeding question before it is a bug.
 
-Where a test needs a *second, different* password (a change-password test), use `QaTest!2024new`.
+Where a test needs a *second, different* password (a change-password test), use any other strong password of your own.
 
 ### 8.2 Admin accounts
 
@@ -21,7 +21,7 @@ Where a test needs a *second, different* password (a change-password test), use 
 | **Admin Finance** | `qa.admin.finance@example.test` | `finance` | Proves Sessions and Catalog are blocked. |
 | **Admin Clinical** | `qa.admin.clinical@example.test` | `clinical` | Proves Money, Catalog and Settings are blocked. |
 
-Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated password shown on that screen** - not `QaTest!2024pass`. It stays readable on that admin's own Back office row until they set their own, and if it is lost, **Reset password** on the row issues a new one.
+Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated password shown on that screen** - not the `E2E_QA_PASSWORD` value. It stays readable on that admin's own Back office row until they set their own, and if it is lost, **Reset password** on the row issues a new one.
 
 ### 8.3 Patients
 
@@ -43,7 +43,7 @@ Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `ac
 | --- | --- | --- | --- |
 | Full name | `QA Patient A` | `QA Patient B` | `QA Referred Patient C` |
 | Email | `qa.patient.a@example.test` | `qa.patient.b@example.test` | `qa.patient.c@example.test` |
-| Password | `QaTest!2024pass` | `QaTest!2024pass` | `QaTest!2024pass` |
+| Password | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value |
 | Phone | `+91 98765 43210` | `+91 98765 43211` | `+91 98765 43212` |
 | Date of birth | `1990-04-12` | `1985-11-30` | `1978-02-05` |
 | Gender | `Female` | `Male` | `Female` |
@@ -63,7 +63,7 @@ Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `ac
 | --- | --- |
 | Invalid email | `not-an-email` |
 | Too-short password | `abc12` (5 characters; minimum is 6) |
-| Mismatched confirm password | Password `QaTest!2024pass`, confirm `QaTest!2024pas` |
+| Mismatched confirm password | Password the `E2E_QA_PASSWORD` value, confirm the same value minus its last character |
 | Invalid phone | `12345` |
 | Invalid PIN code | `0560038` (leading zero - the pattern requires `[1-9]` first) and `56003` (5 digits) |
 | Unknown referral code | `ZZZZZZ` |
@@ -134,7 +134,7 @@ Expected suggestion: **Orthopaedic** for Patient A, **Neurological** for Patient
 | --- | --- | --- | --- |
 | Full name | `QA Therapist A` | `QA Therapist B` | `QA Therapist C` |
 | Email | `qa.therapist.a@example.test` | `qa.therapist.b@example.test` | `qa.therapist.c@example.test` |
-| Password | `QaTest!2024pass` | `QaTest!2024pass` | `QaTest!2024pass` |
+| Password | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value | the `E2E_QA_PASSWORD` value |
 | Phone | `+91 90000 10001` | `+91 90000 10002` | `+91 90000 10003` |
 | Qualifications & License / Council Reg No. | `MPT (Ortho), KSCP Reg 44821` | `MPT (Neuro), KSCP Reg 44822` | `BPT, KSCP Reg 44823` |
 | Specialty / display note | `Spine and lower-limb rehabilitation` | `Stroke and neurological rehabilitation` | `Paediatric physiotherapy` |
@@ -186,58 +186,21 @@ Negative values for validation tests: Price `0`, Price `-100`, Price `abc`, Sess
 
 ### 8.11 Session packages (programmes)
 
-Create in **Catalog → Packages**. Every one of these has `session_count ≥ 2`, so **none of them is directly purchasable** - they can only reach a patient through a care plan. That is the rule under test, not a limitation of the fixtures.
+**Not created any more.** Catalog → Packages was removed: a therapist's recommendation is priced per session from the condition (its online price, or its home-visit price when hands-on), so there is no admin programme to set up. Any old `treatment_category_packages` rows and the purchases that point at them keep working and are named on Programmes → All Programmes; a test that needs an old purchase seeds it by SQL and says so.
 
-| Field | **Package P1** | **Package P2** | **Package P3 (consultation)** |
-| --- | --- | --- | --- |
-| Category | `QA Back & Spine Care` | `QA Neuro Rehabilitation` | `QA Back & Spine Care` |
-| Package Name | `QA Spine Recovery 6 Sessions` | `QA Neuro Rehab 8 Sessions` | `QA Single Session` |
-| Subtitle | `Six weeks, one therapist, measured progress` | `Eight sessions of gait and balance work` | `One assessment` |
-| Description | `A structured six-session block for persistent lower-back pain.` | `An eight-session neurological rehabilitation block.` | `A single 60-minute session.` |
-| What We Promise (one per line) | `The same therapist every session` / `A written home programme` / `Progress measured, not guessed` | `The same therapist every session` / `Gait retraining` / `Family guidance` | `A full assessment` |
-| Sessions Included | `6` | `8` | `1` |
-| Bundle Price (₹) | `9999` | `17999` | `1999` |
-| Compare-at Price (₹) | *(blank - auto-computes from the category price)* | *(blank)* | *(blank)* |
-| Therapist Pay Basis | `Discounted package price` | `Category list price` | `Discounted package price` |
-| Validity (days) | `90` | `120` | `30` |
-| Session Duration (min) | *(blank - inherits 60)* | *(blank)* | *(blank)* |
-| Minimum gap between sessions (hours) | `24` | `48` | *(blank)* |
-| Maximum sessions per week | `3` | `2` | *(blank)* |
-| Maximum purchases per patient | `2` | `1` | *(blank)* |
-| Display Order | `1` | `2` | `3` |
-| Active | ticked | ticked | ticked |
+### 8.12 Home-visit prices
 
-**Package validation negatives** (expected error text in brackets):
+Set in **Catalog → Conditions → Home visits**. One visit each - there is no visit count, validity or day to enter.
 
-| Input | Expected message |
+| What | Value |
 | --- | --- |
-| Package Name blank | `Package Name is required.` |
-| Sessions Included `1` | `Sessions Included must be a whole number of 2 or more.` |
-| Bundle Price `0` | `Bundle Price must be a positive number.` |
-| Compare-at `5000` with Bundle `9999` | `Compare-at Price can't be lower than the Bundle Price.` |
-| Order `abc` | `Order must be a number.` |
+| **Clinic-wide price** (HV1) | `2499`, visit length `60` |
+| **Own price** for `QA Knee & Joint Care` | `2999` |
+| Every other condition | *Clinic-wide* |
 
-### 8.12 Home-visit packages
+**HV2 (legacy programme)** - a `visit_count = 4` row (`QA Home Visit Recovery - 4 Visits`, ₹8,999) has no screen any more. Where a test needs it (`PAT-HV-005`, `PAT-CARE-003`'s old-purchase variant), insert it by SQL. It must be refused by both `/api/home-visit/create-order` and `/api/home-visit/book-cash` with the programme sentence (403), and it never appears on `/home-visit` or the booking hub.
 
-Create in **Catalog → Packages** (home-visit section).
-
-| Field | **HV1 (consultation)** | **HV2 (programme)** |
-| --- | --- | --- |
-| Package Name | `QA Home Visit - Single` | `QA Home Visit Recovery - 4 Visits` |
-| Subtitle | `One visit at your door` | `Four visits over a month` |
-| Description | `A single home assessment.` | `A four-visit home rehabilitation block.` |
-| Benefits (one per line) | `A physiotherapist at your door` / `Full assessment` | `The same therapist each visit` / `Family training` |
-| Visits Included | `1` | `4` |
-| Package Price (₹) | `2499` | `8999` |
-| Visit Duration (minutes) | `60` | `60` |
-| Validity (days) | `30` | `90` |
-| Minimum gap between visits (hours) | *(blank)* | `48` |
-| Maximum visits per week | *(blank)* | `2` |
-| Travel fee included in price | **unticked** | **unticked** |
-| Lock to one therapist | ticked | ticked |
-| Active | ticked | ticked |
-
-**HV1 is the only home-visit row that may be bought directly** (one visit = a consultation). HV2 (`visit_count > 1`) must be refused by both `/api/home-visit/create-order` and `/api/home-visit/book-cash`.
+**Negatives** (Catalog → Conditions → Home visits, expected message): price `0` or blank → `Enter the price in rupees, for example 1500.`; visit length `5` → `A visit lasts between 15 and 480 minutes.`
 
 ### 8.13 Service areas (home visit)
 
@@ -306,6 +269,5 @@ Several tests name a setup step by a `SETUP-*` alias. Each is simply the catalog
 | Alias | Is | Creates |
 | --- | --- | --- |
 | `SETUP-CAT-001` | `ADM-CAT-001` | The three treatment categories (§8.10) |
-| `SETUP-PKG-001` | `ADM-CAT-005` | Packages P1, P2, P3 (§8.11) |
-| `SETUP-HVPKG-001` | `ADM-CAT-005` (home-visit section) | HV1 and HV2 (§8.12) |
+| `SETUP-HVPKG-001` | `ADM-CAT-005` | The clinic-wide home-visit price and one condition's own price (§8.12) |
 | `SETUP-AREA-001` | `ADM-CAT-010` | Service Areas 1 and 2 (§8.13) |

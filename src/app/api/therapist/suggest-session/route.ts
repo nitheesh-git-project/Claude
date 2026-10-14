@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { findTherapistConflict } from "@/lib/checkTherapistConflict";
+import { checkTherapistAssignable } from "@/lib/therapistAssignability";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
   leadTimeMsFromHours,
   isWholeHourSlot,
   NOT_WHOLE_HOUR_ERROR,
 } from "@/lib/bookingSlots";
-import { sessionsRemaining } from "@/lib/sessionSuggestions";
+import { sessionsRemaining, suggestRefusal } from "@/lib/sessionSuggestions";
 import { guardCommunication } from "@/lib/communicationFlags";
 import { serverError } from "@/lib/apiError";
 import { checkPackageSpacing, readPackageTerms } from "@/lib/packageTerms";
@@ -204,18 +205,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Advisory: acceptance re-checks this against the therapist's calendar as
-  // it stands then. Suggesting a slot they are already busy for would just
-  // waste the patient's answer.
-  const conflict = await findTherapistConflict(
+  // Only a time the therapist could actually be assigned. An accepted
+  // suggestion lands in the admin's "Sessions with no therapist" queue with
+  // this therapist pre-picked, and the admin's assign is strict about the
+  // roster (docs/rules/roster.md) -- so a time outside their own working
+  // hours, on leave, or over another session would be accepted by the
+  // patient and then refused at the assign. Checked here, up front, with the
+  // same rule the assign uses (checkTherapistAssignable), and said as one
+  // sentence naming every reason. A roster that could not be read is "try
+  // again", never "free". Nothing is held: the admin's assign re-checks it.
+  const assignable = await checkTherapistAssignable(
     admin,
     user.id,
     new Date(slotMs).toISOString(),
     durationMinutes ?? BASE_DURATION_MINUTES
   );
-  if (conflict) {
+  if (assignable.ok === null) return couldNotCheck("your working hours");
+  if (assignable.ok === false) {
     return NextResponse.json(
-      { error: "You already have a session at that time." },
+      {
+        error: suggestRefusal(assignable.reasons),
+        code: "therapist_unavailable",
+        reasons: assignable.reasons,
+      },
       { status: 409 }
     );
   }
@@ -263,6 +275,16 @@ export async function POST(request: NextRequest) {
     }
     return serverError("therapist/suggest-session", insertError);
   }
+
+  await recordUserActivity(admin, {
+    action: "suggestion.sent",
+    actor: { id: user.id, role: "therapist" },
+    packagePurchaseId: purchase.id,
+    patientId: purchase.patient_id,
+    therapistId: user.id,
+    details: { slotTime: new Date(slotMs).toISOString() },
+    dedupeKey: `suggestion_sent:${created.id}`,
+  });
 
   return NextResponse.json({ success: true, suggestionId: created.id });
 }

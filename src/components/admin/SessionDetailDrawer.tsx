@@ -1,17 +1,23 @@
 "use client";
 
 import ActivityTimeline from "@/components/admin/ActivityTimeline";
-import { useId, useOptimistic, useState, useTransition } from "react";
+import { useEffect, useId, useOptimistic, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import RefundChip from "@/components/admin/RefundChip";
 import { hasRefund } from "@/lib/refundState";
 import OverlayPortal from "@/components/system/OverlayPortal";
 import { FeedbackBody, StarRow } from "@/components/feedback/RatingDisplay";
 import { useDialogChrome } from "@/lib/useDialogChrome";
-import { formatClinicDateTime } from "@/lib/formatDateTime";
+import { clinicDayParts, formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
 import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
+import ProgrammeTherapistAssign from "@/components/admin/ProgrammeTherapistAssign";
+import type { ProgrammePick } from "@/lib/sessionAssignQueue";
+import type { ProgrammeTag } from "@/lib/programmeId";
+import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
+import { adminScreenHref } from "@/lib/adminNav";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange } from "@/lib/formatSlotRange";
 import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
@@ -131,6 +137,8 @@ export default function SessionDetailDrawer({
   homeVisit,
   canSeeMoney = true,
   canManageSessions = true,
+  programmePick = null,
+  programmeTag = null,
   onClose,
 }: {
   appointment: SessionDetailAppointment;
@@ -151,6 +159,15 @@ export default function SessionDetailDrawer({
   // person pages, which every scope can open, pass the real values.
   canSeeMoney?: boolean;
   canManageSessions?: boolean;
+  // A programme session waiting in "Sessions with no therapist": the
+  // programme's own therapist, pre-picked, and whether the roster says they
+  // can still take this time. Leads the assign section as one primary
+  // button (or the reason it can't), with the ordinary picker below for
+  // someone else. Absent everywhere else, including the person pages.
+  programmePick?: ProgrammePick | null;
+  // The programme this session was drawn from, when it was: "Part of
+  // PED_PKG001-2/6", linking to that programme on Programmes.
+  programmeTag?: ProgrammeTag | null;
   onClose: () => void;
 }) {
   const [reopening, setReopening] = useState(false);
@@ -279,7 +296,9 @@ export default function SessionDetailDrawer({
       // missed - the session is cancelled either way, but the refund needs
       // manual follow-up.
       setActionError(
-        "Session cancelled, but the automatic refund failed. Please process the refund manually."
+        `Session cancelled, but the refund didn't go through. ${
+          data.refundFailure ?? "Razorpay gave no reason - check the payment in Razorpay."
+        } It's listed under Refunds that failed.`
       );
       return;
     }
@@ -350,6 +369,18 @@ export default function SessionDetailDrawer({
   // The whole dialog contract -- Escape, the focus trap, focus back to
   // the row that opened this -- from the one hook every overlay shares.
   const { panelRef, dialogProps } = useDialogChrome({ onClose, labelledBy: titleId });
+
+  // The drawer belongs to the screen it was opened on. Admin screens switch
+  // in place (adminScreenNavigation), and this drawer is portalled above
+  // all of them, so a link out of it -- "Open the roster" in the Unable to
+  // assign dialog -- used to change the screen underneath while the drawer
+  // stayed on top. Leaving the screen closes it.
+  const searchParams = useSearchParams();
+  const screenKey = `${searchParams.get("section") ?? ""}|${searchParams.get("tab") ?? ""}`;
+  const [openedOn] = useState(screenKey);
+  useEffect(() => {
+    if (screenKey !== openedOn) onClose();
+  }, [screenKey, openedOn, onClose]);
 
 
   // One side's rating: who gave it, the stars and the number, the picks and
@@ -457,6 +488,17 @@ export default function SessionDetailDrawer({
               {a.session_code && (
                 <p className="font-mono text-[11px] text-slate-500 mt-0.5">{a.session_code}</p>
               )}
+              {programmeTag && (
+                <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
+                  Part of <ProgrammeIdChip tag={programmeTag} size="xs" />
+                  <a
+                    href={adminScreenHref("programmes", "all", `code:${programmeTag.code}`)}
+                    className="font-semibold text-teal-700 hover:underline"
+                  >
+                    Open programme
+                  </a>
+                </p>
+              )}
             </div>
             <button
               onClick={onClose}
@@ -540,10 +582,19 @@ export default function SessionDetailDrawer({
             </div>
 
             <div>
-              <p className="text-slate-500">Slot (IST)</p>
-              <p className="font-semibold text-slate-800">
-                {a.slot_time ? formatSlotRange(a.slot_time, durationMinutes) : "Time TBD"}
-              </p>
+              <p className="text-slate-500">Date &amp; time</p>
+              {/* The day first: a time on its own reads as today, and this
+                  drawer is opened from lists that span months. */}
+              {a.slot_time ? (
+                <>
+                  <p className="font-semibold text-slate-800">
+                    {clinicDayParts(a.slot_time).weekday}, {formatClinicDate(a.slot_time)}
+                  </p>
+                  <p className="text-slate-600">{formatSlotRange(a.slot_time, durationMinutes)}</p>
+                </>
+              ) : (
+                <p className="font-semibold text-slate-800">Time TBD</p>
+              )}
             </div>
 
             {a.meet_link && (
@@ -633,12 +684,21 @@ export default function SessionDetailDrawer({
                   </p>
                 ) : (
                   <>
+                    {needsAssigning && programmePick && (
+                      <ProgrammeTherapistAssign
+                        appointmentId={a.id}
+                        pick={programmePick}
+                        confirms={a.payment_status === "paid" || a.payment_terms === "pay_later"}
+                      />
+                    )}
                     {needsAssigning && (
                       <div className="mb-2">
                         <AssignTherapistForm
                           appointmentId={a.id}
                           therapists={therapists.filter((t) => t.active !== false)}
                           preferredTherapistId={a.preferred_therapist_id ?? null}
+                          programmeTherapistId={programmePick?.therapistId ?? null}
+                          programmeTherapistFree={!programmePick || programmePick.blocks.length === 0}
                         />
                         <p className="mt-1 text-[11px] text-slate-500">
                           Confirms the session at the time it was booked for. Use the
@@ -751,10 +811,21 @@ export default function SessionDetailDrawer({
                     runs the same route as an online session -- the padding
                     for travel time is applied server-side, not here. */}
                 {canManageSessions && homeVisit.status !== "cancelled" && homeVisit.status !== "completed" && (
-                  <HomeVisitAssignForm
-                    visit={homeVisit}
-                    therapists={therapists.filter((t) => t.active !== false)}
-                  />
+                  <>
+                    {!homeVisit.therapist_id && programmePick && (
+                      <ProgrammeTherapistAssign
+                        appointmentId={a.id}
+                        pick={programmePick}
+                        confirms={homeVisit.payment_status === "paid"}
+                      />
+                    )}
+                    <HomeVisitAssignForm
+                      visit={homeVisit}
+                      therapists={therapists.filter((t) => t.active !== false)}
+                      programmeTherapistId={programmePick?.therapistId ?? null}
+                      programmeTherapistFree={!programmePick || programmePick.blocks.length === 0}
+                    />
+                  </>
                 )}
               </div>
             )}

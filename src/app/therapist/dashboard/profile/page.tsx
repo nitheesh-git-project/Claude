@@ -5,6 +5,7 @@ import AvatarUpload from "@/components/profile/AvatarUpload";
 import AccountCreatedNote from "@/components/profile/AccountCreatedNote";
 import InstantProfileFields from "@/components/profile/InstantProfileFields";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
+import RichTextField from "@/components/RichTextField";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
@@ -127,13 +128,27 @@ export default async function TherapistProfilePage() {
           userId={user.id}
           fields={[
             { name: "languages", label: "Languages Spoken", type: "text" },
-            { name: "bio", label: "Short Bio", type: "textarea" },
           ]}
           currentValues={{
             languages: profile?.languages ?? "",
-            bio: profile?.bio ?? "",
           }}
         />
+        <div className="mt-5 pt-5 border-t border-slate-100">
+          <h3 className="text-xs font-semibold text-slate-800 mb-1">Bio</h3>
+          <p className="text-[11px] text-slate-500 mb-2">
+            Shown to patients on your profile on the Our Team page.
+          </p>
+          <RichTextField
+            label="Bio"
+            storedValue={profile?.bio ?? null}
+            endpoint="/api/therapist/update-bio"
+            body={{}}
+            emptyText="No bio yet. Tell patients about your experience and how you work."
+            placeholder="Your experience, what you treat, and how you like to work..."
+            viewHref="/team"
+            testId="therapist-bio"
+          />
+        </div>
       </div>
 
       <div id="credentials" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

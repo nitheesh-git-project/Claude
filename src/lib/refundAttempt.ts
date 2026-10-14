@@ -135,8 +135,38 @@ export async function failRefundAttempt(
 export function describeFailure(detail: unknown): string | null {
   if (!detail) return null;
   if (typeof detail === "string") return detail.trim().slice(0, 500) || null;
-  const record = detail as { error?: { description?: unknown }; message?: unknown };
+  const record = detail as { error?: { description?: unknown }; message?: unknown; statusCode?: unknown };
   const described = record?.error?.description ?? record?.message;
   if (typeof described === "string" && described.trim()) return described.trim().slice(0, 500);
+  // Razorpay sometimes answers with a status and no body (a 404 for a
+  // payment this account cannot see). The status is still a recorded fact.
+  if (typeof record?.statusCode === "number") {
+    return record.statusCode === 404
+      ? "Razorpay answered 404: it has no such payment on this account"
+      : `Razorpay answered HTTP ${record.statusCode} with no reason`;
+  }
   return null;
+}
+
+/**
+ * What an admin is told when Razorpay refuses a refund: the gateway's own
+ * reason, not "check Razorpay".
+ *
+ * The reason was already being saved on the attempt row and shown nowhere,
+ * so the commonest refusal -- the Razorpay balance cannot cover it yet,
+ * because refunds come out of the balance and a fresh payment has not
+ * settled into it -- read the same as a broken key. That one gets a plain
+ * next step, since nothing in this app can fix it and retrying straight away
+ * fails the same way.
+ */
+export function refundRefusalForAdmin(detail: unknown): string {
+  const reason = describeFailure(detail);
+  if (!reason) {
+    return "Razorpay refused the refund and gave no reason. Nothing was refunded - check the payment in Razorpay and retry.";
+  }
+  const said = /[.!?]$/.test(reason) ? reason : `${reason}.`;
+  if (/balance/i.test(reason)) {
+    return `Razorpay refused the refund: "${said}" Refunds come out of your Razorpay balance. Wait for the payment to settle or add funds in Razorpay, then retry. Nothing was refunded.`;
+  }
+  return `Razorpay refused the refund: "${said}" Nothing was refunded - fix it in Razorpay and retry.`;
 }

@@ -3,7 +3,7 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { EmptyState, StatusPill } from "@/components/dashboard/SurfaceCard";
 import { clinicDayParts, formatClinicTime } from "@/lib/formatDateTime";
-import { sessionRowStatus } from "@/lib/sessionRowStatus";
+import { sessionRowStatus, type RowStatusTone } from "@/lib/sessionRowStatus";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import { sessionBucket } from "@/lib/sessionBucket";
@@ -20,6 +20,11 @@ export type FilterableSession = {
    *  without opening the card. */
   title?: string;
   detail?: string;
+  /** The row's status word when the viewer's own reading differs from the
+   *  one-word default -- the patient's "Booked - confirming your therapist"
+   *  for a programme session waiting on the clinic (patientSessionStatus).
+   *  Omitted, the row reads `sessionRowStatus`. */
+  statusLabel?: { label: string; tone: RowStatusTone };
 };
 
 type When = "upcoming" | "past" | "cancelled" | "all";
@@ -186,7 +191,7 @@ export default function SessionFilterList({
           {pageSessions.map((s) => {
             const isSelected = s.id === selected?.id;
             const day = clinicDayParts(s.slotTime);
-            const status = sessionRowStatus(s.status, s.noShow);
+            const status = s.statusLabel ?? sessionRowStatus(s.status, s.noShow);
             return (
               <li key={s.id} className="2xl:contents">
                 <button

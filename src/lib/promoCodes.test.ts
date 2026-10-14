@@ -6,6 +6,7 @@ import {
   promoOutcome,
   promoCodeState,
   describePromoCode,
+  PROMO_NOT_FOR_PROGRAMMES_MESSAGE,
   type PromoCode,
   type PromoContext,
 } from "@/lib/promoCodes";
@@ -202,6 +203,71 @@ describe("describePromoCode", () => {
     expect(describePromoCode(code({ maxRedemptions: 100 }))).toBe("₹200 off · 100 uses");
     expect(describePromoCode(code({ kind: "percent_off", value: 20 }))).toBe(
       "20% off · unlimited uses"
+    );
+  });
+});
+
+describe("codes on recommended programmes", () => {
+  it("refuses a session-only code on a programme, with a sentence", () => {
+    const result = evaluatePromoCode(code(), ctx({ target: "programme" }));
+    expect(result).toEqual({
+      ok: false,
+      reason: "not_for_programmes",
+      message: PROMO_NOT_FOR_PROGRAMMES_MESSAGE,
+    });
+    expect(PROMO_NOT_FOR_PROGRAMMES_MESSAGE).toBe("This code can't be used on a programme.");
+  });
+
+  it("is off unless the switch says otherwise -- absent reads as off", () => {
+    const legacy = code();
+    delete (legacy as Partial<PromoCode>).validOnProgrammes;
+    expect(evaluatePromoCode(legacy, ctx({ target: "programme" })).ok).toBe(false);
+    expect(evaluatePromoCode(code({ validOnProgrammes: false }), ctx({ target: "programme" })).ok).toBe(false);
+  });
+
+  it("applies a programme-valid code to the programme's whole price", () => {
+    const programmeList = 4 * 49900;
+    const result = evaluatePromoCode(
+      code({ kind: "percent_off", value: 20, validOnProgrammes: true }),
+      ctx({ target: "programme", listPricePaise: programmeList })
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.outcome.listPricePaise).toBe(programmeList);
+      expect(result.outcome.discountPaise).toBe(39920);
+      expect(result.outcome.payablePaise).toBe(programmeList - 39920);
+    }
+  });
+
+  it("still works on a single session with the switch on", () => {
+    expect(evaluatePromoCode(code({ validOnProgrammes: true }), ctx()).ok).toBe(true);
+    expect(evaluatePromoCode(code({ validOnProgrammes: true }), ctx({ target: "session" })).ok).toBe(true);
+  });
+
+  it("an inactive code says so before it says anything about programmes", () => {
+    const result = evaluatePromoCode(code({ active: false }), ctx({ target: "programme" }));
+    expect(result.ok === false && result.reason).toBe("inactive");
+  });
+
+  it("keeps every other rule on a programme: caps, first session, minimum spend", () => {
+    const valid = { validOnProgrammes: true };
+    expect(
+      evaluatePromoCode(code({ ...valid, maxRedemptions: 5 }), ctx({ target: "programme", totalRedemptions: 5 }))
+    ).toMatchObject({ ok: false, reason: "exhausted" });
+    expect(
+      evaluatePromoCode(code({ ...valid, firstSessionOnly: true }), ctx({ target: "programme", patientHasPaidBefore: true }))
+    ).toMatchObject({ ok: false, reason: "first_session_only" });
+    expect(
+      evaluatePromoCode(code({ ...valid, minSpendPaise: 500000 }), ctx({ target: "programme" }))
+    ).toMatchObject({ ok: false, reason: "min_spend" });
+  });
+
+  it("names the switch on the admin's list only when it is on", () => {
+    expect(describePromoCode(code({ maxRedemptions: 100, validOnProgrammes: true }))).toBe(
+      "₹200 off · 100 uses · programmes too"
+    );
+    expect(describePromoCode(code({ maxRedemptions: 100, validOnProgrammes: false }))).toBe(
+      "₹200 off · 100 uses"
     );
   });
 });

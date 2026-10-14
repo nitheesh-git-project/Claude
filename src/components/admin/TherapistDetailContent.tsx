@@ -4,7 +4,8 @@ import { formatClinicDate, formatClinicDateTimeWithZone } from "@/lib/formatDate
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
-import { scopeCanOpen } from "@/lib/adminScope";
+import { scopeCanManage, scopeCanOpen } from "@/lib/adminScope";
+import { loadProgrammeTagsForAppointments } from "@/lib/programmeTagsServer";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import ApproveAccountButton from "@/components/admin/ApproveAccountButton";
 import TherapistActiveToggle from "@/components/admin/TherapistActiveToggle";
@@ -13,7 +14,8 @@ import TherapistTeamVisibilityToggle from "@/components/admin/TherapistTeamVisib
 import TherapistNotAvailableToggle from "@/components/admin/TherapistNotAvailableToggle";
 import TherapistContactEditForm from "@/components/admin/TherapistContactEditForm";
 import TherapistNotesForm from "@/components/admin/TherapistNotesForm";
-import TherapistDisplayContentForm from "@/components/admin/TherapistDisplayContentForm";
+import RichTextField from "@/components/RichTextField";
+import RichTextView from "@/components/RichTextView";
 import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareForm";
 import ResetTherapistPasswordButton from "@/components/admin/ResetTherapistPasswordButton";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
@@ -30,7 +32,7 @@ import {
 } from "@/lib/therapistPayouts";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
-import { parseAdminSettings } from "@/lib/adminSettings";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
 
 // A plain module-level helper rather than a bare Date.now() inside a Server
@@ -77,7 +79,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     // Isolated query, same migration-dependent convention as everything
     // else on this page -- only feeds the Join button's window here, never
     // blocks the rest of the detail page if the columns aren't migrated yet.
-    admin.from("site_settings").select("join_window_minutes").maybeSingle(),
+    admin.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
 
     admin
       .from("profiles")
@@ -108,6 +110,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       .maybeSingle(),
   ]);
   const adminSettings = parseAdminSettings(settingsRow);
+  const homeVisitEnabled = adminSettings.homeVisitEnabled;
 
   if (!therapist) {
     notFound();
@@ -231,6 +234,11 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
   // from one map -- this therapist's own row plus every patient on their
   // appointments covers every id ProfileSessionList/SessionDetailDrawer
   // will ever need to resolve on this page.
+  // Which programme each of these sessions came from (PED_PKG001-2/6).
+  const programmeTagsByAppointment =
+    viewer !== null && scopeCanOpen(viewer.scope, "programmes")
+      ? await loadProgrammeTagsForAppointments(admin, (appointments ?? []).map((a) => a.id as string))
+      : {};
   const peopleMap = new Map<string, string>([
     [therapist.id, therapist.full_name ?? "Unknown"],
     ...(patients ?? []).map((p) => [p.id, p.full_name ?? "Unknown"] as [string, string]),
@@ -374,7 +382,20 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                 userName={therapist.full_name ?? "this therapist"}
               />
             )}
-            {!therapist.approved && <ApproveAccountButton userId={therapist.id} />}
+            {!therapist.approved && (
+              <ApproveAccountButton
+                userId={therapist.id}
+                therapist={{
+                  name: therapist.full_name ?? therapist.email ?? "this therapist",
+                  email: therapist.email,
+                  credentials: therapist.credentials,
+                  specialization: therapist.specialization,
+                }}
+                canSetRevenueShare={viewer !== null && scopeCanManage(viewer.scope, "money")}
+                homeVisitEnabled={homeVisitEnabled}
+                canOpenRoster={canManageSessions}
+              />
+            )}
             <TherapistTeamVisibilityToggle
               therapistId={therapist.id}
               visibleOnTeam={therapist.visible_on_team}
@@ -413,7 +434,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             {therapist.languages && (
               <p className="text-slate-600">Languages: {therapist.languages}</p>
             )}
-            {therapist.bio && <p className="text-slate-600">{therapist.bio}</p>}
+            {therapist.bio && <RichTextView value={therapist.bio} className="text-slate-600" />}
           </div>
           <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
             {/*
@@ -482,9 +503,15 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
         <p className="text-[11px] text-slate-500 mb-3">
           Shown to visitors in this therapist&apos;s /team profile popup, alongside their own bio.
         </p>
-        <TherapistDisplayContentForm
-          therapistId={therapist.id}
-          currentDisplayNote={displayContentRow?.public_display_note ?? ""}
+        <RichTextField
+          label="Public display content"
+          storedValue={displayContentRow?.public_display_note ?? null}
+          endpoint="/api/admin/update-therapist-display-content"
+          body={{ therapistId: therapist.id }}
+          emptyText="Nothing set - the popup shows their own bio only."
+          placeholder="A highlight, focus area or welcome note for visitors..."
+          viewHref="/team"
+          testId="display-content"
         />
       </div>
 
@@ -541,6 +568,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
           therapists={approvedTherapists ?? []}
           categories={categories ?? []}
           emptyMessage="No sessions assigned yet."
+          programmeTags={programmeTagsByAppointment}
         />
       </div>
 

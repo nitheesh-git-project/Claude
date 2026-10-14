@@ -14,6 +14,7 @@ import { readSettlementRates } from "@/lib/settlementRates";
 import { serverError } from "@/lib/apiError";
 import { recordSessionSettlement } from "@/lib/sessionSettlement";
 import { serverNowMs } from "@/lib/debugClock";
+import { recordUserActivity } from "@/lib/userActivityLog";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
 // the session, or an admin correcting the record - nobody else.
@@ -370,6 +371,20 @@ export async function POST(request: NextRequest) {
         eventError.message
       );
     }
+  }
+
+  // All Logs: the therapist closing their own session. An admin completing
+  // one on a therapist's behalf is recorded as that admin elsewhere.
+  if (!adminUser) {
+    await recordUserActivity(admin, {
+      action: "session.completed",
+      actor: { id: user.id, role: "therapist" },
+      appointmentId,
+      therapistId: user.id,
+      note: noShow ? "marked as a no-show" : null,
+      details: { noShow: !!noShow },
+      dedupeKey: `completed:${appointmentId}`,
+    });
   }
 
   return NextResponse.json({ success: true });

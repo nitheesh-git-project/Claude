@@ -3,6 +3,7 @@ import {
   BASE,
   QA_EMAILS,
   adminClient,
+  browserCookiesFor,
   clinicSlot,
   cookieHeaderFor,
   openTherapistHour,
@@ -75,6 +76,76 @@ test.describe("assigning only an available therapist", () => {
         await close();
       }
     } finally {
+      await admin.from("appointments").delete().eq("id", appointment!.id);
+      await admin
+        .from("therapist_availability_override")
+        .delete()
+        .eq("therapist_id", therapistId)
+        .eq("date", date)
+        .eq("hour", hour)
+        .eq("note", "e2e");
+    }
+  });
+  test("AV-002 'Open the roster' closes the dialog and the drawer and lands on that therapist's hours", async ({ browser }) => {
+    test.setTimeout(120_000);
+    const admin = adminClient();
+    const patientId = await profileIdFor(admin, QA_EMAILS.patientA);
+    const therapistId = await profileIdFor(admin, QA_EMAILS.therapistB);
+    const { data: therapist } = await admin.from("profiles").select("full_name").eq("id", therapistId).single();
+    const slot = clinicSlot(45 + Math.floor(Math.random() * 40), 6 + Math.floor(Math.random() * 17));
+    const ist = new Date(new Date(slot).getTime() + 5.5 * 3_600_000);
+    const date = ist.toISOString().slice(0, 10);
+    const hour = ist.getUTCHours();
+    await admin
+      .from("therapist_availability_override")
+      .upsert({ therapist_id: therapistId, date, hour, available: false, note: "e2e" }, { onConflict: "therapist_id,date,hour" });
+    const { data: appointment } = await admin
+      .from("appointments")
+      .insert({
+        patient_id: patientId,
+        concern: "QA roster link",
+        slot_time: slot,
+        status: "requested",
+        payment_status: "paid",
+        amount_paid_paise: 100_000,
+        visit_mode: "online",
+        duration_minutes: 60,
+      })
+      .select("id, session_code")
+      .single();
+
+    const ctx = await browser.newContext();
+    try {
+      await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+      const page = await ctx.newPage();
+      await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all`, { waitUntil: "domcontentloaded" });
+      await page.getByPlaceholder("Session ID", { exact: true }).fill(appointment!.session_code!);
+      const row = page.getByRole("row").filter({ hasText: appointment!.session_code! });
+      await row.first().waitFor({ timeout: 60_000 });
+      await row.first().click();
+      const drawer = page.getByRole("dialog").filter({ has: page.getByLabel("Therapist to assign") });
+      // The drawer names the day, not only the time.
+      const day = new Intl.DateTimeFormat("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "Asia/Kolkata",
+      }).format(new Date(slot));
+      await expect(drawer.getByText(day)).toBeVisible();
+      await drawer.getByLabel("Therapist to assign").selectOption(therapistId);
+      await drawer.getByRole("button", { name: "Assign & Confirm" }).click();
+      const unavailable = page.getByRole("alertdialog", { name: "Unable to assign this therapist" });
+      await expect(unavailable).toBeVisible({ timeout: 30_000 });
+
+      await unavailable.getByRole("link", { name: "Open the roster" }).click();
+      // Both overlays go at once, and the roster is the screen showing,
+      // opened on the therapist who could not be assigned.
+      await expect(unavailable).toBeHidden();
+      await expect(drawer).toBeHidden();
+      await expect(page).toHaveURL(/tab=roster/);
+      await expect(page.getByLabel(`${therapist!.full_name} - roster`)).toBeVisible();
+    } finally {
+      await ctx.close();
       await admin.from("appointments").delete().eq("id", appointment!.id);
       await admin
         .from("therapist_availability_override")

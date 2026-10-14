@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import PasswordInput from "./PasswordInput";
 
 export default function HospitalLoginCard() {
   const [loading, setLoading] = useState(false);
@@ -134,8 +135,7 @@ export default function HospitalLoginCard() {
               <div>
                 <label className="block">
                   <span className="block font-semibold mb-1">Password</span>
-                  <input
-                    type="password"
+                  <PasswordInput
                     name="password"
                     autoComplete="current-password"
                     required

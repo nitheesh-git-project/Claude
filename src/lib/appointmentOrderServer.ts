@@ -85,6 +85,9 @@ export async function mintAppointmentOrder({
   // razorpay_order_id - orphaning the first, already-successful payment
   // with no link back to it, and risking a genuine double-charge if the
   // patient completes checkout again.
+  // An open prior order is only reused once the price has been resolved
+  // again below, and only at that price -- see `reusable`.
+  let reusable: { id: string; amount: number; currency: string } | null = null;
   if (appointment.razorpay_order_id) {
     try {
       const priorOrder = await razorpay.orders.fetch(
@@ -168,16 +171,16 @@ export async function mintAppointmentOrder({
         priorOrder.status === "created" ||
         priorOrder.status === "attempted"
       ) {
-        // Not paid yet, not expired - reuse the same order rather than
-        // abandoning it for a fresh one the patient could end up paying
-        // twice for.
-        return {
-          status: 200,
-          body: {
-            orderId: priorOrder.id,
-            amount: priorOrder.amount,
-            currency: priorOrder.currency,
-          },
+        // Not paid yet, not expired. It used to be handed straight back at
+        // its old amount, before anything was re-resolved -- so a code
+        // applied after a failed try showed its discount on screen while
+        // the sheet charged the old figure, and a code whose cap had filled
+        // since was still honoured. It is now reused only if the price
+        // resolved below is the same; otherwise a new order is minted.
+        reusable = {
+          id: priorOrder.id,
+          amount: Number(priorOrder.amount),
+          currency: priorOrder.currency,
         };
       }
     } catch (err) {
@@ -241,6 +244,43 @@ export async function mintAppointmentOrder({
     source: quote.source,
   };
   const amountPaise = quote.payablePaise;
+
+  if (reusable) {
+    if (reusable.amount === amountPaise + travelFeePaise) {
+      // Same price: reuse the same order rather than abandoning it for a
+      // fresh one the patient could end up paying twice for.
+      return {
+        status: 200,
+        body: { orderId: reusable.id, amount: reusable.amount, currency: reusable.currency },
+      };
+    }
+    // The price moved (a code added, removed or run out). Replacing the
+    // order is safe only if no payment against it is still in flight -- an
+    // authorised one may yet capture, and minting a second order beside it
+    // is how a patient pays twice. A lookup that fails is "try again",
+    // never "nothing in flight".
+    try {
+      const priorPayments = await razorpay.orders.fetchPayments(reusable.id);
+      const inFlight = priorPayments.items.some(
+        (p) => p.status === "created" || p.status === "authorized" || p.status === "captured",
+      );
+      if (inFlight) {
+        return {
+          status: 409,
+          body: {
+            error:
+              "Your last payment for this booking is still being processed. Wait a minute, then refresh before trying again.",
+          },
+        };
+      }
+    } catch (err) {
+      console.error("Failed to check payments on prior Razorpay order", reusable.id, err);
+      return {
+        status: 503,
+        body: { error: "We couldn't check your last payment attempt just now. Please try again." },
+      };
+    }
+  }
 
   // Guarded like /api/home-visit/create-order's own order.create call: an
   // uncaught throw here (bad/missing Razorpay keys, a Razorpay API hiccup)

@@ -321,15 +321,15 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 
 #### `XR-CARE-001` - One recommendation, three views · P0
 **Event.** `THR-CARE-001`.
-**Expected Result.** Therapist's chart, patient's Suggested Sessions **and** patient's Health Profile all render **the same rows** - one record, two readers, branching only on whose voice the copy is written in. Admin → Sessions → Recommendations lists it. **All four agree on the package, the session count and the price.**
+**Expected Result.** Therapist's chart, patient's Suggested Sessions **and** patient's Health Profile all render **the same rows** - one record, two readers, branching only on whose voice the copy is written in. Admin → Programmes lists it (Recommendations, and All Programmes under its `…_PKG…` ID). **All four agree on the package, the session count and the price.**
 
 #### `XR-CARE-002` - One purchase, five views · P0
 **Event.** `PAT-CARE-002`.
-**Expected Result.** Patient: Your Packages, `6 sessions · 0 used · 6 remaining`. Therapist: the programme appears in the Programmes view of My Patients with the same balance. Admin: Catalog → Purchases with the same balance and a frozen snapshot. Money: the purchase's cash appears as **Package cash collected** and is recognised session by session as **Recognised revenue** - these are **two different words for two different things and must not be conflated**. Activity Log: nothing (a patient purchase is not an admin action).
+**Expected Result.** Patient: Your Packages, `6 sessions · 0 used · 6 remaining`. Therapist: the programme appears in the Programmes view of My Patients with the same balance. Admin: Programmes → All Programmes with the same balance (`…-0/6`) and a frozen snapshot. Money: the purchase's cash appears as **Package cash collected** and is recognised session by session as **Recognised revenue** - these are **two different words for two different things and must not be conflated**. Activity Log: nothing (a patient purchase is not an admin action).
 
 #### `XR-CREDIT-001` - One credit consumed, four views · P0
 **Event.** The patient books one package session.
-**Expected Result.** Patient widget: `1 used · 5 remaining`. Therapist: the session appears, auto-assigned and auto-confirmed with its own Meet link. Admin Purchases: the same balance. **[SQL]** the ledger holds exactly one `reserve:<appointment_id>` row. Flipping the ledger-authority switch must not change any of these four figures while the ledger and the counters agree.
+**Expected Result.** Patient widget: `1 used · 5 remaining`, and the session card reads **Booked - confirming your therapist**. Admin: the session is in **Sessions with no therapist**, `requested` and unassigned, its row reading **Tap to assign · <locked therapist>**; one tap on **Assign <name>** confirms it with its own Meet link, and only then does the therapist see it. Admin Purchases: the same balance. **[SQL]** the ledger holds exactly one `reserve:<appointment_id>` row. Flipping the ledger-authority switch must not change any of these four figures while the ledger and the counters agree.
 
 #### `XR-PAYOUT-001` - One settlement, four views · P0
 **Event.** `FIN-PAY-002`.
@@ -345,7 +345,7 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 
 #### `XR-SUGG-001` - One suggestion, two views · P1
 **Event.** `THR-SUGG-001` → `PAT-SUGG-002`.
-**Expected Result.** While pending: therapist sees **Waiting on the patient**, patient sees the card. After acceptance: therapist sees the booked session, patient sees it under Upcoming, and exactly one credit has moved.
+**Expected Result.** While pending: therapist sees **Waiting on the patient**, patient sees the card. After acceptance: the patient sees **Accepted - clinic confirming** and the session under Upcoming as **Booked - confirming your therapist**; the admin sees it in Sessions with no therapist with the suggesting therapist pre-picked; exactly one credit has moved. After the admin's one-tap assign: the therapist sees the confirmed session.
 
 #### `XR-NAV-001` - A signed-in account is never stranded on the public site · P0
 **Steps.** Sign in as a patient and open `/`. Then repeat with the profile lookup failing (block the `profiles` request in devtools, or sign in as an account whose profile row is momentarily unreadable). Repeat as an unapproved patient and as a suspended one.

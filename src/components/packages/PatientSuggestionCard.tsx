@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { debugNow } from "@/lib/debugNow";
-import { suggestionState } from "@/lib/sessionSuggestions";
+import { suggestionState, SUGGESTION_STATE_LABELS } from "@/lib/sessionSuggestions";
 
 export type PatientSuggestion = {
   id: string;
@@ -92,11 +92,13 @@ export default function PatientSuggestionCard({
     return (
       <div className="rounded-2xl border border-teal-200 bg-teal-50 p-5">
         <p className="text-sm font-bold text-teal-900">
-          {done === "accepted" ? "Booked" : "Declined"}
+          {done === "accepted" ? SUGGESTION_STATE_LABELS.accepted : "Declined"}
         </p>
         <p className="mt-1 text-xs text-teal-800">
           {done === "accepted"
-            ? `${when} is in your sessions now. The calendar invite is on its way.`
+            ? // Accepting books it; the clinic then confirms your therapist,
+              // and the invite follows the confirmation, not the accept.
+              `${when} is in your sessions now. The clinic is confirming your therapist - the calendar invite follows once it's confirmed.`
             : "Your therapist will suggest another time."}
         </p>
       </div>

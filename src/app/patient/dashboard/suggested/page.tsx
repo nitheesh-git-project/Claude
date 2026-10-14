@@ -7,6 +7,8 @@ import PatientSuggestionCard from "@/components/packages/PatientSuggestionCard";
 import CarePlanHistory from "@/components/therapist/CarePlanHistory";
 import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
+import { loadConditionCovers } from "@/lib/catalogImageServer";
+import { parseOfferSnapshot } from "@/lib/carePlans";
 
 export const metadata: Metadata = {
   title: "Suggested Sessions | MoveRestore",
@@ -45,19 +47,6 @@ export default async function Page() {
     for (const a of authors ?? []) authorNames.set(a.id, a.full_name);
   }
 
-  // Loaded only when there is a home-visit recommendation waiting, and in
-  // its own call: the card needs somewhere to deliver to before it can take
-  // payment, and every other patient on this screen would be paying for a
-  // query they never render.
-  const needsAddress = version?.offerKind === "home_visit_package";
-  const { data: addressRows } = needsAddress
-    ? await admin
-        .from("patient_addresses")
-        .select("id, label, line1, city, pincode")
-        .eq("patient_id", d.user.id)
-        .order("created_at", { ascending: false })
-    : { data: [] as { id: string; label: string | null; line1: string; city: string | null; pincode: string }[] };
-
   // What the patient just bought, if anything. Without this the screen a
   // patient lands on straight after paying says "No recommendations right
   // now" -- technically true, and a dead end at the exact moment they most
@@ -65,6 +54,13 @@ export default async function Page() {
   const justPurchased = d.carePlanHistory.find((v) => v.planStatus === "accepted") ?? null;
 
   const nothingWaiting = !version && d.pendingSuggestions.length === 0;
+
+  // The condition's photograph as it is now, with the admin's focal point --
+  // the snapshot froze only the URL.
+  const offerCategoryId = version ? parseOfferSnapshot(version.offerSnapshot)?.categoryId ?? null : null;
+  const offerCover = offerCategoryId
+    ? (await loadConditionCovers(admin, [offerCategoryId])).get(offerCategoryId) ?? null
+    : null;
 
   return (
     <PatientDashboardShell
@@ -74,7 +70,7 @@ export default async function Page() {
     >
       {nothingWaiting && justPurchased && (
         <div className="mt-8">
-          <SurfaceCard title="Your programme is ready" icon="fa-circle-check">
+          <SurfaceCard title="Your programme is ready" info="card:care-plan" icon="fa-circle-check">
             <p className="text-sm text-slate-700">
               Your therapist&apos;s recommendation is paid for. Your sessions are waiting to
               be booked - pick times that suit you.
@@ -124,15 +120,14 @@ export default async function Page() {
               instructions: version.instructions,
               expiresAt: version.expiresAt,
               isHomeVisit: version.offerKind === "home_visit_package",
+              cover: offerCover?.src ? offerCover : null,
             }}
             homeVisitEnabled={d.adminSettings.homeVisitEnabled}
-            patientName={d.profile?.full_name ?? ""}
-            patientEmail={d.profile?.email ?? ""}
-            savedAddresses={addressRows ?? []}
             // Resolved on the server so the card's state cannot flip
-            // between render and hydration.
+            // between render and hydration. Paying happens on the
+            // programme's review page (suggested/checkout), which loads the
+            // addresses a home visit needs.
             nowMs={d.nowMs}
-            bulkScheduleMax={d.adminSettings.packageBulkScheduleMax}
           />
         </div>
       )}

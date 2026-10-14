@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -16,8 +17,8 @@ import { checkPackageSpacing, readPackageTerms } from "@/lib/packageTerms";
 // appointment come into existence and only here does sessions_used move. The
 // booking itself goes through bookPackageSession -- the same function the
 // patient's own scheduler and the admin use -- so the package's gap rules,
-// expiry, conflicts and Meet link all behave identically no matter who
-// started it. This route is the authorization and idempotency layer around
+// expiry and the trip through the admin's assign queue all behave
+// identically no matter who started it. This route is the authorization and idempotency layer around
 // that, not a second booking implementation.
 export async function POST(request: NextRequest) {
 
@@ -90,6 +91,14 @@ export async function POST(request: NextRequest) {
     if (error) {
       return serverError("patient/respond-suggestion", error);
     }
+    await recordUserActivity(admin, {
+      action: "suggestion.declined",
+      actor: { id: user.id, role: "patient" },
+      packagePurchaseId: suggestion.purchase_id,
+      patientId: user.id,
+      therapistId: suggestion.therapist_id,
+      dedupeKey: `suggestion_declined:${suggestion.id}`,
+    });
     return NextResponse.json({ success: true, status: "declined" });
   }
 
@@ -178,17 +187,6 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Only an approved, active therapist is reserved -- the slot claim itself
-  // does not check standing, and a suggestion can outlive a suspension.
-  // Otherwise the session lands in the admin's queue as it always did.
-  const { data: suggester } = await admin
-    .from("profiles")
-    .select("role, active, approved")
-    .eq("id", suggestion.therapist_id)
-    .maybeSingle();
-  const suggesterCanTakeIt =
-    suggester?.role === "therapist" && suggester.active === true && suggester.approved === true;
-
   const result = await bookPackageSession(admin, {
     purchase,
     slotDateTime: suggestion.slot_time,
@@ -198,9 +196,13 @@ export async function POST(request: NextRequest) {
     // therapist proposed the time -- they are who accepted it.
     actorId: user.id,
     sessionDurationMinutesOverride: packageTerms.sessionDurationMinutes,
-    // The therapist who offered this exact time keeps it, rather than the
-    // accepted session landing unassigned in the admin's queue.
-    assignTherapistId: suggesterCanTakeIt ? suggestion.therapist_id : null,
+    // Nothing is reserved for the therapist who suggested the time. Like
+    // every programme session, the accepted one lands `requested` and
+    // unassigned in the admin's "Sessions with no therapist" queue with the
+    // programme's (locked) therapist pre-picked -- which is who suggested it,
+    // since only the locked therapist may suggest -- and one tap there
+    // assigns and confirms it. The suggest route already refused a time
+    // outside their working hours.
   });
 
   // Two taps on Accept: the second is refused by the one-per-purchase-per-slot
@@ -234,6 +236,16 @@ export async function POST(request: NextRequest) {
     .from("session_suggestions")
     .update({ appointment_id: result.appointmentId })
     .eq("id", suggestion.id);
+
+  await recordUserActivity(admin, {
+    action: "suggestion.accepted",
+    actor: { id: user.id, role: "patient" },
+    appointmentId: result.appointmentId,
+    packagePurchaseId: suggestion.purchase_id,
+    patientId: user.id,
+    therapistId: suggestion.therapist_id,
+    dedupeKey: `suggestion_accepted:${suggestion.id}`,
+  });
 
   return NextResponse.json({
     success: true,

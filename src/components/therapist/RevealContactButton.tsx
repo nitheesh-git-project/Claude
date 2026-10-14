@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { debugNowHeaders } from "@/lib/debugNow";
 
 /**
  * Shows the masked number, and asks for the real one.
@@ -36,7 +37,7 @@ export default function RevealContactButton({
     try {
       const res = await fetch("/api/therapist/reveal-contact", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...debugNowHeaders() },
         body: JSON.stringify({ appointmentId }),
       });
       const data = await res.json().catch(() => ({}));

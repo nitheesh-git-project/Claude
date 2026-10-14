@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Plus_Jakarta_Sans, Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import FarewellBanner from "@/components/FarewellBanner";
@@ -40,26 +40,29 @@ import {
 // Plus Jakarta Sans for headings/display - geometric and confident without
 // tipping into a cold "tech" register, which suits a healthcare brand.
 //
-// Both are self-hosted at build time by next/font/google - the font files
-// are emitted into this app's own build output, so a page load makes no
-// runtime request to Google. display: "swap" means text paints immediately
-// in the fallback and swaps once the file lands, rather than flashing
-// invisible.
+// Both are self-hosted from files in this repo (src/app/fonts/, the Latin
+// variable-weight cuts from Google Fonts, SIL Open Font License). They used
+// to come through next/font/google, which downloads them at build time: when
+// Google did not answer, the build failed - twice in one day, once on CI.
+// A page load makes no runtime request to Google either way. display: "swap"
+// means text paints immediately in the fallback and swaps once the file
+// lands, rather than flashing invisible.
 //
 // These expose the raw families only. --font-sans / --font-display (the
 // full stacks, fallbacks included) are composed from them in globals.css:
 // if next/font wrote those names directly, a stylesheet declaring its own
 // --font-sans would silently shadow the self-hosted family and quietly send
 // everyone back to a system font.
-const inter = Inter({
-  subsets: ["latin"],
+const inter = localFont({
+  src: "./fonts/inter-latin-var.woff2",
   variable: "--font-inter",
+  weight: "100 900",
   display: "swap",
 });
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
+const jakarta = localFont({
+  src: "./fonts/plus-jakarta-sans-latin-var.woff2",
   variable: "--font-jakarta",
-  weight: ["500", "600", "700", "800"],
+  weight: "200 800",
   display: "swap",
 });
 

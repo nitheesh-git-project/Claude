@@ -12,6 +12,7 @@ import {
   cookieHeaderFor,
   profileIdFor,
   waitForSplashToClear,
+  markDashboardTourSeen,
 } from "./helpers";
 
 /**
@@ -125,6 +126,9 @@ test.beforeAll(async () => {
   }
   patientId = user.id;
   await db.from("profiles").update({ role: "patient", approved: true, active: true, full_name: "QA Continuity Patient" }).eq("id", patientId);
+  // Its own account, so the first-visit tutorial would otherwise sit over
+  // the patient pages this file reads.
+  await markDashboardTourSeen(PATIENT_EMAIL);
 
   // A fresh record each run: the first fill is what CC-001 proves.
   await db.from("care_plans").update({ status: "withdrawn" }).eq("patient_id", patientId).in("status", ["active", "pending_review"]);

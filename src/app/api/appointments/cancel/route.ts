@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { cancelAppointmentAndRefund } from "@/lib/cancelAppointment";
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
@@ -95,9 +96,31 @@ export async function POST(request: NextRequest) {
       : result.error;
     return NextResponse.json({ error }, { status: result.status });
   }
+  // All Logs: the patient's cancellation, and whether it was refunded -- the
+  // refund is requested by the cancelling itself, so it is one entry.
+  await recordUserActivity(admin, {
+    action: "appointment.cancelled",
+    actor: { id: user.id, role: "patient" },
+    appointmentId,
+    patientId: user.id,
+    amountPaise: result.refunded ? result.refundPaise ?? null : null,
+    note: result.refunded
+      ? "refund issued"
+      : result.refundFailed
+        ? "refund could not be issued automatically"
+        : null,
+    details: {
+      reason: reason?.trim() ? reason.trim().slice(0, 200) : null,
+      refunded: result.refunded,
+      refundFailed: result.refundFailed ?? false,
+    },
+    dedupeKey: `cancelled:${appointmentId}`,
+  });
   return NextResponse.json({
     success: true,
     refunded: result.refunded,
     refundFailed: result.refundFailed ?? false,
+    // The figure only. Razorpay's reason is for the clinic, not the patient.
+    refundPaise: result.refundFailed ? result.refundPaise ?? null : null,
   });
 }

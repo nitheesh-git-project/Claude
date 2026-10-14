@@ -16,6 +16,10 @@ describe("sessionBucket", () => {
     expect(sessionBucket({ status: "completed", slotTime: at(-1) }, NOW)).toBe("past");
     expect(sessionBucket({ status: "confirmed", slotTime: at(-25) }, NOW)).toBe("past");
   });
+  it("puts a completed session under Past even when its slot is still ahead", () => {
+    expect(sessionBucket({ status: "completed", slotTime: at(2) }, NOW)).toBe("past");
+    expect(sessionBucket({ status: "completed", slotTime: at(72) }, NOW)).toBe("past");
+  });
   it("keeps cancelled sessions in their own tab", () => {
     expect(sessionBucket({ status: "cancelled", slotTime: at(5) }, NOW)).toBe("cancelled");
   });

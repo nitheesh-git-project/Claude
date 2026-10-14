@@ -63,6 +63,9 @@ export type PatientTransaction = {
   // null for package-purchase transactions -- a package purchase isn't
   // itself a single session, so there's no one session_code that fits.
   sessionCode: string | null;
+  /** The programme purchase this payment bought, so the row can name it by
+   *  its programme ID (PED_PKG001-2/6). Null for a single session. */
+  packagePurchaseId?: string | null;
 };
 
 export type PatientPaymentSummary = {
@@ -110,6 +113,7 @@ export function buildPatientTransactions(
       }`,
       status: "Successful" as const,
       sessionCode: null,
+      packagePurchaseId: p.id,
     }));
 
   return [...sessionTx, ...packageTx].sort(

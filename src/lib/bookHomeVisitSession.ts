@@ -1,18 +1,18 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
-import { formatAddressOneLine, type VisitAddress } from "@/lib/formatAddress";
+import type { VisitAddress } from "@/lib/formatAddress";
 import { mirrorReserve } from "@/lib/sessionCreditMirror";
-import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
 import { decrementUsedCounter } from "@/lib/purchaseCounter";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
-// The purchase row this needs, plus the two package-level rules the purchase
-// itself doesn't snapshot (visit duration, therapist lock) which the caller
-// reads once from home_visit_packages and threads through -- exactly the
-// shape bookPackageSession takes for the online equivalent.
+// The purchase row this needs. The visit length, which the purchase itself
+// doesn't snapshot, is threaded through by the caller from
+// home_visit_packages -- exactly the shape bookPackageSession takes for the
+// online equivalent. `locked_therapist_id` is carried for callers; this
+// function no longer reads it (the lock pre-picks the admin's assign).
 export type HomeVisitPurchaseForBooking = {
   id: string;
   patient_id: string;
@@ -49,7 +49,7 @@ export const DUPLICATE_SLOT_ERROR =
   "This visit is already booked for that time.";
 
 export type BookHomeVisitSessionResult =
-  | { success: true; appointmentId: string; assignedTherapistId: string | null }
+  | { success: true; appointmentId: string }
   | {
       success: false;
       status: number;
@@ -65,24 +65,30 @@ export type BookHomeVisitSessionResult =
 /**
  * The one implementation of "claim a visit on a home-visit purchase, then
  * book it". Mirrors bookPackageSession() deliberately -- same CAS claim on
- * the counter, same rollback on insert failure, same
- * conflict-never-fails-the-booking rule -- so the two flows stay legible
- * side by side rather than diverging into subtly different race behaviour.
+ * the counter, same rollback on insert failure, and the same rule that the
+ * visit it books is `requested` and unassigned until an admin assigns it --
+ * so the two flows stay legible side by side rather than diverging into
+ * subtly different race behaviour.
  *
- * Four things differ from the online version, all of them intrinsic to
+ * **Every visit goes through the admin.** It used to reserve the purchase's
+ * locked therapist and, for a prepaid visit, confirm it and send the
+ * calendar invite on the spot. Now every visit lands in "Sessions with no
+ * therapist" with the programme's therapist pre-picked, and the admin's
+ * assign (/api/admin/assign-appointment) applies the travel buffer, confirms
+ * a prepaid visit and sends the invite with the address. A cash visit is
+ * still not confirmed by the assign -- nobody has paid yet. No slot is held
+ * while it waits.
+ *
+ * Three things differ from the online version, all of them intrinsic to
  * visiting someone's home:
  *
  * 1. **Cash purchases are legitimately unpaid.** A 'cash_on_visit' purchase
  *    books first and collects at the door, so it sits at payment_status
- *    'unpaid' with real confirmed visits hanging off it. The paid-check
- *    therefore applies only to 'prepaid' purchases.
+ *    'unpaid' with real visits hanging off it. The paid-check therefore
+ *    applies only to 'prepaid' purchases.
  * 2. **The address is snapshotted** onto the appointment, not just
  *    referenced.
- * 3. **The conflict check is padded** by the travel buffer, because a
- *    therapist finishing at one address cannot be at another minutes later.
- * 4. **The calendar event carries a location instead of a Meet link** -- and
- *    is not optional, since that invite email is the only notification this
- *    platform sends.
+ * 3. **The travel fee is snapshotted** per visit, from the purchase.
  *
  * Never throws for an expected failure; every rejection comes back as
  * `{ success: false, status, error }` so a route handler or a bulk-schedule
@@ -96,10 +102,10 @@ export async function bookHomeVisitSession(
     timezone,
     notes,
     concern,
+    categoryId,
     actorId,
     address,
     visitDurationMinutes,
-    travelBufferMinutes = 0,
     preferredTherapistId,
   }: {
     purchase: HomeVisitPurchaseForBooking;
@@ -107,6 +113,10 @@ export async function bookHomeVisitSession(
     timezone?: string | null;
     notes?: string | null;
     concern?: string | null;
+    // The condition the visit is for (a single visit bought from
+    // /book-home-visit). A label, like `concern`: the price was fixed by the
+    // purchase. Absent for programme visits, which carry none.
+    categoryId?: string | null;
     // Who to attribute the home_visit_purchase_events row to -- the patient
     // for a self-service booking, an admin's id when scheduling on their
     // behalf.
@@ -115,12 +125,8 @@ export async function bookHomeVisitSession(
     // home_visit_packages.visit_duration_minutes. Passed in rather than
     // looked up here, since callers already have the package row loaded.
     visitDurationMinutes?: number | null;
-    // site_settings.home_visit_travel_buffer_minutes. Padding applied on
-    // both sides of the slot when checking the locked therapist's calendar.
-    travelBufferMinutes?: number;
-    // Only meaningful before the purchase is locked to a therapist -- a hint
-    // the admin sees on the assignment queue. Never auto-assigns;
-    // auto-assignment only ever follows an existing lock.
+    // A hint the admin sees on the assignment queue. Never assigns --
+    // nothing here does.
     preferredTherapistId?: string | null;
   }
 ): Promise<BookHomeVisitSessionResult> {
@@ -201,17 +207,8 @@ export async function bookHomeVisitSession(
     purchase.visit_count
   );
 
-  // Continuity: a locked therapist takes every visit on the purchase
-  // automatically, but only if they are genuinely free for the slot once
-  // travel time is accounted for. A conflict never fails the booking -- the
-  // visit is still created, just unassigned and 'requested', landing in the
-  // admin queue rather than costing the patient a visit.
-  // The visit is inserted UNASSIGNED and the locked therapist reserved
-  // afterwards through the one atomic claim -- see bookPackageSession for
-  // the same correction and the same reasoning. The read-then-insert this
-  // replaces could double-book a locked therapist across two visits booked
-  // at the same moment, which for a home visit means sending one person to
-  // two addresses.
+  // The visit is inserted UNASSIGNED and `requested`, and stays that way
+  // until an admin assigns it (see this function's header).
   const isPrepaid = purchase.payment_mode !== "cash_on_visit";
 
   const { data: appointment, error: insertError } = await admin
@@ -221,6 +218,7 @@ export async function bookHomeVisitSession(
       slot_time: new Date(slotDateTime).toISOString(),
       timezone: timezone || null,
       concern: concern || "Home Physiotherapy Visit",
+      category_id: categoryId || null,
       duration_minutes: durationMinutes,
       notes: notes || null,
       status: "requested",
@@ -294,55 +292,6 @@ export async function bookHomeVisitSession(
     };
   }
 
-  // Reserve the locked therapist, atomically, now that a real appointment
-  // id exists to lock against. A prepaid visit with a free locked
-  // therapist has nothing left for an admin to approve, so it confirms in
-  // the same statement; a cash visit never does -- nobody has paid yet, so
-  // the clinic decides whether to send somebody before the patient is
-  // committed to anything.
-  let assignedTherapistId: string | null = null;
-  let shouldAutoConfirm = false;
-  if (purchase.locked_therapist_id) {
-    const claim = await claimTherapistSlot(admin, {
-      appointmentId: appointment.id,
-      therapistId: purchase.locked_therapist_id,
-      expectUnassigned: true,
-      // Travel padding on both sides: a therapist finishing at one address
-      // cannot be at another minutes later.
-      bufferMinutes: travelBufferMinutes,
-      confirm: isPrepaid,
-    });
-    if (claim.ok) {
-      assignedTherapistId = purchase.locked_therapist_id;
-      shouldAutoConfirm = isPrepaid;
-      await admin
-        .from("appointments")
-        .update({ preferred_therapist_id: null })
-        .eq("id", appointment.id);
-    }
-    // Refused: the visit is still created, unassigned and `requested`, in
-    // the admin's queue. A clash never costs the patient their visit.
-  }
-
-  if (shouldAutoConfirm && assignedTherapistId) {
-    // A calendar event with the address and no Meet link. Never blocks the
-    // booking; a failure is recorded on the appointment and left for the
-    // admin's retry, same as every other confirmation path.
-    await createMeetEventForConfirmedAppointment(admin, {
-      appointmentId: appointment.id,
-      patientId: purchase.patient_id,
-      therapistId: assignedTherapistId,
-      slotTime: new Date(slotDateTime).toISOString(),
-      durationMinutes,
-      timezone: timezone || null,
-      visitMode: "home_visit",
-      location: formatAddressOneLine(address),
-      description: address.access_notes
-        ? `Access notes: ${address.access_notes}`
-        : null,
-    });
-  }
-
   // Dual-write: the counter claim above is still what the app reads, and
   // this records the same claim in the ledger that will replace it. Never
   // fails the booking -- see sessionCreditMirror.ts. Placed after the
@@ -363,7 +312,7 @@ export async function bookHomeVisitSession(
       event_type: "visit_scheduled",
       actor_id: actorId,
       appointment_id: appointment.id,
-      detail: { slotDateTime, assignedTherapistId, pincode: address.pincode },
+      detail: { slotDateTime, pincode: address.pincode },
     });
   } catch (eventError) {
     console.error(
@@ -373,5 +322,17 @@ export async function bookHomeVisitSession(
     );
   }
 
-  return { success: true, appointmentId: appointment.id, assignedTherapistId };
+  // All Logs: the patient's own booking of a home visit (an admin booking on
+  // their behalf is the admin log's `session.create`).
+  if (actorId === purchase.patient_id) {
+    await recordUserActivity(admin, {
+      action: "home_visit.booked",
+      actor: { id: actorId, role: "patient" },
+      appointmentId: appointment.id,
+      homeVisitPurchaseId: purchase.id,
+      patientId: purchase.patient_id,
+    });
+  }
+
+  return { success: true, appointmentId: appointment.id };
 }

@@ -16,10 +16,7 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { bookHomeVisitSession } from "@/lib/bookHomeVisitSession";
 import type { HomeVisitAddressPayload } from "@/app/api/home-visit/create-order/route";
 import { mirrorEnsureEntitlement } from "@/lib/sessionCreditMirror";
-import {
-  isDirectlyPurchasable,
-  PROGRAMME_NEEDS_RECOMMENDATION,
-} from "@/lib/consultationFirst";
+import { resolveHomeVisitSaleOnServer } from "@/lib/homeVisitRatesServer";
 import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR, resolveSlotInstant } from "@/lib/bookingSlots";
 
 const MAX_LINE_LENGTH = 300;
@@ -44,6 +41,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
   const { data: body, error: parseError } = await parseJsonBody<{
+    /** The condition the visit is for -- what the wizard sends. */
+    categoryId?: string;
+    /** An old `?package=` link's price row (see create-order). */
     packageId?: string;
     address?: HomeVisitAddressPayload;
     slotDateTime?: string;
@@ -53,11 +53,11 @@ export async function POST(request: NextRequest) {
   }>(request);
   if (parseError) return parseError;
 
-  const { packageId, address, timezone, notes, concern } = body;
+  const { categoryId, packageId, address, timezone, notes, concern } = body;
   // A zone-less wall time is read in the booking's zone, never the server's.
   const slotDateTime = body.slotDateTime ? resolveSlotInstant(body.slotDateTime, timezone) ?? "invalid" : undefined;
-  if (!packageId) {
-    return NextResponse.json({ error: "Missing packageId" }, { status: 400 });
+  if (!categoryId && !packageId) {
+    return NextResponse.json({ error: "Missing categoryId" }, { status: 400 });
   }
   if (!address?.line1?.trim()) {
     return NextResponse.json({ error: "A street address is required." }, { status: 400 });
@@ -119,16 +119,12 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const [{ data: pkg }, { data: settingsRow }, areaLookup] = await Promise.all([
-    admin
-      .from("home_visit_packages")
-      .select("id, title, visit_count, price_paise, travel_fee_included, validity_days, visit_duration_minutes, therapist_locked, active")
-      .eq("id", packageId)
-      .single(),
+  const [sale, { data: settingsRow }, areaLookup] = await Promise.all([
+    resolveHomeVisitSaleOnServer(admin, { categoryId, packageId }),
     admin
       .from("site_settings")
       .select(
-        "home_visit_enabled, home_visit_cash_enabled, home_visit_default_validity_days, home_visit_travel_buffer_minutes"
+        "home_visit_enabled, home_visit_cash_enabled, home_visit_default_validity_days"
       )
       .maybeSingle(),
     lookupServiceArea(admin, pincode),
@@ -162,19 +158,14 @@ export async function POST(request: NextRequest) {
       { status: 403 }
     );
   }
-  // Same rule as the prepaid route: one visit is a consultation, more than
-  // one is a programme, and a programme is recommended rather than chosen
-  // off a list. Enforced on both paths because paying at the door is a
-  // payment method, not a different product.
-  if (pkg && !isDirectlyPurchasable(pkg.visit_count)) {
-    return NextResponse.json(
-      { error: PROGRAMME_NEEDS_RECOMMENDATION },
-      { status: 403 }
-    );
+  // Same resolution as the prepaid route, from the server's own rows: one
+  // visit for the condition at its home-visit price. An old link to a course
+  // of visits is refused with the programme sentence on both paths, because
+  // paying at the door is a payment method, not a different product.
+  if (!sale.ok) {
+    return NextResponse.json({ error: sale.error }, { status: sale.status });
   }
-  if (!pkg || !pkg.active) {
-    return NextResponse.json({ error: "That package isn't available." }, { status: 400 });
-  }
+  const rate = sale.rate;
   if (!area) {
     return NextResponse.json(
       { error: "We don't currently visit that pincode. Please check it and try again." },
@@ -215,27 +206,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // A price row carries no validity of its own; the clinic-wide default in
+  // Settings decides when an unused visit lapses.
   const validityDays =
-    pkg.validity_days ??
     settingsRow?.home_visit_default_validity_days ??
     DEFAULT_ADMIN_SETTINGS.homeVisitDefaultValidityDays;
   const expiresAt = new Date(Date.now() + validityDays * 86_400_000).toISOString();
-  const travelBufferMinutes =
-    settingsRow?.home_visit_travel_buffer_minutes ??
-    DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes;
 
   const { data: purchase, error: insertError } = await admin
     .from("home_visit_package_purchases")
     .insert({
       patient_id: user.id,
-      package_id: pkg.id,
-      visit_count: pkg.visit_count,
+      package_id: rate.packageId,
+      visit_count: 1,
       // Stored as the reference price even though nothing has been charged
       // -- bookHomeVisitSession() always reads amount_paid_paise to derive
       // the per-visit fee, for both payment modes. payment_status stays the
       // column default ('unpaid'), which is what actually marks this as
       // money not yet received.
-      amount_paid_paise: pkg.price_paise,
+      amount_paid_paise: rate.pricePaise,
       travel_fee_paise: area.travel_fee_paise,
       payment_mode: "cash_on_visit",
       default_address_id: addressId,
@@ -273,9 +262,9 @@ export async function POST(request: NextRequest) {
     purchase: {
       id: purchase.id,
       patient_id: user.id,
-      visit_count: pkg.visit_count,
+      visit_count: 1,
       visits_used: 0,
-      amount_paid_paise: pkg.price_paise,
+      amount_paid_paise: rate.pricePaise,
       travel_fee_paise: area.travel_fee_paise,
       payment_mode: "cash_on_visit",
       payment_status: "unpaid",
@@ -286,10 +275,10 @@ export async function POST(request: NextRequest) {
     slotDateTime,
     timezone,
     notes,
-    concern,
+    concern: concern || sale.categoryTitle || undefined,
+    categoryId: sale.categoryId,
     actorId: user.id,
-    visitDurationMinutes: pkg.visit_duration_minutes,
-    travelBufferMinutes,
+    visitDurationMinutes: rate.durationMinutes,
     address: {
       id: addressId,
       label: address.label ?? null,

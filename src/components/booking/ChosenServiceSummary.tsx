@@ -44,11 +44,11 @@ export default function ChosenServiceSummary({
       className={
         compact
           ? "flex items-stretch gap-3 rounded-xl border border-teal-100 bg-teal-50 p-2.5"
-          : "flex items-stretch gap-3 rounded-2xl border-2 border-teal-500 bg-white p-2.5 ring-[3px] ring-teal-50"
+          : "flex flex-wrap items-stretch gap-3 rounded-2xl border-2 border-teal-500 bg-white p-2.5 ring-[3px] ring-teal-50 sm:flex-nowrap"
       }
     >
       <span
-        className={`block shrink-0 overflow-hidden rounded-xl ${compact ? "w-16" : "w-24"}`}
+        className={`block shrink-0 self-start overflow-hidden rounded-xl ${compact ? "w-16" : "w-20 sm:w-24"}`}
       >
         <CatalogImage
           src={option.imageUrl}
@@ -64,7 +64,7 @@ export default function ChosenServiceSummary({
           {option.eyebrow}
         </span>
         <h3
-          className={`font-display font-bold leading-snug text-slate-900 ${
+          className={`font-display font-bold leading-snug text-slate-900 break-words hyphens-auto ${
             compact ? "text-sm" : "text-base"
           }`}
         >
@@ -76,8 +76,13 @@ export default function ChosenServiceSummary({
         </p>
       </div>
 
+      {/* On a phone the controls get their own row under the title: beside
+          it they left a long condition name ~90px and it ran under them.
+          From sm up there is room, and they stack in a column on the right. */}
       {actions && (
-        <div className="flex shrink-0 flex-col justify-center gap-1.5">{actions}</div>
+        <div className="flex w-full items-center justify-end gap-2 border-t border-slate-100 pt-2 sm:w-auto sm:shrink-0 sm:flex-col sm:items-stretch sm:justify-center sm:gap-1.5 sm:border-0 sm:pt-0">
+          {actions}
+        </div>
       )}
     </div>
   );

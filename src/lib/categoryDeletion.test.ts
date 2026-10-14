@@ -17,8 +17,8 @@ describe("describeCategoryBlockers", () => {
   // "It has bookings" sends an admin to delete sessions and try again, only
   // to be refused a second time by something they were never told about.
   it("names which kind of row is holding it, not just that something is", () => {
-    expect(describeCategoryBlockers(refs({ homeVisitPackages: 1 }))!.message).toContain(
-      "1 home-visit package"
+    expect(describeCategoryBlockers(refs({ homeVisitPurchases: 1 }))!.message).toContain(
+      "1 home-visit purchase"
     );
     expect(describeCategoryBlockers(refs({ appointments: 3 }))!.message).toContain(
       "3 sessions"
@@ -40,10 +40,10 @@ describe("describeCategoryBlockers", () => {
 
   it("reads as a list when several kinds are in the way", () => {
     const blocked = describeCategoryBlockers(
-      refs({ appointments: 2, packagePurchases: 1, homeVisitPackages: 1 })
+      refs({ appointments: 2, packagePurchases: 1, homeVisitPurchases: 1 })
     )!;
     expect(blocked.message).toContain(
-      "2 sessions, 1 programme purchase and 1 home-visit package"
+      "2 sessions, 1 programme purchase and 1 home-visit purchase"
     );
     expect(blocked.total).toBe(4);
   });

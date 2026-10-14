@@ -154,7 +154,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   offered it. Ortho can never be switched off.
 - **One authoring implementation, three doors.** A therapist writes their own
   recommendation from the session note dialog; an admin writes one on their
-  behalf from Sessions → Recommendations when that therapist cannot reach the
+  behalf from Programmes → Recommendations when that therapist cannot reach the
   dashboard (on leave, off sick, gone, with a patient still waiting to hear);
   and an admin approving a queued one with different numbers writes a third,
   which is the same act again rather than an edit. All three call
@@ -168,7 +168,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   whose judgement it is, `entered_by` records the admin who typed it. Naming
   only the therapist would be a quiet lie about who was at the keyboard;
   naming only the admin a louder one about whose judgement it is.
-  `/api/admin/author-care-plan` takes `requireAdminScope("sessions")`, a
+  `/api/admin/author-care-plan` takes `requireAdminScope("programmes")`, a
   mandatory reason, and writes a `care_plan.author_on_behalf` audit row.
   **A version is published in one transaction, and only by the plan's own
   therapist.** The new version is inserted with `is_current = false`, and
@@ -197,7 +197,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   is the rule. Seven things hold it together:
   1. **Three outcomes, one route each.** `/api/admin/review-care-plan`
      approves or turns one down; `/api/admin/edit-and-approve-care-plan`
-     publishes different numbers. All take `requireAdminScope("sessions")`
+     publishes different numbers. All take `requireAdminScope("programmes")`
      and write `care_plan.approve` / `care_plan.reject` /
      `care_plan.edit_and_approve` audit rows. A ten-character reason is
      required for the two that take something away from somebody - a
@@ -268,7 +268,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   card states how many sessions or visits that patient already has unused,
   read through `applyLedgerSessionBalances` / `applyLedgerVisitBalances`
   like every other balance surface -- reading `sessions_used` raw would make
-  this figure disagree with the Purchases screen the moment the ledger
+  this figure disagree with the Programmes screen the moment the ledger
   switch is flipped, in the one place it is read as a reason to refuse
   somebody treatment - the commonest reason
   to turn one down, and previously invisible without leaving the queue.
@@ -283,9 +283,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   setting" is to hold a recommendation, never to publish one unreviewed.
   With it off, a therapist's submission publishes on save exactly as before.
 
-- **The clinic can also see every recommendation, and stop one.** Sessions →
+- **The clinic can also see every recommendation, and stop one.** Programmes →
   Recommendations lists them all and `/api/admin/withdraw-care-plan`
-  (`requireAdminScope("sessions")`, mandatory reason, CAS on either open
+  (`requireAdminScope("programmes")`, mandatory reason, CAS on either open
   status, `care_plan.withdraw` audit row) closes one whose author cannot -
   on leave, gone, or the reason it is wrong. It covers a **queued** plan
   too: refusing would leave the queue holding a thread nobody intends to
@@ -301,9 +301,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   1. **A therapist picks a condition and a number, never a price.** The
      price is that condition's per-session price times the count
      (`buildCourseSnapshot()` in `src/lib/carePlans.ts`): the condition's
-     own `treatment_categories.price_paise` for video sessions, the single
-     home-visit price (a one-visit `home_visit_packages` row, the
-     condition's own over a general one) when **Needs hands-on treatment**
+     own `treatment_categories.price_paise` for video sessions, the
+     condition's home-visit price (`src/lib/homeVisitRates.ts`: its own
+     price, else the clinic-wide one, set under Catalog -> Conditions -> Home
+     visits -- never another condition's) when **Needs hands-on treatment**
      is ticked - which is the *only* switch between video and home visits
      (`offerKindFor()`), so a plan can never say hands-on and sell video.
      The count is 1-30. All of it is resolved by `loadRecommendableRates()` /
@@ -399,7 +400,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   surface detail tells the views apart: collarbones, chest, abdominal line
   and navel on the front; spine, shoulder blades and glute cleft on the
   back. Both used to place "left" on the reader's left, and the back's
-  shoulder-blade arcs read as a chest, so the two views looked swapped. See the "Patient Care Intake and Pain Map" section in README.md
+  shoulder-blade arcs read as a chest, so the two views looked swapped. See the "Patient Care Intake and Pain Map" section in docs/PRODUCT-GUIDE.md
   for the full flow.
 - **A patient's own record leaves the app as a PDF, not as JSON.**
   `/api/patient/condition-profile/export` returns a typeset document named

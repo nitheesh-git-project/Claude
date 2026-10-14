@@ -205,7 +205,7 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
 | **Assign a Therapist Automatically** | **off** | See `ADM-SET-021` |
-| **Therapist Lock (site-wide)** | on | Off → later sessions on a purchase are not auto-assigned to the first therapist |
+| **Therapist lock: pre-pick the programme therapist** | on | On → the first therapist assigned on a programme becomes its therapist, and every later session on it reaches Sessions with no therapist with them **pre-picked** (one tap to assign) - never auto-assigned. Off → no new programme keeps a therapist; each session is picked from scratch |
 | **Where a patient's remaining sessions are counted** (Settings → **Advanced**) | **Running total** | See `ADM-SET-019` |
 | **Therapist-Suggested Sessions** | **on for a fresh database** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent. The column default is now true, but that only applies to a new `site_settings` row - **an existing database keeps its current value until an admin toggles it, or a reset restores defaults.** Check the toggle before running `THR-SUGG-*` rather than assuming |
 | **Default Validity** | 90 d | A new purchase's expiry when the package leaves it blank |
@@ -218,7 +218,7 @@ At **Settings → Programmes & Home Visits**, above the package settings.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
-| **Approve recommendations before the patient sees them** | **on** | Off → a therapist's submission publishes on save and the patient sees it immediately, as it did before the review step. On → it lands in Sessions → Recommendations and the patient sees nothing. See `ADM-CARE-004..008`. **Fails closed:** an unreadable column holds the recommendation rather than publishing it. Read in its own query, not through `SITE_SETTINGS_SELECT` - the same treatment **Therapist-Suggested Sessions** gets, so a database one apply behind loses this one control instead of resetting every setting on the page |
+| **Approve recommendations before the patient sees them** | **on** | Off → a therapist's submission publishes on save and the patient sees it immediately, as it did before the review step. On → it lands in Programmes → Recommendations and the patient sees nothing. See `ADM-CARE-004..008`. **Fails closed:** an unreadable column holds the recommendation rather than publishing it. Read in its own query, not through `SITE_SETTINGS_SELECT` - the same treatment **Therapist-Suggested Sessions** gets, so a database one apply behind loses this one control instead of resetting every setting on the page |
 | **How long a recommendation holds** | 30 d | The patient's answering window, counted **from approval**, not from when the therapist wrote it |
 | **Most sessions a week a clinician may ask for** | 5 | A ceiling over the programme's own `max_sessions_per_week`, whichever is lower. Above it: `This programme allows at most N sessions a week.` |
 
@@ -272,7 +272,7 @@ At **Settings → Offers & Discounts**, above Patient invites.
 **Steps**
 1. Open **Settings → System Health** and confirm **Books & Sessions Agree** is `Healthy`, and that **Google Connection** is not red.
 2. On **Settings → Advanced**, switch **Where a patient's remaining sessions are counted** to **Session history**.
-3. Check every surface that shows a balance: the patient's package widget, the therapist's programme list, both purchase detail modals, the admin Purchases table, and the bulk scheduler.
+3. Check every surface that shows a balance: the patient's package widget, the therapist's programme list, both purchase detail modals, the admin Programmes list, and the bulk scheduler.
 4. Turn it back off and check them all again.
 
 **Expected Result.** Every surface reads the same shape and follows the switch **together** - the substitution happens once, where the row is loaded. A refunded package still reads its original `6 sessions` with none pending rather than becoming a 1-session package. A purchase with **no** entitlement behind it is untouched, so a database without the backfill behaves exactly as before.
@@ -520,7 +520,7 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 | Operations | `?section=settings&tab=booking` | `POST /api/admin/update-setting` | Same |
 | Finance | `?section=sessions&tab=all` - **reachable, read-only** | `POST /api/admin/assign-appointment` | Page **opens** and shows the list with no action buttons; route **403** |
 | Finance | `?section=sessions&tab=new` | `POST /api/admin/create-booking` | Tab is **not in the sidebar** and the URL falls back to an allowed screen; route **403** |
-| Finance | `?section=catalog&tab=packages` | `POST /api/admin/create-package` | Same |
+| Finance | `?section=catalog&tab=conditions` | `POST /api/admin/set-home-visit-price` | Same |
 | Clinical | `?section=money&tab=summary` | `POST /api/admin/refund-package` | Same |
 | Clinical | `?section=settings&tab=team` | `POST /api/admin/set-admin-scope` | Same |
 | All three | `?section=today&tab=risk` | - | The tab opens with **only the signals that desk can act on**, and the flagged-message and reveal-log trails and the threshold editor are absent (`ADM-RISK-004`) |
@@ -530,9 +530,9 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 **Do not report the three full-only routes as violations.** `set-admin-scope`, `debug-reset` and `create-account` guard with an explicit `scope !== "full"` check rather than `requireAdminScope`, deliberately: a section gate would let a scoped admin widen its own access or mint a full admin. They are stricter than the rule, not exceptions to it.
 
 #### `ADM-SET-028` - The section is chosen by the capability, not the button's location · P1
-**Purpose.** A refund is `money` scope **even though its button lives on a Catalog screen**.
-**Steps.** As **Admin Ops** (who *can* open Catalog), open **Catalog → Purchases** and look for the refund control. Then call `POST /api/admin/refund-package` directly.
-**Expected Result.** **The refund control does not render** - a control an admin's scope cannot call must not be shown, or they get a 403 with nothing to explain it. The route returns **403**.
+**Purpose.** A refund is `money` scope **even though its button lives on a Programmes screen**.
+**Steps.** As **Admin Ops** (who *can* manage Programmes), open a bought programme's drawer on **Programmes → All Programmes** and look for the refund control, in the drawer and in its purchase modal. Then call `POST /api/admin/refund-package` directly. Repeat as **Finance**.
+**Expected Result.** For Operations **the refund control does not render** - a control an admin's scope cannot call must not be shown, or they get a 403 with nothing to explain it - and the route returns **403**. Finance, who reads Programmes but manages Money, **does** get **Refund what is left** in the drawer, and the route accepts it.
 
 #### `ADM-SET-029` - Contact controls · P1
 **Steps.** On **Settings → User Access**, change `contact_scan_mode` through `flag_and_block` → `flag_only` → `off`, and toggle `contact_masking_enabled`.
@@ -615,6 +615,29 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Each **Load older entries** press adds up to 200 more and the count rises. No entry is ever listed twice, including one written while the page was open.
 * When the log is exhausted the button is replaced by *"That is the whole log"*.
 * Both exports carry **exactly the filtered rows**, with a Category column, and the note under the button says filters and exports run over what is loaded.
+
+#### `ADM-LOG-004` - Everyone's actions, and the Actor / Programme / Patient / Therapist / Condition filters · P1
+
+**Feature.** All Activity is not only admins. Patients, therapists, hospitals and the system leave entries too, each with the role of who acted, and the programme ID, session code, patient, therapist and condition it was about. Master Admin only; the three limited desks still read only their own desk's admin actions on Today -> Activity.
+
+**Steps**
+1. As a patient, start a booking, then cancel an unpaid future session. As that patient's therapist, complete a session, write a session note and recommend a programme (or suggest a session). As the hospital, send a referral. Pay for one session through Razorpay (test mode).
+2. As a Master Admin open **Logs -> All Activity**.
+3. Set **Any actor** to **Patient**, then **Therapist**, then **Hospital**, then **System** (sign-ups show here), then **Admin**.
+4. Type the patient's name into **Patient**, the therapist's into **Therapist**, then a programme ID such as `PED_PKG001` (also `ped pkg001` and just `PED`) into **Programme ID**; pick a condition from **Any condition**.
+5. Copy the address bar, open it in a new tab, then press **Clear filters**.
+6. Tap a patient's row. Tap a session's row and press **See everything done to this record**.
+7. Export CSV with a filter applied.
+
+**Expected Result**
+* Every row has a coloured **role chip** (Admin / Patient / Therapist / Hospital / System), the actor's name, a plain sentence under the action ("Asha Rao cancelled a session (session MR-0042, programme PED_PKG001, with Dr Mehta)"), the **programme ID chip** where there is one, and the session code.
+* Each actor filter shows only that role. A payment appears **once** however it was reported (browser and webhook). Cancelling a paid session shows whether the refund went through.
+* The Patient, Therapist and Programme filters narrow the list for admin entries too (a refund against that patient's session carries the patient and programme), and a row with no programme never matches a Programme ID filter. Programme IDs match without case, spaces or underscores, and by prefix.
+* Every filter is in the address bar as `al_*`; the copied link opens the same filtered view and **Clear filters** empties them all.
+* The dialog for a patient's or therapist's entry shows the role, patient, therapist, programme ID, session and condition. The record history lists admin **and** patient/therapist entries for that session or person.
+* The export has Actor role, Programme ID, Session, Patient, Therapist, Condition and "What happened" columns.
+* If the patient/therapist side of the log cannot be read, a notice says the list shows admin actions only - it never reads as complete.
+* Nothing here can be edited or deleted: the entries are append-only, and **Archive & Clear** only ever touches the admin log.
 
 #### `ADM-LOG-003a` - One subject's whole history · P1
 
@@ -712,13 +735,13 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 4 | Treatment category price | Catalog → Conditions | `/book` header, Step 3 fee, the Razorpay amount | All three show the new price; an old cached page still charges the new one | `ADM-CAT-002` |
 | 5 | Treatment category duration | Catalog → Conditions | The appointment's `duration_minutes`; overlap checks | A new booking stores the new duration | `ADM-CAT-002` |
 | 6 | Category active/inactive | Catalog → Conditions | The concern dropdown; the create route | Absent from the dropdown; API returns 409 | `PAT-BOOK-013` |
-| 7 | Package definition | Catalog → Packages | The therapist's recommendation dropdown | The new package is offered for its condition only | `THR-CARE-001` |
-| 8 | Package price | Catalog → Packages | The patient's offer card and what is charged | Card and charge both move - **for new plans only** | `PAT-CARE-002` |
-| 9 | Package edited after purchase | Catalog → Packages | An existing purchase | **Nothing changes** - snapshot frozen | `ADM-CAT-006` |
-| 10 | Package min gap / max per week | Catalog → Packages | The bulk scheduler | Violating slots are refused | `ADM-CAT-007` |
+| 7 | Clinic-wide home-visit price | Catalog → Conditions → Home visits | `/home-visit`, the booking hub, `/book-home-visit`, both checkouts, a hands-on recommendation | Every condition without its own price moves to the new figure | `ADM-CAT-005` |
+| 8 | A condition's own home-visit price | Catalog → Conditions → Home visits | The same surfaces for that condition only; the patient's offer card and charge | Card and charge both move - **for new plans and new bookings only** | `ADM-CAT-005`, `PAT-CARE-003` |
+| 9 | Home-visit price changed after purchase | Catalog → Conditions → Home visits | An existing purchase | **Nothing changes** - the purchase keeps its amount | `ADM-CAT-006` |
+| 10 | Old programme rules (min gap / max per week) | No screen - legacy rows | The bulk scheduler on an old purchase | Violating slots are still refused | `ADM-CAT-007` |
 | 11 | Package default validity | Settings → Programmes & Home Visits | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
 | 12 | Bulk scheduler limit | Settings → Programmes & Home Visits | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
-| 13 | Therapist lock switch | Settings → Programmes & Home Visits | Auto-assignment of later package sessions | Off → later sessions are not auto-assigned | `ADM-SET-018` |
+| 13 | Therapist lock switch | Settings → Programmes & Home Visits | The pre-pick on later programme sessions in Sessions with no therapist | Off → no therapist pre-picked on a new programme | `ADM-SET-018` |
 | 14 | Therapist suggestions switch | Settings → Programmes & Home Visits | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
 | 15 | Ledger authority | Settings → Programmes & Home Visits | Six balance surfaces | All six follow together | `ADM-SET-019` |
 | 16 | Service area created/deleted | Catalog → Service Areas | `/book-home-visit` check; every purchase route | Serviceable ↔ waitlist | `ADM-CAT-010` |

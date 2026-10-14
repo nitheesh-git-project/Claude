@@ -15,6 +15,7 @@ import ActivityDetailDialog, {
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
 import { formatRupees } from "@/lib/formatMoney";
+import type { ActivitySubjectFields } from "@/lib/userActivity";
 
 // Who did what, for one desk.
 //
@@ -46,7 +47,7 @@ export type ActivityRow = {
   /** Which desk the acting admin sits at. Carried so the page can filter
    *  before this screen renders; nothing here reads it. */
   actorScope: AdminScope | null;
-};
+} & ActivitySubjectFields;
 
 export default function AdminActivityLogTab({
   rows,

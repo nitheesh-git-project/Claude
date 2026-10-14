@@ -10,6 +10,8 @@
 // pending suggestion is still live is computed from its slot every time it
 // is read.
 
+import type { AssignBlock } from "@/lib/therapistAssignability";
+
 export type SuggestionStatus = "pending" | "accepted" | "declined" | "withdrawn";
 
 export type SuggestionForState = {
@@ -54,7 +56,9 @@ export function isActionable(
 export const SUGGESTION_STATE_LABELS: Record<SuggestionState, string> = {
   actionable: "Waiting for your answer",
   lapsed: "This time has passed",
-  accepted: "Booked",
+  // Accepted is not confirmed: the session lands in the admin's queue with
+  // this therapist pre-picked, and only the assign confirms it.
+  accepted: "Accepted - clinic confirming",
   declined: "Declined",
   withdrawn: "Withdrawn by your therapist",
 };
@@ -72,4 +76,30 @@ export function sessionsRemaining(purchase: {
   sessions_used: number;
 }): number {
   return Math.max(0, purchase.session_count - purchase.sessions_used);
+}
+
+/**
+ * The sentence a therapist reads when the time they tried to suggest is one
+ * they could not be assigned to: outside their own working hours, on leave,
+ * with no schedule, or over another session. The reasons come from the same
+ * judgement the admin's assign uses (`assignabilityReasons`), re-voiced for
+ * the person it is about -- "Not working 6 PM - 7 PM" is the admin's view
+ * of a therapist; the therapist reads "You're not working".
+ */
+export function suggestRefusal(reasons: ReadonlyArray<Pick<AssignBlock, "code" | "message">>): string {
+  const voiced = reasons.map((r) => {
+    switch (r.code) {
+      case "on_leave":
+        return r.message.replace(/^On leave/, "You're on leave");
+      case "no_schedule":
+        return "You haven't filled in your working hours yet - add them under Availability first.";
+      case "not_working_that_hour":
+        return r.message.replace(/^Not working/, "You're not working");
+      case "already_booked":
+        return r.message.replace(/^Already has/, "You already have");
+      default:
+        return r.message;
+    }
+  });
+  return ["You can only suggest a time inside your own working hours.", ...voiced].join(" ");
 }

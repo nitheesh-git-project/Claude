@@ -20,13 +20,13 @@ Two rules shape almost everything on the patient's screens:
 **Feature.** Patient authentication. **Role.** Patient.
 **Purpose.** Confirm the login form authenticates and lands on the dashboard.
 **Preconditions.** Patient A exists and is approved and active (created by `PAT-BOOK-003` or `PAT-AUTH-002`).
-**Test Data.** `qa.patient.a@example.test` / `QaTest!2024pass`.
+**Test Data.** `qa.patient.a@example.test` / the `E2E_QA_PASSWORD` value.
 
 **Steps**
 1. Open `/patient/login`.
 2. Confirm the two tabs **Sign In** and **Register Account** are visible, with **Sign In** active.
 3. Tap the **Email Address** field. Enter `qa.patient.a@example.test`.
-4. Tap the **Password** field. Enter `QaTest!2024pass`.
+4. Tap the **Password** field. Enter the `E2E_QA_PASSWORD` value.
 5. Tap **Sign In**.
 
 **Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Overview**, **Book a Session**, **Health Profile** and **Edit Profile** at minimum, with **Back to Home** at the **foot of the nav, directly above Collapse** (above the profile footer in the mobile drawer, which has no Collapse). The public `Navbar` is **not** rendered on the dashboard. No error banner.
@@ -42,8 +42,8 @@ Two rules shape almost everything on the patient's screens:
 2. Tap **Full Name**. Enter `QA Patient B`.
 3. Tap **Email Address**. Enter `qa.patient.b@example.test`.
 4. Tap the phone field. Enter `+91 98765 43211`.
-5. Tap **Password**. Enter `QaTest!2024pass`.
-6. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+5. Tap **Password**. Enter the `E2E_QA_PASSWORD` value.
+6. Tap **Confirm Password**. Enter the `E2E_QA_PASSWORD` value.
 7. Leave **Referral Code** blank.
 8. Tap **Create Account**.
 
@@ -78,7 +78,7 @@ await fetch("/api/appointments/create", {
 | --- | --- | --- | --- |
 | 1 | Email | `not-an-email` | An invalid-email message; the account is not created |
 | 2 | Password | `abc12` | A minimum-length message; not created |
-| 3 | Confirm Password | `QaTest!2024pas` | A passwords-do-not-match message; not created |
+| 3 | Confirm Password | the same value minus its last character | A passwords-do-not-match message; not created |
 | 4 | Phone | `12345` | An invalid-phone message; not created |
 | 5 | Referral Code | `ZZZZZZ` | `Code not recognized - double-check it or leave blank` in red |
 | 6 | Email | `qa.patient.a@example.test` (already registered) | A "user already registered" style error from Supabase; **no second profile row is created** |
@@ -108,8 +108,8 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Steps**
 1. Open `/patient/dashboard`.
-2. On a brand-new account only: read the welcome tour that opens over the screen. Confirm it reads `1 of N`, has **Skip**, **Next** and (from step 2) **Back**, and that the highlighted ring sits over the sidebar entry each step names.
-3. Tap **Next** until the last step, then tap **Done**.
+2. On a brand-new account only: the dashboard tutorial opens over the screen, marked `Dashboard tour · dummy data`. Confirm it reads `Step 1 of N`, has **Skip**, **Next**, **Back** (from step 2) and a row of chapter chips, and that each scene animates - on **Booking a session**, the session card moves through `Payment not completed`, `waiting for a therapist`, `confirmed with Dr Ananya Rao`, **Tap to Join** and `Session completed` with stars. Tap the **Health profile** chip and read all three of its steps.
+3. Tap **Next** until the last step, then tap **Done - show my dashboard**. Then tap the (i) beside the page title and confirm it opens just the **Home** chapter as a `Quick guide`; tap **Got it**.
 4. Reload the page.
 5. Read the header: `Welcome back, QA Patient A` with `Your virtual physical therapy dashboard` under it.
 6. Read the four figures across the strip, left to right.
@@ -119,7 +119,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 10. Read the four quick actions at the foot: **Book a session**, the health-profile action, **Your sessions**, **Your payments**.
 
 **Expected Result.**
-* The tour appears **only on the first visit**. Step 3 writes `profiles.onboarding_seen_at` through `/api/patient/dismiss-onboarding`, so the reload at step 4 shows no tour, and it never returns. **Skip** does the same thing as **Done** - both dismiss it permanently.
+* The tour appears **only on the first visit**, and uses dummy data only (Priya, Dr Ananya) - nothing of Patient A's. Step 3 writes `profiles.onboarding_seen_at` through `/api/dashboard/tutorial-seen`, so the reload at step 4 shows no tour, and it never opens by itself again. **Skip** asks `Skip the tour?` once and then does the same thing as **Done**. Any (i) replays its own chapter at any time and never re-marks anything.
 * The strip reads: **Next session** (date + time and the therapist's name, or `-` with `Nothing booked yet`), **Sessions done** (count, `Your history builds up here` at zero), **Package sessions left** (count, `You don't own a package yet` when there are none), and **Health profile**.
 * **Health profile before the therapist's first record reads `-` on a slate accent** with `Your therapist fills this in at your first session` - **not** `0%` on amber. An amber zero here is the `PAT-HP-001` defect: it asserts the patient is behind on something nobody has asked them for.
 * Step 7 navigates to `/patient/dashboard/sessions`; step 8 to `/patient/dashboard/packages`. Every figure is a link and lands on the rows it counted.
@@ -134,7 +134,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Feature.** `/patient/dashboard/book`. **Role.** Patient.
 **Purpose.** Prove the portal's booking hub offers exactly the two things a patient may buy directly, and nothing that must come from a recommendation.
-**Preconditions.** `SETUP-CAT-001` has created the three categories. For the home-visit half: `ADM-SET-013` on, `SETUP-AREA-001` and `SETUP-HVPKG-001` done (HV1 = 1 visit, HV2 = 4 visits).
+**Preconditions.** `SETUP-CAT-001` has created the three categories. For the home-visit half: `ADM-SET-013` on, `SETUP-AREA-001` and `SETUP-HVPKG-001` done (clinic-wide price ₹2,499; `QA Knee & Joint Care` at its own ₹2,999), and the legacy HV2 row (4 visits) seeded as in §8.12.
 **Test Data.** None entered.
 
 **Steps**
@@ -143,7 +143,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 3. Read every card under **Single online consultation**.
 4. Read every card under **Home visits**.
 5. Tap the card titled `QA Back & Spine Care`.
-6. Tap the browser's Back button, then tap the HV1 card.
+6. Tap the browser's Back button, then tap **Book a home visit** on the `QA Knee & Joint Care` card under **Home visits**.
 7. Return to `/patient/dashboard/book`. Ask an admin to switch **Home Visit** off (`ADM-SET-013`), then reload this screen.
 
 **Expected Result.**
@@ -151,10 +151,10 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 * Group 1 is `Single online consultation` - `One video session with a therapist, booked for a specific concern.` One card per **active** treatment category, each showing its title, description, `N min · online` and its consultation price.
 * **Each group's heading reads as a level above the cards, not as one of them.** A filled square tile in the mode's own colour - **teal** with a video glyph for online, **amber** with a house glyph for home visits - then the heading in the display face, a count chip (`2 OPTIONS`), the one-line blurb, and a hairline that starts in that colour and fades out. The two headings used to be `text-sm font-bold` slate, the identical weight and ink the card titles below them use, so the sections did not separate and the line telling a patient which one comes to their house disappeared into the list. If a heading is the same size and weight as the card titles under it, that regression is back.
 * The count chip must **agree with the cards beneath it** - three cards, `3 OPTIONS`; one card, `1 OPTION` singular.
-* Group 2 is `Home visits` - `A therapist comes to you. We'll check your pincode before anything is charged.` **HV1 (1 visit) appears. HV2 (4 visits) does not.** A multi-visit home package is a programme and comes from a care plan; if HV2 is on this screen that is the P0 `PAT-HV-005` defect. Each card carries `Single visit · N min at home` and either `Travel included` or `Travel charged separately, by area`.
+* Group 2 is `Home visits` - `One visit from a therapist at your address. We'll check your pincode before anything is charged.` **One card per active condition**, each priced at its home-visit price: `QA Knee & Joint Care` at **₹2,999 / visit** (its own price), the other two at **₹2,499 / visit** (clinic-wide). **HV2 (4 visits) does not appear**, and neither does a card titled after a price row; if either is on this screen that is the P0 `PAT-HV-005` defect. Each card carries `N min`, `At your address` and either `Travel included` or `Travel by area` - **no visit count, no "Single visit", no validity and no days anywhere**.
 * **No session package (programme) appears anywhere on this screen**, at any price, with or without a Buy control.
-* Step 5 navigates to `/book?category=<id>` with that category preselected. Step 6 navigates to `/book-home-visit?package=<id>`.
-* After step 7 the **Home visits** group is **absent** entirely and the sidebar's home-visit affordances go with it. With no categories **and** no home-visit packages the whole card reads `Nothing is available to book right now - please check back shortly.`
+* Step 5 navigates to `/book?category=<id>` with that category preselected. Step 6 navigates to `/book-home-visit?category=<id>` with `QA Knee & Joint Care` already chosen at ₹2,999.
+* After step 7 the **Home visits** group is **absent** entirely and the sidebar's home-visit affordances go with it. With no categories (and so no home visits) the whole card reads `Nothing is available to book right now - please check back shortly.`
 **Cleanup.** Switch **Home Visit** back on if later home-visit tests follow.
 
 ---
@@ -206,9 +206,9 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 **Steps**
 1. Tap **Full Name**. Enter `QA Patient A`.
 2. Tap **Email**. Enter `qa.patient.a@example.test`.
-3. Tap **Create Password**. Enter `QaTest!2024pass`.
+3. Tap **Create Password**. Enter the `E2E_QA_PASSWORD` value.
 4. Tap the phone field. Enter `+91 98765 43210`.
-5. Tap **Confirm Password**. Enter `QaTest!2024pass`.
+5. Tap **Confirm Password**. Enter the `E2E_QA_PASSWORD` value.
 6. Leave **Referral Code** blank.
 7. Read the teal line naming the service chosen on Step 1 - it must read *"Booking a **QA Back & Spine Care** - ₹1,999, 60 min"* beside its photograph, with a **Change** link. There is no dropdown on this step.
 8. Tap the **Anything else we should know?** box. Enter `Desk job, pain worse after sitting all day. Goal: sit through a full workday.`
@@ -382,10 +382,16 @@ Attempt **Review Booking →** once per row, as a guest:
 **Expected Result.** After the **first** failure a slate panel reads *"Nothing was lost - your booking is saved and still held as unpaid. You can try again above, or pay later from your dashboard."* A patient whose card was declined has no other way of knowing the booking survived, and the likeliest next action is closing the tab.
 After the third, that line is replaced by an amber panel: *"Having trouble paying? Your booking is saved as pending - you can come back and pay any time from your dashboard."* with a **Go to Dashboard →** link. Following it lands on `/patient/dashboard` with the session listed as unpaid. **The patient is not bounced to `/pending-approval`** - the first genuine attempt already approved them.
 
-#### `PAT-PAY-004` - Abandon then pay from the dashboard · P0
+#### `PAT-PAY-004` - Abandon then pay from the dashboard, with the code kept · P0
 
-**Steps.** Create an unpaid booking, close the tab, sign in again, go to **Your Sessions**, tap **Pay ₹… Now** on that row, and complete with `success@razorpay`.
-**Expected Result.** The same appointment becomes paid. No second appointment. The dashboard row's **Pay** button is replaced by the session's normal state. One `payments` row.
+**Steps.**
+1. Start a booking, apply a promo code on Step 3, and close the payment sheet.
+2. Close the tab. Sign in again, go to **Your Sessions**, and tap **Pay now** on that row.
+3. On Step 3, read the summary and the code field. Tap **Remove** on the code, then apply it again.
+4. Complete the payment with `success@razorpay`.
+5. Separately, make a draft whose time is now less than the booking lead time away, and tap **Pay now** on it.
+
+**Expected Result.** In step 2 **Pay now** opens `/book?resume=<id>` at **Step 3 of 3** for that same booking: its time, concern and language are filled in, and the code from the first try is applied again, with the discounted total on the Pay button. If the code has expired or run out since, the field says so (`… from your last try can't be used now: …`) and the full price is shown; nothing is charged at a price that wasn't shown. In step 3, removing and re-applying the code moves the total both ways. After step 4 the same appointment becomes paid, there is no second appointment, and there is one `payments` row. In step 5 the wizard opens on Step 1 with `The time you picked (…) isn't available any more. Pick a new time - everything else is kept.` Booking the new time replaces the old draft. A locked new patient's **Finish your booking → Pay now** goes to the same Step 3.
 
 #### `PAT-PAY-005` - Retry after the order was already captured · P1
 
@@ -397,7 +403,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 
 ### 11.5 Home visit (patient)
 
-> **Preconditions for this whole sub-section:** `ADM-SET-013` has switched **Home Visit enabled** on, `SETUP-AREA-001` has created Area 1 (`560038`, ₹150/visit), and `SETUP-HVPKG-001` has created HV1 (1 visit) and HV2 (4 visits).
+> **Preconditions for this whole sub-section:** `ADM-SET-013` has switched **Home Visit enabled** on, `SETUP-AREA-001` has created Area 1 (`560038`, ₹150/visit), and `SETUP-HVPKG-001` has set the clinic-wide home-visit price (₹2,499) and `QA Knee & Joint Care`'s own price (₹2,999). HV2 (4 visits) is seeded by SQL where a case needs it (§8.12).
 
 #### `PAT-HV-001` - The public home-visit page appears only when enabled · P1
 
@@ -409,7 +415,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 **Test Data.** Pincode `560038`; address from Patient A §8.3.
 
 **Steps**
-1. Open `/book-home-visit`. Confirm the header reads **Step 1 of 4**, and that the **visit** is named at the top of the screen, *above* the pincode field. With one bookable visit in the catalogue it is already chosen - its photograph, `₹price · N min`, whether travel is added, a **View details** link and the line *"This is the only visit on offer today, so it is already chosen for you."* - and there is **no Change button**, because there is nothing to change to. With two or more, a picker opens a dialog of cards exactly as `/book` does.
+1. Open `/book-home-visit`. Confirm the header reads **Step 1 of 4**, and that **what the visit is for** is named at the top of the screen, *above* the pincode field: it opens on the general consultation (as `/book` does), with its photograph, `₹2,499 · 60 min`, a **View details** link and a **Change** button. Tap **Change**: a dialog of condition cards, exactly as `/book`, each at its home-visit price (`QA Back & Spine Care` ₹2,499, `QA Knee & Joint Care` ₹2,999) and none carrying a visit count or days. Choose `QA Back & Spine Care`.
 2. Tap the **Pincode** field. Enter `560038`.
 3. Tap **Check**.
 4. Read the confirmation line. It must agree with the visit named above it: a visit whose price already covers travel reads *"Travel is included"*, and one that does not quotes the per-visit travel fee for this area. That is why the visit is chosen before the pincode is asked for.
@@ -417,7 +423,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 6. Tap **Continue**.
 7. On **When suits you?** pick a date at least 24 hours out and an arrival time.
 8. Tap **Continue**.
-9. On **About you**, read the teal line naming the visit chosen on Step 1 - it must name `QA Home Visit - Single` with its price and length, and carry a **Change** link. There is no package dropdown on this step. Complete the identity fields (or confirm the "booking as" strip if signed in).
+9. On **About you**, read the teal line naming the condition chosen on Step 1 - it must name `QA Back & Spine Care` with its visit price and length, and carry a **Change** link. There is no package dropdown on this step. Complete the identity fields (or confirm the "booking as" strip if signed in).
 10. Tap **Continue**.
 11. On **Review and pay**, read every line of the price breakdown.
 12. Choose **Pay online**, tap the pay button, and complete with `success@razorpay`.
@@ -425,14 +431,15 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 **Expected Result**
 * Step 4: a teal line - *"Yes - we visit Indiranagar, Bengaluru. Travel to this area is ₹150 per visit."*
 * Step 7: the copy states home visits need at least **24 hours'** notice (the `home_visit_lead_time_hours` setting, deliberately longer than the online 12).
-* Step 11: the breakdown shows **programme price**, **travel**, and **total** as three separate figures - `₹2,499` + `₹150` = `₹2,649`. **The button must charge exactly the total shown.** Quoting one figure and charging another is a P0 defect.
-* Step 12: a confirmation screen. A `home_visit_package_purchases` row exists with `payment_mode='online'`, `payment_status='paid'`, `travel_fee_paise=15000`, a `default_address_id`, and a **snapshot** of the package.
+* Step 11: the breakdown reads **Home visit for** `QA Back & Spine Care`, the **length**, the time and address, then **visit**, **travel**, and **total** as three separate figures - `₹2,499` + `₹150` = `₹2,649`. **The button must charge exactly the total shown.** Quoting one figure and charging another is a P0 defect.
+* Step 12: a confirmation screen. A `home_visit_package_purchases` row exists with `visit_count=1`, `payment_mode='online'`, `payment_status='paid'`, `travel_fee_paise=15000`, a `default_address_id`, and `package_id` pointing at the **clinic-wide** price row. The visit's appointment carries `category_id` = `QA Back & Spine Care` (and that title as its concern when none was typed).
+* Repeat with `QA Knee & Joint Care`: the purchase is ₹2,999 and points at that condition's **own** price row. Tampering the request body to send another condition's price row as `packageId` alongside the `categoryId` changes nothing - the server prices the condition.
 * The visit's address is **snapshotted onto the appointment** (`visit_address_*`), not referenced live - editing the saved address later must not rewrite a delivered visit.
 
 #### `PAT-HV-003` - Unserviceable pincode → waitlist · P1
 
 **Steps.** Open `/book-home-visit`, enter `560025`, tap **Check**. Then enter `QA Patient B` and `+91 98765 43211` and tap **Tell me when you do**.
-**Expected Result.** An amber panel: *"We don't visit 560025 yet."* plus *"Leave your number and we'll tell you the moment we do. Nothing has been charged."* No address form appears and no package can be chosen. After submitting: *"Thanks - we'll be in touch."* The panel also offers a link to an **online consultation**, which is available anywhere. Admin → Catalog → Service Areas shows the waitlist entry, and its badge count increases.
+**Expected Result.** An amber panel: *"We don't visit 560025 yet."* plus *"Leave your number and we'll tell you the moment we do. Nothing has been charged."* No address form appears and nothing can be paid for. After submitting: *"Thanks - we'll be in touch."* The panel also offers a link to an **online consultation**, which is available anywhere. Admin → Catalog → Service Areas shows the waitlist entry, and its badge count increases.
 
 #### `PAT-HV-004` - Pincode validation · P2
 
@@ -445,8 +452,8 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 
 #### `PAT-HV-005` - A multi-visit home package cannot be bought directly · P0
 
-**Steps.** In the Step 3 package picker, attempt to select `QA Home Visit Recovery - 4 Visits`. If the UI offers it, proceed and attempt payment. Also call the API directly: `POST /api/home-visit/create-order` with HV2's id.
-**Expected Result.** The multi-visit package is **not offered** for direct purchase, and the API refuses it. Only a **one-visit** home package is directly purchasable - that is the patient's home consultation. HV2 can only reach a patient through a therapist's care plan.
+**Steps.** Open the Step 1 picker on `/book-home-visit` and look for `QA Home Visit Recovery - 4 Visits`. Open `/book-home-visit?package=<HV2 id>`. Then call the API directly: `POST /api/home-visit/create-order` and `/api/home-visit/book-cash` with `packageId` = HV2's id.
+**Expected Result.** HV2 is **not offered** - the picker lists conditions only. The old link shows *"Courses of visits come from your therapist now"* with **Book a first visit**, never a payment step for one visit. Both routes answer **403** with the programme sentence (*"A course of treatment is arranged by your therapist..."*). An old `?package=` link to the **clinic-wide** price row still opens the wizard (on the general consultation), and one to a condition's own price row opens on that condition. HV2 can only reach a patient through a therapist's care plan.
 
 #### `PAT-HV-006` - Cash on visit · P1
 
@@ -571,7 +578,7 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 **Preconditions.** `THR-SUGG-001` has proposed a slot on an active programme with credits remaining.
 **Steps.** Open `/patient/dashboard/suggested`. Read the card. Tap **Accept this time**.
-**Expected Result.** The card resolves to a booked state. An appointment is created via the package-session path: **auto-assigned to the locked therapist, auto-confirmed, and given its own Meet link**. `sessions_used` on the purchase increases by exactly **one**. A `reserve`/`consume` ledger entry is written with an idempotency key derived from the appointment id. The therapist's dashboard shows the new session. **A declined suggestion would have claimed nothing** - a suggestion is its own row, never an appointment in a new status.
+**Expected Result.** The card resolves to **Accepted - clinic confirming**. An appointment is created via the package-session path, **`requested` and unassigned** - never assigned or confirmed by the accept. It appears in Admin → Sessions with no therapist with the locked therapist pre-picked (`ADM-SESS-005`); once the admin assigns it, it is confirmed and gets its Meet link. Until then the patient's session card reads **Booked - confirming your therapist**. `sessions_used` on the purchase increases by exactly **one**. A `reserve`/`consume` ledger entry is written with an idempotency key derived from the appointment id. The therapist's dashboard shows the new session once it is assigned. **A declined suggestion would have claimed nothing** - a suggestion is its own row, never an appointment in a new status.
 
 #### `PAT-SUGG-003` - Decline · P2
 **Steps.** Tap **Decline** on a pending suggestion. **Expected Result.** The card shows `Declined`. No appointment. No credit moves. The therapist's control shows the declined state.
@@ -592,20 +599,21 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 #### `PAT-CARE-002` - Accept and pay for a recommended programme · P0
 
-**Steps.** Tap the buy/accept action on the offer card. Complete Razorpay with `success@razorpay`.
+**Steps.** Tap **Accept & pay** on the offer card. It opens **Review & pay** (`/patient/dashboard/suggested/checkout?plan=<version id>`), not Razorpay. Read the page, tap **Pay ₹<total>**, and complete Razorpay with `success@razorpay`.
 **Expected Result**
-* The price charged is **re-derived server-side** from the live catalog row. It must equal the amount shown on the card.
+* **The card itself never opens Razorpay.** Review & pay shows the programme (photo, *Recommended by*, sessions × per-session price, how often, video or at home, the therapist's reason), a **Your total** box with the programme line and **Total to pay**, a *Have a promo code?* link while promo codes are on, and a **Back** / **Pay ₹<total>** pair. Its figures come from `/api/care-plan/quote`.
+* The price charged is **re-derived server-side** from the live catalog row. It must equal the **Total to pay** on Review & pay, and the Razorpay sheet must open at exactly that figure.
 * A `patient_package_purchases` row is created with a **frozen `package_snapshot`** and `sessions_granted = 6`.
 * **Session credits are granted: exactly 6.** Not 5, not 12.
 * The care plan's status becomes `accepted`. **The thread is now closed** - a later recommendation opens a *new* plan with `supersedes_id` set.
-* The payment does **not** refresh into an empty screen. In place of the offer card the patient reads *"Payment received - N sessions are yours"*, who will run them, and one next step. **If the screen goes blank after paying, that is a P0 defect** - it is the highest-intent moment in the product.
+* The payment does **not** refresh into an empty screen. In place of the Review & pay page the patient reads *"Payment received - N sessions are yours"*, who will run them, and one next step. **If the screen goes blank after paying, that is a P0 defect** - it is the highest-intent moment in the product.
 * **Your Programmes** appears in the sidebar (not "Your Packages") and lists the programme with `6 sessions`, `0 used`, `6 remaining`.
 * A second attempt to buy the same plan is refused: `You've already bought this plan.`
 
 #### `PAT-CARE-003` - A recommended home-visit programme quotes travel correctly · P0
 
-**Preconditions.** A care plan recommending HV2 (4 visits), patient address in a ₹150 area.
-**Expected Result.** The offer card shows **programme + travel + total** as three figures, with travel charged **per visit**: `₹8,999 + (₹150 × 4) = ₹9,599`. A card that printed `₹8,999` on a button that charged `₹9,599` would be a P0 defect - travel is per visit, not per purchase.
+**Preconditions.** A hands-on care plan for 4 visits of `QA Back & Spine Care` (priced at the clinic-wide ₹2,499 a visit, so ₹9,996), patient address in a ₹150 area.
+**Expected Result.** The offer card carries no address and its button reads just **Accept & pay**. On Review & pay, **Where should we come?** lists the patient's saved addresses and *Somewhere else* (pincode + address form); until a served pincode is known the travel line reads *Needs your address* and Pay is disabled. Then **Your total** shows **programme + travel + total** as three figures, with travel charged **per visit**: `₹9,996 + (₹150 × 4) = ₹10,596`. A card that printed `₹9,996` on a button that charged `₹10,596` would be a P0 defect - travel is per visit, not per purchase. Set `QA Back & Spine Care`'s own home-visit price and write a new plan: it is priced at the own price instead - a hands-on recommendation always uses the condition's current home-visit price.
 Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/create-order` must refuse the purchase with `Home visits aren't available right now. Please talk to your therapist.` A recommendation written before the service stopped must not stay purchasable.
 
 #### `PAT-SCHED-001` - The scheduler opens answered, not empty · P0
@@ -632,6 +640,16 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 **Steps.** Pay for a programme and tap **I'll do it later**. Open `/patient/dashboard`.
 **Expected Result.** The activity feed carries a **needsYou** item - *"N sessions still to book"* - naming the programme and linking to Your Programmes. It stays until the balance is spent and disappears when it is. The figure must agree with the Your Programmes card exactly; a feed claiming a balance that screen disagrees with is a P0.
 
+#### `PAT-CARE-005` - A promo code on a recommended programme · P0
+**Preconditions.** Promo codes on. Two codes: `PROG20` (20% off) with **Valid on recommended programmes** ticked, and `WELCOME200` (₹200 off) without it. A recommended 4-session video programme waiting for the patient.
+**Steps.** Open Review & pay. Tap *Have a promo code?*, apply `WELCOME200`. Remove it, apply `PROG20`, tap **Pay**, and close the Razorpay sheet without paying. Back on the page, remove the code and tap Pay again.
+**Expected Result**
+* `WELCOME200` is refused beside the field with *"This code can't be used on a programme."* and the total does not move. An existing session campaign silently discounting a whole programme is a P0 defect.
+* `PROG20` shows **PROG20 applied - ₹X off**, the programme line struck through, a **Promo code PROG20 −₹X** line, and **Total to pay** 20% lower. The button reads **Pay ₹<discounted>** and the Razorpay sheet opens at **exactly** that figure. On a home visit, travel is added **after** the code and never discounted.
+* The purchase row records `amount_paid_paise` = the discounted programme, `list_price_paise` = the full programme, `discount_paise` = the difference and `promo_code_id` = `PROG20`.
+* Paying again with the code removed opens Razorpay at the **full** price and gives the claim back (`promo_code_id` cleared).
+* A programme-valid code that would make the whole programme free is refused with *"That code would cover this whole programme, which can't be paid for online…"* - a programme has no free-confirmation path.
+
 #### `PAT-CARE-004` - A declined or withdrawn recommendation · P2
 **Steps.** Decline a recommendation from the offer card. Separately, have an admin withdraw one (`ADM-CARE-002`). **Expected Result.** Declining closes it for the patient; withdrawing removes it from the patient's offers with the plan marked withdrawn. **A purchased plan can never be withdrawn** - the honest lane is a refund.
 
@@ -639,7 +657,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 **Preconditions.** `PAT-CARE-002` complete: 6 credits, therapist locked.
 **Steps.** Open `/patient/dashboard/packages`. Use the bulk scheduler to book **3** sessions, respecting the package's rules (min gap 24h, max 3/week).
-**Expected Result.** Three appointments are created, each **auto-assigned to the locked therapist, auto-confirmed, each with its own Meet link** - never through the admin's per-session assign flow. The widget reads `6 sessions · 3 used · 3 remaining`. Three `reserve` ledger entries exist, each keyed `reserve:<appointment_id>`.
+**Expected Result.** Three appointments are created, each **`requested` and unassigned** - every programme session goes through the admin. The scheduler's result rows and each session card read **Booked - confirming your therapist**, and the Home feed says "Video session booked - confirming your therapist". In Admin → Sessions with no therapist each row reads **Tap to assign · <locked therapist>**, and one tap on **Assign <name>** in the drawer confirms it and creates its Meet link. The widget reads `6 sessions · 3 used · 3 remaining`. Three `reserve` ledger entries exist, each keyed `reserve:<appointment_id>`.
 **Boundary.** Attempting a 4th session in the same week is refused by the package's max-per-week rule. Attempting more than `package_bulk_schedule_max` (default 8) slots in one request is refused with `Too many slots in one request.` Two slots less than 24h apart are refused by the minimum-gap rule.
 
 #### `PAT-PKG-002` - Credits cannot be overdrawn · P0 **[SQL]**
@@ -647,8 +665,13 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 **Expected Result.** Refused with `Every session in this programme is already used.` In the database, a ledger row that would overdraw fails the CHECK constraint and takes its transaction with it - **an impossible balance is impossible, not merely unwritten**.
 
 #### `PAT-PKG-003` - A locked therapist's clash never fails the booking · P1
-**Preconditions.** The locked therapist already has a session at the requested time.
-**Expected Result.** The booking still succeeds, but the session lands **`requested` and unassigned** in the admin queue rather than failing. The patient is not told to pick another time.
+**Preconditions.** The locked therapist already has a session at the requested time (or is not working that hour).
+**Expected Result.** The booking still succeeds and lands **`requested` and unassigned** in the admin queue, as every programme session does. The patient is not told to pick another time. In the admin queue the row reads **<name> not free** and the drawer says *"<name> is no longer free at this time - pick someone else or move it."* instead of offering the one-tap Assign.
+
+#### `PAT-PKG-005` - The programme's expiry is shown only near its end · P1
+**Preconditions.** Two active programmes with sessions left: one expiring in 60 days, one inside `package_expiry_reminder_days` (default 14).
+**Steps.** Open `/patient/dashboard/packages`, then each programme's **Manage** detail. Also read the recommendation card, the Review & pay page and the catalog cards.
+**Expected Result.** The 60-day programme shows **no** expiry line and no day count anywhere. The near one shows one amber line *"N sessions left - book by <date>"* (the date in the clinic's zone), on the card and in its detail - never "N days left", "Valid 90 days" or "Use them within N days". No patient or therapist screen prints a validity in days; admin screens still show the expiry date.
 
 #### `PAT-PKG-004` - An expired programme · P2
 **Preconditions.** A purchase whose `expires_at` has passed.
@@ -665,7 +688,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 #### `PAT-PAY-011` - The patient is told about their refund · P0
 **Preconditions.** For one patient: a session cancelled outside the window and refunded in full, a **completed** session partially refunded by `₹500` with a stated reason, a cash home visit at `manual_pending`, a refund that failed at the gateway, and a session cancelled **inside** the window.
 **Steps.** Open `/patient/dashboard/sessions`, then `/patient/dashboard/payments` and open each receipt's detail, then `/patient/dashboard` and read the feed.
-**Expected Result.** In the patient's own words on every surface: `₹1,200 refunded`, `₹500 refunded`, `₹500 coming back to you`, `Refund didn't go through - please contact us`. The one cancelled inside the window says **`No Refund`** with the window on hover and **no refund line at all** - it must never be announced as a refund. The full and partial refunds carry the date and the clinic's stated reason as given, plus "It can take a few working days to reach your account". The **partial refund on a completed session** appears on the card, on the Payments row and in its detail - its receipt still reads `Completed`, because a delivered session that was partly refunded is not a refunded one. The failed refund is a **pinned** `needs you` feed item. Nothing on any of these screens shows an admin-voice string (`Hand back ₹500`, `Refund failed`, `No refund due`).
+**Expected Result.** In the patient's own words on every surface: `₹1,200 refunded`, `₹500 refunded`, `₹500 coming back to you`, `Refund delayed - our team is sending it by hand`. The one cancelled inside the window says **`No Refund`** with the window on hover and **no refund line at all** - it must never be announced as a refund. The full and partial refunds carry the date and the clinic's stated reason as given, plus "It can take a few working days to reach your account". The **partial refund on a completed session** appears on the card, on the Payments row and in its detail - its receipt still reads `Completed`, because a delivered session that was partly refunded is not a refunded one. The failed refund is a **pinned** `needs you` feed item. Nothing on any of these screens shows an admin-voice string (`Hand back ₹500`, `Refund failed`, `No refund due`).
 
 #### `PAT-PAY-012` - A refund the patient's database predates · P1
 **Steps.** Against a database whose `appointments` predate `refunded_at`, open a refunded session and its receipt.

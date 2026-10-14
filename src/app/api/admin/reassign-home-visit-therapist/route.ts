@@ -18,7 +18,7 @@ import { serverError } from "@/lib/apiError";
 // every other home-visit scheduling decision, since a therapist finishing
 // one visit cannot be at another minutes later.
 export async function POST(request: NextRequest) {
-  const adminUser = await requireAdminScope("catalog");
+  const adminUser = await requireAdminScope("programmes");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

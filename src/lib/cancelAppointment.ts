@@ -8,12 +8,21 @@ import {
   openRefundAttempt,
   succeedRefundAttempt,
   failRefundAttempt,
+  refundRefusalForAdmin,
 } from "@/lib/refundAttempt";
 import { decrementUsedCounter } from "@/lib/purchaseCounter";
 
 type CancelResult =
   | { error: string; status: number; payoutSettled?: boolean }
-  | { success: true; refunded: boolean; refundFailed?: boolean };
+  | {
+      success: true;
+      refunded: boolean;
+      refundFailed?: boolean;
+      /** What was owed back, so the patient can be told the figure. */
+      refundPaise?: number | null;
+      /** Razorpay's own reason, worded for an admin. Never sent to a patient. */
+      refundFailureForAdmin?: string;
+    };
 
 /**
  * Cancels an upcoming appointment and, if it was paid, refunds the exact
@@ -269,6 +278,7 @@ export async function cancelAppointmentAndRefund(
 
   let refundId: string | null = null;
   let refundFailed = false;
+  let refundFailureForAdmin: string | undefined;
 
   if (willRefund) {
     // Recorded before the gateway is called, so a refund that went through
@@ -291,6 +301,8 @@ export async function cancelAppointmentAndRefund(
     });
     if (!attemptId) {
       refundFailed = true;
+      refundFailureForAdmin =
+        "The refund could not be recorded, so it was not sent to Razorpay. Refund it from this session.";
     } else {
       try {
         const razorpay = new Razorpay({
@@ -309,6 +321,7 @@ export async function cancelAppointmentAndRefund(
         console.error("Refund failed for appointment", appointmentId, err);
         await failRefundAttempt(admin, attemptId, err);
         refundFailed = true;
+        refundFailureForAdmin = refundRefusalForAdmin(err);
       }
     }
   }
@@ -393,6 +406,8 @@ export async function cancelAppointmentAndRefund(
       success: true,
       refunded: false,
       refundFailed: true,
+      refundPaise: refundablePaise,
+      refundFailureForAdmin,
     };
   }
 

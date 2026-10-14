@@ -271,7 +271,7 @@ export default async function TherapistPatientHealthProfilePage({
         </SurfaceCard>
 
         <SurfaceCard
-          title="Session notes"
+          title="Session notes" info="card:health-profile"
           icon="fa-file-lines"
           subtitle="What was treated, how they responded, and the plan - written after each session. Only you and the clinic's admin can read this; the patient never sees it."
         >

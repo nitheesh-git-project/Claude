@@ -103,9 +103,9 @@ describe("filterActivityRows", () => {
     expect(filterActivityRows(rows, EMPTY_ACTIVITY_FILTERS)).toHaveLength(3);
   });
 
-  it("narrows by admin, category, money and date together", () => {
+  it("narrows by person, category, money and date together", () => {
     expect(
-      filterActivityRows(rows, { ...EMPTY_ACTIVITY_FILTERS, actorName: "Asha Rao" })
+      filterActivityRows(rows, { ...EMPTY_ACTIVITY_FILTERS, person: "asha" })
     ).toHaveLength(2);
     expect(
       filterActivityRows(rows, { ...EMPTY_ACTIVITY_FILTERS, category: "money" }).map(

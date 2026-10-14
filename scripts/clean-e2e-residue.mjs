@@ -80,6 +80,10 @@ const MARKERS = {
   savedAddressLine1: "E2E Bulk Limit Test Address",
   referralNamePrefix: "E2E Race Referral",
   fakePaymentIdPrefix: "pay_e2erace",
+  // `e2e/admin-payment-search.spec.ts` needs a payments row to search for,
+  // and payments refuse a DELETE by trigger. Its fixture rows are never
+  // captured and target nothing; they are found by this order id prefix.
+  searchFixtureOrderPrefix: "order_e2esearch",
   // `e2e/pay-later.spec.ts` books, settles, writes off and refunds against
   // this one fixture account. Its rows are written through the real routes
   // rather than inserted, so they are correct rows -- they simply cannot be
@@ -154,6 +158,13 @@ async function survey() {
     : { data: [], error: null };
   if (payments.error) die("payments", payments.error);
 
+  const searchPayments = await admin
+    .from("payments")
+    .select("id")
+    .like("razorpay_order_id", `${MARKERS.searchFixtureOrderPrefix}%`)
+    .eq("status", "created");
+  if (searchPayments.error) die("payments", searchPayments.error);
+
   const entitlements = purchaseIds.length
     ? await admin
         .from("session_entitlements")
@@ -197,7 +208,9 @@ async function survey() {
     addressIds,
     purchaseIds,
     referralIds,
-    paymentIds: (payments.data ?? []).map((p) => p.id),
+    paymentIds: [
+      ...new Set([...(payments.data ?? []), ...(searchPayments.data ?? [])].map((p) => p.id)),
+    ],
     entitlementIds: (entitlements.data ?? []).map((e) => e.id),
     payLaterPaymentIds,
     payLaterAppointmentIds,
@@ -297,6 +310,10 @@ begin
   -- as the ledger and refund guards above.
   alter table payments disable trigger trg_payments_not_deletable;
   delete from payments where target_home_visit_purchase_id = any (v_purchases);
+  -- The payment-search spec's fixture rows: never captured, pointing at
+  -- nothing, found by their order id prefix.
+  delete from payments
+    where razorpay_order_id like 'order_e2esearch%' and status = 'created';
   alter table payments enable trigger trg_payments_not_deletable;
   delete from home_visit_package_purchases where id = any (v_purchases);
   delete from patient_referrals where id = any (v_referrals);

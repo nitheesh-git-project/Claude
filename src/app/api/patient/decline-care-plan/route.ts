@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -84,6 +85,15 @@ export async function POST(request: NextRequest) {
     // or the plan moved on. Either way there is nothing for them to fix.
     return NextResponse.json({ success: true, alreadyAnswered: true });
   }
+
+  await recordUserActivity(admin, {
+    action: "care_plan.declined",
+    actor: { id: user.id, role: "patient" },
+    carePlanId,
+    patientId: user.id,
+    details: { reason: reason ? String(reason).slice(0, 200) : null },
+    dedupeKey: `care_plan_declined:${carePlanId}`,
+  });
 
   return NextResponse.json({ success: true });
 }

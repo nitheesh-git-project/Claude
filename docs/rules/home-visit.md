@@ -2,7 +2,7 @@
 
 A delivery mode rather than a parallel booking system: service areas, the travel fee, cash at the door - plus calendar events, Meet links and the waiting room.
 
-**Mostly lives in:** src/lib/homeVisitPricing.ts · homeVisitAreaCommitments.ts · googleMeetSpace.ts · meetSyncState.ts
+**Mostly lives in:** src/lib/homeVisitPricing.ts · homeVisitRates.ts · homeVisitAreaCommitments.ts · googleMeetSpace.ts · meetSyncState.ts
 
 > Part of `docs/rules/`. `CLAUDE.md` says which file a task needs; this one
 > is the detail. Keep it current in the same change that makes it wrong --
@@ -220,11 +220,18 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   dialog nobody reads. `describeHomeVisitCommitment` answers three ways rather
   than two, and the confirm is awaited before the transition, per the deadlock
   rule.
-  A locked
-  therapist's conflict check is padded by
-  `home_visit_travel_buffer_minutes` on both sides of the new slot
-  (`findTherapistConflict`'s `bufferMinutes` option) since a therapist
-  finishing one visit cannot be at another minutes later; online passes 0.
+  A visit booked on a home-visit programme is **not** assigned at booking:
+  `bookHomeVisitSession` inserts it `requested` and unassigned, and it waits
+  in "Sessions with no therapist" with the programme's locked therapist
+  pre-picked (`programmes.md`). The travel buffer
+  (`home_visit_travel_buffer_minutes`, padded on both sides of the new slot by
+  `findTherapistConflict`'s `bufferMinutes` option, since a therapist
+  finishing one visit cannot be at another minutes later; online passes 0)
+  therefore applies **at assign time** -- in `/api/admin/assign-appointment`
+  and in the queue's own "no longer free" warning -- rather than at booking.
+  Assigning a prepaid visit confirms it and sends the calendar invite with
+  the address; an unpaid cash visit is assigned and stays `requested`, as
+  before.
   Cash-on-visit purchases legitimately sit at `payment_status: 'unpaid'`
   for their whole life with real confirmed visits hanging off them - never
   assume `payment_status` reflects whether money changed hands for a home
@@ -237,7 +244,33 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   `visits_used` counts visits **claimed** (scheduled or completed), never
   completed - identical rule to `sessions_used`, see the counter-semantics
   comment beside `home_visit_package_purchases` in `schema.sql`. See the
-  "Home Visit" section in README.md for the full flow.
+  "Home Visit" section in docs/PRODUCT-GUIDE.md for the full flow.
+
+- **A home visit is one visit of a condition, at one of two prices.**
+  Catalog -> Conditions -> Home visits holds one **clinic-wide** price and,
+  for any condition, its **own** price; there is no visit count, no validity
+  and no days to set, and travel is still added per visit from Service Areas.
+  They are `home_visit_packages` rows -- `visit_count = 1`,
+  `care_plan_course = false`, `category_id is null` for the clinic-wide one
+  -- because both purchase tables need a `package_id` and every booking
+  route reads its terms through one; the unique partial index
+  `home_visit_packages_one_rate_per_category` allows one active price per
+  key. `src/lib/homeVisitRates.ts` is the only rule (own, else clinic-wide,
+  else not on sale -- **never another condition's price**, which the old
+  "cheapest of any" fallback in `loadRecommendableRates` did), and every
+  reader goes through it: `/home-visit`, `/book-home-visit`, the patient
+  booking hub, both checkouts (`resolveHomeVisitSaleOnServer`) and the
+  hands-on recommendation picker, so a recommendation is written at exactly
+  the price the condition is sold at. `/api/admin/set-home-visit-price`
+  (`catalog` scope, logged as `catalog.update`/`catalog.create`) edits a
+  price in place -- a purchase snapshots its amount -- and "Use clinic-wide"
+  switches the condition's row off rather than deleting it, because old
+  purchases point at it. The visit length is the clinic's: saving it on the
+  clinic-wide row moves every own row with it. Multi-visit rows and course
+  rows are untouched and keep working for the purchases that hang off them;
+  they are simply never offered. The hospital-referral home visit is still
+  priced from the online condition price in `checkoutQuote.ts` (a known
+  follow-up).
 
 - **Outside India home visits are not offered, unless an admin allows it.**
   One switch on Catalog -> Countries & currency (`home_visit_outside_india`,

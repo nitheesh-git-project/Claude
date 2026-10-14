@@ -18,7 +18,7 @@ import {
   clinicSlot,
   cookieHeaderFor,
   openTherapistHour,
-  profileIdFor,
+  profileIdFor, TEST_PASSWORD
 } from "./helpers";
 
 test.describe("Suite H: two admins", () => {
@@ -83,7 +83,7 @@ test.describe("Suite H: two admins", () => {
     const email = `qa.pending.${Date.now()}@example.test`;
     const { data: created } = await admin.auth.admin.createUser({
       email,
-      password: "QaTest!2024pass",
+      password: TEST_PASSWORD,
       email_confirm: true,
       user_metadata: { full_name: "QA Pending Signup" },
     });
@@ -118,9 +118,13 @@ test.describe("Suite H: two admins", () => {
       // Admin A's next read must reflect it. (With realtime reachable this
       // happens on its own; without it, a reload is what an admin would do.)
       await pageA.reload();
+      // The inbox row is the one carrying an Approve *button*. Matching the
+      // word anywhere in the item also caught the activity log's
+      // "Approved account - QA Pending Signup" entry, which the approval
+      // itself writes, so this could never reach zero.
       const stillPending = pageA
         .locator("li", { hasText: "QA Pending Signup" })
-        .filter({ hasText: /Approve/ });
+        .filter({ has: pageA.getByRole("button", { name: "Approve", exact: true }) });
       await expect(stillPending).toHaveCount(0, { timeout: 30_000 });
     } finally {
       await contextA.close();
@@ -141,13 +145,14 @@ test.describe("Suite H: two admins", () => {
       fetch(`${BASE}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Cookie: cookie },
-        body: JSON.stringify({ userId }),
+        // A decline carries a reason now; approve ignores the extra fields.
+        body: JSON.stringify({ userId, reasonCode: "duplicate" }),
       });
 
     for (let round = 0; round < 4; round++) {
       const { data: created, error: createError } = await admin.auth.admin.createUser({
         email: `qa.race.${Date.now()}.${round}@example.test`,
-        password: "QaTest!2024pass",
+        password: TEST_PASSWORD,
         email_confirm: true,
         user_metadata: { full_name: "QA Race Signup" },
       });
@@ -182,6 +187,7 @@ test.describe("Suite H: two admins", () => {
         }
       } finally {
         await admin.auth.admin.deleteUser(userId).catch(() => {});
+        await admin.from("declined_applications").delete().eq("source_id", userId);
       }
     }
   });

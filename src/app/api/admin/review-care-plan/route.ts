@@ -22,7 +22,7 @@ import {
 // about what treatment is being proposed, not about the money it will later
 // move.
 export async function POST(request: NextRequest) {
-  const adminUser = await requireAdminScope("sessions");
+  const adminUser = await requireAdminScope("programmes");
   if (!adminUser) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

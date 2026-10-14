@@ -24,7 +24,9 @@ export default function PackageChip({
         className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 hover:underline"
       >
         <i className="fa-solid fa-layer-group" aria-hidden="true" />
-        {label ? `Package ${label}` : "Paid via package"}
+        {/* The programme's ID with its progress (PED_PKG001-2/6), or the old
+            code where the database has no ID yet. */}
+        {label ? `Programme ${label}` : "Part of a programme"}
       </button>
       {open && <PackageDetailModal purchaseId={purchaseId} onClose={() => setOpen(false)} />}
     </>

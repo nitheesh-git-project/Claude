@@ -14,7 +14,7 @@ describe("sanitize", () => {
     ["a live Razorpay key id", "rzp_live_AbCdEf123456", "rzp_live_AbCdEf123456"],
     ["a secret assignment", "RAZORPAY_KEY_SECRET=abcDEF123456xyz", "abcDEF123456xyz"],
     ["a quoted secret assignment", 'SUPABASE_SERVICE_ROLE_KEY="whatever-value"', "whatever-value"],
-    ["a JSON password", '{"email":"qa.admin@example.test","password":"QaTest!2024pass"}', "QaTest!2024pass"],
+    ["a JSON password", '{"email":"qa.admin@example.test","password":"Fake!Pass2020x"}', "Fake!Pass2020x"],
     ["a razorpay signature", '{"razorpay_signature":"abc123def456"}', "abc123def456"],
     ["a Bearer header", "Authorization: Bearer abc.def.ghi-jkl_mno", "abc.def.ghi-jkl_mno"],
     ["a cookie header", "cookie: sb-127-auth-token=base64-eyJzZXNzaW9u; other=1", "base64-eyJzZXNzaW9u"],

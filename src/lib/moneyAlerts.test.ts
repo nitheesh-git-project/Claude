@@ -13,7 +13,7 @@ const NONE: MoneyAlertCounts = {
   unmatchedPayments: 0,
 };
 
-const ALL_SECTIONS = ["today", "sessions", "people", "money", "catalog", "settings"];
+const ALL_SECTIONS = ["today", "sessions", "programmes", "people", "money", "catalog", "settings"];
 
 describe("buildMoneyAlerts", () => {
   // A refund the gateway refused is fixed on the session, not on Payouts --
@@ -139,14 +139,15 @@ describe("the two kinds of refund somebody has to hand back", () => {
   });
 
   // The one row where the clinic has taken a decision and delivered
-  // nothing. It goes to Catalog because that is where Purchases lives --
+  // nothing. It goes to Programmes because that is where a paid programme
+  // is followed --
   // the section is chosen by where the work is done, never by which strip
   // the row sits on.
   it("sends a purchase with nothing booked to the screen that books it", () => {
     const alerts = buildMoneyAlerts({ ...NONE, purchasesUnscheduled: 2 }, ALL_SECTIONS);
     expect(alerts.map((a) => a.key)).toEqual(["purchases_unscheduled"]);
-    expect(alerts[0].section).toBe("catalog");
-    expect(alerts[0].tab).toBe("purchases");
+    expect(alerts[0].section).toBe("programmes");
+    expect(alerts[0].tab).toBe("all");
     expect(alerts[0].view).toBe("unscheduled");
   });
 

@@ -391,7 +391,7 @@ function DashboardFrame({
                   >
                     {stat.value}
                   </p>
-                  <p className="mt-1 text-[10px] leading-snug text-slate-500 sm:text-[11px]">{stat.note}</p>
+                  <p className="mt-1 break-words text-[10px] leading-snug text-slate-500 hyphens-auto sm:text-[11px]">{stat.note}</p>
                 </div>
               ))}
             </div>

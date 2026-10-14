@@ -81,12 +81,48 @@ The four acquisition discounts, promo codes, patient invites, and the one module
        shown a figure with the code applied, and taking more money than they
        were quoted is the one outcome a payment screen must never produce.
        A code that is claimed but then loses to a larger discount is
-       *released*, so it does not count against its own cap for nothing.
+       *released*, so it does not count against its own cap for nothing --
+       and so is a claim an earlier attempt left on the booking when this
+       checkout carries no code, or a refused one: the row names the code
+       its price actually used.
+     - **An open order is reused only at the price just resolved.**
+       `mintAppointmentOrder` used to hand back a prior `created` /
+       `attempted` Razorpay order before re-pricing, so a code applied after
+       a failed try showed its discount on screen while the sheet charged
+       the old amount, and a code whose cap had filled since was still
+       honoured. It now resolves (and claims) first and reuses the order only
+       when the amount matches; otherwise it mints a new one -- unless a
+       payment on the old order is still `created`, `authorized` or
+       `captured`, which is a 409 ("still being processed"), and a lookup
+       that fails is a 503, never "nothing in flight".
+     - **A code may come off a recommended programme only when an admin
+       said so.** `promo_codes.valid_on_programmes` ("Valid on recommended
+       programmes" on the code's form) is **off by default**, so a campaign
+       written for single sessions never silently becomes 20% off a
+       twelve-session bundle; with it on, the code still works on a single
+       session exactly as before. A programme's claim lives on its purchase
+       (`patient_package_purchases` / `home_visit_package_purchases`:
+       `promo_code_id`, `promo_claimed_at`, `list_price_paise`,
+       `discount_paise`) through `claim_promo_code_for_purchase()` and
+       `release_promo_code_for_purchase()`. **The cap is one number across
+       both**: `promo_code_claim_count()` counts bookings and both purchase
+       tables (paid, on pay-later terms for a booking, or inside the
+       30-minute hold; a cancelled or refunded purchase does not count), and
+       both claim functions read it under the same promo row lock. The
+       preview counts the same way (`countClaims` in `promoCodesServer.ts`).
+       A session-only code meeting a programme is refused with *"This code
+       can't be used on a programme."* - on the page, and as a 409 from
+       `/api/care-plan/create-order`, never a quiet list-price charge. The
+       discount comes off the programme line only (travel is never
+       discounted), and one that would leave less than the gateway minimum is
+       refused, because a programme has no free path (see
+       `docs/rules/programmes.md`).
      `promo_codes` has no patient select policy - a patient who can list it
      reads every campaign the clinic has ever scheduled, including the ones
      not yet running. A **claimed** code is never deleted, only paused: a
-     paid session pointing at a campaign nobody can name cannot answer which
-     rule gave the money away.
+     paid session or programme pointing at a campaign nobody can name cannot
+     answer which rule gave the money away (`delete-promo-code` counts all
+     three tables, and the foreign keys have no `on delete` clause).
   4. **The patient invite** (`src/lib/inviteRewards.ts`,
      `inviteRewardsServer.ts`, `patient_invites`, `profiles.invite_code`,
      `invite_rewards_enabled` off by default) is two halves: a **welcome**

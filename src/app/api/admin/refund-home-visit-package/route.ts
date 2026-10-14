@@ -15,6 +15,7 @@ import {
   openRefundAttempt,
   succeedRefundAttempt,
   failRefundAttempt,
+  refundRefusalForAdmin,
 } from "@/lib/refundAttempt";
 
 const MAX_REASON_LENGTH = 500;
@@ -215,7 +216,7 @@ export async function POST(request: NextRequest) {
       );
     }
     return NextResponse.json(
-      { error: "The refund could not be processed by Razorpay. Nothing was changed - please retry." },
+      { error: refundRefusalForAdmin(err) },
       { status: 502 }
     );
   }

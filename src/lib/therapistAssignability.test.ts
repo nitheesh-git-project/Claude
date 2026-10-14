@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignabilityReasons } from "./therapistAssignability";
+import { assignabilityFromRoster, assignabilityReasons } from "./therapistAssignability";
 
 const base = {
   onLeave: false,
@@ -39,5 +39,73 @@ describe("assignabilityReasons", () => {
     expect(assignabilityReasons({ ...base, slotState: null }).map((r) => r.code)).toEqual([
       "not_working_that_hour",
     ]);
+  });
+});
+
+describe("assignabilityFromRoster", () => {
+  // Thu 12 Nov 2026, 6 PM IST.
+  const slot = "2026-11-12T12:30:00Z";
+  const thursday = 4;
+  const roster = {
+    slotTime: slot,
+    durationMinutes: 60,
+    onLeave: false,
+    template: [{ day_of_week: thursday, hour: 18 }],
+    overrides: [] as { date: string; hour: number; available: boolean }[],
+    bookings: [] as { id: string; slot_time: string | null; duration_minutes: number | null; status: string }[],
+  };
+
+  it("is free when rostered and not booked", () => {
+    expect(assignabilityFromRoster(roster)).toEqual([]);
+  });
+
+  it("says not working when the hour is off the template", () => {
+    const blocks = assignabilityFromRoster({ ...roster, template: [{ day_of_week: thursday, hour: 9 }] });
+    expect(blocks.map((b) => b.code)).toEqual(["not_working_that_hour"]);
+  });
+
+  it("honours a one-off exception that closes the hour, and one that opens it", () => {
+    expect(
+      assignabilityFromRoster({
+        ...roster,
+        overrides: [{ date: "2026-11-12", hour: 18, available: false }],
+      }).map((b) => b.code)
+    ).toEqual(["not_working_that_hour"]);
+    expect(
+      assignabilityFromRoster({
+        ...roster,
+        template: [],
+        overrides: [{ date: "2026-11-12", hour: 18, available: true }],
+      })
+    ).toEqual([]);
+  });
+
+  it("sees an overlapping session, but not a cancelled one or the session itself", () => {
+    const clash = { id: "other", slot_time: "2026-11-12T12:00:00Z", duration_minutes: 60, status: "confirmed" };
+    expect(assignabilityFromRoster({ ...roster, bookings: [clash] }).map((b) => b.code)).toEqual([
+      "already_booked",
+    ]);
+    expect(assignabilityFromRoster({ ...roster, bookings: [{ ...clash, status: "cancelled" }] })).toEqual([]);
+    expect(
+      assignabilityFromRoster({
+        ...roster,
+        excludeAppointmentId: "self",
+        bookings: [{ ...clash, id: "self" }],
+      })
+    ).toEqual([]);
+  });
+
+  it("pads a home visit by the travel buffer", () => {
+    // Ends 5:30 PM, the visit starts 6 PM: clear online, a clash with 45
+    // minutes of travel either side.
+    const earlier = { id: "o", slot_time: "2026-11-12T11:30:00Z", duration_minutes: 30, status: "confirmed" };
+    expect(assignabilityFromRoster({ ...roster, bookings: [earlier] })).toEqual([]);
+    expect(
+      assignabilityFromRoster({ ...roster, bookings: [earlier], bufferMinutes: 45 }).map((b) => b.code)
+    ).toEqual(["already_booked"]);
+  });
+
+  it("says on leave", () => {
+    expect(assignabilityFromRoster({ ...roster, onLeave: true }).map((b) => b.code)).toEqual(["on_leave"]);
   });
 });

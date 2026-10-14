@@ -170,7 +170,21 @@ export function describeRefundForPatient(
     };
   }
   if (admin.state === "failed") {
-    return { ...admin, label: "Refund didn't go through - please contact us" };
+    // The gateway said no, and the clinic's own alert strip counts it as
+    // urgent work. "Please contact us" put the job on the person who is out
+    // of pocket; they are told who is doing it instead.
+    return { ...admin, label: "Refund delayed - our team is sending it by hand" };
   }
   return admin;
+}
+
+/**
+ * What the patient is told the moment their cancellation's refund is
+ * refused. It used to be an error line on a button the refresh unmounted, so
+ * all they actually saw was the success toast "Any refund due is on its
+ * way" -- the opposite of what had happened.
+ */
+export function patientRefundDelayedNotice(amountPaise: number | null | undefined): string {
+  const what = amountPaise != null && amountPaise > 0 ? `Your ${rupees(amountPaise)} refund` : "Your refund";
+  return `Session cancelled. ${what} didn't go through automatically, so our team has been alerted and will send it by hand. You don't need to do anything.`;
 }

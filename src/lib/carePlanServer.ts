@@ -6,6 +6,8 @@ import {
   type CourseRate,
   type RecommendableRate,
 } from "@/lib/carePlans";
+import { effectiveHomeVisitRate } from "@/lib/homeVisitRates";
+import { loadHomeVisitPriceRows } from "@/lib/homeVisitRatesServer";
 
 export type { RecommendableRate };
 
@@ -20,10 +22,10 @@ type AdminClient = SupabaseClient;
  *
  * Video: each active condition at its own price -- the same price /book
  * charges for one consultation, so "N sessions" costs N consultations.
- * Hands-on: the single home-visit price (a one-visit package; one attached to
- * the condition wins over a general one), only while home visits are
- * switched on -- recommending a delivery mode the clinic has turned off would
- * produce a plan nobody can buy.
+ * Hands-on: the condition's home-visit price from Catalog -> Conditions ->
+ * Home visits (its own price, else the clinic-wide one), only while home
+ * visits are switched on -- recommending a delivery mode the clinic has
+ * turned off would produce a plan nobody can buy.
  *
  * Each read keeps its own tolerance (`specialty` and `image_url` are newer
  * columns), so an unknown-column error costs one detail of the picker rather
@@ -39,14 +41,6 @@ export async function loadRecommendableRates(admin: AdminClient): Promise<Recomm
   };
 
   type CategoryRow = { id: string; title: string; price_paise: number; duration_minutes: number | null; active: boolean };
-  type VisitRow = {
-    id: string;
-    category_id: string | null;
-    price_paise: number;
-    visit_duration_minutes: number | null;
-    travel_fee_included: boolean | null;
-  };
-
   const [categories, imageRows, specialtyRows, settings] = await Promise.all([
     soften(
       async () =>
@@ -84,25 +78,14 @@ export async function loadRecommendableRates(admin: AdminClient): Promise<Recomm
   ]);
 
   const homeVisitEnabled = settings?.home_visit_enabled === true;
-  const visits = homeVisitEnabled
-    ? await soften(
-        async () =>
-          (
-            await admin
-              .from("home_visit_packages")
-              .select("id, category_id, price_paise, visit_duration_minutes, travel_fee_included")
-              .eq("active", true)
-              .eq("visit_count", 1)
-              .eq("care_plan_course", false)
-              .order("price_paise", { ascending: true })
-          ).data as VisitRow[] | null,
-        null
-      )
-    : null;
+  // The same rows and the same rule as /home-visit and both checkouts
+  // (src/lib/homeVisitRates.ts): a condition's own price, else the
+  // clinic-wide one. A failed read prices no hands-on visit at all rather
+  // than guessing one.
+  const visits = homeVisitEnabled ? await loadHomeVisitPriceRows(admin) : null;
 
   const imageById = new Map((imageRows ?? []).map((c) => [c.id, c.image_url ?? null]));
   const specialtyById = new Map((specialtyRows ?? []).map((c) => [c.id, c.specialty ?? null]));
-  const generalVisit = (visits ?? []).find((v) => v.category_id === null) ?? (visits ?? [])[0] ?? null;
 
   const out: RecommendableRate[] = [];
   for (const c of categories ?? []) {
@@ -122,18 +105,18 @@ export async function loadRecommendableRates(admin: AdminClient): Promise<Recomm
       travelFeeIncluded: false,
       specialty,
     });
-    const visit = (visits ?? []).find((v) => v.category_id === c.id) ?? generalVisit;
-    if (visit && visit.price_paise > 0) {
+    const visit = visits ? effectiveHomeVisitRate(visits, c.id) : null;
+    if (visit) {
       out.push({
         id: `home_visit_package:${c.id}`,
         kind: "home_visit_package",
         categoryId: c.id,
         categoryTitle: c.title,
         imageUrl,
-        perSessionPaise: visit.price_paise,
-        sessionDurationMinutes: visit.visit_duration_minutes ?? null,
+        perSessionPaise: visit.pricePaise,
+        sessionDurationMinutes: visit.durationMinutes,
         validityDays: settings?.home_visit_default_validity_days ?? null,
-        travelFeeIncluded: visit.travel_fee_included === true,
+        travelFeeIncluded: visit.travelFeeIncluded,
         specialty,
       });
     }

@@ -1,12 +1,11 @@
 "use client";
 
-import { useId, useEffect, useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
-import { payForCarePlan } from "@/lib/carePlanPayment";
-import AddressForm from "@/components/booking/AddressForm";
 import PackageBulkScheduler from "@/components/packages/PackageBulkScheduler";
-import type { HomeVisitAddressForm } from "@/lib/homeVisitPayment";
+import ProgrammeCover from "@/components/packages/ProgrammeCover";
 import {
   carePlanState,
   parseOfferSnapshot,
@@ -18,6 +17,11 @@ import { usePricing } from "@/components/pricing/PricingProvider";
 
 function formatInr(paise: number) {
   return `₹${formatRupees(paise)}`;
+}
+
+/** Where "Accept & pay" goes: the programme's own review-and-pay page. */
+export function programmeCheckoutHref(versionId: string): string {
+  return `/patient/dashboard/suggested/checkout?plan=${encodeURIComponent(versionId)}`;
 }
 
 export type CarePlanOffer = {
@@ -32,21 +36,13 @@ export type CarePlanOffer = {
   instructions: string | null;
   expiresAt: string | null;
   isHomeVisit: boolean;
+  /** The condition's photograph as it is now (with its focal point), read
+   *  live so an admin's re-crop reaches an open recommendation. Falls back
+   *  to the snapshot's frozen URL when absent. */
+  cover?: { src: string | null; focalX: number | null; focalY: number | null } | null;
 };
 
-/**
- * What the therapist recommended, and the one button that buys it.
- *
- * Everything on this card was decided by a clinician who has seen this
- * patient: the programme, how many sessions, how often, whether it needs
- * hands-on work. The patient's decision is yes or no -- there is nothing to
- * configure, which is why there is no picker, no quantity and no add-ons.
- *
- * Both controls guard with a synchronous ref rather than a `disabled`
- * attribute, the same rule SuggestSessionControl documents: `disabled`
- * lands a render too late for a fast double-click, and this one opens a
- * payment window.
- */
+/** A home-visit address the patient already has on file. */
 export type SavedAddress = {
   id: string;
   label: string | null;
@@ -55,142 +51,48 @@ export type SavedAddress = {
   pincode: string;
 };
 
+/**
+ * What the therapist recommended, and the way to buy it.
+ *
+ * Everything on this card was decided by a clinician who has seen this
+ * patient: the programme, how many sessions, how often, whether it needs
+ * hands-on work. The patient's decision is yes or no -- there is nothing to
+ * configure, which is why there is no picker, no quantity and no add-ons.
+ *
+ * "Accept & pay" no longer opens Razorpay from here. It used to, which left
+ * nowhere to type a promo code and nowhere to read the total before the
+ * sheet appeared. It now leads to the programme's review-and-pay page
+ * (/patient/dashboard/suggested/checkout), which carries the address for a
+ * home visit, the code and a server-quoted breakdown, the way step 3 of the
+ * booking wizard does for a single session.
+ *
+ * Decline guards with a synchronous ref rather than a `disabled` attribute,
+ * the same rule SuggestSessionControl documents: `disabled` lands a render
+ * too late for a fast double-click.
+ */
 export default function CarePlanOfferCard({
   offer,
   homeVisitEnabled = true,
-  patientName,
-  patientEmail,
-  savedAddresses,
   nowMs,
-  bulkScheduleMax,
 }: {
   offer: CarePlanOffer;
   /** The clinic's master switch. A recommendation written while home
    *  visits were on outlives the switch being turned off, and every route
-   *  behind this card refuses once it is -- so the card has to say so
+   *  behind the checkout refuses once it is -- so the card has to say so
    *  rather than offer a button that cannot work. */
   homeVisitEnabled?: boolean;
-  patientName: string;
-  patientEmail: string;
-  /** Home-visit recommendations only: what the patient already has on file. */
-  savedAddresses: SavedAddress[];
   /** Passed in from the server so the state does not flip at hydration. */
   nowMs: number;
-  /** The admin's cap on how many sessions may be scheduled in one go. */
-  bulkScheduleMax: number;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [paid, setPaid] = useState<{ purchaseId: string | null } | null>(null);
   const [decliningOpen, setDecliningOpen] = useState(false);
   const declineReasonId = useId();
   const [declineReason, setDeclineReason] = useState("");
   const [isPending, startTransition] = useTransition();
-  const [paying, setPaying] = useState(false);
   const inFlight = useRef(false);
 
-  // Where a recommended course of home visits is delivered.
-  //
-  // Asked here rather than after payment because the purchase itself is
-  // booked against a saved address -- a home-visit purchase with none is
-  // one the patient cannot use, which is exactly the state this card used
-  // to create. Defaults to the first address on file, since a patient being
-  // recommended home visits has usually had one already.
-  const [addressId, setAddressId] = useState<string | null>(
-    savedAddresses[0]?.id ?? null
-  );
-  const [newAddress, setNewAddress] = useState<HomeVisitAddressForm>({
-    line1: "",
-    pincode: "",
-  });
-  const usingNewAddress = addressId === null;
-
-  // What the visits will actually cost, travel included.
-  //
-  // This card used to print the programme price on the button while
-  // /api/care-plan/create-order charged the programme price PLUS travel for
-  // every visit in it -- a four-visit programme in a ₹150 area was ₹600
-  // more than the button said. Quoting a different number than you charge
-  // is the one thing a payment screen must never do, so the fee is fetched
-  // for the address in front of the patient and shown as its own line.
-  //
-  // check-area is the same endpoint the home-visit wizard uses, so the
-  // serviceability answer here and at checkout come from one place.
-  const pincode = usingNewAddress
-    ? newAddress.pincode?.trim() ?? ""
-    : savedAddresses.find((a) => a.id === addressId)?.pincode ?? "";
-  // Keyed by the pincode it was fetched for, so a changed address derives
-  // "no quote yet" instead of an effect writing state synchronously to
-  // clear it -- which is a cascading render, and would also blink the total
-  // away for a frame while the same answer was refetched.
-  // "unknown" is the fourth state and it is not a formality. The `.then`
-  // below treated any body without a `serviceable` field as a *negative*, so
-  // a rate-limited or failed lookup told the patient "We don't visit that
-  // pincode yet" and disabled the pay button -- a refused sale on a
-  // programme their own clinician recommended, over a lookup that never
-  // answered. The `.catch` beside it already had this right ("a failed quote
-  // must not block the purchase"); only the HTTP-error path did not.
-  type QuoteResult = { travelFeePaise: number } | "unserviceable" | "unknown";
-  const [quoted, setQuoted] = useState<{ pincode: string; result: QuoteResult } | null>(null);
-  const pincodeReady = /^\d{6}$/.test(pincode);
-  const quote:
-    | { state: "idle" | "loading" | "unserviceable" | "unknown" }
-    | { state: "ready"; travelFeePaise: number } =
-    !offer.isHomeVisit || !pincodeReady
-      ? { state: "idle" }
-      : quoted?.pincode !== pincode
-        ? { state: "loading" }
-        : quoted.result === "unserviceable"
-          ? { state: "unserviceable" }
-          : quoted.result === "unknown"
-            ? { state: "unknown" }
-            : { state: "ready", travelFeePaise: quoted.result.travelFeePaise };
-
-  useEffect(() => {
-    if (!offer.isHomeVisit || !pincodeReady) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`/api/home-visit/check-area?pincode=${pincode}`);
-        const data = await r.json().catch(() => null);
-        if (cancelled) return;
-        // Only a 200 carries an answer. A 429 or a 500 means we did not find
-        // out, which is a different thing from finding out we do not go there.
-        if (!r.ok) {
-          setQuoted({ pincode, result: "unknown" });
-          return;
-        }
-        setQuoted({
-          pincode,
-          result:
-            data?.serviceable && typeof data.travelFeePaise === "number"
-              ? { travelFeePaise: data.travelFeePaise }
-              : "unserviceable",
-        });
-      } catch {
-        // A failed quote must not block the purchase: the server resolves
-        // the real figure at checkout regardless. The button falls back to
-        // saying "Accept & pay" with no number rather than the wrong one.
-        if (!cancelled) setQuoted({ pincode, result: "unknown" });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [offer.isHomeVisit, pincode, pincodeReady]);
-
-
-
   const snapshot = parseOfferSnapshot(offer.offerSnapshot);
-  const travelPaise =
-    offer.isHomeVisit && quote.state === "ready" && snapshot
-      ? quote.travelFeePaise * Math.max(1, snapshot.sessionCount)
-      : 0;
-  // A package with travel already in its price adds nothing on top.
-  const chargeablePaise = snapshot
-    ? snapshot.pricePaise + (snapshot.travelFeeIncluded ? 0 : travelPaise)
-    : null;
-  const totalKnown = !offer.isHomeVisit || quote.state === "ready";
   // Video sessions follow the visitor's currency (the server charges the
   // rupee equal of the same figure); a home visit is delivered and charged
   // in India, so it stays in rupees.
@@ -202,57 +104,6 @@ export default function CarePlanOfferCard({
     { expires_at: offer.expiresAt },
     nowMs
   );
-
-  function handlePay() {
-    if (inFlight.current) return;
-    if (offer.isHomeVisit) {
-      if (usingNewAddress && !newAddress.line1.trim()) {
-        setError("Add the address these visits should come to.");
-        return;
-      }
-      if (usingNewAddress && !/^\d{6}$/.test(newAddress.pincode.trim())) {
-        setError("Add the 6-digit pincode for this address.");
-        return;
-      }
-      if (quote.state === "unserviceable") {
-        setError("We don't visit that pincode yet. Try another address, or ask us about it.");
-        return;
-      }
-    }
-    inFlight.current = true;
-    setPaying(true);
-    setError(null);
-    void payForCarePlan({
-      carePlanVersionId: offer.versionId,
-      addressId: offer.isHomeVisit ? addressId : null,
-      address: offer.isHomeVisit && usingNewAddress ? newAddress : null,
-      name: patientName,
-      email: patientEmail,
-      description: snapshot?.title ?? "Treatment programme",
-      onSuccess: ({ purchaseId }) => {
-        inFlight.current = false;
-        setPaying(false);
-        // Deliberately NOT a plain refresh.
-        //
-        // A refresh here removed the card and put nothing in its place: the
-        // patient had just spent several thousand rupees, and the screen
-        // went blank at the highest-intent moment in the whole product.
-        // What they actually bought is appointments, not a credit balance,
-        // so the payment now lands on the step that turns one into the
-        // other.
-        setPaid({ purchaseId });
-      },
-      onError: (message) => {
-        inFlight.current = false;
-        setPaying(false);
-        setError(message);
-      },
-      onDismiss: () => {
-        inFlight.current = false;
-        setPaying(false);
-      },
-    });
-  }
 
   function handleDecline() {
     if (inFlight.current) return;
@@ -278,47 +129,27 @@ export default function CarePlanOfferCard({
     });
   }
 
-  // Home visits switched off after this was recommended: `check-area`
-  // answers 403, `care-plan/create-order` refuses, and without this the
-  // patient met "we couldn't work out the travel fee" over a button that
-  // could never succeed. Same rule as the Pay Now button a pay-later session
-  // stopped offering -- a control the server refuses outright must not
-  // render.
+  // Home visits switched off after this was recommended: the checkout's
+  // quote and order routes both refuse, so the card says so rather than
+  // leading to a page whose Pay button could never succeed. Same rule as the
+  // Pay Now button a pay-later session stopped offering -- a control the
+  // server refuses outright must not render.
   // Paused by the master switch, or not offered where this patient is.
   const homeVisitWithdrawn = offer.isHomeVisit && (!homeVisitEnabled || !homeVisitsOffered);
   const actionable = state === "awaiting_patient" && !homeVisitWithdrawn;
 
-  // What the patient sees the instant the payment clears, in place of the
-  // card they were reading. It stays until they schedule or dismiss it --
-  // a refresh would drop them back to a screen with nothing on it.
-  if (paid) {
-    return (
-      <PaidAndUnscheduled
-        offer={offer}
-        purchaseId={paid.purchaseId}
-        sessionCount={snapshot?.sessionCount ?? 0}
-        minGapHours={snapshot?.minGapHours ?? null}
-        maxPerWeek={snapshot?.maxPerWeek ?? null}
-        validityDays={snapshot?.validityDays ?? null}
-        bulkScheduleMax={bulkScheduleMax}
-        nowMs={nowMs}
-      />
-    );
-  }
-
   return (
     <div className="overflow-hidden rounded-2xl border border-teal-200 bg-white shadow-sm">
-      {snapshot?.imageUrl && (
-        // The condition's own photograph, the same one its card on /conditions
-        // carries, so the recommendation reads as that treatment at a glance.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={snapshot.imageUrl}
-          alt=""
-          data-testid="care-plan-image"
-          className="h-36 w-full object-cover sm:h-44"
-        />
-      )}
+      {/* The condition's own photograph, the same one its card on
+          /conditions carries, shown whole so the recommendation reads as
+          that treatment at a glance (ProgrammeCover says why not a crop). */}
+      <ProgrammeCover
+        src={offer.cover?.src ?? snapshot?.imageUrl ?? null}
+        focalX={offer.cover?.focalX}
+        focalY={offer.cover?.focalY}
+        className="h-52 sm:h-72"
+        testId="care-plan-image"
+      />
       <div className="p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -337,7 +168,7 @@ export default function CarePlanOfferCard({
       {snapshot && (
         <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <dt className="text-[11px] text-slate-500">Sessions</dt>
+            <dt className="text-[11px] text-slate-500">{offer.isHomeVisit ? "Visits" : "Sessions"}</dt>
             <dd className="text-sm font-bold text-slate-900">{snapshot.sessionCount}</dd>
           </div>
           <div>
@@ -358,7 +189,7 @@ export default function CarePlanOfferCard({
             </dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-500">Each session</dt>
+            <dt className="text-[11px] text-slate-500">{offer.isHomeVisit ? "Each visit" : "Each session"}</dt>
             <dd className="text-sm font-bold text-slate-900">
               {snapshot.sessionDurationMinutes ? `${snapshot.sessionDurationMinutes} min` : "-"}
             </dd>
@@ -369,7 +200,8 @@ export default function CarePlanOfferCard({
       <div className="mt-4 flex flex-wrap gap-2">
         <Tag>{offer.isHomeVisit ? "At your home" : "Video sessions"}</Tag>
         {offer.handsOnRequired && <Tag>Hands-on treatment</Tag>}
-        {snapshot?.validityDays && <Tag>Valid {snapshot.validityDays} days</Tag>}
+        {/* No "Valid N days" tag: the programme's validity is said only
+            near its end, as a date to book by (patientExpiryNotice). */}
       </div>
 
       {offer.clinicalRationale && (
@@ -389,113 +221,6 @@ export default function CarePlanOfferCard({
 
       {error && <p className="mt-3 text-xs font-semibold text-red-600">{error}</p>}
 
-      {actionable && offer.isHomeVisit && (
-        <div className="mt-5 rounded-xl border border-slate-200 p-3">
-          <p className="text-xs font-semibold text-slate-800">Where should we come?</p>
-          <p className="mt-0.5 text-[11px] text-slate-500">
-            Travel to your area is added at checkout and shown before you pay.
-          </p>
-          {savedAddresses.length > 0 && (
-            <div className="mt-2 space-y-1.5">
-              {savedAddresses.map((a) => (
-                <label key={a.id} className="flex cursor-pointer items-start gap-2 text-xs">
-                  <input
-                    type="radio"
-                    name={`address-${offer.versionId}`}
-                    className="mt-0.5"
-                    checked={addressId === a.id}
-                    onChange={() => setAddressId(a.id)}
-                  />
-                  <span className="text-slate-700">
-                    {a.label ? <span className="font-semibold">{a.label} · </span> : null}
-                    {a.line1}
-                    {a.city ? `, ${a.city}` : ""} - {a.pincode}
-                  </span>
-                </label>
-              ))}
-              <label className="flex cursor-pointer items-start gap-2 text-xs">
-                <input
-                  type="radio"
-                  name={`address-${offer.versionId}`}
-                  className="mt-0.5"
-                  checked={usingNewAddress}
-                  onChange={() => setAddressId(null)}
-                />
-                <span className="text-slate-700">Somewhere else</span>
-              </label>
-            </div>
-          )}
-          {usingNewAddress && (
-            <div className="mt-3 space-y-4">
-              {/* The shared AddressForm leaves the pincode to the wizard's
-                  area step, which this card does not have -- so without this
-                  field a new address could never be complete, and every pay
-                  attempt said "Add the address these visits should come to". */}
-              <label className="block">
-                <span className="text-xs font-semibold text-slate-700">Pincode</span>
-                <input
-                  value={newAddress.pincode}
-                  onChange={(e) =>
-                    setNewAddress({ ...newAddress, pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })
-                  }
-                  disabled={paying}
-                  inputMode="numeric"
-                  autoComplete="postal-code"
-                  placeholder="6 digits"
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
-                />
-              </label>
-              <AddressForm value={newAddress} onChange={setNewAddress} disabled={paying} />
-            </div>
-          )}
-
-          {quote.state === "unserviceable" && (
-            <p className="mt-3 text-xs font-semibold text-amber-700">
-              We don&apos;t visit that pincode yet. Try another address, or get in touch and
-              we&apos;ll tell you when we do.
-            </p>
-          )}
-
-          {quote.state === "unknown" && (
-            <p className="mt-3 text-xs text-slate-500">
-              We couldn&apos;t work out the travel fee for this address just now, so
-              it isn&apos;t in the total below. You&apos;ll see the full figure before
-              you pay.
-            </p>
-          )}
-
-          {snapshot && quote.state === "ready" && (
-            <dl className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-xs">
-              <div className="flex justify-between">
-                <dt className="text-slate-500">
-                  {snapshot.sessionCount} {snapshot.sessionCount === 1 ? "visit" : "visits"}
-                </dt>
-                <dd className="font-semibold text-slate-800">
-                  {formatInr(snapshot.pricePaise)}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-500">
-                  Travel
-                  {!snapshot.travelFeeIncluded && (
-                    <> · {formatInr(quote.travelFeePaise)} × {snapshot.sessionCount} visits</>
-                  )}
-                </dt>
-                <dd className="font-semibold text-slate-800">
-                  {snapshot.travelFeeIncluded ? "Included" : formatInr(travelPaise)}
-                </dd>
-              </div>
-              <div className="flex justify-between border-t border-slate-100 pt-1">
-                <dt className="font-semibold text-slate-700">Total</dt>
-                <dd className="font-bold text-slate-900">
-                  {chargeablePaise !== null ? formatInr(chargeablePaise) : "-"}
-                </dd>
-              </div>
-            </dl>
-          )}
-        </div>
-      )}
-
       {homeVisitWithdrawn && state === "awaiting_patient" && (
         <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800">
           {homeVisitsOffered
@@ -507,18 +232,18 @@ export default function CarePlanOfferCard({
       {actionable ? (
         <div className="mt-5 space-y-3">
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={handlePay}
-              disabled={paying || quote.state === "unserviceable"}
-              className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
+            {/* A link, not a payment: the review page shows the full
+                breakdown and takes a promo code before Razorpay opens. A
+                home visit's figure waits for its address there, because
+                travel is charged per visit and depends on where. */}
+            <Link
+              href={programmeCheckoutHref(offer.versionId)}
+              className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800"
             >
-              {paying
-                ? "Opening payment…"
-                : chargeablePaise !== null && totalKnown
-                  ? `Accept & pay ${priceText(chargeablePaise)}`
-                  : "Accept & pay"}
-            </button>
+              {snapshot && !offer.isHomeVisit
+                ? `Accept & pay ${priceText(snapshot.pricePaise)}`
+                : "Accept & pay"}
+            </Link>
             {!decliningOpen && (
               <button
                 type="button"
@@ -565,7 +290,9 @@ export default function CarePlanOfferCard({
           )}
 
           <p className="text-[11px] text-slate-500">
-            You book each session yourself afterwards, at times that suit you.
+            {offer.isHomeVisit
+              ? "Next you'll choose where we come and see the full total, travel included, before paying. You book each visit yourself afterwards."
+              : "Next you'll see the full total and can add a promo code before paying. You book each session yourself afterwards."}
           </p>
         </div>
       ) : (
@@ -612,7 +339,7 @@ function Tag({ children }: { children: React.ReactNode }) {
  *    "later" is a real, unpunished option -- the dashboard keeps asking
  *    until the balance is spent.
  */
-function PaidAndUnscheduled({
+export function PaidAndUnscheduled({
   offer,
   purchaseId,
   sessionCount,
@@ -621,6 +348,7 @@ function PaidAndUnscheduled({
   validityDays,
   bulkScheduleMax,
   nowMs,
+  doneHref,
 }: {
   offer: CarePlanOffer;
   purchaseId: string | null;
@@ -630,9 +358,15 @@ function PaidAndUnscheduled({
   validityDays: number | null;
   bulkScheduleMax: number;
   nowMs: number;
+  /** Where "I'll do it later" and closing the scheduler go. Without it the
+   *  current page refreshes, which is right where the offer card lived; the
+   *  review-and-pay page sends the patient back to Suggested instead, since
+   *  refreshing a checkout for a plan that is now paid would only say so. */
+  doneHref?: string;
 }) {
   const router = useRouter();
   const [scheduling, setScheduling] = useState(false);
+  const finish = () => (doneHref ? router.push(doneHref) : router.refresh());
   const noun = offer.isHomeVisit ? "visit" : "session";
 
   return (
@@ -652,7 +386,6 @@ function PaidAndUnscheduled({
           </h2>
           <p className="mt-1 text-sm text-slate-600">
             {offer.therapistName} will run {sessionCount === 1 ? "it" : "them"}.
-            {validityDays ? ` Use them within ${validityDays} days.` : ""}
           </p>
         </div>
       </div>
@@ -700,7 +433,7 @@ function PaidAndUnscheduled({
                 costs nothing and is not forgotten. */}
             <button
               type="button"
-              onClick={() => router.refresh()}
+              onClick={finish}
               className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               I&apos;ll do it later
@@ -722,7 +455,7 @@ function PaidAndUnscheduled({
           }
           onClose={() => {
             setScheduling(false);
-            router.refresh();
+            finish();
           }}
         />
       )}

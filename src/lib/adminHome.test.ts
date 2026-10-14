@@ -139,7 +139,7 @@ describe("buildAdminHome", () => {
   it("names what a limited scope cannot open, and tells a full admin nothing", () => {
     expect(buildAdminHome("full", ZERO).accessNote).toBeNull();
     const note = buildAdminHome("clinical", ZERO).accessNote;
-    expect(note?.sections).toEqual(["Today", "Sessions", "People"]);
+    expect(note?.sections).toEqual(["Today", "Sessions", "Programmes", "People"]);
     expect(note?.withheld).toEqual(["Money", "Catalog", "Logs", "Settings"]);
   });
 
@@ -250,7 +250,7 @@ function paramOf(href: string, key: string): string | null {
  *  screen learns a new preset this list is what says so. */
 const KNOWN_VIEWS: Partial<Record<AdminSectionKey, Record<string, string[]>>> = {
   sessions: {
-    all: ["unassigned", "cancelled", "no_show", "completed", "home_visit", "unpaid", "today"],
+    all: ["unassigned", "awaiting_payment", "cancelled", "no_show", "completed", "home_visit", "unpaid", "today"],
   },
   money: { payouts: ["owed", "settled"] },
 };

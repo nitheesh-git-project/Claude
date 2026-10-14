@@ -20,6 +20,7 @@ import {
   adminClient,
   browserCookiesFor,
   cookieHeaderFor,
+  openTherapistHour,
   profileIdFor,
 } from "./helpers";
 
@@ -50,11 +51,12 @@ async function contextFor(email: string): Promise<APIRequestContext> {
 
 // Every suggested slot is unique across the whole file.
 //
-// Accepting a suggestion books a real appointment for the QA therapist, and
-// the suggest route refuses a slot that therapist is already busy for. Tests
-// that shared a slot with an earlier accepted one therefore got a 409 and no
-// suggestion id, then failed later on a 400 that had nothing to do with what
-// they were asserting. A counter costs nothing and removes the coupling.
+// Accepting a suggestion books a real appointment (unassigned now, waiting
+// in the admin's queue with the QA therapist pre-picked), and the suggest
+// route refuses a slot that therapist is already busy for. Tests that shared
+// a slot with an earlier assigned one got a 409 and no suggestion id, then
+// failed later on a 400 that had nothing to do with what they were
+// asserting. A counter costs nothing and removes the coupling.
 let slotCursor = 3;
 function nextSlot(): string {
   slotCursor += 1;
@@ -106,7 +108,19 @@ function cardFor(page: Page, note: string) {
   return page.locator("div").filter({ hasText: note }).last();
 }
 
+// A therapist may only suggest a time inside their own working hours (the
+// suggest route runs the admin assign's roster check up front, because an
+// accepted suggestion goes to the admin's queue with them pre-picked). The QA
+// therapist has no weekly schedule, so each suggested hour is opened as a
+// one-off exception first and closed again in afterAll.
+const closeHours: Array<() => Promise<void>> = [];
+async function openHourFor(slotTime: unknown) {
+  if (typeof slotTime !== "string" || Number.isNaN(new Date(slotTime).getTime())) return;
+  closeHours.push(await openTherapistHour(adminClient(), therapistId, slotTime));
+}
+
 async function suggest(body: Record<string, unknown>, as: APIRequestContext = therapistCtx) {
+  await openHourFor(body.slotTime);
   return as.post(`${BASE}/api/therapist/suggest-session`, { data: body });
 }
 
@@ -191,6 +205,7 @@ test.describe("Therapist-suggested sessions", () => {
     for (const ctx of [therapistCtx, therapistBCtx, patientCtx, patientBCtx]) {
       await ctx?.dispose();
     }
+    for (const close of closeHours.splice(0)) await close();
     const admin = adminClient();
     // Purchases cascade their suggestions; appointments created by accepted
     // ones are removed first so nothing is left pointing at them.
@@ -546,9 +561,7 @@ test.describe("Therapist-suggested sessions", () => {
     // be written into it and then mixed with the patient cookies injected
     // below -- Supabase chunks its auth cookie, so the two sets merge into
     // something unparseable and the proxy bounces the page to login.
-    await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
-      data: { purchaseId, slotTime: nextSlot(), note },
-    });
+    await suggest({ purchaseId, slotTime: nextSlot(), note });
 
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     // Suggested Sessions, not Overview. A therapist's proposed time used to
@@ -590,9 +603,7 @@ test.describe("Therapist-suggested sessions", () => {
     // be written into it and then mixed with the patient cookies injected
     // below -- Supabase chunks its auth cookie, so the two sets merge into
     // something unparseable and the proxy bounces the page to login.
-    await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
-      data: { purchaseId, slotTime: nextSlot(), note },
-    });
+    await suggest({ purchaseId, slotTime: nextSlot(), note });
 
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     // Suggested Sessions, not Overview. A therapist's proposed time used to
@@ -641,9 +652,7 @@ test.describe("Therapist-suggested sessions", () => {
     // be written into it and then mixed with the patient cookies injected
     // below -- Supabase chunks its auth cookie, so the two sets merge into
     // something unparseable and the proxy bounces the page to login.
-    await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
-      data: { purchaseId, slotTime: nextSlot(), note },
-    });
+    await suggest({ purchaseId, slotTime: nextSlot(), note });
 
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientA));
     // Suggested Sessions, not Overview. A therapist's proposed time used to
@@ -693,9 +702,7 @@ test.describe("Therapist-suggested sessions", () => {
     // be written into it and then mixed with the patient cookies injected
     // below -- Supabase chunks its auth cookie, so the two sets merge into
     // something unparseable and the proxy bounces the page to login.
-    await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
-      data: { purchaseId, slotTime: nextSlot() },
-    });
+    await suggest({ purchaseId, slotTime: nextSlot() });
 
     await page.context().addCookies(await browserCookiesFor(QA_EMAILS.therapistA));
     // My Patients, then its Programmes view. A therapist's programme list
@@ -727,5 +734,50 @@ test.describe("Therapist-suggested sessions", () => {
       .eq("purchase_id", purchaseId)
       .single();
     expect(row?.status).toBe("withdrawn");
+  });
+
+  test("SS-019: a time outside the therapist's own working hours is refused up front", async () => {
+    // An accepted suggestion goes to the admin's queue with this therapist
+    // pre-picked, and the admin's assign refuses an hour they are not
+    // working -- so the suggestion is refused here instead, before the
+    // patient is asked anything. The hour is closed explicitly (a one-off
+    // exception) so the test does not depend on the QA therapist's template.
+    const admin = adminClient();
+    const purchaseId = await freshPurchase(admin);
+    const slot = nextSlot();
+    const ist = new Date(new Date(slot).getTime() + 5.5 * 3_600_000);
+    const date = ist.toISOString().slice(0, 10);
+    const hour = ist.getUTCHours();
+    await admin
+      .from("therapist_availability_override")
+      .upsert(
+        { therapist_id: therapistId, date, hour, available: false, note: "e2e" },
+        { onConflict: "therapist_id,date,hour" }
+      );
+    try {
+      // Straight to the route, not suggest(): that helper opens the hour.
+      const res = await therapistCtx.post(`${BASE}/api/therapist/suggest-session`, {
+        data: { purchaseId, slotTime: slot },
+      });
+      expect(res.status()).toBe(409);
+      const body = await res.json();
+      expect(body.error).toMatch(/inside your own working hours/i);
+      // The second sentence names the reason, which depends on the fixture's
+      // roster (no weekly hours at all, or not working that hour).
+      expect(body.error).toMatch(/You're not working|haven't filled in your working hours/);
+      const { count } = await admin
+        .from("session_suggestions")
+        .select("id", { count: "exact", head: true })
+        .eq("purchase_id", purchaseId);
+      expect(count, "nothing was sent to the patient").toBe(0);
+    } finally {
+      await admin
+        .from("therapist_availability_override")
+        .delete()
+        .eq("therapist_id", therapistId)
+        .eq("date", date)
+        .eq("hour", hour)
+        .eq("note", "e2e");
+    }
   });
 });

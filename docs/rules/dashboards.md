@@ -122,6 +122,34 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   arose sinks further the longer it goes unanswered, which is backwards for
   the one class of item that is still owed something - a programme paid for
   a month ago with sessions unbooked is the case that made it obvious.
+- **Recommendations are on the admin's Today, every state of them.** A
+  recommendation is where a programme - most of the clinic's revenue -
+  starts, and Today used to say only "N waiting for approval": a patient
+  paying, declining or letting one lapse reached nobody.
+  `buildRecommendationPulse` (`src/lib/recommendationPulse.ts`) turns each
+  plan into the one event its state is, dated from the row: waiting for
+  approval and paid-with-nothing-booked-for-two-days are `needsYou` and
+  pinned; with the patient, lapsing soon, paid, declined (with the reason)
+  and lapsed are news. They render as the Recommendations card above the
+  Activity feed (`AdminRecommendationPulse`, DashboardOverview's
+  `spotlight`), go into the feed itself, and paid-unbooked is an urgent
+  inbox row. Built over the rows Programmes lists, so the card and the
+  screen agree; amounts only for a scope that can open Money; no link for
+  one that cannot open Programmes. Each event leads with the programme's ID
+  and progress (`PED_PKG001-0/6`) and links to that programme on
+  Programmes -> All Programmes (`?view=code:...`); one waiting for approval
+  links to Programmes -> Recommendations for a desk that manages it, and to
+  the Waiting approval stage for one that only reads. The paid-unbooked
+  inbox row opens the stage narrowed to the same two days
+  (`?view=late:48`).
+- **A programme is named by its ID everywhere it appears.** The patient's
+  Your Programmes cards and session cards, and the therapist's session
+  cards and Programmes view, show `ProgrammeIdChip` -- `PED_PKG001-2/6`,
+  completed over bought, counted across every session of the programme
+  rather than one therapist's share -- read by
+  `src/lib/programmeTagsServer.ts` in its own tolerant call, so a database
+  without the column shows the old SP/HS code instead. The patient is told
+  to quote it; it is the same ID the clinic searches (`programmes.md`).
 - **Assigning is not reassigning, and the word has to say which.** A session
   nobody has ever been assigned to offered only "Reschedule / Reassign",
   which reads as editing something that already happened - so the one
@@ -140,6 +168,26 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `SessionFilterList` (Upcoming / Past / Cancelled, plus a Video / Home
   visit filter that only appears for people who have both). Add a filter
   rather than a second list.
+- **A programme session waiting on the clinic says "Booked - confirming
+  your therapist".** Every programme session reaches the admin unassigned
+  (`programmes.md`), so for a while it is `requested` with nobody on it --
+  and "Requested" read as though the patient had asked for something that
+  might be refused, about a session that is paid for and booked.
+  `patientSessionStatus` (`src/lib/sessionRowStatus.ts`) is the one reading:
+  `requested`, unassigned and drawn from a purchase is "Booked - confirming
+  your therapist" on the session card, the Sessions list row
+  (`FilterableSession.statusLabel`), the Home feed ("Video session booked -
+  confirming your therapist", `awaiting_programme_therapist` on
+  `FeedAppointment`) and both bulk schedulers' result rows. A single
+  consultation keeps "Requested" / "waiting for a therapist"; an accepted
+  suggestion reads "Accepted - clinic confirming".
+- **Status decides a session's tab before its time does**
+  (`src/lib/sessionBucket.ts`). Completed is Past and cancelled is
+  Cancelled whatever the slot says; only an open session is bucketed by
+  time (started-but-unfinished stays under Upcoming for a day). Done can
+  land before the slot's start on the dashboards' real clock - an admin's
+  Done has no time gate and the debug clock moves the therapist's - and a
+  time-first split left those completed sessions under Upcoming.
 - **A different way of looking at the same rows is a view switch, not a
   sidebar entry.** Calendar was its own entry on the patient and therapist
   dashboards and is now a List/Calendar toggle on Sessions
@@ -364,8 +412,57 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   strip above its content instead of nested in the sidebar. Anything else
   pinned to the bottom of the screen (toasts, the live-update banner, the
   scroll hint) adds `--app-bottom-inset`, which a `data-tabbar` element sets
-  in `globals.css`, so nothing sits under the bar. The onboarding tour finds
-  its targets by `data-tour="nav-<id>"` on whichever copy is visible.
+  in `globals.css`, so nothing sits under the bar.
+- **The dashboard tutorial is told with dummy data, and its (i) explains
+  the thing it sits beside.** A patient's, therapist's or hospital's first
+  visit opens it over the dashboard (`TutorialGate` in each role's layout,
+  `profiles.onboarding_seen_at` null); Done or a confirmed Skip records it
+  through `/api/dashboard/tutorial-seen` and it never opens by itself again.
+  Four rules:
+  1. **Never the person's own data.** Scenes draw from
+     `TUTORIAL_FIXTURES` and render miniature copies of the screens, not the
+     real components - a tour that read real rows would need every page's
+     loaders, and one that wrote anything would be a tour with side effects.
+  2. **The words are the screens' words.** "waiting for a therapist",
+     "Waiting for the clinic to approve", "Onboarding needed", the five
+     referral labels - a person meets each twice, first with nothing at
+     stake. Change a label on a screen and change it in
+     `src/lib/tutorial.ts` in the same commit.
+  3. **Every dashboard page has a chapter.** The page title's (i) is
+     automatic (`DashboardShell`), and `tutorial.test.ts` walks the app
+     directory and fails on a page no chapter claims - so a new page ships
+     with its explanation or the build says why not. Cards opt in with
+     `SurfaceCard info="card:..."`; Home feed rows map by id prefix
+     (`tutorialSectionForFeedItem`).
+  4. **A failed read does not open it, and an admin viewing as the person
+     neither opens nor uses it up.** "We couldn't tell" is not "first visit".
+  Guard: `e2e/dashboard-tutorial.spec.ts`. Global setup marks the QA
+  accounts seen, since the tour takes every click; only that spec clears it.
+
+  **Guides** are chapters on the same stage that are *not* in the tour,
+  opened only from their own button (`GUIDES` in `src/lib/tutorial.ts`,
+  reached through `chapterForSection`). The one so far is the therapist's
+  **How onboarding works** (`guide:onboarding`): what onboarding is, getting
+  ready, the four triage questions with all three suggestions, each condition
+  type's question set, saving, and changing the type later. Its question
+  scenes (`src/components/tutorial/onboardingScenes.tsx`) read
+  `TRIAGE_QUESTIONS`, `suggestSpecialtyFromTriage` and
+  `questionsForSpecialty` directly, so a changed question set changes the
+  guide with it; the step text names the questions too, so update it in the
+  same commit.
+- **A patient nobody has onboarded is said in three places on the
+  therapist's side**, because until it is done the patient's own Health
+  Profile is locked: the Home feed row, a banner above the greeting
+  (`OnboardingNeededBanner`, three by name with their next session, the rest
+  counted), and an amber strip on that patient's session cards
+  (`OnboardingStrip` in `TherapistSessionCards.tsx`, not on a cancelled
+  one). Each has **Start onboarding**, which links to the patient's Health
+  Profile with `?start=onboarding` so the triage opens on arrival (consumed
+  once, first fill only), and **How onboarding works**. The list is
+  `onboardingNeededIds` in `therapistDashboardData.ts` - a patient with no
+  answers on file and a non-cancelled session with this therapist - and is
+  empty when the record read failed, never "everyone". Guard:
+  `e2e/therapist-onboarding.spec.ts`.
 - **From `2xl` the dashboards use the width by moving blocks, never by adding
   them.** The Overview's blocks are placed by `.overview-grid` (globals.css):
   stacked on a phone; feed and Quick actions side by side from `lg`; from
