@@ -2,9 +2,17 @@
 # (`main` is the owner's release PR from staging; the gate is for
 # proving what is about to go live, not for releasing it.)
 #
-#   context-budget ─┐
-#   coverage-manifest ─┼─> runner (7, matrix) ─> quality-gate   <- the one required check
-#   verify ─────────┘
+#   context-budget ─────┐
+#   coverage-manifest ──┤
+#   verify ─────────────┼──────────────────────────────> quality-gate   <- the one required check
+#   plan ──> runner (one job per runner × shard) ───────┘
+#
+# The runners start as soon as `plan` has turned scripts/ci/runner-shards.json
+# into the matrix (seconds); they do not wait for verify, which runs beside
+# them. The same file tells run-runner.mjs which spec files each shard runs
+# and tells the gate which summaries it must see (scripts/ci/lib/shards.mjs).
+# The target is a whole gate in about six minutes; the budget is in
+# docs/ci/QUALITY-GATE.md, "Timing".
 #
 # Every runner builds its own disposable Supabase stack on its own machine
 # (scripts/ci/provision-local-stack.sh): its own Postgres, Auth, Storage and
@@ -16,13 +24,16 @@
 # call except loopback, the Razorpay *test* API and the font CDN.
 #
 # `quality-gate` runs with `if: always()` and passes only when every job it
-# needs reported `success` AND every runner uploaded a `passed` summary with
-# tests in it (scripts/ci/lib/gate.mjs). Skipped, cancelled, timed out,
-# empty or blocked is red. No step uses continue-on-error.
+# needs reported `success` AND every runner × shard uploaded a `passed`
+# summary with tests in it AND each runner's shards were between them given
+# every spec it owns (scripts/ci/lib/gate.mjs). Skipped, cancelled, timed
+# out, missing, empty or blocked is red. No step uses continue-on-error.
 #
 # Secrets: only RAZORPAY_TEST_KEY_ID / RAZORPAY_TEST_KEY_SECRET (rzp_test_
-# only), and only into the runner steps. A pull request from a fork gets no
-# secrets, so its runners report BLOCKED and the gate is red -- by design: a
+# only), and only into the provisioning and run steps of a runner job (the
+# background stack start, plan and verify get none). A pull request from a
+# fork gets no secrets, so its runners report BLOCKED and the gate is red --
+# by design: a
 # run that could not exercise checkout has not proven checkout. Never switch
 # this to pull_request_target, which would run untrusted code with secrets.
 #
@@ -78,8 +89,10 @@ jobs:
         run: node scripts/ci/check-coverage-manifest.mjs
 
   # The same checks as ci.yml's `verify` (lint + unit tests + build against
-  # the stub). ci.yml keeps running them on pushes; this copy exists so the
-  # gate can depend on them -- a job in another workflow cannot be `needs`ed.
+  # the stub). ci.yml runs them on pushes only; for a pull request this is
+  # the one copy, here so the gate can depend on it -- a job in another
+  # workflow cannot be `needs`ed. Nothing waits on it but the verdict: the
+  # runners start beside it.
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -90,6 +103,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci --no-audit --no-fund
+      # The production build's own cache. Keyed on the lockfile and the
+      # source; a miss falls back to the newest one for this lockfile, which
+      # Next validates file by file, so a stale entry costs time, never
+      # correctness.
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-build-v1-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'public/**', 'next.config.ts', 'tsconfig.json', 'postcss.config.mjs') }}
+          restore-keys: |
+            next-build-v1-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
       - name: Lint (schema checks + eslint)
         run: npm run lint
       - name: Unit tests (src/lib + the gate's own plumbing)
@@ -104,15 +127,34 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: placeholder-service-key
           NEXT_PUBLIC_RAZORPAY_KEY_ID: rzp_test_placeholder
 
-  runner:
-    name: runner (${{ matrix.runner }})
-    needs: [context-budget, coverage-manifest, verify]
+  # One matrix entry per runner × shard, from scripts/ci/runner-shards.json.
+  # It validates that file against the manifest first (an empty shard, a
+  # split runner that owns SQL checks, too many jobs), so a bad edit stops
+  # here rather than on eighteen machines.
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Runner × shard matrix
+        id: plan
+        run: node scripts/ci/plan-shards.mjs
+
+  runner:
+    name: runner (${{ matrix.label }})
+    needs: [plan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
-      matrix:
-        runner: [patient, therapist, session, admin, hospital, platform, integrity]
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      ARTIFACTS: e2e-artifacts/${{ matrix.label }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -125,53 +167,107 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      # The image pulls are most of the provisioning time, so they start
+      # first and overlap npm ci, the browser and the caches. No secrets
+      # reach this step. The provisioning step below waits for its verdict
+      # (stack-start.status) and fails the job if it failed twice.
+      - name: Start the local Supabase stack (in the background)
+        run: nohup scripts/ci/provision-local-stack.sh --start-only > /dev/null 2>&1 &
+        env:
+          ARTIFACT_DIR: ${{ env.ARTIFACTS }}/provision
+
       - run: npm ci --no-audit --no-fund
+
+      # Chromium, keyed on the exact Playwright version the lockfile
+      # installed. On a hit nothing else is needed: ubuntu-latest already
+      # ships Chromium's system libraries (install-deps found every one of
+      # them present and cost ~20s per job).
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Restore Chromium
+        id: browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium
       - name: Install Chromium for Playwright
+        if: steps.browsers.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+
+      # next dev's Turbopack cache (on by default since Next 16.1), per
+      # runner: a shard opens the same pages as the runner's other shards,
+      # and a warm cache turns each page's first compile from seconds into a
+      # lookup. Turbopack validates entries against the files on disk, so an
+      # older entry is slower, never wrong. Saved by shard 1 only (below).
+      - name: Restore the dev-server compile cache
+        id: devcache
+        uses: actions/cache/restore@v4
+        with:
+          path: .next/dev/cache
+          key: next-dev-v1-${{ runner.os }}-${{ matrix.runner }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'public/**', 'next.config.ts', 'tsconfig.json', 'postcss.config.mjs') }}
+          restore-keys: |
+            next-dev-v1-${{ runner.os }}-${{ matrix.runner }}-${{ hashFiles('package-lock.json') }}-
 
       - name: Provision the disposable local stack
         run: scripts/ci/provision-local-stack.sh
         env:
-          ARTIFACT_DIR: e2e-artifacts/${{ matrix.runner }}/provision
+          ARTIFACT_DIR: ${{ env.ARTIFACTS }}/provision
+          GATE_STACK_STARTING: background
           NEXT_PUBLIC_RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_TEST_KEY_ID }}
           RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_TEST_KEY_SECRET }}
 
-      - name: Run the ${{ matrix.runner }} runner
-        run: node scripts/ci/run-runner.mjs ${{ matrix.runner }}
+      - name: Run the ${{ matrix.label }} runner
+        run: node scripts/ci/run-runner.mjs ${{ matrix.runner }} --shard ${{ matrix.shard }}/${{ matrix.total }}
         env:
           GATE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NEXT_PUBLIC_RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_TEST_KEY_ID }}
           RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_TEST_KEY_SECRET }}
 
+      # Only shard 1 saves, only after a pass, only when the key is new, and
+      # only under 2 GB: eighteen jobs racing to save, or a cache that grows
+      # past what restoring it saves, would cost more than it buys.
+      - name: Measure the dev-server compile cache
+        id: devcache-size
+        if: success() && matrix.shard == 1 && steps.devcache.outputs.cache-hit != 'true'
+        run: echo "mb=$(du -sm .next/dev/cache 2>/dev/null | cut -f1 || echo 0)" >> "$GITHUB_OUTPUT"
+      - name: Save the dev-server compile cache
+        if: success() && matrix.shard == 1 && steps.devcache.outputs.cache-hit != 'true' && steps.devcache-size.outputs.mb != '' && fromJSON(steps.devcache-size.outputs.mb) > 0 && fromJSON(steps.devcache-size.outputs.mb) < 2048
+        uses: actions/cache/save@v4
+        with:
+          path: .next/dev/cache
+          key: ${{ steps.devcache.outputs.cache-primary-key }}
+
       - name: Build the failure bundle
         if: failure()
-        run: node scripts/ci/make-failure-bundle.mjs ${{ matrix.runner }}
+        run: node scripts/ci/make-failure-bundle.mjs ${{ matrix.runner }} --shard ${{ matrix.shard }}/${{ matrix.total }}
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
       # Uploaded whatever happened. summary.json is what the gate reads; a
-      # runner that never wrote one is counted as not finished.
+      # shard that never wrote one is counted as not finished.
       - name: Upload summary
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: summary-${{ matrix.runner }}
+          name: summary-${{ matrix.label }}
           path: |
-            e2e-artifacts/${{ matrix.runner }}/summary.json
-            e2e-artifacts/${{ matrix.runner }}/summary.md
+            ${{ env.ARTIFACTS }}/summary.json
+            ${{ env.ARTIFACTS }}/summary.md
           if-no-files-found: ignore
           retention-days: 14
       - name: Upload reports and sanitised logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reports-${{ matrix.runner }}
+          name: reports-${{ matrix.label }}
           path: |
-            e2e-artifacts/${{ matrix.runner }}/**/report.json
-            e2e-artifacts/${{ matrix.runner }}/**/junit.xml
-            e2e-artifacts/${{ matrix.runner }}/logs/**
-            e2e-artifacts/${{ matrix.runner }}/provision/**
-            e2e-artifacts/${{ matrix.runner }}/egress-denied.log
+            ${{ env.ARTIFACTS }}/**/report.json
+            ${{ env.ARTIFACTS }}/**/junit.xml
+            ${{ env.ARTIFACTS }}/logs/**
+            ${{ env.ARTIFACTS }}/provision/**
+            ${{ env.ARTIFACTS }}/egress-denied.log
           if-no-files-found: ignore
           retention-days: 7
       # Traces, screenshots and the HTML report are binary (the report embeds
@@ -182,23 +278,23 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: traces-${{ matrix.runner }}
+          name: traces-${{ matrix.label }}
           path: |
-            e2e-artifacts/${{ matrix.runner }}/**/test-results/**
-            e2e-artifacts/${{ matrix.runner }}/**/html/**
+            ${{ env.ARTIFACTS }}/**/test-results/**
+            ${{ env.ARTIFACTS }}/**/html/**
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload failure bundle
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: failure-bundle-${{ matrix.runner }}
-          path: e2e-artifacts/${{ matrix.runner }}/failure-bundle.md
+          name: failure-bundle-${{ matrix.label }}
+          path: ${{ env.ARTIFACTS }}/failure-bundle.md
           if-no-files-found: ignore
           retention-days: 14
 
   quality-gate:
-    needs: [context-budget, coverage-manifest, verify, runner]
+    needs: [context-budget, coverage-manifest, verify, plan, runner]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -215,6 +311,8 @@ jobs:
       # always(): if the download failed the job is already red; this still
       # writes the table saying which rows are missing. gate.mjs counts a
       # missing summary as a failed row, so nothing here can turn it green.
+      # Which shards must report is read from this commit's
+      # scripts/ci/runner-shards.json, never from the artifacts.
       - name: Verdict
         if: always()
         run: node scripts/ci/gate.mjs gate-summaries

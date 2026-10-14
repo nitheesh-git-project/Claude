@@ -65,9 +65,9 @@ describe("validateManifest", () => {
 
   it("fails when a manifest spec does not exist on disk", () => {
     const { manifest, files } = good();
-    const result = run(manifest, files.filter((f) => f !== "admin-3.spec.ts"));
+    const result = run(manifest, files.filter((f) => f !== "admin-4.spec.ts"));
     expect(result.ok).toBe(false);
-    expect(messages(result)).toMatch(/names "admin-3.spec.ts", which does not exist/);
+    expect(messages(result)).toMatch(/names "admin-4.spec.ts", which does not exist/);
   });
 
   it("fails when a spec on disk has no owner", () => {
@@ -138,7 +138,7 @@ describe("validateManifest", () => {
 
   it("fails when an owned spec is cited by no flow", () => {
     const { manifest, files } = good();
-    manifest.specs["lonely.spec.ts"] = { ...manifest.specs["admin-3.spec.ts"] };
+    manifest.specs["lonely.spec.ts"] = { ...manifest.specs["admin-4.spec.ts"] };
     const result = run(manifest, [...files, "lonely.spec.ts"]);
     expect(messages(result)).toMatch(/"lonely.spec.ts" is owned but no flow cites it/);
   });
@@ -148,7 +148,7 @@ describe("validateManifest", () => {
     manifest.specs["mobile-x.spec.ts"].projects = ["desktop"];
     expect(messages(run(manifest, files))).toMatch(/runs it in the "mobile" project only/);
     manifest.specs["mobile-x.spec.ts"].projects = ["mobile"];
-    manifest.specs["admin-3.spec.ts"].projects = ["mobile"];
+    manifest.specs["admin-4.spec.ts"].projects = ["mobile"];
     expect(messages(run(manifest, files))).toMatch(/runs it in the "desktop" project only/);
   });
 
@@ -236,10 +236,10 @@ describe("selection", () => {
 
   it("carries integration and destructive flags through", () => {
     const { manifest } = good();
-    manifest.specs["integrity-6.spec.ts"].destructive = true;
-    manifest.specs["integrity-6.spec.ts"].integration = "provider-sandbox";
+    manifest.specs["integrity-7.spec.ts"].destructive = true;
+    manifest.specs["integrity-7.spec.ts"].integration = "provider-sandbox";
     expect(selectSpecs(manifest, "integrity", "desktop")).toEqual([
-      { file: "integrity-6.spec.ts", integration: "provider-sandbox", destructive: true },
+      { file: "integrity-7.spec.ts", integration: "provider-sandbox", destructive: true },
     ]);
   });
 

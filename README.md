@@ -264,7 +264,7 @@ public/             brand mark and licence-free photography
 | --- | --- | --- |
 | **Per change** | Every fix | `npm run verify` + the 2-3 specs covering what moved |
 | **Before a PR** | Once | `npm run check:merge-ready -- --e2e` - static jobs, then only the specs the change reaches |
-| **Quality gate** | Every PR into `staging` / `main` | 7 parallel runners (patient, therapist, session, admin, hospital, platform, integrity), each on its own disposable Supabase stack with the schema applied twice |
+| **Quality gate** | Every PR into `staging` / `main` | 8 runners (patient, money, therapist, session, admin, hospital, platform, integrity) split into 19 parallel jobs by `scripts/ci/runner-shards.json`, each on its own disposable Supabase stack with the schema applied twice |
 
 A red runner uploads a sanitised failure bundle - triage from that, not the raw log. **→ [docs/ci/QUALITY-GATE.md](docs/ci/QUALITY-GATE.md)** · **→ [e2e/README.md](e2e/README.md)**
 

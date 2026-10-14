@@ -18,7 +18,7 @@ import {
   markDashboardTourSeen,
   pageUntilVisible,
   profileIdFor,
-  waitForSplashToClear,
+  waitForSplashToClear, insertPastFixtureAppointment
 } from "./helpers";
 
 const db = adminClient();
@@ -113,26 +113,21 @@ test.beforeAll(async () => {
   if (existing) {
     appointmentId = existing.id;
   } else {
-    const slot = new Date(Date.now() - 9 * 86_400_000);
-    slot.setUTCHours(4, 30, 0, 0);
-    const { data, error } = await db
-      .from("appointments")
-      .insert({
+    appointmentId = await insertPastFixtureAppointment(
+      db,
+      {
         patient_id: patientId,
         therapist_id: therapistId,
         category_id: categoryId,
         concern: MARKER,
-        slot_time: slot.toISOString(),
         duration_minutes: 60,
         status: "completed",
         payment_status: "paid",
         amount_paid_paise: perSessionPaise,
         visit_mode: "online",
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    appointmentId = data.id;
+      },
+      { daysAgo: 9 }
+    );
   }
   therapist = await request.newContext({ extraHTTPHeaders: { Cookie: await cookieHeaderFor(QA_EMAILS.therapistA) } });
   adminCtx = await request.newContext({ extraHTTPHeaders: { Cookie: await cookieHeaderFor(QA_EMAILS.admin) } });

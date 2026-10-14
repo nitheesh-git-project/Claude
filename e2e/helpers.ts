@@ -556,3 +556,34 @@ export async function openTherapistHour(
       .eq("note", "e2e");
   };
 }
+
+/**
+ * Insert a completed fixture appointment in the past, at the first hour the
+ * therapist (and patient) has free. Specs that share a runner shard all park
+ * fixture sessions for the same QA therapist in the past, so a fixed slot
+ * collides with appointments_one_therapist_per_slot as soon as two of them
+ * land in one job. Returns the new appointment's id.
+ */
+export async function insertPastFixtureAppointment(
+  db: SupabaseClient,
+  row: Record<string, unknown>,
+  { daysAgo = 8 }: { daysAgo?: number } = {}
+): Promise<string> {
+  let last = "";
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const slot = new Date(Date.now() - (daysAgo + Math.floor(attempt / 12)) * 86_400_000);
+    slot.setUTCHours(2 + (attempt % 12), 30, 0, 0);
+    const { data, error } = await db
+      .from("appointments")
+      .insert({ ...row, slot_time: slot.toISOString() })
+      .select("id")
+      .single();
+    if (data) return data.id as string;
+    if (error?.code === "23505" || error?.code === "23P01") {
+      last = error.message;
+      continue;
+    }
+    throw new Error(error?.message ?? "could not create the fixture appointment");
+  }
+  throw new Error(`no free past hour for the fixture appointment: ${last}`);
+}

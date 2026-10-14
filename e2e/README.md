@@ -67,10 +67,13 @@ total, which moves with every spec added.
   append-only trigger asks for. `--apply` deletes outright and is the only
   mode that can clear pay later's fixture money.
 - `npm run seed:qa` recreates the fixture accounts after a data reset.
-- **In CI the suite runs as seven runners**, each on its own disposable local
-  Supabase stack (`.github/workflows/quality-gate.yml`). Which runner owns
-  which spec is `e2e/coverage-manifest.json`; a new spec must be added there
-  in the same commit or `check:coverage` fails. On that stack the browser
+- **In CI the suite runs as eight runners split into parallel jobs**, each
+  job on its own disposable local Supabase stack
+  (`.github/workflows/quality-gate.yml`). Which runner owns which spec is
+  `e2e/coverage-manifest.json`; how many jobs a runner gets, and which files
+  may be divided between them, is `scripts/ci/runner-shards.json`. A new
+  spec must be added to the manifest in the same commit or `check:coverage`
+  fails. On that stack the browser
   reaches Supabase, so the no-egress cases above run for real. How to
   reproduce a runner locally: `docs/ci/QUALITY-GATE.md`.
 

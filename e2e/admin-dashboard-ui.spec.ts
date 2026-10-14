@@ -20,6 +20,13 @@ async function signInAsAdmin(page: Page) {
   });
 }
 
+// Every test signs in afresh in its own browser context and none reads what
+// another wrote (the one save it clicks writes the value already there), so
+// the quality gate divides this file across the admin runner's shards
+// (scripts/ci/runner-shards.json, splitFiles). Locally, with one worker, it
+// still runs top to bottom.
+test.describe.configure({ mode: "parallel" });
+
 test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
   test.beforeAll(async () => {
     // Every test here walks all eight sections, which only a full-access admin

@@ -20,11 +20,17 @@ export function reproCommand(failure) {
 }
 
 /**
- * @param {{runner: string, summary: object|null, manifest: object, changedFiles: string[]}} input
+ * @param {{runner: string, shard?: {index: number, total: number}, summary: object|null,
+ *          manifest: object, changedFiles: string[]}} input
+ *        `shard` names which of a split runner's jobs failed (lib/shards.mjs);
+ *        omitted, or 1 of 1, it is the whole runner.
  * @returns {string} markdown
  */
-export function buildFailureBundle({ runner, summary, manifest, changedFiles = [] }) {
-  const lines = [`# Failure bundle: runner \`${runner}\``, "", UNTRUSTED_NOTICE, ""];
+export function buildFailureBundle({ runner, shard, summary, manifest, changedFiles = [] }) {
+  const split = shard && shard.total > 1;
+  const label = split ? `${runner}-${shard.index}of${shard.total}` : runner;
+  const command = `node scripts/ci/run-runner.mjs ${runner}${split ? ` --shard ${shard.index}/${shard.total}` : ""}`;
+  const lines = [`# Failure bundle: runner \`${label}\``, "", UNTRUSTED_NOTICE, ""];
   if (!summary) {
     lines.push(
       "The runner wrote no summary.json, so it did not finish: provisioning, the preflight or the app start",
@@ -32,7 +38,7 @@ export function buildFailureBundle({ runner, summary, manifest, changedFiles = [
       "",
       "```bash",
       "scripts/ci/provision-local-stack.sh",
-      `node scripts/ci/run-runner.mjs ${runner}`,
+      command,
       "```",
       ""
     );
@@ -90,7 +96,7 @@ export function buildFailureBundle({ runner, summary, manifest, changedFiles = [
   if (scriptFailures.length) {
     lines.push("## Failed integrity scripts", "");
     for (const s of scriptFailures) {
-      lines.push(`- \`${s.script}\` exited ${s.exitCode}. Log: \`logs/${s.script.split("/").pop()}.log\` in reports-${runner}.`);
+      lines.push(`- \`${s.script}\` exited ${s.exitCode}. Log: \`logs/${s.script.split("/").pop()}.log\` in reports-${label}.`);
       lines.push(
         `  Reproduce: \`${s.script.endsWith(".sql") ? `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f ${s.script}` : `node ${s.script}`}\``
       );
@@ -111,11 +117,12 @@ export function buildFailureBundle({ runner, summary, manifest, changedFiles = [
   }
   lines.push(
     "",
-    "## Whole-runner reproduction",
+    split ? "## Shard reproduction" : "## Whole-runner reproduction",
     "",
     "```bash",
     "scripts/ci/provision-local-stack.sh      # disposable stack; needs Docker + the Supabase CLI",
-    `node scripts/ci/run-runner.mjs ${runner}`,
+    command,
+    ...(split ? [`node scripts/ci/run-runner.mjs ${runner}   # or every shard of the runner, one after another`] : []),
     "```",
     ""
   );

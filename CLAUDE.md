@@ -43,10 +43,14 @@ the production Supabase project, and the owner does it by hand, deliberately.
 with a merge: `supabase/schema.sql` reaches staging's database only when a
 person applies it.
 
-**No push to a PR into `staging` or `main` until every CI runner passes
-locally:** `npm run check:merge-ready`, then `-- --e2e --append-only
---skip-static --runner <name>` for all seven runners. Fix every red, push
-once; read a red CI run from its failure bundle, never the raw log.
+**Before a push to a PR into `staging` or `main`:** a small PR (≤5 fixes,
+no schema change) gets `npm run lint && npm test` plus the 1-3 specs it
+directly affects, then is pushed. A big batch or a schema change first
+passes `npm run check:merge-ready`, then `-- --e2e --append-only
+--skip-static --runner <name>` for every runner in
+`scripts/ci/runner-shards.json` (patient, money, therapist, session, admin,
+hospital, platform, integrity). Fix every red, push once; read a red CI run
+from its failure bundle, never the raw log.
 
 ### Secrets
 

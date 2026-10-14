@@ -13,6 +13,7 @@
  *  runs the SQL checks and the authorization/concurrency scripts. */
 export const RUNNERS = [
   "patient",
+  "money",
   "therapist",
   "session",
   "admin",

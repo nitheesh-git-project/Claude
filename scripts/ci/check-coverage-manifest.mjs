@@ -4,8 +4,11 @@
 // Fails (exit 1) when a spec has no owner, an owner names a spec that is gone,
 // a required flow is a gap or blocked, a flow cites a test that no longer
 // exists, a runner would select nothing, or something the baseline recorded
-// has disappeared without a reason. See scripts/ci/lib/manifest.mjs for every
-// rule and e2e/coverage-manifest.json for the data.
+// has disappeared without a reason -- or when scripts/ci/runner-shards.json
+// does not fit the manifest (lib/shards.mjs: a runner without a shard count,
+// a split runner that owns SQL checks, an empty shard, a split file not in
+// parallel mode). See scripts/ci/lib/manifest.mjs for every rule and
+// e2e/coverage-manifest.json for the data.
 //
 //   node scripts/ci/check-coverage-manifest.mjs
 //   node scripts/ci/check-coverage-manifest.mjs --update-baseline
@@ -18,6 +21,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderCoverageDoc, snapshotBaseline, validateManifest } from "./lib/manifest.mjs";
+import { validateShardConfig } from "./lib/shards.mjs";
 
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -74,6 +78,15 @@ const result = validateManifest(manifest, specFiles, baseline, {
   specSources,
   ruleExists: (rule) => existsSync(path.join(args.root, rule)),
 });
+
+// The shard config is read only when the tree has one (a negative fixture
+// under --root need not), and is otherwise held to the same standard.
+const shardsPath = path.join(args.root, "scripts", "ci", "runner-shards.json");
+if (existsSync(shardsPath)) {
+  const shards = validateShardConfig(readJson(shardsPath, "the shard config"), manifest, specSources);
+  result.errors.push(...shards.errors.map((e) => `runner-shards.json: ${e}`));
+  result.ok = result.ok && shards.ok;
+}
 
 if (!result.ok) {
   console.error(`check:coverage FAILED (${result.errors.length}):`);
