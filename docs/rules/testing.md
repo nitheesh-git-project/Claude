@@ -165,6 +165,45 @@ test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
 
+**The money flows run against a fake Razorpay, never a real one.**
+`e2e/fake-razorpay.mjs` is a plain-Node HTTP server (no dependency) that
+implements exactly the five calls the app makes -- order create and fetch,
+an order's payments, a payment, a refund -- with Razorpay's refusals (an
+unknown id, a refund past what was captured) and test controls under
+`/__fake/`: capture a payment on an order, refuse the next refund the way an
+empty balance does, list the calls it received. The app reaches it only
+through `RAZORPAY_API_BASE_URL`, which `src/lib/razorpayClient.ts` honours
+for a loopback origin only, never in production and never with a live key
+(`docs/rules/payments.md`). `e2e/fakeGateway.ts` is the specs' handle on it:
+it applies the same rule, signs the checkout callback (HMAC-SHA256 of
+`order|payment` with `RAZORPAY_KEY_SECRET`) and the webhook (HMAC of the raw
+body with `RAZORPAY_WEBHOOK_SECRET`), and makes every spec that needs it
+**skip with the reason** when it is not configured or not answering -- a
+money spec must never reach a real gateway. `e2e/moneyFixtures.ts` makes a
+fresh patient (and therapist, hospital) per run, books into a free slot and
+pays through create-order -> fake capture -> signed verify. In the quality
+gate `scripts/ci/run-runner.mjs` starts the fake for every runner and sets
+the variable for the dev server and Playwright alike, `quality-gate.yml`
+generates the webhook secret per run, and an undeclared skip fails the
+runner, so the gate cannot pass by skipping. Locally, against `.env.local`:
+
+```bash
+node e2e/fake-razorpay.mjs &                         # 127.0.0.1:4010
+export RAZORPAY_API_BASE_URL=http://127.0.0.1:4010
+export RAZORPAY_WEBHOOK_SECRET=whsec-local-$(date +%s) # the same in both
+npm run dev &                                        # started with both exported
+E2E_ALLOW_APPEND_ONLY_WRITES=1 npx playwright test e2e/gateway-payment-capture.spec.ts --project=desktop
+```
+
+Export the `.env.local` values into the Playwright shell too
+(`set -a; . ./.env.local; set +a`): the specs sign with the same
+`RAZORPAY_KEY_SECRET` the server checks against. Writing these specs found
+three real bugs -- a replayed verify re-stamping `paid_at`, a refused partial
+refund erasing the earlier refund's reason and date, and the admin Partners
+card quoting a commission on paid-but-undelivered sessions at the live rate
+-- none of which an arithmetic test could see, because each was the right
+number written to the wrong row or at the wrong moment.
+
 **The whole suite runs once before a merge, never once per fix.** It is
 `workers: 1` against one Supabase project and one app instance by design, so
 it is slow by design too -- running all of it after each bug fix spends

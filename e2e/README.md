@@ -67,6 +67,14 @@ total, which moves with every spec added.
   append-only trigger asks for. `--apply` deletes outright and is the only
   mode that can clear pay later's fixture money.
 - `npm run seed:qa` recreates the fixture accounts after a data reset.
+- **The `gateway-*` specs, `hospital-referral-revenue` and `concurrency` need
+  the fake Razorpay** (`e2e/fake-razorpay.mjs`), and skip with the reason
+  without it -- they never reach a real gateway. Start it
+  (`node e2e/fake-razorpay.mjs`, port 4010), then run **both** `npm run dev`
+  and Playwright with `RAZORPAY_API_BASE_URL=http://127.0.0.1:4010` and the
+  same `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET`; the specs sign
+  the checkout callback and the webhook with them. In CI `run-runner.mjs`
+  does all of this for every runner. Details: `docs/rules/testing.md`.
 - **In CI the suite runs as eight runners split into parallel jobs**, each
   job on its own disposable local Supabase stack
   (`.github/workflows/quality-gate.yml`). Which runner owns which spec is
@@ -91,6 +99,12 @@ total, which moves with every spec added.
 | `acquisition-codes` | 18 | a promo code quoting with no amount in the request, a redemption cap, a paused campaign, an invite that cannot be self-claimed, and the free-booking path |
 | `unscheduled-purchases` | 3 | a paid purchase nobody ever booked anything against, on Programmes -> All Programmes ("Paid - nothing booked", narrowed to the day-old ones the Money alert counts) |
 | `session-scheduling` | 6 | booking the sessions a patient paid for, none of which assigns itself even on a locked programme |
+| `gateway-payment-capture` | 2 | a session priced by the server, captured at the gateway and verified with a correctly signed callback -- a forged signature, the wrong order or another patient changing nothing, a replay changing nothing (not even `paid_at`), no second checkout; a programme bought the same way granting its credits exactly once. Fake gateway; append-only writes - disposable project only |
+| `gateway-webhook-recovery` | 3 | a capture whose verify never ran recovered by a signed `payment.captured` webhook exactly once (forged or unsigned refused before anything is recorded, a retry a duplicate, a second event and a late browser callback no-ops); `payment.authorized` recorded and applying nothing; a programme paid with the tab closed getting its credits from the webhook. Fake gateway; append-only writes - disposable project only |
+| `gateway-cancellation-refund` | 2 | a patient's cancellation outside the window refunding the whole charge at the gateway against the paying payment and recording the gateway's refund id and attempt; inside the window no refund call at all, `not_eligible` and the window's own sentence. Fake gateway; append-only writes - disposable project only |
+| `gateway-admin-refund` | 3 | an admin's partial session refund and a programme refund reaching the gateway for the route's figure and recorded against the right row; a refused refund recorded as refused (`failed` attempt with the gateway's reason, the row exactly as refundable as before, the admin told why) and the retry going through. Fake gateway; append-only writes - disposable project only |
+| `therapist-cash-and-payouts` | 3 | the therapist's Earnings screen and the admin's Payouts row owing the same figure; cash at the door recorded once, by the visit's own therapist, at the system's price, and netted off on Payouts; a payout request for the net figure, a second refused, and settling it clearing both screens with the receipt. Own therapist and patient per run; settles a batch - disposable project only |
+| `hospital-referral-revenue` | 3 | a referred patient's paid session earning the partner nothing until delivered, then its share at the rate frozen that day, then less after a gateway refund -- the hospital's Earnings screen and the admin's Partners card agreeing at every step. Own hospital, patient and therapist per run; fake gateway; disposable project only |
 | `programme-sessions-via-admin` | 5 | every programme session (booked from credits, an accepted suggestion, a visit on a home-visit programme) waiting `requested` and unassigned; the All Sessions row naming the pre-picked programme therapist; one tap on "Assign <name>" confirming it; and a pre-pick no longer free named rather than offered |
 
 ### Authorization, exposure and failure

@@ -148,6 +148,15 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
      and a hospital's cut is taken on net revenue. This is what lets the
      clinic share be exact instead of the "approximate" figure it used to
      be labelled.
+  4. **The admin's Partners card is the partner's own Earnings screen,
+     line for line.** Both go through `hospitalSessionLine`
+     (`src/lib/hospitalEarnings.ts`): sessions *delivered* and earned, net
+     of processed refunds, at the rate frozen at completion. The card used
+     to count every *paid* session at the *live* rate with no refunds
+     netted, so it quoted a commission on sessions not yet held and on
+     money already returned, at a rate the partner's screen correctly did
+     not use; its count now reads "Sessions delivered", as the partner's
+     does. Guard: `e2e/hospital-referral-revenue.spec.ts`.
   Revenue and the split have **different eligibility**: gross, refunds and
   net count every paid session, while a session whose split is unknowable
   (no therapist share set, or a partner with no share configured) is

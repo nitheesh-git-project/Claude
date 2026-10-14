@@ -26,8 +26,8 @@
 // 4. Starts one `next dev` for the whole runner (the browser specs must run
 //    against dev, not start -- see docs/rules/testing.md) with the egress
 //    guard preloaded, so any server-side call to a host that is not
-//    loopback, the Razorpay test API or a font host is refused and logged,
-//    then requests the main pages once, in parallel, so their first compile
+//    loopback or a font host is refused and logged (the real Razorpay API too,
+//    once the fake is set), then requests the main pages once, in parallel, so their first compile
 //    is not charged to the first spec that opens them (never fatal).
 // 5. Integrity scripts that build their own fixtures, then the specs per
 //    Playwright project (destructive ones in a separate, final invocation),

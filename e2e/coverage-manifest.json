@@ -33,7 +33,7 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "admin-all-logs.spec.ts": {
@@ -383,6 +383,83 @@
       "integration": "local",
       "destructive": false
     },
+    "gateway-admin-refund.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ],
+      "integration": "mocked",
+      "destructive": false
+    },
+    "gateway-cancellation-refund.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ],
+      "integration": "mocked",
+      "destructive": false
+    },
+    "gateway-payment-capture.spec.ts": {
+      "runner": "money",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ],
+      "integration": "mocked",
+      "destructive": false
+    },
+    "gateway-webhook-recovery.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ],
+      "integration": "mocked",
+      "destructive": false
+    },
+    "hospital-referral-revenue.spec.ts": {
+      "runner": "hospital",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/money.md",
+        "docs/rules/programmes.md"
+      ],
+      "integration": "mocked",
+      "destructive": false
+    },
     "impersonation-exit.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -463,7 +540,7 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "checkout-resume.spec.ts": {
@@ -476,7 +553,7 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "booking-rules.spec.ts": {
@@ -543,7 +620,7 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "concurrency.spec.ts": {
@@ -555,7 +632,7 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "consultation-first.spec.ts": {
@@ -604,6 +681,22 @@
       ],
       "rules": [
         "docs/rules/roster.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "therapist-cash-and-payouts.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/money.md"
       ],
       "integration": "local",
       "destructive": false
@@ -665,7 +758,7 @@
         "docs/rules/clinical.md",
         "docs/rules/programmes.md"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": true
     },
     "programme-checkout.spec.ts": {
@@ -683,7 +776,7 @@
         "docs/rules/programmes.md",
         "docs/rules/payments.md"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": true
     },
     "pain-trend.spec.ts": {
@@ -797,7 +890,7 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "footer-social-links.spec.ts": {
@@ -1578,12 +1671,27 @@
     },
     {
       "id": "patient.payment-capture",
-      "runner": "patient",
+      "runner": "money",
       "title": "A patient pays through Razorpay Checkout and the capture is verified (signature, webhook, idempotent re-delivery)",
       "required": false,
-      "status": "blocked",
-      "coverage": [],
-      "limitation": "No spec drives the hosted Checkout sheet or posts a signed verify/webhook payload. Needs Razorpay test-mode checkout automation or a signed-webhook fixture built from a generated RAZORPAY_WEBHOOK_SECRET; neither exists yet.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "gateway-payment-capture.spec.ts",
+          "tests": [
+            "PAY-CAP-001"
+          ],
+          "level": "api"
+        },
+        {
+          "spec": "gateway-webhook-recovery.spec.ts",
+          "tests": [
+            "WH-001",
+            "WH-002"
+          ],
+          "level": "api"
+        }
+      ],
       "rules": [
         "docs/rules/payments.md"
       ]
@@ -1593,9 +1701,17 @@
       "runner": "patient",
       "title": "A patient cancels and the automatic refund (outside the window) or no refund (inside it) reaches the gateway",
       "required": false,
-      "status": "gap",
-      "coverage": [],
-      "limitation": "The cancellation window copy and setting are covered (booking-rules); a cancellation that triggers a gateway refund is not exercised because it needs a captured test-mode payment.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "gateway-cancellation-refund.spec.ts",
+          "tests": [
+            "CR-001",
+            "CR-002"
+          ],
+          "level": "api"
+        }
+      ],
       "rules": [
         "docs/rules/payments.md"
       ]
@@ -1691,9 +1807,17 @@
       "runner": "therapist",
       "title": "A therapist's own earnings and payout history match the admin's figures",
       "required": false,
-      "status": "gap",
-      "coverage": [],
-      "limitation": "Payout arithmetic is covered from the admin side (admin.money-maths) and in payout-atomicity-sql-checks.sql; the therapist's own earnings screen has no spec.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-cash-and-payouts.spec.ts",
+          "tests": [
+            "TCP-001",
+            "TCP-003"
+          ],
+          "level": "browser"
+        }
+      ],
       "rules": [
         "docs/rules/money.md"
       ]
@@ -2579,9 +2703,18 @@
       "runner": "admin",
       "title": "An admin refund reaches Razorpay and the result is recorded against the right session",
       "required": false,
-      "status": "gap",
-      "coverage": [],
-      "limitation": "Refund arithmetic and the attempt record are covered (admin.money-maths, integrity.refund-attempt-ledger); a refund that actually calls the gateway needs a captured test-mode payment.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "gateway-admin-refund.spec.ts",
+          "tests": [
+            "AR-001",
+            "AR-002",
+            "AR-003"
+          ],
+          "level": "api"
+        }
+      ],
       "rules": [
         "docs/rules/payments.md"
       ]
@@ -2624,9 +2757,18 @@
       "runner": "hospital",
       "title": "A referred patient's paid session accrues the hospital's revenue share and the figure matches the admin's",
       "required": false,
-      "status": "gap",
-      "coverage": [],
-      "limitation": "Needs a captured payment on a referred patient; the share arithmetic is in admin-money and the SQL checks but not driven through a referral end to end.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "hospital-referral-revenue.spec.ts",
+          "tests": [
+            "HRR-001",
+            "HRR-002",
+            "HRR-003"
+          ],
+          "level": "browser"
+        }
+      ],
       "rules": [
         "docs/rules/programmes.md",
         "docs/rules/money.md"
@@ -3140,11 +3282,30 @@
     },
     {
       "id": "patient.package-purchase",
-      "runner": "patient",
+      "runner": "money",
       "title": "A patient buys a programme through Razorpay and receives session credits",
       "required": false,
-      "status": "gap",
-      "limitation": "Needs the Razorpay test checkout sheet driven in a browser or a signed verify payload; consultation-first only proves the refusal path. Needs a provider-sandbox decision."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "gateway-payment-capture.spec.ts",
+          "tests": [
+            "PAY-CAP-002"
+          ],
+          "level": "api"
+        },
+        {
+          "spec": "gateway-webhook-recovery.spec.ts",
+          "tests": [
+            "WH-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/payments.md",
+        "docs/rules/programmes.md"
+      ]
     },
     {
       "id": "therapist.session-assignment",
@@ -3168,8 +3329,20 @@
       "runner": "therapist",
       "title": "A therapist records cash collected at the door and requests a payout",
       "required": false,
-      "status": "gap",
-      "limitation": "No spec drives /api/therapist/record-cash-collection or /request-payout; payout atomicity is proven in SQL only. Feasible; not yet written."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-cash-and-payouts.spec.ts",
+          "tests": [
+            "TCP-002",
+            "TCP-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/money.md"
+      ]
     },
     {
       "id": "therapist.leave",
@@ -3192,8 +3365,21 @@
       "runner": "session",
       "title": "A captured payment whose verify call was lost is recovered by the webhook, exactly once",
       "required": false,
-      "status": "gap",
-      "limitation": "Needs signed Razorpay webhook payloads (RAZORPAY_WEBHOOK_SECRET) posted to the local app; the idempotency is proven in booking-idempotency-sql-checks.sql only. Needs an owner decision on a webhook test secret."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "gateway-webhook-recovery.spec.ts",
+          "tests": [
+            "WH-001",
+            "WH-002",
+            "WH-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ]
     },
     {
       "id": "session.rating-feedback",
