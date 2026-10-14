@@ -165,6 +165,7 @@ import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { hospitalSessionLine } from "@/lib/hospitalEarnings";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
@@ -1898,27 +1899,40 @@ export default async function AdminDashboardPage({
     );
 
 
-  // Revenue rollup per hospital: every paid session belonging to a patient
-  // this hospital referred (either channel - invite-link or self-serve
-  // code, both set referred_by_hospital_id) counts toward their payout.
+  // Revenue rollup per hospital, line for line what the partner's own
+  // Earnings screen shows (src/lib/hospitalDashboardData.ts): sessions of the
+  // patients this hospital referred (either channel - invite-link or
+  // self-serve code, both set referred_by_hospital_id) that were DELIVERED and
+  // earned, net of processed refunds, at the rate frozen when each was
+  // completed -- through `hospitalSessionLine`, the same function, so the two
+  // screens cannot quote two numbers for one referral.
+  //
+  // It used to count every *paid* session at the partner's *live* rate with
+  // no refunds netted off, so the card showed a commission on sessions not yet
+  // held, on money already returned, and at a renegotiated rate the partner's
+  // own screen correctly did not use (e2e/hospital-referral-revenue.spec.ts).
+  const hospitalShareById = new Map(
+    (allProfiles ?? [])
+      .filter((p) => p.role === "hospital")
+      .map((p) => [p.id, p.revenue_share_percent ?? 0] as const)
+  );
   const hospitalRevenue = new Map<
     string,
-    { paidSessions: number; totalRevenue: number }
+    { deliveredSessions: number; netRevenuePaise: number; partnerCutPaise: number }
   >();
-  for (const appt of appointments ?? []) {
-    if (appt.payment_status !== "paid") continue;
-    const patient = profileMap.get(appt.patient_id);
-    const hospitalId = patient?.referred_by_hospital_id;
+  for (const appt of appointmentsWithSessionCode) {
+    const hospitalId = profileMap.get(appt.patient_id)?.referred_by_hospital_id;
     if (!hospitalId) continue;
+    const line = hospitalSessionLine(appt, hospitalId, hospitalShareById.get(hospitalId) ?? 0);
+    if (!line) continue;
     const entry = hospitalRevenue.get(hospitalId) ?? {
-      paidSessions: 0,
-      totalRevenue: 0,
+      deliveredSessions: 0,
+      netRevenuePaise: 0,
+      partnerCutPaise: 0,
     };
-    entry.paidSessions += 1;
-    // Falls back to the current session fee only for older paid rows from
-    // before amount_paid_paise existed - every payment since then records
-    // exactly what was charged, so this never drifts as pricing changes.
-    entry.totalRevenue += (appt.amount_paid_paise ?? SESSION_FEE_PAISE) / 100;
+    entry.deliveredSessions += 1;
+    entry.netRevenuePaise += line.netPaise;
+    entry.partnerCutPaise += line.partnerCutPaise;
     hospitalRevenue.set(hospitalId, entry);
   }
 
@@ -2305,19 +2319,16 @@ export default async function AdminDashboardPage({
             ]}
             items={hospitals.map((h) => {
               const revenue = hospitalRevenue.get(h.id) ?? {
-                paidSessions: 0,
-                totalRevenue: 0,
+                deliveredSessions: 0,
+                netRevenuePaise: 0,
+                partnerCutPaise: 0,
               };
               const sharePercent = h.revenue_share_percent ?? 0;
               const isSuspended = h.active === false;
-              // Suspended hospitals stop earning revenue share going
-              // forward -- the session still counts in full, the platform
-              // just keeps 100% of it instead of splitting, rather than the
-              // configured % silently continuing to accrue for a partner
-              // who's been suspended.
-              const effectiveSharePercent = isSuspended ? 0 : sharePercent;
-              const hospitalCut = (revenue.totalRevenue * effectiveSharePercent) / 100;
-              const companyCut = revenue.totalRevenue - hospitalCut;
+              // The commission each session earned at the rate frozen when it
+              // was delivered -- the figure the partner's own screen shows.
+              const hospitalCut = revenue.partnerCutPaise / 100;
+              const companyCut = (revenue.netRevenuePaise - revenue.partnerCutPaise) / 100;
               const referralStats = hospitalReferralStats.get(h.id) ?? { total: 0, converted: 0 };
               const conversionRate =
                 referralStats.total > 0 ? (referralStats.converted / referralStats.total) * 100 : null;
@@ -2386,9 +2397,12 @@ export default async function AdminDashboardPage({
                       </div>
                     )}
                     <div>
-                      <p className="text-slate-500">Paid Sessions</p>
+                      {/* "Sessions delivered", as on the partner's own
+                          screen: a commission is earned on delivery, so a
+                          paid session not yet held is not counted here. */}
+                      <p className="text-slate-500">Sessions delivered</p>
                       <p className="font-bold text-slate-900">
-                        {revenue.paidSessions}
+                        {revenue.deliveredSessions}
                       </p>
                     </div>
                     <div>

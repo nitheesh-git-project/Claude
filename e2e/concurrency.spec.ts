@@ -4,7 +4,6 @@
 // guard against are TOCTOU races that only manifest under real concurrency
 // -- a sequential re-run would pass even against the unguarded code.
 import { test, expect } from "@playwright/test";
-import Razorpay from "razorpay";
 import {
   adminClient,
   cookieHeaderFor,
@@ -18,6 +17,7 @@ import {
   clinicSlot,
   openTherapistHour,
 } from "./helpers";
+import { specRazorpayClient } from "./fakeGateway";
 
 test.describe.configure({ mode: "serial" });
 
@@ -57,14 +57,13 @@ test("refund-home-visit-package: at most one concurrent request reaches Razorpay
     .single();
   expect(pkg && area).toBeTruthy();
 
-  // A real Razorpay test-mode order behind the purchase -- the refund route
-  // genuinely calls razorpay.payments.refund(), so this needs a real
-  // order id, not a stub, even though the "payment" itself can't be
-  // captured through the actual Checkout widget from an automated run.
-  const razorpay = new Razorpay({
-    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-    key_secret: process.env.RAZORPAY_KEY_SECRET!,
-  });
+  // A real order behind the purchase -- the refund route genuinely calls
+  // razorpay.orders.fetch() and razorpay.payments.refund(), so this needs an
+  // order the app's gateway knows, not a stub id, even though the "payment"
+  // itself is never captured. Made wherever the app's own client goes: the
+  // fake gateway in the quality gate (RAZORPAY_API_BASE_URL), Razorpay test
+  // mode otherwise -- an order made at one is unknown to the other.
+  const razorpay = specRazorpayClient();
   const totalPaise = pkg!.price_paise + area!.travel_fee_paise * pkg!.visit_count;
   const order = await razorpay.orders.create({ amount: totalPaise, currency: "INR", receipt: `e2e-race-${Date.now()}` });
   const fakePaymentId = `${E2E_MARKERS.fakePaymentIdPrefix}${Date.now()}`;

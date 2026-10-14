@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import Razorpay from "razorpay";
+import { createRazorpayClient } from "@/lib/razorpayClient";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -140,10 +140,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const razorpay = new Razorpay({
-      key_id: keyId,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
-    });
+    const razorpay = createRazorpayClient();
     const order = await razorpay.orders.create({
       amount: amountPaise,
       currency: "INR",

@@ -21,7 +21,8 @@
 # staging or production projects: the preflight rejects any non-loopback
 # target, a Management API token, Google credentials and live Razorpay keys
 # before anything is written, and the egress guard refuses every server-side
-# call except loopback, the Razorpay *test* API and the font CDN.
+# call except loopback and the font CDN. Razorpay itself is a loopback fake
+# (e2e/fake-razorpay.mjs): the guard refuses api.razorpay.com once it is set.
 #
 # `quality-gate` runs with `if: always()` and passes only when every job it
 # needs reported `success` AND every runner × shard uploaded a `passed`
@@ -64,6 +65,12 @@ env:
   # The QA fixture accounts' shared password on each runner's disposable
   # stack: generated per run, so no password lives in this public repo.
   E2E_QA_PASSWORD: "Gate-${{ github.run_id }}-${{ github.run_attempt }}!Qa"
+  # The webhook signing secret the app and the money specs share on each
+  # runner: generated per run, never a real one. Every Razorpay call in the
+  # gate goes to the loopback fake gateway (e2e/fake-razorpay.mjs, started by
+  # run-runner.mjs, which also sets RAZORPAY_API_BASE_URL), so the specs sign
+  # their own captures and webhooks and nothing is ever sent to Razorpay.
+  RAZORPAY_WEBHOOK_SECRET: "whsec-gate-${{ github.run_id }}-${{ github.run_attempt }}"
 
 jobs:
   context-budget:

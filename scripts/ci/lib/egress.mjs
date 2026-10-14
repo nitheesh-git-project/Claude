@@ -59,6 +59,17 @@ export function evaluateDestination(host, env) {
   if (isLoopbackAddress(h)) return { allowed: true, reason: "loopback" };
   if (FONT_HOSTS.includes(h)) return { allowed: true, reason: "font host" };
   if (h === RAZORPAY_API_HOST) {
+    // The gate runs its money specs against the loopback fake gateway
+    // (e2e/fake-razorpay.mjs, named by RAZORPAY_API_BASE_URL). Once that is
+    // configured nothing has a reason to reach the real API, and a call that
+    // does is a client built outside src/lib/razorpayClient.ts -- refused, so
+    // it is found rather than quietly passing against Razorpay test mode.
+    if (typeof env.RAZORPAY_API_BASE_URL === "string" && env.RAZORPAY_API_BASE_URL.trim() !== "") {
+      return {
+        allowed: false,
+        reason: "the fake Razorpay is configured (RAZORPAY_API_BASE_URL); nothing may reach the real Razorpay API",
+      };
+    }
     const keyId = env.NEXT_PUBLIC_RAZORPAY_KEY_ID || env.RAZORPAY_KEY_ID || "";
     if (/^rzp_test_/.test(keyId) && !isPlaceholderRazorpayKey(keyId)) {
       return { allowed: true, reason: "Razorpay test-mode API with a test key" };

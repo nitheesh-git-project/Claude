@@ -92,6 +92,15 @@ describe("assessTarget: unsafe targets are refused", () => {
     expect(assessTarget(local({ GOOGLE_CALENDAR_ID: "" }), GOOD_PROBE).ok).toBe(true);
   });
 
+  it("rejects a fake-gateway URL that is not on this machine", () => {
+    for (const url of ["https://api.razorpay.com", "http://10.1.2.3:4010", "not a url"]) {
+      const result = assessTarget(local({ RAZORPAY_API_BASE_URL: url }), GOOD_PROBE);
+      expect(result.unsafe, url).toBe(true);
+      expect(codes(result), url).toContain("razorpay-api-base-not-loopback");
+    }
+    expect(assessTarget(local({ RAZORPAY_API_BASE_URL: "http://127.0.0.1:4010" }), GOOD_PROBE).ok).toBe(true);
+  });
+
   it("rejects an armed data reset", () => {
     expect(codes(assessTarget(local({ ALLOW_DEBUG_DATA_RESET: "true" }), GOOD_PROBE))).toContain("reset-armed");
     expect(assessTarget(local({ ALLOW_DEBUG_DATA_RESET: "" }), GOOD_PROBE).ok).toBe(true);

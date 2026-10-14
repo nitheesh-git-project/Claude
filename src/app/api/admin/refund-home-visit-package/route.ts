@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import Razorpay from "razorpay";
+import { createRazorpayClient } from "@/lib/razorpayClient";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
@@ -88,10 +88,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This package was never paid for." }, { status: 400 });
   }
 
-  const razorpay = new Razorpay({
-    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-    key_secret: process.env.RAZORPAY_KEY_SECRET!,
-  });
+  const razorpay = createRazorpayClient();
 
   let totalPaidPaise: number;
   try {
