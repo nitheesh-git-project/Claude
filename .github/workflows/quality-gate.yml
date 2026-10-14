@@ -64,6 +64,11 @@ env:
   # The QA fixture accounts' shared password on each runner's disposable
   # stack: generated per run, so no password lives in this public repo.
   E2E_QA_PASSWORD: "Gate-${{ github.run_id }}-${{ github.run_attempt }}!Qa"
+  # The shared secret /api/cron/maintenance checks, for the app and for
+  # e2e/admin-maintenance-sweep.spec.ts alike. Generated per run like the
+  # password above: it guards only this run's loopback app, and the
+  # maintenance.yml schedule's real secret is never involved.
+  CRON_SECRET: "Gate-${{ github.run_id }}-${{ github.run_attempt }}-cron"
 
 jobs:
   context-budget:

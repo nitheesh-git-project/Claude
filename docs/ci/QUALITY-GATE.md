@@ -230,6 +230,13 @@ closed. It is **unsafe** (exit 1, nothing runs) when any of these holds:
 - The probe cannot run, finds no marker row, or finds any auth user that
   is not an `@example.test` fixture.
 
+Two values are generated per run in the workflow's `env` rather than kept
+as secrets: `E2E_QA_PASSWORD`, the fixture accounts' password, and
+`CRON_SECRET`, which the app's `/api/cron/maintenance` checks and
+`admin-maintenance-sweep.spec.ts` sends. Each guards only that run's
+loopback app; the real `CRON_SECRET` that `maintenance.yml` uses against the
+deployed site is a repository secret the gate never reads.
+
 A variable named "test" is not taken as proof of anything: the marker and
 the fixture-only probe are what identify the stack. It is **blocked**
 (exit 3) when the target is safe but the Razorpay test keys are missing or
@@ -360,6 +367,8 @@ carries `SUPABASE_ACCESS_TOKEN` or `GOOGLE_CALENDAR_*`, as it should.
 ```bash
 export NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_...   # test keys only
 export RAZORPAY_KEY_SECRET=...
+export E2E_QA_PASSWORD="local-$(openssl rand -hex 8)!Qa"   # the workflow generates both per run
+export CRON_SECRET="local-$(openssl rand -hex 16)"          # for admin-maintenance-sweep.spec.ts
 GITHUB_ENV=.gate.env scripts/ci/provision-local-stack.sh
 set -a; . ./.gate.env; set +a
 node scripts/ci/run-runner.mjs hospital           # or any runner (all its shards' files)

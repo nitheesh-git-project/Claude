@@ -290,6 +290,25 @@ Three environment notes for the browser specs:
   `RELAY_TARGET=$NEXT_PUBLIC_SUPABASE_URL node scripts/.qa/supabase-relay.mjs`,
   then `NEXT_PUBLIC_SUPABASE_URL=http://localhost:8099 npx next dev -p 3100`,
   then `E2E_BASE_URL=http://localhost:3100 npx playwright test e2e/admin-login.spec.ts`.
+  Inside the quality gate none of that applies: the browser reaches the local
+  stack directly, `run-runner.mjs` points `E2E_LOGIN_BASE_URL` at the runner's
+  own dev server, and an unreachable form **fails** the run (`E2E_GATE=1`)
+  rather than skipping -- a skip there is how the form went untested before.
+- **A spec that needs an account nobody else touches makes one.**
+  `createFixtureAccount(label, patch)` (`e2e/helpers.ts`) mints an approved,
+  active `@example.test` account with the tour already seen -- a patient by
+  default, a therapist with `{ role: "therapist" }` -- and
+  `deleteFixtureAccount(id)` removes it and its sessions in an `afterAll`.
+  Use it when an assertion would otherwise be about what other specs left on
+  the shared QA accounts (a list that pages, a slot the overlap trigger
+  refuses), and `rlsClientFor(email)` to ask what that account's own RLS
+  reads below the routes. One that an append-only row will point at is the
+  exception: an impersonation or a settlement keeps its account for good, so
+  those cases use a shared QA account instead.
+- **`admin-maintenance-sweep.spec.ts` needs `CRON_SECRET`** in both the app's
+  and the spec's environment. The gate generates one per run
+  (`quality-gate.yml`, like `E2E_QA_PASSWORD`); locally, start `next dev`
+  with a throwaway value and export the same one, or the spec skips itself.
 
 `docs/qa/` holds the **manual** E2E plan a human tester executes -- a feature
 guide plus a click-by-click regression suite covering every route, role,
