@@ -40,6 +40,7 @@
       "admin-login.spec.ts": 17,
       "admin-maintenance-sweep.spec.ts": 8,
       "admin-money.spec.ts": 3,
+      "admin-session-drawer-money.spec.ts": 25,
       "admin-multi-admin.spec.ts": 11,
       "admin-network.spec.ts": 55,
       "admin-partners-and-credentials.spec.ts": 37,

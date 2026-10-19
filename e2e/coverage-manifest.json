@@ -205,6 +205,18 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-session-drawer-money.spec.ts": {
+      "runner": "money",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-multi-admin.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -2362,6 +2374,26 @@
       ],
       "rules": [
         "docs/rules/money.md"
+      ]
+    },
+    {
+      "id": "admin.session-drawer-money",
+      "runner": "money",
+      "title": "The Session Details drawer prices a session as the row that opened it does, and reads one refund state across its payment chip, cancellation line and refund form",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-session-drawer-money.spec.ts",
+          "tests": [
+            "ASD-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/money.md",
+        "docs/rules/payments.md"
       ]
     },
     {

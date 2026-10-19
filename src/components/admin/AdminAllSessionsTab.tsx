@@ -17,7 +17,8 @@ import StatStrip from "@/components/dashboard/StatStrip";
 import type { CsvColumn } from "@/lib/csvExport";
 import { RatingChip } from "@/components/feedback/RatingDisplay";
 import { formatSlotRange, istDateKey, istMinutesOfDay } from "@/lib/formatSlotRange";
-import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { sessionListPricePaise } from "@/lib/sessionListPrice";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
 import { formatRupees } from "@/lib/formatMoney";
@@ -358,7 +359,7 @@ export default function AdminAllSessionsTab({
         patientName: peopleMap.get(a.patient_id) ?? "Unknown",
         therapistName: a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : "Unassigned",
         categoryTitle: category?.title ?? "-",
-        price: a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE,
+        price: sessionListPricePaise(a, category?.price_paise),
         isVisit: homeVisitMap.has(a.id),
       };
     });

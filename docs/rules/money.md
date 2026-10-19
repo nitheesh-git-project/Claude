@@ -124,6 +124,16 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   operating profit, what is owed, cash collected up front); the two blocks
   under it are the subtraction, where carrying a figure down from the block
   above is the point rather than a repeat.
+- **A session's price on an admin screen has one reading.**
+  `sessionListPricePaise` (`src/lib/sessionListPrice.ts`) is what All
+  Sessions, a patient's or therapist's session history and the Session
+  Details drawer print: what was charged or frozen (`sessionAmountPaise`),
+  else the session's own service's price, and the standard fee **only** for a
+  session with no service at all. The drawer used to skip the middle step, so
+  an unpaid ₹499 admin booking read ₹499 on the row and "₹1,999 (estimated)"
+  in the drawer it opened. It is a display reading; the money modules keep
+  their own fallbacks (`sessionAmount.ts`). Guard:
+  `e2e/admin-session-drawer-money.spec.ts` ASD-001.
 - **The revenue split has one source and two invariants.**
   `moneyByBucketFor` (`src/lib/adminMetrics.ts`) is the only place the
   clinic's money is divided up, so the strip, the tiles and the breakdown

@@ -20,7 +20,8 @@ import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import { adminScreenHref } from "@/lib/adminNav";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange } from "@/lib/formatSlotRange";
-import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
+import { BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
+import { sessionListPricePaise } from "@/lib/sessionListPrice";
 import PartialRefundForm from "@/components/admin/PartialRefundForm";
 import GoodwillDiscountForm from "@/components/admin/GoodwillDiscountForm";
 import { useConfirm } from "@/lib/useConfirm";
@@ -55,6 +56,9 @@ export type SessionDetailAppointment = {
   payment_terms?: string | null;
   pay_later_outcome?: string | null;
   amount_paid_paise: number | null;
+  /** A pay-later booking's frozen price. Migration-dependent and optional;
+   *  absent, the price reads exactly as it did. */
+  amount_due_paise?: number | null;
   /** What the session lists at, and anything an admin already took off it.
    *  Migration-dependent, so a database without the columns hands through
    *  undefined and the control simply does not render. */
@@ -191,7 +195,14 @@ export default function SessionDetailDrawer({
   const { confirm, dialog: confirmDialog } = useConfirm();
   const { prompt, dialog: promptDialog } = usePrompt();
 
-  const feePaise = a.amount_paid_paise ?? SESSION_FEE_PAISE;
+  // The same price the row that opened this drawer printed -- see
+  // sessionListPrice.ts. It used to skip the service's own price and fall
+  // straight to the global session fee, so an unpaid ₹499 booking read
+  // "₹1,999 (estimated)" here and ₹499 on the list beside it.
+  const feePaise = sessionListPricePaise(
+    a,
+    a.category_id ? categoryMap.get(a.category_id)?.price_paise : undefined
+  );
   const durationMinutes = a.duration_minutes ?? BASE_DURATION_MINUTES;
   const canReassign = a.status === "requested" || a.status === "confirmed";
   // Assigning and reassigning are different jobs with different words. A
