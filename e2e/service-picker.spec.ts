@@ -401,6 +401,7 @@ test.describe("Public booking service picker", () => {
   });
   test("SP-012: the admin's Default on booking switch decides where /book opens, one at a time", async ({
     page,
+    browser,
   }) => {
     test.setTimeout(90_000);
     // The owner's "General Consultation" meant their General Physiotherapy
@@ -411,9 +412,12 @@ test.describe("Public booking service picker", () => {
     const before = await db.from("treatment_categories").select("id").eq("is_default", true);
     expect(before.error, "is_default is readable").toBeNull();
     const previous = (before.data?.[0]?.id as string | undefined) ?? null;
-    await page.context().addCookies(await browserCookiesFor(QA_EMAILS.admin));
+    // The admin flips the switch from their own session; the page stays an
+    // anonymous visitor, which is who a booking default is for.
+    const adminContext = await browser.newContext();
+    await adminContext.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     const setDefault = (id: string | null) =>
-      page.request.post(`${BASE}/api/admin/set-default-treatment-category`, { data: { id } });
+      adminContext.request.post(`${BASE}/api/admin/set-default-treatment-category`, { data: { id } });
 
     try {
       expect((await setDefault(coveredId)).status()).toBe(200);
@@ -438,6 +442,7 @@ test.describe("Public booking service picker", () => {
       expect((await setDefault("00000000-0000-0000-0000-00000000dead")).status()).toBe(404);
     } finally {
       await setDefault(previous);
+      await adminContext.close();
     }
   });
 });
