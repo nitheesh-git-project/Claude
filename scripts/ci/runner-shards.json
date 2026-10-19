@@ -76,6 +76,7 @@
       "discounts.spec.ts": 4,
       "finish-session.spec.ts": 15,
       "footer-social-links.spec.ts": 6,
+      "invite-promise.spec.ts": 8,
       "form-validation-chrome.spec.ts": 15,
       "gateway-admin-refund.spec.ts": 55,
       "gateway-cancellation-refund.spec.ts": 25,

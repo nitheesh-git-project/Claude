@@ -140,6 +140,7 @@ total, which moves with every spec added.
 | Spec | Cases | Covers |
 | --- | --- | --- |
 | `footer-social-links` | 3 | the footer's social icons: only filled-in links drawn, each opening in a new tab, the WhatsApp number too; the save route refusing a non-https or wrong-network link |
+| `invite-promise` | 1 | a patient is promised a calendar invite only where this deployment sends one: on the gate's Google-less stack the public example chip points at the dashboard instead |
 | `admin-dashboard-ui` | 11 | the dashboard in a real browser |
 | `admin-refresh-badge` | 4 | the badge counting other people's changes, not the admin's own taps |
 | `admin-detail-overlay` | 4 | the overlay and the real route behind it rendering identically |

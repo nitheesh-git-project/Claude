@@ -3,7 +3,11 @@ import {
   adminBookingInviteNeedsAttention,
   adminBookingSuccessMessage,
   calendarInviteSentence,
+  inviteDeliveryFor,
   isCalendarInviteOutcome,
+  NO_INVITE_DELIVERY,
+  normalizeInviteDelivery,
+  patientInviteLine,
 } from "@/lib/calendarInviteOutcome";
 
 describe("adminBookingSuccessMessage", () => {
@@ -51,5 +55,50 @@ describe("adminBookingInviteNeedsAttention", () => {
     expect(adminBookingInviteNeedsAttention("confirmed", "switched_off")).toBe(true);
     expect(adminBookingInviteNeedsAttention("confirmed", undefined)).toBe(true);
     expect(adminBookingInviteNeedsAttention("requested", null)).toBe(false);
+  });
+});
+
+describe("what a patient is promised about invites", () => {
+  const all = inviteDeliveryFor({ googleConfigured: true, meetEnabled: true });
+  const none = inviteDeliveryFor({ googleConfigured: false, meetEnabled: true });
+  const meetOff = inviteDeliveryFor({ googleConfigured: true, meetEnabled: false });
+
+  it("sends nothing without Google, and Meet off stops only video sessions", () => {
+    expect(all).toEqual({ online: true, homeVisit: true });
+    expect(none).toEqual(NO_INVITE_DELIVERY);
+    expect(meetOff).toEqual({ online: false, homeVisit: true });
+    // Absent column reads as on, the way the sync itself reads it.
+    expect(inviteDeliveryFor({ googleConfigured: true, meetEnabled: null }).online).toBe(true);
+    // Unreadable settings: couldn't check, so promise nothing for video.
+    expect(
+      inviteDeliveryFor({ googleConfigured: true, meetEnabled: null, settingsReadFailed: true }).online
+    ).toBe(false);
+  });
+
+  it("promises an invite only when one will be sent, and the dashboard otherwise", () => {
+    const contexts = ["online_booked", "online_registered", "suggestion_accepted"] as const;
+    for (const context of contexts) {
+      expect(patientInviteLine(context, all)).toMatch(/calendar invite/);
+      for (const d of [none, meetOff]) {
+        const line = patientInviteLine(context, d);
+        expect(line).not.toMatch(/invite/i);
+        expect(line).toMatch(/Sessions on your dashboard/);
+      }
+    }
+    expect(patientInviteLine("home_visit_booked", meetOff)).toMatch(/calendar invite/);
+    expect(patientInviteLine("home_visit_booked", none)).toMatch(/Sessions on your dashboard/);
+    expect(patientInviteLine("home_visit_booked", none)).not.toMatch(/invite/i);
+  });
+
+  it("the public example chip claims an invite only when every session gets one", () => {
+    expect(patientInviteLine("example_chip", all)).toBe("Calendar invite on its way.");
+    expect(patientInviteLine("example_chip", meetOff)).not.toMatch(/invite/i);
+    expect(patientInviteLine("example_chip", none)).not.toMatch(/invite/i);
+  });
+
+  it("anything a client was handed that is not a clear yes is a no", () => {
+    expect(normalizeInviteDelivery(undefined)).toEqual(NO_INVITE_DELIVERY);
+    expect(normalizeInviteDelivery({ online: "yes", homeVisit: 1 })).toEqual(NO_INVITE_DELIVERY);
+    expect(normalizeInviteDelivery({ online: true, homeVisit: false })).toEqual({ online: true, homeVisit: false });
   });
 });

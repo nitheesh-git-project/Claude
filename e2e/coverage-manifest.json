@@ -960,6 +960,17 @@
       "integration": "local",
       "destructive": false
     },
+    "invite-promise.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "form-validation-chrome.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -3195,6 +3206,26 @@
       ],
       "rules": [
         "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "platform.invite-promise",
+      "runner": "platform",
+      "title": "A patient is promised a calendar invite only where this deployment sends one",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "invite-promise.spec.ts",
+          "tests": [
+            "INV-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Proves the server read reaches a rendered page through the public example chip; the confirmation screens need a completed checkout to render, and share the same unit-tested wording (calendarInviteOutcome.test.ts).",
+      "rules": [
+        "docs/rules/home-visit.md"
       ]
     },
     {
