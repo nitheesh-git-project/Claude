@@ -302,13 +302,14 @@ A second attempt returns `This visit's payment has already been recorded.`
 2. Tap the control that starts triage.
 3. Answer **How old is the patient?** → `18 to 64`.
 4. Answer **What brought them in?** → `Injury, strain or overuse`.
-5. Answer **Any of these present?** → tick `None of these`.
+5. Answer **Any of these present?** → tick `None of these`, then tick `Weakness on one side`, then tick `None of these` again.
 6. Observe whether the milestones question appears.
 7. Read the suggestion panel.
 8. Confirm the suggested condition type.
 
 **Expected Result**
 * Step 2: the dialog shows **all four questions at once, with headings** - the clinician's surfaces deliberately invert the patient's one-question-at-a-time pacing, because a clinician filling this after every assignment wants to scan it.
+* Step 5: **`None of these` and a sign never stay ticked together.** Ticking `Weakness on one side` unticks `None of these`; ticking `None of these` again unticks the weakness. It ends with `None of these` alone. A request carrying both anyway is refused by the server (`"None of these" can't be ticked alongside another answer…`).
 * Step 6: the milestones question is **not shown** - it only appears when age is `Under 18`.
 * Step 7: **Orthopaedic** is suggested, **with its reason stated**, and is **not auto-accepted**. The therapist confirms or overrides.
 * On confirming, an already-`approved` `condition_change_requests` row is written, so the triage appears in the ordinary Review History with no new concept and no queue.
@@ -349,6 +350,12 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Steps.** With Patient A holding a full orthopaedic record, re-triage them as **Neurological** and complete the neuro question set with the §8.5 answers. Then inspect the profile.
 **Expected Result.** The neuro answers are stored **alongside** the orthopaedic ones in the same flat blob. **Every orthopaedic key survives** (hidden on screen, never deleted). The chart now renders the neuro summary card, the neuro snapshot strip and the neuro progress line. The Pain Map is **not** rendered.
 **If any orthopaedic answer is gone, stop and raise a P0** - the approve path must merge, never write the proposed data outright.
+
+#### `THR-HP-004b` - Going back to an earlier condition type prefills its answers · P1
+
+**Preconditions.** Continue from `THR-HP-004`: Patient A is now Neurological, with their orthopaedic answers still on file.
+**Steps.** Tap **Change condition type**, answer the triage, pick **Orthopaedic** and **Continue to the questions**. Step through to the review screen, change one answer, and **Save to their chart**. Open the admin's Review History for Patient A.
+**Expected Result.** Every orthopaedic question opens **with the patient's earlier answer already in it**, ready to edit - not blank. No neurological answer appears in the orthopaedic questions. After saving, the chart is orthopaedic with the edited answer; the neurological answers are still on file (hidden); Review History shows **one new entry** for this change and every earlier entry unchanged. Picking a condition type the patient has never had opens blank.
 
 #### `THR-HP-005` - Pain Map is orthopaedic and stays so · P0
 

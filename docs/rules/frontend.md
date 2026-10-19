@@ -363,7 +363,17 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   number box under an `<h3>` -- takes `aria-label`, and a decorative glyph
   inside a named button takes `aria-hidden`. Two whole-app sweeps were needed
   to get here, so a new control without one is a regression rather than an
-  omission.
+  omission. **A control drawn in SVG is still a control.** The body map's tap
+  points were bare `<g onClick>`s inside a `role="img"` -- which makes every
+  child presentational -- so neither sweep saw them and the intake's "where
+  does it hurt?" could not be answered by keyboard or screen reader. Each
+  point is now a named `role="checkbox"` (the picker) or `role="button"` with
+  `aria-pressed` (a figure whose points open a detail), `tabIndex={0}`,
+  toggled by Enter and Space, with a drawn focus ring shown on
+  `group-focus-visible` (an outline on an SVG `<g>` renders unreliably); its
+  name comes from `painMapPointLabel()`. A figure carrying controls is a
+  labelled `role="group"`, never `role="img"`; decoration inside it is
+  `aria-hidden`.
 - **A dialog opened by a tap uses `useDialogChrome`** (`src/lib/`), which is
   the one implementation of the contract: `role`, `aria-modal`, focus moved
   in on open and restored on close, Escape, a Tab trap and the scroll lock.

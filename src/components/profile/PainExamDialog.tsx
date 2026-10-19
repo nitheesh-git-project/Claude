@@ -4,6 +4,7 @@ import { useId, useMemo, useState, useTransition } from "react";
 import OverlayPortal from "@/components/system/OverlayPortal";
 import { useDialogChrome } from "@/lib/useDialogChrome";
 import { useRouter } from "@/lib/useRouter";
+import { debugNowHeaders } from "@/lib/debugNow";
 import {
   PAIN_MAP_REGIONS,
   getDefaultQuestionsForRegion,
@@ -100,7 +101,11 @@ export default function PainExamDialog({
     startTransition(async () => {
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // The therapist route judges "has a session with them started" on
+        // the debug bar's simulated clock, like the session card that
+        // offered this exam -- see src/lib/debugClock.ts. Empty with no
+        // simulation, and ignored by the admin route.
+        headers: { "Content-Type": "application/json", ...debugNowHeaders() },
         body: JSON.stringify({
           patientId,
           region,

@@ -50,6 +50,13 @@ export type IntakeQuestion = {
    *  and the dashboard summary, where the full question sentence is too
    *  long to read as a list. Falls back to `label` when absent. */
   shortLabel?: string;
+  /** For a `multi_select`: the options that mean "none of the others" --
+   *  triage's "None of these". Ticking one clears every other option, and
+   *  ticking any other clears it, so the answer can never claim both "no
+   *  neurological signs" and "weakness on one side". Enforced in the UI by
+   *  toggleMultiSelectOption and on the server by
+   *  findContradictoryMultiSelects -- the browser is never the authority. */
+  exclusiveOptions?: string[];
 };
 
 // The three question sets, one per specialty. `data` is a FLAT blob shared
@@ -157,6 +164,53 @@ export function mergeSpecialtyAnswers(
   return merged;
 }
 
+/**
+ * What a therapist's intake fill for `specialty` opens with.
+ *
+ * Re-triage keeps the previous specialty's answers on file (see
+ * mergeSpecialtyAnswers), but the wizard used to open blank anyway, so a
+ * patient taken orthopaedic -> neurological -> back to orthopaedic had their
+ * orthopaedic history typed in again from nothing while the old answers sat
+ * hidden in the same blob. The owner's rule: their latest answers for that
+ * specialty prefill the questions, ready to edit. Saving still goes through
+ * /onboard, which writes a new approved history entry and changes nothing
+ * already recorded.
+ *
+ * In order:
+ *  1. An unfinished fill for this same specialty (the draft) -- the newest
+ *     thing the therapist typed, and the wizard saves its full key set, so
+ *     it already started from the answers below.
+ *  2. The answers on file for this specialty -- the latest, since every
+ *     write merges them in.
+ *  3. Nothing.
+ * Only this specialty's own keys come back, and never an empty value: a
+ * neurological draft must not seed an orthopaedic form (the keys are
+ * disjoint, so it would silently submit nothing), and a blank string is
+ * not an answer to prefill.
+ */
+export function intakePrefillAnswers({
+  specialty,
+  onFile,
+  draft,
+  draftSpecialty,
+}: {
+  specialty: ConditionSpecialty;
+  onFile?: Record<string, string> | null;
+  draft?: Record<string, string> | null;
+  draftSpecialty?: ConditionSpecialty | null;
+}): Record<string, string> {
+  const keys = questionKeysForSpecialty(specialty);
+  const pick = (source: Record<string, string> | null | undefined) =>
+    Object.fromEntries(
+      keys
+        .map((k) => [k, source?.[k]] as const)
+        .filter((entry): entry is readonly [string, string] => typeof entry[1] === "string" && !!entry[1].trim())
+    ) as Record<string, string>;
+  const fromDraft = draftSpecialty === specialty ? pick(draft) : {};
+  if (Object.keys(fromDraft).length > 0) return fromDraft;
+  return pick(onFile);
+}
+
 export type ConditionProfileStatus = "not_started" | "draft" | "pending_review" | "active";
 
 export const CONDITION_STATUS_LABEL: Record<ConditionProfileStatus, string> = {
@@ -208,6 +262,41 @@ export function parseMultiSelect(raw: string | undefined | null): string[] {
 
 export function serializeMultiSelect(values: string[]): string {
   return values.filter(Boolean).join("\n");
+}
+
+/** The selection after tapping `option`. A tapped option already selected
+ *  is removed; otherwise it is added -- and if it is one of the question's
+ *  `exclusiveOptions` it replaces everything else, while any other option
+ *  clears the exclusive ones. Triage used to toggle each option on its own,
+ *  so "None of these" followed by "Weakness on one side" left both ticked
+ *  and the record contradicting itself. */
+export function toggleMultiSelectOption(
+  question: Pick<IntakeQuestion, "exclusiveOptions">,
+  current: string[],
+  option: string
+): string[] {
+  if (current.includes(option)) return current.filter((c) => c !== option);
+  const exclusive = question.exclusiveOptions ?? [];
+  if (exclusive.includes(option)) return [option];
+  return [...current.filter((c) => !exclusive.includes(c)), option];
+}
+
+/** Keys of the multi_select answers that tick an exclusive option ("None of
+ *  these") alongside anything else. The server half of
+ *  toggleMultiSelectOption: a request is refused rather than normalised,
+ *  because which half of a contradiction the clinician meant is not
+ *  something a route can guess. */
+export function findContradictoryMultiSelects(
+  questions: IntakeQuestion[],
+  answers: Record<string, string>
+): string[] {
+  return questions
+    .filter((q) => q.inputType === "multi_select" && (q.exclusiveOptions?.length ?? 0) > 0)
+    .filter((q) => {
+      const picked = parseMultiSelect(answers[q.key]);
+      return picked.length > 1 && picked.some((p) => q.exclusiveOptions!.includes(p));
+    })
+    .map((q) => q.key);
 }
 
 /** Spells an `area_pain` answer out as readable lines. Extracted so the

@@ -225,6 +225,10 @@
 **Steps.** Enable "reduce motion" in the OS, then load `/`.
 **Expected Result.** The splash is **skipped outright** - it is decoration over content that is already rendered, so the honest answer to "don't animate" is not to show it. The walkthrough does not auto-rotate distractingly.
 
+#### `UX-A11Y-007` - The body map from the keyboard and a screen reader · P1
+**Steps.** As Patient A with an orthopaedic record, open the Health Profile's intake and go to **Where does it hurt?** (the body map). With the mouse untouched, Tab onto the figure, Tab to **Lower back** and press Space; Tab to **Knee, left side** and press Enter twice. Repeat with a screen reader on. Then open the therapist's Pain Map for a patient with exams on file and Tab through the scored points.
+**Expected Result.** Each figure is announced as a group ("Back of the body - choose each area that hurts"). Every point is a **named checkbox** - "Lower back", "Knee, left side" - with a **visible dashed focus ring** when it has keyboard focus; Space and Enter tick and untick it, and a ticked area appears in the list below with a slider named "Pain in lower back, 0 to 10". On the therapist's Pain Map each scored point is a **button** named with its score ("Knee, left side: pain 6/10") that opens the same detail a tap does; points with nothing on file are skipped. The figure looks exactly as it does with a mouse.
+
 #### `UX-THEME-001` - No hydration warnings · P1
 **Steps.** With the console open, load `/`, `/book`, and each dashboard.
 **Expected Result.** **No hydration mismatch warnings.** The splash's visibility is an attribute on `<html>` read by CSS, not React state, precisely to avoid this. `suppressHydrationWarning` covers that one element only - if you see it on a descendant, raise it.

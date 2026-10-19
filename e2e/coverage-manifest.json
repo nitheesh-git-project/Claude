@@ -2216,7 +2216,7 @@
     {
       "id": "session.debug-clock",
       "runner": "session",
-      "title": "The debug clock moves the completion gate only while the debug bar is on",
+      "title": "The debug clock moves the completion gate and the Pain Map exam gate only while the debug bar is on",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -2224,7 +2224,8 @@
           "spec": "debug-clock.spec.ts",
           "tests": [
             "DC-001",
-            "DC-002"
+            "DC-002",
+            "DC-005"
           ],
           "level": "api"
         }
