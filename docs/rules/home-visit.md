@@ -166,6 +166,21 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   "the calendar invite is on its way" with Google not connected at all (QA
   F-13); `/api/admin/create-booking` now returns `calendarInvite` and the
   screen reports the booking and the invite as two separate outcomes.
+  **A patient is promised one only where it will be sent** (the owner's
+  rule). `readInviteDelivery` (`src/lib/inviteDeliveryServer.ts`) reads, on
+  the server, whether Google's credentials are set (System Health's
+  `not_configured` test, `googleCredentialsConfigured()`) and
+  `site_settings.google_meet_enabled`; `inviteDeliveryFor` turns that into
+  `{ online, homeVisit }` - no credentials, no invites; Meet off, none for
+  video sessions; a home visit is never gated by Meet; an unreadable setting
+  promises nothing. Every patient-facing line - `/book`'s and
+  `/patient/register`'s confirmations, `/book-home-visit`'s, an accepted
+  suggestion and the public pages' example chip in `ClosingCta` - is
+  `patientInviteLine(context, delivery)`, which otherwise says the session
+  (and its link) shows under Sessions on their dashboard. Never write the
+  invite promise as literal copy. A dead token is not detected here (that
+  needs System Health's outbound probe); `e2e/invite-promise.spec.ts`
+  covers the rendered read.
 - **"Do you come to me?" has three answers, and every caller asks the same
   way.** `lookupServiceArea` (`src/lib/serviceAreaServer.ts`) returns a
   served area, no area, or *could not ask*; check-area, both checkouts, the

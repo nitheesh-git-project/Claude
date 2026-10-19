@@ -85,3 +85,93 @@ export function adminBookingSuccessMessage(status: unknown, invite: unknown): st
 export function adminBookingInviteNeedsAttention(status: unknown, invite: unknown): boolean {
   return status === "confirmed" && invite !== "sent" && invite !== "already_sent";
 }
+
+// ---------------------------------------------------------------------------
+// What a patient is promised before any invite exists.
+//
+// The owner's rule: a patient is told "we'll email you a calendar invite"
+// only when this deployment will actually send one for that kind of session
+// -- Google's credentials configured and, for a video session, Auto-Create
+// Meet Links switched on. Otherwise they are told what is always true: the
+// session and its link show under Sessions on their dashboard before it
+// starts. The screens used to promise an invite on a deployment with no
+// Google connection at all (the patient-facing half of QA F-13).
+
+/** Whether a new session of each kind gets a calendar invite here. */
+export type InviteDelivery = { online: boolean; homeVisit: boolean };
+
+/** The answer when it could not be worked out: promise nothing. */
+export const NO_INVITE_DELIVERY: InviteDelivery = { online: false, homeVisit: false };
+
+/**
+ * The same judgement `createMeetEventForConfirmedAppointment` makes when it
+ * runs: no credentials, no event for anyone; Meet switched off stops video
+ * sessions' events only (a home visit's invite carries the address and is
+ * never gated by it). `meetEnabled` null means the column is absent, which
+ * that function treats as on; an unreadable settings row is "couldn't
+ * check", so nothing is promised.
+ */
+export function inviteDeliveryFor(input: {
+  googleConfigured: boolean;
+  meetEnabled: boolean | null;
+  settingsReadFailed?: boolean;
+}): InviteDelivery {
+  if (!input.googleConfigured) return NO_INVITE_DELIVERY;
+  return {
+    online: !input.settingsReadFailed && input.meetEnabled !== false,
+    homeVisit: true,
+  };
+}
+
+/** Accepts whatever a client component was handed, defaulting to no promise. */
+export function normalizeInviteDelivery(value: unknown): InviteDelivery {
+  if (!value || typeof value !== "object") return NO_INVITE_DELIVERY;
+  const v = value as Record<string, unknown>;
+  return { online: v.online === true, homeVisit: v.homeVisit === true };
+}
+
+export type PatientInviteContext =
+  /** /book's confirmation, after payment or with pay-later. */
+  | "online_booked"
+  /** /patient/register (a hospital referral's invite), after payment. */
+  | "online_registered"
+  /** /book-home-visit's confirmation once a visit is booked. */
+  | "home_visit_booked"
+  /** A therapist's suggested time, just accepted. Either kind of session. */
+  | "suggestion_accepted"
+  /** The illustrative "Session confirmed" chip on the public pages. */
+  | "example_chip";
+
+/** The sentence a patient reads about how they will hear about the session. */
+export function patientInviteLine(
+  context: PatientInviteContext,
+  delivery: InviteDelivery,
+  options: { visitMode?: "online" | "home_visit" } = {}
+): string {
+  switch (context) {
+    case "online_booked":
+      return delivery.online
+        ? "We'll confirm your exact slot, then email you a calendar invite with the video call link - it also shows on your dashboard."
+        : "We'll confirm your exact slot. Your video call link will appear under Sessions on your dashboard before the session.";
+    case "online_registered":
+      return delivery.online
+        ? "We'll email you a calendar invite with the video call link - it also shows on your dashboard."
+        : "Your video call link will appear under Sessions on your dashboard before the session.";
+    case "home_visit_booked":
+      return delivery.homeVisit
+        ? "We'll confirm your therapist and send a calendar invite with the address and time once everything's set."
+        : "We'll confirm your therapist. The visit's time and address will show under Sessions on your dashboard once everything's set.";
+    case "suggestion_accepted": {
+      const invites = options.visitMode === "home_visit" ? delivery.homeVisit : delivery.online;
+      return invites
+        ? "The clinic is confirming your therapist - the calendar invite follows once it's confirmed."
+        : "The clinic is confirming your therapist - it will show under Sessions on your dashboard once it's confirmed.";
+    }
+    case "example_chip":
+      // True of both kinds only when both get one; otherwise the dashboard,
+      // which is where every session's details are in every deployment.
+      return delivery.online && delivery.homeVisit
+        ? "Calendar invite on its way."
+        : "Details on your dashboard before it starts.";
+  }
+}

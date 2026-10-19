@@ -80,7 +80,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 
 | Outcome | What the patient sees | What is created |
 | --- | --- | --- |
-| **Success** | Step 3 is replaced by a **Payment Confirmed** panel with a **Go to Dashboard** link | Appointment `payment_status='paid'`, still `requested` until an admin assigns; a `payments` row |
+| **Success** | Step 3 is replaced by a **Payment Confirmed** panel with a **Go to Dashboard** link. It promises *a calendar invite with the video call link* **only** when Google is configured and Auto-Create Meet Links is on; otherwise it reads *Your video call link will appear under Sessions on your dashboard before the session.* **Critical check:** with System Health's Google Connection reading *not connected*, no patient screen (this one, `/patient/register`, `/book-home-visit`, an accepted suggestion, the public example chip) promises an invite | Appointment `payment_status='paid'`, still `requested` until an admin assigns; a `payments` row |
 | **Failure** (`failure@razorpay`) | An error message; the primary button now reads **Pay ₹… Now** (not "Request Booking"); attempt counter increments | The appointment already exists and stays `requested` + `unpaid` |
 | **Dismissed** (patient closes the checkout modal) | *"Payment was not completed. You can try again below."* | Same as failure |
 | **Abandoned** (patient closes the tab) | Nothing | Same. The booking sits in their dashboard as an unpaid session with a **Pay ₹… Now** button. If the webhook secret is set and the order was in fact captured, the webhook confirms it server-side anyway. |

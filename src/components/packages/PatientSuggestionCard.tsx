@@ -5,6 +5,7 @@ import { useRouter } from "@/lib/useRouter";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { debugNow } from "@/lib/debugNow";
 import { suggestionState, SUGGESTION_STATE_LABELS } from "@/lib/sessionSuggestions";
+import { NO_INVITE_DELIVERY, patientInviteLine, type InviteDelivery } from "@/lib/calendarInviteOutcome";
 
 export type PatientSuggestion = {
   id: string;
@@ -38,9 +39,14 @@ export type PatientSuggestion = {
 export default function PatientSuggestionCard({
   suggestion,
   leadTimeHours,
+  inviteDelivery = NO_INVITE_DELIVERY,
 }: {
   suggestion: PatientSuggestion;
   leadTimeHours: number;
+  /** Whether the session gets a calendar invite here (a suggestion is on
+   *  an online programme, so Google configured and Meet links on). The
+   *  accepted line promises one only when it does. */
+  inviteDelivery?: InviteDelivery;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<"accept" | "decline" | null>(null);
@@ -100,7 +106,7 @@ export default function PatientSuggestionCard({
           {done === "accepted"
             ? // Accepting books it; the clinic then confirms your therapist,
               // and the invite follows the confirmation, not the accept.
-              `${when} is in your sessions now. The clinic is confirming your therapist - the calendar invite follows once it's confirmed.`
+              `${when} is in your sessions now. ${patientInviteLine("suggestion_accepted", inviteDelivery)}`
             : "Your therapist will suggest another time."}
         </p>
       </div>

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { preloadRazorpayScript } from "@/lib/razorpay";
 import { revealField } from "@/lib/revealField";
 import { startCheckoutTimer, type CheckoutTimer } from "@/lib/checkoutTiming";
+import { NO_INVITE_DELIVERY, patientInviteLine, type InviteDelivery } from "@/lib/calendarInviteOutcome";
 import CheckoutProgress, { type CheckoutProgressStage } from "@/components/booking/CheckoutProgress";
 import {
   publishBookingPaymentTrouble,
@@ -67,7 +68,12 @@ export default function HomeVisitBookingWizard({
   leadTimeHours,
   cashEnabled = false,
   paymentTriesBeforeAccess = DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess,
+  inviteDelivery = NO_INVITE_DELIVERY,
 }: {
+  /** Whether a home visit here gets a calendar invite (Google configured),
+   *  read server-side by readInviteDelivery; the confirmation promises one
+   *  only when it does. */
+  inviteDelivery?: InviteDelivery;
   conditions: WizardHomeVisitCondition[];
   /** Which condition the picker opens on (`?category=`, an old `?package=`
    *  link mapped to its condition, or the general consultation). Empty opens
@@ -628,7 +634,7 @@ export default function HomeVisitBookingWizard({
         </h2>
         <p className="mt-2 text-sm text-slate-600">
           {paymentResult?.visitBooked
-            ? "We'll confirm your therapist and send a calendar invite with the address and time once everything's set."
+            ? patientInviteLine("home_visit_booked", inviteDelivery)
             : paymentResult?.visitBookingError ??
               (paymentMode === "cash"
                 ? "We've saved your request. Schedule your visit from your dashboard if it doesn't show up shortly."

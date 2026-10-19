@@ -6,6 +6,7 @@ import CarePlanOfferCard from "@/components/packages/CarePlanOfferCard";
 import PatientSuggestionCard from "@/components/packages/PatientSuggestionCard";
 import CarePlanHistory from "@/components/therapist/CarePlanHistory";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readInviteDelivery } from "@/lib/inviteDeliveryServer";
 import Link from "next/link";
 import { loadConditionCovers } from "@/lib/catalogImageServer";
 import { parseOfferSnapshot } from "@/lib/carePlans";
@@ -28,6 +29,9 @@ export const metadata: Metadata = {
 // finds both.
 export default async function Page() {
   const d = await loadPatientDashboard("suggested");
+  // Whether "the calendar invite follows" is true here (QA F-13): only with
+  // Google configured and Meet links on.
+  const inviteDelivery = await readInviteDelivery(createAdminClient());
 
   const plan = d.activeCarePlan;
   const version = plan?.version ?? null;
@@ -145,6 +149,7 @@ export default async function Page() {
                   key={suggestion.id}
                   suggestion={suggestion}
                   leadTimeHours={d.adminSettings.onlineBookingLeadTimeHours}
+                  inviteDelivery={inviteDelivery}
                 />
               ))}
             </div>

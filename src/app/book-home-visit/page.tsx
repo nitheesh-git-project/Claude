@@ -4,6 +4,7 @@ import BookingExitLink from "@/components/booking/BookingExitLink";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
+import { readInviteDelivery } from "@/lib/inviteDeliveryServer";
 import HomeVisitBookingWizard from "@/components/HomeVisitBookingWizard";
 import { Reveal } from "@/components/motion/primitives";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
@@ -44,6 +45,9 @@ export default async function BookHomeVisitPage({
   const requestedCategory = typeof params.category === "string" ? params.category : null;
   const requestedPackage = typeof params.package === "string" ? params.package : null;
   const supabase = createPublicClient();
+  // Whether the confirmation may promise a calendar invite: only when
+  // Google is configured (a home visit's invite is never gated by Meet).
+  const inviteDelivery = await readInviteDelivery(supabase);
 
   const [{ data: settingsRow }, { data: triesRow }, defaultServiceRead] = await Promise.all([
     supabase
@@ -128,6 +132,7 @@ export default async function BookHomeVisitPage({
                 ? triesRow.payment_tries_before_access
                 : DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess
             }
+            inviteDelivery={inviteDelivery}
           />
         </Suspense>
         </HomeVisitOnly>

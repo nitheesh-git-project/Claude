@@ -9,6 +9,7 @@ import { PROGRAMME_NEEDS_RECOMMENDATION } from "@/lib/consultationFirst";
 import { payForAppointment, preloadRazorpayScript } from "@/lib/razorpay";
 import { revealField } from "@/lib/revealField";
 import { startCheckoutTimer, type CheckoutOutcome, type CheckoutTimer } from "@/lib/checkoutTiming";
+import { NO_INVITE_DELIVERY, patientInviteLine, type InviteDelivery } from "@/lib/calendarInviteOutcome";
 import CheckoutProgress, { type CheckoutProgressStage } from "@/components/booking/CheckoutProgress";
 import {
   publishBookingPaymentTrouble,
@@ -100,7 +101,13 @@ export default function BookingWizard({
   bookingLeadTimeHours = BOOKING_LEAD_TIME_HOURS,
   paymentTriesBeforeAccess = DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess,
   defaultServiceId,
+  inviteDelivery = NO_INVITE_DELIVERY,
 }: {
+  /** Whether a video session here gets a calendar invite (Google configured
+   *  and Meet links on), read server-side by readInviteDelivery. The
+   *  confirmation promises one only when it is true; absent, it promises
+   *  nothing it cannot keep. */
+  inviteDelivery?: InviteDelivery;
   initialCategories: Category[];
   // Admin-configured (Feature Control → Booking Languages), never a
   // hardcoded list here -- see lib/adminSettings.ts for the "English"
@@ -1318,14 +1325,12 @@ export default function BookingWizard({
               <>
                 Your session is booked and there&apos;s nothing to pay now. It&apos;s added to
                 what you owe once the session has happened, and you can settle whenever suits
-                you. We&apos;ll confirm your exact slot, then email you a calendar invite with
-                the video call link - it also shows on your dashboard.
+                you. {patientInviteLine("online_booked", inviteDelivery)}
               </>
             ) : (
               <>
-                Your session is booked and paid. We&apos;ll confirm your exact slot, then email
-                you a calendar invite with the video call link - it also shows on your
-                dashboard.
+                Your session is booked and paid.{" "}
+                {patientInviteLine("online_booked", inviteDelivery)}
               </>
             )}
           </p>

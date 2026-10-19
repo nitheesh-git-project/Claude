@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import BookingExitLink from "@/components/booking/BookingExitLink";
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
+import { readInviteDelivery } from "@/lib/inviteDeliveryServer";
 import BookingWizard from "@/components/BookingWizard";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { BOOKING_LEAD_TIME_HOURS } from "@/lib/bookingSlots";
@@ -100,6 +101,9 @@ export default async function BookPage() {
     // rather than the page losing its categories.
     supabase.from("treatment_categories").select("id").eq("active", true).eq("is_default", true).limit(1),
   ]);
+  // Whether the confirmation may promise a calendar invite (QA F-13, the
+  // owner's rule): only when Google is configured and Meet links are on.
+  const inviteDelivery = await readInviteDelivery(supabase);
   // undefined = could not be read; null = read, and none is switched on.
   const defaultServiceId: string | null | undefined = defaultServiceRead.error
     ? undefined
@@ -156,6 +160,7 @@ export default async function BookPage() {
                 ? triesRow.payment_tries_before_access
                 : DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess
             }
+            inviteDelivery={inviteDelivery}
           />
         </Suspense>
         {/* Outside the wizard card, bottom-right. /book deliberately hides
