@@ -7,6 +7,11 @@
 // one of those screens now prices through `sessionListPricePaise`
 // (src/lib/sessionListPrice.ts).
 //
+// ASD-002 (QA F-22): a session refunded ₹200 and ₹100 whose cancellation
+// refund then failed read three different refund states in one drawer. The
+// cancellation line, the refund panel and the partial-refund form all read
+// `describeRefundPosition` (src/lib/refundState.ts) now.
+//
 // Driven as a screen because the arithmetic is already unit-tested; what only
 // a browser can show is that the drawer is handed the service's price and
 // prints it. Rows are seeded directly and removed afterwards; nothing here
@@ -82,6 +87,54 @@ test.describe("ASD: the session drawer's money", () => {
       await expect(drawer).toContainText(`${price} (estimated)`);
       // ...and the drawer no longer reaches for the global fee.
       await expect(drawer).not.toContainText(`₹${formatRupees(SESSION_FEE_PAISE)} (estimated)`);
+      await ctx.close();
+    } finally {
+      await db.from("appointments").delete().eq("id", seeded!.id);
+    }
+  });
+
+  test("ASD-002: a failed cancellation refund after partial refunds reads as one refund state", async ({ browser }) => {
+    // QA F-22, SS1295's history as the row records it: ₹1,999 paid, ₹200 and
+    // ₹100 refunded, then a cancellation whose refund the gateway refused.
+    // The drawer read "Paid / Refund failed", "₹1,699 refundable" and, under
+    // Cancellation, "No payment to refund". Seeded directly: no gateway is
+    // reached, and the refund form is opened but never submitted.
+    test.setTimeout(90_000);
+    const patientId = await profileIdFor(db, QA_EMAILS.patientA);
+    const { data: seeded, error } = await db
+      .from("appointments")
+      .insert({
+        patient_id: patientId,
+        concern: `${MARKER} failed refund`,
+        slot_time: farSlot(),
+        timezone: "Asia/Kolkata",
+        duration_minutes: 60,
+        status: "cancelled",
+        visit_mode: "online",
+        payment_status: "paid",
+        amount_paid_paise: 199_900,
+        paid_at: new Date().toISOString(),
+        razorpay_payment_id: `pay_qa_asd_${Date.now()}`,
+        refund_status: "failed",
+        refund_amount_paise: 30_000,
+        cancellation_reason: "QA drawer refund state",
+      })
+      .select("id, session_code")
+      .single();
+    expect(error, error?.message).toBeFalsy();
+
+    try {
+      const { ctx, drawer } = await openDrawer(browser, seeded!.session_code!);
+      await expect(drawer).toContainText(
+        "₹300 refunded earlier; the refund of the remaining ₹1,699 failed - refund it from this session"
+      );
+      await expect(drawer).not.toContainText("No payment to refund");
+      await expect(drawer).toContainText("Refund failed");
+      await expect(drawer).toContainText("Refunded so far");
+      await expect(drawer).toContainText("₹300 of ₹1,999");
+      // The form's ceiling is the same ₹1,699.
+      await drawer.getByRole("button", { name: "Refund part of this payment" }).click();
+      await expect(drawer).toContainText("₹1,699 of ₹1,999 is still refundable.");
       await ctx.close();
     } finally {
       await db.from("appointments").delete().eq("id", seeded!.id);

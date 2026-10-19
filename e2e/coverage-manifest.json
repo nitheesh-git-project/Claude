@@ -1829,7 +1829,8 @@
           "spec": "gateway-cancellation-refund.spec.ts",
           "tests": [
             "CR-001",
-            "CR-002"
+            "CR-002",
+            "CR-003"
           ],
           "level": "api"
         }
@@ -2387,7 +2388,8 @@
         {
           "spec": "admin-session-drawer-money.spec.ts",
           "tests": [
-            "ASD-001"
+            "ASD-001",
+            "ASD-002"
           ],
           "level": "browser"
         }

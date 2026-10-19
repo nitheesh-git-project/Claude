@@ -4,7 +4,7 @@ import ActivityTimeline from "@/components/admin/ActivityTimeline";
 import { useEffect, useId, useOptimistic, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import RefundChip from "@/components/admin/RefundChip";
-import { hasRefund } from "@/lib/refundState";
+import { describeCancellationRefund, describeRefundPosition, hasRefund } from "@/lib/refundState";
 import OverlayPortal from "@/components/system/OverlayPortal";
 import { FeedbackBody, StarRow } from "@/components/feedback/RatingDisplay";
 import { useDialogChrome } from "@/lib/useDialogChrome";
@@ -202,6 +202,17 @@ export default function SessionDetailDrawer({
   const feePaise = sessionListPricePaise(
     a,
     a.category_id ? categoryMap.get(a.category_id)?.price_paise : undefined
+  );
+  // Where this session's money stands, read once (refundState.ts) and used
+  // by the cancellation line, the refund panel and the partial-refund form,
+  // so the three cannot give three answers. The charge includes travel on a
+  // home visit, as refund-session-partial's ceiling does.
+  const refundPosition = describeRefundPosition(
+    a,
+    a.payment_status === "paid"
+      ? (a.amount_paid_paise ?? 0) +
+          (homeVisit ? Math.max(0, homeVisit.travel_fee_paise ?? 0) : 0)
+      : 0
   );
   const durationMinutes = a.duration_minutes ?? BASE_DURATION_MINUTES;
   const canReassign = a.status === "requested" || a.status === "confirmed";
@@ -653,14 +664,18 @@ export default function SessionDetailDrawer({
             {a.status === "cancelled" && (
               <div>
                 <p className="text-slate-500">Cancellation</p>
-                <p className="text-slate-700">
-                  {a.refund_status === "processed" && a.refund_amount_paise
-                    ? `₹${formatRupees(a.refund_amount_paise)} refunded`
-                    : a.refund_status === "not_eligible"
-                    ? a.therapist_payout_paid_at
+                <p className={refundPosition.failed ? "text-red-700" : "text-slate-700"}>
+                  {/* The same position the payment chip, the refund panel
+                      and the partial-refund form read -- this line used to
+                      fall through to "No payment to refund" for every state
+                      but processed and not_eligible, including a failed
+                      refund on a paid session (QA F-22). */}
+                  {describeCancellationRefund(refundPosition, {
+                    noRefundDue: a.therapist_payout_paid_at
                       ? "No refund (this session's payout was already settled - cancelled as an admin correction, not a late cancellation)"
-                      : `No refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot)`
-                    : "No payment to refund"}
+                      : a.refund_reason?.trim() || `No refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot)`,
+                    viaProgramme: !!a.package_purchase_id,
+                  })}
                 </p>
                 {a.cancellation_reason && (
                   <p className="text-slate-500 mt-0.5">Reason: {a.cancellation_reason}</p>
@@ -866,9 +881,24 @@ export default function SessionDetailDrawer({
                 plainly that this session had been refunded, when, or why. */}
             {canSeeMoney && hasRefund(a) && (
               <div className="pt-3 border-t border-slate-100">
-                <p className="mb-1.5 font-bold text-slate-700">Refunded</p>
+                {/* "Refunded" over a "Refund failed" chip was the panel
+                    contradicting itself. */}
+                <p className="mb-1.5 font-bold text-slate-700">
+                  {refundPosition.state === "processed" ? "Refunded" : "Refund"}
+                </p>
                 <RefundChip row={a} />
                 <dl className="mt-2 space-y-1 text-[11px]">
+                  {refundPosition.paidPaise > 0 && (
+                    <div className="flex gap-2">
+                      <dt className="shrink-0 text-slate-500">Refunded so far</dt>
+                      <dd className="text-slate-800">
+                        ₹{formatRupees(refundPosition.refundedPaise)} of ₹
+                        {formatRupees(refundPosition.paidPaise)}
+                        {refundPosition.owedBackPaise > 0 &&
+                          ` (₹${formatRupees(refundPosition.owedBackPaise)} still to hand back)`}
+                      </dd>
+                    </div>
+                  )}
                   {a.refunded_at && (
                     <div className="flex gap-2">
                       <dt className="text-slate-500">When</dt>
@@ -896,8 +926,11 @@ export default function SessionDetailDrawer({
                 <p className="font-bold text-slate-700 mb-1">Refund</p>
                 <PartialRefundForm
                   appointmentId={a.id}
-                  paidPaise={a.amount_paid_paise ?? 0}
-                  alreadyRefundedPaise={a.refund_amount_paise ?? 0}
+                  // From the same position as the cancellation line: what
+                  // earlier refunds committed back comes off, a failed
+                  // attempt does not.
+                  paidPaise={refundPosition.paidPaise}
+                  alreadyRefundedPaise={refundPosition.paidPaise - refundPosition.refundablePaise}
                   // A session a trusted patient settled carries no gateway
                   // payment of its own: the money arrived as one payment
                   // covering several sessions, and a pay-later booking never

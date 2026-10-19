@@ -180,6 +180,27 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   than left blank, because "no refund due" and "we never looked" read
   identically when both are empty and mean opposite things. `none` renders
   **nothing**, not an empty chip on every unrefunded session.
+  **`refund_amount_paise` is a running total, and `refund_status` is only
+  the latest decision.** The total is money committed back -- gone back, or
+  decided and waiting on a person -- and a later `failed` or `not_eligible`
+  does not erase it: a refused attempt refunded nothing and adds nothing, and
+  a forfeiture keeps what earlier partial refunds returned rather than
+  writing 0 over it. `describeRefundPosition()` in `refundState.ts` is that
+  reading -- paid, refunded, owed back, still refundable (`paid - total`),
+  failed -- and the drawer's cancellation line, its refund panel, the
+  partial-refund form's ceiling, `refund-session-partial`'s own cap,
+  `cancelAppointmentAndRefund` and the revenue figures (`refundedPaiseOf`,
+  in `moneyLineFor` and `hospitalSessionLine`) all read it. QA F-22 was the
+  four disagreeing: a ₹1,999 session refunded ₹200 and ₹100 asked the
+  gateway for **₹1,999** on cancellation -- more than was left, so it was
+  refused -- and the drawer then said "Paid / Refund failed", "₹1,699
+  refundable" and "No payment to refund", while net revenue dropped the ₹300
+  that had gone back. A cancellation now asks for only what is left (and
+  sends nothing when partials already returned everything), writes the new
+  total on success, and the line reads "₹300 refunded earlier; the refund of
+  the remaining ₹1,699 failed". Guards: `refundPosition.test.ts`,
+  `e2e/gateway-cancellation-refund.spec.ts` CR-003,
+  `e2e/admin-session-drawer-money.spec.ts` ASD-002.
   **`refunded_at` and `refunded_by` are the other half.** `paid_at` has
   existed since the first payment shipped; money going out had no equivalent,
   so "when was this refunded, and by whom" was answerable only from the audit
