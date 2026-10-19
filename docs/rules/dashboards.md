@@ -489,6 +489,22 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `suggestionsWaiting`, a live plan once plus each proposed time -- is
   summed onto More, where the entry lives. The sidebar and rail show it on
   the entry itself.
+- **A delivered session's card carries what the therapist told the patient.**
+  The patient's session card (`PatientSessionCard`, via
+  `PatientSessionSummary`) shows the session summary on a completed,
+  non-no-show session: *What we did* / *Before your next session*, "From
+  <therapist> · <date>" through `formatClinicDate`, an "updated" date after
+  an edit, and a link to a programme recommended after that session. With
+  none written it says "Your therapist hasn't added a summary for this
+  session"; when the read failed it says it couldn't load and never that
+  none exists. Only the Sessions screen reads summaries
+  (`summariesRead` in the loader), so no other screen renders "none" for
+  want of asking. `session_summaries` is on the patient's realtime list, so
+  a summary written as Done is pressed appears without a reload. The admin
+  `SessionDetailDrawer` shows the same summary ("Summary for the patient")
+  to a desk that manages Sessions, read through `/api/admin/session-summary`
+  (`requireAdminScope("sessions")`) - Finance reads that drawer to reconcile
+  money and is neither shown the panel nor answered by the route.
 - **A session rating is a card, and its quick picks live in the feedback
   text.** `SessionFeedbackForm` (patient and therapist) asks for stars
   first, then offers picks that suit the score (`picksFor` in

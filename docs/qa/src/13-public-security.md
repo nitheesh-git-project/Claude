@@ -78,6 +78,10 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 * `/home-visit` lists **conditions**, each as one visit at its home-visit price (the condition's own, else the clinic-wide one) - no visit count, no "Single visit", no validity, no days. Each books directly through `/book-home-visit?category=<id>`; `HV2` (4 visits) is **absent** - it is a recommendation, not a product.
 * There is **no admin switch** for any of this. "Show programme prices publicly" no longer exists on Settings; if you find it, that is a defect.
 
+#### `PUB-COPY-001` - The site promises the session summary, never the therapist's notes · P1
+**Steps.** Read `/how-it-works`, `/mission`, the home page's Why choose us band and the health-profile showcase.
+**Expected Result.** Patients are promised **a short summary after each session and your exercise plan** (How it works: *Your exercise plan, and a short summary after each session.*). Nothing offers the reader "each session's notes", "every session's notes" or "a written record, updated every session" - the therapist's notes are clinician-only. Saying the physiotherapist's own notes shape the next session is fine.
+
 #### `PUB-TEAM-001` - Team · P2
 **Expected Result.** Only approved, active, team-visible therapists appear. Tapping one opens a popup with their profile and a **Book with …** action carrying `?therapist=` into the wizard.
 

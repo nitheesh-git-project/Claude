@@ -284,6 +284,26 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Submitting with required fields blank: `Fill in what you treated, how the patient responded, and the plan for next time.`
 * An unknown field in the payload: `Note contains unknown fields.`
 
+#### `THR-SESS-009` - The summary for the patient, written beside the note · P0
+
+**Feature.** The note dialog (Done, or the completed card's note button) has a second band, teal with an eye, headed **Shared with the patient**: *What we did today* and *What to do before next time*. Both optional, 600 characters each. It is the one part of the dialog the patient reads; the note above it stays clinician-only.
+**Preconditions.** Therapist A has a confirmed session with Patient A that has started.
+
+**Steps**
+1. Tap **Done**. Fill the note as in `THR-SESS-008`, and in the shared band write *What we did today* `We worked on getting up from a chair without pushing off.` and *What to do before next time* `Heel slides, 10 at a time, morning and evening.` Save.
+2. Within 24 hours reopen the note from the card and change one summary line. Save.
+3. Reopen it, empty both summary boxes and save.
+4. Put `Call me on 98765 43210` in a summary box and save.
+5. As Therapist B (not on this session), POST `/api/therapist/session-summary/submit` for this appointment.
+
+**Expected Result**
+* Step 1: the session finishes; the toast ends `<first name> can read your summary.` One `session_summaries` row, filed under the session's patient and therapist (never from the request body). If the summary is refused, the note is still saved, the session **stays open**, and the message says so.
+* Step 2: saved; a `session_summary_revisions` row keeps the old text. After 24 hours the band is read-only with `This summary is locked - it was written more than 24 hours ago.`
+* Step 3: refused - `… may already have read the summary, so it can be corrected but not removed.`
+* Step 4: blocked by the contact scanner, with a Risk signal on surface **Session summary for the patient**.
+* Step 5: `That session isn't yours.` (403).
+* A no-show session refuses a summary; an over-long box is refused with the 600-character message.
+
 ---
 
 ### 12.4 Clinical records

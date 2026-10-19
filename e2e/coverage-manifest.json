@@ -1325,6 +1325,24 @@
       "integration": "local",
       "destructive": false
     },
+    "patient-session-summary.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md",
+        "docs/rules/public-site.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "hospital-isolation.spec.ts": {
       "runner": "hospital",
       "levels": [
@@ -3476,6 +3494,50 @@
       ],
       "rules": [
         "docs/rules/clinical.md"
+      ]
+    },
+    {
+      "id": "session.patient-summary",
+      "runner": "session",
+      "title": "The patient's session summary: written beside the note by the session's own therapist only, read by that patient (RLS and the Sessions screen) with the therapist's name and date, never by another patient or an unrelated therapist, versioned and un-blankable, shown to admin desks that manage Sessions and refused to Finance -- and the private note never reaches the patient",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-session-summary.spec.ts",
+          "tests": [
+            "PSS-001",
+            "PSS-004",
+            "PSS-005"
+          ],
+          "level": "api"
+        },
+        {
+          "spec": "patient-session-summary.spec.ts",
+          "tests": [
+            "PSS-002"
+          ],
+          "level": "db"
+        },
+        {
+          "spec": "patient-session-summary.spec.ts",
+          "tests": [
+            "PSS-003",
+            "PSS-006"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "finish-session.spec.ts",
+          "tests": [
+            "FS-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
       ]
     },
     {
