@@ -1143,19 +1143,21 @@ test.describe("The clinic approves a recommendation", () => {
       timeout: 30_000,
     });
 
-    // The innermost visible card naming this patient: ancestors come first
-    // in document order, and clearOpenPlans() leaves them one open plan.
+    // The queue card by its own group name, which holds in all three of its
+    // states. The first version of this case filtered on "has an Approve
+    // button" -- which stops matching the moment "Turn it down" swaps the
+    // buttons for the reason panel, and the history cards further down also
+    // name this patient. clearOpenPlans() leaves them one queued plan.
     const card = page
-      .locator("div.rounded-xl")
+      .getByRole("group", { name: `Recommendation waiting for a decision: ${patientName}` })
       .filter({ visible: true })
-      .filter({ hasText: patientName })
-      .filter({ has: page.getByRole("button", { name: "Approve", exact: true }) })
-      .last();
+      .first();
     await expect(card).toBeVisible({ timeout: 30_000 });
 
     await card.getByRole("button", { name: "Turn it down" }).click();
     await card.getByRole("textbox").fill("QA");
     await card.getByRole("button", { name: "Cancel" }).click();
+    await expect(card.getByRole("textbox")).toHaveCount(0);
     await card.getByRole("button", { name: "Approve", exact: true }).click();
 
     await expect

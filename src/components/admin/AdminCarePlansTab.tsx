@@ -478,7 +478,13 @@ function ReviewCard({
   const stale = isQueueStale(plan.submittedAt, nowMs);
 
   return (
-    <div className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-4 text-xs">
+    // Named as a group so the card is one findable thing whichever of its
+    // three states it is in -- idle, turning down, or changing.
+    <div
+      role="group"
+      aria-label={`Recommendation waiting for a decision: ${plan.patientName}`}
+      className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-4 text-xs"
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-bold text-slate-900">{plan.patientName}</p>
