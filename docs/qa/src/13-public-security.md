@@ -59,6 +59,7 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 **Steps.** On `/` and `/conditions`, tap a programme (treatment category) card's **body**. Then tap its **Book …** link.
 **Expected Result.** The card body is **one tap target that opens a detail dialog** carrying the long description and what the programme covers. The **Book …** link sits **below the card** and again at the foot of the dialog, **outside** the tap-target button (a link nested inside a button is invalid markup and behaves differently per browser). It goes to `/book?category=<id>` - a **first session**, never a course of them.
 **Cover images:** a card with no photo shows the **shared placeholder panel at the same height** as one with a photo. It must never look like an image that failed to load.
+**Session length:** read the category's length in Catalog → Conditions (its **Duration**). The card's `N min`, the dialog's **Session** tile, the dialog footnote (*"Every programme opens with an assessment - N minutes, one-to-one."*) and the `/book` service line must all show that same N. The band's lede reads *"Same N-minute assessment"* only when every category shares one length, and *"One assessment to start"* otherwise. A fixed "60-minute" anywhere while the category says another length is a defect.
 
 #### `PUB-CAT-003` - Nothing sits on the photograph in a detail dialog · P1
 **Steps.** Open a condition's detail dialog on `/conditions` and a package's on `/home-visit`, each with a cover uploaded and each without.
@@ -82,6 +83,7 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 
 #### `PUB-FAQ-001` - FAQ · P2
 **Expected Result.** The accordion renders the admin-managed FAQs in order. With none configured, the page shows a sensible empty state rather than a broken band.
+**Home visits.** While Home Visit is switched on and at least one service area is active, the list ends with *"Do you do home visits in my area, and what do they cost?"* - built from the live service areas, not typed. Its answer names the **cities** in Catalog → Service areas, sends the visitor to the pincode check and the Home Visit page, and quotes **no pincode and no price**. Compare it with Catalog → Service areas as it stands today - never with a figure written in this plan. An admin-written FAQ that quotes a pincode or a ₹ amount is a content defect to report to the owner (it will drift); the FAQ form shows an amber note while such an answer is being typed.
 
 #### `PUB-HV-001` - Home visit page · P1
 Covered by `PAT-HV-001` and `ADM-SET-013`.

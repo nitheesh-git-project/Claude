@@ -216,6 +216,8 @@ Create in **Catalog → Service Areas**.
 
 **Not serviceable (use for the negative path):** `560025`. **Invalid formats:** `0560038`, `56003`, `abcdef`.
 
+**These are the areas you create, not the areas a shared database has.** Staging also carries the automated suite's area (`600017`, Chennai) and whatever other testers saved, and its home-visit prices move the same way. If you did not create the rows above yourself on this database, read the live pincodes and travel fees from **Catalog → Service Areas** and the visit prices from **Catalog → Conditions → Home visits**, and test against those. A figure in the public FAQ is never a source: it is admin-typed text.
+
 ### 8.14 Documents (patient uploads)
 
 Create small dummy files locally. Content does not matter; the filename and type do.

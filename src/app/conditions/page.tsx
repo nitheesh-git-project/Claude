@@ -8,6 +8,7 @@ import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
 import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import { programmesLede } from "@/lib/sessionLengthCopy";
 
 export const metadata: Metadata = {
   title: "Conditions Treated | MoveRestore",
@@ -108,7 +109,9 @@ export default async function ConditionsPage() {
           tone="tint"
           eyebrow="Structured programmes"
           title="What you can book today"
-          lede="Same 60-minute assessment. Different protocol."
+          // Built from the rows: a length is per category, and a fixed
+          // number here contradicted the card and the booking beneath it.
+          lede={programmesLede(rows)}
         >
           <ProgramCards programs={programs} />
         </Section>

@@ -613,6 +613,17 @@
       "integration": "local",
       "destructive": false
     },
+    "public-hydration.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "catalog-detail.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -1345,6 +1356,21 @@
       "integration": "local",
       "destructive": true
     },
+    "patient-upcoming-rule.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "patient-meet-join.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -1539,7 +1565,8 @@
             "SP-001",
             "SP-006",
             "SP-008",
-            "SP-011"
+            "SP-011",
+            "SP-013"
           ],
           "level": "browser"
         },
@@ -2973,6 +3000,27 @@
       ]
     },
     {
+      "id": "platform.public-hydration",
+      "runner": "platform",
+      "title": "The public pages and /book hydrate without a server/client mismatch",
+      "required": false,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "public-hydration.spec.ts",
+          "tests": [
+            "HY-001",
+            "HY-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Run against next dev, which reports hydration mismatches in full; the browser is en-GB, reduced-motion and on a simulated clock, the three conditions the known mismatches needed. A mismatch that needs some other browser difference is not provoked.",
+      "rules": [
+        "docs/rules/frontend.md"
+      ]
+    },
+    {
       "id": "platform.catalog",
       "runner": "platform",
       "title": "The public catalog's dialogs and covers render the same on card, dialog and booking screen",
@@ -2989,7 +3037,9 @@
             "CD-005",
             "CD-006",
             "CD-007",
-            "CD-008"
+            "CD-008",
+            "CD-009",
+            "CD-010"
           ],
           "level": "browser"
         },
@@ -3426,6 +3476,26 @@
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "patient.upcoming-rule",
+      "runner": "patient",
+      "title": "Upcoming means one thing on the Sessions list, its Calendar view and the Overview",
+      "required": false,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-upcoming-rule.spec.ts",
+          "tests": [
+            "PU-001",
+            "PU-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
       ]
     },
     {

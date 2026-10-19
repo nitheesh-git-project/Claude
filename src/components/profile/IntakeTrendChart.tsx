@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { IntakeTrendPoint } from "@/lib/healthProfileSummary";
+import { formatClinicDateShort } from "@/lib/formatDateTime";
 
 const WIDTH = 320;
 const HEIGHT = 118;
@@ -9,8 +10,11 @@ const PAD = { top: 10, right: 10, bottom: 20, left: 26 };
 const PLOT_W = WIDTH - PAD.left - PAD.right;
 const PLOT_H = HEIGHT - PAD.top - PAD.bottom;
 
-const formatDay = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata", day: "numeric", month: "short" });
+// en-IN, through formatDateTime.ts: a locale-less toLocaleDateString printed
+// "Oct 5" from the server (Node's locale) and "5 Oct" in an en-IN browser --
+// a text mismatch, React #418, on every public page showing the health
+// profile showcase.
+const formatDay = (iso: string) => formatClinicDateShort(iso);
 
 /**
  * "Am I getting better?" as one line, for the two specialties that have no

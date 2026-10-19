@@ -346,3 +346,15 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   `overflow-clip` rather than `overflow-hidden` for exactly this: a hidden
   overflow makes the card a scroll container and the row would stick to the
   card, not the screen. From `sm` the row sits in the flow as before.
+
+- **A patient can read what they consent to, and it names their service.**
+  Step 2's required checkbox links its terms: the underlined title in the
+  label is a button that opens `ConsentTermsDialog` (the shared `Modal`), and
+  activating it does not tick the box. The checkbox sentence and the dialog
+  both come from `src/lib/consentTerms.ts`, which names the service chosen
+  on Step 1 and makes no specialty claim - it used to say "musculoskeletal
+  care" to somebody booking a neurological or paediatric session, beside
+  terms there was no way to open. That wording is a **draft for the owner
+  and legal to review**; edit it there and nowhere else. The home-visit
+  wizard's checkbox is a different consent (this address, a visit at this
+  time) and has no terms behind it. `e2e/service-picker.spec.ts` SP-013.

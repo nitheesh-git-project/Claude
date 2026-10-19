@@ -78,7 +78,8 @@ export default async function HospitalsPage() {
         subtitle="Refer a discharged patient. Get their progress reported back."
         primary={{ href: "#enquire", label: "Talk to us", icon: "fa-paper-plane" }}
         stats={[
-          { value: "60 min", label: "Initial assessment" },
+          // No length: it is set per category, and this page reads none.
+          { value: "1-on-1", label: "Initial assessment" },
           { value: "Video", label: "No patient travel" },
           { value: "Reported", label: "Back to your team" },
         ]}

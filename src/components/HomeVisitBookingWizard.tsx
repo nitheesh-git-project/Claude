@@ -683,7 +683,9 @@ export default function HomeVisitBookingWizard({
                 }}
                 inputMode="numeric"
                 className={inputCls()}
-                placeholder="600020"
+                // Not a real pincode: an example that is (or was) served
+                // reads as a promise of coverage.
+                placeholder="6-digit pincode"
               />
             </label>
             <button

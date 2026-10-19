@@ -59,6 +59,25 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   name. The check earns its keep because this failure is invisible locally:
   a developer's machine is often in the same zone as the clinic, and it only
   shows on a UTC host.
+- **A client component's first render is the server's render, so it reads
+  nothing the server cannot.** The repeated React #418 on the public pages
+  and `/book` came from three places that each looked harmless: the
+  health-profile showcase's charts formatted with a *locale-less*
+  `toLocaleDateString(undefined, …)` (Node said "Oct 5", an en-GB browser
+  "5 Oct" - a zone alone is not enough, the locale must be pinned too);
+  motion's `useReducedMotion` answers on the first client render, and the
+  showcase's pause button only exists while the tour rotates; and the debug
+  bar, in the root layout on every page, read its simulated clock from
+  localStorage in a lazy `useState`, so "Reset to Real Time" rendered on the
+  client only. The rules: format through `formatDateTime.ts` (or pass
+  `"en-IN"`); a component whose *markup* changes under reduced motion uses
+  `useHydrationSafeReducedMotion` (`src/lib/`); browser-only state (storage,
+  cookies, the clock, `window`) is read in a mount effect, never a lazy
+  initializer, in anything the server renders; and `suppressHydrationWarning`
+  goes on the one node whose value is meant to be the reader's (the footer's
+  year), never on a wrapper. `src/lib/hydrationSafety.test.ts` walks the
+  client components for the first and holds the other two by file;
+  `e2e/public-hydration.spec.ts` drives a browser with all three differences.
 - **An account says when it was created, with the time on it, wherever that
   account has a screen.** `profiles.created_at` was rendered three ways and
   not at all in two places: the People directory carried the date *and* the

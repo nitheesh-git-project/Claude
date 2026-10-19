@@ -65,7 +65,7 @@ const STEPS: Step[] = [
     id: "assess",
     num: "02",
     title: "Get assessed on camera",
-    short: "60 minutes with a licensed specialist",
+    short: "One-to-one with a licensed specialist",
     detail:
       "A full movement assessment over HD video - range-of-motion testing, posture screening and pain-response checks, measured in the room where your pain actually happens.",
     bullets: [

@@ -27,7 +27,7 @@ Anyone. A brand-new visitor (creates an account inside Step 2), or a signed-in p
 | 2 | "Continue with the same therapist?" | Optional; only shown to a returning patient with previous therapists |
 | 2 | Requested specialist (from `?therapist=`) | Optional; carried in, removable |
 | 2 | "Anything else we should know?" notes | Optional |
-| 2 | Telehealth consent checkbox | **Yes** |
+| 2 | Consent checkbox (terms readable from its label) | **Yes** |
 | 3 | Nothing - Step 3 is review and pay | - |
 
 ### 10.4 How the wizard decides which **dates** are offered
@@ -141,7 +141,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 
 * **Means:** who you are and what you need.
 * **Guest:** Full Name, Email, Create Password (min 6), Phone, Confirm Password, Referral Code (optional). A signed-in patient sees only a teal *"Booking as **Name** (email)"* strip.
-* **Everyone:** a read-only teal line naming the service chosen on Step 1 (photograph, *"Booking a **Title** - ₹price, N min"*) with a **Change** link back to Step 1, optional therapist preference, optional notes, and a **required** telehealth consent checkbox. There is no dropdown here any more; the service is chosen on Step 1.
+* **Everyone:** a read-only teal line naming the service chosen on Step 1 (photograph, *"Booking a **Title** - ₹price, N min"*) with a **Change** link back to Step 1, optional therapist preference, optional notes, and a **required** consent checkbox. Its label reads *"I agree to the **Consent terms & emergency disclaimer** for my **<service>** video session. I understand it is not an emergency service."* - naming the service chosen on Step 1, and never "musculoskeletal" or any other specialty. Tapping the underlined terms opens a dialog with the full terms (what a video session is and cannot do, staying safe, not for emergencies, your information, changing your mind) naming the same service; closing it (Close, Escape or the backdrop) returns focus to the link and leaves the checkbox **unticked** - reading is not agreeing. The terms are draft wording for the owner to review. There is no dropdown here any more; the service is chosen on Step 1.
 * **Referral code** is validated on blur: `Checking code...` → either `Valid - referred by <Hospital>` in teal, or `Code not recognized - double-check it or leave blank` in red. An invalid code **blocks Continue**; a blank one does not.
 * **Validation on Review Booking →**, in this order: name/email/password present and password ≥ 6 (*"Please fill in your name, email, and a password (min 6 characters)."*); email shape (*"Please enter a valid email address."*); phone shape (*"Please enter a valid phone number."*); passwords match (*"Passwords do not match. Please re-enter them."*); referral code not invalid; consent ticked (*"Please agree to the telehealth consent terms to continue."*).
 * **Nothing is created.**

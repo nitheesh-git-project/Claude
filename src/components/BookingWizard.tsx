@@ -36,6 +36,8 @@ import { describeCancellationWindow } from "@/lib/cancellationWindow";
 import SpecialtyChip from "@/components/SpecialtyChip";
 import ServicePicker from "@/components/booking/ServicePicker";
 import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
+import ConsentTermsDialog from "@/components/booking/ConsentTermsDialog";
+import { consentCheckboxText } from "@/lib/consentTerms";
 import { categoryServiceOption, defaultCategoryId } from "@/lib/serviceOptions";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
 import { formatRupees } from "@/lib/formatMoney";
@@ -337,6 +339,8 @@ export default function BookingWizard({
   );
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
+  // The terms behind the consent checkbox, readable before it is ticked.
+  const [consentTermsOpen, setConsentTermsOpen] = useState(false);
   const [previousTherapists, setPreviousTherapists] = useState<
     { id: string; full_name: string; specialization?: string | null }[]
   >([]);
@@ -1661,15 +1665,33 @@ export default function BookingWizard({
               onChange={(e) => setConsent(e.target.checked)}
               className="mt-1 w-4 h-4 accent-teal-600"
             />
+            {/* The terms are a button inside the label: activating an
+                interactive child of a label does not toggle its checkbox, so
+                reading them never ticks the box for the patient. The words
+                come from src/lib/consentTerms.ts and name the service chosen
+                on Step 1 -- this said "musculoskeletal care" to somebody
+                booking a neurological or paediatric session. */}
             <label
               htmlFor="bw-consent"
               className="text-xs text-slate-700 leading-relaxed font-medium"
             >
-              I agree to the Telehealth Consent Terms & Emergency Disclaimer. I
-              understand virtual physical therapy is for non-emergency
-              musculoskeletal care.
+              {consentCheckboxText(selectedCategory?.title).before}
+              <button
+                type="button"
+                onClick={() => setConsentTermsOpen(true)}
+                aria-haspopup="dialog"
+                className="font-semibold text-teal-700 underline underline-offset-2 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-sm"
+              >
+                {consentCheckboxText(selectedCategory?.title).linkText}
+              </button>
+              {consentCheckboxText(selectedCategory?.title).after}
             </label>
           </div>
+          <ConsentTermsDialog
+            open={consentTermsOpen}
+            onClose={() => setConsentTermsOpen(false)}
+            serviceTitle={selectedCategory?.title ?? null}
+          />
 
           {/* Pinned to the bottom of a phone screen: step 2 is a long form,
               and the way forward should not be below it. */}
