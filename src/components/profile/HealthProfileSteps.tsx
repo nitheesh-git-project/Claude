@@ -16,10 +16,10 @@ import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
  * button.
  *
  * Step three differs by specialty because the examination layer does. The
- * body map is an ORTHOPAEDIC instrument; the neurological and paediatric
- * exam layers are not built yet, and the honest thing is to say where
- * those findings live in the meantime rather than to imply a chart that
- * will never fill in.
+ * body map is the ORTHOPAEDIC instrument and the neurological examination
+ * chart is the neurological one; the paediatric exam layer is not built
+ * yet, and the honest thing is to say where those findings live in the
+ * meantime rather than to imply a chart that will never fill in.
  */
 
 type Step = { icon: string; title: string; body: string };
@@ -44,8 +44,8 @@ const STEP_THREE_BY_SPECIALTY: Record<ConditionSpecialty, Step> = {
   },
   neuro: {
     icon: "fa-notes-medical",
-    title: "Your therapist tracks your progress",
-    body: "How much you can manage on your own is re-asked over time - that is the line you will watch move.",
+    title: "Your therapist examines you",
+    body: "They record your strength, stiffness, balance and walking, and each new examination shows what has changed since the last.",
   },
   pediatrics: {
     icon: "fa-child-reaching",

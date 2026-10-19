@@ -17,6 +17,7 @@ import {
   specialtyLabel,
 } from "@/lib/conditionSpecialty";
 import { MEDICAL_DOCUMENT_TYPE_LABEL, type MedicalDocumentType } from "@/lib/medicalDocuments";
+import { describeNeuroExamForText, parseNeuroAssessments, type NeuroAssessmentRow } from "@/lib/neuroExam";
 
 /** Shape of the rows the Pain Map query returns, so the non-orthopaedic
  *  branch's empty placeholder keeps the same type. */
@@ -75,6 +76,7 @@ export async function GET(request: NextRequest) {
   if (specialtyError) return exportUnavailable();
   const specialty = parseConditionSpecialty(specialtyRow?.specialty);
   const isOrtho = specialty === "ortho";
+  const isNeuro = specialty === "neuro";
 
   // Every read that carries part of the record is checked, and the lists
   // are paged. An export is handed to another clinician as "the record", so
@@ -88,6 +90,7 @@ export async function GET(request: NextRequest) {
     { data: conditionProfile, error: conditionError },
     changeRequestsResult,
     assessmentsResult,
+    neuroResult,
     documentsResult,
     { data: intakeOverrideRows },
     { data: painMapOverrideRows },
@@ -117,6 +120,20 @@ export async function GET(request: NextRequest) {
             .order("id", { ascending: true })
         )
       : Promise.resolve({ rows: [] as PainExportRow[], error: null, truncated: false }),
+    // The neurological examination chart, for a neurological profile only
+    // -- the same rule as the Pain Map above, and checked the same way: a
+    // record handed to another clinician without its examinations is a
+    // clinical loss presented as a complete document.
+    isNeuro
+      ? readAllRows<NeuroAssessmentRow>(() =>
+          supabase
+            .from("neuro_assessments")
+            .select("id, created_at, submitted_by_role, schema_version, findings")
+            .eq("patient_id", user.id)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        )
+      : Promise.resolve({ rows: [] as NeuroAssessmentRow[], error: null, truncated: false }),
     readAllRows<DocumentExportRow>(() =>
       supabase
         .from("patient_medical_documents")
@@ -141,6 +158,8 @@ export async function GET(request: NextRequest) {
     changeRequestsResult.truncated ||
     assessmentsResult.error ||
     assessmentsResult.truncated ||
+    neuroResult.error ||
+    neuroResult.truncated ||
     documentsResult.error ||
     documentsResult.truncated
   ) {
@@ -162,6 +181,7 @@ export async function GET(request: NextRequest) {
       condition_profile: conditionProfile ?? null,
       submission_history: changeRequests ?? [],
       pain_map_assessments: assessments ?? [],
+      neuro_assessments: neuroResult.rows,
       medical_documents: documents ?? [],
     };
     return new NextResponse(JSON.stringify(payload, null, 2), {
@@ -228,6 +248,12 @@ export async function GET(request: NextRequest) {
       created_at: a.created_at,
     })),
     painMapOverridesByRegion,
+    showNeuroExaminations: isNeuro,
+    neuroExams: parseNeuroAssessments(neuroResult.rows).map((exam) => ({
+      created_at: exam.createdAt,
+      submitted_by_role: exam.submittedByRole,
+      lines: describeNeuroExamForText(exam.findings),
+    })),
     documents: (documents ?? []).map((d) => ({
       title: d.title,
       document_type:

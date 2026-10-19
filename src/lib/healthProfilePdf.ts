@@ -75,6 +75,12 @@ export type HealthProfilePdfInput = {
   /** False for a non-orthopaedic profile: the Pain Map section is left
    *  out entirely rather than printed empty. */
   showExaminations: boolean;
+  /** True for a neurological profile: its examination chart is printed in
+   *  place of the Pain Map. Each exam arrives already as lines of text
+   *  (`describeNeuroExamForText` in neuroExam.ts), so this module never
+   *  learns a scale. */
+  showNeuroExaminations?: boolean;
+  neuroExams?: { created_at: string; submitted_by_role: string; lines: string[] }[];
 };
 
 // Renders one stored answer the way a person reads it, driven off the
@@ -312,6 +318,25 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
       cur.space(8);
     }
   }
+  }
+
+  if (input.showNeuroExaminations) {
+    cur.heading("Neurological examinations by the therapist");
+    const exams = input.neuroExams ?? [];
+    if (exams.length === 0) {
+      cur.text("No examinations recorded yet.", { size: 10, color: MUTED });
+    } else {
+      for (const exam of exams) {
+        cur.need(44);
+        cur.text(`Examination of ${formatDate(exam.created_at)}`, { size: 11, bold: true, gap: 1 });
+        cur.text(`Recorded by the ${exam.submitted_by_role}`, { size: 9, color: MUTED, gap: 4 });
+        for (const line of exam.lines) {
+          const indented = line.startsWith("  ");
+          cur.text(line.trim(), { size: 10, indent: indented ? 24 : 12, gap: 1 });
+        }
+        cur.space(8);
+      }
+    }
   }
 
   // Listed, not embedded: the files themselves live in storage and are

@@ -10,6 +10,7 @@ import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { NEURO_EXAM_VERSION, validateNeuroFindings } from "@/lib/neuroExam";
 import { guardCommunication } from "@/lib/communicationFlags";
 import { serverError } from "@/lib/apiError";
+import { serverNowMs } from "@/lib/debugClock";
 
 // A therapist records one neurological examination: tone, power, reflexes,
 // sensation, coordination, balance and gait (src/lib/neuroExam.ts).
@@ -99,7 +100,10 @@ export async function POST(request: NextRequest) {
     admin,
     user.id,
     patientId,
-    parseAdminSettings(settingsRow).joinWindowMinutes
+    parseAdminSettings(settingsRow).joinWindowMinutes,
+    // The debug bar's simulated clock while it is on, as the Pain Map
+    // route does -- the session card offers the exam on that clock.
+    serverNowMs(request)
   );
   if (started === null) return profileCheckUnavailable();
   if (!started) {

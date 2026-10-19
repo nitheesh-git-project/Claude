@@ -269,17 +269,19 @@ export function pediatricsSnapshot({
   };
 }
 
-// --- The progress line for the two specialties with no exam layer --------
+// --- The progress line read from the intake ---------------------------------
 //
-// Ortho gets its trend from the Pain Map (painTrendSeries above). Neuro
-// and paediatrics have no exam layer yet, so without this their charts
-// would be a summary card and nothing that moves.
+// Ortho gets its trend from the Pain Map (painTrendSeries above). Neuro and
+// paediatrics trend their headline intake answer instead -- independence,
+// milestones -- which is what the patient themself reports. (Neuro now also
+// has its own examination chart, src/lib/neuroExam.ts, which shows the
+// clinician's change-since-last-exam on the exam card; this line stays the
+// patient's own measure.)
 //
 // The series comes free from data already on file: every approved
 // submission is a dated row in condition_change_requests, so the figure
 // each specialty already treats as its headline can be read back out of
-// them in order. No new table, no cron -- and this is the seam a real
-// neuro/paediatric exam layer plugs into later.
+// them in order. No new table, no cron.
 export type IntakeTrendRow = {
   proposed_data: Record<string, string> | null;
   reviewed_at: string | null;
