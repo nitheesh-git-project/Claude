@@ -10218,6 +10218,9 @@ begin
     session_notes,
     patient_medical_documents,
     pain_assessments,
+    -- The neurological exam chart, append-only by trigger like the Pain Map,
+    -- so CASCADE through the account delete below would raise on it.
+    neuro_assessments,
     condition_change_requests,
     condition_access_grants,
     patient_condition_profiles,
@@ -16984,6 +16987,131 @@ drop trigger if exists trg_clear_default_on_inactive_category on treatment_categ
 create trigger trg_clear_default_on_inactive_category
   before insert or update of active, is_default on treatment_categories
   for each row execute function public.clear_default_on_inactive_category();
+
+-- ---------------------------------------------------------------------
+-- The neurological examination chart: neuro_assessments.
+--
+-- The counterpart of the Pain Map for a patient recorded as neurological,
+-- and a NEW table rather than a `specialty` column on pain_assessments, per
+-- docs/rules/clinical.md: the two record different measurements (tone,
+-- power, reflexes, sensation, coordination, balance and gait against a body
+-- region and a pain percentage), and sharing a table would make every
+-- reader branch on specialty.
+--
+-- One row per examination. `findings` holds the whole chart as jsonb in
+-- the shape src/lib/neuroExam.ts validates (both submit routes refuse
+-- anything else): a row or side that was not examined is absent, never a
+-- value, which is how "not tested" stays distinct from "normal".
+-- `schema_version` is that module's NEURO_EXAM_VERSION, so a later change
+-- to the scales can still read an old row on its own terms.
+--
+-- The same posture as pain_assessments in every other respect:
+--   - read by the patient (their own), by an active therapist with live or
+--     delivered care (the clinical-access rule), and by an admin;
+--   - inserted by a therapist only against a session that has started or
+--     been delivered -- the routes mirror this, and write with the service
+--     role, so the policy is the browser-session half;
+--   - append-only BY TRIGGER, not by revoke: a re-examination is a new row
+--     and a mistaken one is corrected by recording a truer one, which is
+--     what lets the chart say what changed since last time.
+-- Its foreign keys point only at profiles (patient cascade, author no
+-- action), which scripts/clean-e2e-residue.mjs never deletes, so there is
+-- nothing for that script to learn. The data reset truncates it (newest
+-- debug_reset_all_data(), above).
+-- ---------------------------------------------------------------------
+create table if not exists neuro_assessments (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  submitted_by uuid not null references profiles(id),
+  submitted_by_role text not null check (submitted_by_role in ('therapist', 'admin')),
+  schema_version integer not null default 1 check (schema_version >= 1),
+  findings jsonb not null check (jsonb_typeof(findings) = 'object'),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists neuro_assessments_patient_idx
+  on neuro_assessments (patient_id, created_at desc);
+create index if not exists neuro_assessments_submitted_by_idx
+  on neuro_assessments (submitted_by);
+
+alter table neuro_assessments enable row level security;
+
+drop policy if exists "neuro_assessments_select_own" on neuro_assessments;
+create policy "neuro_assessments_select_own" on neuro_assessments
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "neuro_assessments_select_assigned_therapist" on neuro_assessments;
+create policy "neuro_assessments_select_assigned_therapist" on neuro_assessments
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = neuro_assessments.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = neuro_assessments.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "neuro_assessments_select_admin" on neuro_assessments;
+create policy "neuro_assessments_select_admin" on neuro_assessments
+  for select using (is_admin());
+
+drop policy if exists "neuro_assessments_insert_assigned_therapist" on neuro_assessments;
+create policy "neuro_assessments_insert_assigned_therapist" on neuro_assessments
+  for insert with check (
+    (select auth.uid()) = submitted_by and submitted_by_role = 'therapist'
+    and is_active_therapist()
+    and exists (
+      select 1 from appointments a
+      where a.patient_id = neuro_assessments.patient_id
+        and a.therapist_id = (select auth.uid())
+        and (
+          a.status = 'completed'
+          or (a.status = 'confirmed' and a.slot_time <= now() + interval '15 minutes')
+        )
+    )
+  );
+
+revoke update, delete on neuro_assessments from authenticated;
+
+drop trigger if exists neuro_assessments_no_change on neuro_assessments;
+create trigger neuro_assessments_no_change
+  before update or delete on neuro_assessments
+  for each row execute function communication_evidence_is_append_only();
+
+do $$
+begin
+  alter publication supabase_realtime add table neuro_assessments;
+exception when duplicate_object then null;
+end $$;
+
+-- The exam's free-text notes reach the patient (their Health Profile and
+-- their PDF export), so they are scanned like a Pain Map answer -- and the
+-- scanner's evidence row needs a surface of its own. Widened, never
+-- narrowed: every value the old CHECK allowed is still in the list. The
+-- original CHECK was declared inline and so carries Postgres's generated
+-- name; it is dropped and re-added under that same name, which keeps this
+-- re-runnable.
+alter table communication_flags drop constraint if exists communication_flags_surface_check;
+alter table communication_flags add constraint communication_flags_surface_check check (surface in (
+  'session_suggestion_note',
+  'care_plan_rationale',
+  'care_plan_instructions',
+  'pain_assessment_answer',
+  'appointment_notes',
+  'condition_answer',
+  'neuro_assessment_note'
+));
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.

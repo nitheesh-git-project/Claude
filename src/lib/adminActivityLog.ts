@@ -167,6 +167,7 @@ export type AdminActivityAction =
   | "condition_change.decide"
   | "condition_change.direct_edit"
   | "pain_assessment.create"
+  | "neuro_assessment.create"
   | "clinical_questions.update_intake"
   | "clinical_questions.update_pain_map"
   | "risk.review"
@@ -386,6 +387,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "condition_change.decide": "Decided a health-profile change",
   "condition_change.direct_edit": "Edited a health profile directly",
   "pain_assessment.create": "Recorded a Pain Map exam",
+  "neuro_assessment.create": "Recorded a neurological exam",
   "clinical_questions.update_intake": "Reworded an intake question",
   "clinical_questions.update_pain_map": "Reworded a Pain Map question",
   "risk.review": "Reviewed a risk signal",

@@ -115,6 +115,7 @@ export const USER_ACTIVITY_META = {
   "health_profile.submitted": { label: "Submitted a health profile", group: "clinical", verb: "submitted a health profile" },
   "session_note.written": { label: "Wrote a session note", group: "clinical", verb: "wrote a session note" },
   "pain_assessment.recorded": { label: "Recorded a Pain Map exam", group: "clinical", verb: "recorded a Pain Map exam" },
+  "neuro_assessment.recorded": { label: "Recorded a neurological exam", group: "clinical", verb: "recorded a neurological exam" },
   // feedback
   "feedback.submitted": { label: "Left session feedback", group: "feedback", verb: "left feedback on a session" },
   // referral

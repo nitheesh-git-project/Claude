@@ -19,7 +19,8 @@ export type CommunicationSurface =
   | "care_plan_instructions"
   | "pain_assessment_answer"
   | "appointment_notes"
-  | "condition_answer";
+  | "condition_answer"
+  | "neuro_assessment_note";
 
 /** Longest fragment of the original text kept as evidence. */
 const MAX_EVIDENCE_CHARS = 2000;
