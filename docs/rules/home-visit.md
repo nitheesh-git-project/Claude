@@ -158,6 +158,14 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   calendar event even when `google_meet_enabled` is off - that toggle only
   gates the Meet conferencing, not event creation, since the invite email is
   the only outbound notification this platform sends.
+- **Never tell anyone an invite went out unless Google said so.**
+  `createMeetEventForConfirmedAppointment` returns a `CalendarInviteOutcome`
+  (`src/lib/calendarInviteOutcome.ts`: sent, already sent, switched off,
+  failed, no email, unknown) and a screen that mentions the invite words it
+  from that, never from "the booking is confirmed". Admin New Booking said
+  "the calendar invite is on its way" with Google not connected at all (QA
+  F-13); `/api/admin/create-booking` now returns `calendarInvite` and the
+  screen reports the booking and the invite as two separate outcomes.
 - **"Do you come to me?" has three answers, and every caller asks the same
   way.** `lookupServiceArea` (`src/lib/serviceAreaServer.ts`) returns a
   served area, no area, or *could not ask*; check-area, both checkouts, the

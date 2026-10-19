@@ -158,7 +158,7 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
   google_meet_enabled: {
     kind: "boolean",
     on: "Sessions now get a Google Meet link.",
-    off: "Google Meet is off. Sessions get a calendar invite with no video link.",
+    off: "Auto-create is off. New video sessions get no calendar invite or Meet link; home visits still get their invite.",
   },
   meet_open_access_enabled: {
     kind: "boolean",

@@ -7,6 +7,10 @@ import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
 import { formatRupees } from "@/lib/formatMoney";
+import {
+  adminBookingInviteNeedsAttention,
+  adminBookingSuccessMessage,
+} from "@/lib/calendarInviteOutcome";
 
 // Booking on someone's behalf -- the phone call the dashboard could not
 // answer before this. Every field here is a decision only the person on the
@@ -77,6 +81,7 @@ export default function AdminNewBookingTab({
   const [needsOverride, setNeedsOverride] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [successNeedsAttention, setSuccessNeedsAttention] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   useUnloadWarning(isPending);
@@ -123,11 +128,11 @@ export default function AdminNewBookingTab({
         setNeedsOverride(!!data.needsLeadTimeOverride);
         return;
       }
-      setSuccess(
-        data.status === "confirmed"
-          ? "Booked and confirmed. The calendar invite is on its way."
-          : "Booked. It's in the queue waiting for a therapist."
-      );
+      // The booking and its invite are two outcomes, reported separately:
+      // the invite part is what the route's Calendar call actually did,
+      // not a promise (QA F-13).
+      setSuccess(adminBookingSuccessMessage(data.status, data.calendarInvite));
+      setSuccessNeedsAttention(adminBookingInviteNeedsAttention(data.status, data.calendarInvite));
       setNeedsOverride(false);
       setOverrideLeadTime(false);
       setNotes("");
@@ -319,7 +324,14 @@ export default function AdminNewBookingTab({
           </p>
         )}
         {success && (
-          <p className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-xs text-teal-800">
+          <p
+            role="status"
+            className={`rounded-lg border p-3 text-xs ${
+              successNeedsAttention
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-teal-200 bg-teal-50 text-teal-800"
+            }`}
+          >
             {success}
           </p>
         )}
