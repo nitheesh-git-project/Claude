@@ -258,11 +258,15 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
       # Uploaded whatever happened. summary.json is what the gate reads; a
-      # shard that never wrote one is counted as not finished.
+      # shard that never wrote one is counted as not finished. overwrite:
+      # "Re-run failed jobs" keeps the first attempt's artifacts in the run,
+      # and without it the gate downloaded the failed attempt's summary next
+      # to the passing one and read the red row.
       - name: Upload summary
         if: always()
         uses: actions/upload-artifact@v4
         with:
+          overwrite: true
           name: summary-${{ matrix.label }}
           path: |
             ${{ env.ARTIFACTS }}/summary.json

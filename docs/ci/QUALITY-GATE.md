@@ -342,7 +342,7 @@ unsplit runner), uploaded whether it passed or failed:
 
 | Artifact | Contents | Retention |
 | --- | --- | --- |
-| `summary-<label>` | `summary.json` (what the gate reads) and `summary.md` | 14 days |
+| `summary-<label>` | `summary.json` (what the gate reads) and `summary.md`; uploaded with `overwrite: true`, so after **Re-run failed jobs** the gate reads the new attempt's summary rather than the failed one | 14 days |
 | `reports-<label>` | Playwright JSON and JUnit; logs for `next dev`, Playwright, provisioning and each integrity script; `egress-denied.log` | 7 days |
 | `traces-<label>` (on failure) | Playwright traces, screenshots and the HTML report (not sanitised; see below) | 7 days |
 | `failure-bundle-<label>` (on failure) | `failure-bundle.md`; see `docs/ci/INVESTIGATE.md` | 14 days |
