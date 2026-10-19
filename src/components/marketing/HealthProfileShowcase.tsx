@@ -292,7 +292,7 @@ export default function HealthProfileShowcase({
 
 /** Tracked for every patient, whatever the specialty. */
 const ALWAYS_TRACKED = [
-  "Every session's notes and your home exercises",
+  "A short summary after each session and your exercise plan",
   "Your care plan, session by session",
   "Your scans and reports, in one place",
 ];
