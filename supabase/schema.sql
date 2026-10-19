@@ -16946,7 +16946,7 @@ create or replace function public.set_default_treatment_category(p_id uuid)
 returns void
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = public
 as $$
 begin
   if p_id is not null and not exists (
@@ -16968,7 +16968,7 @@ create or replace function public.clear_default_on_inactive_category()
 returns trigger
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = public
 as $$
 begin
   if new.active = false then
