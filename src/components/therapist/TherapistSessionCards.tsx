@@ -164,11 +164,16 @@ export function renderTherapistSessionCard(
           {/* Done opens the note (with the Pain Map); saving it is what
               finishes the session, so a confirmed card has no separate
               note button. */}
+          {/* Done and No Show wrap as one unit: the Join button's label
+              changes with the time left to the slot, and when it was long
+              No Show dropped under Done, splitting the pair FS-002 holds
+              together. Done's "not yet" note (order-last basis-full) still
+              takes a row of its own, under the pair. */}
           {a.status === "confirmed" && (
-            <>
+            <span className="inline-flex items-center gap-2 flex-wrap">
               <FinishSessionButton {...finishProps(d, a)} />
               <MarkNoShowButton appointmentId={a.id} />
-            </>
+            </span>
           )}
           {/* The note lives on the card, not behind the patient's chart:
               the moment a therapist can write an accurate note is the
