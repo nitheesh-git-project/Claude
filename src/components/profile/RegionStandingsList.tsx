@@ -1,6 +1,7 @@
 import { PAIN_BAND_LABEL, formatPainOutOfTen } from "@/lib/painMap";
 import { regionStandings } from "@/lib/healthProfileSummary";
 import type { PainAssessmentRow } from "@/lib/painMap";
+import { formatClinicDateShort } from "@/lib/formatDateTime";
 
 const BAR: Record<string, string> = {
   low: "bg-emerald-500",
@@ -70,7 +71,7 @@ export default function RegionStandingsList({ assessments }: { assessments: Pain
             {TREND_LABEL[s.trend]}
             <span className="text-slate-500">
               · checked{" "}
-              {new Date(s.assessedAt).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata", day: "numeric", month: "short" })}
+              {formatClinicDateShort(s.assessedAt)}
             </span>
           </p>
         </li>

@@ -58,6 +58,7 @@
       "booking-rules.spec.ts": 12,
       "catalog-cover-image.spec.ts": 18,
       "catalog-detail.spec.ts": 40,
+      "public-hydration.spec.ts": 30,
       "catalog-home-visit-prices.spec.ts": 17,
       "checkout-resume.spec.ts": 28,
       "checkout-speed.spec.ts": 3,

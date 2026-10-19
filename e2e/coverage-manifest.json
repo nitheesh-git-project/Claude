@@ -613,6 +613,17 @@
       "integration": "local",
       "destructive": false
     },
+    "public-hydration.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "catalog-detail.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -2977,6 +2988,27 @@
       ],
       "rules": [
         "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "platform.public-hydration",
+      "runner": "platform",
+      "title": "The public pages and /book hydrate without a server/client mismatch",
+      "required": false,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "public-hydration.spec.ts",
+          "tests": [
+            "HY-001",
+            "HY-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Run against next dev, which reports hydration mismatches in full; the browser is en-GB, reduced-motion and on a simulated clock, the three conditions the known mismatches needed. A mismatch that needs some other browser difference is not provoked.",
+      "rules": [
+        "docs/rules/frontend.md"
       ]
     },
     {

@@ -80,7 +80,9 @@ export default function PatientSuggestionCard({
     }
   }
 
-  const when = new Date(suggestion.slotTime).toLocaleString(undefined, { timeZone: "Asia/Kolkata",
+  // en-IN, not the runtime's locale: this card is server-rendered and then
+  // hydrated, and two locales are two different strings (React #418).
+  const when = new Date(suggestion.slotTime).toLocaleString("en-IN", { timeZone: "Asia/Kolkata",
     weekday: "long",
     day: "numeric",
     month: "short",
