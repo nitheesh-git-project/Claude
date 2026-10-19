@@ -44,6 +44,8 @@ export type PayoutAppointment = {
   cash_collected_at?: string | null;
   cash_collected_amount_paise?: number | null;
   cash_remitted_at?: string | null;
+  // The rate frozen at completion -- see PayoutCutInput.
+  therapist_share_percent_at_completion?: number | null;
 };
 
 /**
@@ -53,6 +55,10 @@ export type PayoutAppointment = {
  * rather than growing its own.
  */
 export type PayoutCutInput = {
+  /** The therapist's rate frozen at completion (`complete-session`), already
+   *  resolved for a home visit. Migration-dependent and optional: absent or
+   *  null, the live rate applies, as it did for every row before the freeze. */
+  therapist_share_percent_at_completion?: number | null;
   amount_paid_paise: number | null;
   amount_due_paise?: number | null;
   therapist_payout_paid_at: string | null;
@@ -123,7 +129,22 @@ export function sessionTherapistCutPaise(
   homeVisitSharePercent: number | null
 ): number {
   const isHomeVisit = a.visit_mode === "home_visit";
-  const effectiveShare = isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent;
+  // The rate frozen onto the session when it was delivered, where there is
+  // one; the therapist's live rate only for rows that predate the freeze.
+  // Renegotiating a rate must not rewrite what a session already earned --
+  // the same rule `moneyLineFor` and `session_settlements` already follow,
+  // so Money's split, the settlement record, every payout screen and the
+  // Pay button now read one rate. The frozen figure was resolved at
+  // completion by `readSettlementRates` with the home-visit rule already
+  // applied, so it is not re-resolved against the live home-visit rate.
+  // `!= null` rather than truthiness: a frozen 0% is a real rate.
+  const frozen = a.therapist_share_percent_at_completion;
+  const effectiveShare =
+    frozen !== null && frozen !== undefined
+      ? frozen
+      : isHomeVisit
+        ? homeVisitSharePercent ?? sharePercent
+        : sharePercent;
   const feePaise = sessionAmountPaise(a, 0);
   // Travel is a pass-through reimbursement paid to the therapist in full and
   // never revenue, so it is added on top of the share rather than inside it.

@@ -32,6 +32,7 @@ import {
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
 import { sessionAmountPaise } from "@/lib/sessionAmount";
+import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
@@ -127,6 +128,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     { data: meetLinkRows },
     { data: homeVisitPayoutRows },
     { data: payLaterRows },
+    frozenRates,
   ] = await Promise.all([
     admin
       .from("therapist_admin_notes")
@@ -183,6 +185,8 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       .from("appointments")
       .select("id, payment_terms, amount_due_paise")
       .eq("therapist_id", id),
+    // The rate each delivered session was frozen at, which is what it pays.
+    readFrozenTherapistRates(admin, id),
   ]);
 
   const appointments = mergeMeetLinks(
@@ -288,6 +292,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     ...(homeVisitPayoutById.get(a.id) ?? { visit_mode: "online" as const }),
     payment_terms: payLaterById.get(a.id)?.payment_terms ?? null,
     amount_due_paise: payLaterById.get(a.id)?.amount_due_paise ?? null,
+    therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
   }));
   // The rows under the Owed figure: exactly the sessions it is the sum of
   // (delivered and earned, `isTherapistShareEarned`), each at the cut the
@@ -630,7 +635,11 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
               const feePaise = sessionAmountPaise(a, 0);
               const isSettled = !!a.therapist_payout_paid_at;
               const isHomeVisit = a.visit_mode === "home_visit";
-              const rowShare = isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent;
+              // The rate the row is computed at, as sessionTherapistCutPaise
+              // reads it: frozen at completion where it was, live otherwise.
+              const rowShare =
+                a.therapist_share_percent_at_completion ??
+                (isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent);
               const travelPaise = isHomeVisit
                 ? Math.max(0, homeVisitPayoutById.get(a.id)?.travel_fee_paise ?? 0)
                 : 0;

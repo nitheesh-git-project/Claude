@@ -185,6 +185,11 @@ Every Money screen opens with a **needs-you strip**: `N things need you` over on
 **Expected Result.** Valid: succeeds with a CAS on the figure being replaced, and writes a **`cash.correct_amount`** audit row. Blank reason: refused. Already remitted: **refused** - that transfer has gone out, so the fix is an adjustment against the next payout, not a silent edit of a settled one (`This session isn't a cash-on-visit home visit.` / the remitted refusal). A stale figure returns `Someone else changed this figure. Refresh and try again.`
 As Admin Ops (no `money` scope): **403**, and the control does not render.
 
+#### `FIN-PAY-007` - A rate change does not reprice sessions already delivered · P0
+**Preconditions.** A therapist on a 40% share with one completed, paid, **unsettled** ₹1,000 online session (delivered at 40%), and one older completed session from before the freeze existed (`therapist_share_percent_at_completion` null).
+**Steps.** Read the therapist's owed figure on **Money → Payouts**, their admin profile, and their own **Earnings** and **Overview**. Change their share to 60%. Read all four again, then request a payout as the therapist and press **Pay** as the admin.
+**Expected Result.** The delivered-at-40% session owes **₹400** before and after the change, on all four screens, in the request and in the transfer - the rate is the one frozen at completion. Only the pre-freeze session moves to the new 60%. The profile's row reads `Session fee ₹1,000 × 40%`. Money → Summary's therapists' share agrees with Payouts.
+
 #### `FIN-COST-001` - Costs · P1
 **Steps.** Open **Money → Costs**. Add the three expenses from §8.15. Set the range to September 2026.
 **Expected Result.** Only the two September rows count; the 28 August row is excluded - expenses are dated by **when they were incurred**, not when they were typed in. Negatives: `Enter an amount greater than zero.`, `Pick the date this cost was incurred.` Deleting an expense removes it from the total.

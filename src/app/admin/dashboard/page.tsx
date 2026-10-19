@@ -3055,7 +3055,13 @@ export default async function AdminDashboardPage({
       },
     ])
   );
-  const appointmentsForPayouts = (appointments ?? []).map((a) => ({
+  // Built on the merged array, not the raw select: the money maths needs the
+  // pay-later columns (a delivered session on terms is earned) and the rate
+  // frozen at completion (what a session pays its therapist), and the raw
+  // `appointments` rows carry neither -- so Payouts, Summary and Business
+  // Health were working from the live rate and dropping pay-later sessions
+  // that the request and settle routes count.
+  const appointmentsForPayouts = appointmentsWithSessionCode.map((a) => ({
     ...a,
     ...(homeVisitPayoutDetailById.get(a.id) ?? {
       visit_mode: "online" as const,

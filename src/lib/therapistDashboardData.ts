@@ -2,6 +2,7 @@ import "server-only";
 import { loadProgrammeTags } from "@/lib/programmeTagsServer";
 import type { ProgrammeTag } from "@/lib/programmeId";
 import { readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
+import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
@@ -474,8 +475,13 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // Both figures through therapistPayouts.ts, with the same inputs Money ->
   // Payouts and the therapist's admin profile hand it -- see
   // therapistEarnings.ts for the disagreement this closed (QA F-21).
+  // The rate each delivered session was frozen at -- what it pays, on this
+  // screen exactly as on the Pay button. Best-effort here: a failed read
+  // falls back to the live rate per row rather than blanking the dashboard.
+  const frozenRates = await readFrozenTherapistRates(supabase, user.id);
   const earningInputs = (appointments ?? []).map((a) => ({
     ...a,
+    therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
     visit_mode: a.visit?.visit_mode ?? null,
     travel_fee_paise: a.visit?.travel_fee_paise ?? null,
   }));

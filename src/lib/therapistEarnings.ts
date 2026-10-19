@@ -46,6 +46,8 @@ export type EarningsAppointment = {
   amount_due_paise?: number | null;
   therapist_payout_paid_at: string | null;
   therapist_payout_amount_paise?: number | null;
+  /** The rate frozen at completion; see PayoutCutInput in therapistPayouts.ts. */
+  therapist_share_percent_at_completion?: number | null;
   // Home-visit fields, optional so every existing online-only caller is
   // unaffected -- see the matching comment on PayoutAppointment in
   // therapistPayouts.ts. Travel fee is paid in full on top of the share.
