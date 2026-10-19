@@ -264,6 +264,35 @@ test.describe("Catalog detail dialogs", () => {
     await expect(page.getByText(/Same 60-minute assessment/)).toHaveCount(0);
   });
 
+  test("CD-010: the FAQ's home-visit answer is built from the live service areas", async ({
+    page,
+  }) => {
+    // F-05: staging's FAQ quoted 600020 and ₹499 + ₹100 travel while the
+    // catalog said 600017 and ₹1,500 + ₹150. /faq now carries an answer
+    // built from home_visit_areas (global-setup serves 600017, Chennai),
+    // naming cities and pointing to the pincode check -- never a figure.
+    const { data: areas } = await adminClient()
+      .from("home_visit_areas")
+      .select("city")
+      .eq("active", true);
+    const city = (areas ?? []).map((a) => a.city as string).find(Boolean);
+    expect(city, "an active service area").toBeTruthy();
+
+    await page.goto(`${BASE}/faq`);
+    await page.getByRole("searchbox", { name: /Search frequently asked questions/ }).fill(
+      "home visits in my area"
+    );
+    const question = page.getByRole("button", {
+      name: "Do you do home visits in my area, and what do they cost?",
+    });
+    await expect(question).toBeVisible();
+    if ((await question.getAttribute("aria-expanded")) !== "true") await question.click();
+    const answer = page.getByText(/Home visits are currently available in parts of/);
+    await expect(answer).toBeVisible();
+    await expect(answer).toContainText(city!);
+    await expect(answer).not.toContainText(/\b\d{6}\b|₹/);
+  });
+
   test("CD-008: a backdrop click closes the dialog", async ({ page }) => {
     await page.goto(`${BASE}/`);
     await page.getByText(CATEGORY_TITLE, { exact: false }).first().click();

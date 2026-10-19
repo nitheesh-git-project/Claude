@@ -398,7 +398,7 @@ test.describe("Public booking service picker", () => {
 
     // The condition is chosen above the pincode precisely because the
     // serviceable answer has to say whether travel is added on top.
-    const pincode = page.getByPlaceholder("600020");
+    const pincode = page.getByPlaceholder("6-digit pincode");
     const visitBox = await chosen.boundingBox();
     const pincodeBox = await pincode.boundingBox();
     expect(visitBox).not.toBeNull();

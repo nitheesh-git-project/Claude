@@ -404,6 +404,8 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 ### 11.5 Home visit (patient)
 
 > **Preconditions for this whole sub-section:** `ADM-SET-013` has switched **Home Visit enabled** on, `SETUP-AREA-001` has created Area 1 (`560038`, ₹150/visit), and `SETUP-HVPKG-001` has set the clinic-wide home-visit price (₹2,499) and `QA Knee & Joint Care`'s own price (₹2,999). HV2 (4 visits) is seeded by SQL where a case needs it (§8.12).
+>
+> **On a shared database (staging) these figures drift.** The pincodes, travel fees and prices above are the ones the `SETUP-*` cases create; staging is also written to by the automated suite and by other testers (its served pincode is often `600017`, its prices whatever an admin last saved). **Before running this section, read the current values** - pincodes and travel fees from **Catalog → Service areas**, visit prices from **Catalog → Conditions → Home visits** (or the cards on `/home-visit`) - and use those wherever a case below names a figure. What is under test is the relationship (a served pincode is accepted, the travel line is that area's fee, visit + travel = the total charged), not the number printed here. Never take a figure from the public FAQ: it is admin-written text, and only its live home-visit answer is built from the catalog.
 
 #### `PAT-HV-001` - The public home-visit page appears only when enabled · P1
 

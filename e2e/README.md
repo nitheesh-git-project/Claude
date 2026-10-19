@@ -165,7 +165,7 @@ total, which moves with every spec added.
 | `navigation-feedback` | 3 | a tap acknowledged, and a screen already rendered not fetched again |
 | `realtime-reconnect` | 1 | "Live updates paused" draws once and its Refresh reconnects every channel and clears it (the realtime server is stood in for, since sandbox egress cannot carry the socket) |
 | `section-nav` | 7 | the public pages' section rail and scroll arrow |
-| `catalog-detail` | 9 | the public catalog's detail dialogs; on `/home-visit` a condition's card at its home-visit price with no count, and its Book button opening the wizard by `?category=`; a programme's card and dialog quote the category's own length, never a fixed 60 |
+| `catalog-detail` | 10 | the public catalog's detail dialogs; on `/home-visit` a condition's card at its home-visit price with no count, and its Book button opening the wizard by `?category=`; a programme's card and dialog quote the category's own length, never a fixed 60; `/faq`'s home-visit answer built from the live service areas, with no pincode or price |
 | `catalog-cover-image` | 11 | a cover uploaded, positioned and rendering the same on card, dialog and dashboard |
 | `splash-screen` | 8 | the brand splash's cold-open, reload and long-absence rules |
 | `journey-pace` | 16 | the home walkthrough's admin-configured rotation pace |

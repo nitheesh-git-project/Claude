@@ -656,6 +656,21 @@ Eight pages from one design system, the word budgets, why every photograph carri
   country picker shows only when local prices and the picker are both on;
   the debug bar's Country dropdown forces any country while the bar exists.
 
+- **The FAQ never carries coverage or a price as typed text.** FAQ rows are
+  admin-written and nothing re-reads them when Catalog moves: staging's
+  answered "do you visit me?" with `600020` and ₹499 + ₹100 travel long after
+  coverage was `600017` and the visit ₹1,500 + ₹150. While Home Visit is on
+  and an area is active, `/faq` appends an answer built from
+  `home_visit_areas` (`src/lib/faqLiveFacts.ts`): the cities served, the
+  pincode check, and "prices are on the Home Visit page" - no pincode and no
+  rupee figure, since a public price is a `<Price>` and a visit's price
+  depends on the condition and the area. The three service-area routes
+  revalidate `/faq` with `/home-visit`. The FAQ form shows an amber note
+  (`quotesDriftingFigure`) while an answer quotes a pincode or a ₹ amount -
+  said, not refused. The home-visit wizard's pincode placeholder is
+  "6-digit pincode", not a real one: an example pincode reads as a served
+  one.
+
 - **On /conditions the programmes come first, the areas of practice
   second.** What a visitor can book today ("Structured programmes") leads;
   "Areas of practice" sits below it and answers "what if mine is not one of

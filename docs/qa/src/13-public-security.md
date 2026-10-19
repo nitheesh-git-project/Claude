@@ -83,6 +83,7 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 
 #### `PUB-FAQ-001` - FAQ · P2
 **Expected Result.** The accordion renders the admin-managed FAQs in order. With none configured, the page shows a sensible empty state rather than a broken band.
+**Home visits.** While Home Visit is switched on and at least one service area is active, the list ends with *"Do you do home visits in my area, and what do they cost?"* - built from the live service areas, not typed. Its answer names the **cities** in Catalog → Service areas, sends the visitor to the pincode check and the Home Visit page, and quotes **no pincode and no price**. Compare it with Catalog → Service areas as it stands today - never with a figure written in this plan. An admin-written FAQ that quotes a pincode or a ₹ amount is a content defect to report to the owner (it will drift); the FAQ form shows an amber note while such an answer is being typed.
 
 #### `PUB-HV-001` - Home visit page · P1
 Covered by `PAT-HV-001` and `ADM-SET-013`.
