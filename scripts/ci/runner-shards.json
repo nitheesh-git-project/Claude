@@ -80,7 +80,7 @@
       "gateway-payment-capture.spec.ts": 45,
       "gateway-webhook-recovery.spec.ts": 45,
       "health-profile-showcase.spec.ts": 26,
-      "health-profile.spec.ts": 35,
+      "health-profile.spec.ts": 40,
       "home-visit-disabled.spec.ts": 33,
       "hospital-isolation.spec.ts": 9,
       "hospital-referral-revenue.spec.ts": 60,

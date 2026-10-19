@@ -427,6 +427,7 @@ export default function ConditionIntakeWizard({
                 <div className="mt-4">
                   {question.inputType === "area_pain_list" ? (
                     <AreaPainPicker
+                      label={question.label}
                       value={values[question.key]}
                       onChange={(next) => setValues((v) => ({ ...v, [question.key]: next }))}
                     />

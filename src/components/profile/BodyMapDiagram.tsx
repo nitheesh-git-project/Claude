@@ -1,9 +1,10 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type KeyboardEvent, type MouseEvent } from "react";
 import {
   PAIN_MAP_REGIONS,
   painBand,
+  painMapPointLabel,
   painMapSideDirection,
   type PainMapRegionKey,
   type PainMapSide,
@@ -194,6 +195,22 @@ export default function BodyMapDiagram({
   const skinId = (view: "front" | "back") => `${uid}-skin-${view}`;
   const glowId = (view: "front" | "back") => `${uid}-glow-${view}`;
 
+  // Picker mode (AreaPainPicker) is a set of checkboxes; every other mode is
+  // a figure whose scored points open a detail.
+  const picker = !!includedKeys;
+  const isClickable = (key: string) => interactive || latestByKey.has(key) || !!secondaryByKey?.has(key);
+  // A figure with any control on it is a labelled group, not an image:
+  // role="img" makes its children presentational, which is what hid every
+  // tap point from a screen reader. With nothing to operate it stays an
+  // image with one description.
+  const hasControls = (regions: typeof PAIN_MAP_REGIONS) =>
+    !!onSelect &&
+    regions.some((r) =>
+      (r.paired ? (["left", "right"] as const) : (["na"] as const)).some((side) =>
+        isClickable(`${r.key}:${side}`)
+      )
+    );
+
   function renderDot(
     region: (typeof PAIN_MAP_REGIONS)[number],
     side: PainMapSide,
@@ -208,18 +225,40 @@ export default function BodyMapDiagram({
     const isSelected = selected?.region === region.key && selected?.side === side;
     const band = latest ? painBand(latest.pain_percent) : null;
     const fill = isIncluded ? "#0d9488" : band ? PAIN_DOT_COLOR[band] : "none";
-    const clickable = interactive || !!latest || hasSecondary;
+    const clickable = isClickable(key);
+
+    // A tap point is a real control: named, in the tab order, and worked by
+    // Enter or Space as well as a click. It used to be a bare <g onClick>
+    // inside a role="img" -- no name, no focus, no keyboard -- so the
+    // intake's "where does it hurt?" question could not be answered without
+    // a pointing device and sight of the figure. In the picker it is a
+    // checkbox (ticked = this area is on the list); elsewhere a toggle
+    // button that opens the point's detail.
+    const control =
+      clickable && onSelect
+        ? {
+            role: picker ? "checkbox" : "button",
+            ...(picker ? { "aria-checked": !!isIncluded } : { "aria-pressed": isSelected }),
+            "aria-label": painMapPointLabel(
+              region.key,
+              side,
+              latest ? { percent: latest.pain_percent } : null
+            ),
+            tabIndex: 0,
+            className: "group cursor-pointer outline-none",
+            onClick: (e: MouseEvent<SVGGElement>) =>
+              onSelect(region.key, side, e.currentTarget.getBoundingClientRect()),
+            onKeyDown: (e: KeyboardEvent<SVGGElement>) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              // Space would otherwise scroll the dialog underneath.
+              e.preventDefault();
+              onSelect(region.key, side, e.currentTarget.getBoundingClientRect());
+            },
+          }
+        : { "aria-hidden": true };
 
     return (
-      <g
-        key={key}
-        onClick={
-          clickable && onSelect
-            ? (e) => onSelect(region.key, side, e.currentTarget.getBoundingClientRect())
-            : undefined
-        }
-        style={clickable ? { cursor: "pointer" } : undefined}
-      >
+      <g key={key} {...control}>
         {/* Heat behind the dot, sized by how bad it is -- the shape of a
             patient's pain is visible before a single label is read. */}
         {(band || isIncluded) && (
@@ -246,6 +285,22 @@ export default function BodyMapDiagram({
         {/* Larger invisible target than the visible dot -- easier to tap
             accurately on a small/scaled-down mobile screen. */}
         {clickable && <circle cx={cx} cy={cy} r={17} fill="transparent" />}
+        {/* The keyboard focus ring. An outline on an SVG <g> draws
+            inconsistently across browsers, so the ring is part of the
+            drawing and appears only on keyboard focus -- a tab stop nobody
+            can see is half a fix. */}
+        {clickable && onSelect && (
+          <circle
+            cx={cx}
+            cy={cy}
+            r={16}
+            fill="none"
+            stroke="#0f766e"
+            strokeWidth={3}
+            strokeDasharray="4 3"
+            className="opacity-0 group-focus-visible:opacity-100"
+          />
+        )}
       </g>
     );
   }
@@ -256,7 +311,7 @@ export default function BodyMapDiagram({
 
     return (
       <g>
-        <g fill={`url(#${skinId(view)})`}>
+        <g fill={`url(#${skinId(view)})`} aria-hidden>
           <path d={silhouettePath(shift(ARM), { topCap: 0.7, bottomCap: 0.4 })} />
           <path d={silhouettePath(shift(mirror(ARM)), { topCap: 0.7, bottomCap: 0.4 })} />
           <path d={silhouettePath(shift(HAND), { topCap: 0.3, bottomCap: 1.1 })} />
@@ -292,7 +347,7 @@ export default function BodyMapDiagram({
             the spine, which read as a chest -- so the BACK figure looked
             like a front and the FRONT one, with only a collarbone curve and
             a plain midline, looked like a back. */}
-        <g fill="none" stroke="#94a3b8" strokeOpacity={0.45} strokeLinecap="round" strokeLinejoin="round">
+        <g aria-hidden fill="none" stroke="#94a3b8" strokeOpacity={0.45} strokeLinecap="round" strokeLinejoin="round">
           {view === "front" ? (
             <>
               <path d={`M ${cx - 10} 124 Q ${cx - 30} 120 ${cx - 52} 130`} strokeWidth={1.6} />
@@ -329,6 +384,7 @@ export default function BodyMapDiagram({
         <text
           x={cx}
           y={620}
+          aria-hidden
           textAnchor="middle"
           fontSize={12}
           fontWeight={600}
@@ -372,8 +428,17 @@ export default function BodyMapDiagram({
     <svg
       key={view}
       viewBox="0 0 460 645"
-      role="img"
-      aria-label={`${view === "front" ? "Front" : "Back"} body diagram with tap points for each clinical region, colored by pain severity`}
+      {...(hasControls(view === "back" ? backRegions : frontRegions)
+        ? {
+            role: "group",
+            "aria-label": picker
+              ? `${view === "front" ? "Front" : "Back"} of the body - choose each area that hurts`
+              : `${view === "front" ? "Front" : "Back"} of the body - choose an area to see its detail`,
+          }
+        : {
+            role: "img",
+            "aria-label": `${view === "front" ? "Front" : "Back"} body diagram with tap points for each clinical region, colored by pain severity`,
+          })}
       className="w-full max-w-[17rem] sm:max-w-none sm:flex-1"
     >
       <defs>

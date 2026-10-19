@@ -784,6 +784,46 @@ test("INT-009: a free-text answer takes a whole sentence, not one letter", async
   await ctx.close();
 });
 
+test("A11Y-001: the intake's body map is answered from the keyboard, by name", async ({ browser }) => {
+  // Each tap point was a bare <g onClick> inside a role="img": no name, no
+  // tab stop, no key handler, and hidden from a screen reader altogether.
+  // Now each is a named checkbox that Space and Enter toggle.
+  await seedProfile("ortho", ORTHO_ANSWERS);
+  const { ctx, page } = await pageAs(browser, PATIENT);
+
+  await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  await page.getByRole("button", { name: /Add more detail|Review or update answers/i }).click(SEEN);
+
+  const backFigure = page.getByRole("group", { name: /Back of the body - choose each area that hurts/ });
+  const intro = page.getByRole("button", { name: /^(Start|Continue)$/ });
+  const next = page.getByRole("button", { name: /^(Next|Skip)$/ });
+  if (await intro.isVisible().catch(() => false)) await intro.click();
+  for (let i = 0; i < 12 && !(await backFigure.isVisible().catch(() => false)); i++) {
+    await next.click();
+    await page.waitForTimeout(200);
+  }
+  await expect(backFigure).toBeVisible(SEEN);
+
+  const lowerBack = page.getByRole("checkbox", { name: "Lower back", exact: true });
+  await expect(lowerBack).toHaveAttribute("aria-checked", "false");
+  await lowerBack.focus();
+  await expect(lowerBack).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(lowerBack).toHaveAttribute("aria-checked", "true");
+  // The area is on the list, with its own named slider.
+  await expect(page.getByRole("slider", { name: /Pain in lower back, 0 to 10/ })).toBeVisible();
+
+  const leftKnee = page.getByRole("checkbox", { name: "Knee, left side", exact: true });
+  await leftKnee.focus();
+  await page.keyboard.press("Enter");
+  await expect(leftKnee).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Enter");
+  await expect(leftKnee).toHaveAttribute("aria-checked", "false");
+  // Focus stayed on the point, so a second key press means the same area.
+  await expect(leftKnee).toBeFocused();
+  await ctx.close();
+});
+
 test("INT-001/008: an interrupted fill survives the wizard closing", async ({ request }) => {
   await seedProfile("ortho", ORTHO_ANSWERS);
   const draft = await post(request, "/api/patient/condition-profile/save-draft", patientCookie, {

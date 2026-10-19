@@ -189,7 +189,7 @@ total, which moves with every spec added.
 
 | Spec | Cases | Covers |
 | --- | --- | --- |
-| `health-profile` | 29 | the per-specialty intake, the Pain Map, a free-text answer typed key by key (focus must stay in the field), the double-submit no-op, and clinical access following live or delivered care |
+| `health-profile` | 31 | the per-specialty intake, the Pain Map, a free-text answer typed key by key (focus must stay in the field), the body map answered from the keyboard by name, triage refusing "None of these" beside a sign, the double-submit no-op, and clinical access following live or delivered care |
 | `mobile-smoke` | 8 | public pages and every role's dashboard at phone width (Pixel 7) - no sideways scroll, navigation reachable; runs in the `mobile` project only |
 | `clinical-continuity` | 5 | one patient's record across all three roles: the first fill, the session note (never patient-visible), a recommendation invisible and unbuyable until approved, the approval attributed, and a reopen losing nothing. **Disposable stack only** (`assertDisposableStack`) |
 | `admin-care-plans` | 22 | who may write a recommendation on a therapist's behalf, and the whole review step |

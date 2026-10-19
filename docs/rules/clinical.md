@@ -412,7 +412,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   surface detail tells the views apart: collarbones, chest, abdominal line
   and navel on the front; spine, shoulder blades and glute cleft on the
   back. Both used to place "left" on the reader's left, and the back's
-  shoulder-blade arcs read as a chest, so the two views looked swapped. See the "Patient Care Intake and Pain Map" section in docs/PRODUCT-GUIDE.md
+  shoulder-blade arcs read as a chest, so the two views looked swapped.
+  Every tap point is a named, focusable control worked by Enter or Space
+  (checkboxes in the intake's picker, toggle buttons on the read-only map)
+  -- see the SVG-controls rule in `frontend.md`. See the "Patient Care Intake and Pain Map" section in docs/PRODUCT-GUIDE.md
   for the full flow.
 - **A patient's own record leaves the app as a PDF, not as JSON.**
   `/api/patient/condition-profile/export` returns a typeset document named
