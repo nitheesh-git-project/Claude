@@ -192,6 +192,9 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   (`src/lib/calendarMonthStats.ts`, from the same server `nowMs`): it used
   to count confirmed/requested by status alone, so a session from last week
   read as coming up one tap from a List that filed it under Past.
+  With nothing ahead, the patient Overview says "Nothing booked yet" only
+  to a patient who has never booked; one with a paid or completed session
+  behind them reads "No upcoming sessions" (`src/lib/patientOverviewCopy.ts`).
 - **A different way of looking at the same rows is a view switch, not a
   sidebar entry.** Calendar was its own entry on the patient and therapist
   dashboards and is now a List/Calendar toggle on Sessions

@@ -173,7 +173,7 @@ export default function SessionFilterList({
           title={when === "upcoming" ? "Nothing coming up" : emptyTitle}
           body={
             when === "upcoming" && counts.past > 0
-              ? "No sessions booked yet. Past sessions are under the Past tab."
+              ? "No upcoming sessions. Past sessions are under the Past tab."
               : emptyBody
           }
         />

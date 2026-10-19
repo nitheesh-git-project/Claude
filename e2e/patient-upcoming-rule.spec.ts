@@ -71,3 +71,20 @@ test("PU-001: a past confirmed session is Past on the list and not coming up on 
   // Whichever month the seeded slot fell in, nothing about it is "coming up".
   await expect(page.getByText(/coming up/)).toHaveCount(0);
 });
+
+test("PU-002: a returning patient with nothing ahead is told so, not that nothing was ever booked", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  // F-03: the same patient -- one paid session behind them, none ahead --
+  // was greeted with "Nothing booked yet", which is only true of somebody
+  // who has never booked (src/lib/patientOverviewCopy.ts).
+  await page.context().addCookies(await browserCookiesFor(patient.email));
+  await page.goto(`${BASE}/patient/dashboard`, { waitUntil: "domcontentloaded" });
+  await waitForSplashToClear(page);
+  await expect(page.getByText(/^No upcoming sessions - book your next one/)).toBeVisible({
+    timeout: 60_000,
+  });
+  await expect(page.getByText("No upcoming sessions", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Nothing booked yet/)).toHaveCount(0);
+});

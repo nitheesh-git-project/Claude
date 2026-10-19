@@ -3445,7 +3445,8 @@
         {
           "spec": "patient-upcoming-rule.spec.ts",
           "tests": [
-            "PU-001"
+            "PU-001",
+            "PU-002"
           ],
           "level": "browser"
         }
