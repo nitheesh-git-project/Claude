@@ -323,8 +323,12 @@ calls the real API is an owner decision.
    `STAGING_URL`, and `PRODUCTION_URL` so the smoke check can refuse it.
    Then `.github/workflows/staging-smoke.yml` runs anonymous GETs against
    staging when a deployment of the `staging` branch succeeds, or by hand.
-   Pull-request previews never trigger it. It does not run automatically
-   until `STAGING_URL` is set, and it is not a required check.
+   Pull-request previews check nothing. Until `STAGING_URL` is set a staging
+   deployment checks nothing either, and the job summary says so; it is not
+   a required check. Which deployment is staging's is decided by asking
+   GitHub whether the deployed SHA is on `staging`, not by the deployment's
+   `ref` - Vercel sets that to the SHA, which is how the smoke skipped every
+   staging deployment silently. `docs/ci/STAGING-SMOKE.md` has the detail.
 
 **Pull requests from forks** get no secrets, so their runners report
 BLOCKED and the gate is red. Run them by pushing the branch to this
