@@ -351,6 +351,12 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Expected Result.** The neuro answers are stored **alongside** the orthopaedic ones in the same flat blob. **Every orthopaedic key survives** (hidden on screen, never deleted). The chart now renders the neuro summary card, the neuro snapshot strip and the neuro progress line. The Pain Map is **not** rendered.
 **If any orthopaedic answer is gone, stop and raise a P0** - the approve path must merge, never write the proposed data outright.
 
+#### `THR-HP-004b` - Going back to an earlier condition type prefills its answers · P1
+
+**Preconditions.** Continue from `THR-HP-004`: Patient A is now Neurological, with their orthopaedic answers still on file.
+**Steps.** Tap **Change condition type**, answer the triage, pick **Orthopaedic** and **Continue to the questions**. Step through to the review screen, change one answer, and **Save to their chart**. Open the admin's Review History for Patient A.
+**Expected Result.** Every orthopaedic question opens **with the patient's earlier answer already in it**, ready to edit - not blank. No neurological answer appears in the orthopaedic questions. After saving, the chart is orthopaedic with the edited answer; the neurological answers are still on file (hidden); Review History shows **one new entry** for this change and every earlier entry unchanged. Picking a condition type the patient has never had opens blank.
+
 #### `THR-HP-005` - Pain Map is orthopaedic and stays so · P0
 
 **Steps**

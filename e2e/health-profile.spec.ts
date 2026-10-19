@@ -451,6 +451,58 @@ test("RT-001/002: re-triage keeps the earlier record and shows only the current 
   await ctx.close();
 });
 
+test("RT-006: going back to an earlier condition type prefills its answers, and saving adds history", async ({
+  request,
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  // Orthopaedic -> neurological -> back to orthopaedic used to open the
+  // orthopaedic questions blank, though the merge had kept every answer.
+  await seedProfile("ortho", ORTHO_ANSWERS);
+  const toNeuro = await post(request, "/api/therapist/condition-profile/onboard", therapistCookie, {
+    patientId,
+    specialty: "neuro",
+    data: NEURO_ANSWERS,
+    triageData: { age_band: "18 to 64", presenting_problem: "After a stroke, brain or spinal injury" },
+  });
+  expect(toNeuro.status()).toBe(200);
+  const historyBefore = await countRequests("approved");
+
+  const { ctx, page } = await pageAs(browser, THERAPIST);
+  await page.goto(`${BASE}/therapist/dashboard/health-profile/${patientId}`);
+  await page.getByRole("button", { name: "Change condition type" }).click(SEEN);
+  const triage = page.getByRole("dialog", { name: /Which condition type is this/ });
+  await expect(triage).toBeVisible(SEEN);
+  await triage.getByRole("button", { name: "18 to 64", exact: true }).click();
+  await triage.getByRole("button", { name: "Injury, strain or overuse", exact: true }).click();
+  await triage.getByRole("button", { name: /^Orthopaedic/ }).click();
+  await triage.getByRole("button", { name: "Continue to the questions" }).click();
+
+  // Walk to the review step: the earlier answers are there, not blanks.
+  const save = page.getByRole("button", { name: "Save to their chart" });
+  const intro = page.getByRole("button", { name: /^(Start|Continue)$/ });
+  const next = page.getByRole("button", { name: /^(Next|Skip)$/ });
+  if (await intro.isVisible().catch(() => false)) await intro.click();
+  for (let i = 0; i < 12 && !(await save.isVisible().catch(() => false)); i++) {
+    await next.click();
+    await page.waitForTimeout(200);
+  }
+  await expect(save).toBeVisible(SEEN);
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText(ORTHO_ANSWERS.chief_complaint)).toBeVisible();
+  await expect(dialog.getByText(ORTHO_ANSWERS.since_when)).toBeVisible();
+
+  await save.click();
+  await expect.poll(async () => (await profileRow())?.specialty, SEEN).toBe("ortho");
+  const row = await profileRow();
+  expect((row?.data as Record<string, string>).chief_complaint).toBe(ORTHO_ANSWERS.chief_complaint);
+  // The neurological answers stay on file, hidden.
+  expect((row?.data as Record<string, string>).neuro_diagnosis).toBe(NEURO_ANSWERS.neuro_diagnosis);
+  // A new history entry; nothing earlier rewritten.
+  expect(await countRequests("approved")).toBe(historyBefore + 1);
+  await ctx.close();
+});
+
 test("RT-003: a same-type correction is allowed", async ({ request }) => {
   await seedProfile("ortho", ORTHO_ANSWERS);
   const res = await post(request, "/api/therapist/condition-profile/onboard", therapistCookie, {

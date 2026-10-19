@@ -327,6 +327,7 @@ export default async function TherapistPatientHealthProfilePage({
               overrideRows={intakeOverrideRows ?? []}
               initialTriage={(specialtyRow?.draft_triage_data ?? undefined) as Record<string, string> | undefined}
               initialAnswers={formInitialData}
+              onFileAnswers={currentData}
               draftSpecialty={
                 specialtyRow?.draft_specialty
                   ? (parseConditionSpecialty(specialtyRow.draft_specialty) as ConditionSpecialty)
@@ -367,6 +368,7 @@ export default async function TherapistPatientHealthProfilePage({
               enabledSpecialties={enabledSpecialties}
               overrideRows={intakeOverrideRows ?? []}
               initialTriage={(specialtyRow?.triage_data ?? undefined) as Record<string, string> | undefined}
+              onFileAnswers={currentData}
             />
           )}
 

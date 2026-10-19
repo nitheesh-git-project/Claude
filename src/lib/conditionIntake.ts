@@ -164,6 +164,53 @@ export function mergeSpecialtyAnswers(
   return merged;
 }
 
+/**
+ * What a therapist's intake fill for `specialty` opens with.
+ *
+ * Re-triage keeps the previous specialty's answers on file (see
+ * mergeSpecialtyAnswers), but the wizard used to open blank anyway, so a
+ * patient taken orthopaedic -> neurological -> back to orthopaedic had their
+ * orthopaedic history typed in again from nothing while the old answers sat
+ * hidden in the same blob. The owner's rule: their latest answers for that
+ * specialty prefill the questions, ready to edit. Saving still goes through
+ * /onboard, which writes a new approved history entry and changes nothing
+ * already recorded.
+ *
+ * In order:
+ *  1. An unfinished fill for this same specialty (the draft) -- the newest
+ *     thing the therapist typed, and the wizard saves its full key set, so
+ *     it already started from the answers below.
+ *  2. The answers on file for this specialty -- the latest, since every
+ *     write merges them in.
+ *  3. Nothing.
+ * Only this specialty's own keys come back, and never an empty value: a
+ * neurological draft must not seed an orthopaedic form (the keys are
+ * disjoint, so it would silently submit nothing), and a blank string is
+ * not an answer to prefill.
+ */
+export function intakePrefillAnswers({
+  specialty,
+  onFile,
+  draft,
+  draftSpecialty,
+}: {
+  specialty: ConditionSpecialty;
+  onFile?: Record<string, string> | null;
+  draft?: Record<string, string> | null;
+  draftSpecialty?: ConditionSpecialty | null;
+}): Record<string, string> {
+  const keys = questionKeysForSpecialty(specialty);
+  const pick = (source: Record<string, string> | null | undefined) =>
+    Object.fromEntries(
+      keys
+        .map((k) => [k, source?.[k]] as const)
+        .filter((entry): entry is readonly [string, string] => typeof entry[1] === "string" && !!entry[1].trim())
+    ) as Record<string, string>;
+  const fromDraft = draftSpecialty === specialty ? pick(draft) : {};
+  if (Object.keys(fromDraft).length > 0) return fromDraft;
+  return pick(onFile);
+}
+
 export type ConditionProfileStatus = "not_started" | "draft" | "pending_review" | "active";
 
 export const CONDITION_STATUS_LABEL: Record<ConditionProfileStatus, string> = {

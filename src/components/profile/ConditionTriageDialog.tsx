@@ -212,7 +212,7 @@ export default function ConditionTriageDialog({
                   actually being made. */}
               <p className="mt-3 text-xs text-slate-500">
                 {currentSpecialty
-                  ? `Their answers to the ${CONDITION_SPECIALTIES.find((s) => s.key === currentSpecialty)?.label.toLowerCase()} questions stay on file - they just stop being shown.`
+                  ? `Their answers to the ${CONDITION_SPECIALTIES.find((s) => s.key === currentSpecialty)?.label.toLowerCase()} questions stay on file - they just stop being shown, and come back filled in if you switch back.`
                   : "You can change this later if the case turns out to be something else; nothing answered is ever lost."}
               </p>
             </div>

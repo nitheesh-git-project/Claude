@@ -2390,7 +2390,9 @@ then.** The flow, end to end:
    edits queue for admin exactly as before.
 6. A therapist can re-triage later from the same card. The previous
    specialty's answers stay in the row, hidden on screen and printed in the
-   PDF under "Earlier profile".
+   PDF under "Earlier profile" - and switching back to a condition type the
+   patient had before opens its questions with those answers prefilled,
+   ready to edit, rather than blank.
 
 The two write gates are different because they record different things.
 Onboarding and re-triage need only that the therapist is **assigned**

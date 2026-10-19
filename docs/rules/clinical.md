@@ -29,7 +29,14 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      `mergeSpecialtyAnswers()` keeps every key the incoming specialty does
      not own. The approve path used to write `data: proposedData`
      outright, which under re-triage deletes a patient's whole
-     orthopaedic record the moment a neurological one is written.
+     orthopaedic record the moment a neurological one is written. **And
+     what is kept is offered back:** a therapist taking a patient back to a
+     condition type they had before gets that type's latest answers
+     prefilled, ready to edit (`intakePrefillAnswers()`: a same-type draft
+     first, then the answers on file, only that type's keys, never a
+     blank). It used to open blank while the answers sat hidden in the same
+     blob. Saving is an ordinary `/onboard` write -- one new approved
+     history entry, nothing earlier rewritten.
   3. **`schema_version` is per specialty**
      (`INTAKE_QUESTIONS_VERSION_BY_SPECIALTY`), so it means "version of
      *this profile's own* set". One shared scalar bumped to 3 would have
