@@ -188,6 +188,10 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   land before the slot's start on the dashboards' real clock - an admin's
   Done has no time gate and the debug clock moves the therapist's - and a
   time-first split left those completed sessions under Upcoming.
+  The Calendar view's "coming up this month" asks the same rule
+  (`src/lib/calendarMonthStats.ts`, from the same server `nowMs`): it used
+  to count confirmed/requested by status alone, so a session from last week
+  read as coming up one tap from a List that filed it under Past.
 - **A different way of looking at the same rows is a view switch, not a
   sidebar entry.** Calendar was its own entry on the patient and therapist
   dashboards and is now a List/Calendar toggle on Sessions

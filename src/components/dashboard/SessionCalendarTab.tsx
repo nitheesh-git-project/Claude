@@ -3,6 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { istDateKey } from "@/lib/formatSlotRange";
 import PatientMonthMotivation from "@/components/dashboard/PatientMonthMotivation";
+import { calendarMonthCounts } from "@/lib/calendarMonthStats";
 
 // Minimal shape SessionCalendarTab needs to color/group by date. Field
 // names match the DB columns directly (slot_time, no_show) rather than
@@ -35,8 +36,11 @@ export type MonthStats = {
 
 type ColorBucket = "upcoming" | "completed" | "cancelled";
 
-function todayKey() {
-  return istDateKey(new Date().toISOString());
+// From the request-time clock the server passed down, not the browser's:
+// the List view buckets by that same instant, and a second clock here is how
+// the two views came to disagree about what is still ahead.
+function todayKeyAt(nowMs: number) {
+  return istDateKey(new Date(nowMs).toISOString());
 }
 
 // "upcoming" also covers 'requested' -- both just mean "hasn't happened
@@ -65,6 +69,7 @@ export default function SessionCalendarTab<T extends CalendarSession>({
   sessions,
   cardsById,
   showMotivation,
+  nowMs,
 }: {
   sessions: T[];
   // Pre-rendered per-session cards, keyed by session id. This component is
@@ -79,8 +84,11 @@ export default function SessionCalendarTab<T extends CalendarSession>({
   // the motivational copy itself lives in PatientMonthMotivation, a
   // client-to-client child so no function prop is needed for it either.
   showMotivation?: boolean;
+  /** Request-time clock from the server -- the same one the List view's
+   *  `sessionBucket` reads, so "coming up" means one thing on both. */
+  nowMs: number;
 }) {
-  const initial = todayKey();
+  const initial = todayKeyAt(nowMs);
   const [initYear, initMonthStr] = initial.split("-");
   const [viewYear, setViewYear] = useState(Number(initYear));
   const [viewMonth, setViewMonth] = useState(Number(initMonthStr) - 1); // 0-indexed
@@ -119,7 +127,10 @@ export default function SessionCalendarTab<T extends CalendarSession>({
   // timezone -- without an explicit zone, these can render a different
   // calendar date on the server (SSR) vs the browser (hydration). Same
   // reasoning as AdminCalendarTab's identical comment.
-  const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString("en-IN", {
+  // Midday UTC on the 1st, not the runtime's local midnight: east of IST
+  // (Tokyo, Sydney) local midnight on the 1st is still the previous day in
+  // Kolkata, which labelled October as September.
+  const monthLabel = new Date(Date.UTC(viewYear, viewMonth, 1, 12)).toLocaleDateString("en-IN", {
     month: "long",
     year: "numeric",
     timeZone: "Asia/Kolkata",
@@ -143,27 +154,21 @@ export default function SessionCalendarTab<T extends CalendarSession>({
   }
 
   const monthStats = useMemo<MonthStats>(() => {
-    const [todayYearStr, todayMonthStr] = todayKey().split("-");
+    const [todayYearStr, todayMonthStr] = todayKeyAt(nowMs).split("-");
     const todayYear = Number(todayYearStr);
     const todayMonth = Number(todayMonthStr) - 1;
     const isCurrentMonth = viewYear === todayYear && viewMonth === todayMonth;
     const isPastMonth = viewYear < todayYear || (viewYear === todayYear && viewMonth < todayMonth);
 
-    let completedCount = 0;
-    let upcomingCount = 0;
-    let cancelledCount = 0;
-    for (const s of sessions) {
-      if (!s.slot_time) continue;
-      const [y, m] = istDateKey(s.slot_time).split("-");
-      if (Number(y) !== viewYear || Number(m) - 1 !== viewMonth) continue;
-      if (s.status === "completed") {
-        if (!s.no_show) completedCount += 1;
-      } else if (s.status === "confirmed" || s.status === "requested") {
-        upcomingCount += 1;
-      } else if (s.status === "cancelled") {
-        cancelledCount += 1;
-      }
-    }
+    // "Coming up" is the List view's Upcoming, through the same rule
+    // (sessionBucket). Counting confirmed/requested by status alone said a
+    // session from last week was still ahead.
+    const { completedCount, upcomingCount, cancelledCount } = calendarMonthCounts(
+      sessions,
+      viewYear,
+      viewMonth,
+      nowMs
+    );
 
     return {
       year: viewYear,
@@ -176,7 +181,7 @@ export default function SessionCalendarTab<T extends CalendarSession>({
       upcomingCount,
       cancelledCount,
     };
-  }, [sessions, viewYear, viewMonth, monthLabel]);
+  }, [sessions, viewYear, viewMonth, monthLabel, nowMs]);
 
   return (
     /* No card chrome of its own: this always renders inside the Sessions
@@ -233,7 +238,7 @@ export default function SessionCalendarTab<T extends CalendarSession>({
           const key = dateKeyFor(day);
           const buckets = [...(bucketsByDate.get(key) ?? [])];
           const isSelected = key === selectedDate;
-          const isToday = key === todayKey();
+          const isToday = key === initial;
           const singleBucket = buckets.length === 1 ? buckets[0] : null;
           const baseClasses = isSelected
             ? "bg-teal-700 text-white border-teal-700"

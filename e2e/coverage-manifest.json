@@ -1345,6 +1345,21 @@
       "integration": "local",
       "destructive": true
     },
+    "patient-upcoming-rule.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "patient-meet-join.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -3418,6 +3433,25 @@
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "patient.upcoming-rule",
+      "runner": "patient",
+      "title": "Upcoming means one thing on the Sessions list, its Calendar view and the Overview",
+      "required": false,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-upcoming-rule.spec.ts",
+          "tests": [
+            "PU-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
       ]
     },
     {

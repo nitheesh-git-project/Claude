@@ -475,6 +475,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 **Preconditions.** Patient A has at least one upcoming, one past and one cancelled session, and at least one home visit.
 **Steps.** Open `/patient/dashboard/sessions`. Tap **Upcoming**, **Past**, **Cancelled** in turn. Then tap the **Video** and **Home visit** filters. Then switch **List** → **Calendar** and back.
 **Expected Result.** One list, not two. The Video/Home visit filter appears **only** because this patient has both kinds; a patient with only video sessions must not see it. The Calendar view renders **the same server-rendered cards**, so the two views can never disagree about a session. Filter chips are hidden entirely when only one of them would have rows behind it. The list ends with a pager showing "x–y of n", a per-page control, and Previous/Next that grey out at the ends.
+**Upcoming is one rule.** With a confirmed session from more than a day ago that nobody marked done, List reads **Upcoming 0 / Past 1**, and the Calendar's line under that month must **not** say it is "coming up" - the Calendar counts through the same rule as the List (`sessionBucket`). A Calendar that says "1 session coming up this month" while the List says Upcoming 0 is the `F-02` defect.
 
 #### `PAT-SESS-002` - An unassigned session reads as Requested · P2
 

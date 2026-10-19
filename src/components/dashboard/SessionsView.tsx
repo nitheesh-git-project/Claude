@@ -84,6 +84,7 @@ export default function SessionsView({
           sessions={calendarSessions}
           cardsById={cardsById}
           showMotivation={showMotivation}
+          nowMs={nowMs}
         />
       )}
     </div>
