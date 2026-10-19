@@ -18,6 +18,7 @@ import { adminClient, BASE } from "./helpers";
 
 const CATEGORY_TITLE = "QA Detail Programme";
 const PACKAGE_TITLE = "QA Detail Package";
+const FIXTURE_MINUTES = 35;
 
 let categoryId = "";
 let packageId = "";
@@ -39,7 +40,9 @@ test.describe("Catalog detail dialogs", () => {
         description: "A programme seeded by the catalog detail spec.",
         points: ["First point", "Second point"],
         price_paise: 120000,
-        duration_minutes: 60,
+        // Deliberately not 60: the pages used to print a fixed "60-minute",
+        // and a fixture at 60 would let CD-009 pass against that bug.
+        duration_minutes: FIXTURE_MINUTES,
         active: true,
       })
       .select("id")
@@ -237,6 +240,28 @@ test.describe("Catalog detail dialogs", () => {
     // dialog exists.
     await expect(dialog).toContainText("A programme seeded by the catalog detail spec.");
     await expect(dialog).toContainText("Second point");
+  });
+
+  test("CD-009: card and dialog quote the category's own length, never a fixed one", async ({
+    page,
+  }) => {
+    // F-01: the dialog promised "the same 60-minute assessment" while the
+    // card, /book and checkout said the category's own length. Every length
+    // on these surfaces is now read from duration_minutes.
+    await page.goto(`${BASE}/conditions`);
+    const card = page.getByText(CATEGORY_TITLE, { exact: false }).first();
+    await card.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText(`${FIXTURE_MINUTES} minutes, 1-on-1`);
+    await expect(dialog).toContainText(
+      `Every programme opens with an assessment - ${FIXTURE_MINUTES} minutes, one-to-one.`
+    );
+    await expect(dialog).not.toContainText(/60[- ]minute/);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    // Nowhere on the page claims a fixed 60 while a category says otherwise.
+    await expect(page.getByText(/Same 60-minute assessment/)).toHaveCount(0);
   });
 
   test("CD-008: a backdrop click closes the dialog", async ({ page }) => {

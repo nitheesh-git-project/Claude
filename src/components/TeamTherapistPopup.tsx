@@ -233,7 +233,7 @@ export default function TeamTherapistPopup({ therapists }: { therapists: TeamThe
                       Sessions
                     </dt>
                     <dd className="mt-1 text-sm font-bold text-slate-900">
-                      1-on-1, 60 minutes
+                      1-on-1
                     </dd>
                   </div>
                 </dl>

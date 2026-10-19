@@ -609,6 +609,18 @@ Eight pages from one design system, the word budgets, why every photograph carri
   dots, savings meter, stat tiles) live in
   `src/components/catalog/CatalogVisuals.tsx` and are fed already-computed
   numbers, since the arithmetic belongs in `src/lib/`.
+- **A session's length is the category's, on every screen, or no number at
+  all.** `treatment_categories.duration_minutes` is what `/book`, checkout
+  and the appointment row use, and the programme band's lede, the programme
+  dialog's footnote and the home hero's figure each printed a fixed "60"
+  beside it - so a 30-minute category was promised as 60 minutes one tap
+  before the wizard said 30. Every sentence that names a length is built by
+  `src/lib/sessionLengthCopy.ts` from the rows the page already reads ("Same
+  N-minute assessment" only when every category shares N; a range or no
+  figure otherwise), and a page that reads no categories (`/hospitals`, the
+  journey strip, the therapist popup) names no length. Its test walks those
+  files and fails on a literal minute count. `e2e/catalog-detail.spec.ts`
+  CD-009 seeds a 35-minute category and reads it back.
 - **The footer's social icons are only the ones an admin filled in, and each
   opens in a new tab.** Five optional `site_settings` columns
   (Settings -> Brand & Contact -> Social Media Links); blank hides that icon,
