@@ -23,6 +23,8 @@ import { formatRupees } from "../src/lib/formatMoney";
 
 const db = adminClient();
 const MARKER = "ZZ QA drawer money";
+const CATEGORY_TITLE = "ZZ QA drawer money service";
+const CATEGORY_PRICE_PAISE = 49_900; // ₹499, the QA finding's own figure
 
 // Far enough out, and spread by a random whole hour, that no other spec's
 // booking for the same patient overlaps it (trg_appointments_patient_no_overlap).
@@ -50,15 +52,37 @@ async function openDrawer(browser: Browser, sessionCode: string) {
 test.describe("ASD: the session drawer's money", () => {
   test("ASD-001: an unpaid booking is priced at its own service's price, as on the list", async ({ browser }) => {
     test.setTimeout(90_000);
-    const { data: category } = await db
+    // Its own service, priced below the standard fee, rather than whatever
+    // the database happens to hold: a fresh stack (the quality gate's) has no
+    // service priced differently from ₹1,999, and an earlier version of this
+    // test skipped there. Inactive, so it never reaches the public catalogue
+    // or a spec counting live services -- the admin dashboard loads every
+    // service, active or not, so the drawer still prices from it.
+    // Found-or-created by title, so a run whose cleanup failed is reused
+    // rather than collided with.
+    const { data: existing } = await db
       .from("treatment_categories")
-      .select("id, title, price_paise")
-      .eq("active", true)
-      .neq("price_paise", SESSION_FEE_PAISE)
-      .gt("price_paise", 0)
+      .select("id, price_paise")
+      .eq("title", CATEGORY_TITLE)
       .limit(1)
       .maybeSingle();
-    test.skip(!category, "no active service priced differently from the standard fee to tell the two apart");
+    const category =
+      existing ??
+      (
+        await db
+          .from("treatment_categories")
+          .insert({
+            title: CATEGORY_TITLE,
+            points: [],
+            price_paise: CATEGORY_PRICE_PAISE,
+            duration_minutes: 60,
+            active: false,
+          })
+          .select("id, price_paise")
+          .single()
+      ).data;
+    expect(category, "seeded the fixture service").toBeTruthy();
+    expect(category!.price_paise).not.toBe(SESSION_FEE_PAISE);
 
     const patientId = await profileIdFor(db, QA_EMAILS.patientA);
     const { data: seeded, error } = await db
@@ -90,6 +114,7 @@ test.describe("ASD: the session drawer's money", () => {
       await ctx.close();
     } finally {
       await db.from("appointments").delete().eq("id", seeded!.id);
+      await db.from("treatment_categories").delete().eq("id", category!.id);
     }
   });
 
