@@ -152,6 +152,18 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   specialty from **triage only**: an existing profile carrying it must
   keep rendering, and a therapist re-triaging such a patient is still
   offered it. Ortho can never be switched off.
+
+  **"None of these" means none of the others.** A `multi_select` whose list
+  carries a "None" answer declares it in `exclusiveOptions`, and every tap
+  goes through `toggleMultiSelectOption()` (`conditionIntake.ts`): ticking
+  it clears the rest, ticking anything else clears it. Triage used to
+  toggle each option on its own, so "None of these" and "Weakness on one
+  side" both stayed ticked and the record contradicted itself. `/onboard`
+  and `/save-draft` refuse the pair with a 400
+  (`findContradictoryMultiSelects`) rather than guessing which half was
+  meant, and both now store only known triage keys with string values
+  (`sanitiseTriageAnswers`). `multiSelectExclusive.test.ts` fails on a new
+  multi-select with a "None" option that forgot to declare it.
 - **One authoring implementation, three doors.** A therapist writes their own
   recommendation from the session note dialog; an admin writes one on their
   behalf from Programmes → Recommendations when that therapist cannot reach the

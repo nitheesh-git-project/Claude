@@ -50,6 +50,13 @@ export type IntakeQuestion = {
    *  and the dashboard summary, where the full question sentence is too
    *  long to read as a list. Falls back to `label` when absent. */
   shortLabel?: string;
+  /** For a `multi_select`: the options that mean "none of the others" --
+   *  triage's "None of these". Ticking one clears every other option, and
+   *  ticking any other clears it, so the answer can never claim both "no
+   *  neurological signs" and "weakness on one side". Enforced in the UI by
+   *  toggleMultiSelectOption and on the server by
+   *  findContradictoryMultiSelects -- the browser is never the authority. */
+  exclusiveOptions?: string[];
 };
 
 // The three question sets, one per specialty. `data` is a FLAT blob shared
@@ -208,6 +215,41 @@ export function parseMultiSelect(raw: string | undefined | null): string[] {
 
 export function serializeMultiSelect(values: string[]): string {
   return values.filter(Boolean).join("\n");
+}
+
+/** The selection after tapping `option`. A tapped option already selected
+ *  is removed; otherwise it is added -- and if it is one of the question's
+ *  `exclusiveOptions` it replaces everything else, while any other option
+ *  clears the exclusive ones. Triage used to toggle each option on its own,
+ *  so "None of these" followed by "Weakness on one side" left both ticked
+ *  and the record contradicting itself. */
+export function toggleMultiSelectOption(
+  question: Pick<IntakeQuestion, "exclusiveOptions">,
+  current: string[],
+  option: string
+): string[] {
+  if (current.includes(option)) return current.filter((c) => c !== option);
+  const exclusive = question.exclusiveOptions ?? [];
+  if (exclusive.includes(option)) return [option];
+  return [...current.filter((c) => !exclusive.includes(c)), option];
+}
+
+/** Keys of the multi_select answers that tick an exclusive option ("None of
+ *  these") alongside anything else. The server half of
+ *  toggleMultiSelectOption: a request is refused rather than normalised,
+ *  because which half of a contradiction the clinician meant is not
+ *  something a route can guess. */
+export function findContradictoryMultiSelects(
+  questions: IntakeQuestion[],
+  answers: Record<string, string>
+): string[] {
+  return questions
+    .filter((q) => q.inputType === "multi_select" && (q.exclusiveOptions?.length ?? 0) > 0)
+    .filter((q) => {
+      const picked = parseMultiSelect(answers[q.key]);
+      return picked.length > 1 && picked.some((p) => q.exclusiveOptions!.includes(p));
+    })
+    .map((q) => q.key);
 }
 
 /** Spells an `area_pain` answer out as readable lines. Extracted so the

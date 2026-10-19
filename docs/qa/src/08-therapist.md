@@ -302,13 +302,14 @@ A second attempt returns `This visit's payment has already been recorded.`
 2. Tap the control that starts triage.
 3. Answer **How old is the patient?** → `18 to 64`.
 4. Answer **What brought them in?** → `Injury, strain or overuse`.
-5. Answer **Any of these present?** → tick `None of these`.
+5. Answer **Any of these present?** → tick `None of these`, then tick `Weakness on one side`, then tick `None of these` again.
 6. Observe whether the milestones question appears.
 7. Read the suggestion panel.
 8. Confirm the suggested condition type.
 
 **Expected Result**
 * Step 2: the dialog shows **all four questions at once, with headings** - the clinician's surfaces deliberately invert the patient's one-question-at-a-time pacing, because a clinician filling this after every assignment wants to scan it.
+* Step 5: **`None of these` and a sign never stay ticked together.** Ticking `Weakness on one side` unticks `None of these`; ticking `None of these` again unticks the weakness. It ends with `None of these` alone. A request carrying both anyway is refused by the server (`"None of these" can't be ticked alongside another answer…`).
 * Step 6: the milestones question is **not shown** - it only appears when age is `Under 18`.
 * Step 7: **Orthopaedic** is suggested, **with its reason stated**, and is **not auto-accepted**. The therapist confirms or overrides.
 * On confirming, an already-`approved` `condition_change_requests` row is written, so the triage appears in the ordinary Review History with no new concept and no queue.

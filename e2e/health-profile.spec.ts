@@ -253,6 +253,46 @@ test("ON-009/010: required answers and unknown keys are re-checked server-side",
   expect((await foreign.json()).error).toMatch(/unknown fields/i);
 });
 
+test("ON-011: triage refuses 'None of these' ticked beside a sign, live and in the draft", async ({
+  request,
+}) => {
+  // The dialog clears one when the other is ticked (toggleMultiSelectOption);
+  // the routes refuse the pair outright, since a request is never the
+  // authority on what the clinician meant.
+  const contradictory = {
+    age_band: "18 to 64",
+    presenting_problem: "Injury, strain or overuse",
+    neuro_signs: "None of these\nWeakness on one side",
+  };
+  const live = await post(request, "/api/therapist/condition-profile/onboard", therapistCookie, {
+    patientId,
+    specialty: "ortho",
+    data: ORTHO_ANSWERS,
+    triageData: contradictory,
+  });
+  expect(live.status()).toBe(400);
+  expect((await live.json()).error).toMatch(/None of these/);
+  expect(await profileRow()).toBeNull();
+
+  const draft = await post(request, "/api/therapist/condition-profile/save-draft", therapistCookie, {
+    patientId,
+    specialty: "ortho",
+    data: { chief_complaint: "Knee" },
+    triageData: contradictory,
+  });
+  expect(draft.status()).toBe(400);
+  expect(await profileRow()).toBeNull();
+
+  // Either half on its own is an ordinary answer.
+  const ok = await post(request, "/api/therapist/condition-profile/onboard", therapistCookie, {
+    patientId,
+    specialty: "ortho",
+    data: ORTHO_ANSWERS,
+    triageData: { ...contradictory, neuro_signs: "None of these" },
+  });
+  expect(ok.status()).toBe(200);
+});
+
 // --------------------------------------------------------- LK: patient lock
 
 test("LK-004/005: the patient's write routes are shut while the record is empty", async ({

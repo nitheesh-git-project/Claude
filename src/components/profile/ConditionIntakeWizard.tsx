@@ -12,6 +12,7 @@ import {
   parseAreaPain,
   parseMultiSelect,
   serializeMultiSelect,
+  toggleMultiSelectOption,
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
 import { PAIN_MAP_REGIONS } from "@/lib/painMap";
@@ -504,9 +505,7 @@ export default function ConditionIntakeWizard({
                               setValues((v) => ({
                                 ...v,
                                 [question.key]: serializeMultiSelect(
-                                  selected
-                                    ? picked.filter((p) => p !== option)
-                                    : [...picked, option]
+                                  toggleMultiSelectOption(question, picked, option)
                                 ),
                               }))
                             }

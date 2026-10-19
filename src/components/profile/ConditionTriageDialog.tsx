@@ -7,6 +7,7 @@ import {
   findMissingRequiredKeys,
   parseMultiSelect,
   serializeMultiSelect,
+  toggleMultiSelectOption,
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
 import {
@@ -280,12 +281,10 @@ function TriageQuestion({
                 key={option}
                 type="button"
                 aria-pressed={selected}
+                // "None of these" and a sign clear each other -- see
+                // toggleMultiSelectOption. The route refuses the pair too.
                 onClick={() =>
-                  onChange(
-                    serializeMultiSelect(
-                      selected ? picked.filter((p) => p !== option) : [...picked, option]
-                    )
-                  )
+                  onChange(serializeMultiSelect(toggleMultiSelectOption(question, picked, option)))
                 }
                 className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition ${
                   selected
