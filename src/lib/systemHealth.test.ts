@@ -826,4 +826,20 @@ describe("checkout speed", () => {
   it("reads an unreadable table as not checked, never as fast", () => {
     expect(speed(null).status).toBe("unknown");
   });
+
+  it("says where the clock stops, and that a sample is a window opened, not a payment", () => {
+    // QA F-12: "7.1s typical" read as if it might include the patient's own
+    // time in the Razorpay sheet. It does not -- the timer stops at
+    // razorpay.open() -- and a sample is a sheet that opened, not a payment.
+    const check = speed({
+      samples: 32,
+      p50Ms: 7100,
+      p90Ms: 9100,
+      stageP50Ms: { signup: 2000, create: 1500, order: 3000 },
+    });
+    expect(check.what).toMatch(/nothing the patient does inside it is counted/);
+    expect(check.what).toMatch(/creating their account/);
+    expect(check.evidence[0]).toMatch(/^32 payment windows opened/);
+    expect(check.evidence.join(" ")).not.toMatch(/\b32 payments\b/);
+  });
 });
