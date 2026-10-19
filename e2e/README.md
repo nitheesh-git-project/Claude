@@ -157,7 +157,7 @@ total, which moves with every spec added.
 | `assign-availability` | 2 | an admin cannot assign a therapist who is not working that hour (409 with the reasons), and opening the hour on the roster lets the same request through; the drawer names the session's date, and "Open the roster" closes the dialog and the drawer and lands on that therapist's hours |
 | `booking-exit-link` | 2 | the way out of the wizard following the account - and never offering `/pending-approval` mid-booking |
 | `checkout-speed` | 5 | create answering with the quote and the Razorpay order in one trip, and the tap-to-sheet timing route |
-| `service-picker` | 11 | the service chosen before the slot, on both wizards; the home-visit wizard picking a condition (one visit, no count) and a `?category=` link landing on it |
+| `service-picker` | 12 | the service chosen before the slot, on both wizards; the home-visit wizard picking a condition (one visit, no count) and a `?category=` link landing on it; Step 2's consent terms readable in a dialog that names the chosen service |
 | `health-profile-showcase` | 2 | a sample patient dashboard per specialty, labelled as a sample, that moves on by itself every five seconds and stops for good once a tab is picked |
 | `date-field` | 6 | the clinic's own month grid in place of the browser's panel, including a past date, and Today bringing the grid back to this month |
 | `form-validation-chrome` | 2 | the app's own message in place of the OS tooltip |

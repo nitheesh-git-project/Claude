@@ -325,6 +325,37 @@ test.describe("Public booking service picker", () => {
     ).toBeVisible();
   });
 
+  test("SP-013: the consent terms can be read before agreeing, and name the chosen service", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    // F-04: the checkbox asked a patient to agree to terms they had no way
+    // to read, and called every service "musculoskeletal care".
+    await page.goto(`${BASE}/book?category=${coveredId}`);
+    await expect(page.getByRole("heading", { name: WITH_COVER })).toBeVisible();
+    await page.getByRole("button", { name: /Continue to Medical Details/ }).click();
+
+    const consent = page.getByRole("checkbox", { name: /I agree to the Consent terms/ });
+    await expect(consent).toBeVisible();
+    await expect(consent).toHaveAccessibleName(new RegExp(`my ${WITH_COVER} video session`));
+    await expect(consent).not.toHaveAccessibleName(/musculoskeletal/i);
+
+    const open = page.getByRole("button", { name: "Consent terms & emergency disclaimer" });
+    await open.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Consent terms & emergency disclaimer" })).toBeVisible();
+    await expect(dialog).toContainText(`your ${WITH_COVER} session`);
+    await expect(dialog).toContainText("Not for emergencies");
+    await expect(dialog).not.toContainText(/musculoskeletal/i);
+
+    // Reading the terms is not agreeing to them.
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(consent).not.toBeChecked();
+    await expect(open).toBeFocused();
+  });
+
   test("SP-008: a deep link lands on Step 1 with that service already chosen", async ({
     page,
   }) => {

@@ -113,7 +113,7 @@
       "risk-sweep-report.spec.ts": 11,
       "roster-read-write-day.spec.ts": 38,
       "section-nav.spec.ts": 25,
-      "service-picker.spec.ts": 34,
+      "service-picker.spec.ts": 38,
       "session-assignment.spec.ts": 12,
       "session-completed-cutoff.spec.ts": 38,
       "session-feedback.spec.ts": 11,

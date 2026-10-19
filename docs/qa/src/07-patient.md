@@ -212,7 +212,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 6. Leave **Referral Code** blank.
 7. Read the teal line naming the service chosen on Step 1 - it must read *"Booking a **QA Back & Spine Care** - ₹1,999, 60 min"* beside its photograph, with a **Change** link. There is no dropdown on this step.
 8. Tap the **Anything else we should know?** box. Enter `Desk job, pain worse after sitting all day. Goal: sit through a full workday.`
-9. Tap the telehealth consent checkbox.
+9. Tap the underlined **Consent terms & emergency disclaimer** in the consent line: a dialog shows the terms, naming `QA Back & Spine Care`. Close it - the checkbox is still unticked. Then tick the consent checkbox.
 10. Tap **Review Booking →**.
 11. On Step 3, read every summary row.
 12. Tap **Request Booking**.
