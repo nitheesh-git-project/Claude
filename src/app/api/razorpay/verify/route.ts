@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   const { data: appointment } = await supabase
     .from("appointments")
     .select(
-      "id, patient_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone, visit_mode, preferred_therapist_id, amount_paid_paise, travel_fee_paise"
+      "id, patient_id, razorpay_order_id, therapist_id, status, slot_time, duration_minutes, timezone, visit_mode, preferred_therapist_id, amount_paid_paise, travel_fee_paise, payment_status, razorpay_payment_id"
     )
     .eq("id", appointmentId)
     .eq("patient_id", user.id)
@@ -77,10 +77,26 @@ export async function POST(request: NextRequest) {
   // amount_paid_paise is deliberately not passed: /api/razorpay/create-order
   // already wrote the figure this specific order charged, and re-deriving it
   // here could disagree with the money that actually moved.
-  const outcome = await confirmPaidAppointment(admin, {
-    appointment,
-    razorpayPaymentId: razorpay_payment_id,
-  });
+  //
+  // A replay of a callback that already landed -- a double-tapped button, a
+  // resent request, the browser arriving after the webhook did the work -- is
+  // answered as the success it is, without running the confirmation again:
+  // that write stamps `paid_at` afresh, so every replay moved the one column
+  // that answers "when did this money arrive" to the time somebody pressed
+  // the button again (e2e/gateway-payment-capture.spec.ts PAY-CAP-001). Only
+  // a booking still live and recorded against this very payment counts; a
+  // cancelled one still gets the 409 below, and the idempotent steps after
+  // this still run, so a replay can repair a capture row that failed first.
+  const alreadyRecorded =
+    appointment.payment_status === "paid" &&
+    appointment.razorpay_payment_id === razorpay_payment_id &&
+    (appointment.status === "requested" || appointment.status === "confirmed");
+  const outcome = alreadyRecorded
+    ? { claimed: true, error: null }
+    : await confirmPaidAppointment(admin, {
+        appointment,
+        razorpayPaymentId: razorpay_payment_id,
+      });
 
   if (outcome.error) {
     // The payment itself succeeded with Razorpay at this point - never tell

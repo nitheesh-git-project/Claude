@@ -152,6 +152,18 @@ export function assessTarget(env, probe, options = {}) {
     }
   }
 
+  // ---- the fake gateway: loopback or nothing --------------------------------
+  // RAZORPAY_API_BASE_URL sends the app's Razorpay key id and secret to the
+  // fake gateway (e2e/fake-razorpay.mjs). Anywhere but this machine, it would
+  // be sending them to somebody. The app ignores a non-loopback value anyway
+  // (src/lib/razorpayApiBase.ts); the gate refuses to start with one.
+  if (set(env, "RAZORPAY_API_BASE_URL") && !isLoopbackHost(hostOf(env.RAZORPAY_API_BASE_URL))) {
+    unsafe(
+      "razorpay-api-base-not-loopback",
+      "RAZORPAY_API_BASE_URL is set to a host that is not loopback; the fake gateway runs on this machine and nowhere else"
+    );
+  }
+
   // ---- what the database actually holds ------------------------------------
   if (probe === null) {
     unsafe("probe-failed", "the database probe did not complete, so the target was not verified (an unchecked target is not a safe one)");

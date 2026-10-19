@@ -1,4 +1,4 @@
-import Razorpay from "razorpay";
+import { createRazorpayClient } from "@/lib/razorpayClient";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
@@ -305,10 +305,7 @@ export async function cancelAppointmentAndRefund(
         "The refund could not be recorded, so it was not sent to Razorpay. Refund it from this session.";
     } else {
       try {
-        const razorpay = new Razorpay({
-          key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-          key_secret: process.env.RAZORPAY_KEY_SECRET!,
-        });
+        const razorpay = createRazorpayClient();
         const refund = await razorpay.payments.refund(appointment.razorpay_payment_id!, {
           amount: refundablePaise ?? undefined,
         });

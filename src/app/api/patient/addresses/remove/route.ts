@@ -43,14 +43,26 @@ export async function POST(request: NextRequest) {
   // is_default is cleared alongside: the partial unique index only counts
   // active rows, but leaving a retired address flagged as the default would
   // mean the next booking preselects nothing at all.
-  const { error } = await admin
+  const { data: removed, error } = await admin
     .from("patient_addresses")
     .update({ active: false, is_default: false, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .eq("patient_id", user.id);
+    .eq("patient_id", user.id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return serverError("patient/addresses/remove", error);
+  }
+  // An id that is not one of the caller's addresses matched nothing, and used
+  // to answer success having changed nothing -- the same dishonest 200 the
+  // save route's update branch was fixed for. Removing one's own address
+  // twice still matches its row, so a double tap stays a success.
+  if (!removed) {
+    return NextResponse.json(
+      { error: "That address no longer exists. Refresh to see your saved addresses." },
+      { status: 404 }
+    );
   }
 
   return NextResponse.json({ success: true });

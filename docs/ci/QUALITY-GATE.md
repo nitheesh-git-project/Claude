@@ -68,16 +68,23 @@ and three things read it through `scripts/ci/lib/shards.mjs`: the `plan`
 job (the matrix), `run-runner.mjs --shard i/n` (which files a shard runs),
 and the verdict (which summaries must exist). Today:
 
-| Runner | Jobs | Measured spec time per job (sharded run on PR #100, warm caches) |
+| Runner | Jobs | Spec time per job (estimated from PR #100's measured times; the part 2/3 specs estimated) |
 | --- | --- | --- |
-| `admin` | 8 | ~195 s |
-| `money` | 2 | ~180 s |
-| `therapist` | 1 | ~155 s |
-| `patient` | 2 | ~150 s |
+| `money` | 2 | ~200 s |
+| `patient` | 2 | ~190 s |
+| `admin` | 7 | ~170 s |
+| `session` | 1 | ~165 s |
 | `platform` | 3 | ~140 s |
-| `session` | 1 | ~120 s |
+| `therapist` | 2 | ~125 s |
+| `hospital` | 1 | ~75 s |
 | `integrity` | 1 | ~40 s plus its scripts |
-| `hospital` | 1 | ~15 s |
+
+A split file's slice also runs on several Playwright workers
+(`GATE_SPLIT_WORKERS`, default 3; `run-runner.mjs`): it is read-only and its
+tests are independent by declaration, and `layout-audit.spec.ts` was a fifth
+of the whole suite run one page at a time. That took `admin` from eight jobs
+to seven, which went to `platform`. The new specs' `seconds.bySpec` figures
+are estimates until a CI run measures them.
 
 `node scripts/ci/plan-shards.mjs` prints the current figures. How a runner
 is split:
@@ -144,10 +151,14 @@ admin runner's tests 32. Now:
 `scripts/ci/run-runner.mjs <runner> [--shard i/n]` does this, in order
 (without `--shard` it runs the whole runner, every shard's files in turn):
 
-1. Runs the preflight.
+1. Runs the preflight, with `RAZORPAY_API_BASE_URL` already pointing at the
+   fake gateway (so a non-loopback value is refused).
 2. Selects the shard's specs from the manifest and the shard config.
    Selecting none is a failure.
-3. Starts one `next dev` with the egress guard preloaded, and warms it.
+3. Starts the fake Razorpay (`e2e/fake-razorpay.mjs`, 127.0.0.1:4010,
+   `FAKE_RAZORPAY_PORT` to move it) for the whole runner, then one `next
+   dev` with the egress guard preloaded and `RAZORPAY_API_BASE_URL` set,
+   and warms it.
 4. Runs the integrity scripts that build their own fixtures (shard 1).
 5. Runs the specs for each Playwright project.
 6. Runs the SQL checks that need rows the specs leave behind (shard 1).
@@ -230,6 +241,13 @@ closed. It is **unsafe** (exit 1, nothing runs) when any of these holds:
 - The probe cannot run, finds no marker row, or finds any auth user that
   is not an `@example.test` fixture.
 
+Two values are generated per run in the workflow's `env` rather than kept
+as secrets: `E2E_QA_PASSWORD`, the fixture accounts' password, and
+`CRON_SECRET`, which the app's `/api/cron/maintenance` checks and
+`admin-maintenance-sweep.spec.ts` sends. Each guards only that run's
+loopback app; the real `CRON_SECRET` that `maintenance.yml` uses against the
+deployed site is a repository secret the gate never reads.
+
 A variable named "test" is not taken as proof of anything: the marker and
 the fixture-only probe are what identify the stack. It is **blocked**
 (exit 3) when the target is safe but the Razorpay test keys are missing or
@@ -237,8 +255,12 @@ placeholders. A blocked runner never passes.
 
 **The egress guard.** `scripts/ci/egress-guard.mjs` is preloaded into
 `next dev` and the Playwright runner. It refuses every Node-level request
-to any host except loopback, `api.razorpay.com` (only with a real
-`rzp_test_` key) and the Google Fonts CDN, and logs each refusal. One
+to any host except loopback and the Google Fonts CDN, and logs each
+refusal. `api.razorpay.com` is allowed only with a real `rzp_test_` key
+**and** no fake gateway configured -- which in the gate never happens, since
+`run-runner.mjs` always sets `RAZORPAY_API_BASE_URL`, so a Razorpay client
+built outside `src/lib/razorpayClient.ts` turns the runner red rather than
+quietly reaching test mode. One
 refusal fails the runner even if the code that made the request swallowed
 the error. The only stub is `next dev`'s own check for a newer Next.js
 version, which has no switch, carries no data, and is answered locally
@@ -251,13 +273,21 @@ What the integrations prove:
 | Integration | Mode in the gate | What a pass proves | What still needs a real sandbox |
 | --- | --- | --- | --- |
 | Supabase (DB, Auth, Storage, RLS, Realtime) | local, real | The schema, policies, grants, triggers and routes behave as asserted | Hosted-only behaviour: the Management API, connection pooling, hosted storage limits |
-| Razorpay | provider sandbox (test keys) for order creation; checkout sheet not driven | Orders are created in test mode; amounts are server-derived | Completing the hosted checkout, signed webhooks, refunds (see the `blocked` flows) |
+| Razorpay | local fake (`e2e/fake-razorpay.mjs`) for every server call: orders, payments, refunds; checkout sheet not driven | Amounts are server-derived and reach the gateway as asserted; a capture verified with a correctly signed callback or a signed webhook applies exactly once; refunds reach the gateway for the right figure against the right payment, and a refusal is recorded as one | The hosted checkout sheet itself, Razorpay's real request/response shapes beyond what the fake models, and real settlement timing |
 | Google Calendar / Meet | absent (credentials refused) | The app's "not configured" path; no event is ever created | Real event and Meet-link creation and retry |
 | Email / SMS | not started (no Mailpit in the gate); no provider exists in the codebase | Nothing is sent anywhere | n/a until a provider is added |
 
 ## Setup the owner must do
 
 These steps are not automated, and nothing in this change performs them.
+
+The gate makes **no call to Razorpay at all**: every server-side call goes to
+the loopback fake, and the money specs sign their own checkout callbacks
+(with `RAZORPAY_KEY_SECRET`) and webhooks (with a `RAZORPAY_WEBHOOK_SECRET`
+the workflow generates per run). The test-key secrets below are still
+required by the preflight, and the browser still loads Razorpay's checkout
+script with the key id; whether to drop that requirement now that nothing
+calls the real API is an owner decision.
 
 1. **Add two repository secrets** under Settings → Secrets and variables →
    Actions → *Repository* secrets (not Environment, Codespaces or
@@ -360,10 +390,12 @@ carries `SUPABASE_ACCESS_TOKEN` or `GOOGLE_CALENDAR_*`, as it should.
 ```bash
 export NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_...   # test keys only
 export RAZORPAY_KEY_SECRET=...
+export E2E_QA_PASSWORD="local-$(openssl rand -hex 8)!Qa"   # the workflow generates both per run
+export CRON_SECRET="local-$(openssl rand -hex 16)"          # for admin-maintenance-sweep.spec.ts
 GITHUB_ENV=.gate.env scripts/ci/provision-local-stack.sh
 set -a; . ./.gate.env; set +a
 node scripts/ci/run-runner.mjs hospital           # or any runner (all its shards' files)
-node scripts/ci/run-runner.mjs admin --shard 2/8  # one shard, exactly as CI ran it
+node scripts/ci/run-runner.mjs admin --shard 2/7  # one shard, exactly as CI ran it
 npx playwright test e2e/hospital-isolation.spec.ts   # one spec, same stack
 supabase stop --no-backup                         # throw the stack away
 ```

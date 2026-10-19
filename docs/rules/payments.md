@@ -132,6 +132,38 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   registration (`/patient/register`, no booking involved) always waits on a
   human admin - the point of gating on genuine payment intent is to keep a
   bare signup from being a free way to skip that queue.
+- **Every Razorpay client is built by `createRazorpayClient()`
+  (`src/lib/razorpayClient.ts`), never `new Razorpay(...)`.** It is the one
+  place that decides where the server's gateway calls go: Razorpay itself,
+  or -- for the quality gate and the money specs only -- the loopback fake
+  gateway named by `RAZORPAY_API_BASE_URL` (`e2e/fake-razorpay.mjs`). The
+  override is honoured only for a bare loopback http(s) origin, and ignored
+  on a production deploy (`VERCEL_ENV=production`) and with a `rzp_live_`
+  key, because it sends the key id and secret wherever it points; the
+  decision is dependency-free with its own tests (`razorpayApiBase.ts`),
+  and the same test walks `src/` and fails on any other `new Razorpay(`.
+  In the gate `run-runner.mjs` always sets it, the egress guard then refuses
+  `api.razorpay.com`, and the preflight refuses a non-loopback value -- so
+  the gate never reaches a real gateway, and a client built around the
+  factory turns a runner red instead of quietly reaching test mode. What
+  the specs prove through the fake (`gateway-payment-capture`,
+  `gateway-webhook-recovery`, `gateway-cancellation-refund`,
+  `gateway-admin-refund`, `hospital-referral-revenue`): create-order prices
+  on the server, a correctly signed verify or webhook applies a capture
+  exactly once, refunds reach the gateway for the right figure against the
+  right payment, and a refusal is recorded as one.
+  **A replayed verify is a no-op.** `/api/razorpay/verify` used to run the
+  confirmation again on a resent callback, which re-stamped `paid_at` -- the
+  column that answers "when did this money arrive" -- every time the button
+  was pressed again or the browser arrived after the webhook. A booking
+  already paid by that very payment, and still live, is now answered as the
+  success it is without the write; the idempotent capture, invite and
+  approval steps still run.
+  **A refused partial refund puts the session back exactly as it was.** The
+  revert in `refund-session-partial` used to blank `refund_reason` and leave
+  the refused attempt's `refunded_at` / `refunded_by`, so a refused second
+  refund erased why the first one was made and dated it to a refund that
+  never happened. It restores all three now.
 - **A refund is shown wherever a payment is.** Money going out was recorded
   and never displayed: an admin refunded a session from a patient's profile,
   the route worked, the audit row was written, and the session row went on
