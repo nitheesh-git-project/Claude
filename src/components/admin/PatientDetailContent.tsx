@@ -44,6 +44,7 @@ import {
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
 import { formatRupees } from "@/lib/formatMoney";
+import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 
 // A module-level helper rather than an inline `Date.now()` in the component
 // body: `react-hooks/purity` refuses a clock read during render, and the rule
@@ -302,6 +303,10 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     }))
   );
 
+  // The therapist rate frozen onto each delivered session (best-effort: a
+  // failed read falls back to the live rate per row).
+  const frozenRates = await readFrozenTherapistRates(admin, id, "patient_id");
+
   // Sorted by when payment actually cleared, not booking-creation order -
   // a patient can book well before (or after) they pay, so the two orders
   // can diverge; a "payment history" should read newest-payment-first.
@@ -338,7 +343,11 @@ export default async function PatientDetailContent({ id }: { id: string }) {
       // overstated by exactly the travel fee the clinic passes straight
       // through, on the chart an admin reads to judge a patient's value.
       const payoutPaise = sessionTherapistCutPaise(
-        a as unknown as PayoutAppointment,
+        // With the rate it was delivered at, as the Pay button pays it.
+        {
+          ...(a as unknown as PayoutAppointment),
+          therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
+        },
         therapist.revenue_share_percent as number,
         therapist.home_visit_revenue_share_percent ?? null
       );

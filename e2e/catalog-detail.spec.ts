@@ -18,6 +18,7 @@ import { adminClient, BASE } from "./helpers";
 
 const CATEGORY_TITLE = "QA Detail Programme";
 const PACKAGE_TITLE = "QA Detail Package";
+const FIXTURE_MINUTES = 35;
 
 let categoryId = "";
 let packageId = "";
@@ -39,7 +40,9 @@ test.describe("Catalog detail dialogs", () => {
         description: "A programme seeded by the catalog detail spec.",
         points: ["First point", "Second point"],
         price_paise: 120000,
-        duration_minutes: 60,
+        // Deliberately not 60: the pages used to print a fixed "60-minute",
+        // and a fixture at 60 would let CD-009 pass against that bug.
+        duration_minutes: FIXTURE_MINUTES,
         active: true,
       })
       .select("id")
@@ -237,6 +240,57 @@ test.describe("Catalog detail dialogs", () => {
     // dialog exists.
     await expect(dialog).toContainText("A programme seeded by the catalog detail spec.");
     await expect(dialog).toContainText("Second point");
+  });
+
+  test("CD-009: card and dialog quote the category's own length, never a fixed one", async ({
+    page,
+  }) => {
+    // F-01: the dialog promised "the same 60-minute assessment" while the
+    // card, /book and checkout said the category's own length. Every length
+    // on these surfaces is now read from duration_minutes.
+    await page.goto(`${BASE}/conditions`);
+    const card = page.getByText(CATEGORY_TITLE, { exact: false }).first();
+    await card.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText(`${FIXTURE_MINUTES} minutes, 1-on-1`);
+    await expect(dialog).toContainText(
+      `Every programme opens with an assessment - ${FIXTURE_MINUTES} minutes, one-to-one.`
+    );
+    await expect(dialog).not.toContainText(/60[- ]minute/);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    // Nowhere on the page claims a fixed 60 while a category says otherwise.
+    await expect(page.getByText(/Same 60-minute assessment/)).toHaveCount(0);
+  });
+
+  test("CD-010: the FAQ's home-visit answer is built from the live service areas", async ({
+    page,
+  }) => {
+    // F-05: staging's FAQ quoted 600020 and ₹499 + ₹100 travel while the
+    // catalog said 600017 and ₹1,500 + ₹150. /faq now carries an answer
+    // built from home_visit_areas (global-setup serves 600017, Chennai),
+    // naming cities and pointing to the pincode check -- never a figure.
+    const { data: areas } = await adminClient()
+      .from("home_visit_areas")
+      .select("city")
+      .eq("active", true);
+    const city = (areas ?? []).map((a) => a.city as string).find(Boolean);
+    expect(city, "an active service area").toBeTruthy();
+
+    await page.goto(`${BASE}/faq`);
+    await page.getByRole("searchbox", { name: /Search frequently asked questions/ }).fill(
+      "home visits in my area"
+    );
+    const question = page.getByRole("button", {
+      name: "Do you do home visits in my area, and what do they cost?",
+    });
+    await expect(question).toBeVisible();
+    if ((await question.getAttribute("aria-expanded")) !== "true") await question.click();
+    const answer = page.getByText(/Home visits are currently available in parts of/);
+    await expect(answer).toBeVisible();
+    await expect(answer).toContainText(city!);
+    await expect(answer).not.toContainText(/\b\d{6}\b|₹/);
   });
 
   test("CD-008: a backdrop click closes the dialog", async ({ page }) => {

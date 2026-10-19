@@ -4,6 +4,7 @@
 
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { sessionAmountPaise } from "@/lib/sessionAmount";
+import { refundedPaiseOf } from "@/lib/refundState";
 
 export type MetricsAppointment = {
   id: string;
@@ -36,8 +37,8 @@ export type MetricsAppointment = {
   slot_time: string | null;
   no_show: boolean;
   refund_status: string | null;
-  // Only populated once refund_status is 'processed' -- see
-  // refundedPaiseByBucketFor, which is the only reader of this field.
+  // The running total committed back -- see describeRefundPosition in
+  // refundState.ts, which is how every reader here interprets it.
   refund_amount_paise: number | null;
   // Added for the Financial Summary / Therapist & Patient Ledger section --
   // widened rather than given its own narrower type, since this is always
@@ -455,8 +456,12 @@ export function moneyLineFor(
   // amount_paid_paise equal to it -- so recognised revenue reads the same
   // figure either side of a payment and never moves.
   const paidPaise = sessionAmountPaise(a, SESSION_FEE_PAISE);
-  const refundPaise =
-    a.refund_status === "processed" ? Math.max(0, a.refund_amount_paise ?? 0) : 0;
+  // Money that actually went back (refundState.ts): processed refunds, and
+  // what earlier partial refunds returned on a session whose later
+  // cancellation refund failed or was not due. Reading `processed` alone
+  // dropped those earlier refunds from net revenue the moment the status
+  // moved on (QA F-22).
+  const refundPaise = refundedPaiseOf(a);
   const netPaise = Math.max(0, paidPaise - refundPaise);
 
   const base = {

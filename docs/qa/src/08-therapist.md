@@ -84,7 +84,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 * **The tutorial explains the health profile from the therapist's side** with dummy data only (Priya, Dr Ananya): who fills it first, that the first fill saves without review and unlocks the patient's profile, and that later changes wait for the clinic. Skip asks once, then records it as seen; the (i) beside any page title replays just that page's chapter.
 * Header: `Welcome, QA Therapist A`, the credentials string, `Your Revenue Share: 60%` (whatever `ADM-PEOP-006` set), and `Your Rating: No ratings yet` until a patient has rated one - then `4.0 (1 rating)`. If an admin has hidden this therapist's rating, the line ends ` - hidden from public pages`.
 * Greeting `Your practice today`. The headline names the next session and its patient, or reads `No sessions booked yet - keep your availability open and the clinic assigns work to it.`
-* **Today** counts today's sessions with `Next at H:MM` beneath, **Upcoming** counts confirmed and awaiting-assignment work, **Notes to write** counts delivered sessions with nothing recorded (amber above zero, emerald at zero with `Every delivered session is written up`), **Owed to you** is a rupee figure with `Not yet requested` / `Payout request under review` / `Payout request sent`.
+* **Today** counts today's sessions with `Next at H:MM` beneath, **Upcoming** counts confirmed and awaiting-assignment work, **Notes to write** counts delivered sessions with nothing recorded (amber above zero, emerald at zero with `Every delivered session is written up`), **Owed to you** is a rupee figure with `Not yet requested` / `Payout request under review` / `Payout request sent` - and it is **the same figure**, to the paisa, as Earnings' *Pending Payout*, the *Owed* on this therapist's admin profile and their row on Money → Payouts (cash held aside). A session marked paid with no amount recorded adds nothing to any of them; one that read ₹9,232.80 here against ₹4,435.20 there is the QA F-21 bug.
 * Steps 4 and 5 land on `/therapist/dashboard/sessions` and `/therapist/dashboard/earnings`. The counts there match the figures exactly.
 * Empty feed reads `Assignments, completed sessions and payouts show up here as they happen.` A session delivered with no note written is a `needsYou` item pinned above dated items.
 * **Step 7 must land on `/therapist/dashboard/availability`, with the weekly schedule editor on screen.** Availability is its own route; a quick action that reloads the Overview and changes nothing is a defect - report it against this test ID.
@@ -302,13 +302,14 @@ A second attempt returns `This visit's payment has already been recorded.`
 2. Tap the control that starts triage.
 3. Answer **How old is the patient?** → `18 to 64`.
 4. Answer **What brought them in?** → `Injury, strain or overuse`.
-5. Answer **Any of these present?** → tick `None of these`.
+5. Answer **Any of these present?** → tick `None of these`, then tick `Weakness on one side`, then tick `None of these` again.
 6. Observe whether the milestones question appears.
 7. Read the suggestion panel.
 8. Confirm the suggested condition type.
 
 **Expected Result**
 * Step 2: the dialog shows **all four questions at once, with headings** - the clinician's surfaces deliberately invert the patient's one-question-at-a-time pacing, because a clinician filling this after every assignment wants to scan it.
+* Step 5: **`None of these` and a sign never stay ticked together.** Ticking `Weakness on one side` unticks `None of these`; ticking `None of these` again unticks the weakness. It ends with `None of these` alone. A request carrying both anyway is refused by the server (`"None of these" can't be ticked alongside another answer…`).
 * Step 6: the milestones question is **not shown** - it only appears when age is `Under 18`.
 * Step 7: **Orthopaedic** is suggested, **with its reason stated**, and is **not auto-accepted**. The therapist confirms or overrides.
 * On confirming, an already-`approved` `condition_change_requests` row is written, so the triage appears in the ordinary Review History with no new concept and no queue.
@@ -349,6 +350,12 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Steps.** With Patient A holding a full orthopaedic record, re-triage them as **Neurological** and complete the neuro question set with the §8.5 answers. Then inspect the profile.
 **Expected Result.** The neuro answers are stored **alongside** the orthopaedic ones in the same flat blob. **Every orthopaedic key survives** (hidden on screen, never deleted). The chart now renders the neuro summary card, the neuro snapshot strip and the neuro progress line. The Pain Map is **not** rendered.
 **If any orthopaedic answer is gone, stop and raise a P0** - the approve path must merge, never write the proposed data outright.
+
+#### `THR-HP-004b` - Going back to an earlier condition type prefills its answers · P1
+
+**Preconditions.** Continue from `THR-HP-004`: Patient A is now Neurological, with their orthopaedic answers still on file.
+**Steps.** Tap **Change condition type**, answer the triage, pick **Orthopaedic** and **Continue to the questions**. Step through to the review screen, change one answer, and **Save to their chart**. Open the admin's Review History for Patient A.
+**Expected Result.** Every orthopaedic question opens **with the patient's earlier answer already in it**, ready to edit - not blank. No neurological answer appears in the orthopaedic questions. After saving, the chart is orthopaedic with the edited answer; the neurological answers are still on file (hidden); Review History shows **one new entry** for this change and every earlier entry unchanged. Picking a condition type the patient has never had opens blank.
 
 #### `THR-HP-005` - Pain Map is orthopaedic and stays so · P0
 

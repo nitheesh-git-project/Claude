@@ -11,6 +11,7 @@ import {
   refundRefusalForAdmin,
 } from "@/lib/refundAttempt";
 import { decrementUsedCounter } from "@/lib/purchaseCounter";
+import { describeRefundPosition } from "@/lib/refundState";
 
 type CancelResult =
   | { error: string; status: number; payoutSettled?: boolean }
@@ -56,7 +57,7 @@ export async function cancelAppointmentAndRefund(
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, status, slot_time, payment_status, amount_paid_paise, travel_fee_paise, razorpay_payment_id, therapist_payout_paid_at, package_purchase_id, google_event_id, visit_mode, home_visit_purchase_id, payment_method, cash_collected_at, cash_collected_amount_paise"
+      "id, status, slot_time, payment_status, amount_paid_paise, travel_fee_paise, razorpay_payment_id, therapist_payout_paid_at, package_purchase_id, google_event_id, visit_mode, home_visit_purchase_id, payment_method, cash_collected_at, cash_collected_amount_paise, refund_status, refund_amount_paise"
     )
     .eq("id", appointmentId)
     .single();
@@ -271,16 +272,31 @@ export async function cancelAppointmentAndRefund(
   // visit is paid on its purchase and can never be `isDirectPayment`.
   const travelChargedPaise =
     isHomeVisit ? Math.max(0, appointment.travel_fee_paise ?? 0) : 0;
+  // What is still the patient's to get back: the charge less whatever
+  // earlier (partial) refunds already returned -- the same position the
+  // admin drawer and refund-session-partial read (refundState.ts). This used
+  // to be the whole charge, so a ₹1,999 session already refunded ₹200 and
+  // ₹100 asked the gateway for ₹1,999 on cancellation: more than was left on
+  // the payment, refused, and recorded as a failed refund (QA F-22). Had it
+  // been accepted it would have returned ₹300 twice.
+  const alreadyRefundedPaise = Math.max(0, appointment.refund_amount_paise ?? 0);
   const refundablePaise =
     appointment.amount_paid_paise === null || appointment.amount_paid_paise === undefined
-      ? null
-      : appointment.amount_paid_paise + travelChargedPaise;
+      ? alreadyRefundedPaise > 0
+        ? 0
+        : null
+      : describeRefundPosition(appointment, appointment.amount_paid_paise + travelChargedPaise)
+          .refundablePaise;
+  // Partial refunds already returned everything: nothing to send, and the
+  // refund record stays exactly as those refunds left it.
+  const nothingLeftToRefund = willRefund && refundablePaise !== null && refundablePaise <= 0;
+  const sendsRefund = willRefund && !nothingLeftToRefund;
 
   let refundId: string | null = null;
   let refundFailed = false;
   let refundFailureForAdmin: string | undefined;
 
-  if (willRefund) {
+  if (sendsRefund) {
     // Recorded before the gateway is called, so a refund that went through
     // and could not be written back is a row somebody can find rather than a
     // console line -- see src/lib/refundAttempt.ts. Where the other three
@@ -358,11 +374,14 @@ export async function cancelAppointmentAndRefund(
             refunded_at: decidedAt,
             refund_reason: refundReasonFor("Cancelled outside the refund window"),
           }
-        : willRefund
+        : sendsRefund
         ? {
             refund_id: refundId,
             refund_status: "processed",
-            refund_amount_paise: refundablePaise,
+            // The running total: what earlier refunds returned plus this one.
+            // A null figure is the whole charge, refunded with no amount named.
+            refund_amount_paise:
+              refundablePaise === null ? null : alreadyRefundedPaise + refundablePaise,
             refunded_at: decidedAt,
             refund_reason: refundReasonFor("Cancelled outside the refund window"),
           }
@@ -378,7 +397,9 @@ export async function cancelAppointmentAndRefund(
         : isLateWithMoneyAtStake
         ? {
             refund_status: "not_eligible",
-            refund_amount_paise: 0,
+            // What earlier refunds already returned (0 where there were none),
+            // never reset: zeroing it erased money that really went back.
+            refund_amount_paise: alreadyRefundedPaise,
             refunded_at: decidedAt,
             // Never the cancellation's own reason: this line is read as
             // "why this money moved", and no money moved. The rule that
@@ -408,5 +429,5 @@ export async function cancelAppointmentAndRefund(
     };
   }
 
-  return { success: true, refunded: willRefund };
+  return { success: true, refunded: sendsRefund };
 }

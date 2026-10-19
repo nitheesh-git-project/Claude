@@ -89,7 +89,7 @@ export function meetSyncUnclaimedFilter(now = Date.now()): string {
 // caller: timing out does not cancel the Calendar call, it only stops waiting
 // for it, so the attempt may still be in flight -- and an in-flight attempt
 // must keep its claim.
-async function withTimeout(work: Promise<void>, appointmentId: string): Promise<boolean> {
+async function withTimeout(work: Promise<unknown>, appointmentId: string): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<false>((resolve) => {
     timer = setTimeout(() => {

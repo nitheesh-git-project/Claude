@@ -5,6 +5,7 @@ import { findTherapistConflict } from "@/lib/checkTherapistConflict";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { clinicDateKey, clinicHour } from "@/lib/clinicWeek";
 import { canAutoAssignTo } from "@/lib/therapistReadiness";
+import { readAllRowsByIds } from "@/lib/supabase/readAllRows";
 
 /**
  * Assigns a therapist to a freshly paid session, when exactly one is
@@ -158,17 +159,25 @@ export async function pickAutoAssignTherapist(
     // The roster, for this one date. Both tables are read in one pass
     // rather than per therapist: the candidate list is the whole clinic,
     // and this runs inside a payment confirmation.
-    const [{ data: templateRows }, { data: overrideRows }] = await Promise.all([
-      admin
-        .from("therapist_availability_template")
-        .select("therapist_id, day_of_week, hour")
-        .in("therapist_id", ids),
+    // The template is paged: a whole clinic's weeks pass PostgREST's
+    // 1,000-row cap at about eight therapists, and the rows past it are the
+    // most recently saved schedules (QA F-20).
+    const [{ data: templateRows, error: templateError }, { data: overrideRows }] = await Promise.all([
+      readAllRowsByIds(ids, (chunk) =>
+        admin
+          .from("therapist_availability_template")
+          .select("therapist_id, day_of_week, hour")
+          .in("therapist_id", chunk)
+          .order("id", { ascending: true })
+      ).then((r) => ({ data: r.error ? null : r.rows, error: r.error })),
       admin
         .from("therapist_availability_override")
         .select("therapist_id, date, hour, available")
         .in("therapist_id", ids)
         .eq("date", dateKey),
     ]);
+    // An unread roster is not an empty one: leave the session for a person.
+    if (templateError) return null;
 
     const shareById = new Map(
       (therapists as TherapistRow[]).map((t) => [t.id, t.revenue_share_percent ?? null])

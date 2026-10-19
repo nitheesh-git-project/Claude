@@ -104,8 +104,13 @@ test("refund-home-visit-package: at most one concurrent request reaches Razorpay
   // blocked by the claim, never reached Razorpay. Non-409 = won the claim,
   // called Razorpay, Razorpay said no on its own merits -- a properly
   // guarded attempt, not a double-refund.
-  const winners = [r1, r2].filter((r) => r.status !== 409);
-  const losers = [r1, r2].filter((r) => r.status === 409);
+  // A request can also be turned away BEFORE the claim: the claim marks
+  // the purchase "refunded" while its gateway call is in flight, so a
+  // request that reads the row in that window gets "already been refunded"
+  // (400) and never reaches Razorpay. Only 200 (refunded) and 502 (Razorpay
+  // refused) mean a request won the claim and called the gateway.
+  const winners = [r1, r2].filter((r) => r.status === 200 || r.status === 502);
+  const losers = [r1, r2].filter((r) => r.status !== 200 && r.status !== 502);
   // What this route-level race cannot do is force the two requests to
   // overlap. Each one first fetches the Razorpay order over the network,
   // and the fake payment's refund is refused almost at once, which releases

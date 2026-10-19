@@ -43,8 +43,23 @@ export function validateReviewReason(
   reason: string,
   decision: CarePlanDecision
 ): { ok: true } | { ok: false; error: string } {
-  if (decision === "approved") return { ok: true };
-  if (reason.trim().length < MIN_REVIEW_REASON_LENGTH) {
+  const trimmed = reason.trim().length;
+  if (decision === "approved") {
+    // Optional, but not free-form: the column's own CHECK takes a note of
+    // ten characters or none at all. A stray short one used to reach the
+    // insert inside approve_care_plan(), fail it, roll the whole approval
+    // back and come out as a 500 - which is how a reason typed into a
+    // cancelled "Turn it down" kept a recommendation pending with no
+    // visible error (QA F-19). Refused here with the rule, instead.
+    if (trimmed > 0 && trimmed < MIN_REVIEW_REASON_LENGTH) {
+      return {
+        ok: false,
+        error: `A note on a plain approval is optional, but one under ${MIN_REVIEW_REASON_LENGTH} characters can't be saved. Leave it blank or say a little more.`,
+      };
+    }
+    return { ok: true };
+  }
+  if (trimmed < MIN_REVIEW_REASON_LENGTH) {
     return {
       ok: false,
       error:

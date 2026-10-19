@@ -573,7 +573,21 @@ export default async function AdminDashboardPage({
     // nothing (or error, if the migration hasn't been applied to this
     // database yet) -- the tab renders an empty-but-correct grid either way,
     // it never crashes the rest of the dashboard over this.
-    admin.from("therapist_availability_template").select("therapist_id, day_of_week, hour"),
+    //
+    // Paged, like the override read beside it. It was the one roster read
+    // left as a bare `.select()`, so it stopped at PostgREST's 1,000-row cap
+    // -- about eight therapists' worth of full weeks (up to 126 rows each).
+    // A schedule saved after that point is written past the end of what the
+    // page reads (a delete-and-insert puts the new rows at the heap's tail),
+    // so a therapist who had just been given hours still read "Has not
+    // filled in a working schedule yet" on the programme pick in All
+    // Sessions however often the screen was refreshed (QA F-20).
+    readAllRowsAsData(() =>
+      admin
+        .from("therapist_availability_template")
+        .select("therapist_id, day_of_week, hour")
+        .order("id", { ascending: true })
+    ),
     readAllRowsAsData(() =>
       admin
         .from("therapist_availability_override")
@@ -3041,7 +3055,13 @@ export default async function AdminDashboardPage({
       },
     ])
   );
-  const appointmentsForPayouts = (appointments ?? []).map((a) => ({
+  // Built on the merged array, not the raw select: the money maths needs the
+  // pay-later columns (a delivered session on terms is earned) and the rate
+  // frozen at completion (what a session pays its therapist), and the raw
+  // `appointments` rows carry neither -- so Payouts, Summary and Business
+  // Health were working from the live rate and dropping pay-later sessions
+  // that the request and settle routes count.
+  const appointmentsForPayouts = appointmentsWithSessionCode.map((a) => ({
     ...a,
     ...(homeVisitPayoutDetailById.get(a.id) ?? {
       visit_mode: "online" as const,

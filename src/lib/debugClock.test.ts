@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { DEBUG_NOW_OFFSET_HEADER, resolveServerNowMs, serverNowMs } from "./debugClock";
+import { DEBUG_NOW_OFFSET_HEADER, resolveServerNowMs, serverNowMs, serverNowOffsetMs } from "./debugClock";
 
 const REAL = Date.UTC(2026, 9, 2, 12, 0, 0);
 const HOUR = 60 * 60 * 1000;
@@ -43,5 +43,32 @@ describe("serverNowMs", () => {
   it("ignores the header once the bar is switched off", () => {
     process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV = "false";
     expect(Math.abs(serverNowMs(request(offset)) - Date.now())).toBeLessThan(5000);
+  });
+});
+
+describe("serverNowOffsetMs", () => {
+  const original = process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV;
+  afterEach(() => {
+    if (original === undefined) delete process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV;
+    else process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV = original;
+  });
+  const request = (value: string | null) => ({
+    headers: { get: (name: string) => (name === DEBUG_NOW_OFFSET_HEADER ? value : null) },
+  });
+
+  it("is the header's offset while the bar is on", () => {
+    delete process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV;
+    expect(serverNowOffsetMs(request(String(3 * HOUR)))).toBe(3 * HOUR);
+    expect(serverNowOffsetMs(request(String(-HOUR)))).toBe(-HOUR);
+  });
+
+  it("is zero with the bar off, no header, or a header out of bounds", () => {
+    delete process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV;
+    expect(serverNowOffsetMs(request(null))).toBe(0);
+    expect(serverNowOffsetMs(request("abc"))).toBe(0);
+    expect(serverNowOffsetMs(request(String(400 * 24 * HOUR)))).toBe(0);
+    // The production guarantee: with the bar off the header is inert.
+    process.env.NEXT_PUBLIC_SHOW_DEBUG_NAV = "false";
+    expect(serverNowOffsetMs(request(String(3 * HOUR)))).toBe(0);
   });
 });

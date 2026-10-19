@@ -120,7 +120,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Expected Result.**
 * The tour appears **only on the first visit**, and uses dummy data only (Priya, Dr Ananya) - nothing of Patient A's. Step 3 writes `profiles.onboarding_seen_at` through `/api/dashboard/tutorial-seen`, so the reload at step 4 shows no tour, and it never opens by itself again. **Skip** asks `Skip the tour?` once and then does the same thing as **Done**. Any (i) replays its own chapter at any time and never re-marks anything.
-* The strip reads: **Next session** (date + time and the therapist's name, or `-` with `Nothing booked yet`), **Sessions done** (count, `Your history builds up here` at zero), **Package sessions left** (count, `You don't own a package yet` when there are none), and **Health profile**.
+* The strip reads: **Next session** (date + time and the therapist's name, or `-` with `Nothing booked yet` for a patient who has never booked, and `No upcoming sessions` for one with a paid or completed session behind them - telling a returning patient "Nothing booked yet" is the `F-03` defect), **Sessions done** (count, `Your history builds up here` at zero), **Package sessions left** (count, `You don't own a package yet` when there are none), and **Health profile**.
 * **Health profile before the therapist's first record reads `-` on a slate accent** with `Your therapist fills this in at your first session` - **not** `0%` on amber. An amber zero here is the `PAT-HP-001` defect: it asserts the patient is behind on something nobody has asked them for.
 * Step 7 navigates to `/patient/dashboard/sessions`; step 8 to `/patient/dashboard/packages`. Every figure is a link and lands on the rows it counted.
 * With no history the feed reads `Bookings, payments and health-profile updates show up here as they happen.` Once there is history, items still waiting on the patient (`needsYou`) are **pinned above** everything else regardless of date, and no single title repeats more than the cap allows.
@@ -212,7 +212,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 6. Leave **Referral Code** blank.
 7. Read the teal line naming the service chosen on Step 1 - it must read *"Booking a **QA Back & Spine Care** - ₹1,999, 60 min"* beside its photograph, with a **Change** link. There is no dropdown on this step.
 8. Tap the **Anything else we should know?** box. Enter `Desk job, pain worse after sitting all day. Goal: sit through a full workday.`
-9. Tap the telehealth consent checkbox.
+9. Tap the underlined **Consent terms & emergency disclaimer** in the consent line: a dialog shows the terms, naming `QA Back & Spine Care`. Close it - the checkbox is still unticked. Then tick the consent checkbox.
 10. Tap **Review Booking →**.
 11. On Step 3, read every summary row.
 12. Tap **Request Booking**.
@@ -404,6 +404,8 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 ### 11.5 Home visit (patient)
 
 > **Preconditions for this whole sub-section:** `ADM-SET-013` has switched **Home Visit enabled** on, `SETUP-AREA-001` has created Area 1 (`560038`, ₹150/visit), and `SETUP-HVPKG-001` has set the clinic-wide home-visit price (₹2,499) and `QA Knee & Joint Care`'s own price (₹2,999). HV2 (4 visits) is seeded by SQL where a case needs it (§8.12).
+>
+> **On a shared database (staging) these figures drift.** The pincodes, travel fees and prices above are the ones the `SETUP-*` cases create; staging is also written to by the automated suite and by other testers (its served pincode is often `600017`, its prices whatever an admin last saved). **Before running this section, read the current values** - pincodes and travel fees from **Catalog → Service areas**, visit prices from **Catalog → Conditions → Home visits** (or the cards on `/home-visit`) - and use those wherever a case below names a figure. What is under test is the relationship (a served pincode is accepted, the travel line is that area's fee, visit + travel = the total charged), not the number printed here. Never take a figure from the public FAQ: it is admin-written text, and only its live home-visit answer is built from the catalog.
 
 #### `PAT-HV-001` - The public home-visit page appears only when enabled · P1
 
@@ -475,6 +477,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 **Preconditions.** Patient A has at least one upcoming, one past and one cancelled session, and at least one home visit.
 **Steps.** Open `/patient/dashboard/sessions`. Tap **Upcoming**, **Past**, **Cancelled** in turn. Then tap the **Video** and **Home visit** filters. Then switch **List** → **Calendar** and back.
 **Expected Result.** One list, not two. The Video/Home visit filter appears **only** because this patient has both kinds; a patient with only video sessions must not see it. The Calendar view renders **the same server-rendered cards**, so the two views can never disagree about a session. Filter chips are hidden entirely when only one of them would have rows behind it. The list ends with a pager showing "x–y of n", a per-page control, and Previous/Next that grey out at the ends.
+**Upcoming is one rule.** With a confirmed session from more than a day ago that nobody marked done, List reads **Upcoming 0 / Past 1**, and the Calendar's line under that month must **not** say it is "coming up" - the Calendar counts through the same rule as the List (`sessionBucket`). A Calendar that says "1 session coming up this month" while the List says Upcoming 0 is the `F-02` defect.
 
 #### `PAT-SESS-002` - An unassigned session reads as Requested · P2
 

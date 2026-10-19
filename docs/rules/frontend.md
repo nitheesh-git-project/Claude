@@ -59,6 +59,25 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   name. The check earns its keep because this failure is invisible locally:
   a developer's machine is often in the same zone as the clinic, and it only
   shows on a UTC host.
+- **A client component's first render is the server's render, so it reads
+  nothing the server cannot.** The repeated React #418 on the public pages
+  and `/book` came from three places that each looked harmless: the
+  health-profile showcase's charts formatted with a *locale-less*
+  `toLocaleDateString(undefined, …)` (Node said "Oct 5", an en-GB browser
+  "5 Oct" - a zone alone is not enough, the locale must be pinned too);
+  motion's `useReducedMotion` answers on the first client render, and the
+  showcase's pause button only exists while the tour rotates; and the debug
+  bar, in the root layout on every page, read its simulated clock from
+  localStorage in a lazy `useState`, so "Reset to Real Time" rendered on the
+  client only. The rules: format through `formatDateTime.ts` (or pass
+  `"en-IN"`); a component whose *markup* changes under reduced motion uses
+  `useHydrationSafeReducedMotion` (`src/lib/`); browser-only state (storage,
+  cookies, the clock, `window`) is read in a mount effect, never a lazy
+  initializer, in anything the server renders; and `suppressHydrationWarning`
+  goes on the one node whose value is meant to be the reader's (the footer's
+  year), never on a wrapper. `src/lib/hydrationSafety.test.ts` walks the
+  client components for the first and holds the other two by file;
+  `e2e/public-hydration.spec.ts` drives a browser with all three differences.
 - **An account says when it was created, with the time on it, wherever that
   account has a screen.** `profiles.created_at` was rendered three ways and
   not at all in two places: the People directory carried the date *and* the
@@ -363,7 +382,17 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   number box under an `<h3>` -- takes `aria-label`, and a decorative glyph
   inside a named button takes `aria-hidden`. Two whole-app sweeps were needed
   to get here, so a new control without one is a regression rather than an
-  omission.
+  omission. **A control drawn in SVG is still a control.** The body map's tap
+  points were bare `<g onClick>`s inside a `role="img"` -- which makes every
+  child presentational -- so neither sweep saw them and the intake's "where
+  does it hurt?" could not be answered by keyboard or screen reader. Each
+  point is now a named `role="checkbox"` (the picker) or `role="button"` with
+  `aria-pressed` (a figure whose points open a detail), `tabIndex={0}`,
+  toggled by Enter and Space, with a drawn focus ring shown on
+  `group-focus-visible` (an outline on an SVG `<g>` renders unreliably); its
+  name comes from `painMapPointLabel()`. A figure carrying controls is a
+  labelled `role="group"`, never `role="img"`; decoration inside it is
+  `aria-hidden`.
 - **A dialog opened by a tap uses `useDialogChrome`** (`src/lib/`), which is
   the one implementation of the contract: `role`, `aria-modal`, focus moved
   in on open and restored on close, Escape, a Tab trap and the scroll lock.

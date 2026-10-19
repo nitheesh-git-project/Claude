@@ -1081,7 +1081,13 @@ function checkoutSpeedCheck(health: CheckoutSpeedHealth | null): HealthCheck {
     id: "checkout_speed" as const,
     label: "Checkout speed",
     icon: "fa-gauge-high",
-    what: "How long it takes, from a patient tapping Pay, for the secure payment window to open - measured on the patient's own phone or computer over the last seven days.",
+    // Says exactly where the clock starts and stops (QA F-12). It stops when
+    // the app asks Razorpay to open its window (`razorpay.open()`), so the
+    // time a patient spends inside the window -- choosing UPI, typing a card,
+    // an OTP -- is never in it; and it includes creating the account on a
+    // first booking, which is most of the gap between new and returning
+    // patients. A sample is a window that opened, not a payment made.
+    what: "How long a patient waits, from tapping Pay, until the app asks Razorpay to open the secure payment window - measured on the patient's own phone or computer over the last seven days. It covers creating their account (first booking only), saving the booking and starting the payment. It stops as the window is asked to open, so nothing the patient does inside it is counted, and each sample is a window that opened, not a payment that went through.",
     example:
       "The payment window starts taking eight seconds to appear. Patients see a spinner, assume the page has frozen, and leave - a lost booking that no error message ever records.",
   };
@@ -1099,7 +1105,7 @@ function checkoutSpeedCheck(health: CheckoutSpeedHealth | null): HealthCheck {
     return {
       ...base,
       status: "unknown",
-      headline: `Not enough payments yet to measure - ${plural(health.samples, "payment", "payments")} in the last seven days, and ${CHECKOUT_SPEED_MIN_SAMPLES} are needed.`,
+      headline: `Not enough checkouts yet to measure - the payment window opened ${plural(health.samples, "time", "times")} in the last seven days, and ${CHECKOUT_SPEED_MIN_SAMPLES} are needed.`,
       fix: ["Nothing to do. This fills in by itself as patients book."],
       count: 0,
       evidence: [],
@@ -1118,7 +1124,7 @@ function checkoutSpeedCheck(health: CheckoutSpeedHealth | null): HealthCheck {
   }
   const stages = health.stageP50Ms;
   const evidence = [
-    `${plural(health.samples, "payment", "payments")} measured in the last seven days`,
+    `${plural(health.samples, "payment window", "payment windows")} opened and measured in the last seven days (time inside the window is not counted)`,
     stages.signup !== null ? `creating a new account: about ${seconds(stages.signup)}` : null,
     stages.create !== null ? `saving the booking: about ${seconds(stages.create)}` : null,
     stages.order !== null ? `starting the payment: about ${seconds(stages.order)}` : null,

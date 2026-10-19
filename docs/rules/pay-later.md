@@ -38,9 +38,12 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
      session. `gatewayFeePaise` is deliberately **not** changed: a gateway fee
      is a real cost only when a gateway took money.
   4. **`sessionAmountPaise` takes its fallback as an argument**, and that is
-     load-bearing. The three readers do not share one -- `adminMetrics` falls
-     back to `SESSION_FEE_PAISE`, `therapistPayouts` to `0`,
-     `therapistEarnings` to a value its caller passes. A shared helper
+     load-bearing. The readers do not share one -- `adminMetrics` falls
+     back to `SESSION_FEE_PAISE`, `therapistPayouts` to `0`, and
+     `therapistEarnings` now goes through `therapistPayouts` and so reads `0`
+     too. (It used to take a caller-passed fallback, the standard fee, and
+     quoted therapists a pending payout the Pay button would never transfer
+     -- QA F-21; see `money.md`.) A shared helper
      hard-coding the session fee would make every already-paid session with a
      null amount start contributing the full fee to a therapist's payout where
      it contributes nothing today, changing what the clinic owes real people on

@@ -87,6 +87,8 @@ export async function POST(request: NextRequest) {
   }
 
   revalidatePath("/home-visit");
+  // /faq carries a live answer built from these rows (faqLiveFacts.ts).
+  revalidatePath("/faq");
 
   // Catalog rows decide what is sold and at what price, so every
   // create/update/delete belongs in the same log every other admin

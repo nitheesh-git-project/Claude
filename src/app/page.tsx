@@ -27,6 +27,11 @@ import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
 import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
 import Price from "@/components/pricing/Price";
+import {
+  closingSessionLine,
+  durationRangeLabel,
+  programmesLede,
+} from "@/lib/sessionLengthCopy";
 
 // This page has no per-user content - it can be cached and revalidated
 // on a timer instead of hitting Supabase on every single visit.
@@ -55,6 +60,8 @@ export default async function Home() {
     categories && categories.length > 0
       ? Math.min(...categories.map((c) => c.price_paise))
       : SESSION_FEE_PAISE;
+  // How long a session is, from the same rows the cards and /book read.
+  const sessionLength = durationRangeLabel(categories ?? []);
 
   // Its own call, per the migration-dependent-column rule: a database
   // missing this one must only cost the walkthrough its configured pace.
@@ -264,7 +271,11 @@ export default async function Home() {
         // number is quoted, and the honest alternative to a number you do
         // not have is no number.
         stats={[
-          { value: "60 min", label: "One-to-one assessment" },
+          // The catalogue's own length (a range when categories differ),
+          // and no figure at all when none is known -- never a fixed one.
+          ...(sessionLength
+            ? [{ value: sessionLength, label: "One-to-one assessment" }]
+            : []),
           {
             value: <Price paise={startingPricePaise} />,
             label: "Starting per session",
@@ -372,7 +383,7 @@ export default async function Home() {
           tone={bandTone("programs")}
           eyebrow="Structured programmes"
           title="What you can book today"
-          lede="Same 60-minute assessment. Different protocol."
+          lede={programmesLede(categories)}
         >
           <ProgramCards programs={programs} />
           {/* Only when there is genuinely more to see: a button opening a
@@ -468,7 +479,7 @@ export default async function Home() {
           options" beside it is the way to the other one. */}
       <ClosingCta
         title="Start with one assessment."
-        body="One 60-minute session. Leave with a plan."
+        body={closingSessionLine(categories ?? [])}
         primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         secondary={{ href: "/get-started", label: "Explore all options" }}
         photoId="cta-book"

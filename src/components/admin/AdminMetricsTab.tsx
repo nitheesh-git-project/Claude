@@ -22,7 +22,12 @@ import {
   computeRepeatBookingRate,
   computeTherapistUtilization,
 } from "@/lib/adminMetrics";
-import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
+import {
+  computeTherapistPayoutSummary,
+  isTherapistShareEarned,
+  sessionTherapistCutPaise,
+} from "@/lib/therapistPayouts";
+import { sessionAmountPaise } from "@/lib/sessionAmount";
 import {
   expensesInRange,
   gatewayFeePaise,
@@ -499,20 +504,21 @@ export default function AdminMetricsTab({
   const selectedTherapistSessions = useMemo(() => {
     if (!selectedTherapistId) return [];
     const patientNameById = new Map(patients.map((p) => [p.id, p.full_name ?? "Unknown"]));
+    // The rows behind the ledger's own total, through the same module: earned
+    // means `isTherapistShareEarned` (pay-later included) and each row is
+    // `sessionTherapistCutPaise` (home-visit rate, travel on top). This used
+    // to be a local multiplication with neither, so a therapist who does
+    // visits opened a list that did not add up to the row they clicked.
     return inRangeBySlot
-      .filter(
-        (a) =>
-          a.therapist_id === selectedTherapistId && a.status === "completed" && a.payment_status === "paid"
-      )
+      .filter((a) => a.therapist_id === selectedTherapistId && isTherapistShareEarned(a))
       .map((a) => {
         const share = therapistSharePercent[selectedTherapistId] ?? null;
-        const paidPaise = a.amount_paid_paise ?? 0;
+        const paidPaise = sessionAmountPaise(a, 0);
         const isSettled = !!a.therapist_payout_paid_at;
-        const owedPaise = isSettled
-          ? a.therapist_payout_amount_paise ?? 0
-          : share !== null
-          ? Math.round((paidPaise * share) / 100)
-          : 0;
+        const owedPaise =
+          share !== null
+            ? sessionTherapistCutPaise(a, share, therapistHomeVisitSharePercent[selectedTherapistId] ?? null)
+            : 0;
         return {
           id: a.id,
           date: a.slot_time,
@@ -523,7 +529,7 @@ export default function AdminMetricsTab({
         };
       })
       .sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
-  }, [selectedTherapistId, inRangeBySlot, patients, therapistSharePercent]);
+  }, [selectedTherapistId, inRangeBySlot, patients, therapistSharePercent, therapistHomeVisitSharePercent]);
 
   const selectedPatientRow = rangePatientLedger.find((r) => r.id === selectedPatientId) ?? null;
   const selectedPatientTransactions = useMemo(() => {

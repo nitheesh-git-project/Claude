@@ -408,11 +408,27 @@ function ReviewCard({
     submitting.current = true;
     setError(null);
     startTransition(async () => {
-      const res = await fetch("/api/admin/review-care-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ carePlanId: plan.id, decision, reason }),
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/admin/review-care-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          // A plain Approve carries no reason. The text box belongs to the
+          // turn-down and change panels, and whatever was typed into one
+          // that was then cancelled is not a note on this decision: it
+          // used to ride along ("QA"), break the review row's CHECK and
+          // roll the approval back (QA F-19).
+          body: JSON.stringify({
+            carePlanId: plan.id,
+            decision,
+            reason: decision === "approved" ? "" : reason,
+          }),
+        });
+      } catch {
+        submitting.current = false;
+        setError("We couldn't reach the server, so nothing was saved. Please try again.");
+        return;
+      }
       if (res.ok) {
         setMode("idle");
         setReason("");
@@ -433,11 +449,18 @@ function ReviewCard({
     submitting.current = true;
     setError(null);
     startTransition(async () => {
-      const res = await fetch("/api/admin/edit-and-approve-care-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ carePlanId: plan.id, ...draft, reason }),
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/admin/edit-and-approve-care-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ carePlanId: plan.id, ...draft, reason }),
+        });
+      } catch {
+        submitting.current = false;
+        setError("We couldn't reach the server, so nothing was saved. Please try again.");
+        return;
+      }
       if (res.ok) {
         setMode("idle");
         setReason("");
@@ -455,7 +478,13 @@ function ReviewCard({
   const stale = isQueueStale(plan.submittedAt, nowMs);
 
   return (
-    <div className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-4 text-xs">
+    // Named as a group so the card is one findable thing whichever of its
+    // three states it is in -- idle, turning down, or changing.
+    <div
+      role="group"
+      aria-label={`Recommendation waiting for a decision: ${plan.patientName}`}
+      className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-4 text-xs"
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-bold text-slate-900">{plan.patientName}</p>
@@ -521,6 +550,20 @@ function ReviewCard({
           Deciding on a recommendation needs the Programmes scope.
         </p>
       ) : mode === "idle" ? (
+        <>
+        {/* A failed Approve lands here. The panel below has its own copy of
+            this line, but a plain approval never opens the panel, so its
+            error used to be set and then rendered nowhere -- the card just
+            stayed in the queue (QA F-19). */}
+        {error && (
+          <p
+            role="alert"
+            data-form-error
+            className="mt-3 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-[11px] font-semibold text-red-700"
+          >
+            {error}
+          </p>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {/* One tap. Approving is the outcome this queue exists to reach,
               and making an admin justify every yes is how a reason column
@@ -538,7 +581,10 @@ function ReviewCard({
           </button>
           <button
             type="button"
-            onClick={() => setMode("edit")}
+            onClick={() => {
+              setError(null);
+              setMode("edit");
+            }}
             disabled={narrowed.length === 0}
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
           >
@@ -546,12 +592,16 @@ function ReviewCard({
           </button>
           <button
             type="button"
-            onClick={() => setMode("reject")}
+            onClick={() => {
+              setError(null);
+              setMode("reject");
+            }}
             className="text-[11px] font-semibold text-slate-500 transition hover:text-rose-700"
           >
             Turn it down
           </button>
         </div>
+        </>
       ) : (
         <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
           {mode === "edit" && (
@@ -617,7 +667,10 @@ function ReviewCard({
             <button
               type="button"
               onClick={() => {
+                // Cancelled means discarded: a reason left behind here
+                // would otherwise be the next decision's (QA F-19).
                 setMode("idle");
+                setReason("");
                 setError(null);
               }}
               className="text-[11px] font-semibold text-slate-500 hover:text-slate-800"

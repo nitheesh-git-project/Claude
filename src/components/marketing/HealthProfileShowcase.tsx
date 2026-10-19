@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { useHydrationSafeReducedMotion } from "@/lib/useHydrationSafeReducedMotion";
 import Link from "@/components/system/ProgressLink";
 import PainMapView from "@/components/profile/PainMapView";
 import PainTrendChart from "@/components/profile/PainTrendChart";
@@ -46,7 +47,11 @@ export default function HealthProfileShowcase({
   variant?: "full" | "home";
 }) {
   const baseId = useId();
-  const reduceMotion = useReducedMotion();
+  // Not motion's useReducedMotion: it reads the media query on the first
+  // client render, and the pause button below exists only while the tour
+  // rotates -- so for anyone with reduced motion on, the client's first
+  // render dropped a button the server's HTML had (React #418).
+  const reduceMotion = useHydrationSafeReducedMotion();
   const [active, setActive] = useState(0);
   const [chosen, setChosen] = useState(false); // a person picked a tab
   const [paused, setPaused] = useState(false); // the pause button

@@ -10,6 +10,7 @@ import { formatSlotTime } from "@/lib/formatSlotTime";
 import { SESSION_FEE_INR } from "@/lib/pricing";
 import { usePricing } from "@/components/pricing/PricingProvider";
 import { isValidEmail } from "@/lib/validateEmail";
+import { NO_INVITE_DELIVERY, patientInviteLine, type InviteDelivery } from "@/lib/calendarInviteOutcome";
 import ConfirmPasswordField from "./ConfirmPasswordField";
 import EmailField from "./EmailField";
 import PasswordField from "./PasswordField";
@@ -40,7 +41,13 @@ type Preview = {
  */
 type LinkState = "checking" | "valid" | "invalid" | "unknown";
 
-export default function InviteRegisterCard() {
+export default function InviteRegisterCard({
+  inviteDelivery = NO_INVITE_DELIVERY,
+}: {
+  /** Whether a video session here gets a calendar invite, read server-side
+   *  (readInviteDelivery). The confirmation promises one only when it does. */
+  inviteDelivery?: InviteDelivery;
+} = {}) {
   const searchParams = useSearchParams();
   const token = searchParams.get("ref");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -247,9 +254,8 @@ export default function InviteRegisterCard() {
           <i className="fa-solid fa-circle-check text-teal-600 text-4xl mb-4"></i>
           <h1 className="text-xl font-bold text-slate-900">Payment Confirmed</h1>
           <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-            Your account is set up and your session is booked and paid.
-            We&apos;ll email you a calendar invite with the video call link - it also
-            shows on your dashboard.
+            Your account is set up and your session is booked and paid.{" "}
+            {patientInviteLine("online_registered", inviteDelivery)}
           </p>
           <Link
             href="/patient/dashboard"

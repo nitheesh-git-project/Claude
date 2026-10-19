@@ -12,6 +12,7 @@ import {
 } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { readAllRows } from "@/lib/supabase/readAllRows";
+import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 import { isTherapistShareEarned } from "@/lib/therapistPayouts";
 import { linkOpenPayoutRequest } from "@/lib/payoutRequestLink";
 import { formatRupees } from "@/lib/formatMoney";
@@ -142,11 +143,23 @@ export async function POST(request: NextRequest) {
     );
   }
   const termsById = new Map(termsResult.rows.map((r) => [r.id, r]));
+  // The rate each session was delivered at. Settling pays it, not today's
+  // rate -- the same figure every payout screen shows (therapistPayouts.ts).
+  // A read that failed for any reason but an unmigrated column refuses: a
+  // payout at a rate nobody could check is the wrong money leaving.
+  const frozenRates = await readFrozenTherapistRates(admin, therapistId);
+  if (!frozenRates.ok) {
+    return NextResponse.json(
+      { error: "Couldn't read this therapist's sessions just now. Nothing was paid -- try again." },
+      { status: 503 }
+    );
+  }
   const unsettled = unsettledResult.rows
     .map((a) => ({
       ...a,
       payment_terms: termsById.get(a.id)?.payment_terms ?? null,
       amount_due_paise: termsById.get(a.id)?.amount_due_paise ?? null,
+      therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
     }))
     .filter((a) => isTherapistShareEarned(a));
 

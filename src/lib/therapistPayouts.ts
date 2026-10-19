@@ -1,10 +1,15 @@
-// Pure aggregation for the admin Payouts tab - kept separate from
-// AdminPayoutsTab.tsx so the math can be unit-tested without rendering,
-// matching adminMetrics.ts's own convention. Deliberately NOT wired into
-// the existing per-therapist detail page (therapists/[id]/page.tsx), which
-// already has its own inline, already-verified version of this same math -
-// touching working, tested code for the sake of sharing ~10 lines wasn't
-// worth the regression risk.
+// What a therapist is owed, and what one delivered session pays them -- the
+// one implementation. Money -> Payouts, the therapist's admin profile, the
+// therapist's own Earnings and Overview, the payout request route and the
+// settle route all read it, so the figure a therapist is shown, the figure
+// they can request and the figure the Pay button transfers cannot disagree.
+// Dependency-free, so the arithmetic is unit-tested without rendering.
+//
+// (This header used to say the therapist profile kept "its own inline,
+// already-verified version of this same math". It did, and it was wrong: no
+// home-visit branch, no travel. The therapist's own Earnings screen kept a
+// second copy with a different fallback for a session carrying no amount,
+// and quoted a pending payout the Pay button would never transfer -- QA F-21.)
 
 import { sessionAmountPaise } from "@/lib/sessionAmount";
 
@@ -36,6 +41,38 @@ export type PayoutAppointment = {
   // net-off below reads to find money the therapist is already holding.
   visit_mode?: string | null;
   travel_fee_paise?: number | null;
+  cash_collected_at?: string | null;
+  cash_collected_amount_paise?: number | null;
+  cash_remitted_at?: string | null;
+  // The rate frozen at completion -- see PayoutCutInput.
+  therapist_share_percent_at_completion?: number | null;
+};
+
+/**
+ * What `sessionTherapistCutPaise` reads off a session -- narrower than
+ * `PayoutAppointment` so a screen that loads less than the Payouts tab (the
+ * therapist's own dashboard) still goes through the one implementation
+ * rather than growing its own.
+ */
+export type PayoutCutInput = {
+  /** The therapist's rate frozen at completion (`complete-session`), already
+   *  resolved for a home visit. Migration-dependent and optional: absent or
+   *  null, the live rate applies, as it did for every row before the freeze. */
+  therapist_share_percent_at_completion?: number | null;
+  amount_paid_paise: number | null;
+  amount_due_paise?: number | null;
+  therapist_payout_paid_at: string | null;
+  therapist_payout_amount_paise?: number | null;
+  visit_mode?: string | null;
+  travel_fee_paise?: number | null;
+};
+
+/** What `computeTherapistPayoutSummary` reads off a session. */
+export type PayoutSummaryInput = PayoutCutInput & {
+  status: string;
+  payment_status: string;
+  payment_terms?: string | null;
+  slot_time: string | null;
   cash_collected_at?: string | null;
   cash_collected_amount_paise?: number | null;
   cash_remitted_at?: string | null;
@@ -87,12 +124,27 @@ export type TherapistPayoutSummary = {
  * and recomputing would silently rewrite what somebody was already paid.
  */
 export function sessionTherapistCutPaise(
-  a: PayoutAppointment,
+  a: PayoutCutInput,
   sharePercent: number,
   homeVisitSharePercent: number | null
 ): number {
   const isHomeVisit = a.visit_mode === "home_visit";
-  const effectiveShare = isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent;
+  // The rate frozen onto the session when it was delivered, where there is
+  // one; the therapist's live rate only for rows that predate the freeze.
+  // Renegotiating a rate must not rewrite what a session already earned --
+  // the same rule `moneyLineFor` and `session_settlements` already follow,
+  // so Money's split, the settlement record, every payout screen and the
+  // Pay button now read one rate. The frozen figure was resolved at
+  // completion by `readSettlementRates` with the home-visit rule already
+  // applied, so it is not re-resolved against the live home-visit rate.
+  // `!= null` rather than truthiness: a frozen 0% is a real rate.
+  const frozen = a.therapist_share_percent_at_completion;
+  const effectiveShare =
+    frozen !== null && frozen !== undefined
+      ? frozen
+      : isHomeVisit
+        ? homeVisitSharePercent ?? sharePercent
+        : sharePercent;
   const feePaise = sessionAmountPaise(a, 0);
   // Travel is a pass-through reimbursement paid to the therapist in full and
   // never revenue, so it is added on top of the share rather than inside it.
@@ -118,7 +170,7 @@ export function isTherapistShareEarned(
 export function computeTherapistPayoutSummary(
   therapistId: string,
   sharePercent: number | null,
-  therapistAppointments: PayoutAppointment[],
+  therapistAppointments: PayoutSummaryInput[],
   nowMs: number,
   homeVisitSharePercent: number | null = null
 ): TherapistPayoutSummary {
@@ -145,7 +197,7 @@ export function computeTherapistPayoutSummary(
   // and the therapist's share is earned with it, so both halves move together
   // and profitPaise below stays the truth rather than showing a loss in the
   // month the work was done and a windfall in the month it was collected.
-  const earned = (a: PayoutAppointment) =>
+  const earned = (a: PayoutSummaryInput) =>
     a.payment_status === "paid" || a.payment_terms === "pay_later";
   // (isTherapistShareEarned is this plus `status === "completed"`.)
 

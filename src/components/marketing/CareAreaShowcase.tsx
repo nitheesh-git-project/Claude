@@ -3,7 +3,8 @@
 import { useCallback, useId, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { useHydrationSafeReducedMotion } from "@/lib/useHydrationSafeReducedMotion";
 import { CARE_AREAS } from "@/lib/careAreas";
 import { photo } from "@/lib/marketingPhotos";
 
@@ -60,7 +61,9 @@ export default function CareAreaShowcase({
   // beside the index rather than derived, because a jump from the picker can
   // move either way and the animation has to match the direction travelled.
   const [direction, setDirection] = useState(1);
-  const reduceMotion = useReducedMotion();
+  // Hydration-safe: motion's hook answers on the first client render, so the
+  // initial styles differed from the server's for reduced-motion visitors.
+  const reduceMotion = useHydrationSafeReducedMotion();
   const tabsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const baseId = useId();
 

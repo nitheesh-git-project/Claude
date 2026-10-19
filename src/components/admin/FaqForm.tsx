@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
+import { quotesDriftingFigure } from "@/lib/faqLiveFacts";
 
 type Faq = {
   id: string;
@@ -84,6 +85,14 @@ export default function FaqForm({
           required
           className="w-full p-2 rounded-lg border border-slate-300"
         />
+        {/* Said, not refused: an answer may have a real reason to quote a
+            figure. But a pincode or a price here does not follow Catalog,
+            and a stale one is what a visitor reads as the clinic's word. */}
+        {quotesDriftingFigure(answer) && (
+          <span role="status" className="mt-1.5 block rounded-lg border border-amber-200 bg-amber-50 p-2 text-amber-800">
+            This answer quotes a pincode or a price. Those change in Catalog (service areas and home-visit prices) and this answer will not change with them. The FAQ page already adds a live answer on where home visits go; point visitors to the Home Visit page or the booking page instead of a figure.
+          </span>
+        )}
       </label>
       <label className="block">
         <span className="block font-semibold mb-1">Order</span>

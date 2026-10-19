@@ -6,6 +6,8 @@ import PainMapView from "@/components/profile/PainMapView";
 import PainExamDialog from "@/components/profile/PainExamDialog";
 import type { PainAssessmentRow, QuestionOverrideRow } from "@/lib/painMap";
 import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
+import { getDebugNowOffsetMs } from "@/lib/debugNow";
+import { sessionExamWindowStartMs } from "@/lib/sessionCompletion";
 
 /**
  * The Pain Map, inside the session note. Updating it is part of finishing a
@@ -70,7 +72,12 @@ export default function SessionPainMapStep({
     void load();
   }, [load]);
 
-  const sinceMs = sessionStartIso ? new Date(sessionStartIso).getTime() - 60 * 60_000 : 0;
+  // The same window complete-session applies, shifted by the debug clock
+  // the same way: an exam's created_at is real time, the session's "now"
+  // may be simulated.
+  const sinceMs = sessionStartIso
+    ? sessionExamWindowStartMs(new Date(sessionStartIso).getTime(), getDebugNowOffsetMs())
+    : 0;
   const thisSession = (assessments ?? []).filter(
     (a) => a.submitted_by === userId && new Date(a.created_at).getTime() >= sinceMs
   );

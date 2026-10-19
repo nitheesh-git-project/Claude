@@ -13,9 +13,11 @@
 // this has zero effect once the debug bar itself is gone at launch (see
 // src/lib/debugNavVisible.ts). Server-side time checks (refund eligibility,
 // payout math, etc.) stay grounded in the server's real clock, with one
-// exception: a request carrying `debugNowHeaders()` lets the
-// session-completion gate read the simulated clock, and only while the debug
-// bar is on -- see src/lib/debugClock.ts.
+// family of exceptions: a request carrying `debugNowHeaders()` lets the
+// session-completion gate and the gates the session card reaches through it
+// (the note, "Show number", the Pain Map exam) read the simulated clock, and
+// only while the debug bar is on -- see src/lib/debugClock.ts and the
+// simulated-clock gotcha in docs/rules/ops-security.md.
 import { DEBUG_NOW_OFFSET_HEADER } from "@/lib/debugClock";
 
 const STORAGE_KEY = "debugNowOffsetMs";

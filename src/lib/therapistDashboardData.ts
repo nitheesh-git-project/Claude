@@ -2,6 +2,7 @@ import "server-only";
 import { loadProgrammeTags } from "@/lib/programmeTagsServer";
 import type { ProgrammeTag } from "@/lib/programmeId";
 import { readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
+import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
@@ -13,7 +14,6 @@ import { computeTherapistEarningRows, computeTherapistPendingOwed } from "@/lib/
 import { buildTherapistPayoutReceipts } from "@/lib/receipts";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
-import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { sessionsAwaitingNote, type SessionNoteRow } from "@/lib/sessionNotes";
 import type { StatCell } from "@/components/dashboard/StatStrip";
 import { loadCarePlanReviews, loadRecommendableRates } from "@/lib/carePlanServer";
@@ -196,8 +196,15 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     // a session card tells this therapist to collect cash -- and a patient on
     // terms is the clinic's to settle with, never theirs to chase. Absent, it
     // reads as `prepaid`, which is what every session was before the column.
+    // amount_due_paise rides with it (same migration block): it is a
+    // delivered pay-later session's frozen price, and without it the
+    // earnings below priced that session at nothing the payout maths knows.
     readAllRowsAsData(() =>
-      supabase.from("appointments").select("id, payment_terms").eq("therapist_id", user.id).order("id")
+      supabase
+        .from("appointments")
+        .select("id, payment_terms, amount_due_paise")
+        .eq("therapist_id", user.id)
+        .order("id")
     ),
 
     // Kept as its own query rather than folded into the profile select for
@@ -266,6 +273,9 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   const paymentTermsById = new Map(
     (paymentTermsRows ?? []).map((r) => [r.id, r.payment_terms as string | null])
   );
+  const amountDueById = new Map(
+    (paymentTermsRows ?? []).map((r) => [r.id, (r.amount_due_paise as number | null) ?? null])
+  );
 
   const sessionNotes = (sessionNoteRows ?? []) as SessionNoteRow[];
   const noteByAppointmentId = new Map(sessionNotes.map((n) => [n.appointment_id, n]));
@@ -277,6 +287,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     ...a,
     visit: visitDetailById.get(a.id) ?? null,
     payment_terms: paymentTermsById.get(a.id) ?? null,
+    amount_due_paise: amountDueById.get(a.id) ?? null,
   }));
 
   // One query, split in memory -- a therapist's list is small, and a second
@@ -461,19 +472,34 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     patientNameById
   );
 
+  // Both figures through therapistPayouts.ts, with the same inputs Money ->
+  // Payouts and the therapist's admin profile hand it -- see
+  // therapistEarnings.ts for the disagreement this closed (QA F-21).
+  // The rate each delivered session was frozen at -- what it pays, on this
+  // screen exactly as on the Pay button. Best-effort here: a failed read
+  // falls back to the live rate per row rather than blanking the dashboard.
+  const frozenRates = await readFrozenTherapistRates(supabase, user.id);
+  const earningInputs = (appointments ?? []).map((a) => ({
+    ...a,
+    therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
+    visit_mode: a.visit?.visit_mode ?? null,
+    travel_fee_paise: a.visit?.travel_fee_paise ?? null,
+  }));
+  const homeVisitSharePercent = homeVisitShareRow?.home_visit_revenue_share_percent ?? null;
   const earningRows = computeTherapistEarningRows(
-    (appointments ?? []).map((a) => ({
-      ...a,
-      visit_mode: a.visit?.visit_mode ?? null,
-      travel_fee_paise: a.visit?.travel_fee_paise ?? null,
-    })),
+    earningInputs,
     profile?.revenue_share_percent ?? null,
     categoryTitleById,
     patientNameById,
-    SESSION_FEE_PAISE,
-    homeVisitShareRow?.home_visit_revenue_share_percent ?? null
+    homeVisitSharePercent
   );
-  const pendingOwedPaise = computeTherapistPendingOwed(earningRows);
+  const pendingOwedPaise = computeTherapistPendingOwed(
+    user.id,
+    profile?.revenue_share_percent ?? null,
+    earningInputs,
+    nowTimestamp(),
+    homeVisitSharePercent
+  );
   const openRequest = (payoutRequests ?? []).find(
     (r) => r.status === "pending" || r.status === "reviewing"
   );

@@ -9,6 +9,7 @@ import { PROGRAMME_NEEDS_RECOMMENDATION } from "@/lib/consultationFirst";
 import { payForAppointment, preloadRazorpayScript } from "@/lib/razorpay";
 import { revealField } from "@/lib/revealField";
 import { startCheckoutTimer, type CheckoutOutcome, type CheckoutTimer } from "@/lib/checkoutTiming";
+import { NO_INVITE_DELIVERY, patientInviteLine, type InviteDelivery } from "@/lib/calendarInviteOutcome";
 import CheckoutProgress, { type CheckoutProgressStage } from "@/components/booking/CheckoutProgress";
 import {
   publishBookingPaymentTrouble,
@@ -36,6 +37,8 @@ import { describeCancellationWindow } from "@/lib/cancellationWindow";
 import SpecialtyChip from "@/components/SpecialtyChip";
 import ServicePicker from "@/components/booking/ServicePicker";
 import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
+import ConsentTermsDialog from "@/components/booking/ConsentTermsDialog";
+import { consentCheckboxText } from "@/lib/consentTerms";
 import { categoryServiceOption, defaultCategoryId } from "@/lib/serviceOptions";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
 import { formatRupees } from "@/lib/formatMoney";
@@ -98,7 +101,13 @@ export default function BookingWizard({
   bookingLeadTimeHours = BOOKING_LEAD_TIME_HOURS,
   paymentTriesBeforeAccess = DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess,
   defaultServiceId,
+  inviteDelivery = NO_INVITE_DELIVERY,
 }: {
+  /** Whether a video session here gets a calendar invite (Google configured
+   *  and Meet links on), read server-side by readInviteDelivery. The
+   *  confirmation promises one only when it is true; absent, it promises
+   *  nothing it cannot keep. */
+  inviteDelivery?: InviteDelivery;
   initialCategories: Category[];
   // Admin-configured (Feature Control → Booking Languages), never a
   // hardcoded list here -- see lib/adminSettings.ts for the "English"
@@ -337,6 +346,8 @@ export default function BookingWizard({
   );
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
+  // The terms behind the consent checkbox, readable before it is ticked.
+  const [consentTermsOpen, setConsentTermsOpen] = useState(false);
   const [previousTherapists, setPreviousTherapists] = useState<
     { id: string; full_name: string; specialization?: string | null }[]
   >([]);
@@ -1314,14 +1325,12 @@ export default function BookingWizard({
               <>
                 Your session is booked and there&apos;s nothing to pay now. It&apos;s added to
                 what you owe once the session has happened, and you can settle whenever suits
-                you. We&apos;ll confirm your exact slot, then email you a calendar invite with
-                the video call link - it also shows on your dashboard.
+                you. {patientInviteLine("online_booked", inviteDelivery)}
               </>
             ) : (
               <>
-                Your session is booked and paid. We&apos;ll confirm your exact slot, then email
-                you a calendar invite with the video call link - it also shows on your
-                dashboard.
+                Your session is booked and paid.{" "}
+                {patientInviteLine("online_booked", inviteDelivery)}
               </>
             )}
           </p>
@@ -1661,15 +1670,33 @@ export default function BookingWizard({
               onChange={(e) => setConsent(e.target.checked)}
               className="mt-1 w-4 h-4 accent-teal-600"
             />
+            {/* The terms are a button inside the label: activating an
+                interactive child of a label does not toggle its checkbox, so
+                reading them never ticks the box for the patient. The words
+                come from src/lib/consentTerms.ts and name the service chosen
+                on Step 1 -- this said "musculoskeletal care" to somebody
+                booking a neurological or paediatric session. */}
             <label
               htmlFor="bw-consent"
               className="text-xs text-slate-700 leading-relaxed font-medium"
             >
-              I agree to the Telehealth Consent Terms & Emergency Disclaimer. I
-              understand virtual physical therapy is for non-emergency
-              musculoskeletal care.
+              {consentCheckboxText(selectedCategory?.title).before}
+              <button
+                type="button"
+                onClick={() => setConsentTermsOpen(true)}
+                aria-haspopup="dialog"
+                className="font-semibold text-teal-700 underline underline-offset-2 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-sm"
+              >
+                {consentCheckboxText(selectedCategory?.title).linkText}
+              </button>
+              {consentCheckboxText(selectedCategory?.title).after}
             </label>
           </div>
+          <ConsentTermsDialog
+            open={consentTermsOpen}
+            onClose={() => setConsentTermsOpen(false)}
+            serviceTitle={selectedCategory?.title ?? null}
+          />
 
           {/* Pinned to the bottom of a phone screen: step 2 is a long form,
               and the way forward should not be below it. */}

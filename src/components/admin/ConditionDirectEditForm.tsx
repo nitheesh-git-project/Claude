@@ -61,6 +61,7 @@ export default function ConditionDirectEditForm({
           </label>
           {q.inputType === "area_pain_list" ? (
             <AreaPainPicker
+              label={q.label}
               value={values[q.key]}
               onChange={(next) => setValues((v) => ({ ...v, [q.key]: next }))}
               disabled={disabled}

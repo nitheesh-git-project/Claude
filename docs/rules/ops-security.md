@@ -733,8 +733,22 @@ line describing nothing but carelessness. Before real patients exist, remove
   clock, because one session judged by two clocks reads as broken: the
   session note's "has it started" check (`session-notes/submit`, which
   Done opens) and "Show number" (`reveal-contact`). Neither moves money;
-  the note's 24-hour edit lock stays on the real clock. Every other
-  server-side time check stays on the real clock (`e2e/debug-clock.spec.ts`).
+  the note's 24-hour edit lock stays on the real clock. **The Pain Map exam
+  Done requires moves with it too**, for the same reason: on staging a
+  tester simulated past a session's end, the completion dialog let them on,
+  and the exam it asked for was refused because
+  `hasStartedSessionWithPatient` defaulted `nowMs` to `Date.now()`. That
+  argument is now required and `pain-assessments/submit` passes
+  `serverNowMs(request)` (`PainExamDialog` sends the header). The "exam
+  recorded during this session" window that complete-session and the
+  dialog check compares a *real* `created_at`, so it is shifted by the
+  offset rather than read against a simulated "now"
+  (`sessionExamWindowStartMs`, `serverNowOffsetMs`) -- which, while the bar
+  is on, also means a forged header can count an older exam as this
+  session's: the same pre-launch trade-off as early completion, gone with
+  the bar. A clinical gate never takes a `Date.now()` default for "now".
+  Every other server-side time check stays on the real clock
+  (`e2e/debug-clock.spec.ts`).
 - **No `.env` file that arms the reset is committed, and two have been.**
   `.env.production` armed both the public debug nav and the whole-database
   reset on the live site. `.env.development` then did the same thing one

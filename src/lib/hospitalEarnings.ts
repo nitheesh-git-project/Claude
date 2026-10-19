@@ -1,6 +1,7 @@
 import { partnerCutFor } from "@/lib/adminMetrics";
 import { sessionAmountPaise } from "@/lib/sessionAmount";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
+import { refundedPaiseOf } from "@/lib/refundState";
 
 /**
  * One delivered session as a referring partner sees it: what the clinic kept
@@ -59,7 +60,9 @@ export function hospitalSessionLine(
   if (hasSnapshot && s.hospital_id_at_completion !== hospitalId) return null;
 
   const grossPaise = sessionAmountPaise(s, SESSION_FEE_PAISE);
-  const refundPaise = s.refund_status === "processed" ? Math.max(0, s.refund_amount_paise ?? 0) : 0;
+  // The same reading Money's split uses (refundState.ts), so the partner's
+  // screen and the admin's Partners card net off the same refunds.
+  const refundPaise = refundedPaiseOf(s);
   const netPaise = Math.max(0, grossPaise - refundPaise);
   const cut = partnerCutFor(s, liveSharePercent, netPaise, { referredByProfile: true });
 

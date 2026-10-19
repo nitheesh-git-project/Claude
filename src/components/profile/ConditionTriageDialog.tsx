@@ -7,6 +7,7 @@ import {
   findMissingRequiredKeys,
   parseMultiSelect,
   serializeMultiSelect,
+  toggleMultiSelectOption,
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
 import {
@@ -211,7 +212,7 @@ export default function ConditionTriageDialog({
                   actually being made. */}
               <p className="mt-3 text-xs text-slate-500">
                 {currentSpecialty
-                  ? `Their answers to the ${CONDITION_SPECIALTIES.find((s) => s.key === currentSpecialty)?.label.toLowerCase()} questions stay on file - they just stop being shown.`
+                  ? `Their answers to the ${CONDITION_SPECIALTIES.find((s) => s.key === currentSpecialty)?.label.toLowerCase()} questions stay on file - they just stop being shown, and come back filled in if you switch back.`
                   : "You can change this later if the case turns out to be something else; nothing answered is ever lost."}
               </p>
             </div>
@@ -280,12 +281,10 @@ function TriageQuestion({
                 key={option}
                 type="button"
                 aria-pressed={selected}
+                // "None of these" and a sign clear each other -- see
+                // toggleMultiSelectOption. The route refuses the pair too.
                 onClick={() =>
-                  onChange(
-                    serializeMultiSelect(
-                      selected ? picked.filter((p) => p !== option) : [...picked, option]
-                    )
-                  )
+                  onChange(serializeMultiSelect(toggleMultiSelectOption(question, picked, option)))
                 }
                 className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition ${
                   selected

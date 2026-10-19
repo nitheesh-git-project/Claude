@@ -124,6 +124,16 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   operating profit, what is owed, cash collected up front); the two blocks
   under it are the subtraction, where carrying a figure down from the block
   above is the point rather than a repeat.
+- **A session's price on an admin screen has one reading.**
+  `sessionListPricePaise` (`src/lib/sessionListPrice.ts`) is what All
+  Sessions, a patient's or therapist's session history and the Session
+  Details drawer print: what was charged or frozen (`sessionAmountPaise`),
+  else the session's own service's price, and the standard fee **only** for a
+  session with no service at all. The drawer used to skip the middle step, so
+  an unpaid ₹499 admin booking read ₹499 on the row and "₹1,999 (estimated)"
+  in the drawer it opened. It is a display reading; the money modules keep
+  their own fallbacks (`sessionAmount.ts`). Guard:
+  `e2e/admin-session-drawer-money.spec.ts` ASD-001.
 - **The revenue split has one source and two invariants.**
   `moneyByBucketFor` (`src/lib/adminMetrics.ts`) is the only place the
   clinic's money is divided up, so the strip, the tiles and the breakdown
@@ -267,6 +277,46 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   error, no failed request and no wrong row, only a wrong number every screen
   agrees on. Comment lines are skipped, or the walk flags its own
   documentation.
+  **The therapist's own Earnings screen was a third copy, and the walk could
+  not see it** (QA F-21): it multiplied by a camelCase local
+  (`effectiveShare`), not the column, and it fell back to the standard
+  session fee for a session carrying no amount where the payout maths counts
+  nothing. A QA therapist read ₹9,232.80 pending on Earnings/Overview against
+  ₹4,435.20 on their admin profile and Money -> Payouts -- the gap a whole
+  number of ₹1,999 fees at their share. **The admin figure is the right one**:
+  it is what the request route lets them ask for, what the Pay button
+  transfers, and what `session_settlements` records (`gross = coalesce(paid,
+  due, 0)`). The loader also never read `amount_due_paise`, so a delivered
+  pay-later session was priced at that same guessed fee; and the admin
+  profile never read `payment_terms`, so a delivered pay-later session counted
+  on Payouts and not on the profile. All five now go through
+  `computeTherapistPayoutSummary` / `sessionTherapistCutPaise` with the same
+  inputs, including the profile's Payout History rows and Money's
+  therapist-ledger drill-down, each of which had its own multiplication too.
+  The walk now also matches `* <something>Share) / 100`.
+  `therapistEarnings.test.ts` reproduces the two figures.
+- **A session pays its therapist at the rate frozen when it was delivered**
+  (owner's decision). `sessionTherapistCutPaise` reads
+  `therapist_share_percent_at_completion` first -- already resolved for a
+  home visit by `readSettlementRates`, so it is not re-resolved against the
+  live home-visit rate, and a frozen 0% is a rate -- and the therapist's live
+  rate only for rows that predate the freeze. Money's split (`moneyLineFor`)
+  and `session_settlements` already read it; until this, Payouts, both
+  profiles, the therapist's own screens, the request route and the **Pay
+  button** paid unsettled sessions at today's rate, so renegotiating a rate
+  silently repriced work already delivered and the split and Payouts
+  disagreed. Every reader now hands the column to the one calculation:
+  `readFrozenTherapistRates` (`src/lib/frozenTherapistRatesServer.ts`) is an
+  isolated read merged by id -- an unmigrated column reads as nothing frozen
+  (the live rate, as before); any other failure makes the request and settle
+  routes answer 503 rather than pay at a rate nobody could check, and is
+  best-effort on screens. Money -> Payouts, Summary and Business Health were
+  also built from the raw appointments select, which carried neither this
+  column nor the pay-later ones; `appointmentsForPayouts` is built from the
+  merged array now. **No SQL change**: the settle function is a writer and
+  receives the amounts computed here. Guard:
+  `therapistPayoutsFrozenRate.test.ts` (frozen used, null falls back, a rate
+  change after completion moves no unsettled cut on any screen).
 - **Every delivered session writes down what it was worth, beside the figure
   the Money screens work out for themselves.** `session_settlements` is one
   immutable row per completed session, written in the same request that makes

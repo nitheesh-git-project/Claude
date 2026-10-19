@@ -29,7 +29,14 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      `mergeSpecialtyAnswers()` keeps every key the incoming specialty does
      not own. The approve path used to write `data: proposedData`
      outright, which under re-triage deletes a patient's whole
-     orthopaedic record the moment a neurological one is written.
+     orthopaedic record the moment a neurological one is written. **And
+     what is kept is offered back:** a therapist taking a patient back to a
+     condition type they had before gets that type's latest answers
+     prefilled, ready to edit (`intakePrefillAnswers()`: a same-type draft
+     first, then the answers on file, only that type's keys, never a
+     blank). It used to open blank while the answers sat hidden in the same
+     blob. Saving is an ordinary `/onboard` write -- one new approved
+     history entry, nothing earlier rewritten.
   3. **`schema_version` is per specialty**
      (`INTAKE_QUESTIONS_VERSION_BY_SPECIALTY`), so it means "version of
      *this profile's own* set". One shared scalar bumped to 3 would have
@@ -152,6 +159,18 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   specialty from **triage only**: an existing profile carrying it must
   keep rendering, and a therapist re-triaging such a patient is still
   offered it. Ortho can never be switched off.
+
+  **"None of these" means none of the others.** A `multi_select` whose list
+  carries a "None" answer declares it in `exclusiveOptions`, and every tap
+  goes through `toggleMultiSelectOption()` (`conditionIntake.ts`): ticking
+  it clears the rest, ticking anything else clears it. Triage used to
+  toggle each option on its own, so "None of these" and "Weakness on one
+  side" both stayed ticked and the record contradicted itself. `/onboard`
+  and `/save-draft` refuse the pair with a 400
+  (`findContradictoryMultiSelects`) rather than guessing which half was
+  meant, and both now store only known triage keys with string values
+  (`sanitiseTriageAnswers`). `multiSelectExclusive.test.ts` fails on a new
+  multi-select with a "None" option that forgot to declare it.
 - **One authoring implementation, three doors.** A therapist writes their own
   recommendation from the session note dialog; an admin writes one on their
   behalf from Programmes → Recommendations when that therapist cannot reach the
@@ -207,7 +226,14 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      taxing it with a sentence meaning "fine" is how a reason column fills
      up with "ok" and stops being worth reading, and how a patient waits
      longer for a recommendation nobody objected to. A plain approval's
-     evidence is who and when, both already on the row.
+     evidence is who and when, both already on the row. An optional note on
+     one is still **none or ten characters**, the column's CHECK, and
+     `validateReviewReason()` refuses a short one with a 400 - it used to
+     fail the insert inside `approve_care_plan()` and roll the approval back
+     as a 500. The review card's plain Approve sends no reason at all, Cancel
+     discards what was typed, and its error renders in the idle card too: a
+     reason left over from a cancelled "Turn it down" once kept a
+     recommendation pending with nothing on screen (QA F-19).
   2. **Approve-with-changes is not an edit.** It writes a new version
      through `authorCarePlanVersion()` with `authored_by` still the
      therapist and `entered_by` the admin, leaving the original in the
@@ -400,7 +426,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   surface detail tells the views apart: collarbones, chest, abdominal line
   and navel on the front; spine, shoulder blades and glute cleft on the
   back. Both used to place "left" on the reader's left, and the back's
-  shoulder-blade arcs read as a chest, so the two views looked swapped. See the "Patient Care Intake and Pain Map" section in docs/PRODUCT-GUIDE.md
+  shoulder-blade arcs read as a chest, so the two views looked swapped.
+  Every tap point is a named, focusable control worked by Enter or Space
+  (checkboxes in the intake's picker, toggle buttons on the read-only map)
+  -- see the SVG-controls rule in `frontend.md`. See the "Patient Care Intake and Pain Map" section in docs/PRODUCT-GUIDE.md
   for the full flow.
 - **A patient's own record leaves the app as a PDF, not as JSON.**
   `/api/patient/condition-profile/export` returns a typeset document named
@@ -432,7 +461,11 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   together. **A Pain Map exam also needs a session that has started**
   (`hasStartedSessionWithPatient`: completed, or confirmed and inside its
   join window) - it records an observation from a session the therapist
-  ran, so being assigned to a future session is not enough.
+  ran, so being assigned to a future session is not enough. "Started" is
+  read on the debug bar's simulated clock while the bar is on, like the
+  session card that offers the exam (see the simulated-clock gotcha in
+  `ops-security.md`), so `nowMs` is a required argument, never a
+  `Date.now()` default.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate
