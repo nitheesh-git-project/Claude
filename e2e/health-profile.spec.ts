@@ -492,8 +492,18 @@ test("RT-006: going back to an earlier condition type prefills its answers, and 
   await expect(dialog.getByText(ORTHO_ANSWERS.chief_complaint)).toBeVisible();
   await expect(dialog.getByText(ORTHO_ANSWERS.since_when)).toBeVisible();
 
-  await save.click();
-  await expect.poll(async () => (await profileRow())?.specialty, SEEN).toBe("ortho");
+  // Wait for the route to finish, not for the profile row to change: /onboard
+  // writes the profile first and the history entry after it, so a count read
+  // the moment the row flips can land between the two (CI saw 2 for 3).
+  const [saved] = await Promise.all([
+    page.waitForResponse(
+      (r) => r.url().includes("/api/therapist/condition-profile/onboard") && r.request().method() === "POST",
+      SEEN
+    ),
+    save.click(),
+  ]);
+  expect(saved.status()).toBe(200);
+  expect((await profileRow())?.specialty).toBe("ortho");
   const row = await profileRow();
   expect((row?.data as Record<string, string>).chief_complaint).toBe(ORTHO_ANSWERS.chief_complaint);
   // The neurological answers stay on file, hidden.
