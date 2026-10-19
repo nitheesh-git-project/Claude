@@ -21,7 +21,7 @@
 // so a production server serves HTML generated before the fixtures below
 // existed. `catalog-detail.spec.ts` carries the same warning.
 import { test, expect, type Page } from "@playwright/test";
-import { adminClient, BASE } from "./helpers";
+import { adminClient, BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
 
 const WITH_COVER = "QA Picker Covered Condition";
 const NO_COVER = "QA Picker Bare Condition";
@@ -398,5 +398,46 @@ test.describe("Public booking service picker", () => {
     // And it is still fully a card: its facts and its own action are there.
     await expect(bare.getByText("Bare point one")).toBeVisible();
     await expect(bare.getByRole("button", { name: "Choose this session" })).toBeVisible();
+  });
+  test("SP-012: the admin's Default on booking switch decides where /book opens, one at a time", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    // The owner's "General Consultation" meant their General Physiotherapy
+    // consultation, so the default is an admin switch (Catalog -> Conditions)
+    // rather than the seeded row: whichever service it is on, /book opens
+    // there; the database keeps it to one; off everywhere opens unanswered.
+    const db = adminClient();
+    const before = await db.from("treatment_categories").select("id").eq("is_default", true);
+    expect(before.error, "is_default is readable").toBeNull();
+    const previous = (before.data?.[0]?.id as string | undefined) ?? null;
+    await page.context().addCookies(await browserCookiesFor(QA_EMAILS.admin));
+    const setDefault = (id: string | null) =>
+      page.request.post(`${BASE}/api/admin/set-default-treatment-category`, { data: { id } });
+
+    try {
+      expect((await setDefault(coveredId)).status()).toBe(200);
+      const after = await db.from("treatment_categories").select("id").eq("is_default", true);
+      expect((after.data ?? []).map((r) => r.id)).toEqual([coveredId]);
+
+      await page.goto(`${BASE}/book`);
+      await expect(page.getByRole("heading", { name: WITH_COVER })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "General Consultation" })).toHaveCount(0);
+      // A link that names a service still wins over the default.
+      await page.goto(`${BASE}/book?category=${bareId}`);
+      await expect(page.getByRole("heading", { name: NO_COVER })).toBeVisible();
+
+      // Off everywhere: nothing is picked for a stranger.
+      expect((await setDefault(null)).status()).toBe(200);
+      await page.goto(`${BASE}/book`);
+      await expect(page.getByRole("heading", { name: WITH_COVER })).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "General Consultation" })).toHaveCount(0);
+
+      // Refused, not half-done: a body that is not an id, and a service gone.
+      expect((await setDefault(42 as unknown as string)).status()).toBe(400);
+      expect((await setDefault("00000000-0000-0000-0000-00000000dead")).status()).toBe(404);
+    } finally {
+      await setDefault(previous);
+    }
   });
 });

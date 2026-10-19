@@ -130,8 +130,16 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   4. **With exactly one option there is no picker.** It is stated as chosen,
      with its photograph, its price and a way to read the detail -- a dialog
      that opens to show a single card asks somebody to tap twice to confirm
-     the only thing on offer. Both wizards open on the general consultation
-     (`defaultCategoryId`), or on the only condition when there is one.
+     the only thing on offer. Both wizards open on the service an admin
+     switched on as **Default on booking** (Catalog -> Conditions;
+     `treatment_categories.is_default`, `defaultCategoryId`), or on the only
+     condition when there is one. **One at a time is the database's rule**:
+     a partial unique index refuses a second default and
+     `set_default_treatment_category()` moves it in one transaction, so the
+     route never clears-then-sets in two writes. Off everywhere opens the
+     picker unanswered; a setting that cannot be read (no column yet) falls
+     back to the seeded general consultation -- "couldn't check" is not
+     "none". Deactivating a service clears its default (trigger).
   5. **Continue appears once a service is chosen**, which is `serviceChosen`
      in `BookingStepOne`'s `ready`. Step 1 has always revealed it only when
      the screen is complete; a disabled control would be a new pattern there.

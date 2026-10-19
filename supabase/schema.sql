@@ -16899,6 +16899,93 @@ create trigger trg_log_profile_created
   for each row execute function public.log_profile_created();
 
 -- ---------------------------------------------------------------------
+-- The booking default: which service /book and /book-home-visit open on.
+--
+-- An admin switch on Catalog -> Conditions ("Default on booking"), one
+-- service at a time. It replaces the rule that opened booking on the seeded
+-- General Consultation row whatever the admin wanted -- the owner meant
+-- their General Physiotherapy consultation, which the seed never knew about.
+--
+-- At most one row can hold it: the partial unique index makes a second
+-- `true` raise 23505 rather than leave two defaults for the pages to choose
+-- between. set_default_treatment_category() moves it in one transaction
+-- (clear, then set), so there is never a moment with two -- nor, for the
+-- caller who moves it, a moment with none.
+--
+-- Backfilled once, when the column is first added, so a release changes
+-- nothing an admin did not choose: the row titled "General Physiotherapy..."
+-- if there is one, else the seeded General Consultation row, which is what
+-- booking already opened on. Inside the same `if not exists` as the column,
+-- so a re-run never re-picks a default the admin has since switched off.
+-- ---------------------------------------------------------------------
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'treatment_categories' and column_name = 'is_default'
+  ) then
+    alter table treatment_categories add column is_default boolean not null default false;
+    update treatment_categories set is_default = true
+    where id = coalesce(
+      (select id from treatment_categories
+        where active and title ilike 'general physio%'
+        order by display_order, id limit 1),
+      (select id from treatment_categories
+        where active and id = '00000000-0000-0000-0000-000000000001')
+    );
+  end if;
+end $$;
+
+create unique index if not exists treatment_categories_one_default
+  on treatment_categories ((true)) where is_default;
+
+-- p_id null clears the default (booking then opens unanswered). An unknown
+-- or inactive id raises rather than silently clearing the current one: a
+-- patient-facing default must point at something a patient can book.
+create or replace function public.set_default_treatment_category(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if p_id is not null and not exists (
+    select 1 from treatment_categories where id = p_id and active
+  ) then
+    raise exception 'not an active service' using errcode = 'P0002';
+  end if;
+  update treatment_categories set is_default = false where is_default and id is distinct from p_id;
+  if p_id is not null then
+    update treatment_categories set is_default = true where id = p_id and not is_default;
+  end if;
+end;
+$$;
+
+revoke all on function public.set_default_treatment_category(uuid) from public, anon, authenticated;
+
+-- A service that stops being bookable stops being the default with it.
+create or replace function public.clear_default_on_inactive_category()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if new.active = false then
+    new.is_default := false;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.clear_default_on_inactive_category() from public, anon, authenticated;
+
+drop trigger if exists trg_clear_default_on_inactive_category on treatment_categories;
+create trigger trg_clear_default_on_inactive_category
+  before insert or update of active, is_default on treatment_categories
+  for each row execute function public.clear_default_on_inactive_category();
+
+-- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --
 -- Every RPC this application makes goes through the service-role client,

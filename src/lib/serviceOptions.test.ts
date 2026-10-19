@@ -125,6 +125,29 @@ describe("categoryServiceOption", () => {
 });
 
 describe("defaultCategoryId", () => {
+  describe("with the admin's booking default", () => {
+    const rows = [
+      { id: "cat-back", title: "Back" },
+      { id: GENERAL_CONSULTATION_CATEGORY_ID, title: "General Consultation" },
+      { id: "cat-physio", title: "General Physiotherapy Consultation" },
+    ];
+    it("opens on the switched-on service, not the seeded general consultation", () => {
+      expect(defaultCategoryId(rows, null, "cat-physio")).toBe("cat-physio");
+    });
+    it("still lets a link's ?category= win over the default", () => {
+      expect(defaultCategoryId(rows, "cat-back", "cat-physio")).toBe("cat-back");
+    });
+    it("opens unanswered when the admin switched every default off", () => {
+      expect(defaultCategoryId(rows, null, null)).toBe("");
+    });
+    it("opens unanswered when the default is not among the bookable rows", () => {
+      expect(defaultCategoryId(rows, null, "cat-gone")).toBe("");
+    });
+    it("falls back to the general consultation only when the setting could not be read", () => {
+      expect(defaultCategoryId(rows, null, undefined)).toBe(GENERAL_CONSULTATION_CATEGORY_ID);
+    });
+  });
+
   const general = { id: GENERAL_CONSULTATION_CATEGORY_ID };
   const back = { id: "cat-back" };
   const knee = { id: "cat-knee" };

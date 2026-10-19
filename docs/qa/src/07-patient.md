@@ -415,7 +415,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 **Test Data.** Pincode `560038`; address from Patient A §8.3.
 
 **Steps**
-1. Open `/book-home-visit`. Confirm the header reads **Step 1 of 4**, and that **what the visit is for** is named at the top of the screen, *above* the pincode field: it opens on the general consultation (as `/book` does), with its photograph, `₹2,499 · 60 min`, a **View details** link and a **Change** button. Tap **Change**: a dialog of condition cards, exactly as `/book`, each at its home-visit price (`QA Back & Spine Care` ₹2,499, `QA Knee & Joint Care` ₹2,999) and none carrying a visit count or days. Choose `QA Back & Spine Care`.
+1. Open `/book-home-visit`. Confirm the header reads **Step 1 of 4**, and that **what the visit is for** is named at the top of the screen, *above* the pincode field: it opens on the service switched on as **Default on booking** in Catalog -> Conditions (as `/book` does), with its photograph, `₹2,499 · 60 min`, a **View details** link and a **Change** button. Tap **Change**: a dialog of condition cards, exactly as `/book`, each at its home-visit price (`QA Back & Spine Care` ₹2,499, `QA Knee & Joint Care` ₹2,999) and none carrying a visit count or days. Choose `QA Back & Spine Care`.
 2. Tap the **Pincode** field. Enter `560038`.
 3. Tap **Check**.
 4. Read the confirmation line. It must agree with the visit named above it: a visit whose price already covers travel reads *"Travel is included"*, and one that does not quotes the per-visit travel fee for this area. That is why the visit is chosen before the pincode is asked for.

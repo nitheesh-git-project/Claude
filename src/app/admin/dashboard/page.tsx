@@ -3633,10 +3633,26 @@ export default async function AdminDashboardPage({
 
   // Conditions is the one catalogue: each condition is sold as one video
   // session at its own price, and as one home visit at its home-visit price.
+  // Which service booking opens on (the "Default on booking" switch). Its
+  // own tolerant read like the codes above: without the column the switch is
+  // simply not drawn.
+  const defaultServiceRead = (async () => {
+    try {
+      const { data, error } = await admin
+        .from("treatment_categories")
+        .select("id")
+        .eq("is_default", true)
+        .limit(1);
+      return error ? undefined : ((data?.[0]?.id as string | undefined) ?? null);
+    } catch {
+      return undefined;
+    }
+  })();
   // A course of either is a therapist's recommendation, priced from these
   // same figures -- which is why the old Packages screen went.
   // Null when the column is not there yet: the form then hides the field.
   const conditionCodeRows = await conditionCodesRead;
+  const defaultServiceId = await defaultServiceRead;
   const conditionCodeById = conditionCodeRows
     ? new Map(conditionCodeRows.map((r) => [r.id, r.short_code]))
     : null;
@@ -3666,6 +3682,7 @@ export default async function AdminDashboardPage({
           /conditions page, and what patients can pick (and get charged) in the booking wizard.
         </p>
         <TreatmentCategoryManager
+          defaultServiceId={defaultServiceId}
           categories={(treatmentCategories ?? []).map((c) => ({
             ...c,
             image_url: categoryImageById.get(c.id) ?? null,

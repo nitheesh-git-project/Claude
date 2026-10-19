@@ -97,6 +97,7 @@ export default function BookingWizard({
   cancellationRefundHours = CANCELLATION_FULL_REFUND_HOURS,
   bookingLeadTimeHours = BOOKING_LEAD_TIME_HOURS,
   paymentTriesBeforeAccess = DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess,
+  defaultServiceId,
 }: {
   initialCategories: Category[];
   // Admin-configured (Feature Control → Booking Languages), never a
@@ -123,6 +124,9 @@ export default function BookingWizard({
   /** `site_settings.payment_tries_before_access`: unsuccessful payment tries
    *  before a new patient's locked account opens (see paymentTries.ts). */
   paymentTriesBeforeAccess?: number;
+  /** The service switched on as "Default on booking" (Catalog -> Conditions):
+   *  its id, `null` when none is, `undefined` when it could not be read. */
+  defaultServiceId?: string | null;
 }) {
   const refundWindowHours = cancellationRefundHours;
   const leadTimeMs = leadTimeMsFromHours(bookingLeadTimeHours);
@@ -320,19 +324,16 @@ export default function BookingWizard({
   });
   const [categories] = useState<Category[]>(initialCategories);
   // A "Book X" link from the Conditions page is a choice somebody already
-  // made, so it wins. Otherwise this opens on the general consultation --
-  // the standing fallback `schema.sql` keeps seeded for exactly this, so a
-  // visitor who tapped a plain "Book" button meets a bookable session rather
-  // than an unanswered control.
+  // made, so it wins. Otherwise this opens on the service the admin switched
+  // on as "Default on booking", so a visitor who tapped a plain "Book"
+  // button meets a bookable session rather than an unanswered control.
   //
-  // Still never the first category in the list: since each one carries its
-  // own price, picking whichever happens to sort first would book and charge
-  // somebody for a concern nobody chose. The general consultation is not
-  // that -- it is the row that exists to be the answer when no condition
-  // fits, and its price is the one a patient who chose nothing should see.
-  // `defaultCategoryId` holds the rule, with its own tests.
+  // Never the first category in the list: since each one carries its own
+  // price, picking whichever happens to sort first would book and charge
+  // somebody for a concern nobody chose. `defaultCategoryId` holds the rule,
+  // with its own tests.
   const [categoryId, setCategoryId] = useState(() =>
-    defaultCategoryId(initialCategories, searchParams.get("category"))
+    defaultCategoryId(initialCategories, searchParams.get("category"), defaultServiceId)
   );
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);

@@ -45,7 +45,7 @@ export default async function BookHomeVisitPage({
   const requestedPackage = typeof params.package === "string" ? params.package : null;
   const supabase = createPublicClient();
 
-  const [{ data: settingsRow }, { data: triesRow }] = await Promise.all([
+  const [{ data: settingsRow }, { data: triesRow }, defaultServiceRead] = await Promise.all([
     supabase
       .from("site_settings")
       .select("home_visit_enabled, home_visit_lead_time_hours, home_visit_cash_enabled")
@@ -53,7 +53,15 @@ export default async function BookHomeVisitPage({
     // Its own query, so a database without the column yet keeps the default
     // rather than losing the page.
     supabase.from("site_settings").select("payment_tries_before_access").maybeSingle(),
+    // The service switched on as "Default on booking" (Catalog ->
+    // Conditions), in its own query so a database without the column falls
+    // back to the general consultation rather than losing the page.
+    supabase.from("treatment_categories").select("id").eq("active", true).eq("is_default", true).limit(1),
   ]);
+  // undefined = could not be read; null = read, and none is switched on.
+  const defaultServiceId: string | null | undefined = defaultServiceRead.error
+    ? undefined
+    : ((defaultServiceRead.data?.[0]?.id as string | undefined) ?? null);
 
   if (settingsRow?.home_visit_enabled !== true) {
     notFound();
@@ -70,12 +78,14 @@ export default async function BookHomeVisitPage({
   // one opens the general consultation, and a course of visits is answered
   // as a programme rather than quietly swapped for a single visit.
   const offeredIds = new Set(conditions.map((c) => c.id));
-  // The general consultation, or the only condition there is -- never the
-  // first by display order (see defaultCategoryId): with several and no
-  // general one, the picker opens unanswered.
+  // The admin's "Default on booking" service, or the only condition there
+  // is -- never the first by display order (see defaultCategoryId): with
+  // several and none switched on, the picker opens unanswered.
   const fallbackCategoryId =
-    defaultCategoryId(conditions) || (conditions.length === 1 ? conditions[0].id : "");
-  let initialCategoryId = defaultCategoryId(conditions, requestedCategory) || fallbackCategoryId;
+    defaultCategoryId(conditions, null, defaultServiceId) ||
+    (conditions.length === 1 ? conditions[0].id : "");
+  let initialCategoryId =
+    defaultCategoryId(conditions, requestedCategory, defaultServiceId) || fallbackCategoryId;
   let requestedIsProgramme = false;
   if (!requestedCategory && requestedPackage) {
     const { data: legacyRow } = await supabase
