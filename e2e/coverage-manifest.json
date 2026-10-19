@@ -2255,6 +2255,13 @@
             "ACP-022"
           ],
           "level": "api"
+        },
+        {
+          "spec": "admin-care-plans.spec.ts",
+          "tests": [
+            "ACP-023"
+          ],
+          "level": "browser"
         }
       ],
       "rules": [

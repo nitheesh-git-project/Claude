@@ -207,7 +207,14 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      taxing it with a sentence meaning "fine" is how a reason column fills
      up with "ok" and stops being worth reading, and how a patient waits
      longer for a recommendation nobody objected to. A plain approval's
-     evidence is who and when, both already on the row.
+     evidence is who and when, both already on the row. An optional note on
+     one is still **none or ten characters**, the column's CHECK, and
+     `validateReviewReason()` refuses a short one with a 400 - it used to
+     fail the insert inside `approve_care_plan()` and roll the approval back
+     as a 500. The review card's plain Approve sends no reason at all, Cancel
+     discards what was typed, and its error renders in the idle card too: a
+     reason left over from a cancelled "Turn it down" once kept a
+     recommendation pending with nothing on screen (QA F-19).
   2. **Approve-with-changes is not an edit.** It writes a new version
      through `authorCarePlanVersion()` with `authored_by` still the
      therapist and `entered_by` the admin, leaving the original in the

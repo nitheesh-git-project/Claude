@@ -29,7 +29,7 @@
       "admin-all-logs.spec.ts": 13,
       "admin-approve-therapist.spec.ts": 20,
       "admin-authz.spec.ts": 61,
-      "admin-care-plans.spec.ts": 32,
+      "admin-care-plans.spec.ts": 40,
       "admin-dashboard-ui.spec.ts": 70,
       "admin-debug-reset.spec.ts": 2,
       "admin-decline-application.spec.ts": 34,

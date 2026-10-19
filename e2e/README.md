@@ -192,7 +192,7 @@ total, which moves with every spec added.
 | `health-profile` | 29 | the per-specialty intake, the Pain Map, a free-text answer typed key by key (focus must stay in the field), the double-submit no-op, and clinical access following live or delivered care |
 | `mobile-smoke` | 8 | public pages and every role's dashboard at phone width (Pixel 7) - no sideways scroll, navigation reachable; runs in the `mobile` project only |
 | `clinical-continuity` | 5 | one patient's record across all three roles: the first fill, the session note (never patient-visible), a recommendation invisible and unbuyable until approved, the approval attributed, and a reopen losing nothing. **Disposable stack only** (`assertDisposableStack`) |
-| `admin-care-plans` | 22 | who may write a recommendation on a therapist's behalf, and the whole review step |
+| `admin-care-plans` | 23 | who may write a recommendation on a therapist's behalf, and the whole review step |
 | `session-suggestions` | 19 | therapist-suggested sessions, including button spam, concurrent answers, a dropped connection, and a time outside the therapist's own working hours refused up front |
 | `risk-sweep-report` | 3 | the Risk screen naming the rules an incomplete sweep missed instead of saying "Nothing waiting", no warning after a complete one, and the report hidden from the anon key |
 | `hospital-referrals` | 3 | one open referral per patient under five simultaneous submissions, a withdrawn one freeing the number, and the withdraw control saying so when the connection drops |

@@ -10,6 +10,19 @@ describe("validateReviewReason", () => {
     expect(validateReviewReason("", "approved").ok).toBe(true);
   });
 
+  it("refuses a stray short note on a plain approval rather than failing the insert", () => {
+    // QA F-19: "QA" typed into a cancelled "Turn it down" rode along with
+    // Approve, broke the column's CHECK (null or ten characters) inside
+    // approve_care_plan(), rolled the approval back and surfaced as a 500
+    // the idle card never showed. The rule is the CHECK's: none, or ten.
+    expect(validateReviewReason("QA", "approved").ok).toBe(false);
+    expect(
+      validateReviewReason("x".repeat(MIN_REVIEW_REASON_LENGTH - 1), "approved").ok
+    ).toBe(false);
+    expect(validateReviewReason("   ", "approved").ok).toBe(true);
+    expect(validateReviewReason("Matches the assessment findings.", "approved").ok).toBe(true);
+  });
+
   it("refuses a rejection shorter than the CHECK on the column", () => {
     // Refused here as well as in the database so an admin is told before
     // they have retyped a decision, rather than by a raw constraint error.

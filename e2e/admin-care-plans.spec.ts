@@ -810,6 +810,21 @@ test.describe("The clinic approves a recommendation", () => {
       .single();
     expect(plan?.status).toBe("pending_review");
 
+    // An approval note is optional but, like the column's CHECK, is none or
+    // ten characters. A short one used to fail the insert inside
+    // approve_care_plan() and come back as a 500 (QA F-19); it is a 400
+    // with the rule now, and the plan is still queued.
+    const shortApprovalNote = await ctx.post(`${BASE}/api/admin/review-care-plan`, {
+      data: { carePlanId: planId, decision: "approved", reason: "QA" },
+    });
+    expect(shortApprovalNote.status(), await shortApprovalNote.text()).toBe(400);
+    const { data: stillQueued } = await admin
+      .from("care_plans")
+      .select("status")
+      .eq("id", planId)
+      .single();
+    expect(stillQueued?.status).toBe("pending_review");
+
     // Saying plain yes needs nothing typed. This is the path the queue
     // exists to let through, and taxing it is how a reason column fills up
     // with "ok" and stops being worth reading.
@@ -1099,6 +1114,67 @@ test.describe("The clinic approves a recommendation", () => {
     // Sessions filter's "Waiting on payment", the "Waiting on the patient's
     // payment" row).
     await expect(page.getByText(/^Waiting /).filter({ visible: true }).first()).toBeVisible();
+    await ctx.close();
+  });
+
+  test("ACP-023: Approve after a cancelled turn-down publishes it, carrying no stray reason", async ({
+    browser,
+  }) => {
+    // QA F-19: "Turn it down", type "QA", Cancel, then Approve. The typed
+    // text survived the cancel, rode along with Approve, broke the review
+    // row's CHECK and rolled the approval back -- and the idle card had
+    // nowhere to show the error, so it just stayed pending.
+    test.setTimeout(90_000);
+    await clearOpenPlans();
+    const planId = await submitAsTherapist();
+    const { data: patient } = await admin
+      .from("profiles")
+      .select("full_name")
+      .eq("id", patientId)
+      .single();
+    const patientName = patient?.full_name ?? "";
+    expect(patientName, "patient has a name to find the card by").not.toBe("");
+
+    const ctx = await browser.newContext();
+    await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/admin/dashboard?section=programmes&tab=review`);
+    await expect(page.getByText("Waiting for your decision").filter({ visible: true }).first()).toBeVisible({
+      timeout: 30_000,
+    });
+
+    // The innermost visible card naming this patient: ancestors come first
+    // in document order, and clearOpenPlans() leaves them one open plan.
+    const card = page
+      .locator("div.rounded-xl")
+      .filter({ visible: true })
+      .filter({ hasText: patientName })
+      .filter({ has: page.getByRole("button", { name: "Approve", exact: true }) })
+      .last();
+    await expect(card).toBeVisible({ timeout: 30_000 });
+
+    await card.getByRole("button", { name: "Turn it down" }).click();
+    await card.getByRole("textbox").fill("QA");
+    await card.getByRole("button", { name: "Cancel" }).click();
+    await card.getByRole("button", { name: "Approve", exact: true }).click();
+
+    await expect
+      .poll(
+        async () =>
+          (await admin.from("care_plans").select("status").eq("id", planId).single()).data?.status,
+        { timeout: 30_000 }
+      )
+      .toBe("active");
+
+    const { data: review } = await admin
+      .from("care_plan_reviews")
+      .select("decision, reason")
+      .eq("care_plan_id", planId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    expect(review?.decision).toBe("approved");
+    expect(review?.reason, "the cancelled turn-down's text is not this decision's note").toBeNull();
     await ctx.close();
   });
 });
