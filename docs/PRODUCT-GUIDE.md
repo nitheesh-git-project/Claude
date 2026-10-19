@@ -2447,10 +2447,30 @@ everything else.
   both exam-submit routes refuse such a patient rather than accumulating
   rows nothing renders. Those two specialties get a progress line anyway,
   read back out of the approved submissions already on file - independence
-  over time, or milestones reached. Their own examination layers (tone,
-  power, balance and gait; posture and milestones) are deliberately
-  deferred, and `SpecialtyExamPanel` exists now with placeholder arms so
-  adding one later is one more arm rather than a page rewrite.
+  over time, or milestones reached. The paediatric examination layer
+  (posture and milestones) is still deferred, and `SpecialtyExamPanel` says
+  so in its place.
+
+  **The neurological examination chart** is the neurological profile's
+  exam layer (`neuro_assessments`, `src/lib/neuroExam.ts`, `NeuroExamPanel`).
+  **Record an examination** opens a full-height dialog with a section strip
+  (phone) or rail (laptop): tone on the Modified Ashworth Scale, power on
+  the Oxford/MRC scale per myotome, reflexes 0 to 4+ and the plantar
+  response, sensation (light touch, pinprick, proprioception) and
+  coordination - all left and right, side by side on a wide screen and
+  stacked per side on a phone - then balance (Romberg, sitting and standing
+  grades, the Berg Balance Scale with optional item scores) and gait
+  (pattern, aids, the 10-metre walk and Timed Up and Go), and notes. Every
+  score is a segmented control on its own scale with each grade's meaning
+  in the legend and on the control; the first segment is **Not tested**,
+  kept apart from normal; **Mark the rest normal** fills only what was not
+  scored; and each row shows what the previous exam found. The record then
+  shows the latest exam as a summary - Berg band, TUG fall-risk line, gait
+  speed band, left-right differences - with what changed since the exam
+  before it, and earlier exams a tap away. It follows the Pain Map's rules:
+  live with no review, append-only, recordable by an assigned therapist
+  from a session that has started (or by an admin with the People scope),
+  readable by the patient in their own words and included in their PDF.
 
   Unlike the intake, a Pain Map exam posts live immediately (it's the
   therapist's own clinical judgement) and needs no access grant - a

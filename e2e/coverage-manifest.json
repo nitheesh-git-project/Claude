@@ -1470,6 +1470,23 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "neuro-exam.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/frontend.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -3829,6 +3846,26 @@
         "docs/rules/frontend.md",
         "docs/rules/admin.md"
       ]
+    },
+    {
+      "id": "therapist.neuro-exam-chart",
+      "runner": "therapist",
+      "title": "A therapist records a neurological examination, reads it back, and re-examines against it; an unassigned therapist is refused",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "neuro-exam.spec.ts",
+          "tests": [
+            "NE-001",
+            "NE-002",
+            "NE-003",
+            "NE-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only neurological exams, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; the scales, validation, asymmetry, Berg bands and change-since-last are unit-tested in src/lib/neuroExam.test.ts."
     }
   ],
   "removed": [
