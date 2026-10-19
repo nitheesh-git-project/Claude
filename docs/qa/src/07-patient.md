@@ -511,6 +511,15 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 **Steps.** After a therapist marks a session complete, open the patient's card and submit a rating of `5` with feedback `Very clear explanation, the exercises helped.`
 **Expected Result.** The rating is stored once. A second attempt returns `You've already rated this session.` A rating of `0` or `6` is refused with `Rating must be between 1 and 5`. A no-show session refuses rating entirely: `This session was marked as a no-show - there's nothing to rate.`
 
+#### `PAT-SESS-007` - The session summary on a past session · P0
+**Preconditions.** `THR-SESS-009` step 1 done for Patient A. Patient B exists.
+**Steps.** As Patient A open **Sessions → Past** and find the session. Then search the whole portal and the PDF export for the note's text (`L4-L5 segmental mobilisation`, the plan for next session). Sign in as Patient B and open their Sessions.
+**Expected Result**
+* Patient A's card has a **Session summary** box: `From <Therapist A> · <date>` (clinic date), then **What we did** and **Before your next session** with the therapist's words; `· updated <date>` after an edit. If a programme was recommended after this session and the clinic has published it, a link **See the programme recommended after this session** goes to Suggested Sessions.
+* A completed session with no summary reads `Your therapist hasn't added a summary for this session.` Upcoming, cancelled and no-show sessions show no summary box at all.
+* **No word of the clinical note appears anywhere the patient can see**, including the PDF.
+* Patient B sees nothing of Patient A's summary.
+
 ---
 
 ### 11.7 Health Profile (patient side)

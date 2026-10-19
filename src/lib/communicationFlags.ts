@@ -20,7 +20,9 @@ export type CommunicationSurface =
   | "pain_assessment_answer"
   | "appointment_notes"
   | "condition_answer"
-  | "neuro_assessment_note";
+  | "neuro_assessment_note"
+  /** The patient-facing summary a therapist writes beside the session note. */
+  | "session_summary";
 
 /** Longest fragment of the original text kept as evidence. */
 const MAX_EVIDENCE_CHARS = 2000;

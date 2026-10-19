@@ -2259,6 +2259,15 @@ of its own:
 - **Editable for 24 hours, then locked.** Every edit inside the window
   copies the previous version into `session_note_revisions`, so a record
   can never be silently rewritten.
+- **The patient gets a summary instead.** The same dialog has a band
+  headed **Shared with the patient** - *What we did today* and *What to do
+  before next time*, optional, 600 characters each - stored in its own
+  table (`session_summaries`) that the patient can read and the note never
+  touches. The patient sees it on their past session card with the
+  therapist's name and date; the admin session drawer shows it to desks
+  that manage Sessions. Same 24-hour edit window and revision history as
+  the note, it cannot be blanked once written, and it goes through the
+  contact scanner. See `docs/rules/clinical.md`.
 - **Nothing is blocked on it.** Marking a session complete stays one tap;
   an unwritten note shows as "Notes to write" on the therapist's Overview
   and as a `needsYou` item in their feed until it exists.

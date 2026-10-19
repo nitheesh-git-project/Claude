@@ -126,7 +126,7 @@ export const SAMPLE_NEURO_FALLS = { from: "2 in three months", to: "None since s
 export const PROGRESS_STEPS: { icon: string; title: string; body: string }[] = [
   { icon: "fa-clipboard-list", title: "Health profile", body: "Questions for your specialty, before you meet." },
   { icon: "fa-user-doctor", title: "Assessment", body: "Your physiotherapist examines you and writes a plan." },
-  { icon: "fa-notes-medical", title: "Every session", body: "Notes and fresh scores after each one." },
+  { icon: "fa-notes-medical", title: "Every session", body: "A short summary and fresh scores after each one." },
   { icon: "fa-chart-line", title: "Reviews", body: "Today set beside your first visit, side by side." },
   { icon: "fa-file-pdf", title: "Your record", body: "The whole chart, as a PDF you keep." },
 ];
@@ -161,7 +161,7 @@ export const SAMPLE_DASHBOARDS: Record<ConditionSpecialty, SampleDashboard> = {
     ],
     plan: { title: "Knee strength and back mobility", done: 4, total: 6 },
     timeline: [
-      { date: at("2026-02-16"), icon: "fa-notes-medical", text: "Session 4 notes added by your physiotherapist" },
+      { date: at("2026-02-16"), icon: "fa-notes-medical", text: "Session 4 summary from your physiotherapist" },
       { date: at("2026-02-16"), icon: "fa-person-rays", text: "Knee re-scored on the Pain Map: 3.5/10" },
       { date: at("2026-02-09"), icon: "fa-dumbbell", text: "Home exercise updated: step-ups added" },
       { date: at("2026-01-19"), icon: "fa-file-medical", text: "Knee MRI report uploaded and read" },
@@ -179,7 +179,7 @@ export const SAMPLE_DASHBOARDS: Record<ConditionSpecialty, SampleDashboard> = {
     plan: { title: "Balance, gait and left-hand function", done: 6, total: 10 },
     timeline: [
       { date: at("2026-02-16"), icon: "fa-notes-medical", text: "Review 4: independence scored 7/10" },
-      { date: at("2026-02-09"), icon: "fa-notes-medical", text: "Session note: walked to the gate with a stick" },
+      { date: at("2026-02-09"), icon: "fa-notes-medical", text: "Session summary: walked to the gate with a stick" },
       { date: at("2026-02-02"), icon: "fa-dumbbell", text: "Home exercise updated: more sit-to-stands" },
       { date: at("2026-01-19"), icon: "fa-shield-heart", text: "Review 2: no falls since starting" },
       { date: at("2026-01-05"), icon: "fa-clipboard-check", text: "Health profile completed with his daughter" },
@@ -196,7 +196,7 @@ export const SAMPLE_DASHBOARDS: Record<ConditionSpecialty, SampleDashboard> = {
     plan: { title: "Standing, walking and balance through play", done: 5, total: 8 },
     timeline: [
       { date: at("2026-02-16"), icon: "fa-star", text: "New milestone: walks steadily" },
-      { date: at("2026-02-16"), icon: "fa-notes-medical", text: "Review 4 notes shared with her parents" },
+      { date: at("2026-02-16"), icon: "fa-notes-medical", text: "Review 4 summary shared with her parents" },
       { date: at("2026-02-02"), icon: "fa-puzzle-piece", text: "Home exercise updated: cruising games added" },
       { date: at("2026-01-19"), icon: "fa-star", text: "New milestone: pulls to stand" },
       { date: at("2026-01-05"), icon: "fa-clipboard-check", text: "Health profile completed by her mother" },

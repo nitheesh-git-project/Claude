@@ -16,6 +16,8 @@ import { SESSION_FEE_PAISE, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing
 import { visitAddressFromAppointment, formatAddressBlock, mapsSearchUrl } from "@/lib/formatAddress";
 import type { PatientDashboardData } from "@/lib/patientDashboardData";
 import { formatRupees } from "@/lib/formatMoney";
+import PatientSessionSummary from "@/components/patient/PatientSessionSummary";
+import { patientSummaryState, summaryPlanHref } from "@/lib/sessionSummary";
 
 const STATUS_STYLES: Record<string, string> = {
   requested: "text-amber-700 bg-amber-50",
@@ -309,6 +311,23 @@ export function renderPatientSessionCard(
             />
           )}
         </div>
+        {/* What the therapist told them about this session -- never the
+            clinician's own note, which this card has no way to read. */}
+        {data.summariesRead && (
+        <PatientSessionSummary
+          state={patientSummaryState({
+            session: a,
+            viewerId: data.user.id,
+            summary: data.summaryByAppointmentId.get(a.id),
+            loadFailed: data.summariesLoadFailed,
+            therapistName: (() => {
+              const authorId = data.summaryByAppointmentId.get(a.id)?.therapist_id ?? a.therapist_id;
+              return authorId ? therapistMap.get(authorId) ?? null : null;
+            })(),
+            planHref: summaryPlanHref(a.id, data.planSourceRows),
+          })}
+        />
+        )}
         {a.status === "completed" && !a.no_show && (
           <SessionFeedbackForm
             appointmentId={a.id}

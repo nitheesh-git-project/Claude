@@ -578,6 +578,34 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   history. Completion is never blocked on a note - the nudge is a
   `needsYou` feed item plus the "Notes to write" figure on the therapist's
   Overview.
+- **What the patient reads about a session is the summary, never the note.**
+  The same dialog (Done, or the card's note button) carries a second band,
+  teal with an eye and labelled **Shared with the patient**: *What we did
+  today* and *What to do before next time*, both optional, plain words,
+  600 characters each (`src/lib/sessionSummary.ts`). It is its own table,
+  `session_summaries`, precisely so the note never needs a patient policy:
+  the patient's RLS (`session_summaries_select_own_patient`) reads their own
+  rows, clinicians read them under the note's treating-therapist rule, and
+  **no browser session can write one** - only
+  `/api/therapist/session-summary/submit`, which re-derives the session and
+  its patient (never from the body), requires the caller to be that
+  session's therapist, the session delivered (completed, or confirmed and
+  started on the debug-aware clock) and not a no-show, and runs the text
+  through the contact scanner (surface `session_summary`) because it is
+  therapist-to-patient text. It follows the note's rules for a record:
+  editable for 24 hours, every edit copies what it replaced into
+  `session_summary_revisions` (append-only by trigger) and compare-and-sets
+  on `baseUpdatedAt`; an identical re-send writes nothing; and a summary the
+  patient may already have read **can be corrected but not blanked**. The
+  dialog saves it after the note and before Done closes the session, so a
+  refusal leaves the session open and a retry repeats nothing. When the
+  therapist is also recommending a programme in the dialog, the band says
+  the recommendation reaches the patient on its own; on the patient's card
+  the summary links to a programme recommended after that session (one the
+  patient may see) rather than repeating it. Where the summary is read -
+  `patientSummaryState()` - decides it belongs to *this* patient and *this*
+  session, that the session was delivered, and keeps "could not load" apart
+  from "none written". `e2e/patient-session-summary.spec.ts`.
 - **"Are you getting better?" is one point per exam, never per day.**
   `painTrendSeries()` (`src/lib/healthProfileSummary.ts`) closes an exam at a
   gap of more than an hour or when an area already scored in it is scored

@@ -102,6 +102,7 @@
       "patient-cancel-cutoff.spec.ts": 11,
       "patient-feedback-ratings.spec.ts": 20,
       "patient-isolation.spec.ts": 5,
+      "patient-session-summary.spec.ts": 45,
       "patient-meet-join.spec.ts": 18,
       "patient-upcoming-rule.spec.ts": 25,
       "patient-registration.spec.ts": 15,

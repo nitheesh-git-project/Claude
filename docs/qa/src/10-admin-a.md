@@ -223,6 +223,10 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 | Restore a cancelled/no-show session | Allowed only from those two states (`Only a cancelled or completed (no-show) session can be restored.`); a second attempt: `This session has already been restored.` |
 | Mark paid by cash | A session already paid: `This session is already marked as paid` |
 
+#### `ADM-SESS-004b` - The patient's summary in the session drawer · P1
+**Steps.** As Master Admin open the drawer of the session from `THR-SESS-009`; then a completed session with no summary. Narrow `qa.admin` to **Finance** and open the first again.
+**Expected Result.** **Summary for the patient** shows the therapist's two lines with `By <therapist> · <date>` and an `edited` date after an edit; with none written, `The therapist hasn't written a summary for this session.`; a failed read says it couldn't load, with **Try again** - never "none written". Operations and Clinical see it too. **Finance sees no summary panel**, and `/api/admin/session-summary` answers it 403.
+
 #### `ADM-SESS-005` - A programme session arrives with its therapist pre-picked · P0
 
 **Preconditions.** A programme locked to `QA Therapist A`, with `QA Therapist A` rostered for the hour. The patient books one session from it (`PAT-PKG-001`), or accepts a suggestion (`PAT-SUGG-002`), or books a visit on a home-visit programme.
