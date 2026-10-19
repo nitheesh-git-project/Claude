@@ -420,11 +420,26 @@ test.describe("Public booking service picker", () => {
     // A card with no photograph must look like a card whose photo has not
     // been chosen yet, never like one whose image failed to load -- so the
     // frame keeps its height and the placeholder fills it.
-    const coveredCover = await covered.locator("img").first().boundingBox();
-    const bareCover = await bare.locator("div").first().boundingBox();
-    expect(coveredCover).not.toBeNull();
-    expect(bareCover).not.toBeNull();
-    expect(Math.abs(coveredCover!.height - bareCover!.height)).toBeLessThan(2);
+    //
+    // Measured once the dialog has finished opening. The panel scales from
+    // 0.98 to 1 as it opens (Modal.tsx), and two boundingBox() calls taken a
+    // frame apart during that read the same 207px frame at two different
+    // scales -- CI saw 2.2px that way while the frames were equal at rest. A
+    // real difference never settles below the 2px tolerance, so polling
+    // until the open animation ends hides nothing.
+    await expect(covered.locator("img").first()).toBeVisible();
+    await expect(bare.locator("div").first()).toBeVisible();
+    await expect
+      .poll(
+        async () => {
+          const coveredCover = await covered.locator("img").first().boundingBox();
+          const bareCover = await bare.locator("div").first().boundingBox();
+          if (!coveredCover || !bareCover) return Number.POSITIVE_INFINITY;
+          return Math.abs(coveredCover.height - bareCover.height);
+        },
+        { timeout: 5_000 }
+      )
+      .toBeLessThan(2);
 
     // And it is still fully a card: its facts and its own action are there.
     await expect(bare.getByText("Bare point one")).toBeVisible();
