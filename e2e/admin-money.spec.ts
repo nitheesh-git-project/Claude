@@ -8,6 +8,7 @@ import {
   computeTherapistPayoutSummary,
   type PayoutAppointment,
 } from "../src/lib/therapistPayouts";
+import { computeTherapistEarningRows, computeTherapistPendingOwed } from "../src/lib/therapistEarnings";
 import { QA_EMAILS, adminClient, cookieHeaderFor, profileIdFor, BASE } from "./helpers";
 
 const HOUR = 3_600_000;
@@ -144,6 +145,43 @@ test.describe("Suite G: money", () => {
     // Revenue is still counted: the money was collected regardless of
     // whether the split is knowable.
     expect(summary.revenuePaise).toBe(100_000);
+  });
+
+  test("G-011: the therapist's own pending payout is the figure admin owes and the Pay button transfers", async () => {
+    // QA F-21: the therapist's Earnings/Overview read ₹9,232.80 pending where
+    // their admin profile and Money -> Payouts read ₹4,435.20, because the
+    // Earnings maths priced a session carrying no amount at the standard fee.
+    // Mixed on purpose: amounts, a session with none, a pay-later session, a
+    // home visit with travel, a settled one and an upcoming one.
+    const now = Date.now();
+    const rows: PayoutAppointment[] = [
+      baseAppointment({ id: "a1", amount_paid_paise: 123_200 }),
+      baseAppointment({ id: "a2", amount_paid_paise: null }),
+      baseAppointment({
+        id: "a3",
+        payment_status: "unpaid",
+        payment_terms: "pay_later",
+        amount_paid_paise: null,
+        amount_due_paise: 90_000,
+      }),
+      baseAppointment({ id: "a4", visit_mode: "home_visit", amount_paid_paise: 100_000, travel_fee_paise: 15_000 }),
+      baseAppointment({
+        id: "a5",
+        therapist_payout_paid_at: new Date(now - 3 * HOUR).toISOString(),
+        therapist_payout_amount_paise: 30_000,
+      }),
+      baseAppointment({ id: "a6", status: "confirmed", slot_time: new Date(now + 48 * HOUR).toISOString() }),
+    ];
+    const admin = computeTherapistPayoutSummary("t1", 40, rows, now, 50);
+    // 40% of 1,232 + 0 + 40% of 900 + (50% of 1,000 + 150 travel).
+    expect(admin.owedPaise).toBe(49_280 + 0 + 36_000 + 65_000);
+    expect(computeTherapistPendingOwed("t1", 40, rows, now, 50)).toBe(admin.owedPaise);
+    const earningRows = computeTherapistEarningRows(rows, 40, new Map(), new Map(), 50);
+    expect(earningRows.filter((r) => r.status === "pending").reduce((s, r) => s + r.earningPaise, 0)).toBe(
+      admin.owedPaise
+    );
+    expect(earningRows.find((r) => r.id === "a5")?.earningPaise).toBe(30_000);
+    expect(earningRows.some((r) => r.id === "a6")).toBe(false);
   });
 
   test("G-010 + activity log: a partial refund records the amount, the reason and the actor", async () => {

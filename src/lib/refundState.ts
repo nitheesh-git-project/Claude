@@ -26,6 +26,8 @@
 // Dependency-free so the wording and the arithmetic are unit-tested rather
 // than discovered on a live clinic's money.
 
+import { formatInr } from "@/lib/formatMoney";
+
 export type RefundState = "none" | "processed" | "manual_pending" | "failed" | "not_eligible";
 
 export type RefundTone = "good" | "warn" | "bad" | "neutral";
@@ -124,6 +126,116 @@ export function isPartialRefund(
   if (refund.state !== "processed" || refund.amountPaise == null) return false;
   if (typeof amountPaidPaise !== "number" || amountPaidPaise <= 0) return false;
   return refund.amountPaise < amountPaidPaise;
+}
+
+/**
+ * Where a session's money stands, as one set of figures every refund control
+ * and label reads -- the cancellation line, the payment chip's refund half,
+ * the "still refundable" figure, the partial-refund form's ceiling, and the
+ * cap the refund routes enforce.
+ *
+ * The rule it encodes: `refund_amount_paise` is the **running total of money
+ * committed back** -- gone back (`processed`), or decided and waiting on a
+ * person (`manual_pending`). `refund_status` is the state of the **latest**
+ * refund decision, and it does not erase the total before it:
+ *
+ *   - `failed` -- the latest attempt was refused. It refunded nothing, so it
+ *     adds nothing; the amount on the row is what earlier refunds already
+ *     returned. A failed attempt is never counted as refunded.
+ *   - `not_eligible` -- the latest decision was "nothing more is due". The
+ *     amount is again what earlier refunds returned (0 on a session that had
+ *     none).
+ *
+ * QA F-22 is why this exists. A ₹1,999 session refunded ₹200 then ₹100, then
+ * cancelled: the cancellation asked the gateway for the full ₹1,999 (more than
+ * was left, so it was refused), the row went to `failed`, and the drawer then
+ * read "Paid / Refund failed", "₹1,699 refundable" and -- under Cancellation --
+ * "No payment to refund", three answers from three readings of two columns.
+ *
+ * Dependency-free and unit-tested.
+ */
+export type RefundPosition = {
+  state: RefundState;
+  /** What the patient was charged for this session (service line plus any
+   *  travel the gateway took). */
+  paidPaise: number;
+  /** Money that has actually gone back. */
+  refundedPaise: number;
+  /** Decided, and waiting on a person to hand it over. */
+  owedBackPaise: number;
+  /** `paid - refunded - owed back`, never below zero: the ceiling on any
+   *  further refund. */
+  refundablePaise: number;
+  /** The latest refund attempt was refused, and somebody has to act. */
+  failed: boolean;
+};
+
+export function describeRefundPosition(
+  row: RefundRow | null | undefined,
+  paidPaise: number | null | undefined
+): RefundPosition {
+  const refund = describeRefund(row);
+  const paid = typeof paidPaise === "number" && paidPaise > 0 ? paidPaise : 0;
+  const committed = Math.max(0, refund.amountPaise ?? 0);
+  const refundedPaise = refund.state === "manual_pending" || refund.state === "none" ? 0 : committed;
+  const owedBackPaise = refund.state === "manual_pending" ? committed : 0;
+  // The whole committed total comes off, whatever the state -- the same
+  // ceiling `refund-session-partial` enforces, so the figure an admin is
+  // shown is the one the route will accept.
+  const refundablePaise = Math.max(0, paid - committed);
+  return {
+    state: refund.state,
+    paidPaise: paid,
+    refundedPaise,
+    owedBackPaise,
+    refundablePaise,
+    failed: refund.state === "failed",
+  };
+}
+
+/**
+ * Money that has actually gone back on a session -- what revenue nets off.
+ * Processed refunds count; a failed attempt and a "nothing more is due"
+ * decision count only what earlier refunds returned; a hand-back still
+ * waiting on a person counts nothing yet.
+ */
+export function refundedPaiseOf(row: RefundRow | null | undefined): number {
+  return describeRefundPosition(row, 0).refundedPaise;
+}
+
+/**
+ * The "Cancellation" line on a cancelled session, from the same position.
+ * `noRefundDue` is the sentence for a forfeiture, which the caller words
+ * (it knows the window that applied and whether a payout was settled).
+ */
+export function describeCancellationRefund(
+  position: RefundPosition,
+  {
+    noRefundDue,
+    viaProgramme = false,
+  }: { noRefundDue: string; viaProgramme?: boolean }
+): string {
+  const earlier =
+    position.refundedPaise > 0 ? `${formatInr(position.refundedPaise)} refunded earlier` : null;
+  switch (position.state) {
+    case "processed":
+      return position.refundablePaise > 0
+        ? `${formatInr(position.refundedPaise)} refunded, ${formatInr(position.refundablePaise)} not refunded`
+        : `${formatInr(position.refundedPaise)} refunded`;
+    case "failed":
+      // Whatever is left is what the refused attempt should have returned,
+      // and it was not refunded -- a failure is never counted as money back.
+      return earlier
+        ? `${earlier}; the refund of the remaining ${formatInr(position.refundablePaise)} failed - refund it from this session`
+        : `The refund of ${formatInr(position.refundablePaise)} failed - refund it from this session`;
+    case "manual_pending":
+      return `${formatInr(position.owedBackPaise)} to hand back to the patient`;
+    case "not_eligible":
+      return earlier ? `${noRefundDue}; ${earlier}` : noRefundDue;
+    default:
+      if (viaProgramme) return "Paid via a programme - no card payment to refund";
+      return position.paidPaise > 0 ? "No refund recorded" : "No payment to refund";
+  }
 }
 
 /**

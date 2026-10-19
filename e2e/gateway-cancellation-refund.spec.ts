@@ -14,7 +14,7 @@
 // disposable project only.
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { BASE, adminClient, wholeHourFromNow } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, wholeHourFromNow } from "./helpers";
 import { fakeGatewaySkipReason, gateway } from "./fakeGateway";
 import {
   apiAs,
@@ -149,4 +149,42 @@ test("CR-002: cancelled inside the window, nothing reaches the gateway and the s
   // The window that withheld it, never the patient's own reason.
   expect(row.refund_reason).toBe(`Cancelled within ${windowHours} hours of the slot, so no refund was due`);
   expect(await refundAttemptsFor(db, "appointment_id", appointmentId)).toHaveLength(0);
+});
+
+test("CR-003: after partial refunds, cancelling refunds only what is left", async () => {
+  // QA F-22: a ₹1,999 session refunded ₹200 and ₹100 asked the gateway for
+  // the whole ₹1,999 on cancellation -- more than was left on the payment --
+  // so it was refused and recorded as a failed refund.
+  test.setTimeout(90_000);
+  const adminCtx = await apiAs(QA_EMAILS.admin);
+  try {
+    const { id: appointmentId } = await insertBooking(db, { patient_id: patient.id }, { daysAhead: 42 });
+    const paid = await payForSession(patientCtx, appointmentId);
+    expect(paid.amount).toBeGreaterThan(30_000);
+    for (const amountPaise of [20_000, 10_000]) {
+      const res = await adminCtx.post(`${BASE}/api/admin/refund-session-partial`, {
+        data: { appointmentId, amountPaise, reason: "E2E partial before cancelling" },
+      });
+      expect(res.status(), await res.text()).toBe(200);
+    }
+    const since = await gateway.seq();
+
+    const res = await cancel(appointmentId);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body).toMatchObject({ success: true, refunded: true });
+
+    const refundCalls = (await gateway.callsSince(since)).filter((c) => c.method === "POST" && c.path.endsWith("/refund"));
+    expect(refundCalls).toHaveLength(1);
+    expect(refundCalls[0].body).toMatchObject({ amount: paid.amount - 30_000 });
+    const row = await refundColumns(appointmentId);
+    // The running total: both partials plus the remainder, i.e. all of it.
+    expect(row).toMatchObject({ status: "cancelled", refund_status: "processed", refund_amount_paise: paid.amount });
+    const attempts = await refundAttemptsFor(db, "appointment_id", appointmentId);
+    expect(attempts.map((a) => a.amount_paise).sort((x, y) => x - y)).toEqual(
+      [10_000, 20_000, paid.amount - 30_000].sort((x, y) => x - y)
+    );
+    expect(attempts.every((a) => a.status === "succeeded")).toBe(true);
+  } finally {
+    await adminCtx.dispose();
+  }
 });

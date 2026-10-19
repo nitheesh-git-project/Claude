@@ -1,11 +1,14 @@
 // What one session is worth, wherever a figure is read off it.
 //
-// Three modules read this and they do NOT share a fallback -- adminMetrics
-// falls back to the standard session fee, therapistPayouts falls back to 0,
-// and therapistEarnings falls back to a value its caller passes in. Those
-// differences are deliberate and long-standing: a money screen showing a
+// Its readers do NOT share a fallback -- adminMetrics falls back to the
+// standard session fee and everything that pays a therapist (therapistPayouts,
+// and through it the therapist's own Earnings) falls back to 0, as does the
+// canonical settlement record (`coalesce(amount_paid_paise, amount_due_paise,
+// 0)` in schema.sql). That difference is deliberate: a money screen showing a
 // session at the standard fee is a reasonable guess, while paying a therapist
-// a share of a guessed amount is not.
+// a share of a guessed amount is not. (therapistEarnings used to take a
+// caller-passed fallback, the standard fee, and so quoted therapists a pending
+// payout the Pay button would never transfer -- QA F-21.)
 //
 // So the fallback is an ARGUMENT rather than a constant in here. Pay later
 // added a second real source for the figure (a frozen price on a session that

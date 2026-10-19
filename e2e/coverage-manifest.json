@@ -205,6 +205,18 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-session-drawer-money.spec.ts": {
+      "runner": "money",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-multi-admin.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -1844,7 +1856,8 @@
           "spec": "gateway-cancellation-refund.spec.ts",
           "tests": [
             "CR-001",
-            "CR-002"
+            "CR-002",
+            "CR-003"
           ],
           "level": "api"
         }
@@ -2380,7 +2393,7 @@
     {
       "id": "admin.money-maths",
       "runner": "money",
-      "title": "Payout and refund arithmetic: travel fee, cash netting, unconfigured share, refund window setting, activity-log attribution",
+      "title": "Payout and refund arithmetic: travel fee, cash netting, unconfigured share, refund window setting, activity-log attribution, the therapist's own pending payout equal to what admin owes",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -2391,13 +2404,35 @@
             "G-003",
             "G-004",
             "G-009",
-            "G-010"
+            "G-010",
+            "G-011"
           ],
           "level": "api"
         }
       ],
       "rules": [
         "docs/rules/money.md"
+      ]
+    },
+    {
+      "id": "admin.session-drawer-money",
+      "runner": "money",
+      "title": "The Session Details drawer prices a session as the row that opened it does, and reads one refund state across its payment chip, cancellation line and refund form",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-session-drawer-money.spec.ts",
+          "tests": [
+            "ASD-001",
+            "ASD-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/money.md",
+        "docs/rules/payments.md"
       ]
     },
     {
