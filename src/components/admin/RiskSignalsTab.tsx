@@ -565,6 +565,7 @@ const SURFACE_LABELS: Record<string, string> = {
   pain_assessment_answer: "Pain Map exam answer",
   appointment_notes: "Patient's booking note",
   condition_answer: "Health Profile answer",
+  session_summary: "Session summary for the patient",
 };
 
 /**

@@ -10,6 +10,7 @@ import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatAddressBlock, mapsSearchUrl, visitAddressFromAppointment } from "@/lib/formatAddress";
 import { isNoteEditable, noteEditHoursLeft } from "@/lib/sessionNotes";
+import { summaryForDialog } from "@/lib/sessionSummary";
 import type { TherapistDashboardData } from "@/lib/therapistDashboardData";
 import RevealContactButton from "@/components/therapist/RevealContactButton";
 import { maskPhone } from "@/lib/contactMasking";
@@ -79,6 +80,7 @@ function finishProps(d: TherapistDashboardData, a: TherapistDashboardData["appoi
     recommendationCategoryId: a.category_id ?? null,
     recommendationNeedsApproval: d.carePlanRequiresApproval,
     recommendationAwaitingClinic: d.patientsAwaitingClinic.has(a.patient_id),
+    summary: summaryForDialog(d.summaryByAppointmentId.get(a.id), d.summariesLoadFailed, d.nowMs),
   };
 }
 
@@ -201,6 +203,11 @@ export function renderTherapistSessionCard(
                 recommendationCategoryId={a.category_id ?? null}
                 recommendationNeedsApproval={carePlanRequiresApproval}
                 recommendationAwaitingClinic={patientsAwaitingClinic.has(a.patient_id)}
+                summary={summaryForDialog(
+                  d.summaryByAppointmentId.get(a.id),
+                  d.summariesLoadFailed,
+                  nowMsForOverview
+                )}
               />
             )}
         </div>

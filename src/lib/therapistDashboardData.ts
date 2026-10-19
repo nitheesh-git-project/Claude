@@ -15,6 +15,7 @@ import { buildTherapistPayoutReceipts } from "@/lib/receipts";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
 import { sessionsAwaitingNote, type SessionNoteRow } from "@/lib/sessionNotes";
+import { SESSION_SUMMARY_SELECT, type SessionSummaryRow } from "@/lib/sessionSummary";
 import type { StatCell } from "@/components/dashboard/StatStrip";
 import { loadCarePlanReviews, loadRecommendableRates } from "@/lib/carePlanServer";
 import { readCarePlanRequiresApproval } from "@/lib/carePlanAuthoring";
@@ -279,6 +280,31 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
 
   const sessionNotes = (sessionNoteRows ?? []) as SessionNoteRow[];
   const noteByAppointmentId = new Map(sessionNotes.map((n) => [n.appointment_id, n]));
+
+  // The patient's summaries this therapist wrote, for the note dialog's
+  // "Shared with the patient" half. Its own tolerant read: a database
+  // without the table loses the summary field, never the dashboard. A
+  // failure is remembered rather than read as "none written", because the
+  // dialog would otherwise offer a blank box over a summary that exists.
+  const summaryByAppointmentId = new Map<string, SessionSummaryRow>();
+  let summariesLoadFailed = false;
+  if (needNotes) {
+    try {
+      const { data: summaryRows, error: summaryError } = await readAllRowsAsData(() =>
+        supabase
+          .from("session_summaries")
+          .select(SESSION_SUMMARY_SELECT)
+          .eq("therapist_id", user.id)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+      );
+      if (summaryError) throw summaryError;
+      for (const r of (summaryRows ?? []) as SessionSummaryRow[]) summaryByAppointmentId.set(r.appointment_id, r);
+    } catch (error) {
+      console.error("Therapist dashboard: could not read session summaries", error);
+      summariesLoadFailed = true;
+    }
+  }
 
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
@@ -966,6 +992,8 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     navItems,
     sessionNotes,
     noteByAppointmentId,
+    summaryByAppointmentId,
+    summariesLoadFailed,
     recommendableRates,
     patientsAwaitingClinic,
     carePlanRequiresApproval,

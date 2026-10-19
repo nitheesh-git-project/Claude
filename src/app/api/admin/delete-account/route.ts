@@ -75,6 +75,8 @@ const GROUP_BY_TABLE: Record<string, keyof AccountReferences> = {
   pain_map_question_templates: "clinical",
   session_notes: "clinical",
   session_note_revisions: "clinical",
+  session_summaries: "clinical",
+  session_summary_revisions: "clinical",
   condition_change_requests: "clinical",
   condition_access_grants: "clinical",
   patient_condition_profiles: "clinical",

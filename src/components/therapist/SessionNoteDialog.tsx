@@ -17,6 +17,15 @@ import CarePlanFields, {
   type RecommendableOption,
 } from "@/components/therapist/CarePlanFields";
 import SessionPainMapStep from "@/components/therapist/SessionPainMapStep";
+import {
+  SESSION_SUMMARY_FIELDS,
+  SESSION_SUMMARY_MAX_CHARS,
+  sameSummaryText,
+  summaryTextOf,
+  validateSessionSummary,
+  type SessionSummaryText,
+  type SummaryForDialog,
+} from "@/lib/sessionSummary";
 
 /**
  * The post-session note, written in a pop-up straight after a session
@@ -44,6 +53,7 @@ export default function SessionNoteDialog({
   recommendationCategoryId = null,
   recommendationNeedsApproval,
   recommendationAwaitingClinic,
+  summary,
   completeOnSave = false,
   sessionStartIso = null,
   onClose,
@@ -63,6 +73,10 @@ export default function SessionNoteDialog({
   recommendationCategoryId?: string | null;
   recommendationNeedsApproval: boolean;
   recommendationAwaitingClinic: boolean;
+  /** The patient's summary of this session -- the one part of this dialog
+   *  the patient reads. Its own record (session_summaries), never part of
+   *  the note. */
+  summary: SummaryForDialog;
   /** When the session was, for the dialog's own subtitle. */
   sessionLabel: string;
   existing: SessionNoteRow | null;
@@ -84,6 +98,15 @@ export default function SessionNoteDialog({
     return initial;
   });
   const [freeText, setFreeText] = useState(existing?.free_text ?? "");
+  // The patient's half. Locked with the note, or on its own window -- and
+  // never offered at all when the read behind it failed, since a blank box
+  // over a summary that exists would invite the therapist to overwrite it.
+  const savedSummary: SessionSummaryText | null = summary.row ? summaryTextOf(summary.row) : null;
+  const [summaryValues, setSummaryValues] = useState<SessionSummaryText>(
+    () => savedSummary ?? { whatWeDid: null, beforeNextTime: null }
+  );
+  const summaryLocked = locked || summary.loadFailed || !summary.editable;
+  const firstName = patientName.split(" ")[0] || "the patient";
   // The plan is optional and lives beside the note rather than after it:
   // the therapist is already here, having just written what happened, and
   // "what should happen next" is the same thought. A separate screen for it
@@ -146,6 +169,26 @@ export default function SessionNoteDialog({
       setError(`Recommend between ${MIN_COURSE_SESSIONS} and ${MAX_COURSE_SESSIONS} sessions, or remove the recommendation.`);
       return;
     }
+    // The summary is checked before the note is saved, for the same reason
+    // as the plan: a refusal found halfway through would leave half a save.
+    const summaryCheck = validateSessionSummary(summaryValues);
+    if (!summaryLocked) {
+      if (!summaryCheck.ok) {
+        setError(summaryCheck.error);
+        return;
+      }
+      if (savedSummary && summaryCheck.empty) {
+        setError(`${firstName} may already have read the summary, so it can be corrected but not removed.`);
+        return;
+      }
+    }
+    const summaryToSend =
+      !summaryLocked &&
+      summaryCheck.ok &&
+      !summaryCheck.empty &&
+      !(savedSummary && sameSummaryText(savedSummary, summaryCheck.value))
+        ? summaryCheck.value
+        : null;
     if (completeOnSave && !painRecorded) {
       setError("Update the Pain Map for this session before finishing it.");
       return;
@@ -175,6 +218,32 @@ export default function SessionNoteDialog({
       // Finishing: the note is saved, so the session can close now. A refusal
       // here leaves the note safely stored and says why the session is still
       // open -- the route is what binds (note + Pain Map + the clock).
+      // The patient's summary, before the session closes: a refusal here
+      // leaves the note stored and the session still open, so trying again
+      // repeats nothing that already happened.
+      if (summaryToSend) {
+        const summaryRes = await fetch("/api/therapist/session-summary/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...debugNowHeaders() },
+          body: JSON.stringify({
+            appointmentId,
+            whatWeDid: summaryToSend.whatWeDid,
+            beforeNextTime: summaryToSend.beforeNextTime,
+            baseUpdatedAt: summary.row ? summary.row.updated_at ?? summary.row.created_at : null,
+          }),
+        });
+        if (!summaryRes.ok) {
+          const body = await summaryRes.json().catch(() => ({}));
+          setError(
+            `Your note was saved, but the summary for ${firstName} wasn't: ${
+              body.error ?? "please try again."
+            }${completeOnSave ? " The session is still open." : ""}`
+          );
+          router.refresh();
+          return;
+        }
+      }
+
       if (completeOnSave) {
         const doneRes = await fetch("/api/appointments/complete-session", {
           method: "POST",
@@ -224,14 +293,15 @@ export default function SessionNoteDialog({
 
       // The plan half, when there was one, is named separately -- a
       // clinician who wrote both wants to know both landed.
+      const shared = summaryToSend ? ` ${firstName} can read your summary.` : "";
       show(
-        completeOnSave
+        (completeOnSave
           ? plan
             ? "Session finished, note saved and your recommendation sent."
             : "Session finished and note saved. Rate it below."
           : plan
             ? "Note saved and your recommendation sent."
-            : "Session note saved."
+            : "Session note saved.") + shared
       );
       router.refresh();
       onClose();
@@ -284,8 +354,9 @@ export default function SessionNoteDialog({
             <p className="mt-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
               <i aria-hidden className="fa-solid fa-lock mt-0.5 text-[10px] text-slate-500" />
               <span>
-                Only you and the clinic&apos;s admin can read this. The patient never sees it - write it the
-                way you would for a colleague covering your next session.
+                Only you and the clinic&apos;s admin can read the note. The patient never sees it - write it the
+                way you would for a colleague covering your next session. The one part they read is marked
+                Shared with the patient, below.
               </span>
             </p>
             {existing && !locked && hoursLeft !== null && (
@@ -391,6 +462,16 @@ export default function SessionNoteDialog({
               />
             </div>
 
+            <PatientSummaryFields
+              firstName={firstName}
+              values={summaryValues}
+              onChange={setSummaryValues}
+              locked={summaryLocked}
+              loadFailed={summary.loadFailed}
+              hasSaved={!!savedSummary}
+              recommending={!!plan}
+            />
+
             {!locked && canRecommend && recommendable.length > 0 && (
               <CarePlanFields
                 options={recommendable}
@@ -441,5 +522,90 @@ export default function SessionNoteDialog({
         </motion.div>
       </motion.div>
     </AnimatePresence>
+  );
+}
+
+/**
+ * The patient's half of the dialog: what we did, and what to do before
+ * next time, in the patient's words. Drawn as its own band -- teal, with an
+ * eye rather than the lock -- so a therapist can never be unsure which of
+ * the boxes on this screen the patient will read.
+ */
+function PatientSummaryFields({
+  firstName,
+  values,
+  onChange,
+  locked,
+  loadFailed,
+  hasSaved,
+  recommending,
+}: {
+  firstName: string;
+  values: SessionSummaryText;
+  onChange: (next: SessionSummaryText) => void;
+  locked: boolean;
+  loadFailed: boolean;
+  hasSaved: boolean;
+  recommending: boolean;
+}) {
+  return (
+    <section
+      aria-labelledby="patient-summary-heading"
+      className="rounded-2xl border-2 border-teal-200 bg-teal-50/60 p-4"
+    >
+      <p
+        id="patient-summary-heading"
+        className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-teal-800"
+      >
+        <i aria-hidden className="fa-solid fa-eye text-[10px]" />
+        Shared with the patient
+      </p>
+      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+        {`Optional. ${firstName} reads this on their session card, with your name and the date - plain words, no clinical shorthand. Nothing else in this dialog reaches them.`}
+      </p>
+      {recommending && (
+        <p className="mt-2 text-[11px] leading-relaxed text-teal-800">
+          Your recommendation reaches them on its own, with its instructions - no need to repeat it here.
+        </p>
+      )}
+      {loadFailed ? (
+        <p role="status" className="mt-3 text-xs font-semibold text-amber-700">
+          {`We couldn't load this session's summary just now, so it is left as it is. Close this and reopen it to write one for ${firstName}.`}
+        </p>
+      ) : locked && !hasSaved ? (
+        <p className="mt-3 text-xs text-slate-500">{`No summary was shared with ${firstName} for this session.`}</p>
+      ) : (
+        <div className="mt-3 space-y-3">
+          {locked && hasSaved && (
+            <p className="text-[11px] font-semibold text-slate-500">
+              This summary is locked - it was written more than 24 hours ago.
+            </p>
+          )}
+          {SESSION_SUMMARY_FIELDS.map((field) => {
+            const value = values[field.bodyKey] ?? "";
+            return (
+              <div key={field.key}>
+                <label htmlFor={`summary-${field.key}`} className="block text-sm font-bold text-slate-800">
+                  {field.label}
+                </label>
+                <textarea
+                  id={`summary-${field.key}`}
+                  value={value}
+                  placeholder={field.placeholder}
+                  disabled={locked}
+                  rows={2}
+                  maxLength={SESSION_SUMMARY_MAX_CHARS}
+                  onChange={(e) => onChange({ ...values, [field.bodyKey]: e.target.value })}
+                  className="mt-1.5 w-full rounded-xl border border-teal-200 bg-white p-3 text-sm focus:border-teal-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500"
+                />
+                <p className="mt-0.5 text-right text-[10px] text-slate-500">
+                  {value.length}/{SESSION_SUMMARY_MAX_CHARS}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import ActivityTimeline from "@/components/admin/ActivityTimeline";
+import AdminSessionSummary from "@/components/admin/AdminSessionSummary";
 import { useEffect, useId, useOptimistic, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import RefundChip from "@/components/admin/RefundChip";
@@ -680,6 +681,15 @@ export default function SessionDetailDrawer({
                 {a.cancellation_reason && (
                   <p className="text-slate-500 mt-0.5">Reason: {a.cancellation_reason}</p>
                 )}
+              </div>
+            )}
+
+            {/* What the patient was told about a delivered session. Clinical,
+                so only for a desk that manages Sessions -- Finance reads
+                this drawer to reconcile money and the route refuses it. */}
+            {canManageSessions && a.status === "completed" && !a.no_show && (
+              <div className="pt-3 border-t border-slate-100">
+                <AdminSessionSummary appointmentId={a.id} />
               </div>
             )}
 

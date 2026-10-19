@@ -16986,6 +16986,151 @@ create trigger trg_clear_default_on_inactive_category
   for each row execute function public.clear_default_on_inactive_category();
 
 -- ---------------------------------------------------------------------
+-- The patient's session summary: what the therapist tells the patient.
+--
+-- The public pages promised patients "each session's notes", and
+-- session_notes is clinician-only by design -- it has no patient select
+-- policy and must never get one (see that table's own comment). So the
+-- patient-facing half is a table of its own, written from the same dialog
+-- as the note, labelled there "Shared with the patient": what we did, and
+-- what to do before next time. Both optional, plain text, 600 characters
+-- each (SESSION_SUMMARY_MAX_CHARS in src/lib/sessionSummary.ts).
+--
+-- One summary per appointment. Written only by the service-role route
+-- /api/therapist/session-summary/submit, which checks the session is the
+-- caller's own and was delivered -- so authenticated has no write grant at
+-- all. Read by the patient it belongs to, and by the same clinicians who
+-- may read the note (the treating-therapist rule from
+-- session_notes_select_clinician, and admins).
+--
+-- Versioned the way the note is: editable for 24 hours after it is
+-- written, and every edit copies what it replaced into
+-- session_summary_revisions, which is append-only by trigger -- the routes
+-- write with the service-role client, so RLS is not that guarantee.
+-- Its foreign keys mirror session_notes': the appointment and the patient
+-- cascade, the therapist does not (a clinician's record outlives nothing
+-- of theirs being deleted).
+-- ---------------------------------------------------------------------
+create table if not exists session_summaries (
+  id uuid primary key default gen_random_uuid(),
+  appointment_id uuid not null unique references appointments(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  therapist_id uuid not null references profiles(id),
+  what_we_did text check (what_we_did is null or char_length(what_we_did) <= 600),
+  before_next_time text check (before_next_time is null or char_length(before_next_time) <= 600),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz,
+  -- A summary says something. Blank-and-blank is "not written", which is
+  -- the absence of a row.
+  constraint session_summaries_not_blank check (
+    coalesce(btrim(what_we_did), '') <> '' or coalesce(btrim(before_next_time), '') <> ''
+  )
+);
+
+create index if not exists session_summaries_patient_idx on session_summaries (patient_id, created_at desc);
+create index if not exists session_summaries_therapist_idx on session_summaries (therapist_id, created_at desc);
+
+alter table session_summaries enable row level security;
+
+drop policy if exists "session_summaries_select_own_patient" on session_summaries;
+create policy "session_summaries_select_own_patient" on session_summaries
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "session_summaries_select_clinician" on session_summaries;
+create policy "session_summaries_select_clinician" on session_summaries
+  for select using (
+    (
+      is_active_therapist()
+      and (
+        exists (
+          select 1 from appointments a
+          where a.patient_id = session_summaries.patient_id
+            and a.therapist_id = (select auth.uid())
+            and a.status in ('requested', 'confirmed', 'completed')
+        )
+        or exists (
+          select 1 from patient_package_purchases pp
+          where pp.patient_id = session_summaries.patient_id
+            and pp.locked_therapist_id = (select auth.uid())
+            and pp.payment_status = 'paid'
+            and pp.status = 'active'
+            and (pp.expires_at is null or pp.expires_at > now())
+        )
+      )
+    )
+    or is_admin()
+  );
+
+revoke insert, update, delete on session_summaries from anon, authenticated;
+
+create table if not exists session_summary_revisions (
+  id uuid primary key default gen_random_uuid(),
+  summary_id uuid not null references session_summaries(id) on delete cascade,
+  what_we_did text,
+  before_next_time text,
+  replaced_at timestamptz not null default now()
+);
+
+create index if not exists session_summary_revisions_summary_idx
+  on session_summary_revisions (summary_id, replaced_at desc);
+
+alter table session_summary_revisions enable row level security;
+
+-- What a summary used to say is for its author and the clinic, not the
+-- patient: they read the current one.
+drop policy if exists "session_summary_revisions_select_clinician" on session_summary_revisions;
+create policy "session_summary_revisions_select_clinician" on session_summary_revisions
+  for select using (
+    exists (
+      select 1 from session_summaries s
+      where s.id = session_summary_revisions.summary_id
+        and (s.therapist_id = (select auth.uid()) or is_admin())
+    )
+  );
+
+revoke insert, update, delete on session_summary_revisions from anon, authenticated;
+
+create or replace function public.session_summary_revisions_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  raise exception 'session_summary_revisions is append-only: it is the record of what a patient was told';
+end;
+$$;
+
+drop trigger if exists trg_session_summary_revisions_append_only on session_summary_revisions;
+create trigger trg_session_summary_revisions_append_only
+  before update or delete on session_summary_revisions
+  for each row execute function public.session_summary_revisions_is_append_only();
+
+revoke all on function public.session_summary_revisions_is_append_only() from public, anon, authenticated;
+
+-- The patient's dashboard refreshes when a summary lands.
+do $$
+begin
+  alter publication supabase_realtime add table session_summaries;
+exception when duplicate_object then null;
+end $$;
+
+-- The summary is therapist-to-patient text, so it goes through the contact
+-- scanner like a care plan's instructions do -- which means the evidence
+-- table has to accept its surface name. Widened by restating the whole
+-- list (the constraint has no `if not exists` form); every existing row
+-- satisfies the wider rule.
+alter table communication_flags drop constraint if exists communication_flags_surface_check;
+alter table communication_flags add constraint communication_flags_surface_check check (surface in (
+  'session_suggestion_note',
+  'care_plan_rationale',
+  'care_plan_instructions',
+  'pain_assessment_answer',
+  'appointment_notes',
+  'condition_answer',
+  'session_summary'
+));
+
+-- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --
 -- Every RPC this application makes goes through the service-role client,
