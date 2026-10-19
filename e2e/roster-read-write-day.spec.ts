@@ -268,4 +268,63 @@ test.describe("roster: read-only gate, first save, day view", () => {
     await expect(detail).toBeInViewport({ ratio: 0.1, timeout: 15_000 });
     await page.screenshot({ path: "/tmp/roster-05-scrolled.png" });
   });
+
+  test("RWD-008: Day view reads its date again when an in-app refresh brings a changed roster", async ({
+    page,
+    context,
+  }) => {
+    // QA F-20: Day view fetched once per date and then sat on that answer --
+    // the screen stays mounted, so "Refresh this screen" after a schedule
+    // was saved still showed the old hours and only a full reload re-read
+    // them.
+    test.setTimeout(SLOW);
+    const admin = adminClient();
+    const therapistId = await profileIdFor(admin, QA_EMAILS.therapistC);
+    const cookie = await cookieHeaderFor(QA_EMAILS.admin);
+    const today = new Date().getDay();
+    async function saveToday(endHour: number) {
+      const { data: state } = await admin
+        .from("therapist_schedule_state")
+        .select("version")
+        .eq("therapist_id", therapistId)
+        .maybeSingle();
+      const res = await fetch(`${BASE}/api/admin/save-therapist-availability`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookie },
+        body: JSON.stringify({
+          therapistId,
+          days: [{ day_of_week: today, ranges: [{ startHour: 9, endHour }] }],
+          expectedVersion: state?.version ?? null,
+        }),
+      });
+      expect(res.status, await res.text()).toBe(200);
+    }
+
+    await saveToday(17);
+    await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+    await openRoster(page);
+    await viewButton(page, "Day").click();
+    await expect(page.getByRole("list", { name: "Therapists on this date" })).toBeVisible({
+      timeout: 60_000,
+    });
+
+    try {
+      // A different roster, written behind the open screen, then the
+      // screen's own refresh -- not a reload.
+      await saveToday(13);
+      const reread = page.waitForRequest(
+        (req) => req.url().includes("/api/admin/roster-day") && req.method() === "POST",
+        { timeout: 90_000 }
+      );
+      await page
+        .getByRole("button", { name: "Refresh this screen" })
+        .filter({ visible: true })
+        .first()
+        .click();
+      await reread;
+    } finally {
+      // Back to RWD-006's footprint, so this case leaves nothing new behind.
+      await saveToday(17);
+    }
+  });
 });

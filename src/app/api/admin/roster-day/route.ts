@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { parseDateKey } from "@/lib/availabilityRequest";
 import { buildRosterDay, type RosterDayAppointment } from "@/lib/rosterDay";
 import type { OverrideRow, TemplateRow } from "@/lib/therapistAvailability";
+import { readAllRowsByIds } from "@/lib/supabase/readAllRows";
 
 // Who is free on a given date, and which of their hours are already taken.
 //
@@ -72,12 +73,21 @@ export async function POST(request: NextRequest) {
   const from = new Date(dayStart.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const to = new Date(dayStart.getTime() + 48 * 60 * 60 * 1000).toISOString();
 
-  const [{ data: templateRows }, { data: overrideRows }, { data: appointmentRows }] =
-    await Promise.all([
-      admin
-        .from("therapist_availability_template")
-        .select("therapist_id, day_of_week, hour")
-        .in("therapist_id", therapistIds),
+  const [
+    { data: templateRows, error: templateError },
+    { data: overrideRows, error: overrideError },
+    { data: appointmentRows, error: appointmentError },
+  ] = await Promise.all([
+      // Paged: every therapist's whole week is up to 126 rows, so a bare
+      // select stops at PostgREST's 1,000-row cap at about eight therapists
+      // and the newest-saved schedules fall off the end (QA F-20).
+      readAllRowsByIds(therapistIds, (chunk) =>
+        admin
+          .from("therapist_availability_template")
+          .select("therapist_id, day_of_week, hour")
+          .in("therapist_id", chunk)
+          .order("id", { ascending: true })
+      ).then((r) => ({ data: r.error ? null : r.rows, error: r.error })),
       admin
         .from("therapist_availability_override")
         .select("therapist_id, date, hour, available")
@@ -90,6 +100,17 @@ export async function POST(request: NextRequest) {
         .gte("slot_time", from)
         .lte("slot_time", to),
     ]);
+
+  // Same rule as the therapist read above: a schedule that could not be
+  // read is not a therapist with no hours, and drawing it as one is the
+  // "No working hours on this date" an admin would then act on.
+  if (templateError || overrideError || appointmentError) {
+    console.error("roster-day: roster rows", templateError ?? overrideError ?? appointmentError);
+    return NextResponse.json(
+      { error: "Couldn't read the roster just now. Please try again.", retryable: true },
+      { status: 503 }
+    );
+  }
 
   // Session codes are migration-dependent, so they are read on their own and
   // merged -- the established convention, and here it costs a label rather

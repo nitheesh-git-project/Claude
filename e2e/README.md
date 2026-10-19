@@ -199,7 +199,7 @@ total, which moves with every spec added.
 | `therapist-roster` | 21 | ranges, exceptions (the admin's and the therapist's own, today onwards), leave, authorization, stale and double-clicked saves, a versionless save refused once a schedule exists, and that no roster change moved a booking |
 | `session-assignment` | 3 | an admin assigning, reassigning and being refused a therapist already booked then, each move on the reassignment log and the admin's trail, the session following into the therapist's own RLS; a no-show refused inside the late grace and to anyone but the therapist who ran it, recorded once by them and once by an admin for another therapist (those two append-only - disposable project only) |
 | `therapist-leave` | 3 | `/api/therapist/set-on-leave`: only an approved therapist, malformed dates refused with the reason; on leave an admin's assignment is refused 409 naming the leave and its dates while the session they hold and their roster stay put; back from leave the dates clear and the same assignment goes through. Its own therapist and patient accounts |
-| `roster-read-write-day` | 7 | the read-only gate, the day view, and the **first** save for a therapist with no state row |
+| `roster-read-write-day` | 8 | the read-only gate, the day view, and the **first** save for a therapist with no state row |
 | `therapist-readiness` | 4 | the five things a therapist needs before live patients |
 | `therapist-specialty` | 3 | a specialisation as a value rather than a sentence |
 | `therapist-request` | 4 | booking a named specialist from `/team` |
