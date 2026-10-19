@@ -16,6 +16,7 @@ import {
 } from "@/lib/painMap";
 import { guardCommunication } from "@/lib/communicationFlags";
 import { serverError } from "@/lib/apiError";
+import { serverNowMs } from "@/lib/debugClock";
 
 type AnswerInput = { key: string; value: string };
 
@@ -118,12 +119,18 @@ export async function POST(request: NextRequest) {
   // has to have started (confirmed and inside its join window) or been
   // delivered. Assigned alone let findings be recorded before any treatment,
   // or against a session that was later cancelled.
+  //
+  // "Started" is judged on the debug bar's simulated clock while the bar is
+  // on, the same clock the session card and complete-session use: Done
+  // opens the note, the note requires this exam, and a gate on the real
+  // clock refused the exam the dialog had just asked for.
   const { data: settingsRow } = await admin.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle();
   const started = await hasStartedSessionWithPatient(
     admin,
     user.id,
     patientId,
-    parseAdminSettings(settingsRow).joinWindowMinutes
+    parseAdminSettings(settingsRow).joinWindowMinutes,
+    serverNowMs(request)
   );
   if (started === null) return profileCheckUnavailable();
   if (!started) {

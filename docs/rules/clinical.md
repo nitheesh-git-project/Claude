@@ -444,7 +444,11 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   together. **A Pain Map exam also needs a session that has started**
   (`hasStartedSessionWithPatient`: completed, or confirmed and inside its
   join window) - it records an observation from a session the therapist
-  ran, so being assigned to a future session is not enough.
+  ran, so being assigned to a future session is not enough. "Started" is
+  read on the debug bar's simulated clock while the bar is on, like the
+  session card that offers the exam (see the simulated-clock gotcha in
+  `ops-security.md`), so `nowMs` is a required argument, never a
+  `Date.now()` default.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate

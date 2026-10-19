@@ -47,10 +47,21 @@ export function isDebugClockEnabled(): boolean {
   return isDebugNavVisible();
 }
 
+type RequestWithHeaders = { headers: { get(name: string): string | null } };
+
 /** "Now" for a server-side time gate that the debug clock may move. */
-export function serverNowMs(request: { headers: { get(name: string): string | null } }): number {
+export function serverNowMs(request: RequestWithHeaders): number {
+  return Date.now() + serverNowOffsetMs(request);
+}
+
+/** How far this request's simulated clock sits from the real one: 0 with
+ *  the bar off, no header, or a header out of bounds. For a gate that
+ *  compares a REAL timestamp the database stamped (a row's `created_at`)
+ *  against a simulated moment, and so has to translate one into the other
+ *  rather than read "now" -- see sessionExamWindowStartMs. */
+export function serverNowOffsetMs(request: RequestWithHeaders): number {
   return resolveServerNowMs({
-    realNowMs: Date.now(),
+    realNowMs: 0,
     headerValue: request.headers.get(DEBUG_NOW_OFFSET_HEADER),
     enabled: isDebugClockEnabled(),
   });
