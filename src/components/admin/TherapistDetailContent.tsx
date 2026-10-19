@@ -23,13 +23,16 @@ import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
 import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
-import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
 import {
   computeTherapistPayoutSummary,
+  isTherapistShareEarned,
+  sessionTherapistCutPaise,
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
+import { sessionAmountPaise } from "@/lib/sessionAmount";
+import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
@@ -124,6 +127,8 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     { data: sessionCodeLinks },
     { data: meetLinkRows },
     { data: homeVisitPayoutRows },
+    { data: payLaterRows },
+    frozenRates,
   ] = await Promise.all([
     admin
       .from("therapist_admin_notes")
@@ -171,6 +176,17 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
         "id, visit_mode, travel_fee_paise, cash_collected_at, cash_collected_amount_paise, cash_remitted_at"
       )
       .eq("therapist_id", id),
+    // Pay later, isolated for the same reason. Money -> Payouts, the payout
+    // request and the settle route all read these two; this page did not, so
+    // a delivered pay-later session counted towards what those screens owe
+    // and not towards the figure here. Absent (an unmigrated database), every
+    // session reads as prepaid -- what it was before the columns.
+    admin
+      .from("appointments")
+      .select("id, payment_terms, amount_due_paise")
+      .eq("therapist_id", id),
+    // The rate each delivered session was frozen at, which is what it pays.
+    readFrozenTherapistRates(admin, id),
   ]);
 
   const appointments = mergeMeetLinks(
@@ -251,15 +267,6 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     }))
   );
 
-  // Sorted by when payment actually cleared, not booking-creation order -
-  // same reasoning as the patient detail page's Payment History.
-  const paidAppointments = (appointments ?? [])
-    .filter((a) => a.payment_status === "paid")
-    .sort((a, b) => {
-      const at = a.paid_at ? new Date(a.paid_at).getTime() : new Date(a.created_at).getTime();
-      const bt = b.paid_at ? new Date(b.paid_at).getTime() : new Date(b.created_at).getTime();
-      return bt - at;
-    });
   const sharePercent = therapist.revenue_share_percent;
   const homeVisitSharePercent =
     (homeVisitShareRow?.home_visit_revenue_share_percent as number | null | undefined) ?? null;
@@ -275,10 +282,32 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
   // rate where one is set, travel is reimbursed in full on top, and cash the
   // therapist is already holding nets off the transfer. A profile that
   // disagrees with the button on it is worse than a profile missing a field.
+  const payLaterById = new Map(
+    ((payLaterRows ?? []) as { id: string; payment_terms: string | null; amount_due_paise: number | null }[]).map(
+      (r) => [r.id, r]
+    )
+  );
   const payoutAppointments = (appointments ?? []).map((a) => ({
     ...a,
     ...(homeVisitPayoutById.get(a.id) ?? { visit_mode: "online" as const }),
+    payment_terms: payLaterById.get(a.id)?.payment_terms ?? null,
+    amount_due_paise: payLaterById.get(a.id)?.amount_due_paise ?? null,
+    therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
   }));
+  // The rows under the Owed figure: exactly the sessions it is the sum of
+  // (delivered and earned, `isTherapistShareEarned`), each at the cut the
+  // summary counted. This list used to show every *paid* session -- one
+  // booked for next week read "Owed" -- at its own inline multiplication,
+  // whose fallback for a session with no amount was the service's price or
+  // the standard fee, where the total above counts nothing. Sorted by when
+  // payment cleared, as the patient page's Payment History is.
+  const paidAppointments = payoutAppointments
+    .filter((a) => isTherapistShareEarned(a))
+    .sort((a, b) => {
+      const at = a.paid_at ? new Date(a.paid_at).getTime() : new Date(a.created_at).getTime();
+      const bt = b.paid_at ? new Date(b.paid_at).getTime() : new Date(b.created_at).getTime();
+      return bt - at;
+    });
   const payoutSummary = computeTherapistPayoutSummary(
     therapist.id,
     sharePercent,
@@ -596,26 +625,29 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             Set a revenue share % above to calculate payouts.
           </p>
         ) : paidAppointments.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">No paid sessions yet.</p>
+          <p className="text-xs text-slate-500 py-4 text-center">No delivered sessions yet.</p>
         ) : (
           <ul className="space-y-3 text-xs">
             {paidAppointments.map((a) => {
-              const category = a.category_id ? categoryMap.get(a.category_id) : null;
-              const feePaise = a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE;
+              // The figure the cut is computed from, with the payout maths'
+              // own fallback, so the row and the total above are the same
+              // arithmetic (therapistPayouts.ts) rather than a second copy.
+              const feePaise = sessionAmountPaise(a, 0);
               const isSettled = !!a.therapist_payout_paid_at;
-              // Same rule as the total above: a home visit is paid at the
-              // home-visit rate where one is set, and its travel fee is
-              // reimbursed in full on top. A row printing the online rate
-              // beside a total that used the other one is what makes a
-              // correct figure look wrong.
-              const visit = homeVisitPayoutById.get(a.id);
-              const isHomeVisit = !!visit;
-              const rowShare = isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent;
-              const travelPaise = isHomeVisit ? Math.max(0, visit.travel_fee_paise ?? 0) : 0;
-              const computedPaise = Math.round((feePaise * rowShare) / 100) + travelPaise;
-              const payoutPaise = isSettled
-                ? a.therapist_payout_amount_paise ?? computedPaise
-                : computedPaise;
+              const isHomeVisit = a.visit_mode === "home_visit";
+              // The rate the row is computed at, as sessionTherapistCutPaise
+              // reads it: frozen at completion where it was, live otherwise.
+              const rowShare =
+                a.therapist_share_percent_at_completion ??
+                (isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent);
+              const travelPaise = isHomeVisit
+                ? Math.max(0, homeVisitPayoutById.get(a.id)?.travel_fee_paise ?? 0)
+                : 0;
+              const payoutPaise = sessionTherapistCutPaise(
+                a as PayoutAppointment,
+                sharePercent,
+                homeVisitSharePercent
+              );
               const patient = a.patient_id ? patientMap.get(a.patient_id) : null;
               return (
                 <li key={a.id} className="p-4 rounded-xl border border-slate-200 space-y-1">

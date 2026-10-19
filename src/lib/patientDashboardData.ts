@@ -31,6 +31,7 @@ import { loadPatientPayLater } from "@/lib/payLaterSettlementServer";
 import type { ReceiptSettlement } from "@/lib/receipts";
 import { loadConditionCovers } from "@/lib/catalogImageServer";
 import { programmeDisplay, type ProgrammeDisplay } from "@/lib/programmeDisplay";
+import { hasBookingHistory, noNextSessionNote } from "@/lib/patientOverviewCopy";
 
 // Everything the patient dashboard's screens read, loaded once per
 // request.
@@ -831,6 +832,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     )
     .sort((a, b) => new Date(a.slot_time!).getTime() - new Date(b.slot_time!).getTime());
   const nextSession = upcoming[0] ?? null;
+  // Whether "nothing booked" would be true, or a returning patient's
+  // history being talked over -- see patientOverviewCopy.ts.
+  const bookingHistory = hasBookingHistory(appointments);
   const completedCount = appointments.filter((a) => a.status === "completed").length;
   const sessionsLeftInPackages = ownedPackagesForDisplay.reduce(
     (sum, p) => sum + Math.max(0, (p.session_count ?? 0) - (p.sessions_used ?? 0)),
@@ -940,7 +944,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         ? `${new Date(nextSession.slot_time).toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}${
             nextSession.therapist_id ? ` · ${therapistMap.get(nextSession.therapist_id) ?? "therapist"}` : ""
           }`
-        : "Nothing booked yet",
+        : noNextSessionNote(bookingHistory),
       accent: "bg-teal-500",
       href: "/patient/dashboard/sessions",
     },
@@ -1144,6 +1148,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     intakeGate,
     intakeSpecialty,
     nextSession,
+    bookingHistory,
     patientFeed,
     overviewCells,
     nowMs: nowMsForPackages,

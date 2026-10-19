@@ -51,7 +51,11 @@ export async function hasStartedSessionWithPatient(
   therapistId: string,
   patientId: string,
   joinWindowMinutes: number,
-  nowMs: number = Date.now()
+  // Required, not defaulted to Date.now(): the session card offers the
+  // exam on the debug bar's simulated clock, so a default here judged the
+  // same session by the real one and refused an exam the card had just
+  // offered. Callers pass serverNowMs(request).
+  nowMs: number
 ): Promise<boolean | null> {
   const opensBy = new Date(nowMs + Math.max(0, joinWindowMinutes) * 60_000).toISOString();
   const { count, error } = await supabase

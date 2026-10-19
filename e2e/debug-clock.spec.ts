@@ -1,5 +1,8 @@
-// The debug bar's simulated clock and the one server gate it may move:
-// /api/appointments/complete-session's "has this session started yet".
+// The debug bar's simulated clock and the server gates it may move:
+// /api/appointments/complete-session's "has this session started yet", and
+// the gates the same session card reaches through it -- the session note
+// (DC-003), "Show number" (DC-004) and the Pain Map exam Done requires
+// (DC-005).
 //
 // The bar keeps its offset in the browser; the completion buttons send it as
 // `x-debug-now-offset-ms`, and the route honours it whenever the debug bar is
@@ -24,7 +27,15 @@
 // `webServer` block starts `npm run dev` with. Against a server started
 // separately, keep the two in step.
 import { test, expect, request, type APIRequestContext } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, cookieHeaderFor, profileIdFor } from "./helpers";
+import {
+  BASE,
+  QA_EMAILS,
+  adminClient,
+  cookieHeaderFor,
+  createFixtureAccount,
+  deleteFixtureAccount,
+  profileIdFor,
+} from "./helpers";
 import { SESSION_NOTE_FIELDS } from "../src/lib/sessionNotes";
 
 const db = adminClient();
@@ -153,4 +164,48 @@ test("DC-004: 'Show number' follows the simulated clock and says when it opens",
   });
   expect(res.status(), "the reveal route ignored the simulated clock").toBe(403);
   expect((await res.json()).error).toMatch(/^You can see this number from .+ on .+\.$/);
+});
+
+// The Pain Map exam Done requires. Its "has a session with them started"
+// gate read the real clock through a Date.now() default, so on staging a
+// tester who simulated past a session's end was let through the completion
+// dialog and then refused the exam it asked for. Refusal direction again --
+// pain_assessments is append-only -- and against a patient of the spec's
+// own, since any completed session between the shared QA pair would answer
+// "started" whatever the clock said.
+test("DC-005: the Pain Map exam's 'has a session started' gate follows the simulated clock", async () => {
+  test.setTimeout(90_000);
+  const patient = await createFixtureAccount("debug clock exam");
+  try {
+    const slotMs = BAR_ON ? Date.now() - 2 * HOUR : Date.now() + 3 * HOUR;
+    const slot = new Date(slotMs);
+    slot.setMinutes(0, 0, 0);
+    const { error } = await db.from("appointments").insert({
+      patient_id: patient.id,
+      therapist_id: therapistId,
+      slot_time: slot.toISOString(),
+      status: "confirmed",
+      payment_status: "paid",
+      duration_minutes: 30,
+      visit_mode: "online",
+      concern: MARKER,
+    });
+    if (error) throw new Error(`could not seed a session: ${error.message}`);
+    const res = await therapist.post(`${BASE}/api/therapist/pain-assessments/submit`, {
+      // Bar on: started two hours ago, wound back four -- only the header can
+      // make it "not started". Bar off: three hours away, wound forward four
+      // -- the header must be ignored.
+      headers: { [HEADER]: String(BAR_ON ? -4 * HOUR : 4 * HOUR) },
+      data: { patientId: patient.id, region: "knee", side: "left", painPercent: 50, answers: [] },
+    });
+    expect(res.status(), BAR_ON ? "the exam gate ignored the simulated clock" : "the exam gate honoured a debug clock with the bar off").toBe(409);
+    expect((await res.json()).error).toMatch(/session you've started/);
+    const { count } = await db
+      .from("pain_assessments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", patient.id);
+    expect(count ?? 0).toBe(0);
+  } finally {
+    await deleteFixtureAccount(patient.id);
+  }
 });

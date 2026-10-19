@@ -8,6 +8,7 @@ import {
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
 import { readAllRows } from "@/lib/supabase/readAllRows";
+import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 
 export async function POST() {
   const supabase = await createClient();
@@ -105,6 +106,14 @@ export async function POST() {
     );
   }
   const termsById = new Map(termsResult.rows.map((r) => [r.id, r]));
+  // The rate each session was delivered at, which is what settling pays.
+  const frozenRates = await readFrozenTherapistRates(admin, user.id);
+  if (!frozenRates.ok) {
+    return NextResponse.json(
+      { error: "We couldn't work out what you're owed just now. Please try again." },
+      { status: 503 }
+    );
+  }
 
   const summary = computeTherapistPayoutSummary(
     user.id,
@@ -113,6 +122,7 @@ export async function POST() {
       ...a,
       payment_terms: termsById.get(a.id)?.payment_terms ?? null,
       amount_due_paise: termsById.get(a.id)?.amount_due_paise ?? null,
+      therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
     })) as PayoutAppointment[],
     Date.now(),
     profile.home_visit_revenue_share_percent ?? null

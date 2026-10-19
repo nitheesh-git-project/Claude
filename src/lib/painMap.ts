@@ -177,6 +177,25 @@ export function formatPainOutOfTen(percent: number): string {
   return `${Number.isInteger(outOfTen) ? outOfTen : outOfTen.toFixed(1)}/10`;
 }
 
+/**
+ * What a screen reader announces for one tap point on the body map:
+ * "Lower back", "Knee, left side". The figure used to give its points no
+ * name at all (and wrapped them in a `role="img"`, which hides children
+ * from assistive tech), so a patient who could not see the figure could not
+ * say where it hurts. `pain`, when given, is the figure read on that point
+ * -- an exam's 0-100 score through formatPainOutOfTen, so it says the same
+ * thing the popup does.
+ */
+export function painMapPointLabel(
+  region: PainMapRegionKey,
+  side: PainMapSide,
+  pain?: { percent: number } | null
+): string {
+  const label = PAIN_MAP_REGIONS.find((r) => r.key === region)?.label ?? region;
+  const where = side === "na" ? label : `${label}, ${side} side`;
+  return pain ? `${where}: pain ${formatPainOutOfTen(pain.percent)}` : where;
+}
+
 export function isPainMapRegion(value: string): value is PainMapRegionKey {
   return PAIN_MAP_REGIONS.some((r) => r.key === value);
 }

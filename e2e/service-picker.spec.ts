@@ -21,7 +21,7 @@
 // so a production server serves HTML generated before the fixtures below
 // existed. `catalog-detail.spec.ts` carries the same warning.
 import { test, expect, type Page } from "@playwright/test";
-import { adminClient, BASE } from "./helpers";
+import { adminClient, BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
 
 const WITH_COVER = "QA Picker Covered Condition";
 const NO_COVER = "QA Picker Bare Condition";
@@ -325,6 +325,37 @@ test.describe("Public booking service picker", () => {
     ).toBeVisible();
   });
 
+  test("SP-013: the consent terms can be read before agreeing, and name the chosen service", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    // F-04: the checkbox asked a patient to agree to terms they had no way
+    // to read, and called every service "musculoskeletal care".
+    await page.goto(`${BASE}/book?category=${coveredId}`);
+    await expect(page.getByRole("heading", { name: WITH_COVER })).toBeVisible();
+    await page.getByRole("button", { name: /Continue to Medical Details/ }).click();
+
+    const consent = page.getByRole("checkbox", { name: /I agree to the Consent terms/ });
+    await expect(consent).toBeVisible();
+    await expect(consent).toHaveAccessibleName(new RegExp(`my ${WITH_COVER} video session`));
+    await expect(consent).not.toHaveAccessibleName(/musculoskeletal/i);
+
+    const open = page.getByRole("button", { name: "Consent terms & emergency disclaimer" });
+    await open.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Consent terms & emergency disclaimer" })).toBeVisible();
+    await expect(dialog).toContainText(`your ${WITH_COVER} session`);
+    await expect(dialog).toContainText("Not for emergencies");
+    await expect(dialog).not.toContainText(/musculoskeletal/i);
+
+    // Reading the terms is not agreeing to them.
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(consent).not.toBeChecked();
+    await expect(open).toBeFocused();
+  });
+
   test("SP-008: a deep link lands on Step 1 with that service already chosen", async ({
     page,
   }) => {
@@ -367,7 +398,7 @@ test.describe("Public booking service picker", () => {
 
     // The condition is chosen above the pincode precisely because the
     // serviceable answer has to say whether travel is added on top.
-    const pincode = page.getByPlaceholder("600020");
+    const pincode = page.getByPlaceholder("6-digit pincode");
     const visitBox = await chosen.boundingBox();
     const pincodeBox = await pincode.boundingBox();
     expect(visitBox).not.toBeNull();
@@ -389,14 +420,75 @@ test.describe("Public booking service picker", () => {
     // A card with no photograph must look like a card whose photo has not
     // been chosen yet, never like one whose image failed to load -- so the
     // frame keeps its height and the placeholder fills it.
-    const coveredCover = await covered.locator("img").first().boundingBox();
-    const bareCover = await bare.locator("div").first().boundingBox();
-    expect(coveredCover).not.toBeNull();
-    expect(bareCover).not.toBeNull();
-    expect(Math.abs(coveredCover!.height - bareCover!.height)).toBeLessThan(2);
+    //
+    // Measured once the dialog has finished opening. The panel scales from
+    // 0.98 to 1 as it opens (Modal.tsx), and two boundingBox() calls taken a
+    // frame apart during that read the same 207px frame at two different
+    // scales -- CI saw 2.2px that way while the frames were equal at rest. A
+    // real difference never settles below the 2px tolerance, so polling
+    // until the open animation ends hides nothing.
+    await expect(covered.locator("img").first()).toBeVisible();
+    await expect(bare.locator("div").first()).toBeVisible();
+    await expect
+      .poll(
+        async () => {
+          const coveredCover = await covered.locator("img").first().boundingBox();
+          const bareCover = await bare.locator("div").first().boundingBox();
+          if (!coveredCover || !bareCover) return Number.POSITIVE_INFINITY;
+          return Math.abs(coveredCover.height - bareCover.height);
+        },
+        { timeout: 5_000 }
+      )
+      .toBeLessThan(2);
 
     // And it is still fully a card: its facts and its own action are there.
     await expect(bare.getByText("Bare point one")).toBeVisible();
     await expect(bare.getByRole("button", { name: "Choose this session" })).toBeVisible();
+  });
+  test("SP-012: the admin's Default on booking switch decides where /book opens, one at a time", async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(90_000);
+    // The owner's "General Consultation" meant their General Physiotherapy
+    // consultation, so the default is an admin switch (Catalog -> Conditions)
+    // rather than the seeded row: whichever service it is on, /book opens
+    // there; the database keeps it to one; off everywhere opens unanswered.
+    const db = adminClient();
+    const before = await db.from("treatment_categories").select("id").eq("is_default", true);
+    expect(before.error, "is_default is readable").toBeNull();
+    const previous = (before.data?.[0]?.id as string | undefined) ?? null;
+    // The admin flips the switch from their own session; the page stays an
+    // anonymous visitor, which is who a booking default is for.
+    const adminContext = await browser.newContext();
+    await adminContext.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+    const setDefault = (id: string | null) =>
+      adminContext.request.post(`${BASE}/api/admin/set-default-treatment-category`, { data: { id } });
+
+    try {
+      expect((await setDefault(coveredId)).status()).toBe(200);
+      const after = await db.from("treatment_categories").select("id").eq("is_default", true);
+      expect((after.data ?? []).map((r) => r.id)).toEqual([coveredId]);
+
+      await page.goto(`${BASE}/book`);
+      await expect(page.getByRole("heading", { name: WITH_COVER })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "General Consultation" })).toHaveCount(0);
+      // A link that names a service still wins over the default.
+      await page.goto(`${BASE}/book?category=${bareId}`);
+      await expect(page.getByRole("heading", { name: NO_COVER })).toBeVisible();
+
+      // Off everywhere: nothing is picked for a stranger.
+      expect((await setDefault(null)).status()).toBe(200);
+      await page.goto(`${BASE}/book`);
+      await expect(page.getByRole("heading", { name: WITH_COVER })).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "General Consultation" })).toHaveCount(0);
+
+      // Refused, not half-done: a body that is not an id, and a service gone.
+      expect((await setDefault(42 as unknown as string)).status()).toBe(400);
+      expect((await setDefault("00000000-0000-0000-0000-00000000dead")).status()).toBe(404);
+    } finally {
+      await setDefault(previous);
+      await adminContext.close();
+    }
   });
 });

@@ -836,7 +836,12 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   Health reads the last seven days of taps that opened a sheet
   (`readCheckoutSpeed`, isolated, null when unreadable): fewer than ten is
   *Not checked* rather than a verdict, a 90th percentile over six seconds is
-  *Needs a look* with the median of each stage as evidence. The table is not
+  *Needs a look* with the median of each stage as evidence. **The clock
+  stops at `razorpay.open()`**, so the patient's own time inside the sheet
+  is never in it; it does include account creation on a first booking
+  (`signup`), saving the booking (`create`, video flow only) and the order
+  plus `checkout.js` (`order`). A sample is a sheet that opened, not a
+  payment, and the card says both (QA F-12 asked). The table is not
   published to realtime on purpose -- a row per tap would refresh the
   dashboard for every patient paying.
 

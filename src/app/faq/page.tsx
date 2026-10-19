@@ -7,6 +7,7 @@ import Section from "@/components/marketing/Section";
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import { homeVisitCoverageFaq } from "@/lib/faqLiveFacts";
 
 export const metadata: Metadata = {
   title: "FAQ | MoveRestore",
@@ -27,8 +28,24 @@ export default async function FaqPage() {
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
 
-  const rows = (faqs ?? []) as Faq[];
   const homeVisitEnabled = await readHomeVisitEnabled();
+
+  // Where home visits go, from the live service areas rather than from an
+  // answer somebody typed: a pincode or a price written into an FAQ row
+  // stays put while Catalog moves (staging's still quoted 600020 and
+  // ₹499 + ₹100 long after both had changed). Only while the service is
+  // switched on, and only when an area is served -- see faqLiveFacts.ts.
+  // Its own read, so a database without the table loses this answer and
+  // nothing else.
+  let coverageFaq: Faq | null = null;
+  if (homeVisitEnabled) {
+    const { data: areas } = await supabase
+      .from("home_visit_areas")
+      .select("city")
+      .eq("active", true);
+    coverageFaq = homeVisitCoverageFaq((areas ?? []).map((a) => a.city as string | null));
+  }
+  const rows = [...((faqs ?? []) as Faq[]), ...(coverageFaq ? [coverageFaq] : [])];
 
   const sectionNavItems: SectionNavItem[] = [
     { id: "questions", label: "Questions", icon: "fa-circle-question" },

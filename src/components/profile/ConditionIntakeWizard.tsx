@@ -12,6 +12,7 @@ import {
   parseAreaPain,
   parseMultiSelect,
   serializeMultiSelect,
+  toggleMultiSelectOption,
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
 import { PAIN_MAP_REGIONS } from "@/lib/painMap";
@@ -426,6 +427,7 @@ export default function ConditionIntakeWizard({
                 <div className="mt-4">
                   {question.inputType === "area_pain_list" ? (
                     <AreaPainPicker
+                      label={question.label}
                       value={values[question.key]}
                       onChange={(next) => setValues((v) => ({ ...v, [question.key]: next }))}
                     />
@@ -504,9 +506,7 @@ export default function ConditionIntakeWizard({
                               setValues((v) => ({
                                 ...v,
                                 [question.key]: serializeMultiSelect(
-                                  selected
-                                    ? picked.filter((p) => p !== option)
-                                    : [...picked, option]
+                                  toggleMultiSelectOption(question, picked, option)
                                 ),
                               }))
                             }

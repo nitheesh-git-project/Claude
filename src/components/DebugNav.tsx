@@ -52,20 +52,25 @@ const routes = [
 export default function DebugNav() {
   const router = useRouter();
   const pathname = usePathname();
-  // Lazy read (once, on mount) -- this is a dev-only debug control, not a
-  // rendering-correctness-sensitive value, so re-reading localStorage on
-  // every render would be pure overhead for no benefit.
-  const [simInput, setSimInput] = useState(() => toLocalInputValue(debugNow()));
-  const [active, setActive] = useState(() => getDebugNowOffsetMs() !== 0);
+  // Read once, on mount -- and in an effect, not a lazy useState: this bar
+  // is in the root layout on every page, and the server has no localStorage
+  // and no browser clock. A lazy read rendered "Reset to Real Time" on the
+  // client but not in the server's HTML whenever a simulated time was set,
+  // which is React #418 on every page for anyone testing with the clock.
+  const [simInput, setSimInput] = useState("");
+  const [active, setActive] = useState(false);
   // The country the whole app is priced for, forced from here so local
   // prices and the home-visit rule can be tried without a VPN. Honoured by
   // the browser and by every checkout route only while this bar exists.
   const { country } = usePricing();
   const [forcedCountry, setForcedCountry] = useState("");
   useEffect(() => {
-    const match = document.cookie.match(new RegExp(`(?:^|; )${DEBUG_COUNTRY_COOKIE}=([A-Z]{2})`));
-    // A mount-time read of a cookie; there is none on the server.
+    // Mount-time reads of the browser's clock, storage and cookies; there
+    // are none on the server.
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSimInput(toLocalInputValue(debugNow()));
+    setActive(getDebugNowOffsetMs() !== 0);
+    const match = document.cookie.match(new RegExp(`(?:^|; )${DEBUG_COUNTRY_COOKIE}=([A-Z]{2})`));
     if (match) setForcedCountry(match[1]);
   }, []);
 

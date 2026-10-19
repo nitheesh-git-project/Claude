@@ -34,3 +34,24 @@ export function completionRefusal(kind: CompletionKind, lateGraceMinutes: number
         lateGraceMinutes
       )} minutes late. Try again after that.`;
 }
+
+/** How long before the slot a Pain Map exam still counts as this session's
+ *  -- one recorded while setting up the call is part of it. */
+export const SESSION_EXAM_LEAD_MS = 60 * 60_000;
+
+/**
+ * The earliest real `created_at` a Pain Map exam may carry and still count
+ * as recorded during this session -- the evidence Done requires.
+ *
+ * `debugOffsetMs` is the debug clock's offset (serverNowOffsetMs on the
+ * server, getDebugNowOffsetMs in the browser; 0 whenever the bar is off).
+ * The row's `created_at` is stamped by the database on the real clock, so
+ * under a simulated clock an exam taken "during" a session that is still
+ * hours away in real time carries a real time hours before it. Shifting the
+ * window by the offset compares like with like; it is deliberately a
+ * required argument, because a silent real-time default is exactly how the
+ * exam gate came to judge one session by two clocks.
+ */
+export function sessionExamWindowStartMs(slotMs: number, debugOffsetMs: number): number {
+  return slotMs - SESSION_EXAM_LEAD_MS - debugOffsetMs;
+}

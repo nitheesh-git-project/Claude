@@ -205,6 +205,18 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-session-drawer-money.spec.ts": {
+      "runner": "money",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-multi-admin.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -613,6 +625,17 @@
       "integration": "local",
       "destructive": false
     },
+    "public-hydration.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "catalog-detail.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -930,6 +953,17 @@
         "browser",
         "api",
         "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "invite-promise.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
       ],
       "projects": [
         "desktop"
@@ -1345,6 +1379,21 @@
       "integration": "local",
       "destructive": true
     },
+    "patient-upcoming-rule.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "patient-meet-join.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -1539,7 +1588,8 @@
             "SP-001",
             "SP-006",
             "SP-008",
-            "SP-011"
+            "SP-011",
+            "SP-013"
           ],
           "level": "browser"
         },
@@ -1817,7 +1867,8 @@
           "spec": "gateway-cancellation-refund.spec.ts",
           "tests": [
             "CR-001",
-            "CR-002"
+            "CR-002",
+            "CR-003"
           ],
           "level": "api"
         }
@@ -1872,7 +1923,8 @@
             "RWD-001",
             "RWD-003",
             "RWD-004",
-            "RWD-005"
+            "RWD-005",
+            "RWD-008"
           ],
           "level": "browser"
         }
@@ -2215,7 +2267,7 @@
     {
       "id": "session.debug-clock",
       "runner": "session",
-      "title": "The debug clock moves the completion gate only while the debug bar is on",
+      "title": "The debug clock moves the completion gate and the Pain Map exam gate only while the debug bar is on",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -2223,7 +2275,8 @@
           "spec": "debug-clock.spec.ts",
           "tests": [
             "DC-001",
-            "DC-002"
+            "DC-002",
+            "DC-005"
           ],
           "level": "api"
         }
@@ -2255,6 +2308,13 @@
             "ACP-022"
           ],
           "level": "api"
+        },
+        {
+          "spec": "admin-care-plans.spec.ts",
+          "tests": [
+            "ACP-023"
+          ],
+          "level": "browser"
         }
       ],
       "rules": [
@@ -2344,7 +2404,7 @@
     {
       "id": "admin.money-maths",
       "runner": "money",
-      "title": "Payout and refund arithmetic: travel fee, cash netting, unconfigured share, refund window setting, activity-log attribution",
+      "title": "Payout and refund arithmetic: travel fee, cash netting, unconfigured share, refund window setting, activity-log attribution, the therapist's own pending payout equal to what admin owes",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -2355,13 +2415,35 @@
             "G-003",
             "G-004",
             "G-009",
-            "G-010"
+            "G-010",
+            "G-011"
           ],
           "level": "api"
         }
       ],
       "rules": [
         "docs/rules/money.md"
+      ]
+    },
+    {
+      "id": "admin.session-drawer-money",
+      "runner": "money",
+      "title": "The Session Details drawer prices a session as the row that opened it does, and reads one refund state across its payment chip, cancellation line and refund form",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-session-drawer-money.spec.ts",
+          "tests": [
+            "ASD-001",
+            "ASD-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/money.md",
+        "docs/rules/payments.md"
       ]
     },
     {
@@ -2964,6 +3046,27 @@
       ]
     },
     {
+      "id": "platform.public-hydration",
+      "runner": "platform",
+      "title": "The public pages and /book hydrate without a server/client mismatch",
+      "required": false,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "public-hydration.spec.ts",
+          "tests": [
+            "HY-001",
+            "HY-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Run against next dev, which reports hydration mismatches in full; the browser is en-GB, reduced-motion and on a simulated clock, the three conditions the known mismatches needed. A mismatch that needs some other browser difference is not provoked.",
+      "rules": [
+        "docs/rules/frontend.md"
+      ]
+    },
+    {
       "id": "platform.catalog",
       "runner": "platform",
       "title": "The public catalog's dialogs and covers render the same on card, dialog and booking screen",
@@ -2980,7 +3083,9 @@
             "CD-005",
             "CD-006",
             "CD-007",
-            "CD-008"
+            "CD-008",
+            "CD-009",
+            "CD-010"
           ],
           "level": "browser"
         },
@@ -3101,6 +3206,26 @@
       ],
       "rules": [
         "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "platform.invite-promise",
+      "runner": "platform",
+      "title": "A patient is promised a calendar invite only where this deployment sends one",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "invite-promise.spec.ts",
+          "tests": [
+            "INV-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Proves the server read reaches a rendered page through the public example chip; the confirmation screens need a completed checkout to render, and share the same unit-tested wording (calendarInviteOutcome.test.ts).",
+      "rules": [
+        "docs/rules/home-visit.md"
       ]
     },
     {
@@ -3417,6 +3542,26 @@
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "patient.upcoming-rule",
+      "runner": "patient",
+      "title": "Upcoming means one thing on the Sessions list, its Calendar view and the Overview",
+      "required": false,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-upcoming-rule.spec.ts",
+          "tests": [
+            "PU-001",
+            "PU-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
       ]
     },
     {

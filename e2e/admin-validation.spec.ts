@@ -257,6 +257,25 @@ test.describe("Suite E: input validation", () => {
     const createdId = String(first.json.appointmentId);
 
     try {
+      // QA F-13: the response says what happened to the invite, and it is
+      // the truth about the row -- the screen used to promise one was "on
+      // its way" with Google not configured at all. Either answer is fine
+      // here (a test project may or may not have Google); disagreeing with
+      // the row is not.
+      expect(first.json.status).toBe("confirmed");
+      const invite = String(first.json.calendarInvite);
+      expect(["sent", "already_sent", "switched_off", "failed", "no_email", "unknown"]).toContain(invite);
+      const { data: row } = await admin
+        .from("appointments")
+        .select("google_event_id, google_calendar_sync_error")
+        .eq("id", createdId)
+        .single();
+      if (invite === "sent") expect(row?.google_event_id, "sent, so an event exists").toBeTruthy();
+      if (invite === "failed") {
+        expect(row?.google_event_id, "failed, so no event").toBeFalsy();
+        expect(row?.google_calendar_sync_error, "failed, and recorded for retry").toBeTruthy();
+      }
+
       const clash = await post(
         "/api/admin/create-booking",
         {

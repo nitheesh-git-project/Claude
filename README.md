@@ -53,7 +53,7 @@ Recovery is won by turning up. MoveRestore keeps a patient with **the same physi
 | Area | What it does |
 | --- | --- |
 | **Public site** | Conditions catalogue with photographs, how it works, home visits, team profiles (rich-text bios), mission & vision, FAQ, testimonials, opening splash, country-aware pricing |
-| **Booking** | Three-step wizard (service → date & time → details & pay), General Consultation preselected, 12-hour lead time, clinic-zone times, resume an unpaid booking at checkout, promo codes |
+| **Booking** | Three-step wizard (service → date & time → details & pay), the admin's **Default on booking** service preselected (one at a time), 12-hour lead time, clinic-zone times, resume an unpaid booking at checkout, promo codes |
 | **Home visits** | Pincode service areas with a per-visit travel fee, one clinic-wide home-visit price with per-condition overrides, cash at the door or prepaid |
 | **Payments** | Razorpay orders, signature verification, webhook fulfilment, refunds with Razorpay's own reason quoted, pay later, a single capture funnel so a payment seen twice is recorded once |
 | **Recommended programmes** | Therapist recommends N sessions → admin approves → patient reviews & pays (with promo codes valid on programmes) → sessions booked and assigned through the admin → progress tracked as `SPI_PKG001-2/5` |

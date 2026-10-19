@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import BookingExitLink from "@/components/booking/BookingExitLink";
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
+import { readInviteDelivery } from "@/lib/inviteDeliveryServer";
 import BookingWizard from "@/components/BookingWizard";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
 import { BOOKING_LEAD_TIME_HOURS } from "@/lib/bookingSlots";
@@ -33,6 +34,7 @@ export default async function BookPage() {
     { data: cancelRow },
     { data: leadRow },
     { data: triesRow },
+    defaultServiceRead,
   ] = await Promise.all([
     // `description` and `points` are what the service picker's cards and
     // detail view read. They have existed on this table since it was
@@ -92,7 +94,20 @@ export default async function BookPage() {
     // Its own query like the rest, so a database without the column yet
     // loses this value (the default stands), not the page.
     supabase.from("site_settings").select("payment_tries_before_access").maybeSingle(),
+
+    // The service switched on as "Default on booking" (Catalog ->
+    // Conditions). Its own query: on a database without `is_default` yet it
+    // fails alone, and the wizard falls back to the general consultation
+    // rather than the page losing its categories.
+    supabase.from("treatment_categories").select("id").eq("active", true).eq("is_default", true).limit(1),
   ]);
+  // Whether the confirmation may promise a calendar invite (QA F-13, the
+  // owner's rule): only when Google is configured and Meet links are on.
+  const inviteDelivery = await readInviteDelivery(supabase);
+  // undefined = could not be read; null = read, and none is switched on.
+  const defaultServiceId: string | null | undefined = defaultServiceRead.error
+    ? undefined
+    : ((defaultServiceRead.data?.[0]?.id as string | undefined) ?? null);
 
   const imageByCategoryId = new Map(
     (categoryImages ?? []).map((row) => [row.id, row.image_url])
@@ -127,6 +142,7 @@ export default async function BookPage() {
           <BookingBackToSessions />
           <BookingWizard
             initialCategories={bookableCategories}
+            defaultServiceId={defaultServiceId}
             bookingLanguages={parseBookingLanguages(settingsRow?.booking_languages)}
             promoCodesEnabled={promoRow?.promo_codes_enabled === true}
             cancellationRefundHours={
@@ -144,6 +160,7 @@ export default async function BookPage() {
                 ? triesRow.payment_tries_before_access
                 : DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess
             }
+            inviteDelivery={inviteDelivery}
           />
         </Suspense>
         {/* Outside the wizard card, bottom-right. /book deliberately hides

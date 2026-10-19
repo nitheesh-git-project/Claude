@@ -1970,13 +1970,17 @@ it existed the column was read by payouts, by settlement and by every Money
 figure that splits a home visit, and written by nothing - so a different rate for
 visits could only be set by editing the table by hand.
 
-Earnings are computed per completed, paid session (`src/lib/therapistEarnings.ts`,
-`src/lib/therapistPayouts.ts`); therapists request payouts
+Earnings are computed per delivered, earned session (completed, and paid or on
+pay-later terms) by `src/lib/therapistPayouts.ts`, which the therapist's own
+Earnings and Overview read through `src/lib/therapistEarnings.ts`; therapists request payouts
 (`therapist_payout_requests`), and the admin reviews, settles, and batches
-them (`therapist_payout_batches`) with downloadable receipts. The therapist's own
-profile page reads those same modules, so the figure there, the Payouts screen
-and what the Pay button transfers are one number - it used to compute its own,
-from the ordinary share alone and with no travel fee, and disagreed with both.
+them (`therapist_payout_batches`) with downloadable receipts. The therapist's admin
+profile, Money -> Payouts, the therapist's own pending figure and what the Pay
+button transfers are one number. Two screens used to compute their own: the
+admin profile (ordinary share alone, no travel fee) and the therapist's Earnings
+screen, which counted a session carrying no recorded amount at the standard
+session fee where the payout maths counts nothing - so a therapist was shown a
+pending payout larger than anything they could request or be paid.
 
 **Hospital referrals.** Hospitals submit referrals from their dashboard or
 share a registration link / referral code. A referral carries the patient's
@@ -2390,7 +2394,9 @@ then.** The flow, end to end:
    edits queue for admin exactly as before.
 6. A therapist can re-triage later from the same card. The previous
    specialty's answers stay in the row, hidden on screen and printed in the
-   PDF under "Earlier profile".
+   PDF under "Earlier profile" - and switching back to a condition type the
+   patient had before opens its questions with those answers prefilled,
+   ready to edit, rather than blank.
 
 The two write gates are different because they record different things.
 Onboarding and re-triage need only that the therapist is **assigned**

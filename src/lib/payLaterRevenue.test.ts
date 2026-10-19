@@ -230,24 +230,26 @@ describe("the therapist's own Earnings screen", () => {
       ],
       60,
       new Map(),
-      new Map(),
-      199900
+      new Map()
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].earningPaise).toBe(72000);
     expect(rows[0].status).toBe("pending");
   });
 
-  // This module's fallback is a passed-in value, and it must stay that way.
-  it("still falls back to the caller's own figure for a paid session", () => {
+  // It used to fall back to a caller-passed figure (the standard session fee)
+  // for a paid session carrying no amount, where Money -> Payouts and the Pay
+  // button read nothing -- the QA F-21 disagreement. It reads what the payout
+  // maths reads now; see therapistEarnings.test.ts for the full reproduction.
+  it("earns nothing on a paid session that carries no amount, exactly as Payouts says", () => {
     const rows = computeTherapistEarningRows(
       [earningsRow({ amount_paid_paise: null })],
       60,
       new Map(),
-      new Map(),
-      199900
+      new Map()
     );
-    expect(rows[0].feePaise).toBe(199900);
+    expect(rows[0].feePaise).toBe(0);
+    expect(rows[0].earningPaise).toBe(0);
   });
 
   it("does not list a pay-later session that has not happened", () => {
@@ -263,8 +265,7 @@ describe("the therapist's own Earnings screen", () => {
       ],
       60,
       new Map(),
-      new Map(),
-      199900
+      new Map()
     );
     expect(rows).toEqual([]);
   });

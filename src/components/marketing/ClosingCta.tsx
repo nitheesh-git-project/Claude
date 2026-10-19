@@ -1,6 +1,9 @@
 import Image from "next/image";
 import { Reveal, MotionButton } from "@/components/motion/primitives";
 import { photo, type PhotoId } from "@/lib/marketingPhotos";
+import { createPublicClient } from "@/lib/supabase/public";
+import { readInviteDelivery } from "@/lib/inviteDeliveryServer";
+import { patientInviteLine } from "@/lib/calendarInviteOutcome";
 
 /**
  * The last band of every public page: one sentence, one action, one picture.
@@ -56,7 +59,7 @@ const DEFAULT_ASSURANCES = [
   { icon: "fa-lock", label: "Secure UPI payment" },
 ];
 
-export default function ClosingCta({
+export default async function ClosingCta({
   id = "get-started",
   title,
   body,
@@ -81,6 +84,10 @@ export default function ClosingCta({
   assurances?: { icon: string; label: string }[];
 }) {
   const img = photo(photoId);
+  // The example chip says "Calendar invite on its way" only where both kinds
+  // of session actually get one (QA F-13, the owner's rule); a server read,
+  // so it follows the settings on the page's own revalidate cycle.
+  const inviteDelivery = await readInviteDelivery(createPublicClient());
 
   return (
     <section
@@ -176,12 +183,12 @@ export default function ClosingCta({
               <p className="mt-1.5 font-display text-sm font-bold text-slate-900">
                 Tuesday, 6:00 PM
               </p>
-              {/* True of both delivery modes: a home visit gets a calendar
-                  event too, and that invite is the only message this platform
-                  sends. Nothing here names a video link, which a home visit
-                  would not have. */}
+              {/* Has to be true of both delivery modes and of this
+                  deployment: the invite line only where both kinds of session
+                  get one, the dashboard otherwise. Nothing here names a video
+                  link, which a home visit would not have. */}
               <p className="mt-0.5 text-[12px] text-slate-500">
-                Calendar invite on its way.
+                {patientInviteLine("example_chip", inviteDelivery)}
               </p>
               {/* Says it is an example, in the component rather than in a
                   page's copy, so no page can render this chip as though it

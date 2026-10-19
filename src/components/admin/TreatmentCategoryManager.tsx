@@ -139,16 +139,98 @@ function MoveButtons({
   );
 }
 
+/**
+ * "Default on booking": the one service /book and /book-home-visit open on.
+ * Turning it on for this row turns it off for whichever had it -- the
+ * database allows one (set_default_treatment_category, schema.sql), so the
+ * list redraws from the server rather than trusting this click.
+ */
+function DefaultSwitch({
+  id,
+  title,
+  isDefault,
+  active,
+  onError,
+}: {
+  id: string;
+  title: string;
+  isDefault: boolean;
+  active: boolean;
+  onError: (message: string | null) => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [optimistic, setOptimistic] = useOptimistic(isDefault);
+  const disabled = isPending || (!active && !isDefault);
+
+  function toggle() {
+    if (disabled) return;
+    const next = !optimistic;
+    onError(null);
+    startTransition(async () => {
+      setOptimistic(next);
+      const res = await fetch("/api/admin/set-default-treatment-category", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: next ? id : null }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        onError(data.error ?? "Could not change the booking default. Please try again.");
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <label
+      className="flex items-center gap-2"
+      title={
+        !active && !isDefault
+          ? "Only an active service can be the booking default."
+          : "The service the booking pages open on. Only one at a time."
+      }
+    >
+      <button
+        type="button"
+        role="switch"
+        aria-checked={optimistic}
+        aria-label={`Default on booking: ${title}`}
+        onClick={toggle}
+        disabled={disabled}
+        data-testid="default-on-booking"
+        className={`relative h-6 w-10 shrink-0 rounded-full transition disabled:opacity-50 ${
+          optimistic ? "bg-teal-700" : "bg-slate-300"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+            optimistic ? "left-[18px]" : "left-0.5"
+          }`}
+        />
+      </button>
+      <span className={`font-semibold ${optimistic ? "text-teal-800" : "text-slate-600"}`}>
+        Default on booking
+      </span>
+    </label>
+  );
+}
+
 export default function TreatmentCategoryManager({
   categories,
+  defaultServiceId,
 }: {
   categories: Category[];
+  /** The service booking opens on: its id, null for none, undefined when
+   *  the database has no such setting yet (the switch is then not drawn). */
+  defaultServiceId?: string | null;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addingNew, setAddingNew] = useState(false);
   const [duplicateFrom, setDuplicateFrom] = useState<Category | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [defaultError, setDefaultError] = useState<string | null>(null);
   const router = useRouter();
 
   // The arrows rearrange this list and nothing else; the order reaches the
@@ -275,6 +357,18 @@ export default function TreatmentCategoryManager({
           {moveError}
         </p>
       )}
+      {defaultServiceId !== undefined && (
+        <p className="text-xs text-slate-500">
+          {defaultServiceId
+            ? "Default on booking: the service the booking pages open on when a link does not name one. Only one at a time."
+            : "No service is the booking default, so the booking pages open with nothing picked. Switch one on below."}
+        </p>
+      )}
+      {defaultError && (
+        <p role="alert" className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
+          {defaultError}
+        </p>
+      )}
       {visibleCategories.length === 0 && !addingNew ? (
         <p className="text-xs text-slate-500 py-4 text-center">
           No condition categories yet - add one below.
@@ -320,15 +414,26 @@ export default function TreatmentCategoryManager({
                       )}
                     </div>
                   </div>
-                  <span
-                    className={`font-semibold px-2.5 py-1 rounded-full ${
-                      cat.active
-                        ? "text-teal-700 bg-teal-50"
-                        : "text-slate-600 bg-slate-100"
-                    }`}
-                  >
-                    {cat.active ? "Active" : "Inactive"}
-                  </span>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {defaultServiceId !== undefined && (
+                      <DefaultSwitch
+                        id={cat.id}
+                        title={cat.title}
+                        isDefault={defaultServiceId === cat.id}
+                        active={cat.active}
+                        onError={setDefaultError}
+                      />
+                    )}
+                    <span
+                      className={`font-semibold px-2.5 py-1 rounded-full ${
+                        cat.active
+                          ? "text-teal-700 bg-teal-50"
+                          : "text-slate-600 bg-slate-100"
+                      }`}
+                    >
+                      {cat.active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
                 </div>
                 {cat.points.length > 0 && (
                   <ul className="list-disc list-inside text-slate-600 space-y-0.5">

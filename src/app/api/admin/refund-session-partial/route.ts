@@ -12,6 +12,7 @@ import {
   refundRefusalForAdmin,
 } from "@/lib/refundAttempt";
 import { formatRupees } from "@/lib/formatMoney";
+import { describeRefundPosition } from "@/lib/refundState";
 
 // A discretionary refund on one session, for an amount an admin chooses.
 //
@@ -166,8 +167,11 @@ export async function POST(request: NextRequest) {
   const travelChargedPaise =
     appointment.visit_mode === "home_visit" ? Math.max(0, appointment.travel_fee_paise ?? 0) : 0;
   const paid = (appointment.amount_paid_paise ?? 0) + travelChargedPaise;
+  // The running total committed back -- what earlier refunds returned, and
+  // only that: a failed attempt adds nothing to it. Read through the same
+  // position the drawer shows, so its "still refundable" is this ceiling.
   const alreadyRefunded = appointment.refund_amount_paise ?? 0;
-  const remaining = paid - alreadyRefunded;
+  const remaining = describeRefundPosition(appointment, paid).refundablePaise;
 
   if (remaining <= 0) {
     return NextResponse.json(

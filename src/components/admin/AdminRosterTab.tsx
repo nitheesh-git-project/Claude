@@ -12,6 +12,7 @@ import WeeklyScheduleEditor from "@/components/roster/WeeklyScheduleEditor";
 import ScheduleExceptionsPanel from "@/components/roster/ScheduleExceptionsPanel";
 import LeavePanel from "@/components/roster/LeavePanel";
 import RosterDayView from "@/components/admin/RosterDayView";
+import { rosterDataKey } from "@/lib/rosterDay";
 import { usePagedList } from "@/lib/usePagedList";
 import {
   ROSTER_STATUS_LABELS,
@@ -150,6 +151,13 @@ export default function AdminRosterTab({
     node.focus({ preventScroll: true });
   }, [selectedId, scrollRequest]);
 
+  // Changes whenever a server render brings different roster rows, so the
+  // Day view -- which reads its own date from an API -- reads it again on an
+  // in-app refresh rather than only on a full reload (QA F-20).
+  const rosterKey = useMemo(
+    () => rosterDataKey(templateRows, overrideRows, appointments),
+    [templateRows, overrideRows, appointments]
+  );
   const templateByTherapist = useMemo(() => groupBy(templateRows), [templateRows]);
   const overrideByTherapist = useMemo(() => groupBy(overrideRows), [overrideRows]);
 
@@ -265,7 +273,7 @@ export default function AdminRosterTab({
         </div>
 
         {view === "day" ? (
-          <RosterDayView todayKey={todayKey} />
+          <RosterDayView todayKey={todayKey} refreshKey={rosterKey} />
         ) : (
         <>
         <div className="mb-4 flex flex-wrap gap-3 text-xs">

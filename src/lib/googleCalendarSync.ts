@@ -6,6 +6,7 @@ import {
   openMeetAccessForLink,
 } from "@/lib/googleCalendar";
 import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
+import type { CalendarInviteOutcome } from "@/lib/calendarInviteOutcome";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -123,7 +124,12 @@ export async function createMeetEventForConfirmedAppointment(
     location?: string | null;
     description?: string | null;
   }
-) {
+): Promise<CalendarInviteOutcome> {
+  // Returns what happened to the invite, which most callers ignore. The
+  // admin's New Booking screen reads it, so it can stop telling an admin an
+  // invite is on its way when none was sent (QA F-13) -- see
+  // calendarInviteOutcome.ts for what each answer means.
+  //
   // Where the caller said nothing, the row is asked. Three doors used to say
   // nothing and take the old "online" default -- confirmPaidAppointment (so
   // every hospital home-visit referral, which is paid for as an ordinary
@@ -168,7 +174,7 @@ export async function createMeetEventForConfirmedAppointment(
       .select("google_event_id")
       .eq("id", appointmentId)
       .maybeSingle();
-    if (existing?.google_event_id) return;
+    if (existing?.google_event_id) return "already_sent";
 
     // Admin master kill switch (Feature Control tab). Selecting a single
     // column, not the whole row, so a still-null result before this
@@ -190,7 +196,7 @@ export async function createMeetEventForConfirmedAppointment(
         .select("google_meet_enabled")
         .maybeSingle();
       if (settingsRow?.google_meet_enabled === false) {
-        return;
+        return "switched_off";
       }
     }
 
@@ -219,7 +225,7 @@ export async function createMeetEventForConfirmedAppointment(
 
     if (!patientEmail || !therapistEmail) {
       console.error("Missing patient/therapist email, skipping Meet event for appointment", appointmentId);
-      return;
+      return "no_email";
     }
 
     const result = await createSessionCalendarEvent({
@@ -241,7 +247,7 @@ export async function createMeetEventForConfirmedAppointment(
         .from("appointments")
         .update({ google_calendar_sync_error: result.error })
         .eq("id", appointmentId);
-      return;
+      return "failed";
     }
 
     await admin
@@ -269,8 +275,12 @@ export async function createMeetEventForConfirmedAppointment(
         meet_access_error: result.meetAccessError,
       })
       .eq("id", appointmentId);
+    // Google created the event with sendUpdates: "all", so the invite email
+    // has gone to both people whatever the follow-up writes above did.
+    return "sent";
   } catch (err) {
     console.error("Unexpected error creating Meet event for appointment", appointmentId, err);
+    return "unknown";
   }
 }
 

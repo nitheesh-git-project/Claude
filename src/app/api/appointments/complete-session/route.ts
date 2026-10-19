@@ -6,14 +6,14 @@ import { getAdminContext } from "@/lib/supabase/requireAdmin";
 import { scopeCanManage } from "@/lib/adminScope";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
-import { completionOpensAtMs, completionRefusal } from "@/lib/sessionCompletion";
+import { completionOpensAtMs, completionRefusal, sessionExamWindowStartMs } from "@/lib/sessionCompletion";
 import { mirrorConsume } from "@/lib/sessionCreditMirror";
 import { allocatePayLaterPayments } from "@/lib/payLaterSettlementServer";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { readSettlementRates } from "@/lib/settlementRates";
 import { serverError } from "@/lib/apiError";
 import { recordSessionSettlement } from "@/lib/sessionSettlement";
-import { serverNowMs } from "@/lib/debugClock";
+import { serverNowMs, serverNowOffsetMs } from "@/lib/debugClock";
 import { recordUserActivity } from "@/lib/userActivityLog";
 
 // Marks a confirmed session as completed. Callable by the therapist who ran
@@ -195,9 +195,14 @@ export async function POST(request: NextRequest) {
     // only after it saved -- this is the copy that binds. "During it" is
     // from an hour before the slot, so an exam recorded while setting up
     // counts. An admin closing the record is exempt, as for the clock.
-    // Not applied to a no-show: there was nobody to examine.
+    // Not applied to a no-show: there was nobody to examine. The window
+    // moves with the debug clock (sessionExamWindowStartMs): the exam's
+    // created_at is real, so under a simulated clock it is translated
+    // rather than compared with a simulated slot as though it were one.
     if (kind === "done") {
-      const sinceIso = new Date(new Date(appointment.slot_time).getTime() - 60 * 60_000).toISOString();
+      const sinceIso = new Date(
+        sessionExamWindowStartMs(new Date(appointment.slot_time).getTime(), serverNowOffsetMs(request))
+      ).toISOString();
       const [
         { data: noteRow, error: noteError },
         { count: painCount, error: painError },

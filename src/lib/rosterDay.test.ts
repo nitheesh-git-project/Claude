@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildRosterDay,
   summariseRosterDay,
+  rosterDataKey,
   type RosterDayAppointment,
   type RosterDayTherapist,
 } from "@/lib/rosterDay";
@@ -216,5 +217,36 @@ describe("roster day", () => {
       freeHours: 1,
       bookedHours: 1,
     });
+  });
+});
+
+describe("rosterDataKey", () => {
+  const template = [
+    { therapist_id: "t1", day_of_week: 0, hour: 9 },
+    { therapist_id: "t1", day_of_week: 3, hour: 9 },
+  ];
+  const overrides = [{ therapist_id: "t1", date: "2026-10-21", hour: 10, available: false }];
+  const appointments = [
+    { id: "a1", therapist_id: "t1", slot_time: "2026-10-21T04:30:00Z", status: "confirmed" },
+  ];
+
+  it("changes when a schedule is saved, so the Day view reads its date again", () => {
+    // QA F-20: the Day view fetched once per date and sat on that answer
+    // through every in-app refresh after a schedule was saved.
+    expect(rosterDataKey(template, overrides, appointments)).not.toBe(
+      rosterDataKey([], overrides, appointments)
+    );
+  });
+
+  it("changes when an exception flips or a session moves", () => {
+    const base = rosterDataKey(template, overrides, appointments);
+    expect(rosterDataKey(template, [{ ...overrides[0], available: true }], appointments)).not.toBe(base);
+    expect(rosterDataKey(template, overrides, [{ ...appointments[0], status: "cancelled" }])).not.toBe(base);
+  });
+
+  it("is the same for the same rows in another order, so a no-op refresh does not re-fetch", () => {
+    expect(rosterDataKey([...template].reverse(), overrides, appointments)).toBe(
+      rosterDataKey(template, overrides, appointments)
+    );
   });
 });

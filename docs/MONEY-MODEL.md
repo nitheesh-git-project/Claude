@@ -143,7 +143,7 @@ A figure describing something that already happened does not move.
 | `package_snapshot` | Purchase | An admin re-pricing a programme must not rewrite what somebody already owns. |
 | Purchased terms (duration, gap, weekly cap) | Purchase | Same, for the rules that decide when those sessions may be used. |
 | `amount_due_paise` | Booking (pay later) | Settlement must not charge the new price for old work. |
-| `therapist_share_percent_at_completion` | Completion | Renegotiating a rate must not rewrite what was already paid on. |
+| `therapist_share_percent_at_completion` | Completion | Renegotiating a rate must not rewrite what a delivered session earned -- settled or not. Money's split, the settlement record, every payout screen and the Pay button all read it (`sessionTherapistCutPaise`); the live rate applies only to sessions delivered before the freeze existed. |
 | `hospital_share_percent_at_completion` | Completion | Same, for a partner's commission. |
 | `hospital_id_at_completion` | Completion | A referral added later must not retrospectively earn a cut. |
 | `list_price_paise` + the three discount facts | Payment | So the books can tell "sold cheap" from "discounted". |

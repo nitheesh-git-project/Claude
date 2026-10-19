@@ -14,6 +14,7 @@ import {
   StatTiles,
   type StatTile,
 } from "@/components/catalog/CatalogVisuals";
+import { knownMinutes, programmeOpensWithLine } from "@/lib/sessionLengthCopy";
 
 export type PublicProgram = {
   id: string;
@@ -88,6 +89,9 @@ export default function ProgramCards({
           const points = Array.isArray(program.points) ? (program.points as string[]) : [];
           const summary =
             program.description || points[0] || "Learn more about this programme.";
+          // The category's own length, never an assumed one: booking and
+          // checkout both read duration_minutes, so the card says the same.
+          const minutes = knownMinutes(program.duration_minutes);
           return (
             <StaggerItem key={program.id} className="h-full">
               <CatalogCard
@@ -99,10 +103,10 @@ export default function ProgramCards({
                   focalX: program.image_focal_x,
                   focalY: program.image_focal_y,
                   // Facts that were only readable by opening the dialog.
-                  meta: [`${program.duration_minutes ?? 60} min`, "Video session", "1-on-1"],
+                  meta: [...(minutes !== null ? [`${minutes} min`] : []), "Video session", "1-on-1"],
                   points,
                   pricePaise: program.price_paise,
-                  priceUnit: `/ ${program.duration_minutes ?? 60} min session`,
+                  priceUnit: minutes !== null ? `/ ${minutes} min session` : "/ session",
                   bookHref: `/book?category=${program.id}`,
                   bookLabel: program.cta_label?.trim() || "Book this session",
                   art: PROGRAM_ART[i % PROGRAM_ART.length],
@@ -134,12 +138,13 @@ function ProgramDetail({
   const program = held?.program ?? null;
   const artIndex = held?.index ?? 0;
   const points = program && Array.isArray(program.points) ? (program.points as string[]) : [];
+  const minutes = knownMinutes(program?.duration_minutes);
 
   const stats: StatTile[] = program
     ? [
         {
           label: "Session",
-          value: `${program.duration_minutes ?? 60} minutes, 1-on-1`,
+          value: minutes !== null ? `${minutes} minutes, 1-on-1` : "1-on-1",
           icon: "fa-video",
         },
         {
@@ -197,7 +202,7 @@ function ProgramDetail({
 
             <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-slate-500">
-                Every programme opens with the same 60-minute assessment.
+                {programmeOpensWithLine(program.duration_minutes)}
               </p>
               <Link
                 href={`/book?category=${program.id}`}
