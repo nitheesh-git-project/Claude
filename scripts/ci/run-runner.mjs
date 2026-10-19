@@ -137,7 +137,12 @@ function runPlaywright(project, phase, files, playwrightShard) {
   const logFile = path.join(artifacts, "logs", `playwright-${project}-${phase}.log`);
   writeFileSync(logFile, "");
   return new Promise((resolve) => {
-    const args = ["playwright", "test", `--project=${project}`, ...(playwrightShard ? [`--shard=${playwrightShard}`] : [])];
+    // A split file is one runner-shards.json declares independent and
+    // read-only (test.describe.configure({ mode: "parallel" })), so its slice
+    // also runs on several workers: layout-audit alone was a fifth of the
+    // suite, one page at a time across 17 viewports.
+    const workers = playwrightShard ? [`--workers=${Number(process.env.GATE_SPLIT_WORKERS) > 0 ? Number(process.env.GATE_SPLIT_WORKERS) : 3}`] : [];
+    const args = ["playwright", "test", `--project=${project}`, ...(playwrightShard ? [`--shard=${playwrightShard}`] : []), ...workers];
     const child = spawn("npx", [...args, ...files.map((f) => `e2e/${f}`)], {
       cwd: root,
       env: { ...childEnv, E2E_ARTIFACT_DIR: dir },

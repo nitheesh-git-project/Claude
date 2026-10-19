@@ -587,3 +587,69 @@ export async function insertPastFixtureAppointment(
   }
   throw new Error(`no free past hour for the fixture appointment: ${last}`);
 }
+
+/**
+ * A Supabase client signed in as one fixture account, so a spec can ask what
+ * that person's own RLS lets them read -- the layer a session cookie reaches
+ * without passing any route guard.
+ */
+export async function rlsClientFor(email: string): Promise<SupabaseClient> {
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error } = await client.auth.signInWithPassword({ email, password: TEST_PASSWORD });
+  if (error) throw new Error(`sign-in for ${email} failed: ${error.message}`);
+  return client;
+}
+
+/**
+ * A throwaway account of its own for one spec, approved and active, with the
+ * first-visit tour marked seen. For a case whose assertions would otherwise
+ * be about how many rows every other spec has left on the shared QA patients
+ * (a list that pages, a session in an overlapping slot). The address is an
+ * `@example.test` one, which the quality gate's preflight requires of every
+ * auth user. Pair it with `deleteFixtureAccount` in an `afterAll`.
+ */
+export async function createFixtureAccount(
+  label: string,
+  patch: Record<string, unknown> = {}
+): Promise<{ id: string; email: string; name: string }> {
+  const admin = adminClient();
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const email = `e2e.${slug}.${Date.now()}.${Math.random().toString(36).slice(2, 7)}@example.test`;
+  const name = `E2E ${label}`;
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password: TEST_PASSWORD,
+    email_confirm: true,
+    user_metadata: { role: "patient", full_name: name },
+  });
+  if (error || !data.user) throw new Error(`could not create the ${label} fixture: ${error?.message}`);
+  const { error: profileError } = await admin
+    .from("profiles")
+    .update({
+      role: "patient",
+      full_name: name,
+      approved: true,
+      active: true,
+      onboarding_seen_at: new Date().toISOString(),
+      ...patch,
+    })
+    .eq("id", data.user.id);
+  if (profileError) throw new Error(`could not set up the ${label} fixture's profile: ${profileError.message}`);
+  return { id: data.user.id, email, name };
+}
+
+/**
+ * Removes a `createFixtureAccount` patient and the appointments it holds.
+ * Says so, rather than throwing, when something refuses -- an append-only
+ * row pointing at it, most likely -- so a cleanup never masks the assertion
+ * that actually failed.
+ */
+export async function deleteFixtureAccount(id: string | undefined): Promise<void> {
+  if (!id) return;
+  const admin = adminClient();
+  await warnOnFailure("appointments", admin.from("appointments").delete().eq("patient_id", id));
+  const { error } = await admin.auth.admin.deleteUser(id);
+  if (error) console.warn(`[e2e cleanup] could not delete fixture account ${id}: ${error.message}`);
+}

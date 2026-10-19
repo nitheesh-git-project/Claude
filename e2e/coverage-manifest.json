@@ -472,6 +472,37 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-impersonation.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "admin-maintenance-sweep.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "realtime-reconnect.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -1297,6 +1328,70 @@
       "integration": "local",
       "destructive": false
     },
+    "patient-feedback-ratings.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "patient-meet-join.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/home-visit.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "patient-saved-addresses.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/home-visit.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "session-assignment.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/roster.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "session-feedback.spec.ts": {
       "runner": "session",
       "levels": [
@@ -1311,6 +1406,21 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "therapist-leave.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/roster.md"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -2681,21 +2791,22 @@
       "runner": "admin",
       "title": "The real admin login form: valid, wrong password, a patient's credentials",
       "required": false,
-      "status": "partial",
+      "status": "covered",
       "coverage": [
         {
           "spec": "admin-login.spec.ts",
           "tests": [
             "valid admin credentials reach the dashboard",
             "a wrong password is reported",
-            "a patient's credentials cannot open the admin dashboard"
+            "a patient's credentials cannot open the admin dashboard",
+            "a therapist's or a hospital's credentials are sent to /get-started, never back to the admin door"
           ],
           "level": "browser"
         }
       ],
-      "limitation": "Runs only when the app answers at E2E_LOGIN_BASE_URL; the admin runner points it at the same dev server because the CI browser reaches the local stack directly. If that variable is dropped the spec skips itself.",
       "rules": [
-        "docs/rules/admin.md"
+        "docs/rules/admin.md",
+        "docs/rules/ops-security.md"
       ]
     },
     {
@@ -2724,9 +2835,18 @@
       "runner": "admin",
       "title": "The scheduled maintenance sweeps (risk, retention, balance verification) run on a cron",
       "required": false,
-      "status": "gap",
-      "coverage": [],
-      "limitation": "maintenance.yml calls the sweeps on a schedule against the hosted project; no spec drives the sweep routes with CRON_SECRET.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-maintenance-sweep.spec.ts",
+          "tests": [
+            "MS-001",
+            "MS-002"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Driven with a CRON_SECRET the gate generates per run; one step's effect is read back (the issued-credential purge). The 503 for an unset secret needs a server started without one and is not driven.",
       "rules": [
         "docs/rules/ops-security.md"
       ]
@@ -3261,24 +3381,63 @@
       "runner": "patient",
       "title": "Saved addresses: save, remove, and another patient refused",
       "required": false,
-      "status": "gap",
-      "limitation": "No spec drives /api/patient/addresses/save or /remove yet. Feasible on the local stack; not yet written."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-saved-addresses.spec.ts",
+          "tests": [
+            "SA-001",
+            "SA-002",
+            "SA-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/home-visit.md"
+      ]
     },
     {
       "id": "patient.feedback-ratings",
       "runner": "patient",
       "title": "A patient rates a completed session and leaves feedback",
       "required": false,
-      "status": "gap",
-      "limitation": "No spec drives the rating/feedback write; admin-money only reads rating exclusions. Feasible; not yet written."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-feedback-ratings.spec.ts",
+          "tests": [
+            "FR-001",
+            "FR-002"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes an append-only user_activity_log row, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The rating card itself is session-feedback.spec.ts (session runner).",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md"
+      ]
     },
     {
       "id": "patient.meet-join-rules",
       "runner": "patient",
       "title": "The Meet link is shown only inside the join window",
       "required": false,
-      "status": "gap",
-      "limitation": "Meet links need GOOGLE_CALENDAR_* (forbidden in CI); the join-window rule has unit tests in src/lib but no browser journey."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-meet-join.spec.ts",
+          "tests": [
+            "MJ-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "The Meet link is written onto the row as a successful Calendar sync would store it: creating one needs GOOGLE_CALENDAR_* (refused in CI). The window boundaries are read from site_settings, so the cases follow an admin's setting.",
+      "rules": [
+        "docs/rules/home-visit.md"
+      ]
     },
     {
       "id": "patient.package-purchase",
@@ -3312,8 +3471,7 @@
       "runner": "therapist",
       "title": "Assignment, reassignment and no-show handling through the admin and therapist routes",
       "required": false,
-      "status": "partial",
-      "limitation": "assign-availability.spec.ts drives the admin assign route (availability refusal and the assignment it allows); reassignment and no-show handling are still proven only at the RPC (therapist-slot-sql-checks.sql, concurrency-checks.mjs).",
+      "status": "covered",
       "coverage": [
         {
           "spec": "assign-availability.spec.ts",
@@ -3321,7 +3479,20 @@
             "AV-001"
           ],
           "level": "api"
+        },
+        {
+          "spec": "session-assignment.spec.ts",
+          "tests": [
+            "AS-001",
+            "AS-002",
+            "AS-003"
+          ],
+          "level": "api"
         }
+      ],
+      "limitation": "The no-show cases write append-only settlement rows, so AS-002 past its refusals and AS-003 run only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The races stay in concurrency.spec.ts and therapist-slot-sql-checks.sql.",
+      "rules": [
+        "docs/rules/roster.md"
       ]
     },
     {
@@ -3349,16 +3520,43 @@
       "runner": "therapist",
       "title": "Going on leave blocks new bookings without moving existing ones",
       "required": false,
-      "status": "gap",
-      "limitation": "therapist-roster covers leave on the roster screen; /api/therapist/set-on-leave itself has no spec."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-leave.spec.ts",
+          "tests": [
+            "TL-001",
+            "TL-002",
+            "TL-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/roster.md"
+      ]
     },
     {
       "id": "admin.impersonation",
       "runner": "admin",
       "title": "Support impersonation: who may start it, what it may do, and the audit row it leaves",
       "required": false,
-      "status": "gap",
-      "limitation": "No spec drives /api/admin/start-impersonation or /stop-impersonation. Needs the impersonation rules in docs/rules/ops-security.md turned into cases; not yet written."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-impersonation.spec.ts",
+          "tests": [
+            "IMP-001",
+            "IMP-002",
+            "IMP-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes append-only admin_impersonation_sessions rows, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack.",
+      "rules": [
+        "docs/rules/ops-security.md"
+      ]
     },
     {
       "id": "session.payment-webhook-recovery",

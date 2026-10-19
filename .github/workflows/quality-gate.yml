@@ -71,6 +71,11 @@ env:
   # run-runner.mjs, which also sets RAZORPAY_API_BASE_URL), so the specs sign
   # their own captures and webhooks and nothing is ever sent to Razorpay.
   RAZORPAY_WEBHOOK_SECRET: "whsec-gate-${{ github.run_id }}-${{ github.run_attempt }}"
+  # The shared secret /api/cron/maintenance checks, for the app and for
+  # e2e/admin-maintenance-sweep.spec.ts alike. Generated per run like the
+  # password above: it guards only this run's loopback app, and the
+  # maintenance.yml schedule's real secret is never involved.
+  CRON_SECRET: "Gate-${{ github.run_id }}-${{ github.run_attempt }}-cron"
 
 jobs:
   context-budget:

@@ -1,6 +1,6 @@
 # The end-to-end suite
 
-65 spec files, ~415 cases, one worker. `npm run test:e2e` runs all of them;
+101 spec files, over 500 cases, one worker. `npm run test:e2e` runs all of them;
 `npx playwright test e2e/<name>.spec.ts` runs one.
 
 This file is the **inventory** - what exists and what each file is for. The
@@ -128,6 +128,10 @@ total, which moves with every spec added.
 | `admin-debug-reset` | 5 | all four gates on the reset, and what survives it |
 | `booking-account-role` | 8 | only a patient account can book; each dashboard's way home |
 | `patient-isolation` | 5 | a report uploaded through the real route, typed by its bytes and opened through a short-lived signed link; another patient refused it at the route, at RLS and at Storage, and refused every clinical and money row |
+| `patient-saved-addresses` | 3 | saving through the route (a served pincode linked to its area, an unserved one kept with none, the default moving rather than doubling), another patient refused an edit and a remove at the route (404, where remove used to answer 200 having changed nothing) and at their own RLS, and My Addresses removing one as a soft delete. Its own patient account |
+| `patient-feedback-ratings` | 2 | only the patient's own completed session can be rated, once, 1-5 with a bounded note (another patient, the therapist, an upcoming session and a no-show all refused, nothing written), the act on All Logs, and the admin reading the score and note in the session drawer from Booking History. Append-only writes - disposable project only |
+| `admin-impersonation` | 3 | who may start a swap (Master Admin only; never an admin, a suspended account, themselves, or without a ten-character reason), the row written before it opens, every write inside it logged under the admin as `impersonation.action`, the back office shut while it lasts, Exit from the banner restoring the admin, the proxy ending a lapsed window, and `/dashboard` (never an admin path) for a missing or forged marker. Append-only writes - disposable project only |
+| `admin-maintenance-sweep` | 2 | `/api/cron/maintenance` refusing every caller without the shared `CRON_SECRET` (wrong, another scheme, one character more, a GET), and the right one running all seven steps and purging a stale issued credential while keeping a fresh one. Skips itself when `CRON_SECRET` is unset; the gate generates one per run |
 | `hospital-isolation` | 5 | a second partner hospital cannot read, enumerate, withdraw or see on its screen another partner's referral, while the owner can |
 
 ### What a person reads
@@ -175,10 +179,11 @@ total, which moves with every spec added.
 | `pain-trend` | 1 | "Are you getting better?" keeping two same-day exams as two points. Append-only writes - disposable project only |
 | `recommendation-course` | 8 | a recommendation priced as the condition's per-session price x the count; hands-on making it home visits; the patient's card with the condition photo shown whole (not cropped) and no address on a video plan; a paid recommendation keeping the condition's photo and name on Your Programmes; admin Today's Recommendations card pinning one waiting for approval, then showing it with the patient; Accept & pay linking to Review & pay, where a new address with a pincode reaches checkout; the therapist's number field and live total; the Suggested teaser on every other patient screen. Append-only writes - disposable project only |
 | `programme-checkout` | 5 | Review & pay for a recommended programme: Accept & pay on the card going to the page with no payment from the card; the server-quoted breakdown and full price with no code; a code valid on programmes taking its share off the programme total, Razorpay opened at exactly that figure and the purchase recording list price, discount and claim (a retry without the code releasing it); a session-only code refused with "This code can't be used on a programme." on the page and as a 409 from create-order; an unknown plan showing a way back and no Pay button. Razorpay is a stand-in that records the amount - nothing is paid. Append-only writes - disposable project only |
+| `patient-meet-join` | 1 | the Join button on a patient's session tile with a Meet link seeded on the row (no Google call): shut before the window with when it opens as a clinic clock time, live inside it and opening that session's own link, shut again after it, "Session Completed" past the cutoff - boundaries read from Settings |
 | `meet-link-note` | 2 | the note on a patient's and a therapist's online tile saying, as a clock time, when the Meet link shows |
 | `patient-cancel-cutoff` | 3 | the online cancel cut-off: the route refusing inside it, the setting moving it (and its range check), the Cancel button hidden inside it |
 | `therapist-patient-chart` | 1 | a patient's chart inside the therapist dashboard: no back link, the sidebar keeps My Patients lit |
-| `admin-login` | 4 | the real login form. Needs the relay (see `docs/rules/testing.md`); skips itself otherwise |
+| `admin-login` | 5 | the real login form: a valid admin, a wrong password (no session handed out), and a patient's, a therapist's or a hospital's credentials sent to `/get-started` with no hop through `/admin/login`. Outside the gate it needs the relay (see `docs/rules/testing.md`) and skips itself otherwise; inside the gate the same dev server serves it and an unreachable form fails the run |
 
 ### Clinical, roster and catalogue
 
@@ -192,6 +197,8 @@ total, which moves with every spec added.
 | `risk-sweep-report` | 3 | the Risk screen naming the rules an incomplete sweep missed instead of saying "Nothing waiting", no warning after a complete one, and the report hidden from the anon key |
 | `hospital-referrals` | 3 | one open referral per patient under five simultaneous submissions, a withdrawn one freeing the number, and the withdraw control saying so when the connection drops |
 | `therapist-roster` | 21 | ranges, exceptions (the admin's and the therapist's own, today onwards), leave, authorization, stale and double-clicked saves, a versionless save refused once a schedule exists, and that no roster change moved a booking |
+| `session-assignment` | 3 | an admin assigning, reassigning and being refused a therapist already booked then, each move on the reassignment log and the admin's trail, the session following into the therapist's own RLS; a no-show refused inside the late grace and to anyone but the therapist who ran it, recorded once by them and once by an admin for another therapist (those two append-only - disposable project only) |
+| `therapist-leave` | 3 | `/api/therapist/set-on-leave`: only an approved therapist, malformed dates refused with the reason; on leave an admin's assignment is refused 409 naming the leave and its dates while the session they hold and their roster stay put; back from leave the dates clear and the same assignment goes through. Its own therapist and patient accounts |
 | `roster-read-write-day` | 7 | the read-only gate, the day view, and the **first** save for a therapist with no state row |
 | `therapist-readiness` | 4 | the five things a therapist needs before live patients |
 | `therapist-specialty` | 3 | a specialisation as a value rather than a sentence |
