@@ -1,19 +1,35 @@
-// Pure aggregation for the therapist's own Earnings tab -- kept separate
-// from the component so the math can be reasoned about without rendering,
-// matching this codebase's established convention (paymentHistory.ts,
-// receipts.ts). Deliberately accrual-based, not settlement-based: a session
-// counts the moment it's delivered and paid for, whether or not an admin
-// has settled a payout for it yet -- see settle-therapist-payout's own
-// filter, reused verbatim here so the numbers always agree with what that
-// route would actually pay out right now.
+// The therapist's own Earnings rows -- kept out of the component so the maths
+// is tested without rendering. Deliberately accrual-based, not
+// settlement-based: a session counts the moment it is delivered and earned,
+// whether or not an admin has settled a payout for it yet.
 //
 // Pay later widened "delivered and paid for" to "delivered": a trusted
 // patient is treated first and settles afterwards, and the clinic's decision
 // is that the therapist is not made to wait on that. They did the work and
 // had no say in extending the credit, so the share is earned at completion
 // and the clinic carries the gap.
+//
+// **Every figure here comes from `therapistPayouts.ts`**, which is what Money
+// -> Payouts, the therapist's admin profile, the payout request and the Pay
+// button read. This module used to carry its own copy of the multiplication
+// with its own fallback for a session carrying no amount -- the standard
+// session fee, where the payout maths reads nothing. A QA therapist read
+// ₹9,232.80 pending here and ₹4,435.20 on both admin screens; the ₹4,797.60
+// between them is a whole number of ₹1,999 fees at their share -- a share of
+// money nobody recorded, which the Pay button would never transfer (QA F-21).
+// The loader also never read `amount_due_paise`, so a delivered pay-later
+// session was quoted at that same guessed fee rather than its frozen price.
+// Eligibility is `isTherapistShareEarned`, the cut
+// is `sessionTherapistCutPaise` (which also reads back what a settled session
+// actually transferred), and the pending total is the summary's `owedPaise`.
 
 import { sessionAmountPaise } from "@/lib/sessionAmount";
+import {
+  computeTherapistPayoutSummary,
+  isTherapistShareEarned,
+  sessionTherapistCutPaise,
+  type PayoutSummaryInput,
+} from "@/lib/therapistPayouts";
 
 export type EarningsAppointment = {
   id: string;
@@ -58,22 +74,17 @@ export function computeTherapistEarningRows(
   sharePercent: number | null,
   categoryTitleById: Map<string, string>,
   patientNameById: Map<string, string>,
-  sessionFeePaiseFallback: number,
   homeVisitSharePercent: number | null = null
 ): TherapistEarningRow[] {
   if (sharePercent === null) return [];
   return appointments
-    .filter(
-      (a) =>
-        a.status === "completed" &&
-        (a.payment_status === "paid" || a.payment_terms === "pay_later")
-    )
+    .filter((a) => isTherapistShareEarned(a))
     .map((a): TherapistEarningRow => {
       const isHomeVisit = a.visit_mode === "home_visit";
-      const effectiveShare = isHomeVisit ? homeVisitSharePercent ?? sharePercent : sharePercent;
-      // The caller's own fallback is preserved exactly -- see sessionAmount.ts
-      // for why that is an argument rather than a constant.
-      const feePaise = sessionAmountPaise(a, sessionFeePaiseFallback);
+      // The figure the cut is computed from, with the payout maths' own
+      // fallback (nothing) -- so the row's fee and its earning cannot tell
+      // two different stories about one session.
+      const feePaise = sessionAmountPaise(a, 0);
       const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
       return {
         id: a.id,
@@ -84,15 +95,31 @@ export function computeTherapistEarningRows(
         categoryId: a.category_id,
         categoryTitle: a.category_id ? categoryTitleById.get(a.category_id) ?? "-" : "-",
         feePaise: feePaise + travelPaise,
-        earningPaise: Math.round((feePaise * effectiveShare) / 100) + travelPaise,
+        earningPaise: sessionTherapistCutPaise(a, sharePercent, homeVisitSharePercent),
         status: a.therapist_payout_paid_at ? "paid_out" : "pending",
       };
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
-export function computeTherapistPendingOwed(rows: TherapistEarningRow[]): number {
-  return rows
-    .filter((r) => r.status === "pending")
-    .reduce((sum, r) => sum + r.earningPaise, 0);
+/**
+ * What the therapist is shown as pending: the payout summary's `owedPaise`,
+ * the same figure their admin profile prints and Money -> Payouts lists.
+ * Cash they are holding is netted by the request and the Pay button
+ * (`netOwedPaise`), exactly as on those screens.
+ */
+export function computeTherapistPendingOwed(
+  therapistId: string,
+  sharePercent: number | null,
+  appointments: PayoutSummaryInput[],
+  nowMs: number,
+  homeVisitSharePercent: number | null = null
+): number {
+  return computeTherapistPayoutSummary(
+    therapistId,
+    sharePercent,
+    appointments,
+    nowMs,
+    homeVisitSharePercent
+  ).owedPaise;
 }

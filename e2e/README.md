@@ -91,7 +91,7 @@ total, which moves with every spec added.
 
 | Spec | Cases | Covers |
 | --- | --- | --- |
-| `admin-money` | 5 | payout and refund arithmetic, the Money figures |
+| `admin-money` | 6 | payout and refund arithmetic, the Money figures, the therapist's own pending payout against what admin owes |
 | `admin-session-drawer-money` | 1 | the Session Details drawer prices a session as the row that opened it does (the service's price, never the global fee) |
 | `concurrency` | 3 | the CAS-guarded races: refund double-fire, therapist reassignment, referral double-assignment |
 | `refund-attempts` | 7 | the record a refund writes **before** the gateway is called. Drives the **database**, not the routes - every refund writer holds the service-role client, so the only guarantee worth testing is that a rewrite raises from the same client the routes hold |

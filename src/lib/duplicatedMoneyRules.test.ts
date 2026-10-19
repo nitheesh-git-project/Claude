@@ -74,7 +74,18 @@ describe("a therapist's cut has one implementation", () => {
         // `x * <something>share_percent` or the same divided by 100 -- the
         // shape both live bugs took. A mention of the column is fine; doing
         // arithmetic with it is what this forbids.
-        if (/\*\s*[^;]*share_percent/.test(line) || /share_percent[^;]*\)\s*\/\s*100/.test(line)) {
+        //
+        // The third shape is the same multiplication once the column has been
+        // read into a camelCase local (`(fee * effectiveShare) / 100`). It is
+        // how three more copies survived the first two patterns: the
+        // therapist's own Earnings screen (QA F-21: it quoted a pending payout
+        // the Pay button would never transfer), the therapist profile's
+        // Payout History rows, and Money's therapist-ledger drill-down.
+        if (
+          /\*\s*[^;]*share_percent/.test(line) ||
+          /share_percent[^;]*\)\s*\/\s*100/.test(line) ||
+          /\*\s*\w*[Ss]hare\w*\s*\)\s*\/\s*100/.test(line)
+        ) {
           offenders.push(`${rel}:${i + 1}`);
         }
       }

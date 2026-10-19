@@ -2356,7 +2356,7 @@
     {
       "id": "admin.money-maths",
       "runner": "money",
-      "title": "Payout and refund arithmetic: travel fee, cash netting, unconfigured share, refund window setting, activity-log attribution",
+      "title": "Payout and refund arithmetic: travel fee, cash netting, unconfigured share, refund window setting, activity-log attribution, the therapist's own pending payout equal to what admin owes",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -2367,7 +2367,8 @@
             "G-003",
             "G-004",
             "G-009",
-            "G-010"
+            "G-010",
+            "G-011"
           ],
           "level": "api"
         }
