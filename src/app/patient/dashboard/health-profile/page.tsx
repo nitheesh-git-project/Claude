@@ -41,8 +41,13 @@ import {
 } from "@/lib/conditionSpecialty";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import OrthoProfileTop from "@/components/profile/ortho/OrthoProfileTop";
+import NeuroProfileTop from "@/components/profile/neuro/NeuroProfileTop";
 import { loadOrthoReads } from "@/lib/orthoProfileServer";
 import { shapeOrthoView } from "@/lib/orthoProfileView";
+import { loadNeuroReads } from "@/lib/neuroProfileServer";
+import { shapeNeuroView } from "@/lib/neuroProfileView";
+import { filledInLine, type NeuroKind } from "@/lib/neuroProfile";
+import { profileKindFor } from "@/lib/profileKind";
 
 export const metadata: Metadata = {
   title: "Health Profile | MoveRestore",
@@ -288,15 +293,31 @@ export default async function PatientHealthProfilePage() {
   // The neurological examination chart: read only on a neurological
   // profile, and in its own call because neuro_assessments is a new table --
   // a failed read says so on the card instead of reading as "nothing yet".
-  const neuroRead =
+  // A neurological page also makes the progress reads (measurements, goal and
+  // steps, phase and status, the diary, the intake history, the licence
+  // switch), each its own call inside the loader; another condition type
+  // makes none of them. Which profile kind the record is - plain neurological
+  // or the Parkinson's sub-profile - is read from the answers just fetched.
+  const neuroKind: NeuroKind | null =
+    specialty === "neuro" ? (profileKindFor(specialty, currentData) === "neuro_parkinsons" ? "neuro_parkinsons" : "neuro") : null;
+  const [neuroRead, neuroReads] = await Promise.all([
     specialty === "neuro"
-      ? await supabase
+      ? supabase
           .from("neuro_assessments")
           .select("id, created_at, submitted_by_role, schema_version, findings")
           .eq("patient_id", user.id)
           .order("created_at", { ascending: false })
           .limit(200)
-      : { data: [] as NeuroAssessmentRow[], error: null };
+      : Promise.resolve({ data: [] as NeuroAssessmentRow[], error: null }),
+    neuroKind ? loadNeuroReads(supabase, user.id, { kind: neuroKind }) : Promise.resolve(null),
+  ]);
+  const neuroView =
+    neuroKind && neuroReads
+      ? shapeNeuroView(
+          { ...neuroReads, exams: (neuroRead.data ?? []) as NeuroAssessmentRow[], examsFailed: !!neuroRead.error },
+          { kind: neuroKind, intake: currentData, voice: "patient", nowMs: neuroReads.nowMs }
+        )
+      : null;
   const trendPoints = painTrendSeries(assessments ?? []);
   const orthoView =
     isOrtho && orthoReads
@@ -378,7 +399,8 @@ export default async function PatientHealthProfilePage() {
         "pain_assessments",
         "neuro_assessments",
         "intake_question_templates",
-        ...(isOrtho ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
+        ...(isOrtho || neuroView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
+        ...(neuroView ? ["patient_diary_entries"] : []),
       ]}
       headerTitle="Health Profile"
       headerSubtitle={
@@ -387,7 +409,7 @@ export default async function PatientHealthProfilePage() {
           : "Your condition, and what your therapist found."
       }
     >
-      <div className={`mx-auto space-y-5 ${orthoView ? "max-w-6xl" : "max-w-5xl"}`}>
+      <div className={`mx-auto space-y-5 ${orthoView || neuroView ? "max-w-6xl" : "max-w-5xl"}`}>
         <div
           className={`flex flex-wrap items-start gap-3 rounded-2xl border p-4 sm:flex-nowrap ${
             gate.reason === "awaiting_therapist"
@@ -486,6 +508,41 @@ export default async function PatientHealthProfilePage() {
               questions={questions}
               data={currentData}
               assessments={assessments ?? []}
+              showProgress={!gate.canEdit}
+            />
+
+            <HealthProfileSteps
+              specialty={specialty}
+              collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
+            />
+
+            {conditionSection}
+          </>
+        ) : neuroView && neuroKind ? (
+          <>
+            <NeuroProfileTop
+              voice="patient"
+              patientId={user.id}
+              patientName={profile?.full_name ?? "Patient"}
+              chipLabel={specialtyPatientLabel(specialty)}
+              provenance={filledInLine(conditionProfile?.last_submitted_role, "patient")}
+              view={neuroView}
+              neuroAssessments={(neuroRead.data ?? []) as NeuroAssessmentRow[]}
+              canSetStatus={null}
+              record={null}
+              planner={false}
+              reopen={false}
+              canLogDiary
+              canConfirmDiary={false}
+              enabledLicensed={[]}
+              licenceUnreadable={false}
+            />
+
+            <SpecialtySnapshotStrip
+              specialty={specialty}
+              questions={questions}
+              data={currentData}
+              assessments={[]}
               showProgress={!gate.canEdit}
             />
 

@@ -35,8 +35,13 @@ import {
 } from "@/lib/conditionSpecialty";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import OrthoProfileTop from "@/components/profile/ortho/OrthoProfileTop";
+import NeuroProfileTop from "@/components/profile/neuro/NeuroProfileTop";
 import { loadLicenceForRecording, loadOrthoReads } from "@/lib/orthoProfileServer";
 import { shapeOrthoView } from "@/lib/orthoProfileView";
+import { loadNeuroReads } from "@/lib/neuroProfileServer";
+import { shapeNeuroView } from "@/lib/neuroProfileView";
+import { filledInLine, type NeuroKind } from "@/lib/neuroProfile";
+import { profileKindFor } from "@/lib/profileKind";
 
 export const metadata: Metadata = {
   title: "Patient Health Profile | MoveRestore",
@@ -113,7 +118,7 @@ export default async function TherapistPatientHealthProfilePage({
       .maybeSingle(),
     supabase
       .from("patient_condition_profiles")
-      .select("data, draft_data, status")
+      .select("data, draft_data, status, last_submitted_role")
       .eq("patient_id", patientId)
       .maybeSingle(),
     supabase
@@ -164,14 +169,26 @@ export default async function TherapistPatientHealthProfilePage({
   // the latest schema.sql costs this one card -- which then says it could
   // not load, rather than "nothing recorded" -- and not the page. RLS
   // (neuro_assessments_select_assigned_therapist) is the authorization.
-  const neuroRead = isNeuro
-    ? await supabase
-        .from("neuro_assessments")
-        .select("id, created_at, submitted_by_role, schema_version, findings")
-        .eq("patient_id", patientId)
-        .order("created_at", { ascending: false })
-        .limit(200)
-    : { data: [] as NeuroAssessmentRow[], error: null };
+  const earlyData = (conditionProfile?.data ?? {}) as Record<string, string>;
+  // The Parkinson's sub-profile is the same chart with its own parts: which
+  // one this record is comes from the intake answers just read.
+  const neuroKind: NeuroKind | null =
+    isNeuro ? (profileKindFor("neuro", earlyData) === "neuro_parkinsons" ? "neuro_parkinsons" : "neuro") : null;
+  const [neuroRead, neuroReads] = await Promise.all([
+    isNeuro
+      ? supabase
+          .from("neuro_assessments")
+          .select("id, created_at, submitted_by_role, schema_version, findings")
+          .eq("patient_id", patientId)
+          .order("created_at", { ascending: false })
+          .limit(200)
+      : Promise.resolve({ data: [] as NeuroAssessmentRow[], error: null }),
+    // The progress reads of a neurological chart (measurements, goal and
+    // steps, phase and status, the diary, the intake history, the licence
+    // switch), each its own call, through the assigned-therapist policies.
+    // Neurological only: another condition type makes none of them.
+    neuroKind ? loadNeuroReads(supabase, patientId, { kind: neuroKind }) : Promise.resolve(null),
+  ]);
 
   const overridesByRegion: Record<string, QuestionOverrideRow[]> = {};
   for (const row of overrideRows ?? []) {
@@ -229,8 +246,21 @@ export default async function TherapistPatientHealthProfilePage({
   // therapist's own clinical judgement from a session they ran: assignment is
   // the whole requirement, the same as the Pain Map exam and the neurological
   // exam. (The measurement route adds its own started-session check.)
+  const neuroView =
+    neuroKind && neuroReads
+      ? shapeNeuroView(
+          { ...neuroReads, exams: (neuroRead.data ?? []) as NeuroAssessmentRow[], examsFailed: !!neuroRead.error },
+          { kind: neuroKind, intake: currentData, voice: "clinician", nowMs: neuroReads.nowMs }
+        )
+      : null;
   const licence =
-    orthoView && isAssigned ? await loadLicenceForRecording(admin) : { keys: [] as string[], unreadable: false };
+    orthoView && isAssigned
+      ? await loadLicenceForRecording(admin)
+      : neuroReads
+        ? neuroReads.licence.status === "ok"
+          ? { keys: neuroReads.licence.keys, unreadable: false }
+          : { keys: [] as string[], unreadable: true }
+        : { keys: [] as string[], unreadable: false };
 
   const showDebugNav = isDebugNavVisible();
 
@@ -490,6 +520,28 @@ export default async function TherapistPatientHealthProfilePage({
       />
     ) : null;
 
+  const neuroTop =
+    neuroView && isNeuro ? (
+      <NeuroProfileTop
+        voice="clinician"
+        patientId={patientId}
+        patientName={patient.full_name}
+        chipLabel={specialtyDef?.label ?? "Neurological"}
+        provenance={filledInLine(conditionProfile?.last_submitted_role, "clinician")}
+        view={neuroView}
+        neuroAssessments={(neuroRead.data ?? []) as NeuroAssessmentRow[]}
+        examRecord={canRecordExam ? { endpoint: "/api/therapist/neuro-assessments/submit", patientId, patientName: patient.full_name } : undefined}
+        canSetStatus={isAssigned ? { endpoint: "/api/therapist/care-status/set" } : null}
+        record={isAssigned ? { asAdmin: false } : null}
+        planner={isAssigned}
+        reopen={false}
+        canLogDiary={false}
+        canConfirmDiary={isAssigned}
+        enabledLicensed={licence.keys}
+        licenceUnreadable={licence.unreadable}
+      />
+    ) : null;
+
   return (
     <DashboardShell
       brandLabel="Therapist Panel"
@@ -508,12 +560,13 @@ export default async function TherapistPatientHealthProfilePage({
         "pain_assessments",
         "neuro_assessments",
         "intake_question_templates",
-        ...(isOrtho ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
+        ...(isOrtho || neuroView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
+        ...(neuroView ? ["patient_diary_entries"] : []),
       ]}
       headerTitle={patient.full_name}
       headerSubtitle={patient.patient_code ?? "Patient"}
     >
-      <div className={`mx-auto space-y-6 ${orthoView ? "max-w-6xl" : "max-w-2xl"}`}>
+      <div className={`mx-auto space-y-6 ${orthoView || neuroView ? "max-w-6xl" : "max-w-2xl"}`}>
         {/* No "Back to My Patients" link: this page sits inside the dashboard
             shell, whose sidebar keeps My Patients highlighted and one tap
             away. */}
@@ -531,6 +584,19 @@ export default async function TherapistPatientHealthProfilePage({
           <>
             {needsOnboarding && conditionCard}
             {orthoTop}
+            {plansSection}
+            {notesSection}
+            {reportsSection}
+            {!needsOnboarding && conditionCard}
+          </>
+        ) : neuroTop ? (
+          // A neurological chart opens on the layout shared with the patient's
+          // page; the examination, with its "Record a re-examination" button,
+          // is the condition picture inside it, so the old exam card is not
+          // repeated below.
+          <>
+            {needsOnboarding && conditionCard}
+            {neuroTop}
             {plansSection}
             {notesSection}
             {reportsSection}

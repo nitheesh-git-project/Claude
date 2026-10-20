@@ -34,8 +34,13 @@ import type { NeuroAssessmentRow } from "@/lib/neuroExam";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
 import { scopeCanManage } from "@/lib/adminScope";
 import OrthoProfileTop from "@/components/profile/ortho/OrthoProfileTop";
+import NeuroProfileTop from "@/components/profile/neuro/NeuroProfileTop";
 import { loadLicenceForRecording, loadOrthoReads } from "@/lib/orthoProfileServer";
 import { shapeOrthoView } from "@/lib/orthoProfileView";
+import { loadNeuroReads } from "@/lib/neuroProfileServer";
+import { shapeNeuroView } from "@/lib/neuroProfileView";
+import { filledInLine, type NeuroKind } from "@/lib/neuroProfile";
+import { profileKindFor } from "@/lib/profileKind";
 
 const regionLabel = (region: string) =>
   PAIN_MAP_REGIONS.find((r) => r.key === region)?.label ?? region;
@@ -258,6 +263,27 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       : null;
   const orthoLicence =
     orthoView && canManagePeople ? await loadLicenceForRecording(admin) : { keys: [] as string[], unreadable: false };
+
+  // The neurological layout, read for a neurological profile only (each read
+  // its own call). What an admin may do follows the routes' own gates: the
+  // examination, a test, the phase and status and a milestone reopen need the
+  // People scope; the diary is read-only here (the physiotherapist confirms,
+  // the patient writes - there is no admin door), so neither of its controls
+  // is offered.
+  const neuroKind: NeuroKind | null =
+    isNeuroProfile ? (profileKindFor("neuro", currentData) === "neuro_parkinsons" ? "neuro_parkinsons" : "neuro") : null;
+  const neuroReads = neuroKind ? await loadNeuroReads(admin, id, { kind: neuroKind }) : null;
+  const neuroView =
+    neuroKind && neuroReads
+      ? shapeNeuroView(
+          { ...neuroReads, exams: (neuroRead.data ?? []) as NeuroAssessmentRow[], examsFailed: !!neuroRead.error },
+          { kind: neuroKind, intake: currentData, voice: "clinician", nowMs: neuroReads.nowMs }
+        )
+      : null;
+  const neuroLicence =
+    neuroReads && neuroReads.licence.status === "ok"
+      ? { keys: neuroReads.licence.keys, unreadable: false }
+      : { keys: [] as string[], unreadable: !!neuroReads };
 
   const requestedGrants = (grants ?? []).filter((g) => g.status === "requested");
   const approvedGrants = (grants ?? []).filter((g) => g.status === "approved");
@@ -504,6 +530,32 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           <p className="text-xs text-slate-500">
             Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a new reading rather
             than editing any past one, since examination history is append-only.
+          </p>
+        </>
+      ) : neuroView && isNeuroProfile ? (
+        <>
+          <NeuroProfileTop
+            voice="clinician"
+            patientId={id}
+            patientName={patient.full_name}
+            chipLabel={specialtyDef?.label ?? "Neurological"}
+            provenance={filledInLine(profile?.last_submitted_role, "clinician")}
+            view={neuroView}
+            neuroAssessments={(neuroRead.data ?? []) as NeuroAssessmentRow[]}
+            examRecord={canRecordNeuro ? { endpoint: "/api/admin/neuro-assessments/submit", patientId: id } : undefined}
+            canSetStatus={canManagePeople ? { endpoint: "/api/admin/care-status/set" } : null}
+            record={canManagePeople ? { asAdmin: true } : null}
+            planner={false}
+            reopen={canManagePeople}
+            canLogDiary={false}
+            canConfirmDiary={false}
+            enabledLicensed={neuroLicence.keys}
+            licenceUnreadable={neuroLicence.unreadable}
+          />
+          <p className="text-xs text-slate-500">
+            Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a new reading rather
+            than editing any past one, since examination history is append-only. The diary is the patient&apos;s own
+            account and the treating physiotherapist confirms it; it is read-only here.
           </p>
         </>
       ) : (
