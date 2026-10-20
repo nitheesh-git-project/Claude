@@ -11,7 +11,7 @@ export type ProgressApiFailure = {
   code?: unknown;
 };
 
-export type ProgressAction = "measurement" | "goal" | "milestone" | "reached" | "reopen";
+export type ProgressAction = "measurement" | "goal" | "milestone" | "reached" | "reopen" | "status";
 
 const BY_CODE: Record<string, string> = {
   stale: "Someone changed this a moment ago. Reload the page to see the latest, then make your change again.",
@@ -35,6 +35,7 @@ const VERB: Record<ProgressAction, string> = {
   milestone: "save this milestone",
   reached: "mark this milestone reached",
   reopen: "reopen this milestone",
+  status: "save this phase or status",
 };
 
 function text(value: unknown): string | null {

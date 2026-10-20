@@ -12,6 +12,8 @@ import {
   previousReading,
   recordableMeasures,
   timerFor,
+  otherSideReading,
+  pendingExtensionLag,
 } from "@/lib/recordTest";
 import { OUTCOME_MEASURES, outcomeMeasure, validateMeasurement, type ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasureSeries } from "@/lib/outcomeSeries";
@@ -342,5 +344,45 @@ describe("computeEntry", () => {
   it("lets a timed test be typed when the record does not need every trial", () => {
     const e = computeEntry(m("chair_stand_30s"), state("chair_stand_30s", { numberText: "11" }), false);
     expect(e.value).toBe(11);
+  });
+});
+
+describe("otherSideReading and pendingExtensionLag", () => {
+  const mk = (variant: string, side: "left" | "right", value: number) =>
+    ({
+      key: `joint_range|${variant}|${side}|`,
+      measureKey: "joint_range",
+      variant,
+      side,
+      medicationState: null,
+      known: true,
+      label: "Goniometry",
+      plainName: "How far a joint moves",
+      variantLabel: null,
+      unit: "degrees",
+      decimals: 0,
+      better: "toward_normal",
+      points: [{ measurementId: "x", value, measuredAt: "2026-09-01T05:00:00.000Z", reviewKey: "day:2026-09-01", appointmentId: null, setting: null, recordedBy: "t", testerName: null, readingsInReview: 1 }],
+    }) as never;
+  const series = [mk("knee_flexion_active", "left", 140), mk("knee_extension_passive", "right", 0)];
+
+  it("shows the other side of the same variant", () => {
+    const other = otherSideReading(series, { measureKey: "joint_range", variant: "knee_flexion_active", side: "right", medicationState: null });
+    expect(other).toMatchObject({ side: "left", value: 140 });
+  });
+  it("shows nothing without a side or without an other-side reading", () => {
+    expect(otherSideReading(series, { measureKey: "joint_range", variant: "knee_flexion_active", side: null, medicationState: null })).toBeNull();
+    expect(otherSideReading(series, { measureKey: "joint_range", variant: "knee_flexion_active", side: "left", medicationState: null })).toBeNull();
+  });
+  it("derives the lag while an active reading is typed against the passive one", () => {
+    const lag = pendingExtensionLag(series, { measureKey: "joint_range", variant: "knee_extension_active", side: "right" }, -8);
+    expect(lag).toMatchObject({ lag: 8, partner: "passive", partnerValue: 0 });
+    expect(pendingExtensionLag(series, { measureKey: "joint_range", variant: "knee_extension_active", side: "right" }, 0)!.lag).toBe(0);
+  });
+  it("derives nothing for other variants, a missing side, a missing value or a missing partner", () => {
+    expect(pendingExtensionLag(series, { measureKey: "joint_range", variant: "knee_flexion_active", side: "right" }, -8)).toBeNull();
+    expect(pendingExtensionLag(series, { measureKey: "joint_range", variant: "knee_extension_active", side: null }, -8)).toBeNull();
+    expect(pendingExtensionLag(series, { measureKey: "joint_range", variant: "knee_extension_active", side: "right" }, null)).toBeNull();
+    expect(pendingExtensionLag(series, { measureKey: "joint_range", variant: "knee_extension_active", side: "left" }, -8)).toBeNull();
   });
 });

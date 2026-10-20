@@ -8,6 +8,7 @@
 // conditions the route will accept, and which timer fits which test - so it
 // is tested without a browser.
 
+import { extensionLag } from "@/lib/clinicalCalculators";
 import { clinicDateKey } from "@/lib/clinicWeek";
 import {
   measurementSource,
@@ -242,6 +243,51 @@ export function previousReading(
   );
   const last = line?.points[line.points.length - 1];
   return line && last ? { value: last.value, measuredAt: last.measuredAt, decimals: line.decimals, unit: line.unit } : null;
+}
+
+/** The other side's latest reading of the same measure and variant, shown beside the entry for a sided
+ *  test: the patient's own other side is the best normal for a joint. Null until a side is chosen
+ *  (or when the test is not sided), and null when the other side has never been recorded. */
+export function otherSideReading(
+  series: readonly MeasureSeries[],
+  sel: LineSelection
+): { side: "left" | "right"; value: number; measuredAt: string; decimals: number; unit: string } | null {
+  if (!sel.side) return null;
+  const side = sel.side === "left" ? "right" : "left";
+  const found = previousReading(series, { ...sel, side });
+  return found ? { side, ...found } : null;
+}
+
+/**
+ * While a straightening reading is being typed: the extension lag it makes
+ * with the latest reading of its partner line on the same side (active
+ * against passive; extensionLag in clinicalCalculators). Null unless the
+ * entry is one of the two knee-straightening variants, a side is chosen, a
+ * value is typed and the partner line has a reading.
+ */
+export function pendingExtensionLag(
+  series: readonly MeasureSeries[],
+  sel: { measureKey: string; variant: string | null; side: "left" | "right" | null },
+  typed: number | null
+): { lag: number; partner: "active" | "passive"; partnerValue: number; working: string } | null {
+  if (sel.measureKey !== "joint_range" || !sel.side || typed === null || !Number.isFinite(typed)) return null;
+  const isActive = sel.variant === "knee_extension_active";
+  if (!isActive && sel.variant !== "knee_extension_passive") return null;
+  const partner = previousReading(series, {
+    measureKey: "joint_range",
+    variant: isActive ? "knee_extension_passive" : "knee_extension_active",
+    side: sel.side,
+    medicationState: null,
+  });
+  if (!partner) return null;
+  const result = extensionLag(isActive ? partner.value : typed, isActive ? typed : partner.value);
+  if (!result.ok) return null;
+  return {
+    lag: result.value,
+    partner: isActive ? "passive" : "active",
+    partnerValue: partner.value,
+    working: result.working,
+  };
 }
 
 // --- Which tool a test gets --------------------------------------------------------------------------
