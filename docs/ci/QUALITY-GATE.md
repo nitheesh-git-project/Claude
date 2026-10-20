@@ -221,7 +221,11 @@ started and tries exactly once more. It then:
      can no longer drop `storage.objects` policies in that session.
 4. Writes a `ci_meta.ci_target_marker` row.
 5. Runs the preflight again with a database probe.
-6. Seeds the QA fixtures.
+6. Asks PostgREST for a final schema-cache reload and waits until the API
+   answers five reads in a row: until the last rebuild after `schema.sql`
+   lands, reads fail or miss new columns and the app answers 404 or "off"
+   (first specs of a job failing, then passing on a re-run).
+7. Seeds the QA fixtures.
 
 The per-runner Next.js instance, fixture accounts and artifact directory
 are its own.

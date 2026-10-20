@@ -31,7 +31,11 @@ export default function FinishSessionButton({
   recommendationNeedsApproval = true,
   recommendationAwaitingClinic = false,
   summary,
+  beside,
 }: {
+  /** Rendered next to Done in one unbreakable pair (the card's No Show), so
+   *  a long Join label in the same row can never push it under Done. */
+  beside?: React.ReactNode;
   appointmentId: string;
   slotTime: string | null;
   patientName: string;
@@ -63,13 +67,16 @@ export default function FinishSessionButton({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={handleClick}
-        className="bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition"
-      >
-        Done
-      </button>
+      <span className="inline-flex items-center gap-2 whitespace-nowrap">
+        <button
+          type="button"
+          onClick={handleClick}
+          className="bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition"
+        >
+          Done
+        </button>
+        {beside}
+      </span>
       {notYet && (
         <span role="status" className="order-last basis-full text-[11px] text-red-600">
           This session hasn&apos;t started yet. You can mark it done once it&apos;s under way.

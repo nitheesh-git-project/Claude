@@ -219,6 +219,34 @@ set -e
 [ "$code" -eq 0 ] || die "preflight refused the provisioned stack (exit $code)"
 endstep
 
+# PostgREST rebuilds its schema cache after DDL (Supabase's event trigger
+# notifies it), asynchronously, and schema.sql is thousands of DDL
+# statements applied twice. Until the last rebuild lands, a read through the
+# API can fail (503 PGRST002) or miss a new column, and the app reads that
+# as "no row" / "switched off": /home-visit, an admin patient page and the
+# developer contact route all answered 404 on runners whose first specs ran
+# inside that window, and passed on a re-run. So ask for one final reload
+# and wait until the API answers steadily before anything reads through it.
+wait_for_schema_cache() {
+  psql "$DB_URL" -X -q -c "notify pgrst, 'reload schema';" > /dev/null 2>&1 || true
+  local ok=0 tries=0 code1 code2
+  while [ "$ok" -lt 5 ]; do
+    tries=$((tries + 1))
+    [ "$tries" -le 120 ] || die "the API's schema cache did not settle within 60s of the schema apply"
+    code1="$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/rest/v1/site_settings?select=*&limit=1" \
+      -H "apikey: $SERVICE_ROLE_KEY" -H "Authorization: Bearer $SERVICE_ROLE_KEY")"
+    code2="$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/rest/v1/treatment_categories?select=*&limit=1" \
+      -H "apikey: $SERVICE_ROLE_KEY" -H "Authorization: Bearer $SERVICE_ROLE_KEY")"
+    if [ "$code1" = "200" ] && [ "$code2" = "200" ]; then ok=$((ok + 1)); else ok=0; fi
+    sleep 0.5
+  done
+  echo "API schema cache settled after $tries probe(s)."
+}
+
+step "Wait for the API's schema cache"
+wait_for_schema_cache
+endstep
+
 step "Seed the QA fixture accounts"
 node scripts/seed-qa-accounts.mjs > "$ARTIFACT_DIR/seed.log" 2>&1 \
   || { tail -20 "$ARTIFACT_DIR/seed.log"; die "seed-qa-accounts failed; fixtures are not in place"; }
