@@ -14,6 +14,7 @@ import {
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
 import { toWinAnsi, toWinAnsiTidy, wrapText } from "@/lib/pdfText";
+import type { ProgressExport } from "@/lib/progressExport";
 
 // The patient's own copy of their record, as a document they can hand to
 // another clinician -- which is what "export my data" actually means to a
@@ -81,6 +82,10 @@ export type HealthProfilePdfInput = {
    *  learns a scale. */
   showNeuroExaminations?: boolean;
   neuroExams?: { created_at: string; submitted_by_role: string; lines: string[] }[];
+  /** The goal, its steps and the measures table, already as text
+   *  (`buildProgressExport` in progressExport.ts). Omitted only by callers
+   *  that predate the measurement layer. */
+  progress?: ProgressExport;
 };
 
 // Renders one stored answer the way a person reads it, driven off the
@@ -175,6 +180,28 @@ class Cursor {
       this.page().drawText(line, { x: MARGIN + indent, y: this.y, size, font, color });
     }
     this.y -= gap;
+  }
+
+  /**
+   * One table row: each cell wraps inside its own column and the row is as
+   * tall as its tallest cell. A row is never split across pages.
+   */
+  row(
+    cells: { text: string; x: number; width: number }[],
+    { size = 9, bold = false, color = INK, gap = 4 }: { size?: number; bold?: boolean; color?: ReturnType<typeof rgb>; gap?: number } = {}
+  ) {
+    const font = bold ? this.bold : this.regular;
+    const lineHeight = size * 1.3;
+    const wrapped = cells.map((c) => wrapText(toWinAnsi(c.text), font, size, c.width));
+    const lines = Math.max(1, ...wrapped.map((w) => w.length));
+    this.need(lines * lineHeight + gap);
+    const top = this.y;
+    wrapped.forEach((cellLines, i) => {
+      cellLines.forEach((line, n) => {
+        this.page().drawText(line, { x: MARGIN + cells[i].x, y: top - lineHeight * (n + 1), size, font, color });
+      });
+    });
+    this.y = top - lines * lineHeight - gap;
   }
 
   rule() {
@@ -279,6 +306,79 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
         cur.text(entry.label, { size: 9.5, bold: true, color: MUTED, gap: 1 });
         cur.text(entry.value, { size: 10.5, gap: 7 });
       }
+    }
+  }
+
+  // The goal in the patient's own words, the steps towards it, and the
+  // measures table. Already shaped to text, so this draws and never learns
+  // the registry. A section is always printed: "nothing recorded yet" is a
+  // fact a receiving clinician needs, and a heading that vanishes reads as
+  // the section having been left out.
+  if (input.progress) {
+    const progress = input.progress;
+    cur.heading("Goal and progress");
+    if (progress.goal) {
+      cur.text("Goal, in the patient's own words", { size: 9, bold: true, color: MUTED, gap: 1 });
+      cur.text(`\u201C${progress.goal.text}\u201D`, { size: 12, bold: true, gap: 2 });
+      cur.text(
+        [progress.goal.status, progress.goal.targetDate ? `aiming for ${progress.goal.targetDate}` : null].filter(Boolean).join("  |  "),
+        { size: 9, color: MUTED, gap: 6 }
+      );
+    } else {
+      cur.text("No goal recorded yet.", { size: 10, color: MUTED });
+    }
+
+    if (progress.milestones.length > 0) {
+      cur.space(4);
+      cur.text("Steps towards the goal", { size: 9, bold: true, color: MUTED, gap: 2 });
+      for (const step of progress.milestones) {
+        cur.need(40);
+        cur.text(`${step.title}  -  ${step.status}${step.when ? `, ${step.when.charAt(0).toLowerCase()}${step.when.slice(1)}` : ""}`, {
+          size: 10,
+          bold: true,
+          indent: 12,
+          gap: 1,
+        });
+        cur.text(step.criterion + (step.measure ? `  (measured by: ${step.measure})` : ""), { size: 9.5, indent: 12, gap: 4 });
+      }
+    } else if (progress.goal) {
+      cur.text("No steps planned yet.", { size: 10, color: MUTED });
+    }
+
+    cur.space(6);
+    cur.text("Measures", { size: 9, bold: true, color: MUTED, gap: 2 });
+    if (progress.measures.length === 0) {
+      cur.text("No measurements recorded yet.", { size: 10, color: MUTED });
+    } else {
+      const cols = [
+        { label: "Measure", x: 0, width: 150 },
+        { label: "First", x: 156, width: 100 },
+        { label: "Latest", x: 262, width: 100 },
+        { label: "Goal", x: 368, width: 60 },
+        { label: "Change", x: 434, width: CONTENT_WIDTH - 434 },
+      ];
+      cur.need(60);
+      cur.row(
+        cols.map((c) => ({ text: c.label, x: c.x, width: c.width })),
+        { size: 8.5, bold: true, color: MUTED, gap: 2 }
+      );
+      cur.rule();
+      for (const m of progress.measures) {
+        cur.row(
+          [
+            { text: m.name, x: cols[0].x, width: cols[0].width },
+            { text: m.first, x: cols[1].x, width: cols[1].width },
+            { text: m.now, x: cols[2].x, width: cols[2].width },
+            { text: m.goal, x: cols[3].x, width: cols[3].width },
+            { text: m.change, x: cols[4].x, width: cols[4].width },
+          ],
+          { size: 9, gap: 6 }
+        );
+      }
+      cur.text(
+        "Each reading is the newest taken at that review. A change inside the measurement error of a test is shown as no real change.",
+        { size: 8, color: MUTED }
+      );
     }
   }
 

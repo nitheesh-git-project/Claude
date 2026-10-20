@@ -609,11 +609,15 @@ export default function RecordTestDialog({
                       </fieldset>
                       <div>
                         <label htmlFor={`${baseId}-dose`} className="block text-sm font-semibold text-slate-900">
-                          Time of the last dose (clinic time, today)
+                          Time of the last dose, 24-hour (clinic time, today)
                         </label>
                         <input
                           id={`${baseId}-dose`}
-                          type="time"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="08:30"
+                          maxLength={5}
+                          pattern="[0-2][0-9]:[0-5][0-9]"
                           value={cond.lastDoseTime}
                           onChange={(e) => patchCond({ lastDoseTime: e.target.value })}
                           className={`mt-1 max-w-[10rem] ${FIELD}`}

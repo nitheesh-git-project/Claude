@@ -18,6 +18,10 @@ import {
 } from "@/lib/conditionSpecialty";
 import { MEDICAL_DOCUMENT_TYPE_LABEL, type MedicalDocumentType } from "@/lib/medicalDocuments";
 import { describeNeuroExamForText, parseNeuroAssessments, type NeuroAssessmentRow } from "@/lib/neuroExam";
+import { loadGoalAndMilestones, loadMeasurements } from "@/lib/outcomeServer";
+import { parseMeasurementRows } from "@/lib/outcomeSeries";
+import { profileKindFor } from "@/lib/profileKind";
+import { buildProgressExport } from "@/lib/progressExport";
 
 /** Shape of the rows the Pain Map query returns, so the non-orthopaedic
  *  branch's empty placeholder keeps the same type. */
@@ -95,6 +99,8 @@ export async function GET(request: NextRequest) {
     { data: intakeOverrideRows },
     { data: painMapOverrideRows },
     { data: settingsRow },
+    measurementsRead,
+    goalsRead,
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, patient_code").eq("id", user.id).single(),
     supabase
@@ -149,6 +155,11 @@ export async function GET(request: NextRequest) {
       ? supabase.from("pain_map_question_templates").select("region, question_key, question_text")
       : Promise.resolve({ data: [] as { region: string; question_key: string; question_text: string }[] }),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
+    // The measurement and milestone layers, read with the patient's own
+    // RLS-scoped client like everything above. Each answers a discriminated
+    // result rather than an empty list on failure (outcomeServer.ts).
+    loadMeasurements(supabase, user.id),
+    loadGoalAndMilestones(supabase, user.id),
   ]);
 
   if (
@@ -161,7 +172,13 @@ export async function GET(request: NextRequest) {
     neuroResult.error ||
     neuroResult.truncated ||
     documentsResult.error ||
-    documentsResult.truncated
+    documentsResult.truncated ||
+    // Complete or refused, for the goal, the steps and the measures too: a
+    // record handed over without its graph's numbers is a clinical loss
+    // presented as a complete document. "Unreadable" includes a record too
+    // large to page through safely.
+    measurementsRead.status !== "ok" ||
+    goalsRead.status !== "ok"
   ) {
     return exportUnavailable();
   }
@@ -182,6 +199,9 @@ export async function GET(request: NextRequest) {
       submission_history: changeRequests ?? [],
       pain_map_assessments: assessments ?? [],
       neuro_assessments: neuroResult.rows,
+      outcome_measurements: measurementsRead.rows,
+      care_goals: goalsRead.goals,
+      care_milestones: goalsRead.milestones,
       medical_documents: documents ?? [],
     };
     return new NextResponse(JSON.stringify(payload, null, 2), {
@@ -226,6 +246,14 @@ export async function GET(request: NextRequest) {
     }))
     .filter((s) => s.entries.length > 0);
 
+  const progress = buildProgressExport({
+    profileKind: profileKindFor(specialty, answers),
+    points: parseMeasurementRows(measurementsRead.rows),
+    goals: goalsRead.goals,
+    milestones: goalsRead.milestones,
+    nowMs: Date.now(),
+  });
+
   const pdf = await buildHealthProfilePdf({
     siteName: parseAdminSettings(settingsRow).siteName,
     patientName,
@@ -235,6 +263,7 @@ export async function GET(request: NextRequest) {
     status: CONDITION_STATUS_LABEL[status],
     specialtyLabel: specialtyLabel(specialty),
     respondent,
+    progress,
     questions,
     answers,
     earlierProfiles,

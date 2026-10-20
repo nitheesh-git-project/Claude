@@ -3,6 +3,7 @@
 import { useId, useMemo, useRef, useState } from "react";
 import OverlayPortal from "@/components/system/OverlayPortal";
 import Spinner from "@/components/system/Spinner";
+import DateField from "@/components/system/DateField";
 import { useDialogChrome } from "@/lib/useDialogChrome";
 import { useRouter } from "@/lib/useRouter";
 import { useToast } from "@/lib/toast";
@@ -433,18 +434,7 @@ function GoalEditor({
         </p>
       </div>
       <div>
-        <label htmlFor={dateId} className="block text-sm font-semibold text-slate-900">
-          Aiming for (optional)
-        </label>
-        <input
-          id={dateId}
-          type="date"
-          readOnly={readOnly}
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className={`mt-1 max-w-[14rem] ${FIELD}`}
-        />
-        {goal?.targetDate && date === goal.targetDate && <p className="mt-1 text-xs text-slate-600">{formatClinicDate(goal.targetDate)}</p>}
+        <DateField id={dateId} label="Aiming for (optional)" value={date} onChange={setDate} disabled={readOnly} placeholder="No date" />
       </div>
 
       {!readOnly && (
@@ -774,16 +764,7 @@ function MilestoneForm({
       </div>
 
       <div>
-        <label htmlFor={`${id}-date`} className="block text-sm font-semibold text-slate-900">
-          Target date (optional)
-        </label>
-        <input
-          id={`${id}-date`}
-          type="date"
-          value={draft.targetDate}
-          onChange={(e) => patch({ targetDate: e.target.value })}
-          className={`mt-1 max-w-[14rem] ${FIELD}`}
-        />
+        <DateField id={`${id}-date`} label="Target date (optional)" value={draft.targetDate} onChange={(next) => patch({ targetDate: next })} placeholder="No date" />
       </div>
 
       <div className="flex flex-wrap justify-end gap-2">

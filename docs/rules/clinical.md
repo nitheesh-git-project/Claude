@@ -672,6 +672,51 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     the screens phase 2b adds. `e2e/measurements.spec.ts`,
     `src/lib/profileKind.test.ts`, `outcomeSeries.test.ts`,
     `careGoals.test.ts`, `licensedMeasures.test.ts`.
+- **The shared progress screens, timers and export (Health Profile redesign,
+  phase 2b; no page draws them yet - phase 3 wires the orthopaedic page).**
+  Components live in `src/components/profile/progress/`; every figure they
+  draw is computed in a tested, dependency-free module, never in JSX.
+  - **Graph and tiles.** `ProgressGraph` (tabs as `aria-pressed` buttons, one
+    dot per review spaced evenly, goal as a green band, a dotted risk line only
+    when near the data, `role="img"` summary plus a visually hidden table),
+    `KeyNumbers`, `MeasuresTable`, `PhaseBar`, `MilestoneCards`,
+    `WhereThingsStand` and `ProfileStatusPill` take `voice: "patient" |
+    "clinician"` and read `MeasureSeries`/`MilestoneView` from
+    `outcomeSeries.ts`/`careGoals.ts`. Geometry is `progressChart.ts`, words
+    and picks are `progressView.ts`, the pill's rule is `profileStatus.ts`
+    (Improving = MCID reached since first and not worse than the previous review
+    beyond the MDC; Needs attention = worse beyond the MDC, a new fall or a red
+    flag; a physiotherapist override with a reason is stored data, applied by the
+    pill). `--chart-good` tokens colour the band. A failed read, nothing
+    recorded and a single reading are three different states.
+  - **Recording.** `RecordTestDialog` offers only what `recordableMeasures()`
+    allows (never a Pain Map or exam measure; a licensed scale that is off is
+    listed but unselectable, "we couldn't check" when the switch was
+    unreadable), validates with the route's own `validateMeasurement`, and
+    posts to the therapist route (or the admin route with `asAdmin`). Refusals
+    go through `progressErrors.ts`: 503 is "couldn't check", 429 is "wait",
+    409 `stale` says reload. The test time is the debug clock's now; there is
+    no backdating. `GoalMilestonePlanner` (therapist only) sets the goal and
+    steps, templates are suggestions that fill the form, and Mark reached asks
+    for the proving reading (`proofCandidates`) or says it is on clinical
+    judgement. `ReopenMilestoneDialog` is mounted by `MilestoneCards` only when
+    the parent passes `reopen`, which it must do only for
+    `scopeCanManage(scope, "people")`.
+  - **Timers** (`timers/`: `TapTimer`, `CountdownCounter`, `BalanceHolds`,
+    `SixMinuteWalkGuide`). The logic is `testTimers.ts`: a timer stores its
+    start timestamp (`performance.now()` via `useRunClock`) and derives elapsed
+    time, so a throttled tab cannot lose time; there is no pause (a clinical
+    test that was interrupted is discarded); a hidden page or a device that
+    slept is flagged, not silently recorded. Trials are rounded to the
+    measure's precision before they are kept, so the route's re-derivation
+    agrees. The six-minute walk needs every safety box ticked, shows the five
+    standard phrases word for word, and names the predicted-distance equation -
+    saying so when the clinic has not chosen one.
+  - **Export.** `progressExport.ts` shapes the goal, steps and a first / now /
+    goal table as text for `healthProfilePdf.ts` ("Goal and progress"); the
+    export route reads measurements and goals with the patient's own client and
+    answers 503 if either read fails ("complete or refused"). The JSON format
+    includes the three tables too. `healthProfilePdf.test.ts` builds one.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate
