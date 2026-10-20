@@ -32,7 +32,14 @@ export type CommunicationSurface =
   | "care_milestone_text"
   /** The reason on a status override, or the note on a phase change; the
    *  patient reads it beside the pill. */
-  | "care_status_reason";
+  | "care_status_reason"
+  /** The free-text note on a patient's diary entry (a fall, a freezing
+   *  episode); the therapist reads it. Recorded, never blocked -- it is the
+   *  patient's own account, the booking-note posture. */
+  | "patient_diary_note"
+  /** The physiotherapist's written "Where things stand"; the patient
+   *  reads it. */
+  | "care_status_summary";
 
 /** Longest fragment of the original text kept as evidence. */
 const MAX_EVIDENCE_CHARS = 2000;

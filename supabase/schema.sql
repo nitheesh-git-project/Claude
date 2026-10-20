@@ -10236,6 +10236,9 @@ begin
     -- The phase and status-override history (phase 3a, end of this file),
     -- append-only by trigger for the same reason.
     care_status_events,
+    -- The patient diary (phase 4a, end of this file), append-only by
+    -- trigger like the measurements beside it.
+    patient_diary_entries,
     condition_change_requests,
     condition_access_grants,
     patient_condition_profiles,
@@ -18228,6 +18231,240 @@ create trigger care_status_events_no_change
 do $$
 begin
   alter publication supabase_realtime add table care_status_events;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 4a: the Parkinson's sub-profile's server
+-- side -- the patient diary, and "Where things stand" as a written field.
+--
+-- Four things, each re-runnable on its own:
+--   1. two new contact-scanner surfaces: the free-text note on a diary
+--      entry, and the physiotherapist's written summary;
+--   2. care_status_events learns a fourth kind, 'summary' -- the written
+--      "Where things stand", kept as history like the phase;
+--   3. patient_diary_entries -- the append-only diary a patient (or the
+--      family member holding their phone) keeps between sessions;
+--   4. the realtime publication for it.
+--
+-- The neurological intake's condition group and Parkinson's follow-ups are
+-- code only (src/lib/intakeNeuro.ts; data stays a flat jsonb blob) and need
+-- nothing here: intake_question_templates is keyed (specialty,
+-- question_key) and seeds no rows, so the admin's question bank lists the
+-- new questions from the code defaults.
+--
+-- APPLY THIS TO STAGING'S DATABASE BEFORE THE BRANCH MERGES. The diary and
+-- summary routes answer 503 "this database has not been updated yet" on a
+-- database without it, rather than a 500.
+-- ---------------------------------------------------------------------
+
+-- 1. Restated in full, as phase 3a did; every existing row satisfies the
+-- wider rule.
+alter table communication_flags drop constraint if exists communication_flags_surface_check;
+alter table communication_flags add constraint communication_flags_surface_check check (surface in (
+  'session_suggestion_note',
+  'care_plan_rationale',
+  'care_plan_instructions',
+  'pain_assessment_answer',
+  'appointment_notes',
+  'condition_answer',
+  'neuro_assessment_note',
+  'session_summary',
+  'outcome_measurement_condition',
+  'care_goal_text',
+  'care_milestone_text',
+  'care_status_reason',
+  'patient_diary_note',
+  'care_status_summary'
+));
+
+-- 2. "Where things stand", written by the physiotherapist (or an admin on
+-- their behalf, with an audit row) and read by the patient. A new kind on
+-- the existing append-only history rather than a new table: it is the same
+-- shape of fact as a phase -- a judgement, who made it, when -- the same
+-- readers and writers, the same route (action set_summary on
+-- /api/{therapist,admin}/care-status/set) and the same trigger, which
+-- already refuses every update and delete. The text is held in `value`
+-- (up to 1,200 characters; `reason` stays the short note it is), the
+-- latest summary is the one in force (src/lib/careStatus.ts), and an
+-- earlier one is never rewritten. Both constraints are dropped and re-added
+-- under their own names so a second run is a no-op; every existing row
+-- satisfies the wider rules. `care_status_events_kind_check` is the name
+-- Postgres gave the inline column CHECK in phase 3a.
+alter table care_status_events drop constraint if exists care_status_events_kind_check;
+alter table care_status_events add constraint care_status_events_kind_check
+  check (kind in ('phase', 'status_override', 'override_cleared', 'summary'));
+
+alter table care_status_events drop constraint if exists care_status_events_shape;
+alter table care_status_events add constraint care_status_events_shape check (
+  (kind = 'phase' and value is not null and char_length(btrim(value)) between 1 and 60)
+  or (
+    kind = 'status_override'
+    and value in ('improving', 'steady', 'needs_attention')
+    and reason is not null
+    and char_length(btrim(reason)) >= 10
+  )
+  or (kind = 'override_cleared' and value is null)
+  or (kind = 'summary' and value is not null and char_length(btrim(value)) between 1 and 1200 and reason is null)
+);
+
+-- 3. patient_diary_entries: what a patient writes down between sessions.
+--
+-- Freezing episodes, falls and near-misses for the Parkinson's sub-profile
+-- today; active minutes for heart and lung rehabilitation once that is a
+-- condition type. ONE generic table with a `kind` and a `details` object in
+-- the shape src/lib/patientDiary.ts validates (validateDiaryDetails), the
+-- outcome_measurements pattern -- every reader asks the same question of
+-- every kind. The free text is its own `note` column, scanned
+-- (patient_diary_note), so `details` holds structured answers only.
+--
+-- It is the patient's own account and says so: `entered_by_role` is who
+-- typed it (the patient through /api/patient/diary/add; a therapist or an
+-- admin column-ready for a later door), and a physiotherapist may CONFIRM a
+-- patient's entry once (/api/therapist/diary/confirm) -- the one change the
+-- trigger permits, with the stamp's time set by the database. Confirming is
+-- not editing: a wrong entry stays, with a truer one beside it.
+--
+-- Who: the patient reads their own and may insert their own (the route is
+-- the real writer, with the service role; the policy is the browser-session
+-- half); the therapist reads under the clinical-access rule and confirms
+-- through the route under the same rule; an admin reads. Nobody updates or
+-- deletes from a browser session (revoked), and the trigger refuses every
+-- caller, the service role included.
+--
+-- A double tap is refused by a unique index over the entry's content, which
+-- the route answers as "already saved" rather than a second fall on the
+-- chart.
+--
+-- Foreign keys: the patient cascade, which the trigger turns into a refusal
+-- (the outcome_measurements posture: a patient with clinical history is
+-- suspended, not deleted -- /api/admin/delete-account names it "clinical"),
+-- and the author and the confirmer no action. None is `restrict`, so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates it (newest debug_reset_all_data(), above).
+create table if not exists patient_diary_entries (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  kind text not null check (kind in ('freezing', 'fall', 'near_miss', 'active_minutes')),
+  occurred_at timestamptz not null,
+  details jsonb not null default '{}'::jsonb check (jsonb_typeof(details) = 'object'),
+  note text check (note is null or char_length(btrim(note)) between 1 and 500),
+  entered_by uuid not null references profiles(id),
+  entered_by_role text not null check (entered_by_role in ('patient', 'therapist', 'admin')),
+  confirmed_by uuid references profiles(id),
+  confirmed_by_role text check (confirmed_by_role is null or confirmed_by_role in ('therapist', 'admin')),
+  confirmed_at timestamptz,
+  schema_version integer not null default 1 check (schema_version >= 1),
+  created_at timestamptz not null default now(),
+  constraint patient_diary_entries_not_in_future check (occurred_at <= created_at + interval '5 minutes'),
+  -- The three confirmation columns are set together or not at all, and
+  -- only on a patient's own entry.
+  constraint patient_diary_entries_confirmation_shape check (
+    (confirmed_at is null and confirmed_by is null and confirmed_by_role is null)
+    or (confirmed_at is not null and confirmed_by is not null and confirmed_by_role is not null and entered_by_role = 'patient')
+  )
+);
+
+create index if not exists patient_diary_entries_patient_idx
+  on patient_diary_entries (patient_id, occurred_at desc);
+create index if not exists patient_diary_entries_entered_by_idx
+  on patient_diary_entries (entered_by);
+create index if not exists patient_diary_entries_confirmed_by_idx
+  on patient_diary_entries (confirmed_by) where confirmed_by is not null;
+create unique index if not exists patient_diary_entries_no_double_tap
+  on patient_diary_entries (patient_id, kind, occurred_at, md5(details::text), md5(coalesce(note, '')));
+
+alter table patient_diary_entries enable row level security;
+
+drop policy if exists "patient_diary_entries_select_own" on patient_diary_entries;
+create policy "patient_diary_entries_select_own" on patient_diary_entries
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "patient_diary_entries_select_admin" on patient_diary_entries;
+create policy "patient_diary_entries_select_admin" on patient_diary_entries
+  for select using (is_admin());
+
+drop policy if exists "patient_diary_entries_select_assigned_therapist" on patient_diary_entries;
+create policy "patient_diary_entries_select_assigned_therapist" on patient_diary_entries
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_diary_entries.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_diary_entries.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "patient_diary_entries_insert_own_patient" on patient_diary_entries;
+create policy "patient_diary_entries_insert_own_patient" on patient_diary_entries
+  for insert with check (
+    (select auth.uid()) = patient_id
+    and entered_by = (select auth.uid())
+    and entered_by_role = 'patient'
+    and confirmed_at is null
+    and exists (
+      select 1 from profiles p
+      where p.id = (select auth.uid())
+        and p.role = 'patient'
+        and p.active = true
+    )
+  );
+
+revoke update, delete on patient_diary_entries from anon, authenticated;
+
+create or replace function public.patient_diary_entries_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    -- Confirmed is something that happens to an entry after it is written,
+    -- by somebody else; an entry cannot arrive already confirmed.
+    if new.confirmed_at is not null or new.confirmed_by is not null or new.confirmed_by_role is not null then
+      raise exception 'a diary entry is confirmed after it is written, never on insert';
+    end if;
+    return new;
+  end if;
+  -- The single permitted change: the one-time confirmation stamp on a
+  -- patient's own entry, every other column untouched. The time is the
+  -- database's, not the caller's.
+  if tg_op = 'UPDATE'
+     and old.confirmed_at is null
+     and old.entered_by_role = 'patient'
+     and new.confirmed_by is not null
+     and new.confirmed_by_role in ('therapist', 'admin')
+     and (to_jsonb(new) - 'confirmed_at' - 'confirmed_by' - 'confirmed_by_role')
+       = (to_jsonb(old) - 'confirmed_at' - 'confirmed_by' - 'confirmed_by_role') then
+    new.confirmed_at := now();
+    return new;
+  end if;
+  raise exception 'patient_diary_entries is append-only: a diary entry is never edited; write a new one';
+end;
+$$;
+
+revoke all on function public.patient_diary_entries_guard() from public, anon, authenticated;
+
+drop trigger if exists patient_diary_entries_guard on patient_diary_entries;
+create trigger patient_diary_entries_guard
+  before insert or update or delete on patient_diary_entries
+  for each row execute function public.patient_diary_entries_guard();
+
+-- 4. The Health Profile refreshes when a diary entry lands or is confirmed.
+do $$
+begin
+  alter publication supabase_realtime add table patient_diary_entries;
 exception when duplicate_object then null;
 end $$;
 

@@ -126,10 +126,12 @@ export const USER_ACTIVITY_META = {
   "care_milestone.saved": { label: "Planned a milestone", group: "clinical", verb: "planned a milestone" },
   "care_milestone.reached": { label: "Marked a milestone reached", group: "clinical", verb: "marked a milestone reached" },
   "care_status.set": {
-    label: "Set a patient's phase or status",
+    label: "Set a patient's phase, status or summary",
     group: "clinical",
-    verb: "set a patient's phase or overruled their status",
+    verb: "set a patient's phase, overruled their status or wrote where things stand",
   },
+  "patient_diary.added": { label: "Wrote in their diary", group: "clinical", verb: "wrote in their diary" },
+  "patient_diary.confirmed": { label: "Confirmed a diary entry", group: "clinical", verb: "confirmed a patient's diary entry" },
   // feedback
   "feedback.submitted": { label: "Left session feedback", group: "feedback", verb: "left feedback on a session" },
   // referral

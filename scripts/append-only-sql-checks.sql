@@ -361,3 +361,151 @@ begin
   raise notice 'PASS  care_status_events takes the three kinds, refuses a bad shape, and is append-only';
 end $$;
 rollback;
+
+-- care_status_events, phase 4a: the fourth kind, 'summary' -- the
+-- physiotherapist's written "Where things stand". The permitted half is the
+-- insert (the text in `value`, up to 1,200 characters, no reason); the
+-- shape CHECK refuses a blank one, one past the limit and one carrying a
+-- reason, the kind CHECK still refuses an unknown kind, and a summary
+-- cannot be rewritten afterwards -- the same trigger as the other three.
+begin;
+do $$
+declare v_actor uuid; v_id uuid; v_ok boolean;
+begin
+  select id into v_actor from profiles where role = 'admin' limit 1;
+  if v_actor is null then raise exception 'no admin profile to attribute the probe rows to'; end if;
+
+  insert into care_status_events (patient_id, kind, value, profile_kind, set_by, set_by_role)
+  values (v_actor, 'summary', 'Walking further each week. Next: stairs without the rail.', 'neuro_parkinsons', v_actor, 'admin')
+  returning id into v_id;
+  if v_id is null then raise exception 'FAIL: care_status_events refused a well-formed summary'; end if;
+
+  v_ok := false;
+  begin
+    insert into care_status_events (patient_id, kind, value, profile_kind, set_by, set_by_role)
+    values (v_actor, 'summary', '   ', 'ortho', v_actor, 'admin');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_status_events accepted a blank summary'; end if;
+
+  v_ok := false;
+  begin
+    insert into care_status_events (patient_id, kind, value, profile_kind, set_by, set_by_role)
+    values (v_actor, 'summary', repeat('x', 1201), 'ortho', v_actor, 'admin');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_status_events accepted a summary over 1,200 characters'; end if;
+
+  v_ok := false;
+  begin
+    insert into care_status_events (patient_id, kind, value, reason, profile_kind, set_by, set_by_role)
+    values (v_actor, 'summary', 'Doing well this week.', 'A reason does not belong here', 'ortho', v_actor, 'admin');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_status_events accepted a summary carrying a reason'; end if;
+
+  v_ok := false;
+  begin
+    insert into care_status_events (patient_id, kind, value, profile_kind, set_by, set_by_role)
+    values (v_actor, 'diary', 'Not a kind', 'ortho', v_actor, 'admin');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_status_events accepted an unknown kind'; end if;
+
+  v_ok := false;
+  begin update care_status_events set value = 'Rewritten afterwards' where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_status_events accepted an UPDATE of a summary'; end if;
+
+  raise notice 'PASS  care_status_events takes a written summary, refuses a bad one, and keeps it append-only';
+end $$;
+rollback;
+
+-- patient_diary_entries (phase 4a): the patient's diary. Both halves: an
+-- entry lands, and a patient's entry takes its one-time confirmation stamp
+-- (with the time set by the database, not the caller); everything else
+-- raises -- an entry arriving already confirmed, a second confirmation, a
+-- confirmation that also edits, a clinician's entry being confirmed, any
+-- other edit, a delete, an entry dated tomorrow, half a confirmation, and
+-- the same entry twice (the double-tap index).
+begin;
+do $$
+declare v_actor uuid; v_id uuid; v_own uuid; v_ok boolean; v_at timestamptz;
+begin
+  select id into v_actor from profiles where role = 'admin' limit 1;
+  if v_actor is null then raise exception 'no admin profile to attribute the probe rows to'; end if;
+
+  insert into patient_diary_entries (patient_id, kind, occurred_at, details, note, entered_by, entered_by_role)
+  values (v_actor, 'fall', now() - interval '1 day', '{"injured": false}'::jsonb, 'In the kitchen', v_actor, 'patient')
+  returning id into v_id;
+  insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role)
+  values (v_actor, 'freezing', now() - interval '2 days', '{"period": "day", "count": 4}'::jsonb, v_actor, 'admin')
+  returning id into v_own;
+
+  -- The permitted change: the confirmation stamp, once, on a patient's entry.
+  update patient_diary_entries
+     set confirmed_by = v_actor, confirmed_by_role = 'therapist', confirmed_at = '2000-01-01T00:00:00Z'
+   where id = v_id;
+  select confirmed_at into v_at from patient_diary_entries where id = v_id;
+  if v_at is null then raise exception 'FAIL: patient_diary_entries refused the confirmation stamp'; end if;
+  if v_at < now() - interval '1 minute' then raise exception 'FAIL: patient_diary_entries kept the caller''s confirmation time (%)', v_at; end if;
+
+  v_ok := false;
+  begin update patient_diary_entries set confirmed_by_role = 'admin', confirmed_at = now() where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: patient_diary_entries took a second confirmation'; end if;
+
+  v_ok := false;
+  begin
+    insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role)
+    values (v_actor, 'near_miss', now() - interval '3 days', '{}'::jsonb, v_actor, 'patient')
+    returning id into v_id;
+    update patient_diary_entries
+       set confirmed_by = v_actor, confirmed_by_role = 'therapist', confirmed_at = now(), note = 'Edited while confirming'
+     where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: patient_diary_entries let a confirmation edit the entry'; end if;
+
+  v_ok := false;
+  begin update patient_diary_entries set confirmed_by = v_actor, confirmed_by_role = 'therapist', confirmed_at = now() where id = v_own;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: patient_diary_entries confirmed a clinician''s own entry'; end if;
+
+  v_ok := false;
+  begin update patient_diary_entries set details = '{"period": "day", "count": 1}'::jsonb where id = v_own;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: patient_diary_entries accepted an UPDATE'; end if;
+
+  v_ok := false;
+  begin delete from patient_diary_entries where id = v_own;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: patient_diary_entries row was deletable'; end if;
+
+  v_ok := false;
+  begin
+    insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role, confirmed_by, confirmed_by_role, confirmed_at)
+    values (v_actor, 'fall', now() - interval '4 days', '{"injured": true}'::jsonb, v_actor, 'patient', v_actor, 'therapist', now());
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: patient_diary_entries accepted an entry arriving already confirmed'; end if;
+
+  v_ok := false;
+  begin
+    insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role)
+    values (v_actor, 'fall', now() + interval '1 day', '{"injured": false}'::jsonb, v_actor, 'patient');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: patient_diary_entries accepted an entry dated tomorrow'; end if;
+
+  v_ok := false;
+  begin
+    insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role)
+    values (v_actor, 'tremor', now() - interval '1 day', '{}'::jsonb, v_actor, 'patient');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: patient_diary_entries accepted an unknown kind'; end if;
+
+  v_ok := false;
+  begin
+    insert into patient_diary_entries (patient_id, kind, occurred_at, details, note, entered_by, entered_by_role)
+    values (v_actor, 'fall', (select occurred_at from patient_diary_entries where note = 'In the kitchen' and patient_id = v_actor),
+            '{"injured": false}'::jsonb, 'In the kitchen', v_actor, 'patient');
+  exception when unique_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: patient_diary_entries accepted the same entry twice'; end if;
+
+  raise notice 'PASS  patient_diary_entries takes an entry and one confirmation, and refuses every other change';
+end $$;
+rollback;

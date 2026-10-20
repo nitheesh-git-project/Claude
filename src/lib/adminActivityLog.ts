@@ -393,7 +393,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "neuro_assessment.create": "Recorded a neurological exam",
   "outcome_measurement.create": "Recorded a measurement",
   "care_milestone.reopen": "Reopened a milestone marked reached by mistake",
-  "care_status.set": "Set a patient's phase or overruled their status",
+  "care_status.set": "Set a patient's phase, overruled their status or wrote where things stand",
   "clinical_questions.update_intake": "Reworded an intake question",
   "clinical_questions.update_pain_map": "Reworded a Pain Map question",
   "risk.review": "Reviewed a risk signal",

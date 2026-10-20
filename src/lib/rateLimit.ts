@@ -225,6 +225,23 @@ export const RATE_LIMITS = {
     windowSeconds: 3600,
     message: "We've taken a lot of referrals from this account just now.",
   },
+
+  /**
+   * A patient (or the family member holding their phone) writing in their
+   * diary -- a fall, a freezing episode, a near-miss.
+   *
+   * Its own scope on the one-scope-per-flow rule. Keyed on the account, and
+   * loose: a family catching up on a week of episodes writes several in a
+   * sitting, and refusing one is a fall missing from the chart. The ceiling
+   * bounds the table, it does not judge anybody. Fails open (the default):
+   * a limiter that cannot be asked must not cost a patient their entry.
+   */
+  patientDiary: {
+    scope: "patient-diary",
+    limit: 60,
+    windowSeconds: 3600,
+    message: "We've saved a lot of diary entries from this account just now.",
+  },
 } as const satisfies Record<string, RateLimit>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;
