@@ -23,6 +23,9 @@ import { loadCareStatus, loadGoalAndMilestones, loadMeasurements } from "@/lib/o
 import { parseMeasurementRows } from "@/lib/outcomeSeries";
 import { profileKindFor } from "@/lib/profileKind";
 import { buildProgressExport } from "@/lib/progressExport";
+import { buildDiaryExport } from "@/lib/diaryExport";
+import { loadDiaryEntries } from "@/lib/patientDiaryServer";
+import { diaryKindsFor } from "@/lib/patientDiary";
 
 /** Shape of the rows the Pain Map query returns, so the non-orthopaedic
  *  branch's empty placeholder keeps the same type. */
@@ -191,6 +194,12 @@ export async function GET(request: NextRequest) {
   const profileKind = profileKindFor(specialty, (conditionProfile?.data ?? {}) as Record<string, string>);
   const careStatusRead = await loadCareStatus(supabase, user.id, { profileKind });
   if (careStatusRead.status !== "ok") return exportUnavailable();
+  // The patient diary, for a record whose profile kind keeps one (a
+  // neurological record; none for another condition type, which makes no read).
+  // Complete or refused: an unreadable diary refuses the export, because a
+  // record handed over without its falls reads as a record with none.
+  const diaryRead = diaryKindsFor(profileKind).length > 0 ? await loadDiaryEntries(supabase, user.id) : null;
+  if (diaryRead && diaryRead.status !== "ok") return exportUnavailable();
 
   const changeRequests = changeRequestsResult.rows;
   const assessments = assessmentsResult.rows;
@@ -213,6 +222,7 @@ export async function GET(request: NextRequest) {
       care_goals: goalsRead.goals,
       care_milestones: goalsRead.milestones,
       care_status_events: careStatusRead.events,
+      patient_diary_entries: diaryRead ? diaryRead.entries : [],
       medical_documents: documents ?? [],
     };
     return new NextResponse(JSON.stringify(payload, null, 2), {
@@ -276,6 +286,7 @@ export async function GET(request: NextRequest) {
     specialtyLabel: specialtyLabel(specialty),
     respondent,
     progress,
+    diary: diaryRead ? buildDiaryExport(diaryRead.entries, { profileKind, nowMs: Date.now() }) : null,
     questions,
     answers,
     earlierProfiles,

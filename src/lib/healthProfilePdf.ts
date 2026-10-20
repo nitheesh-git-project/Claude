@@ -16,6 +16,7 @@ import {
 } from "@/lib/conditionIntake";
 import { toWinAnsi, toWinAnsiTidy, wrapText } from "@/lib/pdfText";
 import type { ProgressExport } from "@/lib/progressExport";
+import type { DiaryExport } from "@/lib/diaryExport";
 
 // The patient's own copy of their record, as a document they can hand to
 // another clinician -- which is what "export my data" actually means to a
@@ -87,6 +88,9 @@ export type HealthProfilePdfInput = {
    *  (`buildProgressExport` in progressExport.ts). Omitted only by callers
    *  that predate the measurement layer. */
   progress?: ProgressExport;
+  /** The patient's diary as counts (diaryExport.ts), for a record whose
+   *  profile kind keeps one. Null/absent prints nothing. */
+  diary?: DiaryExport | null;
 };
 
 // Renders one stored answer the way a person reads it, driven off the
@@ -451,6 +455,36 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
       cur.space(8);
     }
   }
+  }
+
+  // The diary, as counts only and always saying whose word it is. The route
+  // refuses the whole export when the diary cannot be read, so what prints
+  // here is the diary, not a part of it.
+  if (input.diary) {
+    const diary = input.diary;
+    cur.heading("Diary kept by the patient");
+    cur.text(
+      "Counts only. These are the patient's own account (patient reported) unless a physiotherapist has confirmed them. Nothing the patient wrote in a note is printed here.",
+      { size: 9, color: MUTED, gap: 4 }
+    );
+    if (diary.firstOn === null) {
+      cur.text("Nothing has been written in the diary yet.", { size: 10, color: MUTED });
+    } else {
+      cur.text(`Entries from ${diary.firstOn} to ${diary.lastOn}.`, { size: 9, color: MUTED, gap: 4 });
+      for (const line of diary.lines) {
+        cur.need(30);
+        cur.text(`${line.label}: ${line.total} ${line.unit}`, { size: 11, bold: true, gap: 1 });
+        cur.text(`${line.patientReported} patient reported, ${line.confirmed} confirmed by a physiotherapist`, { size: 9.5, indent: 12, gap: 4 });
+      }
+      if (diary.freezingWeeks.length > 0) {
+        cur.space(2);
+        cur.text("Freezing episodes by week (weeks with an entry; a blank week means nothing was written down)", { size: 9, bold: true, color: MUTED, gap: 2 });
+        for (const w of diary.freezingWeeks) {
+          cur.text(`Week of ${w.weekOf}: ${w.episodes}  (${w.confirmed ? "confirmed" : "patient reported"}${w.partial ? ", week in progress" : ""})`, { size: 9.5, indent: 12, gap: 1 });
+        }
+      }
+    }
+    cur.space(8);
   }
 
   if (input.showNeuroExaminations) {

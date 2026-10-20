@@ -53,3 +53,20 @@ describe("buildHealthProfilePdf progress section", () => {
     await expect(buildHealthProfilePdf(base)).resolves.toBeInstanceOf(Uint8Array);
   });
 });
+
+describe("buildHealthProfilePdf diary section", () => {
+  it("prints the diary as counts, and the empty diary as empty", async () => {
+    const withDiary = await buildHealthProfilePdf({
+      ...base,
+      diary: {
+        firstOn: "7 Oct 2026",
+        lastOn: "14 Oct 2026",
+        lines: [{ label: "Falls", unit: "falls", total: 3, patientReported: 1, confirmed: 2 }],
+        freezingWeeks: [{ weekOf: "5 Oct 2026", episodes: 5, confirmed: false, partial: false }],
+      },
+    });
+    expect((await PDFDocument.load(withDiary)).getPageCount()).toBe(1);
+    const empty = await buildHealthProfilePdf({ ...base, diary: { firstOn: null, lastOn: null, lines: [], freezingWeeks: [] } });
+    expect((await PDFDocument.load(empty)).getPageCount()).toBe(1);
+  });
+});
