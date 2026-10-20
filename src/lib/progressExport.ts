@@ -12,8 +12,15 @@ import { buildMeasureSeries, measureTableRows, type MeasurementPoint } from "@/l
 import { formatReading } from "@/lib/progressChart";
 import { linkSummary } from "@/lib/milestonePlanner";
 import { seriesName } from "@/lib/progressView";
+import type { CareStatusState } from "@/lib/careStatus";
+import { PROFILE_STATUS_LABEL } from "@/lib/profileStatus";
 
 export type ProgressExport = {
+  /** The phase the physiotherapist set and the status overrule in force, as text. */
+  care: {
+    phase: { name: string; setOn: string } | null;
+    override: { statusLabel: string; reason: string; setOn: string } | null;
+  };
   goal: { text: string; targetDate: string | null; status: string } | null;
   milestones: { title: string; criterion: string; status: string; when: string; measure: string | null }[];
   measures: { name: string; first: string; now: string; goal: string; change: string; reviews: number }[];
@@ -42,6 +49,8 @@ export function buildProgressExport(input: {
   goals: readonly CareGoal[];
   milestones: readonly CareMilestone[];
   nowMs: number;
+  /** What loadCareStatus read (shapeCareStatus); omitted only by a caller with none. */
+  careStatus?: CareStatusState;
 }): ProgressExport {
   const goal = input.goals.find((g) => g.status === "active") ?? [...input.goals].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0] ?? null;
   const steps = goal ? input.milestones.filter((m) => m.goalId === goal.id) : [];
@@ -83,7 +92,16 @@ export function buildProgressExport(input: {
     };
   });
 
+  const phase = input.careStatus?.phase ?? null;
+  const override = input.careStatus?.override ?? null;
+
   return {
+    care: {
+      phase: phase ? { name: phase.phase, setOn: formatClinicDate(phase.setAt) } : null,
+      override: override
+        ? { statusLabel: PROFILE_STATUS_LABEL[override.status], reason: override.reason, setOn: formatClinicDate(override.setAt) }
+        : null,
+    },
     goal: goal ? { text: goal.goalText, targetDate: goal.targetDate ? formatClinicDate(goal.targetDate) : null, status: GOAL_STATUS[goal.status] } : null,
     milestones,
     measures,

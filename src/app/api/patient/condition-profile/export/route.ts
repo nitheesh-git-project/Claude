@@ -18,7 +18,7 @@ import {
 } from "@/lib/conditionSpecialty";
 import { MEDICAL_DOCUMENT_TYPE_LABEL, type MedicalDocumentType } from "@/lib/medicalDocuments";
 import { describeNeuroExamForText, parseNeuroAssessments, type NeuroAssessmentRow } from "@/lib/neuroExam";
-import { loadGoalAndMilestones, loadMeasurements } from "@/lib/outcomeServer";
+import { loadCareStatus, loadGoalAndMilestones, loadMeasurements } from "@/lib/outcomeServer";
 import { parseMeasurementRows } from "@/lib/outcomeSeries";
 import { profileKindFor } from "@/lib/profileKind";
 import { buildProgressExport } from "@/lib/progressExport";
@@ -182,6 +182,15 @@ export async function GET(request: NextRequest) {
   ) {
     return exportUnavailable();
   }
+  // The physiotherapist's phase and status overrule, for the profile kind the
+  // record is read as (which needs the intake answers read above, so this is
+  // a second step). Its own call, and unreadable refuses the export: a
+  // document printed without the overrule would show the computed status
+  // when a clinician had said otherwise.
+  const profileKind = profileKindFor(specialty, (conditionProfile?.data ?? {}) as Record<string, string>);
+  const careStatusRead = await loadCareStatus(supabase, user.id, { profileKind });
+  if (careStatusRead.status !== "ok") return exportUnavailable();
+
   const changeRequests = changeRequestsResult.rows;
   const assessments = assessmentsResult.rows;
   const documents = documentsResult.rows;
@@ -202,6 +211,7 @@ export async function GET(request: NextRequest) {
       outcome_measurements: measurementsRead.rows,
       care_goals: goalsRead.goals,
       care_milestones: goalsRead.milestones,
+      care_status_events: careStatusRead.events,
       medical_documents: documents ?? [],
     };
     return new NextResponse(JSON.stringify(payload, null, 2), {
@@ -247,7 +257,8 @@ export async function GET(request: NextRequest) {
     .filter((s) => s.entries.length > 0);
 
   const progress = buildProgressExport({
-    profileKind: profileKindFor(specialty, answers),
+    profileKind,
+    careStatus: { phase: careStatusRead.phase, override: careStatusRead.override },
     points: parseMeasurementRows(measurementsRead.rows),
     goals: goalsRead.goals,
     milestones: goalsRead.milestones,

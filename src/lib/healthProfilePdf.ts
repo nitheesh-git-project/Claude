@@ -317,6 +317,24 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
   if (input.progress) {
     const progress = input.progress;
     cur.heading("Goal and progress");
+    // The phase and any overrule of the computed status are the treating
+    // physiotherapist's own judgement, so they are printed with the date they
+    // were made and, for an overrule, the reason given.
+    cur.text(
+      progress.care.phase
+        ? `Current phase of care: ${progress.care.phase.name} (set ${progress.care.phase.setOn})`
+        : "Current phase of care: not set",
+      { size: 10, bold: !!progress.care.phase, gap: 2 }
+    );
+    if (progress.care.override) {
+      cur.text(
+        `Status overruled by the physiotherapist: ${progress.care.override.statusLabel} (${progress.care.override.setOn})`,
+        { size: 10, bold: true, gap: 1 }
+      );
+      cur.text(`Reason: ${progress.care.override.reason}`, { size: 9, color: MUTED, gap: 6 });
+    } else {
+      cur.space(4);
+    }
     if (progress.goal) {
       cur.text("Goal, in the patient's own words", { size: 9, bold: true, color: MUTED, gap: 1 });
       cur.text(`\u201C${progress.goal.text}\u201D`, { size: 12, bold: true, gap: 2 });

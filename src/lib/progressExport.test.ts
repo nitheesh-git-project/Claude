@@ -107,4 +107,35 @@ describe("buildProgressExport", () => {
     expect(out.goal).toMatchObject({ text: "Climb stairs", status: "Closed" });
     expect(out.milestones).toEqual([]);
   });
+
+  it("prints the phase and the overrule with their dates and the reason, and says when none is set", () => {
+    const none = buildProgressExport({ profileKind: "ortho", points: [], goals: [], milestones: [], nowMs: NOW });
+    expect(none.care).toEqual({ phase: null, override: null });
+
+    const out = buildProgressExport({
+      profileKind: "ortho",
+      points: [],
+      goals: [],
+      milestones: [],
+      nowMs: NOW,
+      careStatus: {
+        phase: { phase: "Strengthen", eventId: "e1", setAt: "2026-10-01T05:00:00.000Z", setBy: "t", setByRole: "therapist", reason: null },
+        override: {
+          status: "needs_attention",
+          reason: "Swelling returned after the stairs test.",
+          eventId: "e2",
+          setAt: "2026-10-12T05:00:00.000Z",
+          setBy: "t",
+          setByRole: "therapist",
+          stale: false,
+        },
+      },
+    });
+    expect(out.care.phase).toEqual({ name: "Strengthen", setOn: formatClinicDate("2026-10-01T05:00:00.000Z") });
+    expect(out.care.override).toEqual({
+      statusLabel: "Needs attention",
+      reason: "Swelling returned after the stairs test.",
+      setOn: formatClinicDate("2026-10-12T05:00:00.000Z"),
+    });
+  });
 });
