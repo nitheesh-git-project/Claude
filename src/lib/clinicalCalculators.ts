@@ -219,7 +219,9 @@ export type SixMinuteWalkEquation = {
 export const SIX_MINUTE_WALK_EQUATIONS: Record<SixMinuteWalkEquationKey, SixMinuteWalkEquation> = {
   enright_sherrill_1998: {
     key: "enright_sherrill_1998",
-    label: "Enright and Sherrill (1998)",
+    // "US adults" is in the name on purpose: it is selectable, but the clinic
+    // must see that it is choosing another country's population.
+    label: "Enright and Sherrill (1998), US adults",
     population: "Healthy adults in the USA, aged 40 to 80",
     // To be verified by a senior physiotherapist against its source.
     predict: ({ sex, ageYears, heightCm, weightKg }) =>
@@ -245,13 +247,22 @@ export const SIX_MINUTE_WALK_EQUATIONS: Record<SixMinuteWalkEquationKey, SixMinu
   },
 };
 
-/** What the profile uses until the clinic chooses otherwise. */
-export const DEFAULT_SIX_MINUTE_WALK_EQUATION: SixMinuteWalkEquationKey = "enright_sherrill_1998";
+/**
+ * The placeholder: "the clinic has not chosen a formula yet". It is what
+ * the profile uses until an admin picks one on Settings -> Clinical
+ * Questions (site_settings.six_minute_walk_equation, src/lib/sixMinuteWalkEquation.ts),
+ * and what an unset or unreadable setting means. It refuses to predict, so
+ * nothing ever falls back silently to the US equation.
+ */
+export const SIX_MINUTE_WALK_EQUATION_NOT_CHOSEN: SixMinuteWalkEquationKey = "indian_adult_tbd";
 
-export function predictedSixMinuteWalk(
-  input: SixMinuteWalkInput,
-  equationKey: SixMinuteWalkEquationKey = DEFAULT_SIX_MINUTE_WALK_EQUATION
-): CalcResult<number> {
+/** What the profile uses until the clinic chooses otherwise: the
+ *  placeholder, never a population's formula. */
+export const DEFAULT_SIX_MINUTE_WALK_EQUATION: SixMinuteWalkEquationKey = SIX_MINUTE_WALK_EQUATION_NOT_CHOSEN;
+
+/** The key is required: a default here is how a prediction would quietly
+ *  use an equation nobody chose. */
+export function predictedSixMinuteWalk(input: SixMinuteWalkInput, equationKey: SixMinuteWalkEquationKey): CalcResult<number> {
   const equation = SIX_MINUTE_WALK_EQUATIONS[equationKey];
   if (!equation) return fail("Unknown six-minute walk equation.");
   if (!equation.predict || !equation.formula) {

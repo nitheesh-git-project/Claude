@@ -187,7 +187,14 @@ export function doseTimeToIso(time: string, nowMs: number): string | null {
  *  fields are dropped (a walking aid typed and then a different test picked
  *  must not travel), blanks are left out, and the route's own validation has
  *  the last word. */
-export function buildConditions(m: OutcomeMeasure, kind: ProfileKind, draft: ConditionDraft, nowMs: number): MeasurementConditions {
+export function buildConditions(
+  m: OutcomeMeasure,
+  kind: ProfileKind,
+  draft: ConditionDraft,
+  nowMs: number,
+  /** The chair stand's "used arms" tick, from the timer (Entry.usedArms). */
+  usedArms?: boolean
+): MeasurementConditions {
   const fields = conditionFieldsFor(m, kind);
   const out: MeasurementConditions = { setting: draft.setting === "video" ? "video" : "in_person" };
   const text = (s: string) => s.trim();
@@ -206,6 +213,7 @@ export function buildConditions(m: OutcomeMeasure, kind: ProfileKind, draft: Con
   if (fields.method && draft.method) out.method = draft.method;
   if (fields.painBefore && draft.painBefore.trim() !== "") out.painBefore = Number(draft.painBefore);
   if (fields.oxygen && draft.oxygenLpm.trim() !== "") out.supplementalOxygenLpm = Number(draft.oxygenLpm);
+  if (m.usedArmsScoresZero && usedArms !== undefined) out.usedArms = usedArms;
   return out;
 }
 
@@ -240,7 +248,15 @@ export function previousReading(
 
 export type TimerKind =
   | { kind: "tap"; count: number; maxTrials: number; keep: TrialKeep; practice: number; distanceMetres?: number }
-  | { kind: "countdown"; seconds: number; max: number; title: string; description: string }
+  | {
+      kind: "countdown";
+      seconds: number;
+      max: number;
+      title: string;
+      description: string;
+      /** Offer the "used arms" tick (the CDC chair-stand rule). */
+      armsRule: boolean;
+    }
   | { kind: "balance" }
   | { kind: "six_minute_walk" };
 
@@ -266,6 +282,7 @@ export function timerFor(m: OutcomeMeasure): TimerKind | null {
       seconds: 30,
       max: m.max,
       title: "30-second chair stand",
+      armsRule: m.usedArmsScoresZero === true,
       description:
         "Chair without arms, seat about 43 cm, against a wall. Feet flat, arms crossed on the chest. Say “Go” and count each full stand. If they are more than halfway up when time ends, count it.",
     };
@@ -276,6 +293,7 @@ export function timerFor(m: OutcomeMeasure): TimerKind | null {
       seconds: 60,
       max: m.max,
       title: "1-minute sit-to-stand",
+      armsRule: false,
       description:
         "Standard chair, arms crossed on the chest. Say “Go” and count how many full stands they can do in one minute. They may rest, and the clock keeps running.",
     };
@@ -318,8 +336,9 @@ export type EditorState = {
   healthyTexts: string[];
   /** Orthostatic readings by key. */
   readingTexts: Record<string, string>;
-  /** What an embedded timer produced. */
-  timer: { value: number; items: number[] | null } | null;
+  /** What an embedded timer produced. `usedArms` is the chair stand's
+   *  tick (the score is then 0 and `items` holds the stands with arms). */
+  timer: { value: number; items: number[] | Record<string, number> | null; usedArms?: boolean } | null;
 };
 
 export function emptyEditorState(m: OutcomeMeasure | null): EditorState {
@@ -343,6 +362,8 @@ export type Entry = {
   problem: string | null;
   /** The working, for the line under the result (a symmetry index, a total). */
   working: string | null;
+  /** The chair stand's "used arms" tick, when the timer recorded one. */
+  usedArms?: boolean;
 };
 
 const NOTHING: Entry = { value: null, items: null, problem: null, working: null };
@@ -407,7 +428,14 @@ export function computeEntry(m: OutcomeMeasure, st: EditorState, useTimer: boole
 
   const timed = timerFor(m);
   if (timed && useTimer) {
-    return st.timer ? { value: st.timer.value, items: st.timer.items, problem: null, working: null } : NOTHING;
+    if (!st.timer) return NOTHING;
+    return {
+      value: st.timer.value,
+      items: st.timer.items,
+      problem: null,
+      working: null,
+      ...(m.usedArmsScoresZero && st.timer.usedArms !== undefined ? { usedArms: st.timer.usedArms } : {}),
+    };
   }
 
   if (m.capture === "trials" && m.trials && (!timed || !useTimer) && st.trialTexts.some((t) => t.trim() !== "")) {

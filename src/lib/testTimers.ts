@@ -436,6 +436,9 @@ export type PredictedWalk =
   | { status: "ok"; predicted: number; percent: number | null; equation: string; working: string }
   /** The clinic has not chosen the equation yet: said plainly, no number. */
   | { status: "equation_not_chosen"; equation: string }
+  /** The setting could not be read: "we couldn't check", not "not chosen",
+   *  and no number either way. */
+  | { status: "equation_unreadable" }
   | { status: "needs_details"; missing: string[] }
   | { status: "unusable"; error: string };
 
@@ -447,8 +450,13 @@ export type PredictedWalk =
 export function sixMinuteWalkPrediction(input: {
   walkedMetres: number | null;
   patient: { sex?: Sex | null; ageYears?: number | null; heightCm?: number | null; weightKg?: number | null } | null;
+  /** The clinic's choice (site_settings.six_minute_walk_equation). Absent
+   *  is the placeholder -- never the US equation. */
   equationKey?: SixMinuteWalkEquationKey;
+  /** The setting could not be read. */
+  equationUnreadable?: boolean;
 }): PredictedWalk {
+  if (input.equationUnreadable) return { status: "equation_unreadable" };
   const key = input.equationKey ?? DEFAULT_SIX_MINUTE_WALK_EQUATION;
   const equation = SIX_MINUTE_WALK_EQUATIONS[key];
   if (!equation) return { status: "unusable", error: "Unknown six-minute walk equation." };

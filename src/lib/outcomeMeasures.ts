@@ -234,6 +234,11 @@ export type OutcomeMeasure = {
    *  progress score; the screen labels it so. */
   classification?: boolean;
   clinicOwnRating?: boolean;
+  /** The CDC chair-stand rule: a stand that needs the arms scores 0. When
+   *  `conditions.usedArms` is true the value must be 0 and the stands done
+   *  with the arms travel in `items` as `{ standsWithArms }` (see
+   *  validateUsedArms). Only a measure carrying this may say usedArms. */
+  usedArmsScoresZero?: boolean;
   /** Reviewer notes that travel with the entry. */
   note?: string;
 };
@@ -926,7 +931,8 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     profileKinds: ["geriatric"],
     source: "outcome_measurements",
     capture: "single",
-    note: "If the arms must be used, the score is 0; record the stands with arms in the conditions.",
+    usedArmsScoresZero: true,
+    note: "If the arms must be used, the score is 0 (CDC STEADI): tick “used arms” and the stands done with the arms are kept beside it.",
   },
   {
     key: "four_stage_balance",
@@ -1664,7 +1670,15 @@ export type MeasurementConditions = {
   supplementalOxygenLpm?: number;
   /** Pain 0-10 before the test. */
   painBefore?: number;
+  /** The patient had to use their arms to stand (the 30-second chair
+   *  stand): the score is then 0, and the stands with the arms are in
+   *  `items`. Only on a measure with `usedArmsScoresZero`. */
+  usedArms?: boolean;
 };
+
+/** The one key `items` holds when the arms were used: what was counted
+ *  before the CDC rule zeroed the score. */
+export const STANDS_WITH_ARMS_KEY = "standsWithArms";
 
 const CONDITION_KEYS: readonly (keyof MeasurementConditions)[] = [
   "setting",
@@ -1678,6 +1692,7 @@ const CONDITION_KEYS: readonly (keyof MeasurementConditions)[] = [
   "homeMeasured",
   "supplementalOxygenLpm",
   "painBefore",
+  "usedArms",
 ];
 
 export const CONDITION_TEXT_MAX = 80;
@@ -1726,6 +1741,12 @@ export function validateMeasurementConditions(
     if (raw[key] === undefined || raw[key] === null) continue;
     if (typeof raw[key] !== "boolean") return { ok: false, error: `${key} must be yes or no.` };
     out[key] = raw[key] as boolean;
+  }
+
+  if (raw.usedArms !== undefined && raw.usedArms !== null) {
+    if (typeof raw.usedArms !== "boolean") return { ok: false, error: "Used arms must be yes or no." };
+    if (!m.usedArmsScoresZero) return { ok: false, error: `${m.label} does not record whether the arms were used.` };
+    out.usedArms = raw.usedArms;
   }
 
   if (raw.method !== undefined && raw.method !== null) {
@@ -1848,6 +1869,49 @@ function validateTrials(
 }
 
 /**
+ * The CDC STEADI chair-stand rule: if the patient must use their arms to
+ * stand, the score is 0. So with `usedArms` true the stored value must be 0
+ * -- a count with the arms on the graph would read as a strength the
+ * patient does not have -- and the stands done with the arms travel in
+ * `items` as `{ standsWithArms: n }` (a whole number the measure could
+ * hold), so the reader can still see what happened. Without it, `items`
+ * stays empty: a chair stand has no item scores. A measure without
+ * `usedArmsScoresZero` never gets here (validateMeasurementConditions
+ * refuses `usedArms` on it).
+ */
+export function validateUsedArms(
+  m: OutcomeMeasure,
+  usedArms: boolean,
+  value: number,
+  rawItems: unknown
+): { ok: true; items: Record<string, number> | null } | { ok: false; error: string } {
+  if (!usedArms) {
+    if (rawItems !== undefined && rawItems !== null) {
+      return { ok: false, error: `${m.label}: the stands with arms are recorded only when the arms were used.` };
+    }
+    return { ok: true, items: null };
+  }
+  if (Math.abs(value) > EPSILON) {
+    return { ok: false, error: `${m.label}: when the arms were used the score is 0; the stands with arms are kept beside it.` };
+  }
+  if (!isPlainObject(rawItems)) {
+    return { ok: false, error: `${m.label}: record how many stands were done with the arms.` };
+  }
+  const extra = Object.keys(rawItems).filter((k) => k !== STANDS_WITH_ARMS_KEY);
+  if (extra.length) return { ok: false, error: `${m.label}: unknown reading ${extra.join(", ")}.` };
+  const n = rawItems[STANDS_WITH_ARMS_KEY];
+  if (typeof n !== "number" || !Number.isInteger(n) || n < m.min || n > m.max) {
+    return { ok: false, error: `${m.label}: the stands with arms must be a whole number from ${m.min} to ${m.max}.` };
+  }
+  return { ok: true, items: { [STANDS_WITH_ARMS_KEY]: n } };
+}
+
+/** What a chair stand with the arms used is stored as: 0, and the count. */
+export function usedArmsEntry(standsWithArms: number): { value: 0; items: Record<string, number> } {
+  return { value: 0, items: { [STANDS_WITH_ARMS_KEY]: standsWithArms } };
+}
+
+/**
  * A measurement as a screen sends it (the `measurement` of
  * /api/therapist/measurements/submit and /api/admin/measurements/submit),
  * before validateMeasurement() checks it. `items` is a score sheet's answers
@@ -1952,6 +2016,9 @@ export function validateMeasurement(
       return { ok: false, error: `${m.label}: the value (${valueResult.value}) does not match the readings (${derived}).` };
     }
     items = readings;
+  } else if (m.usedArmsScoresZero) {
+    // Checked with the conditions below (validateUsedArms): `items` here is
+    // the stands done with the arms, and only when the arms were used.
   } else if (raw.items !== undefined && raw.items !== null) {
     if (!m.scoreSheet) return { ok: false, error: `${m.label} has no item scores.` };
     if (!Array.isArray(raw.items)) return { ok: false, error: "Item scores must be a list." };
@@ -1965,6 +2032,12 @@ export function validateMeasurement(
 
   const cond = validateMeasurementConditions(raw.conditions, { measureKey: key, profileKind: ctx.profileKind, measuredAtMs });
   if (!cond.ok) return cond;
+
+  if (m.usedArmsScoresZero) {
+    const arms = validateUsedArms(m, cond.conditions.usedArms === true, valueResult.value, raw.items);
+    if (!arms.ok) return arms;
+    items = arms.items;
+  }
 
   return {
     ok: true,

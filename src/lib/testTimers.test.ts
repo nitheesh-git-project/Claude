@@ -265,11 +265,12 @@ describe("vitals", () => {
 
 describe("sixMinuteWalkPrediction", () => {
   const patient = { sex: "male" as const, ageYears: 60, heightCm: 170, weightKg: 70 };
+  const us = "enright_sherrill_1998" as const;
   it("names the equation and gives the percentage", () => {
-    const r = sixMinuteWalkPrediction({ walkedMetres: 400, patient });
+    const r = sixMinuteWalkPrediction({ walkedMetres: 400, patient, equationKey: us });
     expect(r.status).toBe("ok");
     if (r.status === "ok") {
-      expect(r.equation).toMatch(/Enright/);
+      expect(r.equation).toMatch(/Enright and Sherrill \(1998\), US adults/);
       expect(r.percent).toBe(Math.round((400 / r.predicted) * 100));
     }
   });
@@ -277,16 +278,26 @@ describe("sixMinuteWalkPrediction", () => {
     const r = sixMinuteWalkPrediction({ walkedMetres: 400, patient, equationKey: "indian_adult_tbd" });
     expect(r.status).toBe("equation_not_chosen");
   });
+  it("with no equation given is 'not chosen', never the US equation", () => {
+    expect(sixMinuteWalkPrediction({ walkedMetres: 400, patient }).status).toBe("equation_not_chosen");
+  });
+  it("says it could not check when the setting was unreadable, whatever key came with it", () => {
+    expect(sixMinuteWalkPrediction({ walkedMetres: 400, patient, equationKey: us, equationUnreadable: true })).toEqual({
+      status: "equation_unreadable",
+    });
+  });
   it("lists the missing details and does not guess", () => {
-    const r = sixMinuteWalkPrediction({ walkedMetres: 400, patient: { sex: null, ageYears: 60 } });
+    const r = sixMinuteWalkPrediction({ walkedMetres: 400, patient: { sex: null, ageYears: 60 }, equationKey: us });
     expect(r).toEqual({ status: "needs_details", missing: ["sex", "height", "weight"] });
-    expect(sixMinuteWalkPrediction({ walkedMetres: 400, patient: null }).status).toBe("needs_details");
+    expect(sixMinuteWalkPrediction({ walkedMetres: 400, patient: null, equationKey: us }).status).toBe("needs_details");
   });
   it("gives a prediction with no percentage before there is a distance", () => {
-    const r = sixMinuteWalkPrediction({ walkedMetres: null, patient });
+    const r = sixMinuteWalkPrediction({ walkedMetres: null, patient, equationKey: us });
     expect(r.status === "ok" && r.percent).toBeNull();
   });
   it("is unusable for details outside the equation's range", () => {
-    expect(sixMinuteWalkPrediction({ walkedMetres: 400, patient: { ...patient, ageYears: 10 } }).status).toBe("unusable");
+    expect(sixMinuteWalkPrediction({ walkedMetres: 400, patient: { ...patient, ageYears: 10 }, equationKey: us }).status).toBe(
+      "unusable"
+    );
   });
 });

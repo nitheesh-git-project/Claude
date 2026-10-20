@@ -151,6 +151,27 @@ describe("buildConditions", () => {
     );
     expect(checked.ok).toBe(false);
   });
+
+  it("carries the chair stand's used-arms tick, and only on the chair stand", () => {
+    const draft = { ...EMPTY_CONDITION_DRAFT, setting: "in_person" as const };
+    expect(buildConditions(m("chair_stand_30s"), "geriatric", draft, NOW, true).usedArms).toBe(true);
+    expect(buildConditions(m("chair_stand_30s"), "geriatric", draft, NOW, false).usedArms).toBe(false);
+    expect(buildConditions(m("chair_stand_30s"), "geriatric", draft, NOW).usedArms).toBeUndefined();
+    expect(buildConditions(m("one_minute_sit_to_stand"), "cardiopulmonary", draft, NOW, true).usedArms).toBeUndefined();
+  });
+
+  it("a timed chair stand with the arms used is 0 with the count kept, and the route's check agrees", () => {
+    const stand = m("chair_stand_30s");
+    const editor = { ...emptyEditorState(stand), timer: { value: 0, items: { standsWithArms: 6 }, usedArms: true } };
+    const entry = computeEntry(stand, editor, true);
+    expect(entry).toMatchObject({ value: 0, items: { standsWithArms: 6 }, usedArms: true });
+    const conditions = buildConditions(stand, "geriatric", { ...EMPTY_CONDITION_DRAFT, setting: "in_person" }, NOW, entry.usedArms);
+    const checked = validateMeasurement(
+      { measureKey: stand.key, value: entry.value, items: entry.items, measuredAt: new Date(NOW).toISOString(), conditions },
+      { profileKind: "geriatric", nowMs: NOW }
+    );
+    expect(checked.ok).toBe(true);
+  });
 });
 
 describe("previousReading", () => {
@@ -194,8 +215,8 @@ describe("timerFor", () => {
     expect(timerFor(m("tug"))).toMatchObject({ kind: "tap", count: 3, keep: "average", practice: 1 });
     expect(timerFor(m("ten_metre_walk"))).toMatchObject({ kind: "tap", distanceMetres: 10 });
     expect(timerFor(m("gait_speed_4m"))).toMatchObject({ kind: "tap", distanceMetres: 4, count: 2 });
-    expect(timerFor(m("chair_stand_30s"))).toMatchObject({ kind: "countdown", seconds: 30 });
-    expect(timerFor(m("one_minute_sit_to_stand"))).toMatchObject({ kind: "countdown", seconds: 60 });
+    expect(timerFor(m("chair_stand_30s"))).toMatchObject({ kind: "countdown", seconds: 30, armsRule: true });
+    expect(timerFor(m("one_minute_sit_to_stand"))).toMatchObject({ kind: "countdown", seconds: 60, armsRule: false });
     expect(timerFor(m("four_stage_balance"))).toEqual({ kind: "balance" });
     expect(timerFor(m("six_minute_walk"))).toEqual({ kind: "six_minute_walk" });
   });

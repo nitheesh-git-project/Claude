@@ -303,3 +303,61 @@ begin
   raise notice 'PASS  a reached milestone reopens only through reopen_care_milestone(), and the event is append-only';
 end $$;
 rollback;
+
+-- care_status_events: the phase and status-override history (Health
+-- Profile redesign, phase 3a). Append-only by trigger with no permitted
+-- mutation at all, so the "permitted half" is the inserts themselves: each
+-- of the three kinds lands, the shape CHECK refuses an override without a
+-- reason of at least 10 characters (and a clear that carries a value), and
+-- no row can then be rewritten or deleted -- the service role included.
+begin;
+do $$
+declare v_actor uuid; v_id uuid; v_ok boolean; v_n integer;
+begin
+  select id into v_actor from profiles where role = 'admin' limit 1;
+  if v_actor is null then raise exception 'no admin profile to attribute the probe rows to'; end if;
+
+  insert into care_status_events (patient_id, kind, value, profile_kind, set_by, set_by_role)
+  values (v_actor, 'phase', 'Strengthen', 'ortho', v_actor, 'admin');
+  insert into care_status_events (patient_id, kind, value, reason, profile_kind, set_by, set_by_role)
+  values (v_actor, 'status_override', 'needs_attention', 'New knee swelling today', 'ortho', v_actor, 'admin')
+  returning id into v_id;
+  insert into care_status_events (patient_id, kind, profile_kind, set_by, set_by_role)
+  values (v_actor, 'override_cleared', 'ortho', v_actor, 'admin');
+  select count(*) into v_n from care_status_events where patient_id = v_actor and set_by = v_actor;
+  if v_n < 3 then raise exception 'FAIL: care_status_events refused a well-formed insert (% rows)', v_n; end if;
+
+  v_ok := false;
+  begin
+    insert into care_status_events (patient_id, kind, value, reason, profile_kind, set_by, set_by_role)
+    values (v_actor, 'status_override', 'steady', 'too short', 'ortho', v_actor, 'admin');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_status_events accepted an override with a reason under 10 characters'; end if;
+
+  v_ok := false;
+  begin
+    insert into care_status_events (patient_id, kind, value, profile_kind, set_by, set_by_role)
+    values (v_actor, 'status_override', 'baseline', 'ortho', v_actor, 'admin');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_status_events accepted an override that is not a judgement'; end if;
+
+  v_ok := false;
+  begin
+    insert into care_status_events (patient_id, kind, value, profile_kind, set_by, set_by_role)
+    values (v_actor, 'override_cleared', 'steady', 'ortho', v_actor, 'admin');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_status_events accepted a clear carrying a value'; end if;
+
+  v_ok := false;
+  begin update care_status_events set reason = 'Rewritten afterwards' where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_status_events accepted an UPDATE'; end if;
+
+  v_ok := false;
+  begin delete from care_status_events where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_status_events row was deletable'; end if;
+
+  raise notice 'PASS  care_status_events takes the three kinds, refuses a bad shape, and is append-only';
+end $$;
+rollback;

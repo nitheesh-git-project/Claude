@@ -10233,6 +10233,9 @@ begin
     care_milestones,
     care_goals,
     outcome_measurements,
+    -- The phase and status-override history (phase 3a, end of this file),
+    -- append-only by trigger for the same reason.
+    care_status_events,
     condition_change_requests,
     condition_access_grants,
     patient_condition_profiles,
@@ -18029,6 +18032,202 @@ end $$;
 do $$
 begin
   alter publication supabase_realtime add table care_milestones;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 3a: the physiotherapist's phase and status
+-- judgements, and the six-minute walk's equation.
+--
+-- Four things, each re-runnable on its own:
+--   1. site_settings.six_minute_walk_equation -- the admin's choice of the
+--      predicted-distance equation;
+--   2. one new contact-scanner surface, for the reason on a status
+--      override;
+--   3. care_status_events -- the append-only history of the current phase
+--      and of overrides of the computed status pill;
+--   4. the realtime publication for it.
+--
+-- APPLY THIS TO STAGING'S DATABASE BEFORE THE BRANCH MERGES. The Health
+-- Profile's PDF export is "complete or refused": with a table it reads
+-- missing, it answers 503 rather than a shorter document.
+-- ---------------------------------------------------------------------
+
+-- 1. Which predicted-distance equation the six-minute walk's "% of
+-- predicted" uses (src/lib/clinicalCalculators.ts, SIX_MINUTE_WALK_EQUATIONS;
+-- src/lib/sixMinuteWalkEquation.ts). NULL is the default and means "not
+-- chosen yet": no percentage is shown, and nothing falls back to the US
+-- equation. Plain text, not jsonb: update-setting compares a scalar with
+-- .eq() / .is(null), which is correct for text. The keys are checked against
+-- the equation table by that route; the CHECK only pins the shape. Read in
+-- its own call (loadSixMinuteWalkEquation), never through
+-- SITE_SETTINGS_SELECT.
+alter table site_settings
+  add column if not exists six_minute_walk_equation text;
+
+alter table site_settings drop constraint if exists site_settings_six_minute_walk_equation_shape;
+alter table site_settings add constraint site_settings_six_minute_walk_equation_shape
+  check (six_minute_walk_equation is null or six_minute_walk_equation ~ '^[a-z][a-z0-9_]{1,63}$');
+
+-- 2. The reason on a status override reaches the patient beside the pill,
+-- so it goes through the contact scanner like the goal and milestone text.
+-- Widened by restating the whole list, as phase 2a did; every existing row
+-- satisfies the wider rule.
+alter table communication_flags drop constraint if exists communication_flags_surface_check;
+alter table communication_flags add constraint communication_flags_surface_check check (surface in (
+  'session_suggestion_note',
+  'care_plan_rationale',
+  'care_plan_instructions',
+  'pain_assessment_answer',
+  'appointment_notes',
+  'condition_answer',
+  'neuro_assessment_note',
+  'session_summary',
+  'outcome_measurement_condition',
+  'care_goal_text',
+  'care_milestone_text',
+  'care_status_reason'
+));
+
+-- 3. care_status_events: the current phase and the status override, as
+-- history rather than a mutable cell.
+--
+-- The physiotherapist sets which of the profile kind's four phases the
+-- patient is in (src/lib/milestoneTemplates.ts, PHASES_BY_PROFILE_KIND) and
+-- may overrule the computed status pill (src/lib/profileStatus.ts) with a
+-- reason of at least 10 characters. Each change is a row; what is in force
+-- is shaped from the rows (src/lib/careStatus.ts: the latest phase wins,
+-- the latest override wins, an override_cleared row ends the override
+-- before it). So "who said Needs attention, when and why" always has an
+-- answer, and an override is never silently replaced.
+--
+-- Who: the patient reads their own (the reason is shown beside the pill,
+-- which is why it is scanned); the assigned therapist reads and inserts
+-- under the clinical-access rule, as care_goals does -- a judgement about
+-- the plan needs the assignment, not a started session; an admin reads,
+-- and writes through /api/admin/care-status/set (service role,
+-- requireAdminScope("people"), an audit row). The phase is checked against
+-- the profile kind's list by the routes; profile_kind is stored so a phase
+-- chosen under another kind (neuro -> the Parkinson's sub-profile) is
+-- passed over rather than shown.
+--
+-- Append-only by trigger, for every caller including the service role.
+-- Foreign keys: the patient cascade, which the trigger turns into a refusal
+-- (the outcome_measurements posture: a patient with clinical history is
+-- suspended, not deleted), and the author no action. None is `restrict`, so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates it (newest debug_reset_all_data(), above).
+create table if not exists care_status_events (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  kind text not null check (kind in ('phase', 'status_override', 'override_cleared')),
+  -- The phase name, or the override's status; null for a clear.
+  value text,
+  reason text check (reason is null or char_length(btrim(reason)) between 1 and 300),
+  -- outcomeMeasures.ts ProfileKind, as care_goals stores it.
+  profile_kind text not null check (profile_kind in (
+    'ortho', 'neuro', 'neuro_parkinsons', 'pediatrics', 'geriatric', 'cardiopulmonary'
+  )),
+  set_by uuid not null references profiles(id),
+  set_by_role text not null check (set_by_role in ('therapist', 'admin')),
+  created_at timestamptz not null default now(),
+  -- An override is one of the three judgements, with its reason; a phase is
+  -- a name; a clear carries no value.
+  constraint care_status_events_shape check (
+    (kind = 'phase' and value is not null and char_length(btrim(value)) between 1 and 60)
+    or (
+      kind = 'status_override'
+      and value in ('improving', 'steady', 'needs_attention')
+      and reason is not null
+      and char_length(btrim(reason)) >= 10
+    )
+    or (kind = 'override_cleared' and value is null)
+  )
+);
+
+create index if not exists care_status_events_patient_idx
+  on care_status_events (patient_id, created_at desc);
+create index if not exists care_status_events_set_by_idx
+  on care_status_events (set_by);
+
+alter table care_status_events enable row level security;
+
+drop policy if exists "care_status_events_select_own" on care_status_events;
+create policy "care_status_events_select_own" on care_status_events
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "care_status_events_select_admin" on care_status_events;
+create policy "care_status_events_select_admin" on care_status_events
+  for select using (is_admin());
+
+drop policy if exists "care_status_events_select_assigned_therapist" on care_status_events;
+create policy "care_status_events_select_assigned_therapist" on care_status_events
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_status_events.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_status_events.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_status_events_insert_assigned_therapist" on care_status_events;
+create policy "care_status_events_insert_assigned_therapist" on care_status_events
+  for insert with check (
+    (select auth.uid()) = set_by and set_by_role = 'therapist'
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_status_events.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_status_events.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+revoke update, delete on care_status_events from anon, authenticated;
+
+create or replace function public.care_status_events_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  raise exception 'care_status_events is append-only: a phase or status change is history; record a new one instead';
+end;
+$$;
+
+revoke all on function public.care_status_events_is_append_only() from public, anon, authenticated;
+
+drop trigger if exists care_status_events_no_change on care_status_events;
+create trigger care_status_events_no_change
+  before update or delete on care_status_events
+  for each row execute function public.care_status_events_is_append_only();
+
+-- 4. The Health Profile refreshes when the phase or the override changes.
+do $$
+begin
+  alter publication supabase_realtime add table care_status_events;
 exception when duplicate_object then null;
 end $$;
 

@@ -24,6 +24,9 @@ import {
   validateMeasurementValue,
   maxTrialsFor,
   trialsRequired,
+  STANDS_WITH_ARMS_KEY,
+  usedArmsEntry,
+  validateUsedArms,
 } from "@/lib/outcomeMeasures";
 
 const NOW = Date.parse("2026-10-12T10:00:00.000Z");
@@ -394,7 +397,7 @@ describe("validateMeasurement", () => {
     expect(accepted({ ...katz, value: 5 }, geri).items).toEqual([1, 1, 0, 1, 1, 1]);
     expect(refused({ ...katz, value: 6 }, geri)).toMatch(/does not match/);
     expect(refused({ ...katz, value: 4, items: [1, 1, null, null, 1, 0] }, geri)).toMatch(/Every item/);
-    expect(refused({ ...tug, measureKey: "chair_stand_30s", value: 10, items: [1] }, geri)).toMatch(/no item scores/);
+    expect(refused({ ...tug, measureKey: "chair_stand_30s", value: 10, items: [1] }, geri)).toMatch(/only when the arms were used/);
   });
 
   it("works an orthostatic value out of its readings and refuses one that disagrees", () => {
@@ -436,6 +439,57 @@ describe("validateMeasurement", () => {
   it("refuses a body that is not an object, or names no measure", () => {
     expect(refused(null, geri)).toMatch(/Nothing/);
     expect(refused({ value: 3 }, geri)).toMatch(/Unknown/);
+  });
+});
+
+describe("the chair stand's used-arms rule (CDC: a stand needing the arms scores 0)", () => {
+  const geri = { profileKind: "geriatric" as const, nowMs: NOW };
+  const stand = { measureKey: "chair_stand_30s", measuredAt: AN_HOUR_AGO };
+
+  it("stores 0 with the stands done with the arms beside it", () => {
+    const m = accepted({ ...stand, value: 0, items: { standsWithArms: 7 }, conditions: { setting: "in_person", usedArms: true } }, geri);
+    expect(m).toMatchObject({ value: 0, items: { standsWithArms: 7 } });
+    expect(m.conditions.usedArms).toBe(true);
+    expect(usedArmsEntry(7)).toEqual({ value: 0, items: { [STANDS_WITH_ARMS_KEY]: 7 } });
+  });
+
+  it("refuses a count above 0 when the arms were used", () => {
+    expect(
+      refused({ ...stand, value: 7, items: { standsWithArms: 7 }, conditions: { setting: "in_person", usedArms: true } }, geri)
+    ).toMatch(/score is 0/);
+  });
+
+  it("needs the count with arms, as a whole number the measure could hold, and nothing else", () => {
+    const used = { setting: "in_person", usedArms: true };
+    expect(refused({ ...stand, value: 0, conditions: used }, geri)).toMatch(/how many stands/);
+    expect(refused({ ...stand, value: 0, items: [7], conditions: used }, geri)).toMatch(/how many stands/);
+    expect(refused({ ...stand, value: 0, items: { standsWithArms: 7.5 }, conditions: used }, geri)).toMatch(/whole number/);
+    expect(refused({ ...stand, value: 0, items: { standsWithArms: 99 }, conditions: used }, geri)).toMatch(/whole number/);
+    expect(refused({ ...stand, value: 0, items: { standsWithArms: 3, other: 1 }, conditions: used }, geri)).toMatch(/unknown reading/);
+  });
+
+  it("keeps items empty when the arms were not used, and records usedArms false", () => {
+    const m = accepted({ ...stand, value: 11, conditions: { setting: "in_person", usedArms: false } }, geri);
+    expect(m).toMatchObject({ value: 11, items: null });
+    expect(m.conditions.usedArms).toBe(false);
+    expect(accepted({ ...stand, value: 11, conditions: { setting: "in_person" } }, geri).conditions.usedArms).toBeUndefined();
+    expect(refused({ ...stand, value: 11, items: { standsWithArms: 11 }, conditions: { setting: "in_person" } }, geri)).toMatch(
+      /only when the arms were used/
+    );
+  });
+
+  it("is refused on a measure without the rule, and must be yes or no", () => {
+    const tug = { measureKey: "tug", value: 13.2, measuredAt: AN_HOUR_AGO };
+    expect(refused({ ...tug, conditions: { setting: "in_person", usedArms: true } }, geri)).toMatch(/does not record whether the arms/);
+    expect(refused({ ...tug, conditions: { setting: "in_person", usedArms: false } }, geri)).toMatch(/does not record whether the arms/);
+    expect(refused({ ...stand, value: 0, conditions: { setting: "in_person", usedArms: "yes" } }, geri)).toMatch(/yes or no/);
+    expect(OUTCOME_MEASURES.filter((m) => m.usedArmsScoresZero).map((m) => m.key)).toEqual(["chair_stand_30s"]);
+  });
+
+  it("validateUsedArms on its own", () => {
+    const m = outcomeMeasure("chair_stand_30s")!;
+    expect(validateUsedArms(m, false, 9, undefined)).toEqual({ ok: true, items: null });
+    expect(validateUsedArms(m, true, 0, { standsWithArms: 0 })).toEqual({ ok: true, items: { standsWithArms: 0 } });
   });
 });
 

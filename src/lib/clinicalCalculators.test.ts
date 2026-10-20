@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   CHAIR_STAND_NORMS,
   SIX_MINUTE_WALK_EQUATIONS,
+  SIX_MINUTE_WALK_EQUATION_NOT_CHOSEN,
+  DEFAULT_SIX_MINUTE_WALK_EQUATION,
   averageOfTrials,
   bestOfTrials,
   chairStandNorm,
@@ -140,15 +142,15 @@ describe("predicted six-minute walk", () => {
   it("applies Enright and Sherrill for men and women", () => {
     const man = { sex: "male" as const, ageYears: 60, heightCm: 170, weightKg: 70 };
     // 7.57*170 - 5.02*60 - 1.76*70 - 309 = 1286.9 - 301.2 - 123.2 - 309 = 553.5
-    expect(value(predictedSixMinuteWalk(man))).toBe(554);
+    expect(value(predictedSixMinuteWalk(man, "enright_sherrill_1998"))).toBe(554);
     const woman = { sex: "female" as const, ageYears: 60, heightCm: 160, weightKg: 60 };
     // 2.11*160 - 2.29*60 - 5.78*60 + 667 = 337.6 - 137.4 - 346.8 + 667 = 520.4
-    expect(value(predictedSixMinuteWalk(woman))).toBe(520);
+    expect(value(predictedSixMinuteWalk(woman, "enright_sherrill_1998"))).toBe(520);
   });
 
   it("names the equation in its working", () => {
-    const r = predictedSixMinuteWalk({ sex: "male", ageYears: 60, heightCm: 170, weightKg: 70 });
-    expect(r.ok && r.working).toMatch(/^Enright and Sherrill/);
+    const r = predictedSixMinuteWalk({ sex: "male", ageYears: 60, heightCm: 170, weightKg: 70 }, "enright_sherrill_1998");
+    expect(r.ok && r.working).toMatch(/^Enright and Sherrill \(1998\), US adults/);
   });
 
   it("refuses to predict from the equation the clinic has not chosen yet", () => {
@@ -159,9 +161,15 @@ describe("predicted six-minute walk", () => {
     expect(error).toMatch(/not chosen/);
   });
 
+  it("defaults to the placeholder, never to the US equation", () => {
+    expect(DEFAULT_SIX_MINUTE_WALK_EQUATION).toBe(SIX_MINUTE_WALK_EQUATION_NOT_CHOSEN);
+    expect(SIX_MINUTE_WALK_EQUATIONS[SIX_MINUTE_WALK_EQUATION_NOT_CHOSEN].predict).toBeNull();
+  });
+
   it("refuses implausible body measurements", () => {
-    expect(refusal(predictedSixMinuteWalk({ sex: "male", ageYears: 60, heightCm: 17, weightKg: 70 }))).toMatch(/Height/);
-    expect(refusal(predictedSixMinuteWalk({ sex: "male", ageYears: 12, heightCm: 170, weightKg: 70 }))).toMatch(/Age/);
+    const us = "enright_sherrill_1998" as const;
+    expect(refusal(predictedSixMinuteWalk({ sex: "male", ageYears: 60, heightCm: 17, weightKg: 70 }, us))).toMatch(/Height/);
+    expect(refusal(predictedSixMinuteWalk({ sex: "male", ageYears: 12, heightCm: 170, weightKg: 70 }, us))).toMatch(/Age/);
   });
 
   it("works out a percentage of predicted", () => {
