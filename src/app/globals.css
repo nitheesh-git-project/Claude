@@ -54,6 +54,9 @@
   --chart-amber: #b45309;
   --chart-rose: #be123c;
   --chart-pending: #99f6e4;
+  /* The goal band and "better" movement on the Health Profile graph. */
+  --chart-good: #047857;
+  --chart-good-soft: #10b981;
 }
 @media (max-width: 1023.98px) {
   body:has([data-tabbar]) {

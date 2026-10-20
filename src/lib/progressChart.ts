@@ -274,6 +274,13 @@ export function labelAnchor(index: number, count: number): "start" | "middle" | 
   return "middle";
 }
 
+/** Where a dot's value is written so it does not sit on the line: below the
+ *  dot when the line arrives from above (a falling line), else above. */
+export function labelPlacement(points: readonly { y: number }[], index: number): "above" | "below" {
+  if (index <= 0) return "above";
+  return points[index - 1].y < points[index].y ? "below" : "above";
+}
+
 // --- Numbers as words ---------------------------------------------------------------------
 
 /** A reading to its measure's stored precision, trailing zeros dropped

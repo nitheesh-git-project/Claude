@@ -140,6 +140,8 @@ ${dark.map((l) => "  " + l).join("\n")}
     --chart-amber: #fbbf24;
     --chart-rose: #fb7185;
     --chart-pending: #134e4a;
+    --chart-good: #34d399;
+    --chart-good-soft: #10b981;
   }
 
   /* The MR mark is drawn in dark teal for a white page; on the dark nav it

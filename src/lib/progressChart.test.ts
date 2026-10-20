@@ -7,6 +7,7 @@ import {
   formatReading,
   labelAnchor,
   labelIndices,
+  labelPlacement,
   niceTicks,
   riskLineNearData,
   sparklinePath,
@@ -276,5 +277,15 @@ describe("chartSummaryText", () => {
       chartSummaryText({ label: "Pain", unit: "0-10", decimals: 0, points: [{ value: 7, dateLabel: "3 Aug" }], better: "lower" })
     ).toContain("only review");
     expect(chartSummaryText({ label: "Pain", unit: "0-10", decimals: 0, points: [], better: "lower" })).toContain("nothing recorded");
+  });
+});
+
+describe("labelPlacement", () => {
+  it("writes the value below a falling line's dot and above a rising one", () => {
+    // y grows downwards: previous point higher on screen (smaller y) = falling value.
+    const pts = [{ y: 10 }, { y: 40 }, { y: 20 }];
+    expect(labelPlacement(pts, 0)).toBe("above");
+    expect(labelPlacement(pts, 1)).toBe("below");
+    expect(labelPlacement(pts, 2)).toBe("above");
   });
 });
