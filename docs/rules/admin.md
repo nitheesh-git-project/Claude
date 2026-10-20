@@ -871,14 +871,32 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   (`loadSixMinuteWalkEquation`); an unreadable value shows "we couldn't
   check" in the control and the guide, never "not chosen". The debug data
   reset leaves it alone.
-- **The back office sets a patient's phase or overrules their status pill
-  through `/api/admin/care-status/set`, and edits no goal or milestone.**
+- **The back office sets a patient's phase, overrules their status pill or
+  writes "Where things stand" through `/api/admin/care-status/set`, and
+  edits no goal or milestone.** The written summary (`set_summary`, phase
+  4a) is for when the physiotherapist cannot write it; the patient reads it
+  as "Written by the clinic", and the audit row carries the text from and
+  to.
   `requireAdminScope("people")` - a clinical-record capability, wherever its
   button ends up - with a `care_status.set` audit row (from and to); the
   change is an append-only `care_status_events` row with `set_by_role`
   admin (`clinical.md`). Goals and milestones stay therapist-authored by
   the owner's decision: no admin route edits one, and the only admin door
   on a milestone is reopening one marked reached by mistake.
+- **A conditional intake question shows in the question bank with its
+  condition.** The neurological tab lists the condition group and the five
+  Parkinson's follow-ups from the code defaults (no template rows are
+  seeded), each follow-up noted "Asked only when "Condition group" is
+  "Parkinson's disease"" (`describeShowWhen`). Rewording or making one
+  required is the usual per-row save; *Required* on a follow-up applies only
+  while it is asked, and making the condition group itself required raises
+  the "we've changed some of these questions" banner for every neurological
+  record without it (`clinical.md`).
+- **A patient's diary entries are read-only to the back office.** An admin
+  reads them under `patient_diary_entries_select_admin`; there is no admin
+  write or confirm door yet (the column allows an admin confirmation for a
+  later one), and the scanner's Risk signals label their notes "Patient's
+  diary note".
 - **Checkout speed is the one check that measures the product rather than
   a backlog.** The booking wizards time each Pay tap in the browser until the
   Razorpay sheet opens (`src/lib/checkoutTiming.ts`), report once,

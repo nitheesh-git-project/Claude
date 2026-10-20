@@ -249,6 +249,18 @@ before.
      judgement's history - the phase and the status override - kept as rows
      with no permitted mutation at all, so "the current value" is shaped from
      them (`careStatus.ts`) rather than stored in a cell someone can edit.
+     Phase 4a widened it with a fourth kind, `summary`, by dropping and
+     re-adding `care_status_events_kind_check` (Postgres's name for the
+     inline column CHECK) and `care_status_events_shape` under their own
+     names - **a CHECK is widened at the end of the file, never edited where
+     it was declared.** `patient_diary_entries` (phase 4a) is the
+     third shape: a patient-written record whose one permitted change is a
+     *stamp by somebody else* - the confirmation, once, on a patient's own
+     entry, with every other column compared unchanged and the time set by
+     the trigger rather than taken from the caller. The trigger also runs
+     `before insert`, so an entry cannot arrive already confirmed; and a
+     unique index over the content (`md5(details::text)`, the note) is what
+     makes a double tap one row rather than two falls.
 
      **`user_activity_log` is the same rule for everyone who is not an admin**
      -- patients, therapists, hospitals and the system (All Logs is both

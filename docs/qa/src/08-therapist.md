@@ -417,6 +417,23 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Steps.** Press **Phase and status**. Choose a phase and save. Overrule the status with a reason under 10 characters, then with a real reason. Clear it. Separately, with the measurements table unreachable, reload the chart.
 **Expected Result.** The phase bar moves and says the plan only *suggests* a phase until one is set. A short reason cannot be saved; a saved overrule shows on the pill with its reason, and the patient sees the same pill and reason. After a new review the overrule asks to be looked at again. The patient's PDF export names the phase and the overrule with its reason. When a read fails, only its card says "We couldn't load ... They are not missing"; the Pain Map line and the rest of the chart still draw.
 
+#### `THR-HP-005g` - The neurological condition group and the Parkinson's follow-ups · P0
+**Steps.** As the assigned therapist, onboard (or re-triage) a patient as neurological. In the intake pop-up, answer **Condition group** with *Stroke or brain injury*, read the question count, step on; go back and change it to *Parkinson's disease*; step through; try to submit with **Diagnosed** and **Feet getting stuck** blank, then fill them. Change the group back to *Multiple sclerosis* and submit. As an admin, open Settings -> Clinical Questions -> Neurological. As an existing neurological patient (answered before this change, no group on file), open the Health Profile.
+**Expected Result.** With a stroke the count reads **of 8** and no Parkinson's question appears; choosing Parkinson's makes the next five steps the Parkinson's questions (each with plain help text) and the count **of 13**. Submitting with the two required ones blank is refused and returns to the first missing one. After switching to Multiple sclerosis the Parkinson's answers are kept on file but not shown, counted or printed in the PDF. The admin's question bank lists the group and the five follow-ups, each follow-up noted *Asked only when "Condition group" is "Parkinson's disease"*. The existing patient sees **no** "we've changed some of these questions" banner, and their record still reads complete.
+
+#### `THR-HP-005h` - Diary confirmation and the written "Where things stand" · P1 **[API]**
+**Preconditions.** A Parkinson's patient (group *Parkinson's disease*) with a delivered session with Therapist A, and a diary entry the patient wrote (`PAT-HP-021`). Therapist B has never been on the patient.
+**Steps.**
+1. As Therapist B, then as the patient, call `POST /api/therapist/diary/confirm` `{ "entryId": "<id>" }`. As Therapist A, call it twice.
+2. On an orthopaedic patient's chart, open **Phase and status**; read the **Where things stand** box before anything is written, then write two short paragraphs and save. Save the same text again.
+3. As Therapist A, call `POST /api/therapist/care-status/set` with `{ "action": "set_summary", "text": "   " }` and with 1,201 characters. As an admin, call `/api/admin/care-status/set` with a summary.
+4. As the patient, open the Health Profile and export the PDF.
+**Expected Result.**
+* Step 1: Therapist B and the patient **403**; Therapist A **200** with `confirmedBy`, `confirmedByRole: "therapist"` and a `confirmedAt` set by the database; the second call **200** `unchanged: true`. The entry itself is unchanged.
+* Step 2: before anything is written the card shows the generated sentences labelled *Generated automatically from the numbers - nobody has written a summary yet*, and the box is prefilled with them as a draft. After saving, the card shows your text with its line breaks and *Written by the physiotherapist, <date>*; the repeat says nothing changed.
+* Step 3: both **400**; the admin **200** with `setByRole: "admin"` and a `care_status.set` audit row carrying the text from and to.
+* Step 4: the patient reads the newest written text with *Written by your physiotherapist* (or *the clinic*); with none written, the generated sentences are labelled as worked out automatically. The PDF prints **only** a written summary under Goal and progress.
+
 #### `THR-HP-005b` - The neurological examination chart · P0
 
 **Preconditions.** The neurological patient (Patient C) with a **completed** session with Therapist A (or a confirmed one inside its join window). Therapist B has never been on Patient C. Repeat the layout steps at a phone width (360px), a laptop (1280px) and an ultrawide (2560px).
@@ -473,7 +490,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Step 2: **400** listing Patient C's phases (Assess, Learn strategies, Build capacity, Keep it going); then **200**; the repeat is **200** `unchanged: true` and writes no row.
 * Step 3: Therapist B **403** `not_assigned`; the patient **403**.
 * Step 4: **200** with `state.override` null; the second **409** `no_override`.
-* Step 5: **200**, the event has `setByRole` admin; Logs -> All Activity shows **Set a patient's phase or overruled their status**.
+* Step 5: **200**, the event has `setByRole` admin; Logs -> All Activity shows **Set a patient's phase, overruled their status or wrote where things stand**.
 * Step 6: raises *"append-only"*.
 * Step 7: **400** *"does not record whether the arms were used"* - only the 30-second chair stand takes the tick (a geriatric measure: no condition type reaches it yet, so its own case is a unit test).
 * Step 8: each pick saves with a toast; the bad key is **400** *"Unknown six-minute walk equation."* With **Not chosen yet** the six-minute walk guide says **Formula not chosen yet** and shows no percentage of predicted.

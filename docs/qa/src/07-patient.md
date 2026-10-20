@@ -585,6 +585,13 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 ---
 
+#### `PAT-HP-021` - The patient diary, at the route · P1 **[API]**
+**Preconditions.** A Parkinson's patient (condition group *Parkinson's disease*) and a stroke patient, both onboarded. No screen draws the diary yet (phase 4b).
+**Steps.** As the Parkinson's patient, call `POST /api/patient/diary/add` with a fall `{ "kind": "fall", "occurredAt": "<an hour ago>", "details": { "injured": false }, "note": "In the kitchen" }`, then the same body again, then a day's freezing `{ "kind": "freezing", "occurredAt": "<now>", "details": { "period": "day", "count": 3, "medicationState": "off" } }`, then a single episode with `count: 4`, then a fall dated tomorrow. As the stroke patient, send the freezing entry, and a near-miss with `"patientId": "<the Parkinson's patient>"`. As a therapist, send the fall.
+**Expected Result.** The fall is **200** with `enteredByRole: "patient"` and no confirmation; the repeat is **200** `duplicate: true` and the patient has one fall on file, not two. The day's freezing is **200**; one episode counted as four and the fall dated tomorrow are **400** with a sentence. The stroke patient's freezing is **400** `diary_kind_not_offered`; their near-miss lands on **their own** record whatever the body named. The therapist is **403**. An UPDATE of the row by anyone, the service role included, raises *append-only*.
+
+---
+
 ### 11.8 Suggested Sessions, care plans and credits
 
 #### `PAT-SUGG-001` - The Suggested Sessions entry appears only when something waits · P1

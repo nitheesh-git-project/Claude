@@ -2553,6 +2553,23 @@ everything else.
   predicted distance**; until one is, the walk shows no percentage of
   predicted. Rules: `docs/rules/clinical.md`, `docs/rules/admin.md`.
 
+  **Parkinson's (phase 4a, server side).** The neurological questions start
+  with an optional **Condition group**; choosing *Parkinson's disease* adds
+  five follow-ups (year diagnosed, medicine times, how often the feet feel
+  stuck, worry about falling, the hardest thing day to day) and makes the
+  record the Parkinson's sub-profile, with its own tests and thresholds.
+  Existing neurological patients are not asked to look again. A patient (or
+  family member) writes freezing episodes, falls and near-misses in their
+  own diary (`/api/patient/diary/add`); the physiotherapist confirms an
+  entry (`/api/therapist/diary/confirm`) but never edits it, and everything
+  drawn from it is marked "patient reported". "Where things stand" is now
+  written by the physiotherapist (or the clinic) under **Phase and status**;
+  the sentences worked out from the numbers are a draft to start from and,
+  with nothing written, a fallback labelled as automatic. Parkinson's test
+  results are only compared between readings taken in the same medication
+  state (ON with ON, OFF with OFF). The diary and Parkinson's screens follow
+  in phase 4b.
+
 Both question banks (Health Profile and Pain Map) are managed from
 one place - a **Manage Questions** section at the top of the admin's
 **Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient -

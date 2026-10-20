@@ -2,7 +2,7 @@
 
 Per-specialty intake, the Pain Map, care plans and their review, session notes, patient files, who may read a record, and the vocabulary all three roles share.
 
-**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · outcomeMeasures.ts · milestones.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
+**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · outcomeMeasures.ts · milestones.ts · patientDiary.ts · careStatus.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
 
 > Part of `docs/rules/`. `CLAUDE.md` says which file a task needs; this one
 > is the detail. Keep it current in the same change that makes it wrong --
@@ -557,7 +557,8 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   3. **Parkinson's is a neuro sub-profile, not a condition type.** Six
      profile kinds exist in the registry and the milestone templates -
      `ortho`, `neuro`, `neuro_parkinsons`, `pediatrics`, `geriatric`,
-     `cardiopulmonary` - but `ConditionSpecialty` is unchanged.
+     `cardiopulmonary` - but `ConditionSpecialty` is unchanged; the
+     neurological intake's condition group decides it (phase 4a, below).
      "Strength and balance care" and "Heart and lung rehabilitation" become
      condition types in a later phase, one condition at a time. On a
      Parkinson's measurement ON/OFF and the last dose time are required.
@@ -587,7 +588,8 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      the clinical-access therapist and an admin; inserted by an active
      assigned therapist with a started or delivered session, and only against
      their own session when one is linked; therapist or admin, never the
-     patient (diaries are a later phase). Append-only by trigger; the one
+     patient - what a patient reports goes in the diary (phase 4a, below),
+     never in this table. Append-only by trigger; the one
      permitted change is `appointment_id` cleared by `on delete set null`.
   7. **Milestones are a plan, and "reached" is the one fact in it.**
      `care_goals` (the patient's goal in their own words, one active at a
@@ -621,10 +623,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   - **The profile kind comes from `profileKindFor(specialty, intake)`**
     (`src/lib/profileKind.ts`): `neuro_parkinsons` when the intake key
     `neuro_subtype` reads "Parkinson's disease" (apostrophe and spacing
-    normalised), else the specialty's own kind. The question itself arrives
-    with phase 4's neurological `schema_version` bump; until then the key is
-    read when present. **No profile on file is a 409, an unreadable one a
-    503** - never the column's ortho default, which is how a neurological
+    normalised), else the specialty's own kind. The question arrived with
+    the neurological set's `schema_version` 2 (phase 4a) and is optional, so
+    a record without it is `neuro`. **No profile on file is a 409, an
+    unreadable one a 503** - never the column's ortho default, which is how a neurological
     patient would be measured against the wrong thresholds.
   - **For a Parkinson's patient TUG and the 10-metre walk are stored here**,
     not in the neurological exam (the registry's `ownsFor: ["neuro"]` makes
@@ -821,9 +823,11 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     line), limb symmetry from three trials a side, the LEFS score sheet, and
     KOOS-12 (free). Licensed scales are listed and unselectable while off.
     The spine's modified Schober (centimetres) is **not** in the registry yet.
-  - **"Where things stand" is generated from the numbers** (nobody has
-    written a summary; there is no column for one). It is wording, not a
-    judgement - the status pill and the overrule are the judgement.
+  - **"Where things stand" is the physiotherapist's written text** when
+    there is one (phase 4a, below); the sentences generated from the numbers
+    are only a draft for the writing box and, with nothing written, a
+    fallback labelled as worked out automatically. Either way it is wording,
+    not a judgement - the status pill and the overrule are the judgement.
   - **The PDF export** prints the current phase and any active overrule with
     its reason and date under "Goal and progress"; the export refuses (503) if
     the status history cannot be read ("complete or refused").
@@ -831,6 +835,90 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   `rangeGauge.test.ts`, `jointLandmarks.test.ts`, `recordTest.test.ts`,
   `progressExport.test.ts`; `e2e/ortho-health-profile.spec.ts`; QA
   `THR-HP-005c` to `005f`, `PAT-HP-020`.
+- **Parkinson's is a sub-profile of neurological care, and its server side
+  is three layers (Health Profile redesign, phase 4a; the screens are 4b).**
+  - **The condition group opens the follow-ups; a hidden question is never
+    unanswered.** The neurological set gains `neuro_subtype` (*Condition
+    group*: Stroke or brain injury, Spinal cord injury, Parkinson's disease,
+    Multiple sclerosis, Nerve injury or neuropathy, Other or not sure) and
+    five follow-ups asked only when it reads Parkinson's:
+    `neuro_pd_year_diagnosed` and `neuro_pd_freezing` (how often the feet
+    feel stuck) required, `neuro_pd_medication_times`,
+    `neuro_pd_falls_worry` and `neuro_pd_main_difficulty` optional, each
+    with patient-plain `helpText` and a `shortLabel`, all `neuro_`-prefixed
+    and flat. Visibility is `showWhen` on the question, decided by **one**
+    pure function, `visibleQuestions()` (`conditionIntake.ts`, apostrophe
+    and spacing normalised): the wizard (the follow-ups are the very next
+    steps), triage, the summary panel, the required check, every "N of M"
+    counter (`countedQuestions(questions, answers)` now takes the answers),
+    the patient dashboard's total, the admin's direct-edit form and question
+    bank (which notes "Asked only when ...") and the PDF all go through it.
+    A follow-up the group has since closed keeps its stored answer (the flat
+    blob never deletes) and is neither listed, counted nor required. The
+    module-load assertion also refuses a `showWhen` naming a later or
+    unknown question, or an answer the controller cannot give.
+  - **Only the neurological `schema_version` moved (to 2), and nobody is
+    nagged for it.** The group is **optional** and every follow-up hidden
+    until it opens, so an existing record is exactly as complete under v2;
+    and the "we've changed some of these questions" banner now needs a
+    *required, visible* question unanswered as well as an older version
+    (`intakeNeedsAnotherLook`). Both, because either alone leaves a door
+    open: a required group would refuse every existing patient's next
+    unrelated edit and raise the banner for all of them, and a banner on
+    version alone fires at records that are complete. An admin who makes the
+    group required gets the banner shown to the records missing it - an
+    honest consequence. No template rows are seeded in `schema.sql`, so the
+    question bank lists the new questions from the code.
+  - **The diary is the patient's own account, append-only.**
+    `patient_diary_entries` (one generic table: `freezing`, `fall`,
+    `near_miss`, `active_minutes`; `details` validated key by key by
+    `validateDiaryDetails()` in `src/lib/patientDiary.ts`; the free text in
+    its own `note` column, scanned as `patient_diary_note` and recorded, never
+    blocked - the booking-note posture). Which kinds a patient keeps follows
+    the server-derived profile kind (`DIARY_KINDS_BY_PROFILE_KIND`: freezing
+    for Parkinson's only; falls and near-misses wherever falls are the risk;
+    active minutes for heart and lung, unreachable until that is a condition
+    type). `/api/patient/diary/add` takes the patient, author and role from
+    the session (never the body), is rate limited (`patientDiary`), refuses
+    a future time and one older than 92 days, and answers a double tap as
+    `duplicate` (a unique index over the content). RLS: the patient reads
+    and inserts their own, the clinical-access therapist and an admin read.
+    **A physiotherapist confirms an entry once and never edits it**
+    (`/api/therapist/diary/confirm`, the assignment alone, compare-and-set):
+    the trigger permits exactly that stamp on a patient's own entry and sets
+    its time itself. Everything shaped from it says **"Patient reported"**
+    (`diaryProvenance`); weekly totals are clinic weeks, Monday start
+    (`weeklyDiaryTotals`, `freezingWeeklySeries` - an empty week is "nothing
+    written down", not "no freezing"; `fallsSince`). Reads are
+    `loadDiaryEntries` / `loadDiaryEntry` (`patientDiaryServer.ts`, ok or
+    unreadable). The registry's therapist-entered `freezing_episodes`
+    measure is unchanged and separate.
+  - **"Where things stand" is written, and kept as history.** A fourth
+    `care_status_events` kind, `summary` (the text in `value`, up to 1,200
+    characters, line breaks kept), set through the care-status routes with
+    `{ action: "set_summary", text }` - the assigned therapist, or an admin
+    with `requireAdminScope("people")` and a `care_status.set` audit row
+    carrying from and to - scanned as `care_status_summary`, the same text
+    again `unchanged`. `shapeCareStatus()` returns the latest summary
+    whatever profile kind it was written under, `stale` once a review is
+    newer. The card (`WhereThingsStand`, shaped by `whereThingsStand.ts`)
+    shows the written text with "Written by your physiotherapist" (or "the
+    clinic") and the date; the generated sentences are a **draft** the
+    writing box starts from, and with nothing written a fallback labelled as
+    worked out automatically - never presented as the physiotherapist's
+    view. The PDF prints only a written summary. Today the box sits in the
+    orthopaedic *Phase and status* panel.
+  - **Parkinson's tests compare like with like.** TUG, the 10-metre walk,
+    five times sit-to-stand and the Mini-BESTest (and every measure marked
+    `medicationStateRequired`) need ON/OFF and the last dose on the
+    sub-profile at both measurement routes, and `pointsAreComparable()`
+    (`outcomeSeries.ts`) joins only readings in the same **known** state. A
+    line whose state was not recorded (readings from before the record
+    became Parkinson's) has `joinPoints: false`: dots with no line, and no
+    change claimed in the table.
+  `src/lib/intakeVisibility.test.ts`, `patientDiary.test.ts`,
+  `careStatus.test.ts`, `whereThingsStand.test.ts`, `medicationState.test.ts`;
+  `e2e/parkinsons-profile.spec.ts`; `scripts/append-only-sql-checks.sql`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate

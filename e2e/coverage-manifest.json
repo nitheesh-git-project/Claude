@@ -1537,6 +1537,22 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "parkinsons-profile.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/data-schema.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -4004,6 +4020,30 @@
         }
       ],
       "limitation": "Writes append-only measurements and status events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The unreadable-read card is not driven (a browser test cannot fail one server read without dropping a table); it is unit-tested in src/lib/orthoProfileView.test.ts. The geometry, areas, series and wording are in orthoProfile.test.ts, rangeGauge.test.ts and jointLandmarks.test.ts."
+    },
+    {
+      "id": "therapist.parkinsons-sub-profile",
+      "runner": "therapist",
+      "title": "The neurological condition group opens the Parkinson's follow-ups only when it reads Parkinson's; a patient writes freezing, falls and near-misses in their own diary, refused for a kind their profile does not keep; only the assigned therapist confirms an entry, once; the physiotherapist (or the clinic) writes Where things stand and the patient reads it",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "parkinsons-profile.spec.ts",
+          "tests": [
+            "PDP-001",
+            "PDP-002",
+            "PDP-003",
+            "PDP-004"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes append-only diary entries and care_status_events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; no screen draws the diary or the Parkinson's view yet (phase 4b), so it drives the routes and the rows. Visibility, counters, the banner rule, the diary's validation and shaping, the written summary and the comparable-points rule are unit-tested in src/lib/intakeVisibility.test.ts, patientDiary.test.ts, careStatus.test.ts, whereThingsStand.test.ts and medicationState.test.ts; the triggers in scripts/append-only-sql-checks.sql.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/data-schema.md"
+      ]
     }
   ],
   "removed": [
