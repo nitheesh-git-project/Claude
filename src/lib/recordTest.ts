@@ -71,14 +71,19 @@ export function recordableMeasures(
 export function ownedElsewhereNote(kind: ProfileKind): string | null {
   const painMap: string[] = [];
   const exam: string[] = [];
+  const pedsExam: string[] = [];
   for (const m of measuresForProfileKind(kind)) {
     const source = measurementSource(m.key, kind);
     if (source === "pain_map") painMap.push(m.label);
     else if (source === "neuro_exam") exam.push(m.label);
+    else if (source === "peds_exam") pedsExam.push(m.label);
   }
   const parts: string[] = [];
   if (painMap.length) parts.push(`${painMap.join(", ")} is recorded on the Pain Map`);
   if (exam.length) parts.push(`${exam.join(", ")} ${exam.length === 1 ? "is" : "are"} recorded in the neurological examination`);
+  if (pedsExam.length) {
+    parts.push(`${pedsExam.join(", ")} ${pedsExam.length === 1 ? "is" : "are"} recorded in the paediatric examination`);
+  }
   return parts.length ? `${parts.join("; ")}.` : null;
 }
 

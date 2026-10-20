@@ -79,6 +79,13 @@ describe("ownedElsewhereNote", () => {
   it("is null where nothing lives elsewhere", () => {
     expect(ownedElsewhereNote("geriatric")).toBeNull();
   });
+  it("names the paediatric exam for the milestones and GMFCS, and offers the two timed counts as tests", () => {
+    expect(ownedElsewhereNote("pediatrics")).toMatch(/paediatric examination/);
+    const keys = recordableMeasures("pediatrics", { enabledLicensed: new Set() }).map((c) => c.measure.key);
+    expect(keys).toEqual(expect.arrayContaining(["peds_standing_seconds", "peds_independent_steps"]));
+    expect(keys).not.toContain("who_motor_milestone");
+    expect(keys).not.toContain("gmfcs");
+  });
 });
 
 describe("conditionFieldsFor", () => {

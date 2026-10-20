@@ -118,7 +118,8 @@ export function clinicalQuestionsForSpecialty(specialty: ConditionSpecialty): In
 export const INTAKE_QUESTIONS_VERSION_BY_SPECIALTY: Record<ConditionSpecialty, number> = {
   ortho: 2,
   neuro: 2,
-  pediatrics: 1,
+  // 2: peds_weeks_at_birth (optional, at the end of the set; phase 5a).
+  pediatrics: 2,
 };
 
 export function intakeVersionForSpecialty(specialty: ConditionSpecialty): number {

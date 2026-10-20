@@ -68,10 +68,47 @@ describe("the neurological set's condition group and Parkinson's follow-ups", ()
     expect(keys.slice(at + 1, at + 1 + PD_KEYS.length)).toEqual(PD_KEYS);
   });
 
-  it("bumps only the neurological schema version", () => {
+  it("bumps only the neurological schema version for the Parkinson's questions", () => {
     expect(intakeVersionForSpecialty("neuro")).toBe(2);
     expect(intakeVersionForSpecialty("ortho")).toBe(2);
-    expect(intakeVersionForSpecialty("pediatrics")).toBe(1);
+  });
+});
+
+describe("the paediatric set's weeks at birth (schema_version 2, phase 5a)", () => {
+  const peds = questionsForSpecialty("pediatrics");
+  /** A complete v1 paediatric record: the caregiver pre-step and the seven. */
+  const V1_PEDS: Record<string, string> = {
+    peds_caregiver_name: "Priya Sharma",
+    peds_caregiver_relationship: "Mother",
+    peds_concern: "Not walking yet at 20 months",
+    peds_birth_history: "Premature (before 37 weeks)",
+    peds_milestones: "Sits without support\nCrawls",
+  };
+
+  it("adds one optional question at the end of the set, peds_-prefixed, with help text and a short label", () => {
+    const last = peds[peds.length - 1];
+    expect(last.key).toBe("peds_weeks_at_birth");
+    expect(last.required).toBe(false);
+    expect(last.helpText).toBeTruthy();
+    expect(last.shortLabel).toBe("Weeks at birth");
+    expect(last.options?.[0]).toBe("22 weeks");
+    expect(last.options).toContain("44 weeks");
+    expect(last.options?.[last.options.length - 1]).toBe("Not sure");
+    expect(intakeVersionForSpecialty("pediatrics")).toBe(2);
+  });
+
+  it("does not nag an existing paediatric record: complete under v1 is complete under v2", () => {
+    expect(findMissingRequiredKeys(peds, V1_PEDS)).toEqual([]);
+    expect(
+      intakeNeedsAnotherLook({ status: "active", schemaVersion: 1, currentVersion: 2, questions: peds, answers: V1_PEDS })
+    ).toBe(false);
+  });
+
+  it("counts the new question but never the caregiver pre-step", () => {
+    const counted = countedQuestions(peds, V1_PEDS).map((q) => q.key);
+    expect(counted).toContain("peds_weeks_at_birth");
+    expect(counted).not.toContain("peds_caregiver_name");
+    expect(counted).not.toContain("peds_caregiver_relationship");
   });
 });
 

@@ -509,3 +509,50 @@ begin
   raise notice 'PASS  patient_diary_entries takes an entry and one confirmation, and refuses every other change';
 end $$;
 rollback;
+
+-- peds_assessments: the paediatric examination (Health Profile redesign,
+-- phase 5a). Append-only by trigger with no permitted mutation at all, like
+-- neuro_assessments, so the "permitted half" is the insert itself: a
+-- well-formed exam lands, the CHECKs refuse a non-object finding and an
+-- author role that is neither therapist nor admin, and no row can then be
+-- rewritten or deleted -- the service role included.
+begin;
+do $$
+declare v_actor uuid; v_id uuid; v_ok boolean;
+begin
+  select id into v_actor from profiles where role = 'admin' limit 1;
+  if v_actor is null then raise exception 'no admin profile to attribute the probe rows to'; end if;
+
+  insert into peds_assessments (patient_id, submitted_by, submitted_by_role, schema_version, findings)
+  values (v_actor, v_actor, 'admin', 1,
+          '{"milestones": {"sitting_without_support": {"status": "achieved", "firstSeenOn": "2026-03-01", "source": "seen"}}}'::jsonb)
+  returning id into v_id;
+  if v_id is null then raise exception 'FAIL: peds_assessments refused a well-formed insert'; end if;
+
+  v_ok := false;
+  begin
+    insert into peds_assessments (patient_id, submitted_by, submitted_by_role, findings)
+    values (v_actor, v_actor, 'admin', '[]'::jsonb);
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: peds_assessments accepted findings that are not an object'; end if;
+
+  v_ok := false;
+  begin
+    insert into peds_assessments (patient_id, submitted_by, submitted_by_role, findings)
+    values (v_actor, v_actor, 'patient', '{}'::jsonb);
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: peds_assessments accepted an exam written by a patient'; end if;
+
+  v_ok := false;
+  begin update peds_assessments set findings = '{"milestones": {}}'::jsonb where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: peds_assessments accepted an UPDATE'; end if;
+
+  v_ok := false;
+  begin delete from peds_assessments where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: peds_assessments row was deletable'; end if;
+
+  raise notice 'PASS  peds_assessments takes an exam and refuses every change to it';
+end $$;
+rollback;

@@ -10225,6 +10225,9 @@ begin
     -- The neurological exam chart, append-only by trigger like the Pain Map,
     -- so CASCADE through the account delete below would raise on it.
     neuro_assessments,
+    -- The paediatric exam (phase 5a, end of this file), append-only by
+    -- trigger for the same reason.
+    peds_assessments,
     -- The shared measurement layer (append-only by trigger, the same reason)
     -- and the goals and milestones planned against it, named rather than
     -- left to CASCADE (all three are at the end of this file). The record
@@ -18465,6 +18468,161 @@ create trigger patient_diary_entries_guard
 do $$
 begin
   alter publication supabase_realtime add table patient_diary_entries;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 5a: the paediatric examination.
+--
+-- Three things, each re-runnable on its own:
+--   1. a new contact-scanner surface for the exam's free text (the note and
+--      the orthoses and equipment note reach the family);
+--   2. peds_assessments -- the paediatric exam layer;
+--   3. the realtime publication for it.
+--
+-- The intake's new optional question (peds_weeks_at_birth, the paediatric
+-- set's schema_version 2) is code only (src/lib/intakePediatrics.ts; data
+-- stays a flat jsonb blob) and needs nothing here. The child's date of
+-- birth is the existing profiles.date_of_birth.
+--
+-- APPLY THIS TO STAGING'S DATABASE BEFORE THE BRANCH MERGES. Both submit
+-- routes answer 503 "this database has not been updated yet" on a database
+-- without the table, rather than a 500; the Done gate does not read it
+-- while the paediatric requirement is off (sessionCompletion.ts
+-- PEDS_EXAM_REQUIRED_FOR_DONE).
+-- ---------------------------------------------------------------------
+
+-- 1. Restated in full, as phases 3a and 4a did; every existing row
+-- satisfies the wider rule.
+alter table communication_flags drop constraint if exists communication_flags_surface_check;
+alter table communication_flags add constraint communication_flags_surface_check check (surface in (
+  'session_suggestion_note',
+  'care_plan_rationale',
+  'care_plan_instructions',
+  'pain_assessment_answer',
+  'appointment_notes',
+  'condition_answer',
+  'neuro_assessment_note',
+  'session_summary',
+  'outcome_measurement_condition',
+  'care_goal_text',
+  'care_milestone_text',
+  'care_status_reason',
+  'patient_diary_note',
+  'care_status_summary',
+  'peds_assessment_note'
+));
+
+-- 2. peds_assessments: the paediatric examination.
+--
+-- The counterpart of the Pain Map (orthopaedic) and of neuro_assessments
+-- (neurological) for a patient recorded as paediatric, and a NEW table
+-- rather than a `specialty` column on either, per docs/rules/clinical.md:
+-- it records different things -- the six WHO motor milestones, each not
+-- yet / emerging / achieved with the date first seen and whether the
+-- physiotherapist saw it or the family reported it; the GMFCS level for a
+-- child with cerebral palsy; an orthoses and equipment note -- and sharing
+-- a table would make every reader branch on specialty.
+--
+-- One row per examination. `findings` holds it as jsonb in the shape
+-- src/lib/pedsExam.ts validates (validatePedsFindings; both submit routes
+-- refuse anything else): a milestone nobody assessed is absent, never a
+-- value, which keeps "not assessed" distinct from "not yet". Standing time
+-- and independent steps are NOT here: they are timed counts owned by
+-- outcome_measurements (three tries, the best kept), and the validator
+-- refuses them. `schema_version` is that module's PEDS_EXAM_VERSION.
+--
+-- The same posture as neuro_assessments in every other respect:
+--   - read by the patient (their own: the family reads it on the Health
+--     Profile and the PDF), by an active therapist with live or delivered
+--     care (the clinical-access rule), and by an admin;
+--   - inserted by a therapist only against a session that has started or
+--     been delivered -- the routes mirror this and write with the service
+--     role, so the policy is the browser-session half; an admin records one
+--     through /api/admin/peds-assessments/submit;
+--   - append-only BY TRIGGER, not by revoke: a re-examination is a new row
+--     and a mistaken one is corrected by recording a truer one, which is
+--     what lets the profile say what changed since last time.
+-- Its foreign keys point only at profiles (patient cascade, which the
+-- trigger turns into a refusal -- a patient with a clinical history is
+-- suspended, not deleted, and /api/admin/delete-account names the row
+-- "clinical"; author no action), and scripts/clean-e2e-residue.mjs never
+-- deletes profiles, so there is nothing for that script to learn. The data
+-- reset truncates it (newest debug_reset_all_data(), above).
+create table if not exists peds_assessments (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  submitted_by uuid not null references profiles(id),
+  submitted_by_role text not null check (submitted_by_role in ('therapist', 'admin')),
+  schema_version integer not null default 1 check (schema_version >= 1),
+  findings jsonb not null check (jsonb_typeof(findings) = 'object'),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists peds_assessments_patient_idx
+  on peds_assessments (patient_id, created_at desc);
+create index if not exists peds_assessments_submitted_by_idx
+  on peds_assessments (submitted_by);
+
+alter table peds_assessments enable row level security;
+
+drop policy if exists "peds_assessments_select_own" on peds_assessments;
+create policy "peds_assessments_select_own" on peds_assessments
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "peds_assessments_select_assigned_therapist" on peds_assessments;
+create policy "peds_assessments_select_assigned_therapist" on peds_assessments
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = peds_assessments.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = peds_assessments.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "peds_assessments_select_admin" on peds_assessments;
+create policy "peds_assessments_select_admin" on peds_assessments
+  for select using (is_admin());
+
+drop policy if exists "peds_assessments_insert_assigned_therapist" on peds_assessments;
+create policy "peds_assessments_insert_assigned_therapist" on peds_assessments
+  for insert with check (
+    (select auth.uid()) = submitted_by and submitted_by_role = 'therapist'
+    and is_active_therapist()
+    and exists (
+      select 1 from appointments a
+      where a.patient_id = peds_assessments.patient_id
+        and a.therapist_id = (select auth.uid())
+        and (
+          a.status = 'completed'
+          or (a.status = 'confirmed' and a.slot_time <= now() + interval '15 minutes')
+        )
+    )
+  );
+
+revoke update, delete on peds_assessments from anon, authenticated;
+
+drop trigger if exists peds_assessments_no_change on peds_assessments;
+create trigger peds_assessments_no_change
+  before update or delete on peds_assessments
+  for each row execute function communication_evidence_is_append_only();
+
+-- 3. The Health Profile refreshes when an examination lands.
+do $$
+begin
+  alter publication supabase_realtime add table peds_assessments;
 exception when duplicate_object then null;
 end $$;
 

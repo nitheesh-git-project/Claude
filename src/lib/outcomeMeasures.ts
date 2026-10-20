@@ -40,6 +40,12 @@ import {
 //     neurological patient. Those entries carry `neuroExam` so a graph can
 //     read them from there, and `measurementSource()` refuses to have them
 //     written twice.
+//   - The paediatric exam (`peds_assessments`, pedsExam.ts) owns the WHO
+//     motor milestones (status, date first seen, seen or parent-reported)
+//     and the GMFCS level: `who_motor_milestone` and `gmfcs` are
+//     `source: "peds_exam"`. The two timed counts, standing time and
+//     independent steps, stay HERE (three tries, the best kept, linked from
+//     the starter milestones) and the exam refuses them -- one owner each.
 //
 // "Parkinson's" is NOT a condition type. It is a sub-profile inside the
 // existing `neuro` specialty (`neuro_parkinsons` below); "Strength and
@@ -114,7 +120,7 @@ export type MeasureLicence = "free" | "free_with_attribution" | "licensed";
 export type VideoUse = "yes" | "no" | "estimate" | "with_helper" | "home_measured" | "home_device" | "with_parent";
 
 /** Which table a measure's readings live in. */
-export type MeasureSource = "outcome_measurements" | "neuro_exam" | "pain_map";
+export type MeasureSource = "outcome_measurements" | "neuro_exam" | "pain_map" | "peds_exam";
 
 /** How the number is produced, which decides the dialog's tool. */
 export type MeasureCapture = "single" | "trials" | "score_sheet" | "rating" | "diary" | "calculated";
@@ -742,10 +748,14 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     enabledByDefault: true,
     videoUse: "with_parent",
     profileKinds: ["pediatrics"],
-    source: "outcome_measurements",
+    // The paediatric exam owns it (pedsExam.ts): a milestone is not yet /
+    // emerging / achieved with the date first seen and seen or reported,
+    // which one number cannot hold; the age it came at is derived from that
+    // date and the corrected age (pedsMilestoneWindows.ts).
+    source: "peds_exam",
     capture: "single",
     variants: WHO_MOTOR_MILESTONES.map((m) => ({ key: m.key, label: m.label })),
-    note: "The value is the corrected age on the day the skill was first seen; observed or parent-reported goes in the conditions.",
+    note: "Recorded in the paediatric examination: the date first seen and seen or parent-reported; the corrected age is worked out from it.",
   },
   {
     key: "peds_standing_seconds",
@@ -1213,7 +1223,9 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     enabledByDefault: true,
     videoUse: "with_parent",
     profileKinds: ["pediatrics"],
-    source: "outcome_measurements",
+    // Recorded in the paediatric examination (pedsExam.ts), for a child
+    // with cerebral palsy; one owner, so the measurement route refuses it.
+    source: "peds_exam",
     capture: "rating",
     classification: true,
   },
@@ -1963,6 +1975,7 @@ export function validateMeasurement(
   const source = measurementSource(key, ctx.profileKind);
   if (source === "neuro_exam") return { ok: false, error: `${m.label} is recorded in the neurological examination.` };
   if (source === "pain_map") return { ok: false, error: `${m.label} is recorded on the Pain Map.` };
+  if (source === "peds_exam") return { ok: false, error: `${m.label} is recorded in the paediatric examination.` };
 
   const measuredAtMs = typeof raw.measuredAt === "string" ? Date.parse(raw.measuredAt) : NaN;
   if (!Number.isFinite(measuredAtMs)) return { ok: false, error: "Say when the test was done." };

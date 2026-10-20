@@ -180,6 +180,15 @@ describe("the boundary with the Pain Map and the neurological exam", () => {
     expect(measurementSource("ten_metre_walk", "neuro_parkinsons")).toBe("outcome_measurements");
   });
 
+  it("reads the WHO milestones and GMFCS from the paediatric exam, and keeps the two timed counts here", () => {
+    // One owner each (pedsExam.ts): the exam holds status, date first seen
+    // and seen or reported; the timed counts keep their three tries here.
+    expect(measurementSource("who_motor_milestone", "pediatrics")).toBe("peds_exam");
+    expect(measurementSource("gmfcs", "pediatrics")).toBe("peds_exam");
+    expect(measurementSource("peds_standing_seconds", "pediatrics")).toBe("outcome_measurements");
+    expect(measurementSource("peds_independent_steps", "pediatrics")).toBe("outcome_measurements");
+  });
+
   it("requires ON/OFF on Parkinson's measures only", () => {
     expect(needsMedicationState("tug", "neuro_parkinsons")).toBe(true);
     expect(needsMedicationState("tug", "geriatric")).toBe(false);
@@ -524,6 +533,15 @@ describe("a timed test's trials", () => {
     const stand = { measureKey: "peds_standing_seconds", measuredAt: AN_HOUR_AGO, conditions: { setting: "in_person" } };
     expect(accepted({ ...stand, value: 9, items: [4, 9, 7] }, peds).value).toBe(9);
     expect(refused({ ...stand, value: 7, items: [4, 9, 7] }, peds)).toMatch(/does not match/);
+  });
+
+  it("refuses a milestone age or a GMFCS level here: the paediatric exam owns them", () => {
+    const peds = { profileKind: "pediatrics" as const, nowMs: NOW };
+    const at = { measuredAt: AN_HOUR_AGO, conditions: { setting: "in_person" } };
+    expect(refused({ ...at, measureKey: "who_motor_milestone", variant: "walking_alone", value: 13 }, peds)).toMatch(
+      /recorded in the paediatric examination/
+    );
+    expect(refused({ ...at, measureKey: "gmfcs", value: 2 }, peds)).toMatch(/recorded in the paediatric examination/);
   });
 
   it("keeps trials optional off the Parkinson's profile, and bounded", () => {
