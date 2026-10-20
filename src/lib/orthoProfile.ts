@@ -230,7 +230,7 @@ export function pickLegStrength(series: readonly MeasureSeries[], milestones: re
     first: best.points[0].value,
     now: lastPoint(best).value,
     goal: goal?.value ?? strengthNormTarget(),
-    goalIsMilestone: !!goal,
+    goalIsMilestone: goal?.source === "milestone",
   };
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { inferPhase, keyTile, seriesDelta, directionHint, pickHeadlineSeries, readingText, riskLineFor, scaleLine, seriesName } from "@/lib/progressView";
+import { changeWord, inferPhase, keyTile, seriesDelta, directionHint, pickHeadlineSeries, readingText, riskLineFor, scaleLine, seriesName } from "@/lib/progressView";
+import { changeDirection } from "@/lib/outcomeMeasures";
 import type { MeasureSeries } from "@/lib/outcomeSeries";
 
 const line = (over: Partial<MeasureSeries>, points = 2): MeasureSeries => ({
@@ -146,5 +147,31 @@ describe("inferPhase", () => {
   it("ignores a phase that is not one of the kind's own and gives null with none", () => {
     expect(inferPhase([ms(1, "Not a phase", false)], "ortho")).toBeNull();
     expect(inferPhase([], "ortho")).toBeNull();
+  });
+});
+
+describe("change words come from changeDirection and the better direction", () => {
+  const rowChange = (key: string, from: number, to: number) => changeDirection(key, from, to, { profileKind: "ortho" });
+  it("reads a higher-is-better percentage measure as Better, not Changed", () => {
+    const change = rowChange("strength_symmetry", 60, 78);
+    expect(change).toBe("better");
+    expect(changeWord(change!)).toBe("Better");
+    expect(changeWord(rowChange("strength_symmetry", 78, 60)!)).toBe("Worse");
+  });
+  it("uses the same word as a degrees measure that moved the right way", () => {
+    expect(changeWord(changeDirection("joint_range", 80, 117, { profileKind: "ortho", normal: 135 })!)).toBe(changeWord(rowChange("strength_symmetry", 60, 78)!));
+  });
+  it("keeps the other words", () => {
+    expect(changeWord("no_change")).toBe("No real change");
+    expect(changeWord("changed")).toBe("Changed");
+  });
+});
+
+describe("keyTile labels", () => {
+  it("uses the short label with the full name kept for assistive text", () => {
+    const base = line({ measureKey: "pain_nprs", plainName: "Pain score" }, 2);
+    const tile = keyTile(base, [], "ortho", "patient", [base]);
+    expect(tile.label).toBe("Pain score");
+    expect(tile.fullLabel).toBe("Pain score");
   });
 });

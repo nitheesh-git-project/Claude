@@ -34,7 +34,7 @@ export default function KeyNumbers({
   /** Sessions done of the plan; `total` null when there is no fixed number. */
   sessions?: { done: number; total: number | null; next?: string | null } | null;
 }) {
-  const tiles = pickHeadlineSeries(series, sessions ? 3 : 4).map((s) => keyTile(s, milestones, profileKind, voice));
+  const tiles = pickHeadlineSeries(series, sessions ? 3 : 4).map((s) => keyTile(s, milestones, profileKind, voice, series));
 
   if (tiles.length === 0 && !sessions) {
     return (
@@ -53,7 +53,10 @@ export default function KeyNumbers({
     <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {tiles.map((tile) => (
         <li key={tile.key} className="flex min-w-0 flex-col gap-1 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4">
-          <p className="text-xs font-semibold text-slate-600 [overflow-wrap:anywhere]">{tile.label}</p>
+          <p className="text-xs font-semibold text-slate-600 [overflow-wrap:anywhere]">
+            {tile.label}
+            <span className="sr-only"> ({tile.fullLabel})</span>
+          </p>
           <p className="font-display text-2xl font-extrabold leading-tight text-slate-900 [overflow-wrap:anywhere] sm:text-[1.75rem]">
             {tile.valueText}
           </p>

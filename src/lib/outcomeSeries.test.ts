@@ -173,7 +173,7 @@ describe("the measures table", () => {
     expect(r.first.value).toBe(16);
     expect(r.now.value).toBe(11);
     expect(r.reviews).toBe(3);
-    expect(r.goal).toEqual({ value: 12, milestoneId: "ms1", reached: false });
+    expect(r.goal).toEqual({ value: 12, milestoneId: "ms1", source: "milestone", reached: false });
   });
 
   it("says no change below the MDC, and nothing at all with one reading", () => {
@@ -203,7 +203,7 @@ describe("the measures table", () => {
     expect(r.change).toBe("better");
   });
 
-  it("takes the goal from the last step planned on exactly that line", () => {
+  it("takes the nearest step not yet reached on exactly that line", () => {
     const line = { measureKey: "joint_range", variant: "knee_flexion_active", side: "right" as const };
     const steps = [
       milestone({ id: "a", linkedMeasureKey: "joint_range", linkedVariant: "knee_flexion_active", linkedSide: "right", targetValue: 90, sortOrder: 1 }),
@@ -211,8 +211,36 @@ describe("the measures table", () => {
       milestone({ id: "c", linkedMeasureKey: "joint_range", linkedVariant: "knee_flexion_active", linkedSide: "left", targetValue: 140, sortOrder: 9 }),
       milestone({ id: "d", linkedMeasureKey: "joint_range", linkedVariant: "knee_flexion_passive", linkedSide: "right", targetValue: 140, sortOrder: 9 }),
       milestone({ id: "e", linkedMeasureKey: "joint_range", linkedVariant: "knee_flexion_active", linkedSide: "right", targetValue: null, sortOrder: 9 }),
+      milestone({ id: "f", linkedMeasureKey: "joint_range", linkedVariant: "knee_flexion_active", linkedSide: "right", targetValue: 130, sortOrder: 5 }),
     ];
-    expect(goalForSeries(line, steps)).toEqual({ value: 120, milestoneId: "b", reached: true });
+    expect(goalForSeries(line, steps)).toEqual({ value: 90, milestoneId: "a", reached: false, source: "milestone" });
     expect(goalForSeries({ measureKey: "tug", variant: null, side: null }, steps)).toBeNull();
+  });
+
+  it("falls back to the last step reached when none is open", () => {
+    const line = { measureKey: "lefs", variant: null, side: null };
+    const steps = [
+      milestone({ id: "a", linkedMeasureKey: "lefs", targetValue: 50, sortOrder: 1, status: "reached", reachedAt: "2026-08-01T05:00:00.000Z" }),
+      milestone({ id: "b", linkedMeasureKey: "lefs", targetValue: 65, sortOrder: 2, status: "reached", reachedAt: "2026-09-01T05:00:00.000Z" }),
+    ];
+    expect(goalForSeries(line, steps)).toEqual({ value: 65, milestoneId: "b", reached: true, source: "milestone" });
+  });
+
+  it("lets a step with no side serve either side, but prefers one naming the side", () => {
+    const line = { measureKey: "joint_range", variant: "knee_flexion_active", side: "right" as const };
+    const anySide = milestone({ id: "a", linkedMeasureKey: "joint_range", linkedVariant: "knee_flexion_active", linkedSide: null, targetValue: 110 });
+    expect(goalForSeries(line, [anySide])?.value).toBe(110);
+    const named = milestone({ id: "b", linkedMeasureKey: "joint_range", linkedVariant: "knee_flexion_active", linkedSide: "right", targetValue: 125, sortOrder: 2 });
+    expect(goalForSeries(line, [anySide, named])?.value).toBe(125);
+  });
+
+  it("uses the registry's own target when the plan sets none, and nothing where it has none", () => {
+    expect(goalForSeries({ measureKey: "strength_symmetry", variant: "quadriceps", side: "right" }, [])).toEqual({
+      value: 90,
+      milestoneId: null,
+      reached: false,
+      source: "default",
+    });
+    expect(goalForSeries({ measureKey: "pain_nprs", variant: null, side: null }, [])).toBeNull();
   });
 });

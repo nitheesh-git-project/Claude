@@ -1514,8 +1514,10 @@ export function changeDirection(
   if (!m || !Number.isFinite(from) || !Number.isFinite(to)) return null;
   if (m.better === "hold" || m.better === "earlier") return "changed";
   const threshold = mdcFor(m, opts.profileKind) ?? mcidFor(m, opts.profileKind);
-  if (!threshold) return to === from ? "no_change" : "changed";
-  const allowance = opts.differentTester && threshold.betweenTesters ? threshold.betweenTesters : threshold.value;
+  // No handbook figure for the real-change allowance: any move counts, and
+  // the better direction still decides the word (a measure with no published
+  // MDC must not read "Changed" while its neighbours read "Better").
+  const allowance = !threshold ? 0 : opts.differentTester && threshold.betweenTesters ? threshold.betweenTesters : threshold.value;
 
   let gain: number;
   if (m.better === "higher") gain = to - from;
@@ -1524,7 +1526,7 @@ export function changeDirection(
     if (opts.normal === undefined || !Number.isFinite(opts.normal)) return to === from ? "no_change" : "changed";
     gain = Math.abs(from - opts.normal) - Math.abs(to - opts.normal);
   }
-  if (Math.abs(to - from) + EPSILON < allowance) return "no_change";
+  if (Math.abs(to - from) + EPSILON < allowance || (!threshold && to === from)) return "no_change";
   if (Math.abs(gain) < EPSILON) return "changed";
   return gain > 0 ? "better" : "worse";
 }

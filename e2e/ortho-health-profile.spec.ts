@@ -135,9 +135,12 @@ test("OHP-001: the therapist records range, strength and LEFS, and each reaches 
   await expect(root.getByText(/Extension lag/)).toBeVisible();
   // ...and the measures table lists all three families.
   const table = root.getByRole("table", { name: /first, latest and goal reading/i });
-  await expect(table.getByText(/Goniometry/)).toBeVisible();
-  await expect(table.getByText(/Limb symmetry/)).toBeVisible();
-  await expect(table.getByText(/Lower Extremity Functional Scale/)).toBeVisible();
+  // Rows carry a short name; the full clinical name sits in the row header's
+  // assistive text.
+  await expect(table.getByRole("rowheader", { name: /Goniometry/ }).first()).toBeVisible();
+  await expect(table.getByRole("rowheader", { name: /Limb symmetry/ }).first()).toBeVisible();
+  await expect(table.getByRole("rowheader", { name: /Lower Extremity Functional Scale/ }).first()).toBeVisible();
+  await expect(table.getByRole("rowheader", { name: /^Knee bend \(/ }).first()).toBeVisible();
   await context.close();
 });
 

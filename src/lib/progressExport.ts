@@ -11,7 +11,7 @@ import { outcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
 import { buildMeasureSeries, measureTableRows, type MeasurementPoint } from "@/lib/outcomeSeries";
 import { formatReading } from "@/lib/progressChart";
 import { linkSummary } from "@/lib/milestonePlanner";
-import { seriesName } from "@/lib/progressView";
+import { changeWord, seriesName } from "@/lib/progressView";
 import type { CareStatusState } from "@/lib/careStatus";
 import { PROFILE_STATUS_LABEL } from "@/lib/profileStatus";
 
@@ -25,13 +25,6 @@ export type ProgressExport = {
   milestones: { title: string; criterion: string; status: string; when: string; measure: string | null }[];
   measures: { name: string; first: string; now: string; goal: string; change: string; reviews: number }[];
 };
-
-const CHANGE_WORD = {
-  better: "Better",
-  worse: "Worse",
-  no_change: "No real change",
-  changed: "Changed",
-} as const;
 
 const GOAL_STATUS: Record<CareGoal["status"], string> = { active: "In progress", achieved: "Achieved", closed: "Closed" };
 
@@ -87,7 +80,7 @@ export function buildProgressExport(input: {
       first: `${reading(row.first.value)} (${when(row.first.measuredAt)})`,
       now: row.reviews > 1 ? `${reading(row.now.value)} (${when(row.now.measuredAt)})` : "First reading",
       goal: row.goal ? `${reading(row.goal.value)}${row.goal.reached ? " (reached)" : ""}` : "Not set",
-      change: row.change === null ? (m ? "First reading" : "Not judged") : CHANGE_WORD[row.change],
+      change: row.change === null ? (m ? "First reading" : "Not judged") : changeWord(row.change),
       reviews: row.reviews,
     };
   });

@@ -249,8 +249,9 @@ describe("changeDirection and isMeaningfulChange", () => {
     expect(changeDirection("gmfcs", 3, 2)).toBe("changed");
   });
 
-  it("says 'changed', not 'better', when no threshold is known", () => {
-    expect(changeDirection("strength_symmetry", 78, 90)).toBe("changed");
+  it("still names the better or worse direction when no threshold is known", () => {
+    expect(changeDirection("strength_symmetry", 78, 90)).toBe("better");
+    expect(changeDirection("strength_symmetry", 90, 78)).toBe("worse");
     expect(changeDirection("strength_symmetry", 78, 78)).toBe("no_change");
   });
 

@@ -321,10 +321,9 @@ export type MeasureTableRow = {
   now: SeriesPoint;
   /** Points on the line (reviews, not raw readings). */
   reviews: number;
-  /** The target of the last step planned on this line -- the milestone
-   *  linked to exactly this measure, variant and side with the highest
-   *  sort order -- or null when no milestone sets one. */
-  goal: { value: number; milestoneId: string; reached: boolean } | null;
+  /** The nearest target not yet reached on this line (else the last one
+   *  reached), or the registry's default; see goalForSeries. */
+  goal: { value: number; milestoneId: string | null; reached: boolean; source: "milestone" | "default" } | null;
   /** First to now, honest about noise (changeDirection): null with only one
    *  review, or for a measure the registry no longer holds. */
   change: ChangeDirection | null;
@@ -332,20 +331,47 @@ export type MeasureTableRow = {
   meaningful: boolean | null;
 };
 
-/** The goal for one line, or null. */
+/** Whether a milestone has been reached. */
+function milestoneReached(ms: Pick<MilestoneTarget, "status" | "reachedAt">): boolean {
+  return ms.reachedAt !== null || ms.status === "reached";
+}
+
+/** The registry's own fixed target for a measure (strength compared with
+ *  the other side: 90%), or null where it defines none. */
+export function registryDefaultGoal(measureKey: string): number | null {
+  const norm = outcomeMeasure(measureKey)?.norm;
+  return norm && norm.kind === "fixed" && norm.value !== undefined && Number.isFinite(norm.value) ? norm.value : null;
+}
+
+/**
+ * The goal for one line, or null. From the plan's milestones linked to this
+ * measure and variant (and this side, or no side): the nearest target not
+ * yet reached -- lowest sort order -- else the last one reached. A milestone
+ * naming this very side beats one naming none. With no milestone, the
+ * registry's own fixed target where it has one (`source: "default"`).
+ */
 export function goalForSeries(
   series: Pick<MeasureSeries, "measureKey" | "variant" | "side">,
   milestones: readonly MilestoneTarget[]
 ): MeasureTableRow["goal"] {
-  let best: MilestoneTarget | null = null;
-  for (const ms of milestones) {
-    if (ms.linkedMeasureKey !== series.measureKey || ms.targetValue === null) continue;
-    if ((ms.linkedVariant ?? null) !== (series.variant ?? null)) continue;
-    if ((ms.linkedSide ?? null) !== (series.side ?? null)) continue;
-    if (!best || ms.sortOrder > best.sortOrder || (ms.sortOrder === best.sortOrder && ms.id > best.id)) best = ms;
+  const linked = milestones.filter(
+    (ms) =>
+      ms.linkedMeasureKey === series.measureKey &&
+      ms.targetValue !== null &&
+      (ms.linkedVariant ?? null) === (series.variant ?? null) &&
+      ((ms.linkedSide ?? null) === (series.side ?? null) || ms.linkedSide === null)
+  );
+  const exact = linked.filter((ms) => (ms.linkedSide ?? null) === (series.side ?? null));
+  const pool = exact.length > 0 ? exact : linked;
+  const byOrder = (a: MilestoneTarget, b: MilestoneTarget) => a.sortOrder - b.sortOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const open = pool.filter((ms) => !milestoneReached(ms)).sort(byOrder);
+  const done = pool.filter(milestoneReached).sort(byOrder);
+  const best = open[0] ?? done[done.length - 1] ?? null;
+  if (best && best.targetValue !== null) {
+    return { value: best.targetValue, milestoneId: best.id, reached: milestoneReached(best), source: "milestone" };
   }
-  if (!best || best.targetValue === null) return null;
-  return { value: best.targetValue, milestoneId: best.id, reached: best.reachedAt !== null || best.status === "reached" };
+  const fallback = registryDefaultGoal(series.measureKey);
+  return fallback === null ? null : { value: fallback, milestoneId: null, reached: false, source: "default" };
 }
 
 /**

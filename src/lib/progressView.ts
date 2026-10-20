@@ -2,7 +2,8 @@
 // components so they are tested and so the graph, the tiles and the table
 // call every line the same thing.
 
-import { changeDirection, outcomeMeasure, usualJointRange, type OutcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
+import { shortSeriesLabel } from "@/lib/measureLabels";
+import { changeDirection, outcomeMeasure, type ChangeDirection, usualJointRange, type OutcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
 import { goalForSeries, type MeasureSeries, type MilestoneTarget } from "@/lib/outcomeSeries";
 import { PHASES_BY_PROFILE_KIND } from "@/lib/milestoneTemplates";
 import { describeDelta, formatMeasureValue, sparklinePath, unitSuffix, type Delta, type DeltaTone } from "@/lib/progressChart";
@@ -25,9 +26,18 @@ export function seriesName(s: LineLike, voice: Voice): string {
   return tail.length ? `${parts.join(" - ")} (${tail.join(", ")})` : parts.join(" - ");
 }
 
-/** The short label on a tab: the plain name only, so a row of tabs fits. */
-export function seriesTabLabel(s: LineLike, voice: Voice): string {
-  return seriesName(s, voice);
+/** The short label on a tab, a tile or a table row (measureLabels.ts); the
+ *  full name (seriesName) stays in the detail text and accessible labels.
+ *  `all` is every line on the record, so active and passive stay apart. */
+export function seriesTabLabel(s: MeasureSeries, voice: Voice, all: readonly MeasureSeries[] = []): string {
+  return shortSeriesLabel(s, voice, all);
+}
+
+/** The one word for a judged change, for the table, the export and any other
+ *  row: it comes from changeDirection() (the better direction and the
+ *  allowance), never from a measure's unit. */
+export function changeWord(change: NonNullable<ChangeDirection>): string {
+  return change === "better" ? "Better" : change === "worse" ? "Worse" : change === "no_change" ? "No real change" : "Changed";
 }
 
 /** "Lower Extremity Functional Scale (LEFS), 0 to 80. Higher is better." */
@@ -134,6 +144,8 @@ export function seriesDelta(s: MeasureSeries, profileKind: ProfileKind): Delta |
 export type KeyTile = {
   key: string;
   label: string;
+  /** The full name, for the tile's accessible label. */
+  fullLabel: string;
   valueText: string;
   sparkPath: string | null;
   deltaText: string;
@@ -143,14 +155,21 @@ export type KeyTile = {
 
 /** One headline tile: the latest reading, a sparkline once there are two
  *  reviews, the move since the first, and the goal. */
-export function keyTile(s: MeasureSeries, milestones: readonly MilestoneTarget[], profileKind: ProfileKind, voice: Voice): KeyTile {
+export function keyTile(
+  s: MeasureSeries,
+  milestones: readonly MilestoneTarget[],
+  profileKind: ProfileKind,
+  voice: Voice,
+  all: readonly MeasureSeries[] = []
+): KeyTile {
   const first = s.points[0];
   const now = s.points[s.points.length - 1];
   const delta = seriesDelta(s, profileKind);
   const goal = goalForSeries(s, milestones);
   return {
     key: s.key,
-    label: seriesName(s, voice),
+    label: seriesTabLabel(s, voice, all),
+    fullLabel: seriesName(s, voice),
     valueText: readingText(now.value, s.decimals, s.unit),
     sparkPath: sparklinePath(s.points.map((p) => p.value)),
     deltaText: delta

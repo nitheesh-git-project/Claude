@@ -2,14 +2,8 @@ import { formatClinicDateShort } from "@/lib/formatDateTime";
 import { outcomeMeasure } from "@/lib/outcomeMeasures";
 import type { MeasureTableRow } from "@/lib/outcomeSeries";
 import { describeDelta, formatReading } from "@/lib/progressChart";
-import { seriesName, type Voice } from "@/lib/progressView";
-
-const CHANGE_WORD: Record<NonNullable<MeasureTableRow["change"]>, string> = {
-  better: "Better",
-  worse: "Worse",
-  no_change: "No real change",
-  changed: "Changed",
-};
+import { shortSeriesLabel } from "@/lib/measureLabels";
+import { changeWord, seriesName, type Voice } from "@/lib/progressView";
 
 const CHANGE_CLASS: Record<NonNullable<MeasureTableRow["change"]>, string> = {
   better: "text-emerald-700",
@@ -37,6 +31,19 @@ export default function MeasuresTable({ rows, voice }: { rows: MeasureTableRow[]
       </p>
     );
   }
+
+  const lines = rows.map((row) => ({
+    measureKey: row.measureKey,
+    variant: row.variant,
+    side: row.side,
+    medicationState: row.medicationState,
+    label: row.label,
+    plainName: outcomeMeasure(row.measureKey)?.plainName ?? row.label,
+    variantLabel: row.variantLabel,
+  }));
+  const labels = new Map(
+    rows.map((row, i) => [row.seriesKey, { short: shortSeriesLabel(lines[i], voice, lines), full: seriesName(lines[i], voice) }])
+  );
 
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -71,16 +78,8 @@ export default function MeasuresTable({ rows, voice }: { rows: MeasureTableRow[]
             return (
               <tr key={row.seriesKey} className="border-b border-slate-100 last:border-0 align-top">
                 <th scope="row" className="px-3 py-3 font-semibold text-slate-900 [overflow-wrap:anywhere]">
-                  {seriesName(
-                    {
-                      label: row.label,
-                      plainName: outcomeMeasure(row.measureKey)?.plainName ?? row.label,
-                      variantLabel: row.variantLabel,
-                      side: row.side,
-                      medicationState: row.medicationState,
-                    },
-                    voice
-                  )}
+                  {labels.get(row.seriesKey)?.short}
+                  <span className="sr-only"> ({labels.get(row.seriesKey)?.full})</span>
                 </th>
                 <td className="px-3 py-3 text-slate-800">
                   {reading(row.first.value)}
@@ -105,7 +104,7 @@ export default function MeasuresTable({ rows, voice }: { rows: MeasureTableRow[]
                     <span className="text-slate-600">{row.reviews < 2 ? "First reading" : "Not judged"}</span>
                   ) : (
                     <>
-                      <span className={`font-semibold ${CHANGE_CLASS[row.change]}`}>{CHANGE_WORD[row.change]}</span>
+                      <span className={`font-semibold ${CHANGE_CLASS[row.change]}`}>{changeWord(row.change)}</span>
                       {delta && <span className="block text-xs text-slate-600">{delta.text}</span>}
                     </>
                   )}

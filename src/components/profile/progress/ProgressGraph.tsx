@@ -160,7 +160,8 @@ export default function ProgressGraph({
                     : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 hover:text-teal-800"
                 }`}
               >
-                {seriesTabLabel(s, voice)}
+                {seriesTabLabel(s, voice, series)}
+                <span className="sr-only"> ({seriesName(s, voice)})</span>
               </button>
             );
           })}
