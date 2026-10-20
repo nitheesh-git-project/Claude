@@ -81,6 +81,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - Every standardised test goes in one shared measurement table, and the layers that already own a measure keep it
 - The shared progress screens, timers and export (Health Profile redesign, phase 2b; no page draws them yet - phase 3 wires the orthopaedic page)
 - The phase, the status override, used arms and the walk equation (Health Profile redesign, phase 3a, server side; the orthopaedic page that draws them is phase 3b)
+- The orthopaedic Health Profile layout shared by the patient, therapist and admin screens (Health Profile redesign, phase 3b): the new ortho-only layout, per-read degradation, who sees which control
 - Patient-uploaded reports live in Storage; the database holds only metadata
 - An uploaded report is typed by its bytes, not its label, and only a patient uploads one
 - Session notes are clinician-only, and they are the prep loop

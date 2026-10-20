@@ -1506,6 +1506,22 @@
       "integration": "local",
       "destructive": true
     },
+    "ortho-health-profile.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
     "measurements.spec.ts": {
       "runner": "therapist",
       "levels": [
@@ -3966,6 +3982,28 @@
         }
       ],
       "limitation": "Writes append-only measurements and reopen events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; no screen draws the layer yet (phase 2b), so it drives the routes and the rows. The registry, trials, series, milestone validation and proof are unit-tested in src/lib/outcomeMeasures.test.ts, outcomeSeries.test.ts and careGoals.test.ts; the reopen door in scripts/append-only-sql-checks.sql."
+    },
+    {
+      "id": "therapist.ortho-health-profile",
+      "runner": "therapist",
+      "title": "The orthopaedic Health Profile opens in the shared layout for patient and therapist; the therapist records range, strength and LEFS and sees them reach the dial, bar and table; controls follow the assignment; the phase and an overrule with a reason reach the patient",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "ortho-health-profile.spec.ts",
+          "tests": [
+            "OHP-001",
+            "OHP-002",
+            "OHP-003",
+            "OHP-004",
+            "OHP-005",
+            "OHP-006"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only measurements and status events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The unreadable-read card is not driven (a browser test cannot fail one server read without dropping a table); it is unit-tested in src/lib/orthoProfileView.test.ts. The geometry, areas, series and wording are in orthoProfile.test.ts, rangeGauge.test.ts and jointLandmarks.test.ts."
     }
   ],
   "removed": [

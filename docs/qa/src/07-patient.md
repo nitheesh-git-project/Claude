@@ -579,6 +579,12 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 ---
 
+#### `PAT-HP-020` - The orthopaedic Health Profile, as the patient reads it · P0
+**Steps.** As an orthopaedic patient with exams and measurements on record, open **Health Profile** at 360, 834 and 1280 px.
+**Expected Result.** Header with name, condition, status pill (and the physiotherapist's reason when they overruled it) and the phase bar; "Where things stand"; key numbers; **Your body map** with First exam / Latest and a card per area; **Are you getting better?**; the plan's steps; **Your measures**. The condition record, test reports and care plan history follow. No Record, Goal or Phase button appears. No sideways scrolling at any width. A neurological or paediatric patient's page is unchanged.
+
+---
+
 ### 11.8 Suggested Sessions, care plans and credits
 
 #### `PAT-SUGG-001` - The Suggested Sessions entry appears only when something waits · P1

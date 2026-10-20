@@ -777,6 +777,60 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   `outcomeMeasures.test.ts`, `recordTest.test.ts`, `testTimers.test.ts`;
   `e2e/measurements.spec.ts` MS-006 to MS-008;
   `scripts/append-only-sql-checks.sql` for the trigger.
+- **The orthopaedic Health Profile (Health Profile redesign, phase 3b).** For
+  a patient whose specialty is `ortho` - and only then - the patient's page,
+  the therapist's chart and the admin's condition detail share
+  `OrthoProfileTop` (`src/components/profile/ortho/`): header (name,
+  condition line, `ProfileStatusPill`, `PhaseBar`) -> `WhereThingsStand` ->
+  `KeyNumbers` -> body map card -> `ProgressGraph` -> `MilestoneCards` ->
+  `MeasuresTable`. Every page keeps what it had (condition record, reports,
+  care plan history, notes, banners, gates) and places it around that.
+  Neurological and paediatric pages render exactly as before and **never make
+  these reads** (same two-phase rule as `pain_assessments`).
+  - **Every figure is computed in a tested module.** `orthoProfile.ts` (pain as
+    a line, per-area first/now/change, the knee and strength picks, extension
+    lag, status input, summary sentences), `orthoProfileView.ts` (one shaper
+    for all three pages), `rangeGauge.ts` (dial and bar geometry),
+    `jointLandmarks.ts` (how to measure each movement; the handbook table).
+  - **Pain is not a measurement.** The Pain Map owns it; it is drawn as one
+    more line by `painMapSeries()` (average of each area's latest score after
+    each exam, 0-10, one decimal) and is the main measure for the status rule
+    when an exam exists. Nothing is written to `outcome_measurements` for it.
+    Falls and red flags are not collected for an orthopaedic profile, so the
+    rule never gets them.
+  - **Three reads, each its own call** (`loadOrthoReads`): measurements, goal
+    and steps, phase and status history. A failed one degrades only its card
+    ("We couldn't load ... They are not missing"); an unreadable measurement
+    read keeps the Pain Map line and the body map; an unreadable status read
+    shows the computed pill with a line saying the override could not be
+    checked. Unreadable is never "none yet". The realtime tables gain
+    `outcome_measurements`, `care_goals`, `care_milestones`,
+    `care_status_events` for an orthopaedic page.
+  - **Who may do what.** *Record a test*, *Goal and steps* and *Phase and
+    status* render for the assigned therapist (the neurological exam
+    button's rule: assignment; the measurement route adds its started-session
+    check). On the admin's condition detail, *Record a test*, the phase and
+    status controls and the milestone reopen need `scopeCanManage(scope,
+    "people")`, matching the routes. A patient has none. A control the route
+    would refuse is absent, not disabled.
+  - **Record a test** offers the registry's orthopaedic tests: goniometry
+    (movement chosen from `JOINT_MOVEMENTS`, active or passive, side; the
+    handbook's landmarks under "How to measure"; the other side's latest
+    reading and the last reading of the same line beside the entry; typing a
+    knee-straightening reading shows the extension lag against its partner
+    line), limb symmetry from three trials a side, the LEFS score sheet, and
+    KOOS-12 (free). Licensed scales are listed and unselectable while off.
+    The spine's modified Schober (centimetres) is **not** in the registry yet.
+  - **"Where things stand" is generated from the numbers** (nobody has
+    written a summary; there is no column for one). It is wording, not a
+    judgement - the status pill and the overrule are the judgement.
+  - **The PDF export** prints the current phase and any active overrule with
+    its reason and date under "Goal and progress"; the export refuses (503) if
+    the status history cannot be read ("complete or refused").
+  `src/lib/orthoProfile.test.ts`, `orthoProfileView.test.ts`,
+  `rangeGauge.test.ts`, `jointLandmarks.test.ts`, `recordTest.test.ts`,
+  `progressExport.test.ts`; `e2e/ortho-health-profile.spec.ts`; QA
+  `THR-HP-005c` to `005f`, `PAT-HP-020`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate
