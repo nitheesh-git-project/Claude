@@ -77,4 +77,17 @@ describe("shapeOrthoView", () => {
     expect(v.phaseIsInferred).toBe(false);
     expect(v.override).toMatchObject({ status: "needs_attention", stale: false });
   });
+
+  it("shows the written summary when there is one, the generated wording labelled otherwise, and offers it as the draft", () => {
+    const generated = shapeOrthoView(reads(), "clinician", NOW);
+    expect(generated.stand.source).toBe("generated");
+    expect(generated.stand.draft).toBeTruthy();
+
+    const events: CareStatusEvent[] = [
+      { id: "s1", patientId: "p", kind: "summary", value: "Bending further each week.", reason: null, profileKind: "ortho", setBy: "t", setByRole: "therapist", createdAt: "2026-09-13T05:00:00.000Z" },
+    ];
+    const written = shapeOrthoView(reads({ careStatus: { status: "ok", events } }), "patient", NOW);
+    expect(written.stand).toMatchObject({ source: "written", text: "Bending further each week.", setByRole: "therapist", stale: false });
+    expect(written.stand.draft).toBe(generated.stand.draft);
+  });
 });

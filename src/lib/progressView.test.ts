@@ -9,6 +9,7 @@ const line = (over: Partial<MeasureSeries>, points = 2): MeasureSeries => ({
   variant: null,
   side: null,
   medicationState: null,
+  joinPoints: true,
   known: true,
   label: "Lower Extremity Functional Scale",
   plainName: "Everyday activities",

@@ -6,6 +6,7 @@ import { formatClinicDate } from "@/lib/formatDateTime";
 import type { ActiveOverride } from "@/lib/careStatus";
 import type { StatusResult } from "@/lib/profileStatus";
 import type { Voice } from "@/lib/progressView";
+import type { WhereThingsStandView } from "@/lib/whereThingsStand";
 
 /**
  * The top of the orthopaedic profile: who and what (name, condition line,
@@ -28,8 +29,7 @@ export default function OrthoHeader({
   phase,
   phaseIsInferred,
   statusFailed,
-  summary,
-  summaryUpdatedAt,
+  stand,
   lastReviewAt,
   controls,
 }: {
@@ -43,8 +43,8 @@ export default function OrthoHeader({
   phase: string | null;
   phaseIsInferred: boolean;
   statusFailed: boolean;
-  summary: string | null;
-  summaryUpdatedAt: string | null;
+  /** "Where things stand", shaped by whereThingsStand.ts. */
+  stand: WhereThingsStandView;
   lastReviewAt: string | null;
   /** The physiotherapist's phase and status controls, when the viewer may use them. */
   controls?: ReactNode;
@@ -96,7 +96,7 @@ export default function OrthoHeader({
         {controls && <div className="mt-4 border-t border-slate-100 pt-4">{controls}</div>}
       </header>
 
-      <WhereThingsStand text={summary} voice={voice} updatedAt={summaryUpdatedAt} />
+      <WhereThingsStand view={stand} voice={voice} loadFailed={statusFailed} />
     </div>
   );
 }

@@ -85,7 +85,7 @@ export async function applyCareStatusChange(
       ),
     };
   }
-  const previous: CareStatusState = { phase: current.phase, override: current.override };
+  const previous: CareStatusState = { phase: current.phase, override: current.override, summary: current.summary };
 
   if (changeIsNoOp(change, previous)) {
     return { ok: true, change, profileKind, previous, state: previous, event: null, unchanged: true };
@@ -101,9 +101,16 @@ export async function applyCareStatusChange(
   }
 
   // The reason (or note) is shown to the patient beside the pill or the
-  // phase, so it goes through the contact scanner like a goal's text.
-  if (change.reason) {
-    const leak = await guardCommunication(admin, [{ surface: "care_status_reason", text: change.reason }], {
+  // phase, and the written summary is the patient's to read in full, so
+  // both go through the contact scanner like a goal's text.
+  const scanned =
+    change.kind === "summary"
+      ? [{ surface: "care_status_summary" as const, text: change.value }]
+      : change.reason
+        ? [{ surface: "care_status_reason" as const, text: change.reason }]
+        : [];
+  if (scanned.length > 0) {
+    const leak = await guardCommunication(admin, scanned, {
       authorId: input.actorId,
       authorRole: input.actorRole,
       patientId: input.patientId,
@@ -131,12 +138,22 @@ export async function applyCareStatusChange(
       return {
         ok: false,
         response: NextResponse.json(
-          { error: "This database has not been updated yet, so the phase and status cannot be saved. Re-apply supabase/schema.sql, then try again." },
+          { error: "This database has not been updated yet, so the phase, status and summary cannot be saved. Re-apply supabase/schema.sql, then try again." },
           { status: 503 }
         ),
       };
     }
-    // The table's own shape CHECK: the caller's to fix.
+    // The table's own shape CHECK: the caller's to fix -- or, for a summary,
+    // a database still on phase 3a's kind list, which says "re-apply" below.
+    if (error.code === "23514" && change.kind === "summary" && /kind_check/.test(error.message ?? "")) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "This database has not been updated yet, so a written summary cannot be saved. Re-apply supabase/schema.sql, then try again." },
+          { status: 503 }
+        ),
+      };
+    }
     if (error.code === "23514") {
       return { ok: false, response: NextResponse.json({ error: "The record refused this change." }, { status: 400 }) };
     }
@@ -152,6 +169,9 @@ export async function applyCareStatusChange(
 /** The audit entry's from / to, so it reads as a change months later. */
 export function careStatusAuditDetails(applied: CareStatusApplied): Record<string, unknown> {
   const { change, previous, event } = applied;
+  if (change.kind === "summary") {
+    return { kind: "summary", eventId: event?.id ?? null, from: previous.summary?.text ?? null, to: change.value, note: null };
+  }
   const from =
     change.kind === "phase"
       ? previous.phase?.phase ?? null

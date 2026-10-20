@@ -5,8 +5,8 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { applyCareStatusChange, careStatusAuditDetails } from "@/lib/careStatusRoute";
 
-// An admin sets a patient's current phase or overrules (or clears) the
-// computed status pill -- the counterpart of
+// An admin sets a patient's current phase, overrules (or clears) the
+// computed status pill, or writes "Where things stand" -- the counterpart of
 // /api/therapist/care-status/set, through the same shared helper
 // (applyCareStatusChange) so neither door stores what the other refuses.
 //
@@ -25,6 +25,10 @@ import { applyCareStatusChange, careStatusAuditDetails } from "@/lib/careStatusR
 //               status: "improving" | "steady" | "needs_attention",
 //               reason: string }                       (>= 10 characters)
 //             { action: "clear_override", reason?: string }
+//             { action: "set_summary", text: string }   (phase 4a: the
+//               written "Where things stand", <= 1,200 characters, line
+//               breaks kept, scanned as care_status_summary; the same
+//               text again is 200 unchanged)
 //           (CareStatusRequest, src/lib/careStatus.ts)
 // Response: 200 { success: true, unchanged: boolean,
 //                 event: CareStatusEvent | null, state: CareStatusState }

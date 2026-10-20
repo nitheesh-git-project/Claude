@@ -68,8 +68,7 @@ export default function OrthoProfileTop({
         phase={view.phase}
         phaseIsInferred={view.phaseIsInferred}
         statusFailed={view.statusFailed}
-        summary={view.summary}
-        summaryUpdatedAt={view.lastReviewAt}
+        stand={view.stand}
         lastReviewAt={view.lastReviewAt}
         controls={
           canSetStatus && !view.statusFailed ? (
@@ -80,6 +79,8 @@ export default function OrthoProfileTop({
               phaseIsInferred={view.phaseIsInferred}
               override={view.override ? { status: view.override.status, reason: view.override.reason, setAt: view.override.setAt } : null}
               overrideStale={view.override?.stale ?? false}
+              summary={view.stand.source === "written" ? { text: view.stand.text, setAt: view.stand.setAt } : null}
+              summaryDraft={view.stand.draft}
               endpoint={canSetStatus.endpoint}
             />
           ) : canSetStatus ? (

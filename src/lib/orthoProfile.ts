@@ -49,6 +49,7 @@ export function painMapSeries(assessments: readonly PainAssessmentRow[]): Measur
     variant: null,
     side: null,
     medicationState: null,
+    joinPoints: true,
     known: !!m,
     label: "Pain (Pain Map, average across areas)",
     plainName: "Pain score",

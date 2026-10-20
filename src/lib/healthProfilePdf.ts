@@ -338,6 +338,18 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
     } else {
       cur.space(4);
     }
+    // Only what a person wrote; the screen's generated wording is not a
+    // clinician's statement and is never printed as one.
+    if (progress.care.summary) {
+      cur.text(
+        `Where things stand (${progress.care.summary.byClinic ? "written by the clinic" : "written by the physiotherapist"}, ${progress.care.summary.setOn})`,
+        { size: 9, bold: true, color: MUTED, gap: 1 }
+      );
+      for (const paragraph of progress.care.summary.text.split("\n").filter((line) => line.trim())) {
+        cur.text(paragraph, { size: 10, gap: 1 });
+      }
+      cur.space(6);
+    }
     if (progress.goal) {
       cur.text("Goal, in the patient's own words", { size: 9, bold: true, color: MUTED, gap: 1 });
       cur.text(`\u201C${progress.goal.text}\u201D`, { size: 12, bold: true, gap: 2 });

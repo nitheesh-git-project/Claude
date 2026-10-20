@@ -259,7 +259,7 @@ export async function GET(request: NextRequest) {
 
   const progress = buildProgressExport({
     profileKind,
-    careStatus: { phase: careStatusRead.phase, override: careStatusRead.override },
+    careStatus: { phase: careStatusRead.phase, override: careStatusRead.override, summary: careStatusRead.summary },
     points: parseMeasurementRows(measurementsRead.rows),
     goals: goalsRead.goals,
     milestones: goalsRead.milestones,

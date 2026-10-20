@@ -1,7 +1,8 @@
 import type { PainAssessmentRow } from "@/lib/painMap";
 import type { CareGoal, CareMilestone, MilestoneView } from "@/lib/careGoals";
 import { shapeMilestones } from "@/lib/careGoals";
-import { shapeCareStatus, type ActiveOverride, type CareStatusEvent } from "@/lib/careStatus";
+import { EMPTY_CARE_STATUS, shapeCareStatus, type ActiveOverride, type CareStatusEvent } from "@/lib/careStatus";
+import { whereThingsStandView, type WhereThingsStandView } from "@/lib/whereThingsStand";
 import {
   buildMeasureSeries,
   measureTableRows,
@@ -60,7 +61,11 @@ export type OrthoView = {
   /** The stored phase, else the one the plan implies. */
   phase: string | null;
   phaseIsInferred: boolean;
-  summary: string | null;
+  /** "Where things stand": the physiotherapist's written summary, else the
+   *  generated wording labelled as such (whereThingsStand.ts). When the
+   *  status read failed the written one could not be checked, so the card
+   *  shows the generated wording and the page says it could not load. */
+  stand: WhereThingsStandView;
   lastReviewAt: string | null;
   kneeBend: KneeBend | null;
   legStrength: LegStrength | null;
@@ -88,7 +93,7 @@ export function shapeOrthoView(reads: OrthoReads, voice: Voice, nowMs: number): 
   const statusFailed = reads.careStatus.status !== "ok";
   const careState = reads.careStatus.status === "ok"
     ? shapeCareStatus(reads.careStatus.events, { profileKind: "ortho", latestReviewAt: reviewAt })
-    : { phase: null, override: null };
+    : EMPTY_CARE_STATUS;
 
   // The status rule is computed from the main measure whether or not the
   // override read worked: when it did not, the screen says it could not
@@ -107,7 +112,12 @@ export function shapeOrthoView(reads: OrthoReads, voice: Voice, nowMs: number): 
     override: careState.override,
     phase: careState.phase?.phase ?? inferred,
     phaseIsInferred: !careState.phase && inferred !== null,
-    summary: standSummary(series, planMilestones, voice),
+    stand: whereThingsStandView({
+      written: careState.summary,
+      generated: standSummary(series, planMilestones, voice),
+      // The draft is for the patient to read, whoever is typing it.
+      draft: standSummary(series, planMilestones, "patient"),
+    }),
     lastReviewAt: reviewAt,
     kneeBend: pickKneeBend(series, planMilestones),
     legStrength: pickLegStrength(series, planMilestones),

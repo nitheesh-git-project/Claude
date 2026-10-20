@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  CARE_STATUS_SUMMARY_MAX,
+  EMPTY_CARE_STATUS,
   changeIsNoOp,
+  normaliseSummary,
   clearHasNothingToEnd,
   isOverrideStale,
   orderCareStatusEvents,
@@ -27,7 +30,7 @@ function ev(over: Partial<CareStatusEvent> & Pick<CareStatusEvent, "kind" | "cre
 
 describe("shapeCareStatus", () => {
   it("has no phase and no override before anything is set", () => {
-    expect(shapeCareStatus([], { profileKind: "ortho" })).toEqual({ phase: null, override: null });
+    expect(shapeCareStatus([], { profileKind: "ortho" })).toEqual({ phase: null, override: null, summary: null });
   });
 
   it("the latest phase wins, whatever order the rows came back in", () => {
@@ -165,12 +168,52 @@ describe("changeIsNoOp and clearHasNothingToEnd", () => {
     expect(changeIsNoOp({ kind: "phase", value: "Back to activity", reason: null }, state)).toBe(false);
     expect(changeIsNoOp({ kind: "status_override", value: "steady", reason: "Pain flare after a long trip" }, state)).toBe(true);
     expect(changeIsNoOp({ kind: "status_override", value: "steady", reason: "A different reason now" }, state)).toBe(false);
-    expect(changeIsNoOp({ kind: "phase", value: "Strengthen", reason: null }, { phase: null, override: null })).toBe(false);
+    expect(changeIsNoOp({ kind: "phase", value: "Strengthen", reason: null }, { phase: null, override: null, summary: null })).toBe(false);
   });
 
   it("a clear with no override in force has nothing to end", () => {
     expect(clearHasNothingToEnd({ kind: "override_cleared", value: null, reason: null }, state)).toBe(false);
-    expect(clearHasNothingToEnd({ kind: "override_cleared", value: null, reason: null }, { phase: null, override: null })).toBe(true);
-    expect(clearHasNothingToEnd({ kind: "phase", value: "Strengthen", reason: null }, { phase: null, override: null })).toBe(false);
+    expect(clearHasNothingToEnd({ kind: "override_cleared", value: null, reason: null }, { phase: null, override: null, summary: null })).toBe(true);
+    expect(clearHasNothingToEnd({ kind: "phase", value: "Strengthen", reason: null }, { phase: null, override: null, summary: null })).toBe(false);
+  });
+});
+
+describe("the written summary (phase 4a)", () => {
+  it("the latest summary is in force, whatever profile kind it was written under, and goes stale after a review", () => {
+    const a = ev({ kind: "summary", value: "First week: settling in.", createdAt: "2026-10-01T10:00:00Z" });
+    const b = ev({ kind: "summary", value: "Walking further.\nNext: stairs.", createdAt: "2026-10-10T10:00:00Z", profileKind: "neuro" });
+    const state = shapeCareStatus([b, a], { profileKind: "neuro_parkinsons" });
+    expect(state.summary).toMatchObject({ text: "Walking further.\nNext: stairs.", eventId: b.id, profileKind: "neuro", stale: false });
+    const later = shapeCareStatus([a, b], { profileKind: "ortho", latestReviewAt: "2026-10-12T10:00:00Z" });
+    expect(later.summary?.stale).toBe(true);
+    // A summary is not a phase and does not touch the override.
+    expect(later.phase).toBeNull();
+    expect(later.override).toBeNull();
+  });
+
+  it("parses a stored summary row", () => {
+    const row = {
+      id: "e1", patient_id: "p1", kind: "summary", value: "Doing well.", reason: null, profile_kind: "ortho",
+      set_by: "t1", set_by_role: "therapist", created_at: "2026-10-01T10:00:00Z",
+    };
+    expect(parseCareStatusEventRow(row)).toMatchObject({ kind: "summary", value: "Doing well." });
+  });
+
+  it("set_summary keeps line breaks, collapses spacing, and refuses blank or too long", () => {
+    expect(validateCareStatusChange({ action: "set_summary", text: "  Walking   further.\r\n\r\n\r\nNext:  stairs. " }, "ortho")).toEqual({
+      ok: true,
+      change: { kind: "summary", value: "Walking further.\n\nNext: stairs.", reason: null },
+    });
+    expect(normaliseSummary("a\n\n\n\nb")).toBe("a\n\nb");
+    expect(validateCareStatusChange({ action: "set_summary", text: "   \n " }, "ortho")).toMatchObject({ ok: false });
+    expect(validateCareStatusChange({ action: "set_summary", text: "x".repeat(CARE_STATUS_SUMMARY_MAX + 1) }, "ortho")).toMatchObject({ ok: false });
+    expect(validateCareStatusChange({ action: "set_summary" }, "ortho")).toMatchObject({ ok: false });
+  });
+
+  it("the same text again is a no-op; a different one is not", () => {
+    const state = shapeCareStatus([ev({ kind: "summary", value: "Doing well.", createdAt: "2026-10-01T10:00:00Z" })], { profileKind: "ortho" });
+    expect(changeIsNoOp({ kind: "summary", value: "Doing well.", reason: null }, state)).toBe(true);
+    expect(changeIsNoOp({ kind: "summary", value: "Doing better.", reason: null }, state)).toBe(false);
+    expect(changeIsNoOp({ kind: "summary", value: "Doing well.", reason: null }, EMPTY_CARE_STATUS)).toBe(false);
   });
 });

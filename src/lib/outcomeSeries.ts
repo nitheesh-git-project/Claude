@@ -149,6 +149,28 @@ export function seriesMedicationState(point: MeasurementPoint, profileKind: Prof
   return state === "on" || state === "off" ? state : null;
 }
 
+/**
+ * The comparable-points rule (phase 4a). On the Parkinson's sub-profile a
+ * measure that needs the medication state (TUG, the 10-metre walk, the five
+ * times sit-to-stand, the Mini-BESTest and the rest marked
+ * medicationStateRequired) is only comparable between two readings taken in
+ * the SAME known state: ON with ON, OFF with OFF. A reading whose state was
+ * not recorded (one taken before the record became Parkinson's, when the
+ * route did not ask) is comparable with nothing -- not even another
+ * unrecorded one, since "unknown" twice is not "the same". Everywhere else
+ * the state is not part of the comparison.
+ */
+export function pointsAreComparable(
+  measureKey: string,
+  profileKind: ProfileKind,
+  a: MedicationState | null | undefined,
+  b: MedicationState | null | undefined
+): boolean {
+  const m = outcomeMeasure(measureKey);
+  if (!m?.medicationStateRequired || profileKind !== "neuro_parkinsons") return true;
+  return (a === "on" || a === "off") && a === b;
+}
+
 /** One line on one graph: measure, variant, side and (Parkinson's only)
  *  ON/OFF. Two variants never share a line -- active and passive range stay
  *  apart -- and a right knee is never compared with a left. */
@@ -188,6 +210,11 @@ export type MeasureSeries = {
   variant: string | null;
   side: MeasurementSide | null;
   medicationState: MedicationState | null;
+  /** False when the line's points may not be joined or compared
+   *  (pointsAreComparable): the Parkinson's readings of a medication-state
+   *  measure whose state was not recorded. The graph draws them as dots
+   *  with no line, and the table claims no change between them. */
+  joinPoints: boolean;
   /** False for a key the registry no longer holds: still drawn, labelled by
    *  its key, with no direction or thresholds. */
   known: boolean;
@@ -269,6 +296,7 @@ export function buildMeasureSeries(
       variant: sample.variant,
       side: sample.side,
       medicationState: states.get(key) ?? null,
+      joinPoints: pointsAreComparable(sample.measureKey, opts.profileKind, states.get(key) ?? null, states.get(key) ?? null),
       known: !!m,
       label: m?.label ?? sample.measureKey,
       plainName: m?.plainName ?? sample.measureKey,
@@ -408,14 +436,14 @@ export function measureTableRows(
       reviews: s.points.length,
       goal: goalForSeries(s, milestones),
       change:
-        twoReviews && s.known
+        twoReviews && s.known && s.joinPoints
           ? changeDirection(s.measureKey, first.value, now.value, {
               profileKind: opts.profileKind,
               normal,
               differentTester: testerOf(first) !== testerOf(now),
             })
           : null,
-      meaningful: twoReviews && s.known ? isMeaningfulChange(s.measureKey, first.value, now.value, opts.profileKind) : null,
+      meaningful: twoReviews && s.known && s.joinPoints ? isMeaningfulChange(s.measureKey, first.value, now.value, opts.profileKind) : null,
     });
   }
   return rows;

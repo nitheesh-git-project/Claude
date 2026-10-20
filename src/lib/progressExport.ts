@@ -20,6 +20,10 @@ export type ProgressExport = {
   care: {
     phase: { name: string; setOn: string } | null;
     override: { statusLabel: string; reason: string; setOn: string } | null;
+    /** "Where things stand" as the physiotherapist wrote it, or null when
+     *  nobody has. The generated wording is never exported: a document
+     *  handed to another clinician carries only what a person wrote. */
+    summary: { text: string; setOn: string; byClinic: boolean } | null;
   };
   goal: { text: string; targetDate: string | null; status: string } | null;
   milestones: { title: string; criterion: string; status: string; when: string; measure: string | null }[];
@@ -87,6 +91,7 @@ export function buildProgressExport(input: {
 
   const phase = input.careStatus?.phase ?? null;
   const override = input.careStatus?.override ?? null;
+  const summary = input.careStatus?.summary ?? null;
 
   return {
     care: {
@@ -94,6 +99,7 @@ export function buildProgressExport(input: {
       override: override
         ? { statusLabel: PROFILE_STATUS_LABEL[override.status], reason: override.reason, setOn: formatClinicDate(override.setAt) }
         : null,
+      summary: summary ? { text: summary.text, setOn: formatClinicDate(summary.setAt), byClinic: summary.setByRole === "admin" } : null,
     },
     goal: goal ? { text: goal.goalText, targetDate: goal.targetDate ? formatClinicDate(goal.targetDate) : null, status: GOAL_STATUS[goal.status] } : null,
     milestones,

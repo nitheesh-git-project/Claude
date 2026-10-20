@@ -252,15 +252,22 @@ export default function ProgressGraph({
               />
             )}
 
-            {view.geometry.areaPath && <path d={view.geometry.areaPath} fill="var(--chart-brand-soft)" fillOpacity={0.08} />}
-            <path
-              d={view.geometry.linePath}
-              fill="none"
-              stroke="var(--chart-brand-soft)"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            {/* Readings that may not be compared (a Parkinson's test whose
+                medication state was not recorded - pointsAreComparable) are
+                dots with no line between them, and no shaded area. */}
+            {selected.joinPoints && view.geometry.areaPath && (
+              <path d={view.geometry.areaPath} fill="var(--chart-brand-soft)" fillOpacity={0.08} />
+            )}
+            {selected.joinPoints && (
+              <path
+                d={view.geometry.linePath}
+                fill="none"
+                stroke="var(--chart-brand-soft)"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
 
             {view.geometry.points.map((p, i, all) => {
               const last = i === all.length - 1;

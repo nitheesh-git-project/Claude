@@ -9,6 +9,7 @@ import { PROFILE_STATUS_LABEL, STATUS_OVERRIDE_REASON_MAX, STATUS_OVERRIDE_REASO
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import { NETWORK_ERROR_MESSAGE, progressErrorMessage, readProgressFailure } from "@/lib/progressErrors";
 import { formatClinicDate } from "@/lib/formatDateTime";
+import { CARE_STATUS_SUMMARY_MAX, normaliseSummary } from "@/lib/careStatus";
 
 const FIELD =
   "min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600";
@@ -18,9 +19,11 @@ const BUTTON =
 const OVERRIDE_CHOICES: readonly StatusOverride["status"][] = ["improving", "steady", "needs_attention"];
 
 /**
- * The physiotherapist's two judgements about where the course is: which
- * phase the patient is in, and - when the computed status is wrong for
- * this person - an overrule of it with a reason, or clearing that overrule.
+ * The physiotherapist's judgements about where the course is: which
+ * phase the patient is in; - when the computed status is wrong for this
+ * person - an overrule of it with a reason, or clearing that overrule; and
+ * "Where things stand" in their own words (set_summary), the box prefilled
+ * with what they last wrote or else the generated wording as a draft.
  * Each is a row in the append-only care_status_events (the route is
  * /api/therapist/care-status/set, or the admin door with `endpoint`). The
  * reason reaches the patient, so the box says so.
@@ -38,6 +41,8 @@ export default function CareStatusControls({
   phaseIsInferred,
   override,
   overrideStale,
+  summary = null,
+  summaryDraft = null,
   endpoint = "/api/therapist/care-status/set",
 }: {
   patientId: string;
@@ -46,6 +51,11 @@ export default function CareStatusControls({
   phaseIsInferred: boolean;
   override: { status: StatusOverride["status"]; reason: string; setAt: string } | null;
   overrideStale: boolean;
+  /** The written summary in force, if any. */
+  summary?: { text: string; setAt: string } | null;
+  /** The generated wording, offered as a starting point (never saved as is
+   *  without the physiotherapist pressing Save). */
+  summaryDraft?: string | null;
   endpoint?: string;
 }) {
   const router = useRouter();
@@ -56,6 +66,9 @@ export default function CareStatusControls({
   const [phase, setPhase] = useState(currentPhase && !phaseIsInferred ? currentPhase : "");
   const [status, setStatus] = useState<StatusOverride["status"] | "">(override?.status ?? "");
   const [reason, setReason] = useState("");
+  const [summaryText, setSummaryText] = useState(summary?.text ?? summaryDraft ?? "");
+  const summaryClean = normaliseSummary(summaryText);
+  const summaryUnchanged = !!summary && summaryClean === summary.text;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busyRef = useRef(false);
@@ -63,7 +76,7 @@ export default function CareStatusControls({
   const trimmed = reason.replace(/\s+/g, " ").trim();
   const reasonShort = trimmed.length < STATUS_OVERRIDE_REASON_MIN;
 
-  async function send(kind: "phase" | "override" | "clear", body: Record<string, unknown>, done: string) {
+  async function send(kind: "phase" | "override" | "clear" | "summary", body: Record<string, unknown>, done: string) {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(kind);
@@ -80,7 +93,7 @@ export default function CareStatusControls({
       }
       const data = (await res.json().catch(() => null)) as { unchanged?: boolean } | null;
       show(data?.unchanged ? "Nothing to change - that is already in place" : done);
-      if (kind !== "phase") setReason("");
+      if (kind === "override" || kind === "clear") setReason("");
       router.refresh();
     } catch {
       setError(NETWORK_ERROR_MESSAGE);
@@ -216,6 +229,48 @@ export default function CareStatusControls({
                 </button>
               )}
             </div>
+          </form>
+
+          <form
+            className="space-y-2 border-t border-slate-200 pt-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (summaryClean && !summaryUnchanged) void send("summary", { action: "set_summary", text: summaryClean }, "Summary saved");
+            }}
+          >
+            <label htmlFor={`${baseId}-summary`} className="block text-sm font-semibold text-slate-900">
+              Where things stand
+            </label>
+            <p id={`${baseId}-summary-hint`} className="text-xs text-slate-700">
+              {summary
+                ? `Last written ${formatClinicDate(summary.setAt)}. A new version replaces it on the patient's screen; the old one is kept.`
+                : summaryDraft
+                  ? "Started for you from the numbers - change it into your own words before saving. The patient reads this."
+                  : "A few plain sentences for the patient: how they are doing and what comes next."}
+            </p>
+            <textarea
+              id={`${baseId}-summary`}
+              value={summaryText}
+              rows={4}
+              maxLength={CARE_STATUS_SUMMARY_MAX + 200}
+              onChange={(e) => {
+                setSummaryText(e.target.value);
+                setError(null);
+              }}
+              aria-describedby={`${baseId}-summary-hint ${baseId}-summary-count`}
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+            />
+            <p id={`${baseId}-summary-count`} className="text-xs text-slate-700">
+              {summaryClean.length} of {CARE_STATUS_SUMMARY_MAX} characters.
+            </p>
+            <button
+              type="submit"
+              disabled={!summaryClean || summaryClean.length > CARE_STATUS_SUMMARY_MAX || summaryUnchanged || busy !== null}
+              className={`${BUTTON} bg-teal-700 text-white hover:bg-teal-800`}
+            >
+              {busy === "summary" && <Spinner />}
+              Save summary
+            </button>
           </form>
 
           {error && (

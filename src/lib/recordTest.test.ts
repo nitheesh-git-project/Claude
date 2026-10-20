@@ -183,6 +183,7 @@ describe("previousReading", () => {
     variant: "knee_flexion",
     side: "right",
     medicationState: null,
+    joinPoints: true,
     known: true,
     label: "Joint range",
     plainName: "Movement",

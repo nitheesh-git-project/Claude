@@ -26,6 +26,7 @@ describe("buildHealthProfilePdf progress section", () => {
         care: {
           phase: { name: "Strengthen", setOn: "12 Oct 2026" },
           override: { statusLabel: "Needs attention", reason: "Swelling returned after the stairs test - कुछ", setOn: "14 Oct 2026" },
+          summary: { text: "Walking further each week.\n\nNext: the stairs - कुछ", setOn: "15 Oct 2026", byClinic: false },
         },
         goal: { text: "Play badminton again क", targetDate: "1 Dec 2026", status: "In progress" },
         milestones: [{ title: "Knee bends to 125°", criterion: "Bends to 125 degrees", status: "Working on it", when: "Target 1 Oct 2026", measure: "Knee bend, right" }],
@@ -44,7 +45,7 @@ describe("buildHealthProfilePdf progress section", () => {
   });
 
   it("prints the empty states rather than dropping the section", async () => {
-    const bytes = await buildHealthProfilePdf({ ...base, progress: { care: { phase: null, override: null }, goal: null, milestones: [], measures: [] } });
+    const bytes = await buildHealthProfilePdf({ ...base, progress: { care: { phase: null, override: null, summary: null }, goal: null, milestones: [], measures: [] } });
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
   });
 

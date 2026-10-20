@@ -5,11 +5,12 @@ import { requireAssignedTherapist, requireSignedInUser } from "@/lib/therapistCl
 import { applyCareStatusChange } from "@/lib/careStatusRoute";
 
 // The assigned therapist sets the patient's current phase (one of the
-// profile kind's four, milestoneTemplates.ts) or overrules the computed
+// profile kind's four, milestoneTemplates.ts), overrules the computed
 // status pill (Improving / Holding steady / Needs attention) with a reason,
-// or clears their override. Every change is an append-only
-// care_status_events row, so the history of who said what, when and why is
-// kept (src/lib/careStatus.ts shapes what is in force).
+// clears their override, or writes "Where things stand" for the patient.
+// Every change is an append-only care_status_events row, so the history of
+// who said what, when and why is kept (src/lib/careStatus.ts shapes what is
+// in force).
 //
 // Gate: assigned under the clinical-access rule, the mirror of
 // care_status_events_insert_assigned_therapist -- a judgement about the plan
@@ -24,6 +25,10 @@ import { applyCareStatusChange } from "@/lib/careStatusRoute";
 //               status: "improving" | "steady" | "needs_attention",
 //               reason: string }                       (>= 10 characters)
 //             { action: "clear_override", reason?: string }
+//             { action: "set_summary", text: string }   (phase 4a: the
+//               written "Where things stand", <= 1,200 characters, line
+//               breaks kept, scanned as care_status_summary; the same
+//               text again is 200 unchanged)
 //           (CareStatusRequest, src/lib/careStatus.ts)
 // Response: 200 { success: true, unchanged: boolean,
 //                 event: CareStatusEvent | null, state: CareStatusState }

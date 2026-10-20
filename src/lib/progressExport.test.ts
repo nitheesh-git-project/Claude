@@ -110,7 +110,7 @@ describe("buildProgressExport", () => {
 
   it("prints the phase and the overrule with their dates and the reason, and says when none is set", () => {
     const none = buildProgressExport({ profileKind: "ortho", points: [], goals: [], milestones: [], nowMs: NOW });
-    expect(none.care).toEqual({ phase: null, override: null });
+    expect(none.care).toEqual({ phase: null, override: null, summary: null });
 
     const out = buildProgressExport({
       profileKind: "ortho",
@@ -129,7 +129,21 @@ describe("buildProgressExport", () => {
           setByRole: "therapist",
           stale: false,
         },
+        summary: {
+          text: "Walking further each week.\nNext: the stairs at home.",
+          eventId: "e3",
+          setAt: "2026-10-13T05:00:00.000Z",
+          setBy: "t",
+          setByRole: "therapist",
+          profileKind: "ortho",
+          stale: false,
+        },
       },
+    });
+    expect(out.care.summary).toEqual({
+      text: "Walking further each week.\nNext: the stairs at home.",
+      setOn: formatClinicDate("2026-10-13T05:00:00.000Z"),
+      byClinic: false,
     });
     expect(out.care.phase).toEqual({ name: "Strengthen", setOn: formatClinicDate("2026-10-01T05:00:00.000Z") });
     expect(out.care.override).toEqual({
