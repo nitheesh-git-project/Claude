@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { formatClinicDate } from "@/lib/formatDateTime";
+import { formatClinicDateShort } from "@/lib/formatDateTime";
 import type { Voice } from "@/lib/progressView";
 import { whereThingsStandByline, type WhereThingsStandView } from "@/lib/whereThingsStand";
 
@@ -60,7 +60,7 @@ export default function WhereThingsStand({
           {byline && (
             <p className="mt-2 text-xs text-slate-600">
               {byline}
-              {view.source === "written" ? `, ${formatClinicDate(view.setAt)}` : ""}
+              {view.source === "written" ? `, ${formatClinicDateShort(view.setAt)}` : ""}
             </p>
           )}
           {view.source === "written" && view.stale && clinician && (

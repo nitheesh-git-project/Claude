@@ -45,6 +45,8 @@ export type OrthoReads = {
   careStatus: { status: "ok"; events: CareStatusEvent[] } | { status: "unreadable" };
   /** The Pain Map rows (read for an orthopaedic page only). */
   assessments: PainAssessmentRow[];
+  /** Who wrote the current "Where things stand" text (careStatusAuthor.ts). */
+  summaryAuthorName?: string | null;
 };
 
 export type OrthoView = {
@@ -114,6 +116,7 @@ export function shapeOrthoView(reads: OrthoReads, voice: Voice, nowMs: number): 
     phaseIsInferred: !careState.phase && inferred !== null,
     stand: whereThingsStandView({
       written: careState.summary,
+      authorName: reads.summaryAuthorName ?? null,
       generated: standSummary(series, planMilestones, voice),
       // The draft is for the patient to read, whoever is typing it.
       draft: standSummary(series, planMilestones, "patient"),

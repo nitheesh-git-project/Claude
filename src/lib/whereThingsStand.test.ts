@@ -20,6 +20,7 @@ describe("whereThingsStandView", () => {
       text: written.text,
       setAt: written.setAt,
       setByRole: "therapist",
+      authorName: null,
       stale: false,
       draft: "Your pain is down from 6 to 3.",
     });
@@ -39,9 +40,20 @@ describe("whereThingsStandView", () => {
 
   it("names the clinic when an admin wrote it, and the physiotherapist by reader otherwise", () => {
     const byClinic = whereThingsStandView({ written: { ...written, setByRole: "admin" }, generated: null, draft: null });
-    expect(whereThingsStandByline(byClinic, "patient")).toBe("Written by the clinic");
+    expect(whereThingsStandByline(byClinic, "patient")).toBe("The clinic");
     const byPhysio = whereThingsStandView({ written, generated: null, draft: null });
-    expect(whereThingsStandByline(byPhysio, "patient")).toBe("Written by your physiotherapist");
-    expect(whereThingsStandByline(byPhysio, "clinician")).toBe("Written by the physiotherapist");
+    expect(whereThingsStandByline(byPhysio, "patient")).toBe("Your physiotherapist");
+    expect(whereThingsStandByline(byPhysio, "clinician")).toBe("The physiotherapist");
+  });
+
+  it("names the physiotherapist when the page looked the name up, and never for the clinic's own text", () => {
+    const named = whereThingsStandView({ written, authorName: "  Dr Farhan Sheikh ", generated: null, draft: null });
+    expect(named.source === "written" && named.authorName).toBe("Dr Farhan Sheikh");
+    expect(whereThingsStandByline(named, "patient")).toBe("Dr Farhan Sheikh");
+    expect(whereThingsStandByline(named, "clinician")).toBe("Dr Farhan Sheikh");
+    // An admin's text is the clinic's even if a name is passed (privacy: no admin names).
+    const byClinic = whereThingsStandView({ written: { ...written, setByRole: "admin" }, authorName: "An Admin", generated: null, draft: null });
+    expect(byClinic.source === "written" && byClinic.authorName).toBeNull();
+    expect(whereThingsStandByline(byClinic, "patient")).toBe("The clinic");
   });
 });

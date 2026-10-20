@@ -129,7 +129,9 @@ export function readingText(value: number, decimals: number, unit: string): stri
  * review or for a line the registry no longer holds.
  */
 export function seriesDelta(s: MeasureSeries, profileKind: ProfileKind): Delta | null {
-  if (!s.known || s.points.length < 2) return null;
+  // Readings that may not be compared (a Parkinson's test whose medication
+  // state was not recorded) claim no move.
+  if (!s.known || !s.joinPoints || s.points.length < 2) return null;
   const first = s.points[0];
   const now = s.points[s.points.length - 1];
   const tester = (p: MeasureSeries["points"][number]) => p.testerName ?? p.recordedBy;
@@ -175,7 +177,9 @@ export function keyTile(
     deltaText: delta
       ? `${delta.text} from ${readingText(first.value, s.decimals, s.unit)}`
       : s.points.length > 1
-        ? "Change not judged for this measure"
+        ? s.joinPoints
+          ? "Change not judged for this measure"
+          : "State not recorded, so no change is shown"
         : "First reading",
     deltaTone: delta?.tone ?? "neutral",
     goalText: goal ? `Goal: ${readingText(goal.value, s.decimals, s.unit)}${goal.reached ? " (reached)" : ""}` : null,

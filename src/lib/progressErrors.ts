@@ -11,7 +11,7 @@ export type ProgressApiFailure = {
   code?: unknown;
 };
 
-export type ProgressAction = "measurement" | "goal" | "milestone" | "reached" | "reopen" | "status";
+export type ProgressAction = "measurement" | "goal" | "milestone" | "reached" | "reopen" | "status" | "diary" | "diary_confirm";
 
 const BY_CODE: Record<string, string> = {
   stale: "Someone changed this a moment ago. Reload the page to see the latest, then make your change again.",
@@ -26,6 +26,8 @@ const BY_CODE: Record<string, string> = {
     "This milestone is marked reached, so it stays as it was. If that was a mistake, ask the clinic to reopen it.",
   goal_not_active: "Milestones are planned under the patient's active goal. Set or reopen a goal first.",
   not_reached: "This milestone is not marked reached, so there is nothing to reopen. Reload the page to see where it is now.",
+  not_assigned: "You can only confirm diary entries for a patient you've been assigned to.",
+  not_patient_reported: "This entry was written by a clinician, so there is nothing to confirm.",
   reason_required: "Say why this is being reopened (at least 10 characters).",
 };
 
@@ -36,6 +38,8 @@ const VERB: Record<ProgressAction, string> = {
   reached: "mark this milestone reached",
   reopen: "reopen this milestone",
   status: "save this phase or status",
+  diary: "write in this diary",
+  diary_confirm: "confirm this diary entry",
 };
 
 function text(value: unknown): string | null {
@@ -53,8 +57,11 @@ function text(value: unknown): string | null {
  */
 export function progressErrorMessage(failure: ProgressApiFailure, action: ProgressAction): string {
   const code = text(failure.code);
-  if (code && BY_CODE[code]) return BY_CODE[code];
   const own = text(failure.error);
+  // The diary's own refusals are written for the person using it (the patient,
+  // not the clinician the shared sentence above speaks to).
+  if (action === "diary" && (code === "no_condition_profile" || code === "diary_kind_not_offered") && own) return own;
+  if (code && BY_CODE[code]) return BY_CODE[code];
 
   switch (failure.status) {
     case 503:

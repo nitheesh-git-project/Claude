@@ -16,6 +16,10 @@ export type WhereThingsStandView =
       setAt: string;
       /** "therapist", or "admin" for the clinic writing on their behalf. */
       setByRole: "therapist" | "admin";
+      /** The physiotherapist's name, read with the admin client under the
+       *  care-plan cards' rules (careStatusAuthor.ts); null for the clinic's
+       *  own text and when the name could not be read. */
+      authorName: string | null;
       /** A review is newer: the clinician is asked to look again. */
       stale: boolean;
       /** What the writing box offers when the physiotherapist starts again. */
@@ -31,6 +35,8 @@ export type WhereThingsStandView =
  */
 export function whereThingsStandView(input: {
   written: WrittenSummary | null;
+  /** Who wrote `written`, when the page could look it up. */
+  authorName?: string | null;
   generated: string | null;
   draft: string | null;
 }): WhereThingsStandView {
@@ -41,6 +47,7 @@ export function whereThingsStandView(input: {
       text: input.written.text,
       setAt: input.written.setAt,
       setByRole: input.written.setByRole,
+      authorName: input.written.setByRole === "therapist" && input.authorName?.trim() ? input.authorName.trim() : null,
       stale: input.written.stale,
       draft,
     };
@@ -50,16 +57,18 @@ export function whereThingsStandView(input: {
   return { source: "none", draft: null };
 }
 
-/** The line under the text: who wrote it (or that nobody did), by reader. */
+/**
+ * The line under the text: who wrote it (or that nobody did), by reader. A
+ * written summary names the physiotherapist ("Dr Farhan Sheikh"; the card adds
+ * the date), "The clinic" when an admin wrote it for them, and falls back to
+ * "Your physiotherapist" / "The physiotherapist" when the name could not be
+ * read - never to a guessed one.
+ */
 export function whereThingsStandByline(view: WhereThingsStandView, voice: "patient" | "clinician"): string | null {
   if (view.source === "written") {
-    const who =
-      view.setByRole === "admin"
-        ? "Written by the clinic"
-        : voice === "patient"
-          ? "Written by your physiotherapist"
-          : "Written by the physiotherapist";
-    return who;
+    if (view.setByRole === "admin") return "The clinic";
+    if (view.authorName) return view.authorName;
+    return voice === "patient" ? "Your physiotherapist" : "The physiotherapist";
   }
   if (view.source === "generated") {
     return voice === "patient"

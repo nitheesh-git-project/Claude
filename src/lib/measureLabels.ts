@@ -18,6 +18,17 @@ export type LabelLine = Pick<
 const SHORT_MEASURE: Record<string, { patient: string; clinician: string }> = {
   pain_nprs: { patient: "Pain score", clinician: "Pain score" },
   lefs: { patient: "Everyday tasks (legs)", clinician: "LEFS" },
+  barthel: { patient: "Independence", clinician: "Barthel Index" },
+  berg_balance: { patient: "Balance", clinician: "Berg Balance Scale" },
+  ten_metre_walk: { patient: "Walking speed", clinician: "10-metre walk" },
+  tug: { patient: "Up-and-go", clinician: "Timed Up and Go" },
+  fac: { patient: "Help needed to walk", clinician: "Walking category (FAC)" },
+  fugl_meyer_ue: { patient: "Arm and hand movement", clinician: "Fugl-Meyer (arm)" },
+  five_sit_to_stand: { patient: "Five stands from a chair", clinician: "Five times sit-to-stand" },
+  mini_bestest: { patient: "Balance (harder test)", clinician: "Mini-BESTest" },
+  freezing_episodes: { patient: "Feet getting stuck, per week", clinician: "Freezing per week" },
+  pd_symptom_rating: { patient: "Symptom profile", clinician: "Symptom rating (clinic's own)" },
+  hoehn_yahr: { patient: "Stage", clinician: "Hoehn and Yahr stage" },
 };
 
 /** Short names for the strength-compared-with-the-other-side variants. */
