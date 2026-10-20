@@ -450,7 +450,15 @@ function lineTile(
 ): KeyTile {
   if (!s) return placeholderTile(fallbackKey, rename ?? fallbackLabel, "Not measured yet");
   const tile = keyTile(s, milestones, kind, voice, all);
-  return rename ? { ...tile, label: s.medicationState ? `${rename} (${s.medicationState.toUpperCase()})` : rename } : tile;
+  // The tile's label already says "per week"; repeating the unit in the value
+  // wrapped it onto two lines on a phone.
+  if (s.measureKey === "freezing_episodes") {
+    const bare = (t: string) => t.replace(/ episodes \/ week/g, "");
+    return { ...tile, label: rename ?? tile.label, valueText: bare(tile.valueText), deltaText: bare(tile.deltaText), goalText: tile.goalText ? bare(tile.goalText) : null };
+  }
+  // "10.8 seconds" wrapped a tile's value onto two lines on a phone.
+  const value = tile.valueText.replace(/ seconds$/, " s");
+  return rename ? { ...tile, valueText: value, label: s.medicationState ? `${rename} (${s.medicationState.toUpperCase()})` : rename } : { ...tile, valueText: value };
 }
 
 /**
@@ -508,7 +516,6 @@ export function neuroKeyTiles(input: {
 
 // --- Words ---------------------------------------------------------------------------------
 
-const oneDecimal = (n: number) => String(Number(n.toFixed(1)));
 
 function lineMove(s: MeasureSeries, kind: ProfileKind): "better" | "worse" | "flat" {
   const first = s.points[0].value;
@@ -841,4 +848,14 @@ export function testedInOnTimeChip(
   const minutes = (Date.parse(latest.measuredAt) - Date.parse(latest.conditions.lastDoseAt as string)) / 60_000;
   const when = afterDoseText(minutes);
   return when ? `Tested in ON time, ${when} the ${formatTime(latest.conditions.lastDoseAt as string)} dose` : "Tested in ON time";
+}
+
+/** The header's "filled in with ..." line from the role that last wrote the
+ *  record (patient_condition_profiles.last_submitted_role). Null when it is
+ *  not known - nothing is guessed. */
+export function filledInLine(role: string | null | undefined, voice: Voice): string | null {
+  if (role === "therapist") return voice === "patient" ? "Filled in with your physiotherapist" : "Filled in by the physiotherapist";
+  if (role === "patient") return voice === "patient" ? "Filled in by you" : "Filled in by the patient";
+  if (role === "admin") return "Filled in by the clinic";
+  return null;
 }

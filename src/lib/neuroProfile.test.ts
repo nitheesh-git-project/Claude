@@ -3,6 +3,7 @@ import {
   affectedParts,
   examOwnedKeys,
   fallsInWindow,
+  filledInLine,
   freezingBars,
   freezingDiaryPoints,
   freezingTriggers,
@@ -282,7 +283,7 @@ describe("the four key numbers", () => {
     const series = buildMeasureSeries(rows, { profileKind: "neuro_parkinsons" });
     const t = tiles({ series, kind: "neuro_parkinsons" });
     expect(t.map((x) => x.label)).toEqual(["Up-and-go (ON)", "Feet getting stuck, per week", "Walking speed (ON)", "Falls, last 3 months"]);
-    expect(t[0].valueText).toBe("10.8 seconds");
+    expect(t[0].valueText).toBe("10.8 s");
   });
 });
 
@@ -399,5 +400,16 @@ describe("Parkinson's: symptoms, stage, freezing card", () => {
     const mixed = parseMeasurementRows([...points.map((p) => row(p.id, p.measureKey, p.value, p.measuredAt, { conditions: p.conditions as Record<string, unknown> })), row("3", "tug", 20, "2026-10-13T05:00:00Z", { conditions: OFF })]);
     expect(testedInOnTimeChip(buildMeasureSeries(mixed, { profileKind: "neuro_parkinsons" }), mixed, () => "x")).toBeNull();
     expect(testedInOnTimeChip([], [], () => "x")).toBeNull();
+  });
+});
+
+describe("filledInLine", () => {
+  it("says who wrote the record by reader, and nothing when it is not known", () => {
+    expect(filledInLine("therapist", "patient")).toBe("Filled in with your physiotherapist");
+    expect(filledInLine("patient", "patient")).toBe("Filled in by you");
+    expect(filledInLine("patient", "clinician")).toBe("Filled in by the patient");
+    expect(filledInLine("admin", "clinician")).toBe("Filled in by the clinic");
+    expect(filledInLine(null, "patient")).toBeNull();
+    expect(filledInLine("", "clinician")).toBeNull();
   });
 });

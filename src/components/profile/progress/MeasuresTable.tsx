@@ -79,6 +79,7 @@ export default function MeasuresTable({ rows, voice }: { rows: MeasureTableRow[]
               <tr key={row.seriesKey} className="border-b border-slate-100 last:border-0 align-top">
                 <th scope="row" className="px-3 py-3 font-semibold text-slate-900 [overflow-wrap:anywhere]">
                   {labels.get(row.seriesKey)?.short}
+                  {row.stateUnrecorded && <span className="block text-xs font-normal text-slate-700">State not recorded</span>}
                   <span className="sr-only"> ({labels.get(row.seriesKey)?.full})</span>
                 </th>
                 <td className="px-3 py-3 text-slate-800">
@@ -101,7 +102,7 @@ export default function MeasuresTable({ rows, voice }: { rows: MeasureTableRow[]
                 </td>
                 <td className="px-3 py-3">
                   {row.change === null ? (
-                    <span className="text-slate-600">{row.reviews < 2 ? "First reading" : "Not judged"}</span>
+                    <span className="text-slate-600">{row.reviews < 2 ? "First reading" : row.stateUnrecorded ? "No change shown" : "Not judged"}</span>
                   ) : (
                     <>
                       <span className={`font-semibold ${CHANGE_CLASS[row.change]}`}>{changeWord(row.change)}</span>

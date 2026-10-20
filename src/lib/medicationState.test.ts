@@ -80,6 +80,9 @@ describe("the Parkinson's graph and table", () => {
     const unjoined = rows.find((r) => r.medicationState === null)!;
     expect(unjoined.change).toBeNull();
     expect(unjoined.meaningful).toBeNull();
+    // ...and says why, so the table can label it rather than leave "Not judged" unexplained.
+    expect(unjoined.stateUnrecorded).toBe(true);
+    expect(rows.find((r) => r.medicationState === "on")?.stateUnrecorded).toBeUndefined();
 
     // The same readings on an ordinary neurological record are one line.
     const neuro = buildMeasureSeries(pts, { profileKind: "neuro" });

@@ -357,6 +357,9 @@ export type MeasureTableRow = {
   change: ChangeDirection | null;
   /** Whether first to now is at least the MCID; null where it is unknown. */
   meaningful: boolean | null;
+  /** Present (true) only for a Parkinson's reading whose medication state was
+   *  not recorded: the table says so and claims no change. */
+  stateUnrecorded?: boolean;
 };
 
 /** Whether a milestone has been reached. */
@@ -444,6 +447,7 @@ export function measureTableRows(
             })
           : null,
       meaningful: twoReviews && s.known && s.joinPoints ? isMeaningfulChange(s.measureKey, first.value, now.value, opts.profileKind) : null,
+      ...(s.joinPoints ? {} : { stateUnrecorded: true }),
     });
   }
   return rows;

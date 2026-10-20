@@ -30,16 +30,22 @@ export default function NeuroExamPanel({
   loadFailed = false,
   voice,
   record,
+  snapshot,
 }: {
   assessments: NeuroAssessmentRow[];
   loadFailed?: boolean;
   voice: "patient" | "clinician";
   /** Present only for a viewer allowed to record an examination. */
   record?: { endpoint: string; patientId: string; patientName?: string };
+  /** The Health Profile's First exam / Latest switch (PainMapExplorer's
+   *  `snapshot`): "first" opens on the oldest examination, which has nothing
+   *  before it to compare with. The parent remounts the panel with a `key`
+   *  when it changes, so a date picked by hand is not carried across. */
+  snapshot?: "first" | "latest";
 }) {
   const router = useRouter();
   const exams = useMemo(() => parseNeuroAssessments(assessments), [assessments]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(snapshot === "first" ? (exams[exams.length - 1]?.id ?? null) : null);
   const [showAll, setShowAll] = useState(false);
   const [recording, setRecording] = useState(false);
   const clinician = voice === "clinician";
@@ -56,7 +62,7 @@ export default function NeuroExamPanel({
     <button
       type="button"
       onClick={() => setRecording(true)}
-      className="rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+      className="min-h-[44px] rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
     >
       <i aria-hidden className="fa-solid fa-notes-medical mr-1.5" />
       {exams.length === 0 ? "Record an examination" : "Record a re-examination"}
@@ -114,7 +120,7 @@ export default function NeuroExamPanel({
                     type="button"
                     aria-pressed={active}
                     onClick={() => setSelectedId(exam.id)}
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${
+                    className={`min-h-[44px] rounded-full border px-3.5 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${
                       active ? "border-teal-700 bg-teal-700 text-white" : "border-slate-200 text-slate-600 hover:border-teal-400"
                     }`}
                   >
@@ -127,7 +133,7 @@ export default function NeuroExamPanel({
                 <button
                   type="button"
                   onClick={() => setShowAll((v) => !v)}
-                  className="rounded-full px-2 py-1 text-xs font-semibold text-teal-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                  className="min-h-[44px] rounded-full px-3 py-1 text-xs font-semibold text-teal-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
                 >
                   {showAll ? "Show fewer" : `Show all ${exams.length}`}
                 </button>

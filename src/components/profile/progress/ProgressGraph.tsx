@@ -161,6 +161,7 @@ export default function ProgressGraph({
                 }`}
               >
                 {seriesTabLabel(s, voice, series)}
+                {!s.joinPoints && " (state not recorded)"}
                 <span className="sr-only"> ({seriesName(s, voice)})</span>
               </button>
             );
