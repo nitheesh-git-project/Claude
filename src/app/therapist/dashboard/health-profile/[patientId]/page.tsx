@@ -16,6 +16,7 @@ import type { SessionNoteRow } from "@/lib/sessionNotes";
 import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
 import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
 import type { PainAssessmentRow, QuestionOverrideRow } from "@/lib/painMap";
+import type { NeuroAssessmentRow } from "@/lib/neuroExam";
 import RequestConditionAccessButton from "@/components/therapist/RequestConditionAccessButton";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
@@ -76,6 +77,7 @@ export default async function TherapistPatientHealthProfilePage({
     .maybeSingle();
   const specialty = parseConditionSpecialty(specialtyRow?.specialty);
   const isOrtho = specialty === "ortho";
+  const isNeuro = specialty === "neuro";
 
   const [
     { data: profile },
@@ -148,6 +150,21 @@ export default async function TherapistPatientHealthProfilePage({
     notFound();
   }
 
+  // The neurological examination chart, read only for a neurological
+  // profile (the same two-phase rule as the Pain Map above) and in its own
+  // call: neuro_assessments is a new table, so a database that has not run
+  // the latest schema.sql costs this one card -- which then says it could
+  // not load, rather than "nothing recorded" -- and not the page. RLS
+  // (neuro_assessments_select_assigned_therapist) is the authorization.
+  const neuroRead = isNeuro
+    ? await supabase
+        .from("neuro_assessments")
+        .select("id, created_at, submitted_by_role, schema_version, findings")
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false })
+        .limit(200)
+    : { data: [] as NeuroAssessmentRow[], error: null };
+
   const overridesByRegion: Record<string, QuestionOverrideRow[]> = {};
   for (const row of overrideRows ?? []) {
     (overridesByRegion[row.region] ??= []).push(row);
@@ -189,7 +206,7 @@ export default async function TherapistPatientHealthProfilePage({
   // requirement. Reaching this page at all already means assigned, but the
   // flag is passed explicitly rather than assumed.
   const canEditIntake = grant?.status === "approved";
-  const canRecordExam = isAssigned && isOrtho;
+  const canRecordExam = isAssigned && (isOrtho || isNeuro);
   // "Nobody has onboarded this patient" is "there is no record on file",
   // not "the specialty column is null": the column defaults to ortho, and
   // an autosaved draft creates the row before anyone has decided anything.
@@ -241,6 +258,7 @@ export default async function TherapistPatientHealthProfilePage({
         "condition_access_grants",
         "patient_condition_profiles",
         "pain_assessments",
+        "neuro_assessments",
         "intake_question_templates",
       ]}
       headerTitle={patient.full_name}
@@ -327,6 +345,7 @@ export default async function TherapistPatientHealthProfilePage({
               overrideRows={intakeOverrideRows ?? []}
               initialTriage={(specialtyRow?.draft_triage_data ?? undefined) as Record<string, string> | undefined}
               initialAnswers={formInitialData}
+              onFileAnswers={currentData}
               draftSpecialty={
                 specialtyRow?.draft_specialty
                   ? (parseConditionSpecialty(specialtyRow.draft_specialty) as ConditionSpecialty)
@@ -367,6 +386,7 @@ export default async function TherapistPatientHealthProfilePage({
               enabledSpecialties={enabledSpecialties}
               overrideRows={intakeOverrideRows ?? []}
               initialTriage={(specialtyRow?.triage_data ?? undefined) as Record<string, string> | undefined}
+              onFileAnswers={currentData}
             />
           )}
 
@@ -399,10 +419,12 @@ export default async function TherapistPatientHealthProfilePage({
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
-            {isOrtho ? "Pain Map" : "Examination"}
+            {isOrtho ? "Pain Map" : isNeuro ? "Neurological examination" : "Examination"}
           </h2>
           <p className="text-xs text-slate-500 mb-4">
-            {!isOrtho
+            {isNeuro
+              ? "Tone, power, reflexes, sensation, coordination, balance and gait - the latest examination, and what changed since the one before."
+              : !isOrtho
               ? "What this condition type's examination chart will hold once it is built."
               : canRecordExam
                 ? "Tap any marked point for that area's detail, or record what you found this session."
@@ -414,11 +436,22 @@ export default async function TherapistPatientHealthProfilePage({
             assessments={assessments ?? []}
             areaPain={isOrtho ? parseAreaPain(currentData.area_pain) : []}
             record={
-              canRecordExam
+              canRecordExam && isOrtho
                 ? {
                     endpoint: "/api/therapist/pain-assessments/submit",
                     patientId,
                     overridesByRegion,
+                  }
+                : undefined
+            }
+            neuro={
+              isNeuro
+                ? {
+                    assessments: (neuroRead.data ?? []) as NeuroAssessmentRow[],
+                    loadFailed: !!neuroRead.error,
+                    record: canRecordExam
+                      ? { endpoint: "/api/therapist/neuro-assessments/submit", patientId, patientName: patient.full_name }
+                      : undefined,
                   }
                 : undefined
             }

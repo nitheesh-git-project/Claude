@@ -2,21 +2,37 @@
 // Runs one quality-gate runner end to end on the provisioned local stack and
 // writes its verdict.
 //
-//   node scripts/ci/run-runner.mjs <patient|therapist|session|admin|hospital|platform|integrity>
+//   node scripts/ci/run-runner.mjs <runner> [--shard i/n]
+//
+// <runner> is one of lib/manifest.mjs's RUNNERS. With --shard, only shard i
+// of n runs (lib/shards.mjs decides which files, from
+// scripts/ci/runner-shards.json): whole files spread by measured duration,
+// plus a 1/n slice -- Playwright's own --shard -- of each file the config
+// splits. Without it the whole runner runs, every shard's files in turn,
+// which is what reproducing a runner locally wants. Artifacts go to
+// e2e-artifacts/<label>/, the label being `admin-2of8` or, unsplit, `admin`.
 //
 // 1. Preflight (scripts/ci/preflight.mjs). An unsafe target stops here and
 //    nothing else runs. A blocked one (no Razorpay test keys) still runs the
 //    specs for evidence, but the runner can only end `blocked`, never passed.
 // 2. Selects the runner's specs from e2e/coverage-manifest.json. Zero is a
 //    failure: a runner with nothing to run must not report green.
-// 3. Starts one `next dev` for the whole runner (the browser specs must run
+// 3. Starts the fake Razorpay (e2e/fake-razorpay.mjs) on loopback and points
+//    the app and Playwright at it through RAZORPAY_API_BASE_URL, whatever
+//    Razorpay keys the job holds: the gate never calls the real gateway, and
+//    the egress guard refuses api.razorpay.com once the fake is configured.
+//    The webhook specs sign with RAZORPAY_WEBHOOK_SECRET, which the workflow
+//    generates per run.
+// 4. Starts one `next dev` for the whole runner (the browser specs must run
 //    against dev, not start -- see docs/rules/testing.md) with the egress
 //    guard preloaded, so any server-side call to a host that is not
-//    loopback, the Razorpay test API or a font host is refused and logged.
-// 4. Integrity scripts that build their own fixtures, then the specs per
+//    loopback or a font host is refused and logged (the real Razorpay API too,
+//    once the fake is set), then requests the main pages once, in parallel, so their first compile
+//    is not charged to the first spec that opens them (never fatal).
+// 5. Integrity scripts that build their own fixtures, then the specs per
 //    Playwright project (destructive ones in a separate, final invocation),
 //    then the SQL checks that read rows the specs leave behind.
-// 5. Writes e2e-artifacts/<runner>/summary.json and summary.md (sanitised),
+// 6. Writes e2e-artifacts/<label>/summary.json and summary.md (sanitised),
 //    appends the summary to $GITHUB_STEP_SUMMARY, and exits 0 only on
 //    `passed`. The verdict rules are in lib/runner.mjs and are unit-tested.
 //
@@ -30,21 +46,32 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { RUNNERS } from "./lib/manifest.mjs";
 import { planRunner, renderSummaryMarkdown, summarize } from "./lib/runner.mjs";
+import { parseShardArg, shardLabel } from "./lib/shards.mjs";
 import { sanitize, sanitizeDeep, truncate } from "./lib/sanitize.mjs";
 import { runPreflight, reportPreflight } from "./preflight.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const runner = process.argv[2];
-if (!RUNNERS.includes(runner)) {
-  console.error(`usage: run-runner.mjs <${RUNNERS.join("|")}>`);
+const shardAt = process.argv.indexOf("--shard");
+const shard = shardAt > 0 ? parseShardArg(process.argv[shardAt + 1]) : { index: 1, total: 1 };
+if (!RUNNERS.includes(runner) || !shard) {
+  console.error(`usage: run-runner.mjs <${RUNNERS.join("|")}> [--shard i/n]`);
   process.exit(2);
 }
+const shardConfig = JSON.parse(readFileSync(path.join(root, "scripts", "ci", "runner-shards.json"), "utf8"));
+const label = shardLabel(runner, shard.index, shard.total);
 
-const artifacts = path.join(root, "e2e-artifacts", runner);
+const artifacts = path.join(root, "e2e-artifacts", label);
 mkdirSync(artifacts, { recursive: true });
 const egressLog = path.join(artifacts, "egress-denied.log");
 const guard = path.join(root, "scripts", "ci", "egress-guard.mjs");
 const baseUrl = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+
+// The fake gateway always takes precedence in the gate, so it is set on this
+// process too: the preflight then checks it (loopback only) and the egress
+// guard refuses the real Razorpay API for everything started from here.
+const fakeGatewayPort = Number(process.env.FAKE_RAZORPAY_PORT) || 4010;
+process.env.RAZORPAY_API_BASE_URL = `http://127.0.0.1:${fakeGatewayPort}`;
 
 const childEnv = {
   ...process.env,
@@ -102,14 +129,21 @@ function runScript(script) {
 // the sanitiser on its way to the job log and to logs/playwright-*.log.
 // Lines are scrubbed whole; a secret split across two chunks would slip past
 // a per-chunk scrub.
-function runPlaywright(project, phase, files) {
+function runPlaywright(project, phase, files, playwrightShard) {
   const dir = path.join(artifacts, `${project}-${phase}`);
-  console.log(`::group::Playwright ${project} (${phase}): ${files.length} spec(s)`);
+  const sliced = playwrightShard ? ` (tests ${playwrightShard} of the file)` : "";
+  console.log(`::group::Playwright ${project} (${phase}): ${files.length} spec(s)${sliced}`);
   mkdirSync(path.join(artifacts, "logs"), { recursive: true });
   const logFile = path.join(artifacts, "logs", `playwright-${project}-${phase}.log`);
   writeFileSync(logFile, "");
   return new Promise((resolve) => {
-    const child = spawn("npx", ["playwright", "test", `--project=${project}`, ...files.map((f) => `e2e/${f}`)], {
+    // A split file is one runner-shards.json declares independent and
+    // read-only (test.describe.configure({ mode: "parallel" })), so its slice
+    // also runs on several workers: layout-audit alone was a fifth of the
+    // suite, one page at a time across 17 viewports.
+    const workers = playwrightShard ? [`--workers=${Number(process.env.GATE_SPLIT_WORKERS) > 0 ? Number(process.env.GATE_SPLIT_WORKERS) : 3}`] : [];
+    const args = ["playwright", "test", `--project=${project}`, ...(playwrightShard ? [`--shard=${playwrightShard}`] : []), ...workers];
+    const child = spawn("npx", [...args, ...files.map((f) => `e2e/${f}`)], {
       cwd: root,
       env: { ...childEnv, E2E_ARTIFACT_DIR: dir },
       stdio: ["ignore", "pipe", "pipe"],
@@ -241,7 +275,7 @@ function finish(summary) {
   writeFileSync(path.join(artifacts, "summary.md"), markdown);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
   console.log(markdown);
-  if (!clean.passed) console.log(`::error title=Runner ${runner} ${clean.status}::see the job summary and the failure-bundle-${runner} artifact`);
+  if (!clean.passed) console.log(`::error title=Runner ${label} ${clean.status}::see the job summary and the failure-bundle-${label} artifact`);
   process.exit(clean.passed ? 0 : 1);
 }
 
@@ -256,7 +290,7 @@ if (existsSync(provisionDir)) {
 }
 
 const manifest = JSON.parse(readFileSync(path.join(root, "e2e", "coverage-manifest.json"), "utf8"));
-const plan = planRunner(manifest, runner);
+const plan = planRunner(manifest, runner, { ...shard, config: shardConfig });
 const id = identity();
 
 const preflight = runPreflight(process.env);
@@ -267,6 +301,50 @@ if (preflight.unsafe) {
 if (plan.total === 0) {
   finish(summarize({ runner, manifest, preflight, plan, identity: id }));
 }
+
+// The fake Razorpay, for the whole runner (all its state is per order id, so
+// spec files never need it restarted). Its log is evidence like the dev
+// server's. If it does not come up, nothing falls back to Razorpay: the app's
+// calls go to a closed loopback port and the money specs fail loudly.
+const fakeGatewayLog = path.join(artifacts, "logs", "fake-razorpay.log");
+let fakeGateway = null;
+async function startFakeGateway() {
+  mkdirSync(path.dirname(fakeGatewayLog), { recursive: true });
+  const out = openSync(fakeGatewayLog, "a");
+  const child = spawn("node", [path.join(root, "e2e", "fake-razorpay.mjs"), "--port", String(fakeGatewayPort)], {
+    cwd: root,
+    env: childEnv,
+    stdio: ["ignore", out, out],
+  });
+  process.on("exit", () => {
+    try {
+      child.kill("SIGTERM");
+    } catch {
+      // already gone
+    }
+  });
+  const health = () =>
+    new Promise((resolve) => {
+      const req = http.get(`${process.env.RAZORPAY_API_BASE_URL}/__fake/health`, { agent: false, timeout: 2000 }, (res) => {
+        res.resume();
+        resolve(res.statusCode === 200);
+      });
+      req.on("timeout", () => req.destroy(new Error("timed out")));
+      req.on("error", () => resolve(false));
+    });
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) break;
+    if (await health()) {
+      console.log(`fake Razorpay up at ${process.env.RAZORPAY_API_BASE_URL}`);
+      return child;
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  console.error(`::error title=Fake gateway did not start::see logs/fake-razorpay.log; the money specs will fail`);
+  return child;
+}
+fakeGateway = await startFakeGateway();
 
 const server = await startDevServer();
 const playwright = [];
@@ -284,6 +362,64 @@ if (!server.child) {
     })
   );
 }
+
+// Warm-up: `next dev` compiles a route on its first request, and on a fresh
+// machine that first request is some spec's first step, inside its timeout.
+// Asking for the main pages once, all at once, moves that compile here.
+// Anonymous requests are enough to compile the public pages, the login pages
+// and the proxy the dashboards sit behind. Nothing here can fail the runner:
+// every error is logged and ignored, and the whole thing stops waiting after
+// GATE_WARMUP_SECONDS (default 90).
+const WARMUP_PATHS = [
+  "/",
+  "/get-started",
+  "/book",
+  "/book-home-visit",
+  "/conditions",
+  "/home-visit",
+  "/how-it-works",
+  "/patient/login",
+  "/therapist/login",
+  "/hospital/login",
+  "/admin/login",
+  "/dashboard",
+  "/patient/dashboard",
+  "/therapist/dashboard",
+  "/hospital/dashboard",
+  "/admin/dashboard",
+];
+
+function warmOne(pathname, timeoutMs) {
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const req = http.get(new URL(pathname, baseUrl), { agent: false, timeout: timeoutMs }, (res) => {
+      res.resume();
+      res.on("end", () => resolve(`${pathname} ${res.statusCode} ${Date.now() - started}ms`));
+      res.on("error", () => resolve(`${pathname} ${res.statusCode} (body cut) ${Date.now() - started}ms`));
+    });
+    req.on("timeout", () => req.destroy(new Error("timed out")));
+    req.on("error", (error) => resolve(`${pathname} not warmed (${error?.code ?? error?.message ?? error})`));
+  });
+}
+
+async function warmUp() {
+  const seconds = Number(process.env.GATE_WARMUP_SECONDS) >= 0 ? Number(process.env.GATE_WARMUP_SECONDS) : 90;
+  if (seconds === 0) return;
+  const started = Date.now();
+  console.log(`::group::Warm-up: ${WARMUP_PATHS.length} pages, at most ${seconds}s`);
+  try {
+    const all = Promise.all(WARMUP_PATHS.map((p) => warmOne(p, seconds * 1000)));
+    const cap = new Promise((resolve) => setTimeout(() => resolve(null), seconds * 1000).unref());
+    const lines = await Promise.race([all, cap]);
+    console.log(lines ? lines.join("\n") : `stopped waiting after ${seconds}s; the rest compile on first use`);
+  } catch (error) {
+    console.log(`warm-up skipped: ${error?.message ?? error}`);
+  }
+  console.log(`warm-up took ${Math.round((Date.now() - started) / 1000)}s`);
+  console.log("::endgroup::");
+}
+
+await warmUp();
 
 // One Playwright invocation per spec file, with the dev server checked in
 // between. `next dev` compiles every route a runner touches into one
@@ -367,7 +503,7 @@ async function runFiles(project, phase, files) {
       playwright.push({ project, phase: `${phase}-${stem}`, exitCode: null, report: null });
       continue;
     }
-    playwright.push(await runPlaywright(project, `${phase}-${stem}`, [file]));
+    playwright.push(await runPlaywright(project, `${phase}-${stem}`, [file], plan.playwrightShard[file]));
   }
 }
 
@@ -379,6 +515,12 @@ try {
   for (const p of plan.projects) await runFiles(p.project, "destructive", p.destructive);
 } finally {
   await stopDevServer(current);
+  try {
+    fakeGateway?.kill("SIGTERM");
+  } catch {
+    // already gone
+  }
+  if (existsSync(fakeGatewayLog)) writeFileSync(fakeGatewayLog, sanitize(readFileSync(fakeGatewayLog, "utf8")));
 }
 if (restarts > 0) console.log(`dev server restarted ${restarts} time(s) between spec files`);
 

@@ -134,6 +134,18 @@ function missingEnv(): string[] {
 }
 
 /**
+ * Whether Google's credentials are set at all -- System Health's
+ * `not_configured` test, without the outbound probe. What a patient is
+ * promised about invites reads this (inviteDeliveryServer.ts): no
+ * credentials means no event for any session. A dead token is not caught
+ * here; that needs the probe, which belongs on the admin's screen rather
+ * than in every public page render.
+ */
+export function googleCredentialsConfigured(): boolean {
+  return missingEnv().length === 0;
+}
+
+/**
  * Exchanges the refresh token for an access token, which is the cheapest
  * call that actually proves the credential works, and reads the granted
  * scopes off the response so the Meet-scope question is answered by the same

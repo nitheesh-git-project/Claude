@@ -159,7 +159,10 @@ export default function Footer({
       </div>
       <div className="border-t border-slate-800 py-4 text-center text-[11px] text-slate-400">
         <p>
-          © {new Date().getFullYear()} {footerCopyrightText}
+          {/* The year is the reader's, and the cached HTML's can be last
+              year's (ISR) or UTC's (the server) on New Year's morning in
+              India -- deliberately client-specific, so this one node only. */}
+          © <span suppressHydrationWarning>{new Date().getFullYear()}</span> {footerCopyrightText}
         </p>
         <CountryPicker />
         {devCreditEnabled && (

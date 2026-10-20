@@ -17,23 +17,27 @@ proves yet.
 ```
 pull request -> staging | main
   ├─ context-budget      CLAUDE.md / AGENTS.md byte budgets, no @-imports, no SessionStart hooks
-  ├─ coverage-manifest   every e2e spec owned by a runner; no runner empty; no silent coverage loss
-  └─ verify              npm run lint + npm test + npm run build (stub Supabase), as in ci.yml
-        │  (all three must succeed)
+  ├─ coverage-manifest   every e2e spec owned by a runner; no runner empty; no silent coverage loss;
+  │                      scripts/ci/runner-shards.json fits the manifest
+  ├─ verify              npm run lint + npm test + npm run build (stub Supabase), as in ci.yml
+  └─ plan                runner-shards.json -> the job matrix (seconds)
+        │  (only `plan` gates the runners; the other three run beside them)
         ▼
-  runner (patient | therapist | session | admin | hospital | platform | integrity)   7 parallel jobs
+  runner (<runner> or <runner>-<i>of<n>)   19 parallel jobs: 8 runners, some split into shards
         │  each on its own machine with its own disposable Supabase stack
         ▼
   quality-gate           if: always(); green only if every job above succeeded
-                         AND every runner uploaded a `passed` summary with tests in it
+                         AND every runner × shard uploaded a `passed` summary with tests in it
+                         AND each runner's shards were, between them, given every spec it owns
         ▼
   human review, then merge (never automated; a release to main is the owner's, by hand)
 ```
 
-`ci.yml` keeps running `verify` on pushes to `staging` and `main`. The
-gate repeats it for pull requests because a job can only `need` a job in
-the same workflow. The Playwright suite runs exactly once per commit, split
-across the runners, never twice.
+`ci.yml` runs `verify` on pushes to `staging` and `main` only. For a pull
+request the gate's own `verify` is the one copy, because a job can only
+`need` a job in the same workflow, and a second copy would take a machine
+the runners need (see Timing). The Playwright suite runs exactly once per
+commit, split across the runner jobs, never twice.
 
 ## Runners
 
@@ -43,24 +47,124 @@ validator fails if any spec has no owner. Shared and public specs belong to
 
 | Runner | Owns | Notable |
 | --- | --- | --- |
-| `patient` | booking, intake, checkout, discounts, pay later, isolation, documents, the phone view | `patient-isolation.spec.ts` |
+| `patient` | booking, intake, the booking wizard, isolation, documents, the phone view | `patient-isolation.spec.ts` |
+| `money` | checkout and its resume, discounts, promo codes and invites, pay later, programme and package purchases, care plans and recommendations, the admin money screens, payment search, the refund-attempt ledger | `pay-later.spec.ts` |
 | `therapist` | roster, readiness, specialty, the therapist's phone view | |
-| `session` | scheduling, suggestions, completion cutoff, care-plan review, clinical continuity | `clinical-continuity.spec.ts` |
-| `admin` | authorization, exposure, money screens, validation, navigation, account lifecycle | the admin login form runs against the same app |
+| `session` | scheduling, suggestions, completion cutoff, clinical continuity | `clinical-continuity.spec.ts` |
+| `admin` | authorization, exposure, validation, navigation, account lifecycle, layout | the admin login form runs against the same app; `layout-audit.spec.ts` |
 | `hospital` | referrals, partner isolation | `hospital-isolation.spec.ts` |
 | `platform` | the public site, splash, catalog, form controls, mobile smoke | |
-| `integrity` | the SQL check files, authorization/concurrency/live-grant scripts, the refund ledger, degraded schema | destructive specs run last, in their own Playwright invocation |
+| `integrity` | the SQL check files, authorization/concurrency/live-grant scripts, degraded schema | destructive specs run last, in their own Playwright invocation |
 
-`scripts/ci/run-runner.mjs <runner>` does this, in order:
+Flow ids keep the prefix of the runner that first owned them
+(`patient.pay-later` belongs to `money`), so the coverage baseline did not
+have to be rewritten. `integrity.refund-attempt-ledger` stays with
+`integrity`, which runs its SQL check, while its spec runs in `money`.
 
-1. Runs the preflight.
-2. Selects the runner's specs from the manifest. Selecting none is a failure.
-3. Starts one `next dev` with the egress guard preloaded.
-4. Runs the integrity scripts that build their own fixtures.
+## Shards
+
+`scripts/ci/runner-shards.json` is the one place a runner's split is set,
+and three things read it through `scripts/ci/lib/shards.mjs`: the `plan`
+job (the matrix), `run-runner.mjs --shard i/n` (which files a shard runs),
+and the verdict (which summaries must exist). Today:
+
+| Runner | Jobs | Spec time per job (estimated from PR #100's measured times; the part 2/3 specs estimated) |
+| --- | --- | --- |
+| `money` | 2 | ~200 s |
+| `patient` | 2 | ~190 s |
+| `admin` | 7 | ~170 s |
+| `session` | 1 | ~165 s |
+| `platform` | 3 | ~140 s |
+| `therapist` | 2 | ~125 s |
+| `hospital` | 1 | ~75 s |
+| `integrity` | 1 | ~40 s plus its scripts |
+
+A split file's slice also runs on several Playwright workers
+(`GATE_SPLIT_WORKERS`, default 3; `run-runner.mjs`): it is read-only and its
+tests are independent by declaration, and `layout-audit.spec.ts` was a fifth
+of the whole suite run one page at a time. That took `admin` from eight jobs
+to seven, which went to `platform`. The new specs' `seconds.bySpec` figures
+are estimates until a CI run measures them.
+
+`node scripts/ci/plan-shards.mjs` prints the current figures. How a runner
+is split:
+
+- **Whole files, longest first, onto the least-loaded shard**, by the
+  per-file seconds in the config (`seconds.bySpec`, measured from a CI run's
+  reports). The assignment is deterministic, so a local re-run of a shard
+  runs the same files CI did. A stale or missing duration can unbalance a
+  runner; it can never drop a file.
+- **A file listed in `splitFiles` runs in every shard, a 1/n slice each**,
+  through Playwright's own `--shard=i/n` on that one file. Only a file whose
+  tests are independent may be listed, and it must declare
+  `test.describe.configure({ mode: "parallel" })` (the validator checks),
+  or Playwright keeps it whole. Today: `layout-audit.spec.ts` (82 read-only
+  page checks, 12 of the old admin runner's 32 minutes) and
+  `admin-dashboard-ui.spec.ts`. `playwright.config.ts` keeps
+  `fullyParallel: false`: other specs rely on in-file order and a shared
+  `beforeAll`.
+- **The integrity scripts and SQL checks run on shard 1, and a runner that
+  owns any is never split.** Some read rows the runner's specs leave behind,
+  and a split would leave them on another machine. The validator refuses
+  the config.
+- **Every shard must have a spec**, and the total stays at or under
+  `maxRunnerJobs` (19): GitHub runs 20 jobs at once on this plan, `verify`
+  takes one, and a queued job is minutes on the critical path.
+- A shard's artifacts, summary and job are named by its label
+  (`admin-2of8`); an unsplit runner keeps its plain name (`hospital`).
+
+To rebalance: change a count or `splitFiles`, run
+`node scripts/ci/plan-shards.mjs` and `npm run check:coverage`, and refresh
+`seconds.bySpec` from a recent run's `reports-*` when the numbers have
+drifted.
+
+## Timing
+
+The target is a whole gate, pull request to verdict, in about six minutes.
+Per runner job, before this change, setup took about three minutes and the
+admin runner's tests 32. Now:
+
+- **The stack starts first, in the background**
+  (`provision-local-stack.sh --start-only`), so its image pulls overlap
+  `npm ci`, the browser and the caches. The images it needs are pulled in
+  parallel (the CLI alone pulls one after another), and only the services
+  the app uses are started. The provisioning step then waits for its
+  verdict, applies the schema and seeds.
+- **The runners start as soon as `plan` has run**, beside `verify` rather
+  than after it.
+- **Caches**: Chromium (keyed on the installed Playwright version), the
+  production build's `.next/cache` in `verify`, and `next dev`'s Turbopack
+  cache (`.next/dev/cache`, per runner, saved by shard 1 after a pass when
+  under 2 GB). Turbopack checks every entry against the files on disk, so
+  an old entry costs time, never correctness. Docker images are not cached:
+  restoring a multi-gigabyte tarball and `docker load`-ing it costs about
+  more than the parallel pull once 19 jobs restore at once (measured: the
+  stack was ready ~3 minutes later, and a cached `node_modules` restored
+  slower than `npm ci`), so neither is cached.
+- **Warm-up**: once `next dev` answers, the runner requests the main public,
+  login and dashboard pages once, in parallel (at most
+  `GATE_WARMUP_SECONDS`, default 90), so their first compile is not charged
+  to a spec's timeout. It never fails the runner.
+- **Concurrency**: 19 runner jobs plus `verify` fit GitHub's 20. That is
+  also why `ci.yml` no longer runs on pull requests.
+
+`scripts/ci/run-runner.mjs <runner> [--shard i/n]` does this, in order
+(without `--shard` it runs the whole runner, every shard's files in turn):
+
+1. Runs the preflight, with `RAZORPAY_API_BASE_URL` already pointing at the
+   fake gateway (so a non-loopback value is refused).
+2. Selects the shard's specs from the manifest and the shard config.
+   Selecting none is a failure.
+3. Starts the fake Razorpay (`e2e/fake-razorpay.mjs`, 127.0.0.1:4010,
+   `FAKE_RAZORPAY_PORT` to move it) for the whole runner, then one `next
+   dev` with the egress guard preloaded and `RAZORPAY_API_BASE_URL` set,
+   and warms it.
+4. Runs the integrity scripts that build their own fixtures (shard 1).
 5. Runs the specs for each Playwright project.
-6. Runs the SQL checks that need rows the specs leave behind.
+6. Runs the SQL checks that need rows the specs leave behind (shard 1).
 7. Runs the destructive specs.
-8. Writes `e2e-artifacts/<runner>/summary.json`.
+8. Writes `e2e-artifacts/<label>/summary.json`, naming the runner, the
+   shard and the spec files it was given.
 
 `scripts/ci/lib/runner.mjs` decides the verdict. The runner fails on any of
 these:
@@ -96,8 +200,16 @@ unset everywhere.
 
 Every runner job builds its own stack with
 `scripts/ci/provision-local-stack.sh`. That gives it Postgres, Auth,
-Storage and Realtime from the Supabase CLI (pinned in the workflow) on the
-machine's loopback interface. The script then:
+PostgREST, Storage and Realtime behind the Kong gateway, from the Supabase
+CLI (pinned in the workflow), on the machine's loopback interface. Nothing
+else is started (`supabase start -x`): Studio and postgres-meta, imgproxy,
+Edge Runtime, Logflare and Vector, Supavisor, and Mailpit. Each was checked
+unused in `src/`, `e2e/` and `scripts/`; the script's header says why per
+service. Mailpit is the one that config.toml had on: email confirmations
+are off, no spec asks for a reset or magic link, and the admin access links
+use `generateLink`, which sends nothing. Docker once failed to bind its
+port and took a run down. If `supabase start` fails, the script stops what
+started and tries exactly once more. It then:
 
 1. Refuses to run if a `.env*` file is in the workspace.
 2. Runs the preflight in static mode, before any write.
@@ -109,7 +221,11 @@ machine's loopback interface. The script then:
      can no longer drop `storage.objects` policies in that session.
 4. Writes a `ci_meta.ci_target_marker` row.
 5. Runs the preflight again with a database probe.
-6. Seeds the QA fixtures.
+6. Asks PostgREST for a final schema-cache reload and waits until the API
+   answers five reads in a row: until the last rebuild after `schema.sql`
+   lands, reads fail or miss new columns and the app answers 404 or "off"
+   (first specs of a job failing, then passing on a re-run).
+7. Seeds the QA fixtures.
 
 The per-runner Next.js instance, fixture accounts and artifact directory
 are its own.
@@ -129,6 +245,13 @@ closed. It is **unsafe** (exit 1, nothing runs) when any of these holds:
 - The probe cannot run, finds no marker row, or finds any auth user that
   is not an `@example.test` fixture.
 
+Two values are generated per run in the workflow's `env` rather than kept
+as secrets: `E2E_QA_PASSWORD`, the fixture accounts' password, and
+`CRON_SECRET`, which the app's `/api/cron/maintenance` checks and
+`admin-maintenance-sweep.spec.ts` sends. Each guards only that run's
+loopback app; the real `CRON_SECRET` that `maintenance.yml` uses against the
+deployed site is a repository secret the gate never reads.
+
 A variable named "test" is not taken as proof of anything: the marker and
 the fixture-only probe are what identify the stack. It is **blocked**
 (exit 3) when the target is safe but the Razorpay test keys are missing or
@@ -136,8 +259,12 @@ placeholders. A blocked runner never passes.
 
 **The egress guard.** `scripts/ci/egress-guard.mjs` is preloaded into
 `next dev` and the Playwright runner. It refuses every Node-level request
-to any host except loopback, `api.razorpay.com` (only with a real
-`rzp_test_` key) and the Google Fonts CDN, and logs each refusal. One
+to any host except loopback and the Google Fonts CDN, and logs each
+refusal. `api.razorpay.com` is allowed only with a real `rzp_test_` key
+**and** no fake gateway configured -- which in the gate never happens, since
+`run-runner.mjs` always sets `RAZORPAY_API_BASE_URL`, so a Razorpay client
+built outside `src/lib/razorpayClient.ts` turns the runner red rather than
+quietly reaching test mode. One
 refusal fails the runner even if the code that made the request swallowed
 the error. The only stub is `next dev`'s own check for a newer Next.js
 version, which has no switch, carries no data, and is answered locally
@@ -150,13 +277,21 @@ What the integrations prove:
 | Integration | Mode in the gate | What a pass proves | What still needs a real sandbox |
 | --- | --- | --- | --- |
 | Supabase (DB, Auth, Storage, RLS, Realtime) | local, real | The schema, policies, grants, triggers and routes behave as asserted | Hosted-only behaviour: the Management API, connection pooling, hosted storage limits |
-| Razorpay | provider sandbox (test keys) for order creation; checkout sheet not driven | Orders are created in test mode; amounts are server-derived | Completing the hosted checkout, signed webhooks, refunds (see the `blocked` flows) |
+| Razorpay | local fake (`e2e/fake-razorpay.mjs`) for every server call: orders, payments, refunds; checkout sheet not driven | Amounts are server-derived and reach the gateway as asserted; a capture verified with a correctly signed callback or a signed webhook applies exactly once; refunds reach the gateway for the right figure against the right payment, and a refusal is recorded as one | The hosted checkout sheet itself, Razorpay's real request/response shapes beyond what the fake models, and real settlement timing |
 | Google Calendar / Meet | absent (credentials refused) | The app's "not configured" path; no event is ever created | Real event and Meet-link creation and retry |
-| Email / SMS | local Inbucket only; no provider exists in the codebase | Nothing is sent anywhere | n/a until a provider is added |
+| Email / SMS | not started (no Mailpit in the gate); no provider exists in the codebase | Nothing is sent anywhere | n/a until a provider is added |
 
 ## Setup the owner must do
 
 These steps are not automated, and nothing in this change performs them.
+
+The gate makes **no call to Razorpay at all**: every server-side call goes to
+the loopback fake, and the money specs sign their own checkout callbacks
+(with `RAZORPAY_KEY_SECRET`) and webhooks (with a `RAZORPAY_WEBHOOK_SECRET`
+the workflow generates per run). The test-key secrets below are still
+required by the preflight, and the browser still loads Razorpay's checkout
+script with the key id; whether to drop that requirement now that nothing
+calls the real API is an owner decision.
 
 1. **Add two repository secrets** under Settings → Secrets and variables →
    Actions → *Repository* secrets (not Environment, Codespaces or
@@ -171,13 +306,13 @@ These steps are not automated, and nothing in this change performs them.
    Edit the ruleset that protects `staging` (or create one targeting it),
    enable *Require status checks to pass*, and add **`quality-gate`**. In
    the check picker it appears as *quality-gate* from the *Quality gate*
-   workflow, after the workflow has run once. You can also require
-   `runner (patient)`, `runner (therapist)`, `runner (session)`,
-   `runner (admin)`, `runner (hospital)`, `runner (platform)`,
-   `runner (integrity)`, `verify`, `coverage-manifest` and
-   `context-budget`. `quality-gate` already depends on all of them, so
-   requiring it alone is enough. Workflow success alone does not block a
-   merge; only the ruleset does.
+   workflow, after the workflow has run once. Require **only**
+   `quality-gate`: it already depends on `verify`, `plan`,
+   `coverage-manifest`, `context-budget` and every runner job, and the
+   runner jobs' names (`runner (admin-2of8)` and so on) change whenever
+   `runner-shards.json` does. A required `runner (admin)` from before the
+   split would wait forever; remove any such entry. Workflow success alone
+   does not block a merge; only the ruleset does.
 
    **`main` too, in this order.** The workflow triggers on pull requests
    into `main` as well, so the release PR (staging -> main) runs the whole
@@ -192,8 +327,12 @@ These steps are not automated, and nothing in this change performs them.
    `STAGING_URL`, and `PRODUCTION_URL` so the smoke check can refuse it.
    Then `.github/workflows/staging-smoke.yml` runs anonymous GETs against
    staging when a deployment of the `staging` branch succeeds, or by hand.
-   Pull-request previews never trigger it. It does not run automatically
-   until `STAGING_URL` is set, and it is not a required check.
+   Pull-request previews check nothing. Until `STAGING_URL` is set a staging
+   deployment checks nothing either, and the job summary says so; it is not
+   a required check. Which deployment is staging's is decided by asking
+   GitHub whether the deployed SHA is on `staging`, not by the deployment's
+   `ref` - Vercel sets that to the SHA, which is how the smoke skipped every
+   staging deployment silently. `docs/ci/STAGING-SMOKE.md` has the detail.
 
 **Pull requests from forks** get no secrets, so their runners report
 BLOCKED and the gate is red. Run them by pushing the branch to this
@@ -202,14 +341,15 @@ repository instead. The workflow uses `pull_request`, never
 
 ## Artifacts and evidence
 
-Per runner, uploaded whether it passed or failed:
+Per runner job, named by its label (`admin-2of8`, or `hospital` for an
+unsplit runner), uploaded whether it passed or failed:
 
 | Artifact | Contents | Retention |
 | --- | --- | --- |
-| `summary-<runner>` | `summary.json` (what the gate reads) and `summary.md` | 14 days |
-| `reports-<runner>` | Playwright JSON and JUnit; logs for `next dev`, Playwright, provisioning and each integrity script; `egress-denied.log` | 7 days |
-| `traces-<runner>` (on failure) | Playwright traces, screenshots and the HTML report (not sanitised; see below) | 7 days |
-| `failure-bundle-<runner>` (on failure) | `failure-bundle.md`; see `docs/ci/INVESTIGATE.md` | 14 days |
+| `summary-<label>` | `summary.json` (what the gate reads) and `summary.md`; uploaded with `overwrite: true`, so after **Re-run failed jobs** the gate reads the new attempt's summary rather than the failed one | 14 days |
+| `reports-<label>` | Playwright JSON and JUnit; logs for `next dev`, Playwright, provisioning and each integrity script; `egress-denied.log` | 7 days |
+| `traces-<label>` (on failure) | Playwright traces, screenshots and the HTML report (not sanitised; see below) | 7 days |
+| `failure-bundle-<label>` (on failure) | `failure-bundle.md`; see `docs/ci/INVESTIGATE.md` | 14 days |
 
 `summary.json`, `summary.md`, the bundle and every log pass through
 `scripts/ci/lib/sanitize.mjs`. It removes JWTs, Supabase, Razorpay and
@@ -222,8 +362,9 @@ each run, since a failed request's call log prints its cookie header.
 rewritten.** They hold only synthetic fixtures, the CLI's public demo keys
 and short-lived local session cookies, which is why they are uploaded only
 on failure and have the shortest retention. Every summary carries
-the commit SHA, the run id, the machine name, the stack version and the
-runner's known limitations from the manifest.
+the commit SHA, the run id, the machine name, the stack version, the
+shard, the spec files it was given and the runner's known limitations
+from the manifest.
 
 ## Classifying a failure
 
@@ -257,9 +398,12 @@ carries `SUPABASE_ACCESS_TOKEN` or `GOOGLE_CALENDAR_*`, as it should.
 ```bash
 export NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_...   # test keys only
 export RAZORPAY_KEY_SECRET=...
+export E2E_QA_PASSWORD="local-$(openssl rand -hex 8)!Qa"   # the workflow generates both per run
+export CRON_SECRET="local-$(openssl rand -hex 16)"          # for admin-maintenance-sweep.spec.ts
 GITHUB_ENV=.gate.env scripts/ci/provision-local-stack.sh
 set -a; . ./.gate.env; set +a
-node scripts/ci/run-runner.mjs hospital           # or any runner
+node scripts/ci/run-runner.mjs hospital           # or any runner (all its shards' files)
+node scripts/ci/run-runner.mjs admin --shard 2/7  # one shard, exactly as CI ran it
 npx playwright test e2e/hospital-isolation.spec.ts   # one spec, same stack
 supabase stop --no-backup                         # throw the stack away
 ```
@@ -275,7 +419,10 @@ patched Realtime image, which is not part of this repository.
   at least one flow citing its test ids), plus a row in `e2e/README.md`, in
   the same commit. Then run
   `node scripts/ci/check-coverage-manifest.mjs --write-doc` to regenerate
-  `docs/ci/COVERAGE.md`.
+  `docs/ci/COVERAGE.md`. It lands in a shard by itself; add its measured
+  seconds to `scripts/ci/runner-shards.json` once a run has them.
+- **A new runner** goes in `RUNNERS` (`scripts/ci/lib/manifest.mjs`), the
+  manifest's `runners`, and `runner-shards.json`, in one commit.
 - **Removing a spec or a covered flow** needs a `removed[]` entry with a
   reason and who reviewed it. The baseline (`e2e/coverage-baseline.json`)
   makes silent shrinkage a red check. Grow the baseline with

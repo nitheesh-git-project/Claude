@@ -95,7 +95,12 @@ Availability as periods over hour rows, specialisation as a value, what readines
      **route** (`/api/admin/roster-day`, `requireAdminScope("sessions")`) rather
      than more server-render work: the dashboard already fires ~82 queries a
      render and a date an admin picks is fetched on demand. A failed read is a
-     503 and says so, never a day with nobody working.
+     503 and says so, never a day with nobody working. Because it fetches its
+     own answer and the screen stays mounted, it re-reads whenever the server
+     render brings different roster rows (`rosterDataKey` in `rosterDay.ts`,
+     passed as `refreshKey`) - it used to read once per date and keep that
+     through every in-app refresh, so only a full reload showed a schedule
+     just saved (QA F-20).
   6. **Selecting a therapist moves the reader to the schedule.** The detail card
      is a sibling below the list and usually below the fold, so a tap changed a
      screen nobody could see. `scrollIntoView` keyed on the selection, skipped on
@@ -119,6 +124,16 @@ Availability as periods over hour rows, specialisation as a value, what readines
   refuses a date before the therapist's own local today -- a past date is
   history the clinic planned against; an admin can still correct one. Like
   everything else on the roster, an exception never touches a booked session.
+- **A roster read across therapists is paged.** Every therapist's whole week
+  is up to 126 `therapist_availability_template` rows, so a bare `.select()`
+  hits PostgREST's 1,000-row cap at about eight therapists - and the rows
+  past it are the newest-saved schedules, because a save deletes and
+  re-inserts. The admin dashboard's read, `/api/admin/roster-day` and
+  `autoAssignTherapist` go through `readAllRows*`; a therapist who had just
+  been given hours otherwise kept reading "Has not filled in a working
+  schedule yet" on All Sessions' programme pick (QA F-20).
+  `src/lib/rosterReadsPaged.test.ts` fails on a template read that is neither
+  one therapist's (`.eq("therapist_id", …)`) nor paged.
 - **A specialisation is a value, not a sentence.** `profiles.specialization`
   was free text: one line of prose written on the therapist's own profile
   screen and printed raw on /team. That was enough until an admin needed to
@@ -189,15 +204,17 @@ Availability as periods over hour rows, specialisation as a value, what readines
   `notYet: true`, which the buttons show without refreshing the card.
   **A therapist's Done is the session note.** The card's **Done** opens the
   note dialog (`FinishSessionButton` -> `SessionNoteDialog` with
-  `completeOnSave`), whose first step is the Pain Map; saving the note is
-  what completes the session, and the rating form follows on the completed
-  card. The route enforces it, not the dialog: a therapist's Done is refused
-  409 `note_required` without a `session_notes` row for the appointment, and
-  409 `pain_map_required` without a pain assessment this therapist recorded
-  since an hour before the slot - for an **orthopaedic** patient only, since
-  only that chart has a Pain Map; a neuro or paediatric patient's session
-  finishes on the note alone, and the dialog's Pain Map step stands aside
-  (`e2e/finish-session.spec.ts`). Admins and
+  `completeOnSave`), whose first step is the patient's examination; saving
+  the note is what completes the session, and the rating form follows on
+  the completed card. The route enforces it, not the dialog: a therapist's
+  Done is refused 409 `note_required` without a `session_notes` row for the
+  appointment, and without this condition type's exam recorded by this
+  therapist since an hour before the slot - 409 `pain_map_required` for an
+  **orthopaedic** patient, 409 `neuro_exam_required` for a **neurological**
+  one (`missingSessionExam`, `src/lib/sessionCompletion.ts`; see
+  `clinical.md`). A paediatric patient's session finishes on the note
+  alone, and the dialog's exam step stands aside
+  (`e2e/finish-session.spec.ts`, `e2e/neuro-exam.spec.ts` NE-000). Admins and
   No-show are exempt. The "not started yet" line wraps under the buttons
   (`basis-full`) so No-show stays beside Done.
   **The admin half of it is a Sessions write, and asks for `manage`.** This

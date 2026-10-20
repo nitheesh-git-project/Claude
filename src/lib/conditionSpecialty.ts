@@ -144,6 +144,7 @@ export const TRIAGE_QUESTIONS: IntakeQuestion[] = [
       "Difficulty speaking or swallowing",
       TRIAGE_NEURO_NONE,
     ],
+    exclusiveOptions: [TRIAGE_NEURO_NONE],
     required: false,
   },
   {
@@ -161,6 +162,25 @@ export const TRIAGE_QUESTIONS: IntakeQuestion[] = [
     showWhen: { key: "age_band", equals: TRIAGE_AGE_UNDER_18 },
   },
 ];
+
+const TRIAGE_KEYS = new Set(TRIAGE_QUESTIONS.map((q) => q.key));
+
+/** The triage answers a request may store: known keys with string values,
+ *  nothing else. Shared by /onboard and /save-draft -- the draft route used
+ *  to store whatever object the body carried as `draft_triage_data`, which
+ *  the dialog then read back as its starting answers. */
+export function sanitiseTriageAnswers(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>).filter(
+      (entry): entry is [string, string] => TRIAGE_KEYS.has(entry[0]) && typeof entry[1] === "string"
+    )
+  );
+}
+
+/** What a route answers when triage ticks "None of these" beside a sign. */
+export const TRIAGE_CONTRADICTION_ERROR =
+  "\"None of these\" can't be ticked alongside another answer to the same question. Untick one of them and try again.";
 
 export type SpecialtySuggestion = {
   suggested: ConditionSpecialty;

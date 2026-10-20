@@ -1,5 +1,10 @@
 # The checks a contributor runs locally (`npm run verify`), run for every
-# pull request and every push to the two long-lived branches.
+# push to the two long-lived branches.
+#
+# Pull requests into those branches get the identical job (`verify`, same
+# steps) from quality-gate.yml, which the gate's verdict depends on. Running
+# it here too only took a second machine from the eighteen-plus that the
+# gate's runners need at once (docs/ci/QUALITY-GATE.md, "Timing").
 #
 # Before this, nothing ran lint, the unit tests or the production build on a
 # change -- a red build could merge to staging and be found by the next
@@ -13,8 +18,6 @@
 name: CI
 
 on:
-  pull_request:
-    branches: [staging, main]
   push:
     branches: [staging, main]
 

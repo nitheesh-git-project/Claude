@@ -31,6 +31,8 @@ import { loadPatientPayLater } from "@/lib/payLaterSettlementServer";
 import type { ReceiptSettlement } from "@/lib/receipts";
 import { loadConditionCovers } from "@/lib/catalogImageServer";
 import { programmeDisplay, type ProgrammeDisplay } from "@/lib/programmeDisplay";
+import { SESSION_SUMMARY_SELECT, type SessionSummaryRow } from "@/lib/sessionSummary";
+import { hasBookingHistory, noNextSessionNote } from "@/lib/patientOverviewCopy";
 
 // Everything the patient dashboard's screens read, loaded once per
 // request.
@@ -497,6 +499,61 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       ].filter(Boolean)
     ),
   ];
+  // The summaries this patient's therapists wrote for them, for the session
+  // cards (Sessions and its calendar). Read with the patient's own client,
+  // so RLS (session_summaries_select_own_patient) is the authorization as
+  // well as the filter -- and from its own table, so nothing of the private
+  // session note can come back with it. Its own tolerant read: a failure is
+  // remembered, and the cards say the summary could not be loaded rather
+  // than that none was written.
+  const needSummaries = screen === "sessions" || screen === "home-visits";
+  const summaryByAppointmentId = new Map<string, SessionSummaryRow>();
+  let summariesLoadFailed = false;
+  // Which completed sessions led to a programme recommendation the patient
+  // may see, so the summary links to that plan instead of repeating it.
+  const planSourceRows: { sourceAppointmentId: string | null; planStatus: string }[] = [];
+  if (needSummaries) {
+    try {
+      const { data: summaryRows, error: summaryError } = await readAllRowsAsData(() =>
+        supabase
+          .from("session_summaries")
+          .select(SESSION_SUMMARY_SELECT)
+          .eq("patient_id", user.id)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+      );
+      if (summaryError) throw summaryError;
+      for (const r of (summaryRows ?? []) as SessionSummaryRow[]) summaryByAppointmentId.set(r.appointment_id, r);
+    } catch (error) {
+      console.error("Patient dashboard: could not read session summaries", error);
+      summariesLoadFailed = true;
+    }
+    // Best-effort: losing it costs a link, never a card.
+    try {
+      const completedIds = (appointments ?? []).filter((a) => a.status === "completed").map((a) => a.id);
+      if (completedIds.length > 0) {
+        const { data: plans } = await admin.from("care_plans").select("id, status").eq("patient_id", user.id);
+        const statusByPlan = new Map((plans ?? []).map((p) => [p.id as string, p.status as string]));
+        if (statusByPlan.size > 0) {
+          const { data: versions } = await admin
+            .from("care_plan_versions")
+            .select("care_plan_id, source_appointment_id")
+            .in("care_plan_id", [...statusByPlan.keys()]);
+          const completed = new Set(completedIds);
+          for (const v of versions ?? []) {
+            if (!completed.has(v.source_appointment_id as string)) continue;
+            planSourceRows.push({
+              sourceAppointmentId: v.source_appointment_id as string,
+              planStatus: statusByPlan.get(v.care_plan_id as string) ?? "pending_review",
+            });
+          }
+        }
+      }
+    } catch {
+      // The summary still renders, without the link.
+    }
+  }
+
   // A patient can read their own appointment rows via RLS, but not the
   // linked therapist's profile (that policy only allows a user to read
   // their own row) - so the assigned therapist's name has to be looked up
@@ -508,6 +565,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         ...(appointments ?? []).map((a) => a.therapist_id),
         ...ownedPackagesForDisplay.map((p) => p.locked_therapist_id),
         ...ownedHomeVisitPackagesForDisplay.map((p) => p.locked_therapist_id),
+        // Whoever wrote a summary, which is normally the session's own
+        // therapist -- but is named from the summary, not assumed.
+        ...[...summaryByAppointmentId.values()].map((r) => r.therapist_id),
       ].filter(Boolean)
     ),
   ];
@@ -831,6 +891,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     )
     .sort((a, b) => new Date(a.slot_time!).getTime() - new Date(b.slot_time!).getTime());
   const nextSession = upcoming[0] ?? null;
+  // Whether "nothing booked" would be true, or a returning patient's
+  // history being talked over -- see patientOverviewCopy.ts.
+  const bookingHistory = hasBookingHistory(appointments);
   const completedCount = appointments.filter((a) => a.status === "completed").length;
   const sessionsLeftInPackages = ownedPackagesForDisplay.reduce(
     (sum, p) => sum + Math.max(0, (p.session_count ?? 0) - (p.sessions_used ?? 0)),
@@ -940,7 +1003,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         ? `${new Date(nextSession.slot_time).toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}${
             nextSession.therapist_id ? ` · ${therapistMap.get(nextSession.therapist_id) ?? "therapist"}` : ""
           }`
-        : "Nothing booked yet",
+        : noNextSessionNote(bookingHistory),
       accent: "bg-teal-500",
       href: "/patient/dashboard/sessions",
     },
@@ -1111,6 +1174,12 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // widgets read these directly, and handing them the counter here would
     // undo the flip for exactly the two screens a patient looks at.
     activeCarePlan,
+    // Whether this screen read them at all: a screen that did not must not
+    // render "no summary" for want of asking.
+    summariesRead: needSummaries,
+    summaryByAppointmentId,
+    summariesLoadFailed,
+    planSourceRows,
     carePlanHistory,
     // The one-line nudge every screen but Suggested Sessions carries.
     suggestedTeaser:
@@ -1144,6 +1213,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     intakeGate,
     intakeSpecialty,
     nextSession,
+    bookingHistory,
     patientFeed,
     overviewCells,
     nowMs: nowMsForPackages,

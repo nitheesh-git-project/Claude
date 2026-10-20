@@ -3,9 +3,12 @@
 //                            [-- --runner <name>] [-- --skip-static]
 //
 // --runner <name> runs exactly the specs CI's <name> runner owns in
-// e2e/coverage-manifest.json (patient, therapist, session, admin, hospital,
-// platform, integrity), changed or not: the one-to-one local stand-in for a
-// CI runner when Docker (and so the disposable stack) is not available.
+// e2e/coverage-manifest.json (any of lib/manifest.mjs's RUNNERS: patient,
+// money, therapist, session, admin, hospital, platform, integrity), changed
+// or not -- every shard's share at once, since CI's split of a runner
+// (scripts/ci/runner-shards.json) is only about wall-clock time: the
+// one-to-one local stand-in for a CI runner when Docker (and so the
+// disposable stack) is not available.
 // --skip-static skips verify/coverage/context-budget when an earlier run in
 // the same sitting already passed them.
 //
@@ -13,7 +16,7 @@
 // after it. Every red gate on the bug-pass PRs was catchable locally -- a
 // table missing from realtime, a selector matching a hidden admin section,
 // a spec account the tutorial covered -- and each one cost a push, a
-// seven-runner wait and a log read. This runs the same static checks CI's
+// whole-gate wait and a log read. This runs the same static checks CI's
 // first jobs run, then only the Playwright specs the change can reach
 // (scripts/ci/lib/affectedSpecs.mjs), and prints failures and nothing else.
 // Full output goes to .merge-ready/, read only on a failure.
@@ -26,6 +29,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { selectSpecs } from "./lib/affectedSpecs.mjs";
+import { RUNNERS } from "./lib/manifest.mjs";
 
 const args = process.argv.slice(2);
 const runE2e = args.includes("--e2e");
@@ -33,6 +37,10 @@ const allowAppendOnly = args.includes("--append-only");
 const skipStatic = args.includes("--skip-static");
 const runnerIdx = args.indexOf("--runner");
 const runner = runnerIdx >= 0 ? args[runnerIdx + 1] : null;
+if (runnerIdx >= 0 && !RUNNERS.includes(runner)) {
+  console.error(`--runner takes one of: ${RUNNERS.join(", ")}`);
+  process.exit(2);
+}
 const baseIdx = args.indexOf("--base");
 const base = baseIdx >= 0 ? args[baseIdx + 1] : "origin/staging";
 // Not under test-results/: Playwright empties that folder at the start of

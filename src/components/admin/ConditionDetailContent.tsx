@@ -29,6 +29,9 @@ import {
   type ConditionSpecialty,
 } from "@/lib/conditionSpecialty";
 import { PAIN_MAP_REGIONS, type PainAssessmentRow, type QuestionOverrideRow } from "@/lib/painMap";
+import type { NeuroAssessmentRow } from "@/lib/neuroExam";
+import { getAdminContext } from "@/lib/supabase/requireAdmin";
+import { scopeCanManage } from "@/lib/adminScope";
 
 const regionLabel = (region: string) =>
   PAIN_MAP_REGIONS.find((r) => r.key === region)?.label ?? region;
@@ -111,6 +114,25 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
   ]);
   const specialty = parseConditionSpecialty(specialtyRow?.specialty);
   const isOrthoProfile = specialty === "ortho";
+  const isNeuroProfile = specialty === "neuro";
+  // The neurological chart, read for a neurological profile only and in
+  // its own call (neuro_assessments is a new table, so a database without
+  // it costs this card -- which says so -- rather than the screen). The
+  // record button renders only for a scope its route accepts
+  // (requireAdminScope("people")): a control the server would refuse is
+  // not offered.
+  const [neuroRead, adminContext] = await Promise.all([
+    isNeuroProfile
+      ? admin
+          .from("neuro_assessments")
+          .select("id, created_at, submitted_by_role, schema_version, findings")
+          .eq("patient_id", id)
+          .order("created_at", { ascending: false })
+          .limit(200)
+      : Promise.resolve({ data: [] as NeuroAssessmentRow[], error: null }),
+    isNeuroProfile ? getAdminContext() : Promise.resolve(null),
+  ]);
+  const canRecordNeuro = !!adminContext && scopeCanManage(adminContext.scope, "people");
   const proposedSpecialtyById = new Map(
     (proposedSpecialtyRows ?? []).map((r) => [
       r.id as string,
@@ -436,12 +458,14 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
 
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
-          {isOrthoProfile ? "Pain Map" : "Examination"}
+          {isOrthoProfile ? "Pain Map" : isNeuroProfile ? "Neurological examination" : "Examination"}
         </h2>
         <p className="text-xs text-slate-500 mb-4">
           {isOrthoProfile
             ? "Exam findings, and the same figure switched to compare them against what the patient reported."
-            : "This condition type has no on-screen examination chart yet."}
+            : isNeuroProfile
+              ? "Tone, power, reflexes, sensation, coordination, balance and gait, compared with the examination before."
+              : "This condition type has no on-screen examination chart yet."}
         </p>
         {/* Same one surface and the same recording dialog the therapist
             uses -- an admin entering an exam on someone's behalf should be
@@ -460,11 +484,22 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
                 }
               : undefined
           }
+          neuro={
+            isNeuroProfile
+              ? {
+                  assessments: (neuroRead.data ?? []) as NeuroAssessmentRow[],
+                  loadFailed: !!neuroRead.error,
+                  record: canRecordNeuro
+                    ? { endpoint: "/api/admin/neuro-assessments/submit", patientId: id }
+                    : undefined,
+                }
+              : undefined
+          }
         />
-        {isOrthoProfile && (
+        {(isOrthoProfile || (isNeuroProfile && canRecordNeuro)) && (
           <p className="mt-3 text-xs text-slate-500">
             Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a
-            new reading rather than editing any past one, since Pain Map history is append-only.
+            new reading rather than editing any past one, since examination history is append-only.
           </p>
         )}
       </section>

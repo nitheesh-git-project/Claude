@@ -105,10 +105,17 @@ begin
   -- Build the note this revision hangs off inside the transaction, so the
   -- guard is proven rather than skipped on a database that happens to have
   -- no session notes yet. Everything here rolls back.
-  select a.id, a.patient_id, coalesce(a.therapist_id, (select id from profiles where role='therapist' limit 1))
-    into v_appt, v_pat, v_ther
-  from appointments a where a.patient_id is not null limit 1;
-  if v_ther is null then raise exception 'no therapist to attribute the probe note to'; end if;
+  -- Its own appointment too: this used to borrow whatever appointment an
+  -- earlier spec on the same stack had left, and failed on a fresh stack
+  -- whose specs had created none.
+  select id into v_pat from profiles where role = 'patient' limit 1;
+  select id into v_ther from profiles where role = 'therapist' limit 1;
+  if v_pat is null or v_ther is null then
+    raise exception 'no patient and therapist to attribute the probe note to (seed:qa runs first)';
+  end if;
+  insert into appointments (patient_id, therapist_id, slot_time, concern, status, payment_status, amount_paid_paise)
+  values (v_pat, v_ther, now() - interval '3 days', 'append-only check', 'completed', 'paid', 0)
+  returning id into v_appt;
 
   insert into session_notes (appointment_id, patient_id, therapist_id, data)
   values (v_appt, v_pat, v_ther, '{}'::jsonb) returning id into v_note;

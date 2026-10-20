@@ -478,6 +478,17 @@ Eight pages from one design system, the word budgets, why every photograph carri
   surface for an admin-editable table means adding its path to those routes
   in the same change; the ISR window is a cache, not a publishing delay
   anyone chose.
+- **The public pages promise the patient a summary, never "session notes".**
+  The therapist's session note is clinician-only (`docs/rules/clinical.md`)
+  and a patient never reads it, so copy that offered "each session's notes"
+  or "a written record, updated every session" promised something that did
+  not exist. What a patient does get is **a short summary after each
+  session and their exercise plan** -- the `session_summaries` row their
+  therapist writes beside the note, shown on their session card -- and that
+  is the wording on How it works, the Why choose us / Real benefits cards
+  (`src/lib/whyChooseUs.ts`, home and `/mission`) and the health-profile
+  showcase. Copy may still say the physiotherapist's *own* notes shape the
+  next session; it must not offer them to the reader.
 - **The health profile is shown as the dashboard a patient gets, never with
   a real patient's data.** `HealthProfileShowcase` draws a sample dashboard
   per enabled specialty (`site_settings.enabled_intake_specialties`): stat
@@ -485,8 +496,8 @@ Eight pages from one design system, the word budgets, why every photograph carri
   care plan's progress and an "Every action, recorded" timeline, from
   `SAMPLE_DASHBOARDS` in `src/lib/healthProfileShowcase.ts`, labelled
   "Sample patient". Every stat and timeline entry is something the product
-  records -- home exercises *prescribed* in session notes, never completion,
-  which it does not track -- and a unit test holds the sample's headline
+  records -- home exercises *prescribed* in a session summary, never
+  completion, which it does not track -- and a unit test holds the sample's headline
   figures to what its charts draw. On `/how-it-works` it sits beside "What
   we track"; on the home page it is its own band beside a short pitch and
   **Book your first session**. **It is the one public widget that moves on
@@ -609,6 +620,18 @@ Eight pages from one design system, the word budgets, why every photograph carri
   dots, savings meter, stat tiles) live in
   `src/components/catalog/CatalogVisuals.tsx` and are fed already-computed
   numbers, since the arithmetic belongs in `src/lib/`.
+- **A session's length is the category's, on every screen, or no number at
+  all.** `treatment_categories.duration_minutes` is what `/book`, checkout
+  and the appointment row use, and the programme band's lede, the programme
+  dialog's footnote and the home hero's figure each printed a fixed "60"
+  beside it - so a 30-minute category was promised as 60 minutes one tap
+  before the wizard said 30. Every sentence that names a length is built by
+  `src/lib/sessionLengthCopy.ts` from the rows the page already reads ("Same
+  N-minute assessment" only when every category shares N; a range or no
+  figure otherwise), and a page that reads no categories (`/hospitals`, the
+  journey strip, the therapist popup) names no length. Its test walks those
+  files and fails on a literal minute count. `e2e/catalog-detail.spec.ts`
+  CD-009 seeds a 35-minute category and reads it back.
 - **The footer's social icons are only the ones an admin filled in, and each
   opens in a new tab.** Five optional `site_settings` columns
   (Settings -> Brand & Contact -> Social Media Links); blank hides that icon,
@@ -643,6 +666,21 @@ Eight pages from one design system, the word budgets, why every photograph carri
   (`payments.md`). Home-visit prices pass `rupeesOnly`. The footer's
   country picker shows only when local prices and the picker are both on;
   the debug bar's Country dropdown forces any country while the bar exists.
+
+- **The FAQ never carries coverage or a price as typed text.** FAQ rows are
+  admin-written and nothing re-reads them when Catalog moves: staging's
+  answered "do you visit me?" with `600020` and ₹499 + ₹100 travel long after
+  coverage was `600017` and the visit ₹1,500 + ₹150. While Home Visit is on
+  and an area is active, `/faq` appends an answer built from
+  `home_visit_areas` (`src/lib/faqLiveFacts.ts`): the cities served, the
+  pincode check, and "prices are on the Home Visit page" - no pincode and no
+  rupee figure, since a public price is a `<Price>` and a visit's price
+  depends on the condition and the area. The three service-area routes
+  revalidate `/faq` with `/home-visit`. The FAQ form shows an amber note
+  (`quotesDriftingFigure`) while an answer quotes a pincode or a ₹ amount -
+  said, not refused. The home-visit wizard's pincode placeholder is
+  "6-digit pincode", not a real one: an example pincode reads as a served
+  one.
 
 - **On /conditions the programmes come first, the areas of practice
   second.** What a visitor can book today ("Structured programmes") leads;

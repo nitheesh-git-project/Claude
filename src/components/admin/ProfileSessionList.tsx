@@ -14,7 +14,8 @@ import SessionDetailDrawer, {
   type SessionDetailAppointment,
 } from "@/components/admin/SessionDetailDrawer";
 import { formatSlotTime } from "@/lib/formatSlotTime";
-import { SESSION_FEE_PAISE, BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { sessionListPricePaise } from "@/lib/sessionListPrice";
 import { describeSessionPayment } from "@/lib/sessionPaymentState";
 import { sortSessionsNewestFirst } from "@/lib/sessionOrdering";
 import { rowActivationProps } from "@/lib/rowActivation";
@@ -95,7 +96,7 @@ export default function ProfileSessionList({
       <ul className="space-y-3 text-xs">
         {ordered.map((a) => {
           const category = a.category_id ? categoryMap.get(a.category_id) : null;
-          const feePaise = a.amount_paid_paise ?? category?.price_paise ?? SESSION_FEE_PAISE;
+          const feePaise = sessionListPricePaise(a, category?.price_paise);
           const durationMinutes =
             a.duration_minutes ?? category?.duration_minutes ?? BASE_DURATION_MINUTES;
           const isUpcoming =

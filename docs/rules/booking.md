@@ -130,8 +130,16 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   4. **With exactly one option there is no picker.** It is stated as chosen,
      with its photograph, its price and a way to read the detail -- a dialog
      that opens to show a single card asks somebody to tap twice to confirm
-     the only thing on offer. Both wizards open on the general consultation
-     (`defaultCategoryId`), or on the only condition when there is one.
+     the only thing on offer. Both wizards open on the service an admin
+     switched on as **Default on booking** (Catalog -> Conditions;
+     `treatment_categories.is_default`, `defaultCategoryId`), or on the only
+     condition when there is one. **One at a time is the database's rule**:
+     a partial unique index refuses a second default and
+     `set_default_treatment_category()` moves it in one transaction, so the
+     route never clears-then-sets in two writes. Off everywhere opens the
+     picker unanswered; a setting that cannot be read (no column yet) falls
+     back to the seeded general consultation -- "couldn't check" is not
+     "none". Deactivating a service clears its default (trigger).
   5. **Continue appears once a service is chosen**, which is `serviceChosen`
      in `BookingStepOne`'s `ready`. Step 1 has always revealed it only when
      the screen is complete; a disabled control would be a new pattern there.
@@ -338,3 +346,15 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   `overflow-clip` rather than `overflow-hidden` for exactly this: a hidden
   overflow makes the card a scroll container and the row would stick to the
   card, not the screen. From `sm` the row sits in the flow as before.
+
+- **A patient can read what they consent to, and it names their service.**
+  Step 2's required checkbox links its terms: the underlined title in the
+  label is a button that opens `ConsentTermsDialog` (the shared `Modal`), and
+  activating it does not tick the box. The checkbox sentence and the dialog
+  both come from `src/lib/consentTerms.ts`, which names the service chosen
+  on Step 1 and makes no specialty claim - it used to say "musculoskeletal
+  care" to somebody booking a neurological or paediatric session, beside
+  terms there was no way to open. That wording is a **draft for the owner
+  and legal to review**; edit it there and nowhere else. The home-visit
+  wizard's checkbox is a different consent (this address, a visit at this
+  time) and has no terms behind it. `e2e/service-picker.spec.ts` SP-013.

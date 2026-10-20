@@ -43,7 +43,7 @@ rule under "Supabase clients"), `npm run lint`,
 per fix; see the two gears under the e2e section below),
 `npm run seed:qa` (recreate the QA fixture accounts after a data reset),
 `npm run clean:e2e` (delete the fixture rows earlier e2e runs left behind),
-and `npm run verify` (lint + test + build, which `.github/workflows/ci.yml` also runs on every pull request and push to `staging`/`main`; the one to run before pushing --
+and `npm run verify` (lint + test + build, which `.github/workflows/ci.yml` also runs on every push to `staging`/`main`, and the quality gate on every pull request into them; the one to run before pushing --
 and, for a change a browser can see, alongside the two or three specs
 covering what moved rather than the whole suite).
 `npm run test` is Vitest over `src/**/*.test.ts` - the dependency-free
@@ -164,6 +164,45 @@ It needs a
 test/staging Supabase project plus
 Razorpay test keys, so `npm run build` and `npm run lint` remain the default
 verification for a change that can't reach one.
+
+**The money flows run against a fake Razorpay, never a real one.**
+`e2e/fake-razorpay.mjs` is a plain-Node HTTP server (no dependency) that
+implements exactly the five calls the app makes -- order create and fetch,
+an order's payments, a payment, a refund -- with Razorpay's refusals (an
+unknown id, a refund past what was captured) and test controls under
+`/__fake/`: capture a payment on an order, refuse the next refund the way an
+empty balance does, list the calls it received. The app reaches it only
+through `RAZORPAY_API_BASE_URL`, which `src/lib/razorpayClient.ts` honours
+for a loopback origin only, never in production and never with a live key
+(`docs/rules/payments.md`). `e2e/fakeGateway.ts` is the specs' handle on it:
+it applies the same rule, signs the checkout callback (HMAC-SHA256 of
+`order|payment` with `RAZORPAY_KEY_SECRET`) and the webhook (HMAC of the raw
+body with `RAZORPAY_WEBHOOK_SECRET`), and makes every spec that needs it
+**skip with the reason** when it is not configured or not answering -- a
+money spec must never reach a real gateway. `e2e/moneyFixtures.ts` makes a
+fresh patient (and therapist, hospital) per run, books into a free slot and
+pays through create-order -> fake capture -> signed verify. In the quality
+gate `scripts/ci/run-runner.mjs` starts the fake for every runner and sets
+the variable for the dev server and Playwright alike, `quality-gate.yml`
+generates the webhook secret per run, and an undeclared skip fails the
+runner, so the gate cannot pass by skipping. Locally, against `.env.local`:
+
+```bash
+node e2e/fake-razorpay.mjs &                         # 127.0.0.1:4010
+export RAZORPAY_API_BASE_URL=http://127.0.0.1:4010
+export RAZORPAY_WEBHOOK_SECRET=whsec-local-$(date +%s) # the same in both
+npm run dev &                                        # started with both exported
+E2E_ALLOW_APPEND_ONLY_WRITES=1 npx playwright test e2e/gateway-payment-capture.spec.ts --project=desktop
+```
+
+Export the `.env.local` values into the Playwright shell too
+(`set -a; . ./.env.local; set +a`): the specs sign with the same
+`RAZORPAY_KEY_SECRET` the server checks against. Writing these specs found
+three real bugs -- a replayed verify re-stamping `paid_at`, a refused partial
+refund erasing the earlier refund's reason and date, and the admin Partners
+card quoting a commission on paid-but-undelivered sessions at the live rate
+-- none of which an arithmetic test could see, because each was the right
+number written to the wrong row or at the wrong moment.
 
 **The whole suite runs once before a merge, never once per fix.** It is
 `workers: 1` against one Supabase project and one app instance by design, so
@@ -290,6 +329,25 @@ Three environment notes for the browser specs:
   `RELAY_TARGET=$NEXT_PUBLIC_SUPABASE_URL node scripts/.qa/supabase-relay.mjs`,
   then `NEXT_PUBLIC_SUPABASE_URL=http://localhost:8099 npx next dev -p 3100`,
   then `E2E_BASE_URL=http://localhost:3100 npx playwright test e2e/admin-login.spec.ts`.
+  Inside the quality gate none of that applies: the browser reaches the local
+  stack directly, `run-runner.mjs` points `E2E_LOGIN_BASE_URL` at the runner's
+  own dev server, and an unreachable form **fails** the run (`E2E_GATE=1`)
+  rather than skipping -- a skip there is how the form went untested before.
+- **A spec that needs an account nobody else touches makes one.**
+  `createFixtureAccount(label, patch)` (`e2e/helpers.ts`) mints an approved,
+  active `@example.test` account with the tour already seen -- a patient by
+  default, a therapist with `{ role: "therapist" }` -- and
+  `deleteFixtureAccount(id)` removes it and its sessions in an `afterAll`.
+  Use it when an assertion would otherwise be about what other specs left on
+  the shared QA accounts (a list that pages, a slot the overlap trigger
+  refuses), and `rlsClientFor(email)` to ask what that account's own RLS
+  reads below the routes. One that an append-only row will point at is the
+  exception: an impersonation or a settlement keeps its account for good, so
+  those cases use a shared QA account instead.
+- **`admin-maintenance-sweep.spec.ts` needs `CRON_SECRET`** in both the app's
+  and the spec's environment. The gate generates one per run
+  (`quality-gate.yml`, like `E2E_QA_PASSWORD`); locally, start `next dev`
+  with a throwaway value and export the same one, or the spec skips itself.
 
 `docs/qa/` holds the **manual** E2E plan a human tester executes -- a feature
 guide plus a click-by-click regression suite covering every route, role,
@@ -529,9 +587,13 @@ one, suspect leftover state before suspecting the app.
 
 **A pull request into `staging` runs the whole suite in CI now, on a stack
 that cannot be a real one.** `.github/workflows/quality-gate.yml` splits the
-specs across seven runners (owner of each spec: `e2e/coverage-manifest.json`),
-and each one builds its own disposable Supabase stack on its own machine
-(`scripts/ci/provision-local-stack.sh`). `quality-gate` is the one check to
+specs across eight runners (owner of each spec: `e2e/coverage-manifest.json`),
+which `scripts/ci/runner-shards.json` splits again into parallel jobs, and
+each job builds its own disposable Supabase stack on its own machine
+(`scripts/ci/provision-local-stack.sh`). The target is the whole gate in
+about six minutes; a file whose tests can be divided between shards says so
+with `test.describe.configure({ mode: "parallel" })` and a `splitFiles`
+entry, never by turning on `fullyParallel` for everyone. `quality-gate` is the one check to
 require. Architecture, setup and reproduction are in
 `docs/ci/QUALITY-GATE.md`; the per-runner coverage and its gaps are in
 `docs/ci/COVERAGE.md` (generated); investigating a red run is
@@ -596,7 +658,7 @@ require. Architecture, setup and reproduction are in
 
 **Run `npm run check:merge-ready` before the PR push, not after the red
 run.** Every red gate on the bug-pass PRs was catchable locally, and each one
-cost a push, a seven-runner wait and a log read. The script runs what CI's
+cost a push, a whole-gate wait and a log read. The script runs what CI's
 first three jobs run (`verify`, `check:coverage`, `check:context-budget`),
 then lists the specs the change can reach (`scripts/ci/lib/affectedSpecs.mjs`:
 a changed spec, a spec that visits a changed page or calls a changed route,
@@ -608,20 +670,25 @@ which must not hold real patients. Add `--append-only` only when that project
 may keep append-only rows. The destructive specs stay on CI's stack, and
 `admin-degraded-schema` never runs locally. It prints failing tests and their
 first error lines; full logs are in `.merge-ready/`.
-**Before any push to a PR into `staging` or `main`, every runner is run
-locally**, because a red CI round costs about 30 minutes and a log read per
-attempt: `npm run check:merge-ready -- --e2e --append-only --skip-static
+**What runs locally before a push depends on the size of the change.** A
+small PR -- up to five fixes, no `supabase/schema.sql` change -- gets
+`npm run lint && npm test` plus the one to three specs that cover what moved
+(`npx playwright test e2e/X.spec.ts`), and is pushed; CI's gate, about six
+minutes, runs the rest. A big batch or any schema change gets every runner
+locally first, because a red round costs a push and a log read per attempt:
+`npm run check:merge-ready -- --e2e --append-only --skip-static
 --runner <name>` runs exactly the specs the manifest gives that CI runner
-(patient, therapist, session, admin, hospital, platform, integrity), one
-runner at a time against the project in `.env.local`. It stands in for CI's
-disposable stack when Docker is not available. Only when all seven are green
-does the branch get pushed, and it gets pushed once. Start a fresh
+(patient, money, therapist, session, admin, hospital, platform, integrity --
+all of a split runner's shards at once), one runner at a time against the
+project in `.env.local`. It stands in for CI's disposable stack when Docker
+is not available. Only when all are green does the branch get pushed, and it
+gets pushed once. Start a fresh
 `npm run dev` before each runner, as CI does: one dev server kept up across
 the whole suite grew to 13 GB and was OOM-killed mid-run, and every spec
 after that failed as ECONNREFUSED - the server's death, not the app's. When CI is
-red anyway, triage from the runner's `failure-bundle-<runner>` /
-`reports-<runner>` artifact, never the raw job log. Fix every red runner, then
-push once.
+red anyway, triage from the failed job's `failure-bundle-<label>` /
+`reports-<label>` artifact (`admin-2of8`, or `hospital` for an unsplit
+runner), never the raw job log. Fix every red job, then push once.
 
 **The QA accounts' password is `E2E_QA_PASSWORD`, never a literal.** The
 repository is public, and the old hard-coded password signed anyone in to

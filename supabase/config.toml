@@ -14,8 +14,11 @@
 #
 # Services that nothing in the gate uses are off, to keep a runner's start
 # time and memory down: Studio, Edge Runtime, Analytics/Logflare, Vector,
-# the pooler and image transformation. Mailpit stays on so GoTrue mail has
-# somewhere local to go -- no real mail provider is ever configured.
+# the pooler and image transformation. Mailpit stays on here for anyone
+# running the stack by hand, so GoTrue mail has somewhere local to go -- no
+# real mail provider is ever configured -- but the gate starts the stack
+# without it (`supabase start -x ...` in scripts/ci/provision-local-stack.sh,
+# which says why each excluded service is unused).
 project_id = "moverestore-ci"
 
 [api]

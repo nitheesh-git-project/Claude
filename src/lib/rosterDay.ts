@@ -199,3 +199,41 @@ export function summariseRosterDay(entries: RosterDayEntry[]): {
     bookedHours: entries.reduce((sum, e) => sum + e.bookedCount, 0),
   };
 }
+
+/**
+ * A fingerprint of the roster rows a server render handed the admin's Roster
+ * screen, so the Day view knows when to read its date again.
+ *
+ * The Day view fetches its own answer from `/api/admin/roster-day` and every
+ * admin screen stays mounted, so it used to read once per date and then sit
+ * on that answer through "Refresh this screen", a realtime refresh and a
+ * schedule saved in the editor beside it - only a full reload re-read it
+ * (QA F-20). Keyed on the rows rather than on a render counter, so a
+ * refresh that changed nothing does not re-fetch. Order-independent: the
+ * same rows in another order are the same roster.
+ */
+export function rosterDataKey(
+  template: ReadonlyArray<{ therapist_id: string; day_of_week: number; hour: number }>,
+  overrides: ReadonlyArray<{ therapist_id: string; date: string; hour: number; available: boolean }>,
+  appointments: ReadonlyArray<{ id: string; therapist_id: string | null; slot_time: string | null; status: string | null }>
+): string {
+  const parts = [
+    ...template.map((r) => `t:${r.therapist_id}:${r.day_of_week}:${r.hour}`),
+    ...overrides.map((r) => `o:${r.therapist_id}:${r.date}:${r.hour}:${r.available ? 1 : 0}`),
+    ...appointments.map((a) => `a:${a.id}:${a.therapist_id ?? ""}:${a.slot_time ?? ""}:${a.status ?? ""}`),
+  ];
+  parts.sort();
+  // A short stable hash rather than the joined string, which on a real
+  // clinic is tens of kilobytes held in an effect's dependency list.
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (const part of parts) {
+    for (let i = 0; i < part.length; i += 1) {
+      const c = part.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+      h2 = Math.imul(h2 ^ c, 0x5bd1e995) >>> 0;
+    }
+    h1 = Math.imul(h1 ^ 0x7c, 0x01000193) >>> 0;
+  }
+  return `${parts.length}:${h1.toString(36)}:${h2.toString(36)}`;
+}

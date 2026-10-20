@@ -132,6 +132,38 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   registration (`/patient/register`, no booking involved) always waits on a
   human admin - the point of gating on genuine payment intent is to keep a
   bare signup from being a free way to skip that queue.
+- **Every Razorpay client is built by `createRazorpayClient()`
+  (`src/lib/razorpayClient.ts`), never `new Razorpay(...)`.** It is the one
+  place that decides where the server's gateway calls go: Razorpay itself,
+  or -- for the quality gate and the money specs only -- the loopback fake
+  gateway named by `RAZORPAY_API_BASE_URL` (`e2e/fake-razorpay.mjs`). The
+  override is honoured only for a bare loopback http(s) origin, and ignored
+  on a production deploy (`VERCEL_ENV=production`) and with a `rzp_live_`
+  key, because it sends the key id and secret wherever it points; the
+  decision is dependency-free with its own tests (`razorpayApiBase.ts`),
+  and the same test walks `src/` and fails on any other `new Razorpay(`.
+  In the gate `run-runner.mjs` always sets it, the egress guard then refuses
+  `api.razorpay.com`, and the preflight refuses a non-loopback value -- so
+  the gate never reaches a real gateway, and a client built around the
+  factory turns a runner red instead of quietly reaching test mode. What
+  the specs prove through the fake (`gateway-payment-capture`,
+  `gateway-webhook-recovery`, `gateway-cancellation-refund`,
+  `gateway-admin-refund`, `hospital-referral-revenue`): create-order prices
+  on the server, a correctly signed verify or webhook applies a capture
+  exactly once, refunds reach the gateway for the right figure against the
+  right payment, and a refusal is recorded as one.
+  **A replayed verify is a no-op.** `/api/razorpay/verify` used to run the
+  confirmation again on a resent callback, which re-stamped `paid_at` -- the
+  column that answers "when did this money arrive" -- every time the button
+  was pressed again or the browser arrived after the webhook. A booking
+  already paid by that very payment, and still live, is now answered as the
+  success it is without the write; the idempotent capture, invite and
+  approval steps still run.
+  **A refused partial refund puts the session back exactly as it was.** The
+  revert in `refund-session-partial` used to blank `refund_reason` and leave
+  the refused attempt's `refunded_at` / `refunded_by`, so a refused second
+  refund erased why the first one was made and dated it to a refund that
+  never happened. It restores all three now.
 - **A refund is shown wherever a payment is.** Money going out was recorded
   and never displayed: an admin refunded a session from a patient's profile,
   the route worked, the audit row was written, and the session row went on
@@ -148,6 +180,27 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   than left blank, because "no refund due" and "we never looked" read
   identically when both are empty and mean opposite things. `none` renders
   **nothing**, not an empty chip on every unrefunded session.
+  **`refund_amount_paise` is a running total, and `refund_status` is only
+  the latest decision.** The total is money committed back -- gone back, or
+  decided and waiting on a person -- and a later `failed` or `not_eligible`
+  does not erase it: a refused attempt refunded nothing and adds nothing, and
+  a forfeiture keeps what earlier partial refunds returned rather than
+  writing 0 over it. `describeRefundPosition()` in `refundState.ts` is that
+  reading -- paid, refunded, owed back, still refundable (`paid - total`),
+  failed -- and the drawer's cancellation line, its refund panel, the
+  partial-refund form's ceiling, `refund-session-partial`'s own cap,
+  `cancelAppointmentAndRefund` and the revenue figures (`refundedPaiseOf`,
+  in `moneyLineFor` and `hospitalSessionLine`) all read it. QA F-22 was the
+  four disagreeing: a ₹1,999 session refunded ₹200 and ₹100 asked the
+  gateway for **₹1,999** on cancellation -- more than was left, so it was
+  refused -- and the drawer then said "Paid / Refund failed", "₹1,699
+  refundable" and "No payment to refund", while net revenue dropped the ₹300
+  that had gone back. A cancellation now asks for only what is left (and
+  sends nothing when partials already returned everything), writes the new
+  total on success, and the line reads "₹300 refunded earlier; the refund of
+  the remaining ₹1,699 failed". Guards: `refundPosition.test.ts`,
+  `e2e/gateway-cancellation-refund.spec.ts` CR-003,
+  `e2e/admin-session-drawer-money.spec.ts` ASD-002.
   **`refunded_at` and `refunded_by` are the other half.** `paid_at` has
   existed since the first payment shipped; money going out had no equivalent,
   so "when was this refunded, and by whom" was answerable only from the audit

@@ -25,7 +25,7 @@ import {
   cookieHeaderFor,
   markDashboardTourSeen,
   profileIdFor,
-  waitForSplashToClear,
+  waitForSplashToClear, insertPastFixtureAppointment
 } from "./helpers";
 
 const db = adminClient();
@@ -181,26 +181,21 @@ test.beforeAll(async () => {
   if (existing) {
     appointmentId = existing.id;
   } else {
-    const slot = new Date(Date.now() - 8 * 86_400_000);
-    slot.setUTCHours(4, 30, 0, 0);
-    const { data, error } = await db
-      .from("appointments")
-      .insert({
+    appointmentId = await insertPastFixtureAppointment(
+      db,
+      {
         patient_id: patientId,
         therapist_id: therapistId,
         category_id: categoryId,
         concern: MARKER,
-        slot_time: slot.toISOString(),
         duration_minutes: 60,
         status: "completed",
         payment_status: "paid",
         amount_paid_paise: perSessionPaise,
         visit_mode: "online",
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    appointmentId = data.id;
+      },
+      { daysAgo: 8 }
+    );
   }
 
   const { data: settings } = await db.from("site_settings").select("promo_codes_enabled").single();
@@ -244,6 +239,8 @@ test.afterAll(async () => {
 });
 
 test("PC-001: Accept & pay on the card goes to Review & pay, and nothing is charged from the card", async ({ page }) => {
+  // First visit to the Suggested page compiles it on a cold dev server.
+  test.setTimeout(90_000);
   const versionId = await recommendAndApprove(4);
   await stubRazorpay(page);
   const orders: string[] = [];

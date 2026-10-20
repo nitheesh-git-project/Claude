@@ -26,6 +26,15 @@ describe("evaluateDestination", () => {
     expect(evaluateDestination("api.razorpay.com", { NEXT_PUBLIC_RAZORPAY_KEY_ID: "rzp_live_Ab12Cd34Ef56Gh" }).allowed).toBe(false);
   });
 
+  it("refuses the real Razorpay API once the fake gateway is configured, even with a test key", () => {
+    const withFake = { ...TEST_ENV, RAZORPAY_API_BASE_URL: "http://127.0.0.1:4010" };
+    const verdict = evaluateDestination("api.razorpay.com", withFake);
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.reason).toMatch(/fake Razorpay/);
+    expect(evaluateDestination("127.0.0.1", withFake).allowed).toBe(true);
+    expect(evaluateDestination("api.razorpay.com", { ...TEST_ENV, RAZORPAY_API_BASE_URL: " " }).allowed).toBe(true);
+  });
+
   it("refuses everything else, including hosted Supabase, Google and mail providers", () => {
     for (const host of [
       "abcdefgh.supabase.co",

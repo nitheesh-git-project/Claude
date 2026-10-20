@@ -1970,13 +1970,17 @@ it existed the column was read by payouts, by settlement and by every Money
 figure that splits a home visit, and written by nothing - so a different rate for
 visits could only be set by editing the table by hand.
 
-Earnings are computed per completed, paid session (`src/lib/therapistEarnings.ts`,
-`src/lib/therapistPayouts.ts`); therapists request payouts
+Earnings are computed per delivered, earned session (completed, and paid or on
+pay-later terms) by `src/lib/therapistPayouts.ts`, which the therapist's own
+Earnings and Overview read through `src/lib/therapistEarnings.ts`; therapists request payouts
 (`therapist_payout_requests`), and the admin reviews, settles, and batches
-them (`therapist_payout_batches`) with downloadable receipts. The therapist's own
-profile page reads those same modules, so the figure there, the Payouts screen
-and what the Pay button transfers are one number - it used to compute its own,
-from the ordinary share alone and with no travel fee, and disagreed with both.
+them (`therapist_payout_batches`) with downloadable receipts. The therapist's admin
+profile, Money -> Payouts, the therapist's own pending figure and what the Pay
+button transfers are one number. Two screens used to compute their own: the
+admin profile (ordinary share alone, no travel fee) and the therapist's Earnings
+screen, which counted a session carrying no recorded amount at the standard
+session fee where the payout maths counts nothing - so a therapist was shown a
+pending payout larger than anything they could request or be paid.
 
 **Hospital referrals.** Hospitals submit referrals from their dashboard or
 share a registration link / referral code. A referral carries the patient's
@@ -2255,6 +2259,15 @@ of its own:
 - **Editable for 24 hours, then locked.** Every edit inside the window
   copies the previous version into `session_note_revisions`, so a record
   can never be silently rewritten.
+- **The patient gets a summary instead.** The same dialog has a band
+  headed **Shared with the patient** - *What we did today* and *What to do
+  before next time*, optional, 600 characters each - stored in its own
+  table (`session_summaries`) that the patient can read and the note never
+  touches. The patient sees it on their past session card with the
+  therapist's name and date; the admin session drawer shows it to desks
+  that manage Sessions. Same 24-hour edit window and revision history as
+  the note, it cannot be blanked once written, and it goes through the
+  contact scanner. See `docs/rules/clinical.md`.
 - **Nothing is blocked on it.** Marking a session complete stays one tap;
   an unwritten note shows as "Notes to write" on the therapist's Overview
   and as a `needsYou` item in their feed until it exists.
@@ -2390,7 +2403,9 @@ then.** The flow, end to end:
    edits queue for admin exactly as before.
 6. A therapist can re-triage later from the same card. The previous
    specialty's answers stay in the row, hidden on screen and printed in the
-   PDF under "Earlier profile".
+   PDF under "Earlier profile" - and switching back to a condition type the
+   patient had before opens its questions with those answers prefilled,
+   ready to edit, rather than blank.
 
 The two write gates are different because they record different things.
 Onboarding and re-triage need only that the therapist is **assigned**
@@ -2441,10 +2456,41 @@ everything else.
   both exam-submit routes refuse such a patient rather than accumulating
   rows nothing renders. Those two specialties get a progress line anyway,
   read back out of the approved submissions already on file - independence
-  over time, or milestones reached. Their own examination layers (tone,
-  power, balance and gait; posture and milestones) are deliberately
-  deferred, and `SpecialtyExamPanel` exists now with placeholder arms so
-  adding one later is one more arm rather than a page rewrite.
+  over time, or milestones reached. The paediatric examination layer
+  (posture and milestones) is still deferred, and `SpecialtyExamPanel` says
+  so in its place.
+
+  **The neurological examination chart** is the neurological profile's
+  exam layer (`neuro_assessments`, `src/lib/neuroExam.ts`, `NeuroExamPanel`).
+  **Record an examination** opens a full-height dialog with a section strip
+  (phone) or rail (laptop): tone on the Modified Ashworth Scale, power on
+  the Oxford/MRC scale per myotome, reflexes 0 to 4+ and the plantar
+  response, sensation (light touch, pinprick, proprioception) and
+  coordination - all left and right, side by side on a wide screen and
+  stacked per side on a phone - then balance (Romberg, sitting and standing
+  grades, the Berg Balance Scale with optional item scores) and gait
+  (pattern, aids, the 10-metre walk and Timed Up and Go), and notes. Every
+  score is a segmented control on its own scale with each grade's meaning
+  in the legend and on the control; the first segment is **Not tested**,
+  kept apart from normal; **Mark the rest normal** fills only what was not
+  scored; and each row shows what the previous exam found. The record then
+  shows the latest exam as a summary - Berg band, TUG fall-risk line, gait
+  speed band, left-right differences - with what changed since the exam
+  before it, and earlier exams a tap away. It follows the Pain Map's rules:
+  live with no review, append-only, recordable by an assigned therapist
+  from a session that has started (or by an admin with the People scope),
+  readable by the patient in their own words and included in their PDF.
+
+  **Finishing a session needs this condition type's exam.** A therapist's
+  **Done** opens the session note, whose first step is the patient's
+  examination: the Pain Map for an orthopaedic patient, the neurological
+  examination for a neurological one, nothing for a paediatric one (that
+  layer is not built yet). The session closes only once that exam has been
+  recorded by this therapist since an hour before the slot - the note says
+  so before sending anything, and `complete-session` refuses
+  (`pain_map_required` / `neuro_exam_required`) if it is not. The window
+  follows the debug bar's clock, and one layer never stands in for the
+  other. Admins and no-shows are exempt.
 
   Unlike the intake, a Pain Map exam posts live immediately (it's the
   therapist's own clinical judgement) and needs no access grant - a

@@ -192,7 +192,7 @@ export async function loadPersonTimeline(
 
     // Per-role sources.
     if (role === "patient") {
-      const [payments, failures, tries, pain, plans, changes, documents] = await Promise.all([
+      const [payments, failures, tries, pain, plans, changes, documents, neuro] = await Promise.all([
         admin.from("payments").select("id, purpose, amount_paise, status, captured_at, created_at").eq("patient_id", profileId).limit(CAP).then((res) => rows<Parameters<typeof eventsFromPayments>[0][number]>(res)),
         admin.from("payment_failure_log").select("id, appointment_id, amount_paise, error_description, error_reason, created_at").eq("patient_id", profileId).limit(CAP).then((res) => rows<Parameters<typeof eventsFromPaymentFailures>[0][number]>(res)),
         admin.from("checkout_payment_tries").select("id, outcome, flow, created_at").eq("patient_id", profileId).limit(CAP).then((res) => rows<{ id: string; outcome: string; flow: string; created_at: string }>(res)),
@@ -200,6 +200,14 @@ export async function loadPersonTimeline(
         admin.from("care_plans").select("id, therapist_id, status, created_at, submitted_at, reviewed_at, reviewed_by, accepted_at, declined_at").eq("patient_id", profileId).limit(CAP).then((res) => rows<{ id: string; therapist_id: string | null; status: string; created_at: string; submitted_at: string | null; reviewed_at: string | null; reviewed_by: string | null; accepted_at: string | null; declined_at: string | null }>(res)),
         admin.from("profile_change_requests").select("id, status, reviewed_by, reviewed_at, created_at").eq("user_id", profileId).limit(CAP).then((res) => rows<{ id: string; status: string; reviewed_by: string | null; reviewed_at: string | null; created_at: string }>(res)),
         admin.from("patient_medical_documents").select("id, title, document_type, created_at").eq("patient_id", profileId).limit(CAP).then((res) => rows<{ id: string; title: string | null; document_type: string | null; created_at: string }>(res)),
+        // A new table: a database that has not run the latest schema.sql
+        // answers "no such relation", which costs these entries and not the
+        // timeline. Any other failure is still a failed read.
+        admin.from("neuro_assessments").select("id, submitted_by, submitted_by_role, created_at").eq("patient_id", profileId).limit(CAP).then((res) =>
+          res.error && ["42P01", "PGRST205"].includes((res.error as { code?: string }).code ?? "")
+            ? []
+            : rows<{ id: string; submitted_by: string | null; submitted_by_role: string | null; created_at: string }>(res)
+        ),
       ]);
       const refunds = await inIds<Parameters<typeof eventsFromRefundAttempts>[0][number]>(
         "refund_attempts",
@@ -209,6 +217,7 @@ export async function loadPersonTimeline(
       );
       actorIds.push(
         ...pain.map((x) => x.submitted_by),
+        ...neuro.map((x) => x.submitted_by),
         ...plans.flatMap((x) => [x.therapist_id, x.reviewed_by]),
         ...changes.map((x) => x.reviewed_by),
         ...refunds.map((x) => x.requested_by)
@@ -242,6 +251,17 @@ export async function loadPersonTimeline(
             actorName: by?.name ?? null,
             title: "Pain scored on the Pain Map",
             detail: `${a.region.replace(/_/g, " ")}${a.side && a.side !== "na" ? ` (${a.side})` : ""}: ${(a.pain_percent / 10).toFixed(1)}/10`,
+          };
+        }),
+        ...neuro.map((a) => {
+          const by = lookup(a.submitted_by);
+          return {
+            id: `neuro:${a.id}`,
+            at: a.created_at,
+            category: "clinical" as const,
+            actorRole: (by?.role ?? (a.submitted_by_role === "admin" ? "admin" : "therapist")) as ActivityActorRole,
+            actorName: by?.name ?? null,
+            title: "Neurological examination recorded",
           };
         }),
         ...plans.flatMap((p) => {

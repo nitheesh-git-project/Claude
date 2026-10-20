@@ -1,4 +1,4 @@
-import Razorpay from "razorpay";
+import { createRazorpayClient } from "@/lib/razorpayClient";
 
 /**
  * Whether Razorpay holds a completed payment for an order: `true` / `false`,
@@ -9,10 +9,7 @@ import Razorpay from "razorpay";
  */
 export async function razorpayOrderIsPaid(orderId: string): Promise<boolean | null> {
   try {
-    const razorpay = new Razorpay({
-      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
-    });
+    const razorpay = createRazorpayClient();
     const order = await razorpay.orders.fetch(orderId);
     if (order.status === "paid") return true;
     // An "attempted" order can still hold a captured or authorized payment

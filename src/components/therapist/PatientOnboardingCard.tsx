@@ -6,6 +6,7 @@ import OnboardingGuideButton from "@/components/therapist/OnboardingGuideButton"
 import ConditionTriageDialog from "@/components/profile/ConditionTriageDialog";
 import ConditionIntakeWizard from "@/components/profile/ConditionIntakeWizard";
 import {
+  intakePrefillAnswers,
   mergeIntakeQuestionOverrides,
   questionsForSpecialty,
   type IntakeQuestionOverrideRow,
@@ -39,6 +40,7 @@ export default function PatientOnboardingCard({
   initialTriage,
   initialAnswers,
   draftSpecialty,
+  onFileAnswers,
 }: {
   patientId: string;
   patientName: string;
@@ -50,6 +52,9 @@ export default function PatientOnboardingCard({
   /** An abandoned fill, so re-opening resumes rather than restarts. */
   initialAnswers?: Record<string, string>;
   draftSpecialty?: ConditionSpecialty | null;
+  /** Every answer on file, across specialties -- re-triage keeps the old
+   *  set in the same blob, and returning to a specialty prefills from it. */
+  onFileAnswers?: Record<string, string>;
 }) {
   const isRetriage = !!currentSpecialty;
 
@@ -79,10 +84,19 @@ export default function PatientOnboardingCard({
     [chosen, overrideRows]
   );
 
-  // Only resume a draft that was for the specialty just picked. An
-  // abandoned neuro fill must not prefill an ortho form -- the keys are
-  // disjoint, so it would silently submit nothing.
-  const resumeAnswers = chosen && draftSpecialty === chosen ? initialAnswers : undefined;
+  // An unfinished fill for the specialty just picked, else that
+  // specialty's answers already on file -- a patient taken back to a
+  // condition type they had before gets their old answers to edit, not a
+  // blank form. Only the picked specialty's own keys: see
+  // intakePrefillAnswers.
+  const prefill = chosen
+    ? intakePrefillAnswers({
+        specialty: chosen,
+        draft: initialAnswers,
+        draftSpecialty,
+        onFile: onFileAnswers,
+      })
+    : {};
 
   function close() {
     setStep("idle");
@@ -122,7 +136,7 @@ export default function PatientOnboardingCard({
           patientId={patientId}
           extraPayload={{ specialty: chosen, triageData }}
           voice="clinician"
-          initialData={resumeAnswers ?? {}}
+          initialData={prefill}
           onClose={close}
         />
       )}

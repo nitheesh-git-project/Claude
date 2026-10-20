@@ -10,6 +10,7 @@ import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatAddressBlock, mapsSearchUrl, visitAddressFromAppointment } from "@/lib/formatAddress";
 import { isNoteEditable, noteEditHoursLeft } from "@/lib/sessionNotes";
+import { summaryForDialog } from "@/lib/sessionSummary";
 import type { TherapistDashboardData } from "@/lib/therapistDashboardData";
 import RevealContactButton from "@/components/therapist/RevealContactButton";
 import { maskPhone } from "@/lib/contactMasking";
@@ -79,6 +80,7 @@ function finishProps(d: TherapistDashboardData, a: TherapistDashboardData["appoi
     recommendationCategoryId: a.category_id ?? null,
     recommendationNeedsApproval: d.carePlanRequiresApproval,
     recommendationAwaitingClinic: d.patientsAwaitingClinic.has(a.patient_id),
+    summary: summaryForDialog(d.summaryByAppointmentId.get(a.id), d.summariesLoadFailed, d.nowMs),
   };
 }
 
@@ -164,11 +166,15 @@ export function renderTherapistSessionCard(
           {/* Done opens the note (with the Pain Map); saving it is what
               finishes the session, so a confirmed card has no separate
               note button. */}
+          {/* No Show rides beside Done in one unbreakable pair: the Join
+              button's label changes with the time left to the slot, and a
+              long one pushed No Show under Done (FS-002). Done's "not yet"
+              note still takes a row of its own in this flex, under them. */}
           {a.status === "confirmed" && (
-            <>
-              <FinishSessionButton {...finishProps(d, a)} />
-              <MarkNoShowButton appointmentId={a.id} />
-            </>
+            <FinishSessionButton
+              {...finishProps(d, a)}
+              beside={<MarkNoShowButton appointmentId={a.id} />}
+            />
           )}
           {/* The note lives on the card, not behind the patient's chart:
               the moment a therapist can write an accurate note is the
@@ -196,6 +202,11 @@ export function renderTherapistSessionCard(
                 recommendationCategoryId={a.category_id ?? null}
                 recommendationNeedsApproval={carePlanRequiresApproval}
                 recommendationAwaitingClinic={patientsAwaitingClinic.has(a.patient_id)}
+                summary={summaryForDialog(
+                  d.summaryByAppointmentId.get(a.id),
+                  d.summariesLoadFailed,
+                  nowMsForOverview
+                )}
               />
             )}
         </div>
@@ -379,8 +390,10 @@ export function renderTherapistHomeVisitCard(
             travelling to the address above. */}
         {a.status === "confirmed" && (
           <div className="flex items-center gap-2 flex-wrap">
-            <FinishSessionButton {...finishProps(d, a)} />
-            <MarkNoShowButton appointmentId={a.id} />
+            <FinishSessionButton
+              {...finishProps(d, a)}
+              beside={<MarkNoShowButton appointmentId={a.id} />}
+            />
           </div>
         )}
 

@@ -1,7 +1,9 @@
-// The therapist's Done: it opens the session note with the Pain Map step,
-// and saving that note is what finishes the session. The route refuses a
-// therapist's Done without a note (and without a Pain Map update for this
-// session), so the card can't be closed around the paperwork.
+// The therapist's Done: it opens the session note with the patient's exam
+// step, and saving that note is what finishes the session. The route refuses
+// a therapist's Done without a note, and without this condition type's exam
+// for this session -- the Pain Map for an orthopaedic patient, the
+// neurological examination for a neurological one -- so the card can't be
+// closed around the paperwork.
 //
 // Refusals only, like debug-clock.spec.ts: a successful completion writes
 // append-only `session_settlements` rows this spec could not clean up.
@@ -128,17 +130,28 @@ test("FS-003: Done on a started session opens the note with the Pain Map step", 
   await expect(dialog.getByText("Finish session · write the note")).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Update the Pain Map" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: /Save note & finish session/ })).toBeVisible();
+  // The patient's summary is its own band, labelled as the one part the
+  // patient reads, apart from the clinician-only note (F-09).
+  const shared = dialog.getByRole("region", { name: "Shared with the patient" });
+  await expect(shared).toBeVisible();
+  await expect(shared.getByLabel("What we did today")).toBeEditable();
+  await expect(shared.getByLabel("What to do before next time")).toBeEditable();
+  await expect(dialog.getByLabel("What did you treat today?")).toBeVisible();
+  await expect(shared.getByLabel("What did you treat today?")).toHaveCount(0);
   await dialog.screenshot({ path: "test-results/finish-session-dialog.png" });
 });
 
-// Only an orthopaedic chart has a Pain Map, so a neuro patient's session
-// finishes on the note alone. A successful finish writes append-only
-// settlement rows, so this runs on a disposable project only.
-test("FS-004: a neuro patient's session finishes without a Pain Map", async () => {
+// A neurological patient's Done needs this session's neurological
+// examination, the way an orthopaedic one needs the Pain Map -- and never a
+// Pain Map. Refused without the exam, finished once it is recorded. A
+// successful finish writes append-only settlement and exam rows, so this
+// runs on a disposable project only.
+test("FS-004: a neuro patient's Done needs this session's neurological exam, never a Pain Map", async () => {
   test.skip(
     process.env.E2E_ALLOW_APPEND_ONLY_WRITES !== "1" && process.env.CI_LOCAL_STACK !== "1",
     "completing a session writes append-only rows"
   );
+  test.setTimeout(90_000);
   const neuroPatient = await profileIdFor(db, "qa.patient.e@example.test");
   const { error: profileError } = await db
     .from("patient_condition_profiles")
@@ -154,6 +167,39 @@ test("FS-004: a neuro patient's session finishes without a Pain Map", async () =
     },
   });
   expect(note.status(), await note.text()).toBe(200);
+
+  // No neurological exam by this therapist inside the session's window
+  // (from an hour before the slot): Done is refused by its own code. The
+  // exams are append-only, so an earlier run's exam can already sit in
+  // the window; the refusal is asserted whenever it does not.
+  const { data: slotRow } = await db.from("appointments").select("slot_time").eq("id", appt.id).single();
+  const windowStart = new Date(new Date(slotRow!.slot_time as string).getTime() - HOUR).toISOString();
+  const { count: alreadyInWindow } = await db
+    .from("neuro_assessments")
+    .select("id", { count: "exact", head: true })
+    .eq("patient_id", neuroPatient)
+    .eq("submitted_by", therapistId)
+    .gte("created_at", windowStart);
+  if (!alreadyInWindow) {
+    const refused = await therapist.post(`${BASE}/api/appointments/complete-session`, { data: { appointmentId: appt.id } });
+    expect(refused.status()).toBe(409);
+    const body = await refused.json();
+    expect(body.code).toBe("neuro_exam_required");
+    expect(body.error).toMatch(/neurological examination/);
+    const { data: still } = await db.from("appointments").select("status").eq("id", appt.id).single();
+    expect(still!.status).toBe("confirmed");
+  }
+
+  // Record the session's neurological exam through the real route...
+  const exam = await therapist.post(`${BASE}/api/therapist/neuro-assessments/submit`, {
+    data: {
+      patientId: neuroPatient,
+      findings: { bilateral: { power_hip_flexion: { left: "4", right: "5" } }, balance: { bergTotal: 42 } },
+    },
+  });
+  expect(exam.status(), await exam.text()).toBe(200);
+
+  // ...and the same Done now finishes the session, with no Pain Map at all.
   const done = await therapist.post(`${BASE}/api/appointments/complete-session`, { data: { appointmentId: appt.id } });
   expect(done.status(), await done.text()).toBe(200);
 });

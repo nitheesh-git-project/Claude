@@ -8,6 +8,7 @@ import { StripProgress } from "@/components/dashboard/StatStrip";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
+import { noNextSessionHeadline } from "@/lib/patientOverviewCopy";
 
 export const metadata: Metadata = {
   title: "Patient Dashboard | MoveRestore",
@@ -95,7 +96,7 @@ export default async function PatientDashboardPage() {
             ? `Your next session is ${formatSlotTime(d.nextSession.slot_time, d.nextSession.timezone)}.`
             : d.unbookedSessionCount > 0
               ? `You have ${d.unbookedSessionCount} paid session${d.unbookedSessionCount === 1 ? "" : "s"} still to book - pick times that suit you.`
-              : "Nothing booked yet - pick a time that suits you and your therapist takes it from there."
+              : noNextSessionHeadline(d.bookingHistory)
         }
         cells={d.overviewCells}
         stripFooter={

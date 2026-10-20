@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import type { CalendarInviteOutcome } from "@/lib/calendarInviteOutcome";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -278,8 +279,15 @@ export async function POST(request: NextRequest) {
   // Sync never blocks a booking -- a Calendar/Meet failure is recorded on the
   // appointment and retried from Settings → System health. Same rule as
   // every other booking path (see AGENTS.md).
+  //
+  // What happened to the invite is reported back, separately from the
+  // booking: the screen used to promise "the calendar invite is on its way"
+  // for every confirmed booking, including on a deployment with no Google
+  // connection, where none is ever sent (QA F-13). Null for an unassigned
+  // booking, which has no invite to send yet.
+  let calendarInvite: CalendarInviteOutcome | null = null;
   if (therapistId) {
-    await createMeetEventForConfirmedAppointment(admin, {
+    calendarInvite = await createMeetEventForConfirmedAppointment(admin, {
       appointmentId: created.id,
       patientId,
       therapistId,
@@ -303,5 +311,5 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ success: true, appointmentId: created.id, status });
+  return NextResponse.json({ success: true, appointmentId: created.id, status, calendarInvite });
 }

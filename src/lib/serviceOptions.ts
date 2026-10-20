@@ -143,28 +143,38 @@ export const GENERAL_CONSULTATION_CATEGORY_ID =
   "00000000-0000-0000-0000-000000000001";
 
 /**
- * Which condition `/book` opens with.
+ * Which condition `/book` (and `/book-home-visit`) opens with.
  *
- * Three answers, in order, and the third is the one worth stating:
+ * In order:
  *
  * 1. **What the link asked for.** `/book?category=<id>` comes from
  *    `/conditions`, from the patient's own booking screen and from a
  *    therapist's profile, and it is a decision somebody already made.
- * 2. **Otherwise the general consultation**, so somebody who tapped a plain
- *    *Book* button is looking at a bookable session rather than an empty
- *    control. That is what this row exists for.
- * 3. **Otherwise nothing.** Never the first row by display order: which
+ * 2. **The admin's booking default** -- the one service switched on as
+ *    "Default on booking" on Catalog -> Conditions (`is_default`, at most one
+ *    row; schema.sql). `configuredDefaultId` is that row's id, `null` when
+ *    the read worked and no service is switched on, and `undefined` when it
+ *    could not be read (a database without the column yet).
+ * 3. **Only when the setting could not be read: the general consultation**,
+ *    the behaviour from before the switch existed -- an unreadable setting
+ *    is "we couldn't check", not "the admin chose none" (CLAUDE.md).
+ * 4. **Otherwise nothing.** Never the first row by display order: which
  *    condition happens to sort first is an admin's ordering decision about a
  *    *list*, not a statement about what a stranger most likely needs, and a
- *    booking pre-filled from it would be a choice nobody made. A database
- *    whose fallback row has been deleted opens the picker unanswered, which
- *    is honest.
+ *    booking pre-filled from it would be a choice nobody made. An admin who
+ *    switches every default off gets the picker unanswered, which is honest.
  */
 export function defaultCategoryId(
   rows: { id: string; title?: string | null }[],
-  requestedId?: string | null
+  requestedId?: string | null,
+  configuredDefaultId?: string | null
 ): string {
   if (requestedId && rows.some((r) => r.id === requestedId)) return requestedId;
+  if (configuredDefaultId !== undefined) {
+    return configuredDefaultId && rows.some((r) => r.id === configuredDefaultId)
+      ? configuredDefaultId
+      : "";
+  }
   const general =
     rows.find((r) => r.id === GENERAL_CONSULTATION_CATEGORY_ID) ??
     // A database the seed has not reached yet (production before schema.sql

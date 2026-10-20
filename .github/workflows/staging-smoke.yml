@@ -2,13 +2,11 @@
 # anonymous GET requests (scripts/ci/staging-smoke.mjs). It signs in as
 # nobody and writes nothing, so it is safe against any deployment.
 #
-# Runs on a deployment-status event from a hosting integration that reports
-# one for the staging branch, and by hand. It needs the repository
-# *variable* STAGING_URL (not a secret -- it is a public origin);
-# PRODUCTION_URL, if set, is refused as a target. Until STAGING_URL is set
-# the automatic trigger does not run; a manual run without it fails, because
-# "nothing was checked" is not a pass. It is not part of the pre-merge gate and not a
-# required check: no deployment is triggered from this repository.
+# Runs on a deployment-status event from the hosting integration, and by
+# hand. It needs the repository *variable* STAGING_URL (not a secret -- it
+# is a public origin); PRODUCTION_URL, if set, is refused as a target. It is
+# not part of the pre-merge gate and not a required check: no deployment is
+# triggered from this repository. docs/ci/STAGING-SMOKE.md has the detail.
 name: Staging smoke
 
 on:
@@ -20,19 +18,19 @@ permissions:
 
 jobs:
   smoke:
-    # A manual run, or a successful deployment *of the staging branch* once
-    # STAGING_URL is configured. Matching on the environment name was not
-    # enough: Vercel reports every pull request's preview as a non-Production
-    # deployment, so this fired on each one and, with STAGING_URL unset, put a
-    # red check on every PR. A manual run with no STAGING_URL still fails --
-    # someone asked for a check and nothing was checked.
+    # Only the cheap, always-true-or-false facts are filtered here. Which
+    # branch a deployment is of is NOT: Vercel creates every non-production
+    # deployment -- staging's included -- with `ref` set to the commit SHA
+    # and environment "Preview", so the old `deployment.ref == 'staging'`
+    # was never true and every staging deployment skipped this job without
+    # a word (QA F-08, run 38498440871). The gate step below asks GitHub
+    # whether the deployed SHA is on staging and writes its answer to the
+    # job summary, so a run that checks nothing says why.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.deployment_status.state == 'success' &&
-       github.event.deployment.ref == 'staging' &&
        github.event.deployment.environment != 'Production' &&
-       github.event.deployment.environment != 'production' &&
-       vars.STAGING_URL != '')
+       github.event.deployment.environment != 'production')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -40,7 +38,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Decide whether this deployment is staging's
+        id: gate
+        run: node scripts/ci/staging-smoke-gate.mjs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DEPLOYED_SHA: ${{ github.event.deployment.sha }}
+          DEPLOY_ENVIRONMENT: ${{ github.event.deployment.environment }}
+          STAGING_URL: ${{ vars.STAGING_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Smoke-check staging
+        if: steps.gate.outputs.run == 'true'
         run: node scripts/ci/staging-smoke.mjs
         env:
           STAGING_URL: ${{ vars.STAGING_URL }}

@@ -4,7 +4,6 @@
 // guard against are TOCTOU races that only manifest under real concurrency
 // -- a sequential re-run would pass even against the unguarded code.
 import { test, expect } from "@playwright/test";
-import Razorpay from "razorpay";
 import {
   adminClient,
   cookieHeaderFor,
@@ -18,6 +17,7 @@ import {
   clinicSlot,
   openTherapistHour,
 } from "./helpers";
+import { specRazorpayClient } from "./fakeGateway";
 
 test.describe.configure({ mode: "serial" });
 
@@ -57,14 +57,13 @@ test("refund-home-visit-package: at most one concurrent request reaches Razorpay
     .single();
   expect(pkg && area).toBeTruthy();
 
-  // A real Razorpay test-mode order behind the purchase -- the refund route
-  // genuinely calls razorpay.payments.refund(), so this needs a real
-  // order id, not a stub, even though the "payment" itself can't be
-  // captured through the actual Checkout widget from an automated run.
-  const razorpay = new Razorpay({
-    key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-    key_secret: process.env.RAZORPAY_KEY_SECRET!,
-  });
+  // A real order behind the purchase -- the refund route genuinely calls
+  // razorpay.orders.fetch() and razorpay.payments.refund(), so this needs an
+  // order the app's gateway knows, not a stub id, even though the "payment"
+  // itself is never captured. Made wherever the app's own client goes: the
+  // fake gateway in the quality gate (RAZORPAY_API_BASE_URL), Razorpay test
+  // mode otherwise -- an order made at one is unknown to the other.
+  const razorpay = specRazorpayClient();
   const totalPaise = pkg!.price_paise + area!.travel_fee_paise * pkg!.visit_count;
   const order = await razorpay.orders.create({ amount: totalPaise, currency: "INR", receipt: `e2e-race-${Date.now()}` });
   const fakePaymentId = `${E2E_MARKERS.fakePaymentIdPrefix}${Date.now()}`;
@@ -105,8 +104,13 @@ test("refund-home-visit-package: at most one concurrent request reaches Razorpay
   // blocked by the claim, never reached Razorpay. Non-409 = won the claim,
   // called Razorpay, Razorpay said no on its own merits -- a properly
   // guarded attempt, not a double-refund.
-  const winners = [r1, r2].filter((r) => r.status !== 409);
-  const losers = [r1, r2].filter((r) => r.status === 409);
+  // A request can also be turned away BEFORE the claim: the claim marks
+  // the purchase "refunded" while its gateway call is in flight, so a
+  // request that reads the row in that window gets "already been refunded"
+  // (400) and never reaches Razorpay. Only 200 (refunded) and 502 (Razorpay
+  // refused) mean a request won the claim and called the gateway.
+  const winners = [r1, r2].filter((r) => r.status === 200 || r.status === 502);
+  const losers = [r1, r2].filter((r) => r.status !== 200 && r.status !== 502);
   // What this route-level race cannot do is force the two requests to
   // overlap. Each one first fetches the Razorpay order over the network,
   // and the fake payment's refund is refused almost at once, which releases

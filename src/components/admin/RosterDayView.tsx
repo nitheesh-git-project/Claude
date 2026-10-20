@@ -24,7 +24,17 @@ import { summariseRosterDay, type RosterDayEntry } from "@/lib/rosterDay";
 // roster is the clinic's planning record, and it does not filter the patient's
 // own picker. A free hour on this screen means "nobody has it and she works
 // then", never "sell it".
-export default function RosterDayView({ todayKey }: { todayKey: string }) {
+export default function RosterDayView({
+  todayKey,
+  refreshKey,
+}: {
+  todayKey: string;
+  /** Changes when the server render behind this screen brings different
+   *  roster rows (`rosterDataKey`). This view reads its date from its own
+   *  API and the screen stays mounted, so without it the answer was read
+   *  once per date and kept through every in-app refresh (QA F-20). */
+  refreshKey?: string;
+}) {
   const [dateKey, setDateKey] = useState(todayKey);
   const [entries, setEntries] = useState<RosterDayEntry[] | null>(null);
   // Starts true and is cleared when the first answer lands. The spinner is
@@ -83,7 +93,8 @@ export default function RosterDayView({ todayKey }: { todayKey: string }) {
     return () => {
       cancelled = true;
     };
-  }, [dateKey]);
+    // refreshKey is a trigger, not an input: a re-read is what it asks for.
+  }, [dateKey, refreshKey]);
 
   const summary = entries ? summariseRosterDay(entries) : null;
 

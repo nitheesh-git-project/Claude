@@ -1,7 +1,8 @@
 # Investigating a red quality gate
 
 This is a prompt you paste into Claude Code yourself, together with a
-`failure-bundle-<runner>` artifact, when a gate failure needs more than a
+`failure-bundle-<shard>` artifact (`<shard>` is the job's label: `admin-2of8`
+for one of a split runner's jobs, or the runner's own name, `hospital`), when a gate failure needs more than a
 look at the job summary. Nothing in CI calls Claude or any other paid
 service. A green run costs nothing, and so does a red one until you choose
 to investigate it.
@@ -13,14 +14,14 @@ this file is the whole integration.
 
 ## Before you start
 
-1. Download the runner's artifacts from the failed run:
-   - `failure-bundle-<runner>`: the failed tests, the sanitised errors, the
+1. Download the failed job's artifacts from the run:
+   - `failure-bundle-<shard>`: the failed tests, the sanitised errors, the
      files the change touched, the guides to read, and the commands that
      reproduce each failure.
-   - `reports-<runner>`: the sanitised JSON and JUnit reports and logs
+   - `reports-<shard>`: the sanitised JSON and JUnit reports and logs
      (`logs/next-dev.log`, `logs/playwright-*.log`, one log per integrity
      script).
-   - `traces-<runner>`: Playwright traces, screenshots and the HTML report.
+   - `traces-<shard>`: Playwright traces, screenshots and the HTML report.
      These are binary and not sanitised. They hold only synthetic fixtures, so keep them local
      and don't paste them anywhere.
 2. Check out the PR's head commit.
@@ -51,8 +52,9 @@ Ground rules:
 Steps:
 1. Reproduce. Provision the local stack, then run the bundle's single-test
    command for the first failure. If it passes alone but fails in the
-   runner, run the whole runner (node scripts/ci/run-runner.mjs <runner>)
-   and look for an ordering or shared-fixture cause.
+   runner, run its shard (node scripts/ci/run-runner.mjs <runner> --shard i/n,
+   as the bundle prints it), then the whole runner (without --shard), and
+   look for an ordering or shared-fixture cause.
 2. Classify the cause as exactly one of:
    - an application bug
    - a stale test (it asserts a product that has since changed on purpose,

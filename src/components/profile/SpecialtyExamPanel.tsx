@@ -2,34 +2,31 @@ import PainMapExplorer from "@/components/profile/PainMapExplorer";
 import type { AreaPainEntry } from "@/lib/conditionIntake";
 import { CONDITION_SPECIALTIES, type ConditionSpecialty } from "@/lib/conditionSpecialty";
 import type { PainAssessmentRow, QuestionOverrideRow } from "@/lib/painMap";
+import NeuroExamPanel from "@/components/profile/neuro/NeuroExamPanel";
+import type { NeuroAssessmentRow } from "@/lib/neuroExam";
 
 // The clinician's examination layer for a profile's specialty.
 //
-// Today exactly one arm is real. The Pain Map -- seventeen body regions,
-// twenty exam questions, a 0-100 pain percentage per region -- is an
-// ORTHOPAEDIC instrument and stays one. A neurological exam measures tone,
-// power, reflexes, balance and gait; a paediatric one measures milestones
-// and posture. Neither fits a body map with a pain score on it, so neither
-// gets one.
+// Two arms are real. The Pain Map -- seventeen body regions, twenty exam
+// questions, a 0-100 pain percentage per region -- is an ORTHOPAEDIC
+// instrument and stays one. The neurological examination (tone, power,
+// reflexes, sensation, coordination, balance and gait; src/lib/neuroExam.ts,
+// neuro_assessments) is its own table and its own module, never a
+// `specialty` column on pain_assessments, so neither reader branches on the
+// other's data. A paediatric exam measures milestones and posture, fits
+// neither, and is still deferred -- building it is one more arm here, the
+// way the neurological one was.
 //
-// This component exists now, with two placeholder arms, precisely so that
-// building those layers later is one more arm here rather than a rewrite
-// of both health-profile pages. When that happens:
-//
-//   - it is a NEW table (neuro_assessments), never a `specialty` column on
-//     pain_assessments -- the two record different measurements and
-//     sharing a table would mean every reader branching on specialty;
-//   - a new question module in src/lib/, a new *Snapshot function beside
-//     the others in healthProfileSummary.ts, and one more case below.
-//
-// Note the pages do not merely hide the Pain Map for non-ortho: they never
-// query pain_assessments at all, which is why this takes no assessment
-// props on those paths rather than being handed an empty array.
+// The pages never query a layer the specialty does not render: an
+// orthopaedic page never reads neuro_assessments and a neurological one
+// never reads pain_assessments, which is why each arm takes its own props
+// rather than being handed an empty array.
 export default function SpecialtyExamPanel({
   specialty,
   assessments,
   areaPain,
   record,
+  neuro,
   voice = "patient",
 }: {
   specialty: ConditionSpecialty;
@@ -40,15 +37,29 @@ export default function SpecialtyExamPanel({
     patientId: string;
     overridesByRegion: Record<string, QuestionOverrideRow[]>;
   };
-  /** Who is reading. The placeholder below is the one piece of copy here
-   *  that addresses someone directly, and "your therapist keeps these in
-   *  their session notes" is nonsense on the therapist's own screen. */
+  /** The neurological arm's rows, read only on a neurological page. */
+  neuro?: {
+    assessments: NeuroAssessmentRow[];
+    loadFailed: boolean;
+    record?: { endpoint: string; patientId: string; patientName?: string };
+  };
+  /** Who is reading. Every sentence that addresses someone branches on it:
+   *  "your therapist goes through these with you" is nonsense on the
+   *  therapist's own screen. */
   voice?: "patient" | "clinician";
 }) {
   switch (specialty) {
     case "ortho":
       return <PainMapExplorer assessments={assessments} areaPain={areaPain} record={record} />;
     case "neuro":
+      return (
+        <NeuroExamPanel
+          assessments={neuro?.assessments ?? []}
+          loadFailed={neuro?.loadFailed ?? false}
+          voice={voice}
+          record={neuro?.record}
+        />
+      );
     case "pediatrics":
       return <DeferredExamNotice specialty={specialty} voice={voice} />;
     default: {
@@ -62,18 +73,14 @@ function DeferredExamNotice({
   specialty,
   voice,
 }: {
-  specialty: "neuro" | "pediatrics";
+  specialty: "pediatrics";
   voice: "patient" | "clinician";
 }) {
   const def = CONDITION_SPECIALTIES.find((s) => s.key === specialty);
   const clinician = voice === "clinician";
   const measures = clinician
-    ? specialty === "neuro"
-      ? "tone, power, balance and gait"
-      : "posture, movement and milestone progress"
-    : specialty === "neuro"
-      ? "muscle tone, power, balance and how you walk"
-      : "posture, movement and the milestones your child is working towards";
+    ? "posture, movement and milestone progress"
+    : "posture, movement and the milestones your child is working towards";
 
   return (
     <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-6 text-center">

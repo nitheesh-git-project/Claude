@@ -3,9 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { hasApprovedConditionAccess, isTherapistAssignedToPatient } from "@/lib/conditionAccess";
-import { questionKeysForSpecialty } from "@/lib/conditionIntake";
+import { findContradictoryMultiSelects, questionKeysForSpecialty } from "@/lib/conditionIntake";
 import { loadConditionProfileCore } from "@/lib/conditionProfileServer";
-import { isConditionSpecialty } from "@/lib/conditionSpecialty";
+import {
+  isConditionSpecialty,
+  sanitiseTriageAnswers,
+  TRIAGE_CONTRADICTION_ERROR,
+  TRIAGE_QUESTIONS,
+} from "@/lib/conditionSpecialty";
 import {
   describeProfileStanding,
   getProfileStanding,
@@ -89,10 +94,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Submission contains unknown fields." }, { status: 400 });
   }
 
+  // Known keys with string values only -- this used to store whatever
+  // object the body carried, and the triage dialog reads it back as its
+  // starting answers. A contradictory one ("None of these" beside a sign)
+  // is refused for the same reason /onboard refuses it.
   const triageData =
     body.triageData && typeof body.triageData === "object" && !Array.isArray(body.triageData)
-      ? (body.triageData as Record<string, string>)
+      ? sanitiseTriageAnswers(body.triageData)
       : null;
+  if (triageData && findContradictoryMultiSelects(TRIAGE_QUESTIONS, triageData).length > 0) {
+    return NextResponse.json({ error: TRIAGE_CONTRADICTION_ERROR }, { status: 400 });
+  }
 
   const { error } = await admin.from("patient_condition_profiles").upsert(
     {

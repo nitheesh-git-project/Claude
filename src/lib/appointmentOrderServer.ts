@@ -13,7 +13,8 @@
 // status create-order has always answered with; callers pass it through.
 
 import "server-only";
-import Razorpay from "razorpay";
+import type Razorpay from "razorpay";
+import { createRazorpayClient } from "@/lib/razorpayClient";
 import type { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isGatewayPayable } from "@/lib/discounts";
@@ -63,10 +64,7 @@ export async function mintAppointmentOrder({
   // RAZORPAY_KEY_SECRET env var for this deployment.
   let razorpay: Razorpay;
   try {
-    razorpay = new Razorpay({
-      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
-    });
+    razorpay = createRazorpayClient();
   } catch (err) {
     console.error("Razorpay client construction failed -- check env vars", err);
     return {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import Razorpay from "razorpay";
+import { createRazorpayClient } from "@/lib/razorpayClient";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -12,6 +12,7 @@ import {
   refundRefusalForAdmin,
 } from "@/lib/refundAttempt";
 import { formatRupees } from "@/lib/formatMoney";
+import { describeRefundPosition } from "@/lib/refundState";
 
 // A discretionary refund on one session, for an amount an admin chooses.
 //
@@ -101,6 +102,27 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
   const onTerms = terms?.payment_terms === "pay_later";
 
+  // What the last refund on this session said, and when and by whom it was
+  // made -- read so a claim the gateway then refuses can be put back exactly
+  // as it was. The revert used to blank `refund_reason` and leave the refused
+  // attempt's `refunded_at` / `refunded_by` behind, so a refused second
+  // refund wiped the reason off the first one and dated it to a refund that
+  // never happened (e2e/gateway-admin-refund.spec.ts AR-002). Its own read
+  // because `refunded_at` / `refunded_by` are the newest columns on this
+  // table; unreadable, the revert does what it always did (clears the reason).
+  const { data: priorRefund } = await admin
+    .from("appointments")
+    .select("refund_reason, refunded_at, refunded_by")
+    .eq("id", appointmentId)
+    .maybeSingle();
+  const restoreRefundRecord = priorRefund
+    ? {
+        refund_reason: priorRefund.refund_reason,
+        refunded_at: priorRefund.refunded_at,
+        refunded_by: priorRefund.refunded_by,
+      }
+    : { refund_reason: null };
+
   // A session a trusted patient has NOT settled is not a refund at all --
   // the clinic is holding none of their money. What is being asked for is a
   // write-off, and saying so is the difference between a refusal somebody
@@ -145,8 +167,11 @@ export async function POST(request: NextRequest) {
   const travelChargedPaise =
     appointment.visit_mode === "home_visit" ? Math.max(0, appointment.travel_fee_paise ?? 0) : 0;
   const paid = (appointment.amount_paid_paise ?? 0) + travelChargedPaise;
+  // The running total committed back -- what earlier refunds returned, and
+  // only that: a failed attempt adds nothing to it. Read through the same
+  // position the drawer shows, so its "still refundable" is this ceiling.
   const alreadyRefunded = appointment.refund_amount_paise ?? 0;
-  const remaining = paid - alreadyRefunded;
+  const remaining = describeRefundPosition(appointment, paid).refundablePaise;
 
   if (remaining <= 0) {
     return NextResponse.json(
@@ -254,7 +279,7 @@ export async function POST(request: NextRequest) {
         refund_status: appointment.refund_status,
         refund_amount_paise: appointment.refund_amount_paise,
         refund_is_manual: alreadyRefunded > 0,
-        refund_reason: null,
+        ...restoreRefundRecord,
       })
       .eq("id", appointmentId)
       .eq("refund_amount_paise", totalRefunded);
@@ -269,10 +294,7 @@ export async function POST(request: NextRequest) {
 
   let refundId: string | null = null;
   try {
-    const razorpay = new Razorpay({
-      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
-    });
+    const razorpay = createRazorpayClient();
     const refund = await razorpay.payments.refund(appointment.razorpay_payment_id, {
       amount: amountPaise,
     });
@@ -293,7 +315,7 @@ export async function POST(request: NextRequest) {
         refund_status: appointment.refund_status,
         refund_amount_paise: appointment.refund_amount_paise,
         refund_is_manual: alreadyRefunded > 0,
-        refund_reason: null,
+        ...restoreRefundRecord,
       })
       .eq("id", appointmentId)
       .eq("refund_amount_paise", totalRefunded);

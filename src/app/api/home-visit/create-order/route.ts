@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { lookupServiceArea } from "@/lib/serviceAreaServer";
-import Razorpay from "razorpay";
+import type Razorpay from "razorpay";
+import { createRazorpayClient } from "@/lib/razorpayClient";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -232,10 +233,7 @@ export async function POST(request: NextRequest) {
   // NEXT_PUBLIC_RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET for this deployment).
   let razorpay: Razorpay;
   try {
-    razorpay = new Razorpay({
-      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
-    });
+    razorpay = createRazorpayClient();
   } catch (err) {
     console.error("Razorpay client construction failed -- check env vars", err);
     return NextResponse.json(

@@ -253,6 +253,46 @@ test("ON-009/010: required answers and unknown keys are re-checked server-side",
   expect((await foreign.json()).error).toMatch(/unknown fields/i);
 });
 
+test("ON-011: triage refuses 'None of these' ticked beside a sign, live and in the draft", async ({
+  request,
+}) => {
+  // The dialog clears one when the other is ticked (toggleMultiSelectOption);
+  // the routes refuse the pair outright, since a request is never the
+  // authority on what the clinician meant.
+  const contradictory = {
+    age_band: "18 to 64",
+    presenting_problem: "Injury, strain or overuse",
+    neuro_signs: "None of these\nWeakness on one side",
+  };
+  const live = await post(request, "/api/therapist/condition-profile/onboard", therapistCookie, {
+    patientId,
+    specialty: "ortho",
+    data: ORTHO_ANSWERS,
+    triageData: contradictory,
+  });
+  expect(live.status()).toBe(400);
+  expect((await live.json()).error).toMatch(/None of these/);
+  expect(await profileRow()).toBeNull();
+
+  const draft = await post(request, "/api/therapist/condition-profile/save-draft", therapistCookie, {
+    patientId,
+    specialty: "ortho",
+    data: { chief_complaint: "Knee" },
+    triageData: contradictory,
+  });
+  expect(draft.status()).toBe(400);
+  expect(await profileRow()).toBeNull();
+
+  // Either half on its own is an ordinary answer.
+  const ok = await post(request, "/api/therapist/condition-profile/onboard", therapistCookie, {
+    patientId,
+    specialty: "ortho",
+    data: ORTHO_ANSWERS,
+    triageData: { ...contradictory, neuro_signs: "None of these" },
+  });
+  expect(ok.status()).toBe(200);
+});
+
 // --------------------------------------------------------- LK: patient lock
 
 test("LK-004/005: the patient's write routes are shut while the record is empty", async ({
@@ -408,6 +448,68 @@ test("RT-001/002: re-triage keeps the earlier record and shows only the current 
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
   await expect(page.getByText(/Right knee pain/i).first()).toBeVisible(SEEN);
   await expect(page.getByText(/Not sitting without support/i)).toHaveCount(0);
+  await ctx.close();
+});
+
+test("RT-006: going back to an earlier condition type prefills its answers, and saving adds history", async ({
+  request,
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  // Orthopaedic -> neurological -> back to orthopaedic used to open the
+  // orthopaedic questions blank, though the merge had kept every answer.
+  await seedProfile("ortho", ORTHO_ANSWERS);
+  const toNeuro = await post(request, "/api/therapist/condition-profile/onboard", therapistCookie, {
+    patientId,
+    specialty: "neuro",
+    data: NEURO_ANSWERS,
+    triageData: { age_band: "18 to 64", presenting_problem: "After a stroke, brain or spinal injury" },
+  });
+  expect(toNeuro.status()).toBe(200);
+  const historyBefore = await countRequests("approved");
+
+  const { ctx, page } = await pageAs(browser, THERAPIST);
+  await page.goto(`${BASE}/therapist/dashboard/health-profile/${patientId}`);
+  await page.getByRole("button", { name: "Change condition type" }).click(SEEN);
+  const triage = page.getByRole("dialog", { name: /Which condition type is this/ });
+  await expect(triage).toBeVisible(SEEN);
+  await triage.getByRole("button", { name: "18 to 64", exact: true }).click();
+  await triage.getByRole("button", { name: "Injury, strain or overuse", exact: true }).click();
+  await triage.getByRole("button", { name: /^Orthopaedic/ }).click();
+  await triage.getByRole("button", { name: "Continue to the questions" }).click();
+
+  // Walk to the review step: the earlier answers are there, not blanks.
+  const save = page.getByRole("button", { name: "Save to their chart" });
+  const intro = page.getByRole("button", { name: /^(Start|Continue)$/ });
+  const next = page.getByRole("button", { name: /^(Next|Skip)$/ });
+  if (await intro.isVisible().catch(() => false)) await intro.click();
+  for (let i = 0; i < 12 && !(await save.isVisible().catch(() => false)); i++) {
+    await next.click();
+    await page.waitForTimeout(200);
+  }
+  await expect(save).toBeVisible(SEEN);
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText(ORTHO_ANSWERS.chief_complaint)).toBeVisible();
+  await expect(dialog.getByText(ORTHO_ANSWERS.since_when)).toBeVisible();
+
+  // Wait for the route to finish, not for the profile row to change: /onboard
+  // writes the profile first and the history entry after it, so a count read
+  // the moment the row flips can land between the two (CI saw 2 for 3).
+  const [saved] = await Promise.all([
+    page.waitForResponse(
+      (r) => r.url().includes("/api/therapist/condition-profile/onboard") && r.request().method() === "POST",
+      SEEN
+    ),
+    save.click(),
+  ]);
+  expect(saved.status()).toBe(200);
+  expect((await profileRow())?.specialty).toBe("ortho");
+  const row = await profileRow();
+  expect((row?.data as Record<string, string>).chief_complaint).toBe(ORTHO_ANSWERS.chief_complaint);
+  // The neurological answers stay on file, hidden.
+  expect((row?.data as Record<string, string>).neuro_diagnosis).toBe(NEURO_ANSWERS.neuro_diagnosis);
+  // A new history entry; nothing earlier rewritten.
+  expect(await countRequests("approved")).toBe(historyBefore + 1);
   await ctx.close();
 });
 
@@ -741,6 +843,46 @@ test("INT-009: a free-text answer takes a whole sentence, not one letter", async
   await input.pressSequentially(sentence, { delay: 30 });
   await expect(input).toHaveValue(sentence);
   await expect(input).toBeFocused();
+  await ctx.close();
+});
+
+test("A11Y-001: the intake's body map is answered from the keyboard, by name", async ({ browser }) => {
+  // Each tap point was a bare <g onClick> inside a role="img": no name, no
+  // tab stop, no key handler, and hidden from a screen reader altogether.
+  // Now each is a named checkbox that Space and Enter toggle.
+  await seedProfile("ortho", ORTHO_ANSWERS);
+  const { ctx, page } = await pageAs(browser, PATIENT);
+
+  await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  await page.getByRole("button", { name: /Add more detail|Review or update answers/i }).click(SEEN);
+
+  const backFigure = page.getByRole("group", { name: /Back of the body - choose each area that hurts/ });
+  const intro = page.getByRole("button", { name: /^(Start|Continue)$/ });
+  const next = page.getByRole("button", { name: /^(Next|Skip)$/ });
+  if (await intro.isVisible().catch(() => false)) await intro.click();
+  for (let i = 0; i < 12 && !(await backFigure.isVisible().catch(() => false)); i++) {
+    await next.click();
+    await page.waitForTimeout(200);
+  }
+  await expect(backFigure).toBeVisible(SEEN);
+
+  const lowerBack = page.getByRole("checkbox", { name: "Lower back", exact: true });
+  await expect(lowerBack).toHaveAttribute("aria-checked", "false");
+  await lowerBack.focus();
+  await expect(lowerBack).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(lowerBack).toHaveAttribute("aria-checked", "true");
+  // The area is on the list, with its own named slider.
+  await expect(page.getByRole("slider", { name: /Pain in lower back, 0 to 10/ })).toBeVisible();
+
+  const leftKnee = page.getByRole("checkbox", { name: "Knee, left side", exact: true });
+  await leftKnee.focus();
+  await page.keyboard.press("Enter");
+  await expect(leftKnee).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Enter");
+  await expect(leftKnee).toHaveAttribute("aria-checked", "false");
+  // Focus stayed on the point, so a second key press means the same area.
+  await expect(leftKnee).toBeFocused();
   await ctx.close();
 });
 

@@ -1,6 +1,7 @@
 import { PAIN_BAND_LABEL, formatPainOutOfTen } from "@/lib/painMap";
 import StatStrip, { StripProgress, type StatCell } from "@/components/dashboard/StatStrip";
 import type { OrthoSnapshot } from "@/lib/healthProfileSummary";
+import { formatClinicDateShort } from "@/lib/formatDateTime";
 
 const SELF_SEVERITY_WORD = (value: number) => (value <= 3 ? "Mild" : value <= 6 ? "Moderate" : "Severe");
 
@@ -75,10 +76,7 @@ export default function OrthoSnapshotStrip({ snapshot, showProgress = true }: { 
       value: String(regionsAssessed),
       unit: regionsAssessed === 1 ? "area" : "areas",
       note: lastAssessedAt
-        ? `Last checked ${new Date(lastAssessedAt).toLocaleDateString(undefined, { timeZone: "Asia/Kolkata",
-            day: "numeric",
-            month: "short",
-          })}`
+        ? `Last checked ${formatClinicDateShort(lastAssessedAt)}`
         : "No exam on record yet",
       accent: "bg-slate-400",
     },

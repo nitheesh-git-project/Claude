@@ -5,6 +5,7 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import {
+  findContradictoryMultiSelects,
   findMissingRequiredKeys,
   intakeVersionForSpecialty,
   isSameIntakeSubmission,
@@ -16,10 +17,13 @@ import {
   loadMergedIntakeQuestions,
   readEnabledSpecialties,
 } from "@/lib/conditionProfileServer";
-import { isConditionSpecialty, TRIAGE_QUESTIONS } from "@/lib/conditionSpecialty";
+import {
+  isConditionSpecialty,
+  sanitiseTriageAnswers,
+  TRIAGE_CONTRADICTION_ERROR,
+  TRIAGE_QUESTIONS,
+} from "@/lib/conditionSpecialty";
 import { serverError } from "@/lib/apiError";
-
-const TRIAGE_KEYS = new Set(TRIAGE_QUESTIONS.map((q) => q.key));
 
 // Patient onboarding: the therapist triages the patient, picks Ortho /
 // Neuro / Pediatrics, and fills that specialty's questions. This is the
@@ -129,15 +133,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const triageData = Object.fromEntries(
-    Object.entries(
-      body.triageData && typeof body.triageData === "object" && !Array.isArray(body.triageData)
-        ? (body.triageData as Record<string, unknown>)
-        : {}
-    )
-      .filter(([k, v]) => TRIAGE_KEYS.has(k) && typeof v === "string")
-      .map(([k, v]) => [k, v as string])
-  );
+  const triageData = sanitiseTriageAnswers(body.triageData);
+  // "None of these" beside a sign is a record contradicting itself. The
+  // dialog cannot produce it any more (toggleMultiSelectOption), so one
+  // arriving here is a stale or hand-built request -- refused, not
+  // normalised, since which half the clinician meant is not ours to guess.
+  if (findContradictoryMultiSelects(TRIAGE_QUESTIONS, triageData).length > 0) {
+    return NextResponse.json({ error: TRIAGE_CONTRADICTION_ERROR }, { status: 400 });
+  }
 
   // A patient edit sitting in the review queue was written against the
   // OLD question set. Approving it after a re-triage would write answers

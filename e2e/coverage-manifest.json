@@ -2,10 +2,11 @@
   "version": 1,
   "description": "Who owns which Playwright spec, and which product flows those specs prove. Validated by scripts/ci/check-coverage-manifest.mjs (npm run check:coverage); human-readable gap list in docs/ci/COVERAGE.md.",
   "runners": {
-    "patient": "Patient booking, intake, checkout, discounts, pay later, isolation and the patient's phone view",
+    "patient": "Patient booking, intake, the booking wizard, isolation and the patient's phone view",
+    "money": "Money end to end: checkout and its resume, discounts, promo codes and invites, pay later, programme and package purchases, care plans and recommendations, the admin money screens, payment search and the refund-attempt ledger",
     "therapist": "Therapist roster, readiness, specialty and the therapist's phone view",
-    "session": "Session lifecycle: scheduling, suggestions, completion, clinical continuity, care-plan review",
-    "admin": "The back office: authorization, exposure, money screens, validation, navigation, lifecycle",
+    "session": "Session lifecycle: scheduling, suggestions, completion, clinical continuity",
+    "admin": "The back office: authorization, exposure, validation, navigation, lifecycle, layout",
     "hospital": "Hospital (B2B) referrals and tenant isolation",
     "platform": "The public site and shared UI: navigation, splash, catalog, form controls, mobile smoke",
     "integrity": "Storage-layer and destructive checks: SQL check files, authorization and concurrency scripts, live grants, refund ledger, degraded schema"
@@ -24,7 +25,7 @@
       "destructive": false
     },
     "acquisition-codes.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "api",
         "db"
@@ -32,7 +33,7 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "admin-all-logs.spec.ts": {
@@ -103,7 +104,7 @@
       "destructive": false
     },
     "admin-care-plans.spec.ts": {
-      "runner": "session",
+      "runner": "money",
       "levels": [
         "browser",
         "api",
@@ -193,9 +194,21 @@
       "destructive": false
     },
     "admin-money.spec.ts": {
-      "runner": "admin",
+      "runner": "money",
       "levels": [
         "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-session-drawer-money.spec.ts": {
+      "runner": "money",
+      "levels": [
+        "browser",
         "db"
       ],
       "projects": [
@@ -242,7 +255,7 @@
       "destructive": false
     },
     "admin-payment-search.spec.ts": {
-      "runner": "admin",
+      "runner": "money",
       "levels": [
         "browser",
         "db"
@@ -266,7 +279,7 @@
       "destructive": false
     },
     "admin-programmes.spec.ts": {
-      "runner": "admin",
+      "runner": "money",
       "levels": [
         "api",
         "db",
@@ -382,6 +395,83 @@
       "integration": "local",
       "destructive": false
     },
+    "gateway-admin-refund.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ],
+      "integration": "mocked",
+      "destructive": false
+    },
+    "gateway-cancellation-refund.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ],
+      "integration": "mocked",
+      "destructive": false
+    },
+    "gateway-payment-capture.spec.ts": {
+      "runner": "money",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ],
+      "integration": "mocked",
+      "destructive": false
+    },
+    "gateway-webhook-recovery.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ],
+      "integration": "mocked",
+      "destructive": false
+    },
+    "hospital-referral-revenue.spec.ts": {
+      "runner": "hospital",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/money.md",
+        "docs/rules/programmes.md"
+      ],
+      "integration": "mocked",
+      "destructive": false
+    },
     "impersonation-exit.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -390,6 +480,37 @@
       ],
       "projects": [
         "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-impersonation.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "admin-maintenance-sweep.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
       ],
       "integration": "local",
       "destructive": false
@@ -443,7 +564,7 @@
       "destructive": false
     },
     "booking-pay-button-live.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "browser"
       ],
@@ -462,11 +583,11 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "checkout-resume.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "browser",
         "api",
@@ -475,7 +596,7 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "booking-rules.spec.ts": {
@@ -504,6 +625,17 @@
       "integration": "local",
       "destructive": false
     },
+    "public-hydration.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "catalog-detail.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -517,7 +649,7 @@
       "destructive": false
     },
     "catalog-home-visit-prices.spec.ts": {
-      "runner": "admin",
+      "runner": "money",
       "levels": [
         "browser",
         "api",
@@ -542,7 +674,7 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "concurrency.spec.ts": {
@@ -554,7 +686,7 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "consultation-first.spec.ts": {
@@ -607,6 +739,22 @@
       "integration": "local",
       "destructive": false
     },
+    "therapist-cash-and-payouts.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/money.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "therapist-patient-chart.spec.ts": {
       "runner": "therapist",
       "levels": [
@@ -651,7 +799,7 @@
       "destructive": false
     },
     "recommendation-course.spec.ts": {
-      "runner": "session",
+      "runner": "money",
       "levels": [
         "api",
         "db",
@@ -664,11 +812,11 @@
         "docs/rules/clinical.md",
         "docs/rules/programmes.md"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": true
     },
     "programme-checkout.spec.ts": {
-      "runner": "session",
+      "runner": "money",
       "levels": [
         "api",
         "db",
@@ -682,7 +830,7 @@
         "docs/rules/programmes.md",
         "docs/rules/payments.md"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": true
     },
     "pain-trend.spec.ts": {
@@ -717,7 +865,7 @@
       "destructive": false
     },
     "programme-sessions-via-admin.spec.ts": {
-      "runner": "session",
+      "runner": "money",
       "levels": [
         "api",
         "db",
@@ -788,7 +936,7 @@
       "destructive": false
     },
     "discounts.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "api",
         "db"
@@ -796,7 +944,7 @@
       "projects": [
         "desktop"
       ],
-      "integration": "provider-sandbox",
+      "integration": "mocked",
       "destructive": false
     },
     "footer-social-links.spec.ts": {
@@ -805,6 +953,17 @@
         "browser",
         "api",
         "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "invite-promise.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
       ],
       "projects": [
         "desktop"
@@ -944,7 +1103,7 @@
       "destructive": false
     },
     "pay-later.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "browser",
         "api",
@@ -957,7 +1116,7 @@
       "destructive": false
     },
     "refund-attempts.spec.ts": {
-      "runner": "integrity",
+      "runner": "money",
       "levels": [
         "db"
       ],
@@ -1131,7 +1290,7 @@
       "destructive": false
     },
     "unscheduled-purchases.spec.ts": {
-      "runner": "patient",
+      "runner": "money",
       "levels": [
         "browser",
         "db"
@@ -1162,6 +1321,24 @@
       ],
       "projects": [
         "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "patient-session-summary.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md",
+        "docs/rules/public-site.md"
       ],
       "integration": "local",
       "destructive": false
@@ -1203,6 +1380,85 @@
       "integration": "local",
       "destructive": false
     },
+    "patient-feedback-ratings.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "patient-upcoming-rule.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "patient-meet-join.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/home-visit.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "patient-saved-addresses.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/home-visit.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "session-assignment.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/roster.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "session-feedback.spec.ts": {
       "runner": "session",
       "levels": [
@@ -1214,6 +1470,38 @@
       ],
       "rules": [
         "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "therapist-leave.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/roster.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "neuro-exam.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/frontend.md"
       ],
       "integration": "local",
       "destructive": true
@@ -1335,7 +1623,8 @@
             "SP-001",
             "SP-006",
             "SP-008",
-            "SP-011"
+            "SP-011",
+            "SP-013"
           ],
           "level": "browser"
         },
@@ -1442,7 +1731,7 @@
     },
     {
       "id": "patient.promo-and-invite",
-      "runner": "patient",
+      "runner": "money",
       "title": "Promo codes quote with no amount in the request, caps hold, paused codes do nothing, invites cannot be self-claimed",
       "required": true,
       "status": "covered",
@@ -1479,7 +1768,7 @@
     },
     {
       "id": "patient.free-booking",
-      "runner": "patient",
+      "runner": "money",
       "title": "A 100%-off booking resolves to zero, confirms with no payment row, and refuses anything still owed",
       "required": true,
       "status": "covered",
@@ -1504,7 +1793,7 @@
     },
     {
       "id": "patient.pay-later",
-      "runner": "patient",
+      "runner": "money",
       "title": "Pay later end to end: grant, a booking with no payment screen, completion, declaration, settlement, write-off",
       "required": true,
       "status": "covered",
@@ -1529,7 +1818,7 @@
     },
     {
       "id": "patient.unscheduled-purchases",
-      "runner": "patient",
+      "runner": "money",
       "title": "A paid purchase nobody booked against is counted and opens exactly the rows it counted",
       "required": true,
       "status": "covered",
@@ -1577,12 +1866,27 @@
     },
     {
       "id": "patient.payment-capture",
-      "runner": "patient",
+      "runner": "money",
       "title": "A patient pays through Razorpay Checkout and the capture is verified (signature, webhook, idempotent re-delivery)",
       "required": false,
-      "status": "blocked",
-      "coverage": [],
-      "limitation": "No spec drives the hosted Checkout sheet or posts a signed verify/webhook payload. Needs Razorpay test-mode checkout automation or a signed-webhook fixture built from a generated RAZORPAY_WEBHOOK_SECRET; neither exists yet.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "gateway-payment-capture.spec.ts",
+          "tests": [
+            "PAY-CAP-001"
+          ],
+          "level": "api"
+        },
+        {
+          "spec": "gateway-webhook-recovery.spec.ts",
+          "tests": [
+            "WH-001",
+            "WH-002"
+          ],
+          "level": "api"
+        }
+      ],
       "rules": [
         "docs/rules/payments.md"
       ]
@@ -1592,9 +1896,18 @@
       "runner": "patient",
       "title": "A patient cancels and the automatic refund (outside the window) or no refund (inside it) reaches the gateway",
       "required": false,
-      "status": "gap",
-      "coverage": [],
-      "limitation": "The cancellation window copy and setting are covered (booking-rules); a cancellation that triggers a gateway refund is not exercised because it needs a captured test-mode payment.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "gateway-cancellation-refund.spec.ts",
+          "tests": [
+            "CR-001",
+            "CR-002",
+            "CR-003"
+          ],
+          "level": "api"
+        }
+      ],
       "rules": [
         "docs/rules/payments.md"
       ]
@@ -1645,7 +1958,8 @@
             "RWD-001",
             "RWD-003",
             "RWD-004",
-            "RWD-005"
+            "RWD-005",
+            "RWD-008"
           ],
           "level": "browser"
         }
@@ -1690,9 +2004,17 @@
       "runner": "therapist",
       "title": "A therapist's own earnings and payout history match the admin's figures",
       "required": false,
-      "status": "gap",
-      "coverage": [],
-      "limitation": "Payout arithmetic is covered from the admin side (admin.money-maths) and in payout-atomicity-sql-checks.sql; the therapist's own earnings screen has no spec.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-cash-and-payouts.spec.ts",
+          "tests": [
+            "TCP-001",
+            "TCP-003"
+          ],
+          "level": "browser"
+        }
+      ],
       "rules": [
         "docs/rules/money.md"
       ]
@@ -1752,7 +2074,7 @@
     },
     {
       "id": "session.programme-via-admin",
-      "runner": "session",
+      "runner": "money",
       "title": "Every programme session goes through the admin: booked, accepted and home-visit sessions wait unassigned with the programme therapist pre-picked, one tap assigns and confirms",
       "required": true,
       "status": "covered",
@@ -1852,7 +2174,7 @@
     },
     {
       "id": "session.recommendation-course",
-      "runner": "session",
+      "runner": "money",
       "title": "A recommendation is a condition x a session count at the per-session price; hands-on makes it home visits, and its address checkout goes through",
       "required": true,
       "status": "covered",
@@ -1876,7 +2198,7 @@
     },
     {
       "id": "session.programme-checkout",
-      "runner": "session",
+      "runner": "money",
       "title": "Accept & pay leads to a Review & pay page; a code valid on programmes takes its share off the programme and Razorpay opens at that total; a session-only code is refused; no code is full price",
       "required": true,
       "status": "covered",
@@ -1958,7 +2280,7 @@
     {
       "id": "session.finish-with-note",
       "runner": "session",
-      "title": "A therapist's Done opens the session note with the Pain Map and needs both",
+      "title": "A therapist's Done opens the session note with the condition type's exam (Pain Map, or the neurological examination) and needs both",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -1980,7 +2302,7 @@
     {
       "id": "session.debug-clock",
       "runner": "session",
-      "title": "The debug clock moves the completion gate only while the debug bar is on",
+      "title": "The debug clock moves the completion gate and the Pain Map exam gate only while the debug bar is on",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -1988,7 +2310,8 @@
           "spec": "debug-clock.spec.ts",
           "tests": [
             "DC-001",
-            "DC-002"
+            "DC-002",
+            "DC-005"
           ],
           "level": "api"
         }
@@ -2000,7 +2323,7 @@
     },
     {
       "id": "session.care-plan-review",
-      "runner": "session",
+      "runner": "money",
       "title": "A therapist's recommendation is queued and invisible, refused at checkout, then approved, declined or approved with changes",
       "required": true,
       "status": "covered",
@@ -2020,6 +2343,13 @@
             "ACP-022"
           ],
           "level": "api"
+        },
+        {
+          "spec": "admin-care-plans.spec.ts",
+          "tests": [
+            "ACP-023"
+          ],
+          "level": "browser"
         }
       ],
       "rules": [
@@ -2108,8 +2438,8 @@
     },
     {
       "id": "admin.money-maths",
-      "runner": "admin",
-      "title": "Payout and refund arithmetic: travel fee, cash netting, unconfigured share, refund window setting, activity-log attribution",
+      "runner": "money",
+      "title": "Payout and refund arithmetic: travel fee, cash netting, unconfigured share, refund window setting, activity-log attribution, the therapist's own pending payout equal to what admin owes",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -2120,13 +2450,35 @@
             "G-003",
             "G-004",
             "G-009",
-            "G-010"
+            "G-010",
+            "G-011"
           ],
           "level": "api"
         }
       ],
       "rules": [
         "docs/rules/money.md"
+      ]
+    },
+    {
+      "id": "admin.session-drawer-money",
+      "runner": "money",
+      "title": "The Session Details drawer prices a session as the row that opened it does, and reads one refund state across its payment chip, cancellation line and refund form",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-session-drawer-money.spec.ts",
+          "tests": [
+            "ASD-001",
+            "ASD-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/money.md",
+        "docs/rules/payments.md"
       ]
     },
     {
@@ -2271,7 +2623,7 @@
     },
     {
       "id": "admin.payment-search",
-      "runner": "admin",
+      "runner": "money",
       "title": "People search finds a patient by Razorpay payment or order id",
       "required": true,
       "status": "covered",
@@ -2290,7 +2642,7 @@
     },
     {
       "id": "admin.programmes",
-      "runner": "admin",
+      "runner": "money",
       "title": "Programmes follows one programme from recommendation to last session: pipeline filters, ID with progress, search by new and old code, the story in a drawer",
       "required": true,
       "status": "covered",
@@ -2556,21 +2908,22 @@
       "runner": "admin",
       "title": "The real admin login form: valid, wrong password, a patient's credentials",
       "required": false,
-      "status": "partial",
+      "status": "covered",
       "coverage": [
         {
           "spec": "admin-login.spec.ts",
           "tests": [
             "valid admin credentials reach the dashboard",
             "a wrong password is reported",
-            "a patient's credentials cannot open the admin dashboard"
+            "a patient's credentials cannot open the admin dashboard",
+            "a therapist's or a hospital's credentials are sent to /get-started, never back to the admin door"
           ],
           "level": "browser"
         }
       ],
-      "limitation": "Runs only when the app answers at E2E_LOGIN_BASE_URL; the admin runner points it at the same dev server because the CI browser reaches the local stack directly. If that variable is dropped the spec skips itself.",
       "rules": [
-        "docs/rules/admin.md"
+        "docs/rules/admin.md",
+        "docs/rules/ops-security.md"
       ]
     },
     {
@@ -2578,9 +2931,18 @@
       "runner": "admin",
       "title": "An admin refund reaches Razorpay and the result is recorded against the right session",
       "required": false,
-      "status": "gap",
-      "coverage": [],
-      "limitation": "Refund arithmetic and the attempt record are covered (admin.money-maths, integrity.refund-attempt-ledger); a refund that actually calls the gateway needs a captured test-mode payment.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "gateway-admin-refund.spec.ts",
+          "tests": [
+            "AR-001",
+            "AR-002",
+            "AR-003"
+          ],
+          "level": "api"
+        }
+      ],
       "rules": [
         "docs/rules/payments.md"
       ]
@@ -2590,9 +2952,18 @@
       "runner": "admin",
       "title": "The scheduled maintenance sweeps (risk, retention, balance verification) run on a cron",
       "required": false,
-      "status": "gap",
-      "coverage": [],
-      "limitation": "maintenance.yml calls the sweeps on a schedule against the hosted project; no spec drives the sweep routes with CRON_SECRET.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-maintenance-sweep.spec.ts",
+          "tests": [
+            "MS-001",
+            "MS-002"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Driven with a CRON_SECRET the gate generates per run; one step's effect is read back (the issued-credential purge). The 503 for an unset secret needs a server started without one and is not driven.",
       "rules": [
         "docs/rules/ops-security.md"
       ]
@@ -2623,9 +2994,18 @@
       "runner": "hospital",
       "title": "A referred patient's paid session accrues the hospital's revenue share and the figure matches the admin's",
       "required": false,
-      "status": "gap",
-      "coverage": [],
-      "limitation": "Needs a captured payment on a referred patient; the share arithmetic is in admin-money and the SQL checks but not driven through a referral end to end.",
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "hospital-referral-revenue.spec.ts",
+          "tests": [
+            "HRR-001",
+            "HRR-002",
+            "HRR-003"
+          ],
+          "level": "browser"
+        }
+      ],
       "rules": [
         "docs/rules/programmes.md",
         "docs/rules/money.md"
@@ -2701,6 +3081,27 @@
       ]
     },
     {
+      "id": "platform.public-hydration",
+      "runner": "platform",
+      "title": "The public pages and /book hydrate without a server/client mismatch",
+      "required": false,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "public-hydration.spec.ts",
+          "tests": [
+            "HY-001",
+            "HY-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Run against next dev, which reports hydration mismatches in full; the browser is en-GB, reduced-motion and on a simulated clock, the three conditions the known mismatches needed. A mismatch that needs some other browser difference is not provoked.",
+      "rules": [
+        "docs/rules/frontend.md"
+      ]
+    },
+    {
       "id": "platform.catalog",
       "runner": "platform",
       "title": "The public catalog's dialogs and covers render the same on card, dialog and booking screen",
@@ -2717,7 +3118,9 @@
             "CD-005",
             "CD-006",
             "CD-007",
-            "CD-008"
+            "CD-008",
+            "CD-009",
+            "CD-010"
           ],
           "level": "browser"
         },
@@ -2838,6 +3241,26 @@
       ],
       "rules": [
         "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "platform.invite-promise",
+      "runner": "platform",
+      "title": "A patient is promised a calendar invite only where this deployment sends one",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "invite-promise.spec.ts",
+          "tests": [
+            "INV-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Proves the server read reaches a rendered page through the public example chip; the confirmation screens need a completed checkout to render, and share the same unit-tested wording (calendarInviteOutcome.test.ts).",
+      "rules": [
+        "docs/rules/home-visit.md"
       ]
     },
     {
@@ -3091,6 +3514,50 @@
       ]
     },
     {
+      "id": "session.patient-summary",
+      "runner": "session",
+      "title": "The patient's session summary: written beside the note by the session's own therapist only, read by that patient (RLS and the Sessions screen) with the therapist's name and date, never by another patient or an unrelated therapist, versioned and un-blankable, shown to admin desks that manage Sessions and refused to Finance -- and the private note never reaches the patient",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-session-summary.spec.ts",
+          "tests": [
+            "PSS-001",
+            "PSS-004",
+            "PSS-005"
+          ],
+          "level": "api"
+        },
+        {
+          "spec": "patient-session-summary.spec.ts",
+          "tests": [
+            "PSS-002"
+          ],
+          "level": "db"
+        },
+        {
+          "spec": "patient-session-summary.spec.ts",
+          "tests": [
+            "PSS-003",
+            "PSS-006"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "finish-session.spec.ts",
+          "tests": [
+            "FS-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
       "id": "hospital.org-isolation",
       "runner": "hospital",
       "title": "A second partner hospital cannot read, enumerate, withdraw or see on its screen another partner's referral; the owning hospital can",
@@ -3118,40 +3585,117 @@
       "runner": "patient",
       "title": "Saved addresses: save, remove, and another patient refused",
       "required": false,
-      "status": "gap",
-      "limitation": "No spec drives /api/patient/addresses/save or /remove yet. Feasible on the local stack; not yet written."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-saved-addresses.spec.ts",
+          "tests": [
+            "SA-001",
+            "SA-002",
+            "SA-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/home-visit.md"
+      ]
     },
     {
       "id": "patient.feedback-ratings",
       "runner": "patient",
       "title": "A patient rates a completed session and leaves feedback",
       "required": false,
-      "status": "gap",
-      "limitation": "No spec drives the rating/feedback write; admin-money only reads rating exclusions. Feasible; not yet written."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-feedback-ratings.spec.ts",
+          "tests": [
+            "FR-001",
+            "FR-002"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes an append-only user_activity_log row, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The rating card itself is session-feedback.spec.ts (session runner).",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "patient.upcoming-rule",
+      "runner": "patient",
+      "title": "Upcoming means one thing on the Sessions list, its Calendar view and the Overview",
+      "required": false,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-upcoming-rule.spec.ts",
+          "tests": [
+            "PU-001",
+            "PU-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ]
     },
     {
       "id": "patient.meet-join-rules",
       "runner": "patient",
       "title": "The Meet link is shown only inside the join window",
       "required": false,
-      "status": "gap",
-      "limitation": "Meet links need GOOGLE_CALENDAR_* (forbidden in CI); the join-window rule has unit tests in src/lib but no browser journey."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-meet-join.spec.ts",
+          "tests": [
+            "MJ-001"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "The Meet link is written onto the row as a successful Calendar sync would store it: creating one needs GOOGLE_CALENDAR_* (refused in CI). The window boundaries are read from site_settings, so the cases follow an admin's setting.",
+      "rules": [
+        "docs/rules/home-visit.md"
+      ]
     },
     {
       "id": "patient.package-purchase",
-      "runner": "patient",
+      "runner": "money",
       "title": "A patient buys a programme through Razorpay and receives session credits",
       "required": false,
-      "status": "gap",
-      "limitation": "Needs the Razorpay test checkout sheet driven in a browser or a signed verify payload; consultation-first only proves the refusal path. Needs a provider-sandbox decision."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "gateway-payment-capture.spec.ts",
+          "tests": [
+            "PAY-CAP-002"
+          ],
+          "level": "api"
+        },
+        {
+          "spec": "gateway-webhook-recovery.spec.ts",
+          "tests": [
+            "WH-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/payments.md",
+        "docs/rules/programmes.md"
+      ]
     },
     {
       "id": "therapist.session-assignment",
       "runner": "therapist",
       "title": "Assignment, reassignment and no-show handling through the admin and therapist routes",
       "required": false,
-      "status": "partial",
-      "limitation": "assign-availability.spec.ts drives the admin assign route (availability refusal and the assignment it allows); reassignment and no-show handling are still proven only at the RPC (therapist-slot-sql-checks.sql, concurrency-checks.mjs).",
+      "status": "covered",
       "coverage": [
         {
           "spec": "assign-availability.spec.ts",
@@ -3159,7 +3703,20 @@
             "AV-001"
           ],
           "level": "api"
+        },
+        {
+          "spec": "session-assignment.spec.ts",
+          "tests": [
+            "AS-001",
+            "AS-002",
+            "AS-003"
+          ],
+          "level": "api"
         }
+      ],
+      "limitation": "The no-show cases write append-only settlement rows, so AS-002 past its refusals and AS-003 run only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The races stay in concurrency.spec.ts and therapist-slot-sql-checks.sql.",
+      "rules": [
+        "docs/rules/roster.md"
       ]
     },
     {
@@ -3167,32 +3724,84 @@
       "runner": "therapist",
       "title": "A therapist records cash collected at the door and requests a payout",
       "required": false,
-      "status": "gap",
-      "limitation": "No spec drives /api/therapist/record-cash-collection or /request-payout; payout atomicity is proven in SQL only. Feasible; not yet written."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-cash-and-payouts.spec.ts",
+          "tests": [
+            "TCP-002",
+            "TCP-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/money.md"
+      ]
     },
     {
       "id": "therapist.leave",
       "runner": "therapist",
       "title": "Going on leave blocks new bookings without moving existing ones",
       "required": false,
-      "status": "gap",
-      "limitation": "therapist-roster covers leave on the roster screen; /api/therapist/set-on-leave itself has no spec."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "therapist-leave.spec.ts",
+          "tests": [
+            "TL-001",
+            "TL-002",
+            "TL-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/roster.md"
+      ]
     },
     {
       "id": "admin.impersonation",
       "runner": "admin",
       "title": "Support impersonation: who may start it, what it may do, and the audit row it leaves",
       "required": false,
-      "status": "gap",
-      "limitation": "No spec drives /api/admin/start-impersonation or /stop-impersonation. Needs the impersonation rules in docs/rules/ops-security.md turned into cases; not yet written."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-impersonation.spec.ts",
+          "tests": [
+            "IMP-001",
+            "IMP-002",
+            "IMP-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes append-only admin_impersonation_sessions rows, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack.",
+      "rules": [
+        "docs/rules/ops-security.md"
+      ]
     },
     {
       "id": "session.payment-webhook-recovery",
       "runner": "session",
       "title": "A captured payment whose verify call was lost is recovered by the webhook, exactly once",
       "required": false,
-      "status": "gap",
-      "limitation": "Needs signed Razorpay webhook payloads (RAZORPAY_WEBHOOK_SECRET) posted to the local app; the idempotency is proven in booking-idempotency-sql-checks.sql only. Needs an owner decision on a webhook test secret."
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "gateway-webhook-recovery.spec.ts",
+          "tests": [
+            "WH-001",
+            "WH-002",
+            "WH-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ]
     },
     {
       "id": "session.rating-feedback",
@@ -3299,6 +3908,27 @@
         "docs/rules/frontend.md",
         "docs/rules/admin.md"
       ]
+    },
+    {
+      "id": "therapist.neuro-exam-chart",
+      "runner": "therapist",
+      "title": "A therapist records a neurological examination, reads it back, and re-examines against it; an unassigned therapist is refused",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "neuro-exam.spec.ts",
+          "tests": [
+            "NE-000",
+            "NE-001",
+            "NE-002",
+            "NE-003",
+            "NE-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only neurological exams, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; the scales, validation, asymmetry, Berg bands and change-since-last are unit-tested in src/lib/neuroExam.test.ts."
     }
   ],
   "removed": [
