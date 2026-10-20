@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { readClock, useRunClock } from "@/components/profile/progress/timers/useRunClock";
+import { roundTo } from "@/lib/clinicalCalculators";
 import { formatReading } from "@/lib/progressChart";
 import {
   IDLE_STOPWATCH,
@@ -94,10 +95,14 @@ export default function TapTimer({
 
   const converted = useMemo(() => {
     const seconds = trials.filter((t) => !t.practice).map((t) => t.seconds);
-    if (distanceMetres === undefined) return { ok: true as const, values: seconds };
+    // Each trial is rounded to the measure's precision before it is kept or
+    // averaged: validateMeasurement re-derives the stored value from the
+    // trials as stored, so working from unrounded ones can differ by a digit.
+    const stored = (values: number[]) => values.map((v) => roundTo(v, decimals));
+    if (distanceMetres === undefined) return { ok: true as const, values: stored(seconds) };
     const speeds = secondsToSpeeds(seconds, distanceMetres);
-    return speeds.ok ? { ok: true as const, values: speeds.value } : { ok: false as const, error: speeds.error };
-  }, [trials, distanceMetres]);
+    return speeds.ok ? { ok: true as const, values: stored(speeds.value) } : { ok: false as const, error: speeds.error };
+  }, [trials, distanceMetres, decimals]);
 
   const summary = converted.ok ? summariseTrials(converted.values, { keep }, better, decimals) : null;
   const unit = distanceMetres === undefined ? "seconds" : "m/s";

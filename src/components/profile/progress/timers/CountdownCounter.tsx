@@ -40,11 +40,16 @@ export type CountdownCounterResult = {
 export default function CountdownCounter({
   seconds = CHAIR_STAND_SECONDS,
   max = CHAIR_STAND_MAX,
+  title,
+  description,
   onUse,
   disabled = false,
 }: {
   seconds?: number;
   max?: number;
+  /** Defaults to "30-second chair stand" for the default length. */
+  title?: string;
+  description?: string;
   onUse: (result: CountdownCounterResult) => void;
   disabled?: boolean;
 }) {
@@ -82,10 +87,10 @@ export default function CountdownCounter({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <p className="text-sm font-semibold text-slate-900">{seconds}-second chair stand</p>
+      <p className="text-sm font-semibold text-slate-900">{title ?? `${seconds}-second chair stand`}</p>
       <p className="mt-0.5 text-xs text-slate-600">
-        Chair without arms, seat about 43 cm, against a wall. Feet flat, arms crossed on the chest. Say {"“"}Go{"”"} and
-        count each full stand. If they are more than halfway up when time ends, count it.
+        {description ??
+          "Chair without arms, seat about 43 cm, against a wall. Feet flat, arms crossed on the chest. Say \u201CGo\u201D and count each full stand. If they are more than halfway up when time ends, count it."}
       </p>
 
       <p role="timer" aria-label="Time left" className="mt-4 text-center font-display text-6xl font-bold tabular-nums text-slate-900">
@@ -99,7 +104,7 @@ export default function CountdownCounter({
           disabled={disabled}
           className="mt-4 min-h-[5rem] w-full rounded-2xl bg-teal-700 text-xl font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/40 disabled:opacity-50"
         >
-          {settled.status === "aborted" ? "Start again" : "Start the 30 seconds"}
+          {settled.status === "aborted" ? "Start again" : `Start the ${seconds} seconds`}
         </button>
       ) : running ? (
         <>
