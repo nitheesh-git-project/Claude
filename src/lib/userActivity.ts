@@ -125,6 +125,11 @@ export const USER_ACTIVITY_META = {
   "care_goal.saved": { label: "Saved a patient's goal", group: "clinical", verb: "saved a patient's goal" },
   "care_milestone.saved": { label: "Planned a milestone", group: "clinical", verb: "planned a milestone" },
   "care_milestone.reached": { label: "Marked a milestone reached", group: "clinical", verb: "marked a milestone reached" },
+  "care_status.set": {
+    label: "Set a patient's phase or status",
+    group: "clinical",
+    verb: "set a patient's phase or overruled their status",
+  },
   // feedback
   "feedback.submitted": { label: "Left session feedback", group: "feedback", verb: "left feedback on a session" },
   // referral

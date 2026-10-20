@@ -136,11 +136,16 @@ function VitalsFields({
 export default function SixMinuteWalkGuide({
   patient,
   equationKey,
+  equationUnreadable = false,
   onUse,
   disabled = false,
 }: {
   patient: PatientFacts | null;
+  /** The clinic's choice from Settings -> Clinical Questions
+   *  (loadSixMinuteWalkEquation). Absent is "formula not chosen yet". */
   equationKey?: SixMinuteWalkEquationKey;
+  /** That setting could not be read: says "we couldn't check". */
+  equationUnreadable?: boolean;
   onUse: (result: SixMinuteWalkResult) => void;
   disabled?: boolean;
 }) {
@@ -187,7 +192,12 @@ export default function SixMinuteWalkGuide({
 
   const partMetres = partLap.trim() === "" ? 0 : Number(partLap);
   const distance = sixMinuteWalkDistance({ laps, partLapMetres: partMetres });
-  const prediction = sixMinuteWalkPrediction({ walkedMetres: distance.ok ? distance.value : null, patient, equationKey });
+  const prediction = sixMinuteWalkPrediction({
+    walkedMetres: distance.ok ? distance.value : null,
+    patient,
+    equationKey,
+    equationUnreadable,
+  });
 
   function begin() {
     setCountdown(startCountdown(createCountdown(SIX_MINUTE_WALK_MS), readClock()));
@@ -441,7 +451,14 @@ export default function SixMinuteWalkGuide({
               )}
               {prediction.status === "equation_not_chosen" && (
                 <p className="text-sm">
-                  The clinic has not chosen a predicted-distance equation yet ({prediction.equation}), so no percentage of
+                  <span className="font-semibold">Formula not chosen yet.</span> The clinic has not picked a
+                  predicted-distance equation on Settings, so no percentage of predicted is shown. The distance walked is
+                  still recorded.
+                </p>
+              )}
+              {prediction.status === "equation_unreadable" && (
+                <p className="text-sm">
+                  We couldn{"'"}t check which predicted-distance formula the clinic chose just now, so no percentage of
                   predicted is shown. The distance walked is still recorded.
                 </p>
               )}

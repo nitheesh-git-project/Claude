@@ -14,13 +14,14 @@ import {
 import BalanceHolds from "@/components/profile/progress/timers/BalanceHolds";
 import CountdownCounter from "@/components/profile/progress/timers/CountdownCounter";
 import SixMinuteWalkGuide, { type SixMinuteWalkResult } from "@/components/profile/progress/timers/SixMinuteWalkGuide";
+import { sixMinuteWalkEquationKeyFor, type SixMinuteWalkEquationRead } from "@/lib/sixMinuteWalkEquation";
 import TapTimer from "@/components/profile/progress/timers/TapTimer";
 import { useDialogChrome } from "@/lib/useDialogChrome";
 import { useRouter } from "@/lib/useRouter";
 import { useToast } from "@/lib/toast";
 import { debugNow, debugNowHeaders } from "@/lib/debugNow";
 import { formatClinicDate } from "@/lib/formatDateTime";
-import { maxTrialsFor, outcomeMeasure, validateMeasurement, type OutcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
+import { maxTrialsFor, outcomeMeasure, STANDS_WITH_ARMS_KEY, usedArmsEntry, validateMeasurement, type OutcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasureSeries } from "@/lib/outcomeSeries";
 import { formatReading } from "@/lib/progressChart";
 import { NETWORK_ERROR_MESSAGE, progressErrorMessage, readProgressFailure } from "@/lib/progressErrors";
@@ -84,6 +85,7 @@ export default function RecordTestDialog({
   enabledLicensed,
   licenceUnreadable = false,
   patient = null,
+  walkEquation,
   appointmentId = null,
   asAdmin = false,
   initialMeasureKey,
@@ -100,6 +102,9 @@ export default function RecordTestDialog({
   licenceUnreadable?: boolean;
   /** For the six-minute walk's predicted distance. */
   patient?: PatientFacts | null;
+  /** The clinic's six-minute walk equation (loadSixMinuteWalkEquation).
+   *  Absent is "formula not chosen yet" -- never the US equation. */
+  walkEquation?: SixMinuteWalkEquationRead;
   /** File the reading against this session. */
   appointmentId?: string | null;
   asAdmin?: boolean;
@@ -214,7 +219,7 @@ export default function RecordTestDialog({
       measureKey: measure.key,
       value: entry.value,
       measuredAt: new Date(nowMs).toISOString(),
-      conditions: buildConditions(measure, profileKind, cond, nowMs),
+      conditions: buildConditions(measure, profileKind, cond, nowMs, entry.usedArms),
       ...(measure.sided ? { side } : {}),
       ...(measure.variants ? { variant } : {}),
       ...(entry.items !== null ? { items: entry.items } : {}),
@@ -306,14 +311,27 @@ export default function RecordTestDialog({
         };
         return (
           <div className="space-y-2">
-            {resultBar(`Result: ${formatReading(editor.timer.value, m.decimals, m.unit)}`, redo)}
+            {resultBar(
+              `Result: ${formatReading(editor.timer.value, m.decimals, m.unit)}${
+                editor.timer.usedArms && editor.timer.items && !Array.isArray(editor.timer.items)
+                  ? ` (arms used; ${editor.timer.items[STANDS_WITH_ARMS_KEY]} with the arms)`
+                  : ""
+              }`,
+              redo
+            )}
             {timer.kind === "six_minute_walk" && (
               <>
                 <ul className="text-xs text-slate-700">
                   {walks.map((w, i) => (
                     <li key={i}>
                       Walk {i + 1}: {w.distance} m
-                      {w.percentPredicted !== null ? ` (${w.percentPredicted}% of predicted${w.equation ? `, ${w.equation}` : ""})` : ""}
+                      {w.percentPredicted !== null
+                        ? ` (${w.percentPredicted}% of predicted${w.equation ? `, ${w.equation}` : ""})`
+                        : walkEquation?.status === "unreadable"
+                          ? " (couldn't check the predicted-distance formula)"
+                          : !walkEquation || !walkEquation.chosen
+                            ? " (predicted-distance formula not chosen yet)"
+                            : ""}
                       {w.stoppedEarly ? ", stopped early" : ""}
                     </li>
                   ))}
@@ -367,9 +385,17 @@ export default function RecordTestDialog({
               max={timer.max}
               title={timer.title}
               description={timer.description}
+              armsRule={timer.armsRule}
               onUse={(r) => {
                 flag(r.interrupted);
-                patchEditor({ timer: { value: r.stands, items: null } });
+                // The CDC rule: arms used scores 0, and the count with the
+                // arms is kept in items (validateUsedArms checks the pair).
+                patchEditor({
+                  timer:
+                    timer.armsRule && r.armsUsed && r.standsWithArms !== null
+                      ? { ...usedArmsEntry(r.standsWithArms), usedArms: true }
+                      : { value: r.stands, items: null, ...(timer.armsRule ? { usedArms: false } : {}) },
+                });
               }}
             />
           );
@@ -389,6 +415,8 @@ export default function RecordTestDialog({
             <SixMinuteWalkGuide
               key={timerRun}
               patient={patient}
+              equationKey={walkEquation ? sixMinuteWalkEquationKeyFor(walkEquation) : undefined}
+              equationUnreadable={walkEquation?.status === "unreadable"}
               onUse={(walk) => {
                 flag(walk.interrupted);
                 const next = [...walks, walk];

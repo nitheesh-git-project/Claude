@@ -19,7 +19,8 @@ export type CountdownCounterResult = {
   /** Full stands; 0 when the arms were used. */
   stands: number;
   armsUsed: boolean;
-  /** What was counted before the arms rule zeroed it, for the session note. */
+  /** What was counted before the arms rule zeroed it; stored beside the 0
+   *  in the measurement's items (usedArmsEntry, outcomeMeasures.ts). */
   standsWithArms: number | null;
   interrupted: boolean;
 };
@@ -32,9 +33,10 @@ export type CountdownCounterResult = {
  * up at 30 seconds counts.
  *
  * After the time is up the count can still be corrected with minus and plus
- * (a tap that landed late is the usual error), and "arms used" turns the score
- * to 0 as the protocol says, keeping what was counted to write in the session
- * note. Same timestamp clock as every timer here (no setInterval drift, a
+ * (a tap that landed late is the usual error), and - where `armsRule` is on
+ * (the 30-second chair stand) - "used arms" turns the score to 0 as the CDC
+ * protocol says, keeping what was counted, which is stored with the reading
+ * (conditions.usedArms and items.standsWithArms). Same timestamp clock as every timer here (no setInterval drift, a
  * background tab cannot shorten it); no animation.
  */
 export default function CountdownCounter({
@@ -42,6 +44,7 @@ export default function CountdownCounter({
   max = CHAIR_STAND_MAX,
   title,
   description,
+  armsRule = true,
   onUse,
   disabled = false,
 }: {
@@ -50,6 +53,8 @@ export default function CountdownCounter({
   /** Defaults to "30-second chair stand" for the default length. */
   title?: string;
   description?: string;
+  /** Offer the "used arms" tick (the chair stand's CDC rule). */
+  armsRule?: boolean;
   onUse: (result: CountdownCounterResult) => void;
   disabled?: boolean;
 }) {
@@ -159,17 +164,20 @@ export default function CountdownCounter({
               +
             </button>
           </div>
-          <label className="flex min-h-[44px] items-start gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-800">
-            <input
-              type="checkbox"
-              checked={armsUsed}
-              onChange={(e) => setArmsUsed(e.target.checked)}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-teal-700"
-            />
-            <span>
-              They had to use their arms. The score is 0; the stands counted ({count}) go in the session note.
-            </span>
-          </label>
+          {armsRule && (
+            <label className="flex min-h-[44px] items-start gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-800">
+              <input
+                type="checkbox"
+                checked={armsUsed}
+                onChange={(e) => setArmsUsed(e.target.checked)}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-teal-700"
+              />
+              <span>
+                Used arms. The score is 0; the {count} {count === 1 ? "stand" : "stands"} done with the arms{" "}
+                {count === 1 ? "is" : "are"} kept with the reading.
+              </span>
+            </label>
+          )}
           {interrupted && (
             <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
               The screen was in the background, or the device slept, during this test. The clock kept running, but check the
@@ -187,7 +195,12 @@ export default function CountdownCounter({
             <button
               type="button"
               onClick={() =>
-                onUse({ stands: armsUsed ? 0 : count, armsUsed, standsWithArms: armsUsed ? count : null, interrupted })
+                onUse({
+                  stands: armsRule && armsUsed ? 0 : count,
+                  armsUsed: armsRule && armsUsed,
+                  standsWithArms: armsRule && armsUsed ? count : null,
+                  interrupted,
+                })
               }
               disabled={disabled}
               className="min-h-[48px] flex-1 rounded-xl bg-teal-700 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:opacity-60"

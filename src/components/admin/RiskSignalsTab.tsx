@@ -570,6 +570,7 @@ const SURFACE_LABELS: Record<string, string> = {
   outcome_measurement_condition: "Note on a measurement",
   care_goal_text: "Patient's goal",
   care_milestone_text: "Milestone",
+  care_status_reason: "Reason for a phase or status",
 };
 
 /**

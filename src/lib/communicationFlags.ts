@@ -29,7 +29,10 @@ export type CommunicationSurface =
   /** The patient's goal, typed by the therapist in the patient's words. */
   | "care_goal_text"
   /** A milestone's title and its criterion. */
-  | "care_milestone_text";
+  | "care_milestone_text"
+  /** The reason on a status override, or the note on a phase change; the
+   *  patient reads it beside the pill. */
+  | "care_status_reason";
 
 /** Longest fragment of the original text kept as evidence. */
 const MAX_EVIDENCE_CHARS = 2000;

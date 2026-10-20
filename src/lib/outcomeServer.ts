@@ -5,6 +5,14 @@ import { parseConditionSpecialty, type ConditionSpecialty } from "@/lib/conditio
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import { profileKindFor } from "@/lib/profileKind";
 import { parseEnabledLicensedMeasures, type LicensedMeasuresRead } from "@/lib/licensedMeasures";
+import { parseSixMinuteWalkEquationSetting, type SixMinuteWalkEquationRead } from "@/lib/sixMinuteWalkEquation";
+import {
+  CARE_STATUS_EVENT_SELECT,
+  parseCareStatusEventRow,
+  shapeCareStatus,
+  type CareStatusEvent,
+  type CareStatusState,
+} from "@/lib/careStatus";
 import { OUTCOME_MEASUREMENT_SELECT, type OutcomeMeasurementRow } from "@/lib/outcomeSeries";
 import {
   CARE_GOAL_SELECT,
@@ -129,6 +137,70 @@ export async function loadEnabledLicensedMeasures(admin: AnyClient): Promise<Lic
     const { data, error } = await admin.from("site_settings").select("enabled_licensed_measures").eq("id", true).maybeSingle();
     if (error) return error.code === "42703" ? { status: "ok", keys: [] } : { status: "unreadable" };
     return { status: "ok", keys: parseEnabledLicensedMeasures(data?.enabled_licensed_measures) };
+  } catch {
+    return { status: "unreadable" };
+  }
+}
+
+/** Far more phase and override changes than any course of care has; a
+ *  record that reaches it is refused rather than shaped from a prefix. */
+export const CARE_STATUS_MAX_ROWS = 2_000;
+
+export type CareStatusRead =
+  | ({ status: "ok"; events: CareStatusEvent[] } & CareStatusState)
+  | { status: "unreadable" };
+
+/**
+ * The physiotherapist's phase and status-override history
+ * (care_status_events) and what is in force now: the latest phase for this
+ * profile kind, and the override unless a later clear ended it
+ * (shapeCareStatus, careStatus.ts). `latestReviewAt` -- the newest review's
+ * time, e.g. the newest measurement's measured_at -- marks an older override
+ * `stale`. Its own call; a failed read (a database without the table
+ * included) is "unreadable", never "no override", because a screen that
+ * reads "unreadable" as "none" would show the computed pill over a
+ * physiotherapist's "Needs attention".
+ */
+export async function loadCareStatus(
+  client: AnyClient,
+  patientId: string,
+  opts: { profileKind: ProfileKind; latestReviewAt?: string | null }
+): Promise<CareStatusRead> {
+  try {
+    const { rows, error, truncated } = await readAllRows<Record<string, unknown>>(
+      () =>
+        client
+          .from("care_status_events")
+          .select(CARE_STATUS_EVENT_SELECT)
+          .eq("patient_id", patientId)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true }),
+      { maxRows: CARE_STATUS_MAX_ROWS }
+    );
+    if (error || truncated) return { status: "unreadable" };
+    const events = rows.map(parseCareStatusEventRow).filter((e): e is CareStatusEvent => e !== null);
+    return { status: "ok", events, ...shapeCareStatus(events, opts) };
+  } catch {
+    return { status: "unreadable" };
+  }
+}
+
+/**
+ * The predicted-distance equation the clinic chose for the six-minute walk
+ * (site_settings.six_minute_walk_equation). Its own call, never through
+ * SITE_SETTINGS_SELECT. Null or an unknown key is "ok, not chosen"; a
+ * failed read is "unreadable", which a screen words as "we couldn't check"
+ * and which predicts nothing either way (sixMinuteWalkEquationKeyFor). A
+ * database without the column (42703) cannot have a choice stored, so that
+ * is an honest "not chosen", as loadEnabledLicensedMeasures treats it.
+ */
+export async function loadSixMinuteWalkEquation(admin: AnyClient): Promise<SixMinuteWalkEquationRead> {
+  try {
+    const { data, error } = await admin.from("site_settings").select("six_minute_walk_equation").eq("id", true).maybeSingle();
+    if (error) {
+      return error.code === "42703" ? { status: "ok", ...parseSixMinuteWalkEquationSetting(null) } : { status: "unreadable" };
+    }
+    return { status: "ok", ...parseSixMinuteWalkEquationSetting(data?.six_minute_walk_equation) };
   } catch {
     return { status: "unreadable" };
   }

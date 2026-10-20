@@ -284,6 +284,13 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     kind: "text",
     describe: () => "The licensed scales your therapists can record are updated.",
   },
+  six_minute_walk_equation: {
+    kind: "text",
+    describe: (v) =>
+      v && v !== "null"
+        ? "The six-minute walk's predicted distance now uses the equation you chose."
+        : "No six-minute walk equation is chosen, so no percentage of predicted is shown.",
+  },
   risk_signals_enabled: {
     kind: "boolean",
     on: "Risk checks are on. Findings appear on Today → Risk.",

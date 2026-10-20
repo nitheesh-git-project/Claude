@@ -155,6 +155,7 @@ import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
 import LicensedMeasureSettings from "@/components/admin/LicensedMeasureSettings";
+import SixMinuteWalkEquationSettings from "@/components/admin/SixMinuteWalkEquationSettings";
 import ConditionsListFilter from "@/components/admin/ConditionsListFilter";
 import { parseAreaPain } from "@/lib/conditionIntake";
 import {
@@ -3952,6 +3953,11 @@ export default async function AdminDashboardPage({
           that also shows the question banks is open to other scopes. */}
       <div className="mt-6 border-t border-slate-100 pt-6">
         <LicensedMeasureSettings />
+      </div>
+      {/* Same screen and the same reasoning: a clinical rule the Master
+          Admin sets through update-setting ("settings" scope). */}
+      <div className="mt-6 border-t border-slate-100 pt-6">
+        <SixMinuteWalkEquationSettings />
       </div>
     </div>
   );

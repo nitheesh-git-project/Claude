@@ -12,6 +12,7 @@ import {
 } from "@/lib/splashScreen";
 import { isContactScanMode } from "@/lib/adminSettings";
 import { normaliseLicensedMeasureSelection } from "@/lib/licensedMeasures";
+import { normaliseSixMinuteWalkEquationChoice } from "@/lib/sixMinuteWalkEquation";
 import { MAX_MISSION_LENGTH, MAX_VISION_LENGTH } from "@/lib/mission";
 import { isRunRateBasis } from "@/lib/financeMetrics";
 import {
@@ -69,6 +70,11 @@ const ALLOWED_COLUMNS = new Set([
   // licence for (Settings -> Clinical Questions). Read everywhere else in
   // its own call, failing closed (loadEnabledLicensedMeasures).
   "enabled_licensed_measures",
+  // The six-minute walk's predicted-distance equation (Settings -> Clinical
+  // Questions). Null is the value and the default: "not chosen yet", which
+  // predicts nothing. Read elsewhere in its own call
+  // (loadSixMinuteWalkEquation).
+  "six_minute_walk_equation",
   "package_default_validity_days",
   "package_therapist_lock_enabled",
   "package_bulk_schedule_max",
@@ -571,6 +577,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: selection.error }, { status: 400 });
     }
     nextValue = selection.keys;
+  }
+
+  // Validated against the equation table rather than trusted: a key that
+  // predicts, or null (blank and the placeholder key are normalised to it)
+  // to go back to "formula not chosen yet". Never defaulted to the US
+  // equation -- choosing it is a deliberate act, and this is where it is
+  // recorded (setting.update, from and to).
+  if (key === "six_minute_walk_equation") {
+    const choice = normaliseSixMinuteWalkEquationChoice(value);
+    if (!choice.ok) {
+      return NextResponse.json({ error: choice.error }, { status: 400 });
+    }
+    nextValue = choice.value;
   }
 
   if (BRAND_TEXT_FIELDS.has(key) || LONG_TEXT_FIELDS.has(key) || CONTACT_FIELDS.has(key)) {

@@ -409,7 +409,7 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         label: "Clinical Questions",
         group: "How the clinic runs",
         blurb:
-          "The questions a patient answers about their condition, the ones a therapist fills in after an exam, and which paid-for assessment scales your therapists may use.",
+          "The questions a patient answers about their condition, the ones a therapist fills in after an exam, which paid-for assessment scales your therapists may use, and the six-minute walk's predicted-distance formula.",
         example: "Reword the question that asks how long the pain has lasted, or switch on a scale once the clinic holds its licence.",
       },
       {

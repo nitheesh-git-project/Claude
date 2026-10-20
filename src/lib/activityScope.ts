@@ -93,6 +93,7 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   // filed beside them for the same desk.
   "outcome_measurement.create": "sessions",
   "care_milestone.reopen": "sessions",
+  "care_status.set": "sessions",
 
   // money
   // Extending credit is a money capability, whatever screen the control
