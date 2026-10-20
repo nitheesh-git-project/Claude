@@ -2,7 +2,8 @@
 // and vision, on the home page (short) and on /mission (in full).
 //
 // Every line is a claim the product itself keeps -- a health profile per
-// specialty, the Pain Map and session notes, video or a home visit, the
+// specialty, the Pain Map and a summary after each session (the
+// therapist's own session notes stay private), video or a home visit, the
 // language picked at booking, the price quoted before paying -- so none of it
 // can drift into a promise the platform does not make. The deliberate
 // difference from "What we promise" (src/lib/mission.ts): those are rules
@@ -59,9 +60,9 @@ export const WHY_CHOOSE_US: WhyItem[] = [
     key: "progress",
     icon: "fa-chart-line",
     title: "Progress you can see",
-    line: "Pain scores, the Pain Map and session notes show how you are changing.",
+    line: "Pain scores, the Pain Map and session summaries show how you are changing.",
     detail:
-      "Mark where it hurts on the Pain Map, rate it, and see every session's notes in one place - the same record your physiotherapist works from.",
+      "Mark where it hurts on the Pain Map, rate it, and get a short summary after each session and your exercise plan in one place.",
   },
   {
     key: "modes",
@@ -120,13 +121,13 @@ export const REAL_BENEFITS: BenefitItem[] = [
     title: "A plan that keeps up with you",
     line: "Your plan changes as you do, session to session.",
     detail:
-      "Each session's notes feed the next one, so the plan moves on when you are ready rather than when a template says so.",
+      "Your physiotherapist's notes from each session shape the next one, so the plan moves on when you are ready rather than when a template says so.",
   },
   {
     key: "keep-going",
     icon: "fa-fire",
     title: "Easier to keep going",
-    line: "Sessions, plan and notes live in one dashboard.",
+    line: "Sessions, plan and session summaries live in one dashboard.",
     detail:
       "Recovery is won by turning up. Everything you need for the next session is in one place, with the same physiotherapist each time.",
   },

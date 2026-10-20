@@ -88,6 +88,7 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "condition_change.decide": "sessions",
   "condition_change.direct_edit": "sessions",
   "pain_assessment.create": "sessions",
+  "neuro_assessment.create": "sessions",
 
   // money
   // Extending credit is a money capability, whatever screen the control

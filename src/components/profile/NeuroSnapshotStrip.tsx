@@ -5,11 +5,10 @@ import type { NeuroSnapshot } from "@/lib/healthProfileSummary";
 // as every other dashboard strip -- different figures, because a stroke
 // patient's recovery is not measured in pain.
 //
-// There is no clinical column here yet: the Pain Map is an orthopaedic
-// layer and the neurological exam layer is not built. Rather than print an
-// empty "Last exam found -", the fourth cell reports what the record does
-// know (falls), and the deferred exam is stated once, in
-// SpecialtyExamPanel, where the exam would be.
+// These four come from the intake. The therapist's own examination --
+// tone, power, balance, gait -- is the neurological chart in
+// SpecialtyExamPanel (src/lib/neuroExam.ts), with its own headline figures
+// and change since the last exam, so it is not repeated in this strip.
 
 const INDEPENDENCE_WORD = (value: number) =>
   value <= 3 ? "Needs a lot of help" : value <= 6 ? "Partly independent" : "Mostly independent";

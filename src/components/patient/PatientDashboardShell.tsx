@@ -60,6 +60,8 @@ export default function PatientDashboardShell({
         // a therapist often writes one while they are still on the call.
         "care_plans",
         "care_plan_versions",
+        // A session summary lands as the therapist finishes the session.
+        "session_summaries",
       ]}
       headerTitle={title}
       headerSubtitle={subtitle}

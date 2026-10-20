@@ -3,6 +3,7 @@
 import { useState } from "react";
 import SessionNoteDialog from "@/components/therapist/SessionNoteDialog";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
+import type { SummaryForDialog } from "@/lib/sessionSummary";
 import type { RecommendableOption } from "@/components/therapist/CarePlanFields";
 
 /**
@@ -26,6 +27,7 @@ export default function SessionNoteButton({
   recommendationCategoryId = null,
   recommendationNeedsApproval = true,
   recommendationAwaitingClinic = false,
+  summary,
 }: {
   appointmentId: string;
   patientName: string;
@@ -55,6 +57,8 @@ export default function SessionNoteButton({
   recommendationNeedsApproval?: boolean;
   /** This patient already has a recommendation in the clinic's queue. */
   recommendationAwaitingClinic?: boolean;
+  /** The patient's summary of this session, written beside the note. */
+  summary: SummaryForDialog;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -87,6 +91,7 @@ export default function SessionNoteButton({
           recommendationCategoryId={recommendationCategoryId}
           recommendationNeedsApproval={recommendationNeedsApproval}
           recommendationAwaitingClinic={recommendationAwaitingClinic}
+          summary={summary}
           onClose={() => setOpen(false)}
         />
       )}

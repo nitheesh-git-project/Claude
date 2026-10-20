@@ -4,6 +4,7 @@ import { useState } from "react";
 import SessionNoteDialog from "@/components/therapist/SessionNoteDialog";
 import { debugNow } from "@/lib/debugNow";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
+import type { SummaryForDialog } from "@/lib/sessionSummary";
 import type { RecommendableOption } from "@/components/therapist/CarePlanFields";
 
 /**
@@ -29,6 +30,7 @@ export default function FinishSessionButton({
   recommendationCategoryId = null,
   recommendationNeedsApproval = true,
   recommendationAwaitingClinic = false,
+  summary,
 }: {
   appointmentId: string;
   slotTime: string | null;
@@ -43,6 +45,8 @@ export default function FinishSessionButton({
   recommendationCategoryId?: string | null;
   recommendationNeedsApproval?: boolean;
   recommendationAwaitingClinic?: boolean;
+  /** The patient's summary of this session, written beside the note. */
+  summary: SummaryForDialog;
 }) {
   const [open, setOpen] = useState(false);
   const [notYet, setNotYet] = useState(false);
@@ -85,6 +89,7 @@ export default function FinishSessionButton({
           recommendationCategoryId={recommendationCategoryId}
           recommendationNeedsApproval={recommendationNeedsApproval}
           recommendationAwaitingClinic={recommendationAwaitingClinic}
+          summary={summary}
           completeOnSave
           sessionStartIso={slotTime}
           onClose={() => setOpen(false)}

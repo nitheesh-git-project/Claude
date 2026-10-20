@@ -284,6 +284,26 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Submitting with required fields blank: `Fill in what you treated, how the patient responded, and the plan for next time.`
 * An unknown field in the payload: `Note contains unknown fields.`
 
+#### `THR-SESS-009` - The summary for the patient, written beside the note · P0
+
+**Feature.** The note dialog (Done, or the completed card's note button) has a second band, teal with an eye, headed **Shared with the patient**: *What we did today* and *What to do before next time*. Both optional, 600 characters each. It is the one part of the dialog the patient reads; the note above it stays clinician-only.
+**Preconditions.** Therapist A has a confirmed session with Patient A that has started.
+
+**Steps**
+1. Tap **Done**. Fill the note as in `THR-SESS-008`, and in the shared band write *What we did today* `We worked on getting up from a chair without pushing off.` and *What to do before next time* `Heel slides, 10 at a time, morning and evening.` Save.
+2. Within 24 hours reopen the note from the card and change one summary line. Save.
+3. Reopen it, empty both summary boxes and save.
+4. Put `Call me on 98765 43210` in a summary box and save.
+5. As Therapist B (not on this session), POST `/api/therapist/session-summary/submit` for this appointment.
+
+**Expected Result**
+* Step 1: the session finishes; the toast ends `<first name> can read your summary.` One `session_summaries` row, filed under the session's patient and therapist (never from the request body). If the summary is refused, the note is still saved, the session **stays open**, and the message says so.
+* Step 2: saved; a `session_summary_revisions` row keeps the old text. After 24 hours the band is read-only with `This summary is locked - it was written more than 24 hours ago.`
+* Step 3: refused - `… may already have read the summary, so it can be corrected but not removed.`
+* Step 4: blocked by the contact scanner, with a Risk signal on surface **Session summary for the patient**.
+* Step 5: `That session isn't yours.` (403).
+* A no-show session refuses a summary; an over-long box is refused with the 600-character message.
+
 ---
 
 ### 12.4 Clinical records
@@ -348,7 +368,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 **Purpose.** This is the single most damaging possible regression in the clinical layer.
 **Steps.** With Patient A holding a full orthopaedic record, re-triage them as **Neurological** and complete the neuro question set with the §8.5 answers. Then inspect the profile.
-**Expected Result.** The neuro answers are stored **alongside** the orthopaedic ones in the same flat blob. **Every orthopaedic key survives** (hidden on screen, never deleted). The chart now renders the neuro summary card, the neuro snapshot strip and the neuro progress line. The Pain Map is **not** rendered.
+**Expected Result.** The neuro answers are stored **alongside** the orthopaedic ones in the same flat blob. **Every orthopaedic key survives** (hidden on screen, never deleted). The chart now renders the neuro summary card, the neuro snapshot strip and the neuro progress line. The Pain Map is **not** rendered; the **Neurological examination** card is, in its place (`THR-HP-005b`).
 **If any orthopaedic answer is gone, stop and raise a P0** - the approve path must merge, never write the proposed data outright.
 
 #### `THR-HP-004b` - Going back to an earlier condition type prefills its answers · P1
@@ -367,6 +387,25 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Step 1: the region is chosen by **tapping the figure** (or a chip inside the dialog), never a `<select>`, and the chosen region stays in the dialog header while the clinician types. Questions are grouped, not listed flat. The exam posts **live with no review**, and is **append-only** - a re-assessment is a new row, so the UI can show a trend against the previous visit. Recording one requires only that the therapist is **assigned**.
 * Step 2: the non-ortho page **does not merely hide the map - it never queries `pain_assessments` at all**, and the submit route answers **400**.
 * Every user-facing exam figure is printed **out of ten**, never as a raw percentage. `Last exam found 34%` beside `How you rate it 6/10` is a defect: both must read on the same 0–10 scale.
+
+#### `THR-HP-005b` - The neurological examination chart · P0
+
+**Preconditions.** The neurological patient (Patient C) with a **completed** session with Therapist A (or a confirmed one inside its join window). Therapist B has never been on Patient C. Repeat the layout steps at a phone width (360px), a laptop (1280px) and an ultrawide (2560px).
+**Steps**
+1. As Therapist A, open Patient C's chart. Read the **Neurological examination** card. Tap **Record an examination**.
+2. In the dialog: on **Tone**, set Elbow flexors **L 2 / R 0**; on **Power**, Tab into Shoulder abduction left and use the arrow keys to reach **3**, set the right to **5**; on **Reflexes**, tap **Mark the rest normal**. Hover or focus a grade to read its meaning; read the legend above each section. Use the section strip (phone) or rail (laptop) to jump to **Balance**: type **38** for the Berg total; open **Score the fourteen items** and look at the band line. On **Gait**: pick **Hemiplegic** and **Walking stick**, then **Unable to walk**, then back to **Hemiplegic**; type **18.5** for Timed Up and Go. Write a note. Press **Escape**.
+3. Choose **Keep editing**, then **Save examination**.
+4. Reload the page. Then **Record a re-examination**: change Elbow flexors left to **1**, Shoulder abduction left to **4**, Berg **44**, and save. Reload, and tap the older date in **Examinations on record**.
+5. As Patient C, open the Health Profile.
+6. As Therapist B, open `/therapist/dashboard/health-profile/<Patient C's id>` and call `POST /api/therapist/neuro-assessments/submit` for Patient C. As Therapist A, call the same route with `{"findings":{"bilateral":{"tone_elbow_flexors":{"left":"2+"}}}}` and again with `{"findings":{}}`.
+
+**Expected Result**
+* Step 1: no "still being built" sentence anywhere. Before any exam the card says **No neurological examination recorded yet** with the Record button in it.
+* Step 2: every score is a **segmented control** - no number box where a scale exists - and its first segment is a dash, **Not tested**, selected until you choose. A grade outside normal turns **amber**; a left/right difference shows **L≠R** on the row at once. Each control is a radio group named for its row and side ("Elbow flexors, left"); Tab enters a group once, the arrows move and choose, the focus ring is visible. **Mark the rest normal** fills only unscored rows (reflexes 2+, plantar Down) and never overwrites one you set. The Berg line reads **Medium fall risk - 21-40: walks with assistance**; with all fourteen items scored the total is their sum and cannot be typed. Picking **Unable to walk** clears the other patterns and the two timed boxes and disables them; picking another pattern clears **Unable**. TUG 18.5 reads **13.5 s or more - raised fall risk**. Escape with something entered asks **Close without saving?** in the footer rather than losing the work. Left and right sit side by side from tablet width and stack as L then R on a phone; the section strip stays at the top while the body scrolls; nothing scrolls sideways at any width.
+* Step 3: the toast says **Neurological examination saved for <name>** and the dialog closes.
+* Step 4: after the reload the summary shows the Berg tile **38/56 · Medium fall risk**, the TUG tile, a **Side to side** tile, the tables of what was examined only (with "N not tested" counted, never listed), each grade with its meaning beside it, and the note. The re-examination dialog shows **Last time: L 2 · R 0** on that row and a dot on last time's grade. After the second save: **Since <date>** lists **Better (3)** - elbow flexors left, shoulder abduction left, Berg 38/56 → 44/56 - with arrows on the changed cells; findings recorded only once are not listed as changes. The older date shows the first exam.
+* Step 5: the patient sees **Your examination** in their own words ("Muscle strength", "Balance score", "Full strength"), the same figures and the change since last time, and **no** Record button.
+* Step 6: Therapist B gets **404** on the chart and **403** on the write (*"You can only record findings for a patient you've been assigned to."*). The bad grade answers **400** naming the Modified Ashworth Scale; the empty exam **400** *"Record at least one finding before saving the examination."* An orthopaedic patient answers **400** on this route. Before any session with the patient has started the route answers **409**.
 
 #### `THR-HP-006` - Read access needs no request · P2
 **Expected Result.** An **assigned** therapist can read the patient's intake and Pain Map with no grant. Only *editing the patient's own account of their history* needs one.

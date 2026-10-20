@@ -167,7 +167,7 @@ function Vignette({ item, languages }: { item: WhyItem; languages: string[] }) {
               <i className="fa-solid fa-person-rays text-teal-600" /> Pain 7 → 3
             </span>
             <span className={chip}>
-              <i className="fa-solid fa-notes-medical text-teal-600" /> 4 sessions noted
+              <i className="fa-solid fa-notes-medical text-teal-600" /> 4 session summaries
             </span>
           </div>
         </div>

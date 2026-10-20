@@ -128,6 +128,14 @@ test("FS-003: Done on a started session opens the note with the Pain Map step", 
   await expect(dialog.getByText("Finish session · write the note")).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Update the Pain Map" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: /Save note & finish session/ })).toBeVisible();
+  // The patient's summary is its own band, labelled as the one part the
+  // patient reads, apart from the clinician-only note (F-09).
+  const shared = dialog.getByRole("region", { name: "Shared with the patient" });
+  await expect(shared).toBeVisible();
+  await expect(shared.getByLabel("What we did today")).toBeEditable();
+  await expect(shared.getByLabel("What to do before next time")).toBeEditable();
+  await expect(dialog.getByLabel("What did you treat today?")).toBeVisible();
+  await expect(shared.getByLabel("What did you treat today?")).toHaveCount(0);
   await dialog.screenshot({ path: "test-results/finish-session-dialog.png" });
 });
 

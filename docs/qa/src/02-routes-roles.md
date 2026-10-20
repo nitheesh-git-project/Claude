@@ -53,7 +53,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/therapist/dashboard/sessions` | Sessions, join, complete, notes, recommend | `THR-SESS-001` |
 | `/therapist/dashboard/earnings` | Earnings, payout requests, receipts | `THR-EARN-001` |
 | `/therapist/dashboard/health-profile` | My Patients (Patients / Programmes toggle) | `THR-PAT-001` |
-| `/therapist/dashboard/health-profile/[patientId]` | One patient's chart: intake, Pain Map, care plans, notes | `THR-HP-001` |
+| `/therapist/dashboard/health-profile/[patientId]` | One patient's chart: intake, Pain Map (orthopaedic) or neurological examination, care plans, notes | `THR-HP-001`, `THR-HP-005b` |
 | `/therapist/dashboard/profile` | Edit Profile | `THR-PROF-001` |
 
 ### 3.5 Hospital portal

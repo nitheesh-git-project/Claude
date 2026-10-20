@@ -1325,6 +1325,24 @@
       "integration": "local",
       "destructive": false
     },
+    "patient-session-summary.spec.ts": {
+      "runner": "session",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md",
+        "docs/rules/public-site.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "hospital-isolation.spec.ts": {
       "runner": "hospital",
       "levels": [
@@ -1470,6 +1488,23 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "neuro-exam.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/frontend.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -3479,6 +3514,50 @@
       ]
     },
     {
+      "id": "session.patient-summary",
+      "runner": "session",
+      "title": "The patient's session summary: written beside the note by the session's own therapist only, read by that patient (RLS and the Sessions screen) with the therapist's name and date, never by another patient or an unrelated therapist, versioned and un-blankable, shown to admin desks that manage Sessions and refused to Finance -- and the private note never reaches the patient",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "patient-session-summary.spec.ts",
+          "tests": [
+            "PSS-001",
+            "PSS-004",
+            "PSS-005"
+          ],
+          "level": "api"
+        },
+        {
+          "spec": "patient-session-summary.spec.ts",
+          "tests": [
+            "PSS-002"
+          ],
+          "level": "db"
+        },
+        {
+          "spec": "patient-session-summary.spec.ts",
+          "tests": [
+            "PSS-003",
+            "PSS-006"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "finish-session.spec.ts",
+          "tests": [
+            "FS-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
       "id": "hospital.org-isolation",
       "runner": "hospital",
       "title": "A second partner hospital cannot read, enumerate, withdraw or see on its screen another partner's referral; the owning hospital can",
@@ -3829,6 +3908,26 @@
         "docs/rules/frontend.md",
         "docs/rules/admin.md"
       ]
+    },
+    {
+      "id": "therapist.neuro-exam-chart",
+      "runner": "therapist",
+      "title": "A therapist records a neurological examination, reads it back, and re-examines against it; an unassigned therapist is refused",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "neuro-exam.spec.ts",
+          "tests": [
+            "NE-001",
+            "NE-002",
+            "NE-003",
+            "NE-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only neurological exams, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; the scales, validation, asymmetry, Berg bands and change-since-last are unit-tested in src/lib/neuroExam.test.ts."
     }
   ],
   "removed": [

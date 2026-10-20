@@ -25,6 +25,7 @@ import {
 } from "@/lib/healthProfileSummary";
 import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
 import type { PainAssessmentRow } from "@/lib/painMap";
+import type { NeuroAssessmentRow } from "@/lib/neuroExam";
 import {
   intakeVersionForSpecialty,
   mergeIntakeQuestionOverrides,
@@ -268,6 +269,18 @@ export default async function PatientHealthProfilePage() {
       : currentData;
 
   const selfReportedAreas = isOrtho ? parseAreaPain(currentData.area_pain) : [];
+  // The neurological examination chart: read only on a neurological
+  // profile, and in its own call because neuro_assessments is a new table --
+  // a failed read says so on the card instead of reading as "nothing yet".
+  const neuroRead =
+    specialty === "neuro"
+      ? await supabase
+          .from("neuro_assessments")
+          .select("id, created_at, submitted_by_role, schema_version, findings")
+          .eq("patient_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(200)
+      : { data: [] as NeuroAssessmentRow[], error: null };
   const trendPoints = painTrendSeries(assessments ?? []);
   const intakeTrend =
     isOrtho ? [] : intakeTrendSeries((intakeHistory ?? []) as IntakeTrendRow[], specialty);
@@ -308,6 +321,7 @@ export default async function PatientHealthProfilePage() {
         "patient_condition_profiles",
         "condition_change_requests",
         "pain_assessments",
+        "neuro_assessments",
         "intake_question_templates",
       ]}
       headerTitle="Health Profile"
@@ -487,7 +501,12 @@ export default async function PatientHealthProfilePage() {
             </section>
           </div>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:sticky lg:top-4">
+          {/* Sticky only for the body map: the neurological summary can be
+              taller than the screen, and a sticky block taller than the
+              viewport hides its own bottom half until the column ends. */}
+          <section
+            className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 ${isOrtho ? "lg:sticky lg:top-4" : ""}`}
+          >
             <div className="mb-4">
               <h2 className="font-display text-lg font-bold text-slate-800">
                 {isOrtho ? "Your body map" : "Your examination"}
@@ -502,6 +521,14 @@ export default async function PatientHealthProfilePage() {
               specialty={specialty}
               assessments={assessments ?? []}
               areaPain={selfReportedAreas}
+              neuro={
+                specialty === "neuro"
+                  ? {
+                      assessments: (neuroRead.data ?? []) as NeuroAssessmentRow[],
+                      loadFailed: !!neuroRead.error,
+                    }
+                  : undefined
+              }
             />
           </section>
         </div>

@@ -2,7 +2,7 @@
 
 Per-specialty intake, the Pain Map, care plans and their review, session notes, patient files, who may read a record, and the vocabulary all three roles share.
 
-**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
+**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
 
 > Part of `docs/rules/`. `CLAUDE.md` says which file a task needs; this one
 > is the detail. Keep it current in the same change that makes it wrong --
@@ -42,17 +42,18 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      *this profile's own* set". One shared scalar bumped to 3 would have
      fired the "we've changed some of these questions" banner at every
      existing patient even though ortho's seven are byte-identical.
-  4. **Pain Map is ORTHOPAEDIC and stays so.** Neuro and paediatric exam
-     layers are deferred. A non-ortho page does not merely hide the body
-     map - it never queries `pain_assessments` (both health-profile pages
-     do a two-phase read to know the specialty before choosing what to
-     fetch), and both exam-submit routes 400. When those layers are
-     built they are a **new table** (`neuro_assessments`), a new question
-     module, a new `*Snapshot`, and one more arm on `SpecialtyExamPanel`
-     - never a `specialty` column on `pain_assessments`, which would make
-     every reader branch. The two new summary cards must not import
-     `PAIN_MAP_REGIONS` or `parseAreaPain`; that import boundary is what
-     keeps the rule true in practice rather than only in intent.
+  4. **Pain Map is ORTHOPAEDIC and stays so; the neurological exam is its
+     own layer.** A non-ortho page does not merely hide the body map - it
+     never queries `pain_assessments` (both health-profile pages do a
+     two-phase read to know the specialty before choosing what to fetch),
+     and both Pain Map submit routes 400. The neurological layer was built
+     exactly as this rule said it would be: a **new table**
+     (`neuro_assessments`), its own module (`src/lib/neuroExam.ts`), and one
+     more arm on `SpecialtyExamPanel` (`NeuroExamPanel`) - never a
+     `specialty` column on `pain_assessments`. Its components import
+     nothing from `painMap.ts` (no `PAIN_MAP_REGIONS`, no `parseAreaPain`);
+     that import boundary is what keeps the rule true in practice. The
+     paediatric layer is still deferred and still says so.
 
   **The therapist owns the first fill, and it is not reviewed.** A
   patient's record does not exist until a therapist triages them
@@ -466,6 +467,58 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   session card that offers the exam (see the simulated-clock gotcha in
   `ops-security.md`), so `nowMs` is a required argument, never a
   `Date.now()` default.
+- **The neurological examination is a chart of published scales, and "not
+  tested" is never "normal".** QA F-17: a neurological patient's record
+  sent clinicians to their session notes because the chart was "still being
+  built". It is now `neuro_assessments` - one append-only row per
+  examination (trigger, like `pain_assessments`), `findings` jsonb in the
+  shape `validateNeuroFindings()` (`src/lib/neuroExam.ts`) accepts, and
+  `schema_version` = `NEURO_EXAM_VERSION`. Seven rules:
+  1. **Every score is one of its scale's own grades.** Tone is the Modified
+     Ashworth Scale (0, 1, 1+, 2, 3, 4), power Oxford/MRC 0-5 per myotome,
+     reflexes 0 to 4+ plus the plantar response, sensation intact /
+     impaired / absent for light touch, pinprick and proprioception,
+     coordination normal / impaired - all left and right. Balance is
+     Romberg, sitting and standing grades and the Berg Balance Scale (total
+     0-56, with optional item scores 0-4); gait is pattern and aids from
+     fixed lists plus the 10-metre walk and Timed Up and Go in seconds. The
+     dialog renders its controls from the same tables the route validates
+     against, so a value the screen cannot offer is a 400, never rounded
+     into shape - and there are no number boxes where a scale exists.
+  2. **"Not tested" is the absence of a key.** A row or a side nobody
+     examined is not stored; the first segment of every control is a dash
+     meaning exactly that. A form that can only say "not tested" by leaving
+     a blank is how it gets read as normal.
+  3. **Severity is derived, never stored.** Each grade knows its distance
+     from normal, and asymmetry (one grade between sides is enough - the
+     scales are coarse), the abnormal counts and the better/worse arrows
+     all read that one number. A Berg total disagreeing with its fourteen
+     item scores is refused; all fourteen with no total are summed.
+  4. **Change is only between findings recorded both times.** "Not tested
+     last time" is not "got worse"; `compareNeuroExams()` leaves a finding
+     new to this exam out rather than reporting it against a blank.
+  5. **Same gate as a Pain Map exam.** A therapist needs to be assigned and
+     to have a started or delivered session with the patient
+     (`hasStartedSessionWithPatient`, on the debug bar's clock), no access
+     grant; `/api/therapist/neuro-assessments/submit` mirrors
+     `neuro_assessments_insert_assigned_therapist`. An admin records one
+     through `/api/admin/neuro-assessments/submit`
+     (`requireAdminScope("people")`, `neuro_assessment.create` audit row),
+     and the button renders only for a scope that route accepts. Both 400
+     a patient who is not recorded as neurological. Reads follow the
+     clinical-access rule (`neuro_assessments_select_assigned_therapist`,
+     plus the patient's own and the admin's).
+  6. **The patient reads it, notes included.** It is on their Health Profile
+     in their own words (`voice`) and in their PDF export, so the notes are
+     scanned at write time (`neuro_assessment_note` surface) and the dialog
+     says that colleagues-only remarks belong in the session note.
+     Completing a session does **not** require a neurological exam - that
+     gate stays orthopaedic (`complete-session`), because a reassessment is
+     not done every session.
+  7. **Every read of it is its own call**, so a database without the table
+     costs the card - which says it could not load, rather than "nothing
+     recorded" - and not the page. `e2e/neuro-exam.spec.ts`,
+     `src/lib/neuroExam.test.ts`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate
@@ -525,6 +578,34 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   history. Completion is never blocked on a note - the nudge is a
   `needsYou` feed item plus the "Notes to write" figure on the therapist's
   Overview.
+- **What the patient reads about a session is the summary, never the note.**
+  The same dialog (Done, or the card's note button) carries a second band,
+  teal with an eye and labelled **Shared with the patient**: *What we did
+  today* and *What to do before next time*, both optional, plain words,
+  600 characters each (`src/lib/sessionSummary.ts`). It is its own table,
+  `session_summaries`, precisely so the note never needs a patient policy:
+  the patient's RLS (`session_summaries_select_own_patient`) reads their own
+  rows, clinicians read them under the note's treating-therapist rule, and
+  **no browser session can write one** - only
+  `/api/therapist/session-summary/submit`, which re-derives the session and
+  its patient (never from the body), requires the caller to be that
+  session's therapist, the session delivered (completed, or confirmed and
+  started on the debug-aware clock) and not a no-show, and runs the text
+  through the contact scanner (surface `session_summary`) because it is
+  therapist-to-patient text. It follows the note's rules for a record:
+  editable for 24 hours, every edit copies what it replaced into
+  `session_summary_revisions` (append-only by trigger) and compare-and-sets
+  on `baseUpdatedAt`; an identical re-send writes nothing; and a summary the
+  patient may already have read **can be corrected but not blanked**. The
+  dialog saves it after the note and before Done closes the session, so a
+  refusal leaves the session open and a retry repeats nothing. When the
+  therapist is also recommending a programme in the dialog, the band says
+  the recommendation reaches the patient on its own; on the patient's card
+  the summary links to a programme recommended after that session (one the
+  patient may see) rather than repeating it. Where the summary is read -
+  `patientSummaryState()` - decides it belongs to *this* patient and *this*
+  session, that the session was delivered, and keeps "could not load" apart
+  from "none written". `e2e/patient-session-summary.spec.ts`.
 - **"Are you getting better?" is one point per exam, never per day.**
   `painTrendSeries()` (`src/lib/healthProfileSummary.ts`) closes an exam at a
   gap of more than an hour or when an area already scored in it is scored

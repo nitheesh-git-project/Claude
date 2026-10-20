@@ -56,7 +56,7 @@ function stepsFor(homeVisitEnabled: boolean): Step[] {
       photoId: "step-progress",
       alt: "A couple following their exercise plan on mats at home, laptop open between them",
       title: "Follow your plan",
-      body: "Exercises and a written record, updated every session.",
+      body: "Your exercise plan, and a short summary after each session.",
     },
   ];
 }
