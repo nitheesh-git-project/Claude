@@ -139,7 +139,7 @@ test("NE-001: record an exam, reopen the record, re-examine, and read the change
 
     // --- Reopen: the record, read back ---
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(card.getByText("38/56")).toBeVisible({ timeout: 60_000 });
+    await expect(card.getByText("38/56").first()).toBeVisible({ timeout: 60_000 });
     await expect(card.getByText(/Medium fall risk/).first()).toBeVisible();
     await expect(card.getByText("L≠R").first()).toBeVisible();
     await expect(card.getByText(`${MARKER}: first examination`)).toBeVisible();
@@ -157,7 +157,7 @@ test("NE-001: record an exam, reopen the record, re-examine, and read the change
     await expect(dialog).toHaveCount(0);
 
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(card.getByText("44/56")).toBeVisible({ timeout: 60_000 });
+    await expect(card.getByText("44/56").first()).toBeVisible({ timeout: 60_000 });
     const since = card.getByRole("region", { name: "Change since the previous examination" });
     await expect(since).toBeVisible();
     await expect(since.getByText(/Better \(3\)/)).toBeVisible();
@@ -166,7 +166,8 @@ test("NE-001: record an exam, reopen the record, re-examine, and read the change
     const history = card.getByRole("group", { name: /Examinations on record \(2\)/ });
     await expect(history.getByRole("button")).toHaveCount(2);
     await history.getByRole("button").nth(1).click();
-    await expect(card.getByText("38/56")).toBeVisible();
+    // The score shows twice -- the headline tile and the Balance section.
+    await expect(card.getByText("38/56").first()).toBeVisible();
   } finally {
     await page.context().close();
   }
