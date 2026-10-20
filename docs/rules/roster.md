@@ -204,15 +204,17 @@ Availability as periods over hour rows, specialisation as a value, what readines
   `notYet: true`, which the buttons show without refreshing the card.
   **A therapist's Done is the session note.** The card's **Done** opens the
   note dialog (`FinishSessionButton` -> `SessionNoteDialog` with
-  `completeOnSave`), whose first step is the Pain Map; saving the note is
-  what completes the session, and the rating form follows on the completed
-  card. The route enforces it, not the dialog: a therapist's Done is refused
-  409 `note_required` without a `session_notes` row for the appointment, and
-  409 `pain_map_required` without a pain assessment this therapist recorded
-  since an hour before the slot - for an **orthopaedic** patient only, since
-  only that chart has a Pain Map; a neuro or paediatric patient's session
-  finishes on the note alone, and the dialog's Pain Map step stands aside
-  (`e2e/finish-session.spec.ts`). Admins and
+  `completeOnSave`), whose first step is the patient's examination; saving
+  the note is what completes the session, and the rating form follows on
+  the completed card. The route enforces it, not the dialog: a therapist's
+  Done is refused 409 `note_required` without a `session_notes` row for the
+  appointment, and without this condition type's exam recorded by this
+  therapist since an hour before the slot - 409 `pain_map_required` for an
+  **orthopaedic** patient, 409 `neuro_exam_required` for a **neurological**
+  one (`missingSessionExam`, `src/lib/sessionCompletion.ts`; see
+  `clinical.md`). A paediatric patient's session finishes on the note
+  alone, and the dialog's exam step stands aside
+  (`e2e/finish-session.spec.ts`, `e2e/neuro-exam.spec.ts` NE-000). Admins and
   No-show are exempt. The "not started yet" line wraps under the buttons
   (`basis-full`) so No-show stays beside Done.
   **The admin half of it is a Sessions write, and asks for `manage`.** This

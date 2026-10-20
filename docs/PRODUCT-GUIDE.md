@@ -2481,6 +2481,17 @@ everything else.
   from a session that has started (or by an admin with the People scope),
   readable by the patient in their own words and included in their PDF.
 
+  **Finishing a session needs this condition type's exam.** A therapist's
+  **Done** opens the session note, whose first step is the patient's
+  examination: the Pain Map for an orthopaedic patient, the neurological
+  examination for a neurological one, nothing for a paediatric one (that
+  layer is not built yet). The session closes only once that exam has been
+  recorded by this therapist since an hour before the slot - the note says
+  so before sending anything, and `complete-session` refuses
+  (`pain_map_required` / `neuro_exam_required`) if it is not. The window
+  follows the debug bar's clock, and one layer never stands in for the
+  other. Admins and no-shows are exempt.
+
   Unlike the intake, a Pain Map exam posts live immediately (it's the
   therapist's own clinical judgement) and needs no access grant - a
   therapist assigned to the patient can record what they found, the same

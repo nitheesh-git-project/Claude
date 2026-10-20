@@ -257,6 +257,19 @@ This is the regression that guards the whole design. See `XCFG-ROSTER-001`.
 * A session that is not `confirmed` is refused with `Only confirmed sessions can be marked completed.`
 * A second completion attempt returns `This session was already updated - please refresh and try again.` (409). **No double payout.**
 
+#### `THR-SESS-005b` - Done needs this condition type's examination · P0
+
+**Preconditions.** Three confirmed, paid sessions with Therapist A whose start has passed: one with an **orthopaedic** patient, one with the **neurological** patient (Patient C), one with a **paediatric** patient. No exam recorded by Therapist A for any of them since an hour before each slot.
+**Steps**
+1. On each card tap **Done**, fill the three required note fields and tap **Save note & finish session** without recording anything else.
+2. On the neurological session, tap **Record the examination** in the note's first step, record at least one finding, save it, then **Save note & finish session** again.
+3. Call `POST /api/appointments/complete-session` directly for an orthopaedic and a neurological session that have a note but no exam this session. Repeat step 2 with the debug bar's clock moved to just after a future session's start.
+
+**Expected Result**
+* Step 1: the orthopaedic note's first step is **Pain Map** with **Update the Pain Map**, and finishing is refused with *"Update the Pain Map for this session before finishing it."* The neurological note's first step is **Neurological examination** with **Record the examination** - never a Pain Map - and finishing is refused with *"Record the neurological examination for this session before finishing it."* The paediatric note has no exam step and finishes on the note alone. Nothing is completed by a refusal.
+* Step 2: the step reads *"Recorded for this session at <time>."* and the session finishes; the rating form follows.
+* Step 3: the route answers **409** `pain_map_required` (orthopaedic) and **409** `neuro_exam_required` with *"Record the neurological examination for this session before marking it done."* (neurological). A Pain Map reading does not satisfy a neurological session and a neurological exam does not satisfy an orthopaedic one. Under the simulated clock the exam just recorded counts for that session (the window moves with the debug clock), exactly as for the Pain Map.
+
 #### `THR-SESS-006` - Mark a no-show · P2
 **Expected Result.** The session is completed with `no_show=true`. It shows as `Marked as no-show` and the patient's rating control is suppressed with `This session was marked as a no-show - there's nothing to rate.`
 

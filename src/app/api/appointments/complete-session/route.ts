@@ -6,7 +6,13 @@ import { getAdminContext } from "@/lib/supabase/requireAdmin";
 import { scopeCanManage } from "@/lib/adminScope";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
-import { completionOpensAtMs, completionRefusal, sessionExamWindowStartMs } from "@/lib/sessionCompletion";
+import {
+  completionOpensAtMs,
+  completionRefusal,
+  missingSessionExam,
+  SESSION_EXAM_REFUSAL,
+  sessionExamWindowStartMs,
+} from "@/lib/sessionCompletion";
 import { mirrorConsume } from "@/lib/sessionCreditMirror";
 import { allocatePayLaterPayments } from "@/lib/payLaterSettlementServer";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
@@ -190,8 +196,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Done means the clinical record is written: a session note for this
-    // session, and the Pain Map updated during it (owner's rule, every
-    // specialty). The therapist's Done opens the note first and calls this
+    // session, and this condition type's examination updated during it
+    // (owner's rule): the Pain Map for an orthopaedic patient, the
+    // neurological examination chart for a neurological one, nothing for a
+    // paediatric one until that layer exists (missingSessionExam in
+    // sessionCompletion.ts). The therapist's Done opens the note first and calls this
     // only after it saved -- this is the copy that binds. "During it" is
     // from an hour before the slot, so an exam recorded while setting up
     // counts. An admin closing the record is exempt, as for the clock.
@@ -207,6 +216,7 @@ export async function POST(request: NextRequest) {
         { data: noteRow, error: noteError },
         { count: painCount, error: painError },
         { data: specialtyRow, error: specialtyError },
+        { count: neuroCount, error: neuroError },
       ] = await Promise.all([
         admin.from("session_notes").select("id").eq("appointment_id", appointmentId).maybeSingle(),
         admin
@@ -219,8 +229,22 @@ export async function POST(request: NextRequest) {
         // patients are charted in their own terms, so requiring pain scores
         // of them would have a therapist invent numbers nobody ever reads.
         admin.from("patient_condition_profiles").select("specialty").eq("patient_id", appointment.patient_id).maybeSingle(),
+        // The neurological chart, by the same window and the same author
+        // rule as the Pain Map above.
+        admin
+          .from("neuro_assessments")
+          .select("id", { count: "exact", head: true })
+          .eq("patient_id", appointment.patient_id)
+          .eq("submitted_by", user.id)
+          .gte("created_at", sinceIso),
       ]);
-      if (noteError || painError || specialtyError) {
+      const specialty = parseConditionSpecialty(specialtyRow?.specialty);
+      // A failed exam read counts only for the layer this patient needs:
+      // "we couldn't check" is a 503, never a silent pass -- but a neuro
+      // read failing must not block an orthopaedic patient's Done.
+      const examReadFailed =
+        (specialty === "ortho" && !!painError) || (specialty === "neuro" && !!neuroError);
+      if (noteError || specialtyError || examReadFailed) {
         return NextResponse.json(
           { error: "We couldn't check this session's note just now. Please try again." },
           { status: 503 }
@@ -232,14 +256,9 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
-      if (!painCount && parseConditionSpecialty(specialtyRow?.specialty) === "ortho") {
-        return NextResponse.json(
-          {
-            error: "Update the Pain Map for this session before marking it done.",
-            code: "pain_map_required",
-          },
-          { status: 409 }
-        );
+      const missing = missingSessionExam(specialty, { painMap: painCount ?? 0, neuroExam: neuroCount ?? 0 });
+      if (missing) {
+        return NextResponse.json(SESSION_EXAM_REFUSAL[missing], { status: 409 });
       }
     }
   }

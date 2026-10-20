@@ -512,9 +512,18 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      in their own words (`voice`) and in their PDF export, so the notes are
      scanned at write time (`neuro_assessment_note` surface) and the dialog
      says that colleagues-only remarks belong in the session note.
-     Completing a session does **not** require a neurological exam - that
-     gate stays orthopaedic (`complete-session`), because a reassessment is
-     not done every session.
+     **A neurological patient's Done requires one** (owner's decision), the
+     way an orthopaedic patient's requires the Pain Map: `complete-session`
+     refuses 409 `neuro_exam_required` without a `neuro_assessments` row this
+     therapist recorded since an hour before the slot - the same
+     `sessionExamWindowStartMs` window, shifted by the debug clock the same
+     way - and the note dialog's exam step becomes the neurological one
+     (`SessionExamStep` -> `SessionNeuroExamStep`). Which layer is required
+     is one decision, `requiredSessionExam()` / `missingSessionExam()` in
+     `sessionCompletion.ts`: Pain Map for ortho, neurological exam for
+     neuro, **nothing for paediatrics** (no layer to record in yet), and
+     neither layer stands in for the other. A failed read of the required
+     layer answers 503, never a pass.
   7. **Every read of it is its own call**, so a database without the table
      costs the card - which says it could not load, rather than "nothing
      recorded" - and not the page. `e2e/neuro-exam.spec.ts`,
