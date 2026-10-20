@@ -32,6 +32,9 @@ import { PAIN_MAP_REGIONS, type PainAssessmentRow, type QuestionOverrideRow } fr
 import type { NeuroAssessmentRow } from "@/lib/neuroExam";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
 import { scopeCanManage } from "@/lib/adminScope";
+import OrthoProfileTop from "@/components/profile/ortho/OrthoProfileTop";
+import { loadLicenceForRecording, loadOrthoReads } from "@/lib/orthoProfileServer";
+import { shapeOrthoView } from "@/lib/orthoProfileView";
 
 const regionLabel = (region: string) =>
   PAIN_MAP_REGIONS.find((r) => r.key === region)?.label ?? region;
@@ -121,7 +124,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
   // record button renders only for a scope its route accepts
   // (requireAdminScope("people")): a control the server would refuse is
   // not offered.
-  const [neuroRead, adminContext] = await Promise.all([
+  const [neuroRead, adminContext, orthoReads] = await Promise.all([
     isNeuroProfile
       ? admin
           .from("neuro_assessments")
@@ -130,7 +133,11 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           .order("created_at", { ascending: false })
           .limit(200)
       : Promise.resolve({ data: [] as NeuroAssessmentRow[], error: null }),
-    isNeuroProfile ? getAdminContext() : Promise.resolve(null),
+    isNeuroProfile || isOrthoProfile ? getAdminContext() : Promise.resolve(null),
+    // The orthopaedic progress record (measurements, goal and steps, phase and
+    // status history), each read its own call inside the loader; orthopaedic
+    // only, like the Pain Map.
+    isOrthoProfile ? loadOrthoReads(admin, id) : Promise.resolve(null),
   ]);
   const canRecordNeuro = !!adminContext && scopeCanManage(adminContext.scope, "people");
   const proposedSpecialtyById = new Map(
@@ -236,6 +243,18 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
   const pendingRequest = (changeRequests ?? []).find((r) => r.status === "pending");
   const requestHistory = (changeRequests ?? []).filter((r) => r.status !== "pending");
   const pendingDaysOld = pendingRequest ? daysSince(pendingRequest.created_at) : 0;
+
+  // The same orthopaedic layout the patient and the therapist read. What an
+  // admin may DO in it follows the routes' own gate: recording a test, the
+  // phase and status and reopening a milestone all need the People scope
+  // (requireAdminScope("people")), so those controls are absent without it.
+  const canManagePeople = !!adminContext && scopeCanManage(adminContext.scope, "people");
+  const orthoView =
+    isOrthoProfile && orthoReads
+      ? shapeOrthoView({ ...orthoReads, assessments: assessments ?? [] }, "clinician", orthoReads.nowMs)
+      : null;
+  const orthoLicence =
+    orthoView && canManagePeople ? await loadLicenceForRecording(admin) : { keys: [] as string[], unreadable: false };
 
   const requestedGrants = (grants ?? []).filter((g) => g.status === "requested");
   const approvedGrants = (grants ?? []).filter((g) => g.status === "approved");
@@ -456,53 +475,83 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
         />
       </SurfaceCard>
 
-      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
-          {isOrthoProfile ? "Pain Map" : isNeuroProfile ? "Neurological examination" : "Examination"}
-        </h2>
-        <p className="text-xs text-slate-500 mb-4">
-          {isOrthoProfile
-            ? "Exam findings, and the same figure switched to compare them against what the patient reported."
-            : isNeuroProfile
-              ? "Tone, power, reflexes, sensation, coordination, balance and gait, compared with the examination before."
-              : "This condition type has no on-screen examination chart yet."}
-        </p>
-        {/* Same one surface and the same recording dialog the therapist
-            uses -- an admin entering an exam on someone's behalf should be
-            filling in the identical form, not a second one that can drift. */}
-        <SpecialtyExamPanel
-          specialty={specialty}
-          voice="clinician"
-          assessments={assessments ?? []}
-          areaPain={isOrthoProfile ? parseAreaPain(currentData.area_pain) : []}
-          record={
-            isOrthoProfile
-              ? {
-                  endpoint: "/api/admin/pain-assessments/submit",
-                  patientId: id,
-                  overridesByRegion: painMapOverridesByRegion,
-                }
-              : undefined
-          }
-          neuro={
-            isNeuroProfile
-              ? {
-                  assessments: (neuroRead.data ?? []) as NeuroAssessmentRow[],
-                  loadFailed: !!neuroRead.error,
-                  record: canRecordNeuro
-                    ? { endpoint: "/api/admin/neuro-assessments/submit", patientId: id }
-                    : undefined,
-                }
-              : undefined
-          }
-        />
-        {(isOrthoProfile || (isNeuroProfile && canRecordNeuro)) && (
-          <p className="mt-3 text-xs text-slate-500">
-            Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a
-            new reading rather than editing any past one, since examination history is append-only.
+      {orthoView && isOrthoProfile ? (
+        <>
+          <OrthoProfileTop
+            voice="clinician"
+            patientId={id}
+            patientName={patient.full_name}
+            conditionLine={currentData.chief_complaint?.trim() || null}
+            chipLabel={specialtyDef?.label ?? "Orthopaedic"}
+            view={orthoView}
+            assessments={assessments ?? []}
+            areaPain={parseAreaPain(currentData.area_pain)}
+            examRecord={{
+              endpoint: "/api/admin/pain-assessments/submit",
+              patientId: id,
+              overridesByRegion: painMapOverridesByRegion,
+            }}
+            canSetStatus={canManagePeople ? { endpoint: "/api/admin/care-status/set" } : null}
+            record={canManagePeople ? { asAdmin: true } : null}
+            planner={false}
+            reopen={canManagePeople}
+            enabledLicensed={orthoLicence.keys}
+            licenceUnreadable={orthoLicence.unreadable}
+          />
+          <p className="text-xs text-slate-500">
+            Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a new reading rather
+            than editing any past one, since examination history is append-only.
           </p>
-        )}
-      </section>
+        </>
+      ) : (
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
+            {isOrthoProfile ? "Pain Map" : isNeuroProfile ? "Neurological examination" : "Examination"}
+          </h2>
+          <p className="text-xs text-slate-500 mb-4">
+            {isOrthoProfile
+              ? "Exam findings, and the same figure switched to compare them against what the patient reported."
+              : isNeuroProfile
+                ? "Tone, power, reflexes, sensation, coordination, balance and gait, compared with the examination before."
+                : "This condition type has no on-screen examination chart yet."}
+          </p>
+          {/* Same one surface and the same recording dialog the therapist
+              uses -- an admin entering an exam on someone's behalf should be
+              filling in the identical form, not a second one that can drift. */}
+          <SpecialtyExamPanel
+            specialty={specialty}
+            voice="clinician"
+            assessments={assessments ?? []}
+            areaPain={isOrthoProfile ? parseAreaPain(currentData.area_pain) : []}
+            record={
+              isOrthoProfile
+                ? {
+                    endpoint: "/api/admin/pain-assessments/submit",
+                    patientId: id,
+                    overridesByRegion: painMapOverridesByRegion,
+                  }
+                : undefined
+            }
+            neuro={
+              isNeuroProfile
+                ? {
+                    assessments: (neuroRead.data ?? []) as NeuroAssessmentRow[],
+                    loadFailed: !!neuroRead.error,
+                    record: canRecordNeuro
+                      ? { endpoint: "/api/admin/neuro-assessments/submit", patientId: id }
+                      : undefined,
+                  }
+                : undefined
+            }
+          />
+          {(isOrthoProfile || (isNeuroProfile && canRecordNeuro)) && (
+            <p className="mt-3 text-xs text-slate-500">
+              Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a
+              new reading rather than editing any past one, since examination history is append-only.
+            </p>
+          )}
+        </section>
+      )}
     </div>
   );
 }

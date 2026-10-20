@@ -21,7 +21,15 @@ import { useRouter } from "@/lib/useRouter";
 import { useToast } from "@/lib/toast";
 import { debugNow, debugNowHeaders } from "@/lib/debugNow";
 import { formatClinicDate } from "@/lib/formatDateTime";
-import { maxTrialsFor, outcomeMeasure, STANDS_WITH_ARMS_KEY, usedArmsEntry, validateMeasurement, type OutcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
+import {
+  JOINT_MODES,
+  JOINT_READING_RULE,
+  joinJointVariant,
+  landmarksFor,
+  movementLabel,
+  type JointMode,
+} from "@/lib/jointLandmarks";
+import { JOINT_MOVEMENTS, maxTrialsFor, outcomeMeasure, STANDS_WITH_ARMS_KEY, usedArmsEntry, validateMeasurement, type OutcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasureSeries } from "@/lib/outcomeSeries";
 import { formatReading } from "@/lib/progressChart";
 import { NETWORK_ERROR_MESSAGE, progressErrorMessage, readProgressFailure } from "@/lib/progressErrors";
@@ -32,7 +40,9 @@ import {
   conditionFieldsFor,
   emptyEditorState,
   mustUseTrials,
+  otherSideReading,
   ownedElsewhereNote,
+  pendingExtensionLag,
   previousReading,
   recordableMeasures,
   timerFor,
@@ -125,6 +135,10 @@ export default function RecordTestDialog({
 
   const [measureKey, setMeasureKey] = useState(startKey);
   const [variant, setVariant] = useState("");
+  // Goniometry stores the movement and its mode in one variant string; the
+  // screen asks for them as two answers (jointLandmarks.ts joins them).
+  const [jointMovement, setJointMovement] = useState("");
+  const [jointMode, setJointMode] = useState<JointMode | "">("");
   const [side, setSide] = useState<"" | "left" | "right">("");
   const [editor, setEditor] = useState<EditorState>(() => emptyEditorState(startKey ? outcomeMeasure(startKey) : null));
   const [useTimer, setUseTimer] = useState(true);
@@ -153,6 +167,14 @@ export default function RecordTestDialog({
       })
     : null;
 
+  const otherSide = measure
+    ? otherSideReading(series, { measureKey: measure.key, variant: variant || null, side: side || null, medicationState })
+    : null;
+  const lagNow = measure
+    ? pendingExtensionLag(series, { measureKey: measure.key, variant: variant || null, side: side || null }, entry?.value ?? null)
+    : null;
+  const landmark = measure?.key === "joint_range" && jointMovement ? landmarksFor(jointMovement) : null;
+
   const dirty = !!measure && (entry?.value != null || cond !== EMPTY_CONDITION_DRAFT);
 
   function requestClose() {
@@ -171,6 +193,8 @@ export default function RecordTestDialog({
     setMeasureKey(key);
     const m = key ? outcomeMeasure(key) : null;
     setVariant("");
+    setJointMovement("");
+    setJointMode("");
     setSide("");
     setEditor(emptyEditorState(m));
     setUseTimer(true);
@@ -541,28 +565,70 @@ export default function RecordTestDialog({
                 {measure?.note && <p className="mt-1 text-xs text-slate-600">{measure.note}</p>}
               </div>
 
-              {measure?.variants && (
-                <div>
-                  <label htmlFor={`${baseId}-variant`} className="block text-sm font-semibold text-slate-900">
-                    {measure.key === "joint_range" ? "Which movement?" : "Which one?"}
-                  </label>
-                  <select
-                    id={`${baseId}-variant`}
-                    value={variant}
-                    onChange={(e) => {
-                      setVariant(e.target.value);
-                      setError(null);
-                    }}
-                    className={`mt-1 ${FIELD}`}
-                  >
-                    <option value="">Choose</option>
-                    {measure.variants.map((v) => (
-                      <option key={v.key} value={v.key}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {measure?.key === "joint_range" ? (
+                <>
+                  <div>
+                    <label htmlFor={`${baseId}-movement`} className="block text-sm font-semibold text-slate-900">
+                      Which movement?
+                    </label>
+                    <select
+                      id={`${baseId}-movement`}
+                      value={jointMovement}
+                      onChange={(e) => {
+                        setJointMovement(e.target.value);
+                        setVariant(joinJointVariant(e.target.value, jointMode));
+                        setError(null);
+                      }}
+                      className={`mt-1 ${FIELD}`}
+                    >
+                      <option value="">Choose</option>
+                      {JOINT_MOVEMENTS.map((mv) => (
+                        <option key={mv.key} value={mv.key}>
+                          {mv.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <fieldset>
+                    <legend className="text-sm font-semibold text-slate-900">Active or passive?</legend>
+                    <div className="mt-1 flex gap-2">
+                      {JOINT_MODES.map((md) =>
+                        radio("mode", md.key, jointMode, md.label, () => {
+                          setJointMode(md.key);
+                          setVariant(joinJointVariant(jointMovement, md.key));
+                          setError(null);
+                        })
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Active and passive are drawn as separate lines and never compared with each other. Keep to the same one each time.
+                    </p>
+                  </fieldset>
+                </>
+              ) : (
+                measure?.variants && (
+                  <div>
+                    <label htmlFor={`${baseId}-variant`} className="block text-sm font-semibold text-slate-900">
+                      Which one?
+                    </label>
+                    <select
+                      id={`${baseId}-variant`}
+                      value={variant}
+                      onChange={(e) => {
+                        setVariant(e.target.value);
+                        setError(null);
+                      }}
+                      className={`mt-1 ${FIELD}`}
+                    >
+                      <option value="">Choose</option>
+                      {measure.variants.map((v) => (
+                        <option key={v.key} value={v.key}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )
               )}
 
               {measure?.sided && (
@@ -573,6 +639,26 @@ export default function RecordTestDialog({
                     {radio("side", "right", side, SIDE_LABEL.right, () => setSide("right"))}
                   </div>
                 </fieldset>
+              )}
+
+              {landmark && (
+                <details className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                  <summary className="flex min-h-[44px] cursor-pointer items-center font-semibold text-teal-900">
+                    How to measure {movementLabel(jointMovement)?.toLowerCase()}
+                  </summary>
+                  <dl className="mt-1 grid gap-x-3 gap-y-1.5 pb-2 sm:grid-cols-[8rem_1fr]">
+                    <dt className="font-semibold text-slate-700">Position</dt>
+                    <dd>{landmark.position}</dd>
+                    <dt className="font-semibold text-slate-700">Centre of the goniometer</dt>
+                    <dd>{landmark.centre}</dd>
+                    <dt className="font-semibold text-slate-700">Fixed arm</dt>
+                    <dd>{landmark.fixedArm}</dd>
+                    <dt className="font-semibold text-slate-700">Moving arm</dt>
+                    <dd>{landmark.movingArm}</dd>
+                  </dl>
+                  {landmark.note && <p className="pb-1 text-xs text-slate-700">{landmark.note}</p>}
+                  <p className="pb-2 text-xs text-slate-700">{JOINT_READING_RULE}</p>
+                </details>
               )}
             </section>
 
@@ -821,6 +907,27 @@ export default function RecordTestDialog({
                     )}
                   </div>
                 </section>
+                {(otherSide || lagNow) && (
+                  <section aria-label="Other side and extension lag" className="space-y-1 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800">
+                    {otherSide && (
+                      <p>
+                        <span className="font-semibold">Other side ({SIDE_LABEL[otherSide.side].toLowerCase()}):</span>{" "}
+                        {formatReading(otherSide.value, otherSide.decimals, otherSide.unit)}
+                        <span className="text-slate-600"> on {formatClinicDate(otherSide.measuredAt)} - the best normal for this joint.</span>
+                      </p>
+                    )}
+                    {lagNow && (
+                      <p>
+                        <span className="font-semibold">Extension lag:</span>{" "}
+                        {lagNow.lag === 0 ? "none" : `${lagNow.lag}°`}
+                        <span className="text-slate-600">
+                          {" "}
+                          against the latest {lagNow.partner} reading of {lagNow.partnerValue}° ({lagNow.working}). A lag points to thigh strength, not stiffness.
+                        </span>
+                      </p>
+                    )}
+                  </section>
+                )}
               </>
             )}
           </div>

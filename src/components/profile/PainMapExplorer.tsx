@@ -7,6 +7,7 @@ import PainComparisonView from "@/components/profile/PainComparisonView";
 import RegionStandingsList from "@/components/profile/RegionStandingsList";
 import type { AreaPainEntry } from "@/lib/conditionIntake";
 import type { PainAssessmentRow, QuestionOverrideRow } from "@/lib/painMap";
+import { firstAssessmentsByRegionSide } from "@/lib/orthoProfile";
 
 /**
  * One body-map surface instead of the two stacked ones this used to be.
@@ -29,6 +30,7 @@ export default function PainMapExplorer({
   assessments,
   areaPain,
   showStandings = true,
+  snapshot = "latest",
   record,
 }: {
   assessments: PainAssessmentRow[];
@@ -36,6 +38,11 @@ export default function PainMapExplorer({
   /** The ranked exam list under the figure. Off where the surrounding
    *  page already lists the same numbers (the admin's condition detail). */
   showStandings?: boolean;
+  /** Which exam the figure shows: the latest score of each area (the
+   *  default), or the first one on record. Only the "Therapist's exam" view
+   *  changes - the comparison and the recording dialog always work from the
+   *  whole history. */
+  snapshot?: "first" | "latest";
   /** Present only for a viewer allowed to write exam findings. Absent for
    *  the patient, and for a therapist whose edit access hasn't been
    *  approved yet - in both cases this stays a read-only chart. */
@@ -49,6 +56,7 @@ export default function PainMapExplorer({
   const [mode, setMode] = useState<"exam" | "compare">("exam");
   const [recording, setRecording] = useState(false);
   const active = canCompare ? mode : "exam";
+  const shown = snapshot === "first" ? firstAssessmentsByRegionSide(assessments) : assessments;
 
   return (
     <div>
@@ -82,7 +90,7 @@ export default function PainMapExplorer({
         <button
           type="button"
           onClick={() => setRecording(true)}
-          className="rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-800"
+          className="min-h-[44px] rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-teal-800"
         >
           <i className="fa-solid fa-notes-medical mr-1.5" />
           Record an exam
@@ -93,7 +101,7 @@ export default function PainMapExplorer({
       {active === "compare" ? (
         <PainComparisonView assessments={assessments} areaPain={areaPain} />
       ) : (
-        <PainMapView assessments={assessments} />
+        <PainMapView key={snapshot} assessments={shown} />
       )}
 
       {showStandings && active === "exam" && (
@@ -101,7 +109,7 @@ export default function PainMapExplorer({
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             Every area examined, worst first
           </p>
-          <RegionStandingsList assessments={assessments} />
+          <RegionStandingsList assessments={shown} />
         </div>
       )}
 

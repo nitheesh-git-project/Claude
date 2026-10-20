@@ -34,6 +34,9 @@ import {
   type ConditionSpecialty,
 } from "@/lib/conditionSpecialty";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import OrthoProfileTop from "@/components/profile/ortho/OrthoProfileTop";
+import { loadLicenceForRecording, loadOrthoReads } from "@/lib/orthoProfileServer";
+import { shapeOrthoView } from "@/lib/orthoProfileView";
 
 export const metadata: Metadata = {
   title: "Patient Health Profile | MoveRestore",
@@ -93,6 +96,7 @@ export default async function TherapistPatientHealthProfilePage({
     { data: settingsRow },
     { data: intakeOverrideRows },
     enabledSpecialties,
+    orthoReads,
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("therapist_code").eq("id", user.id).maybeSingle(),
@@ -144,6 +148,10 @@ export default async function TherapistPatientHealthProfilePage({
       .from("intake_question_templates")
       .select("question_key, question_text, required, specialty"),
     readEnabledSpecialties(admin),
+    // The orthopaedic progress record, as the patient's page reads it, here
+    // through the assigned-therapist RLS policies. Orthopaedic only; each of
+    // its three reads is its own call so one failing degrades one card.
+    isOrtho ? loadOrthoReads(supabase, patientId) : Promise.resolve(null),
   ]);
 
   if (!patient || !isAssigned) {
@@ -213,6 +221,16 @@ export default async function TherapistPatientHealthProfilePage({
   const needsOnboarding = !questions.some((q) => currentData[q.key]?.trim());
   const specialtyDef = CONDITION_SPECIALTIES.find((s) => s.key === specialty);
   const adminSettings = parseAdminSettings(settingsRow);
+  const orthoView =
+    isOrtho && orthoReads
+      ? shapeOrthoView({ ...orthoReads, assessments: assessments ?? [] }, "clinician", orthoReads.nowMs)
+      : null;
+  // Recording a test, the goal and steps, and the phase and status are the
+  // therapist's own clinical judgement from a session they ran: assignment is
+  // the whole requirement, the same as the Pain Map exam and the neurological
+  // exam. (The measurement route adds its own started-session check.)
+  const licence =
+    orthoView && isAssigned ? await loadLicenceForRecording(admin) : { keys: [] as string[], unreadable: false };
 
   const showDebugNav = isDebugNavVisible();
 
@@ -242,6 +260,236 @@ export default async function TherapistPatientHealthProfilePage({
     for (const a of authors ?? []) carePlanAuthorNames.set(a.id, a.full_name);
   }
 
+  const reportsSection = (
+    <>
+      {/* Above the notes: what the patient brought with them is context
+          for reading everything below it, and reading these needs no
+          grant -- the select policy is the assigned-therapist one. */}
+      <SurfaceCard
+        title="Test reports and scans"
+        icon="fa-folder-open"
+        subtitle="Uploaded by the patient. Worth opening before the session - these are the films and results another clinician has already taken."
+      >
+        <MedicalDocumentsPanel
+          documents={(medicalDocuments ?? []) as MedicalDocumentRow[]}
+          canManage={false}
+          emptyMessage="This patient hasn't uploaded any reports."
+        />
+      </SurfaceCard>
+    </>
+  );
+
+  const notesSection = (
+    <>
+      <SurfaceCard
+        title="Session notes" info="card:health-profile"
+        icon="fa-file-lines"
+        subtitle="What was treated, how they responded, and the plan - written after each session. Only you and the clinic's admin can read this; the patient never sees it."
+      >
+        <SessionNoteHistory
+          notes={notes}
+          emptyBody="After your first session with this patient, what you record appears here and becomes the prep for the next one."
+        />
+      </SurfaceCard>
+    </>
+  );
+
+  const plansSection = (
+    <>
+      {/* Recommendations sit beside the notes rather than on a screen of
+          their own: "what I did" and "what I think should happen next"
+          are read together, and the plan was written from the note. */}
+      <CarePlanHistory
+        versions={carePlanVersions}
+        authorNames={carePlanAuthorNames}
+        voice="clinician"
+        reviewsByPlan={carePlanReviews}
+      />
+    </>
+  );
+
+  const conditionCard = (
+    <>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+          <h2 className="font-display font-bold text-lg text-slate-800">Health Profile</h2>
+          <div className="flex items-center gap-2">
+            {!needsOnboarding && specialtyDef && (
+              <span
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${specialtyDef.chipClass}`}
+              >
+                <i aria-hidden className={`fa-solid ${specialtyDef.icon} mr-1 text-[10px]`} />
+                {specialtyDef.label}
+              </span>
+            )}
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+              {CONDITION_STATUS_LABEL[status]}
+            </span>
+          </div>
+        </div>
+        {status !== "pending_review" && lastRequest?.status === "declined" && (
+          <p className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Your last submission was declined: {lastRequest.admin_notes}. You can edit and resubmit below.
+          </p>
+        )}
+
+        {/* Onboarding is a state of this card, not a screen of its own:
+            the queue it belongs to is the same rows My Patients already
+            lists, and a different view of the same rows never earns a
+            nav entry. */}
+        {needsOnboarding ? (
+          <PatientOnboardingCard
+            patientId={patientId}
+            patientName={patient.full_name}
+            currentSpecialty={null}
+            enabledSpecialties={enabledSpecialties}
+            overrideRows={intakeOverrideRows ?? []}
+            initialTriage={(specialtyRow?.draft_triage_data ?? undefined) as Record<string, string> | undefined}
+            initialAnswers={formInitialData}
+            onFileAnswers={currentData}
+            draftSpecialty={
+              specialtyRow?.draft_specialty
+                ? (parseConditionSpecialty(specialtyRow.draft_specialty) as ConditionSpecialty)
+                : null
+            }
+          />
+        ) : canEditIntake ? (
+          <ConditionIntakePanel
+            specialty={specialty}
+            voice="clinician"
+            draftIsMine={specialtyRow?.draft_saved_by_role === "therapist"}
+            questions={questions}
+            endpoint="/api/therapist/condition-profile/submit"
+            draftEndpoint="/api/therapist/condition-profile/save-draft"
+            patientId={patientId}
+            currentData={currentData}
+            formInitialData={formInitialData}
+            locked={status === "pending_review"}
+            lockedMessage="A submission for this patient is already waiting on admin review - one at a time."
+          />
+        ) : (
+          // Read-only until an access grant is approved -- the same
+          // rendering the patient sees of their own answers, so the
+          // therapist reads a chart rather than a dump of field values.
+          <SpecialtySummary specialty={specialty} questions={questions} data={currentData} />
+        )}
+
+        {/* Re-triage sits with the record it describes. Changing the
+            condition type needs only assignment, like the first fill and
+            like a Pain Map exam -- it is the therapist's own clinical
+            judgement, not an edit to the patient's account of
+            themselves. */}
+        {!needsOnboarding && (
+          <PatientOnboardingCard
+            patientId={patientId}
+            patientName={patient.full_name}
+            currentSpecialty={specialty}
+            enabledSpecialties={enabledSpecialties}
+            overrideRows={intakeOverrideRows ?? []}
+            initialTriage={(specialtyRow?.triage_data ?? undefined) as Record<string, string> | undefined}
+            onFileAnswers={currentData}
+          />
+        )}
+
+        {/* The access gate lives on this card because this is the only
+            thing it still gates. Recording your own exam findings moved
+            out from behind it -- see the exam card below. */}
+        {!needsOnboarding && !canEditIntake && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-semibold text-slate-700">
+              {grant?.status === "requested"
+                ? "Waiting for an admin to approve your access."
+                : grant?.status === "declined"
+                ? "Your last request to edit this was declined."
+                : "You can read this, but not change it."}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              These are the patient&apos;s own words about their history, so editing them on their
+              behalf needs an admin to approve it first. Recording your own exam findings does
+              not, and neither does changing the condition type - those are your clinical
+              judgement from a session you ran.
+            </p>
+            {(!grant || grant.status === "declined" || grant.status === "revoked") && (
+              <div className="mt-2.5">
+                <RequestConditionAccessButton patientId={patientId} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  const examCard = (
+    <>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
+          {isOrtho ? "Pain Map" : isNeuro ? "Neurological examination" : "Examination"}
+        </h2>
+        <p className="text-xs text-slate-500 mb-4">
+          {isNeuro
+            ? "Tone, power, reflexes, sensation, coordination, balance and gait - the latest examination, and what changed since the one before."
+            : !isOrtho
+            ? "What this condition type's examination chart will hold once it is built."
+            : canRecordExam
+              ? "Tap any marked point for that area's detail, or record what you found this session."
+              : "Exam findings on record, and how they compare with what the patient reported."}
+        </p>
+        <SpecialtyExamPanel
+          specialty={specialty}
+          voice="clinician"
+          assessments={assessments ?? []}
+          areaPain={isOrtho ? parseAreaPain(currentData.area_pain) : []}
+          record={
+            canRecordExam && isOrtho
+              ? {
+                  endpoint: "/api/therapist/pain-assessments/submit",
+                  patientId,
+                  overridesByRegion,
+                }
+              : undefined
+          }
+          neuro={
+            isNeuro
+              ? {
+                  assessments: (neuroRead.data ?? []) as NeuroAssessmentRow[],
+                  loadFailed: !!neuroRead.error,
+                  record: canRecordExam
+                    ? { endpoint: "/api/therapist/neuro-assessments/submit", patientId, patientName: patient.full_name }
+                    : undefined,
+                }
+              : undefined
+          }
+        />
+      </div>
+    </>
+  );
+
+  const orthoTop =
+    orthoView && isOrtho ? (
+      <OrthoProfileTop
+        voice="clinician"
+        patientId={patientId}
+        patientName={patient.full_name}
+        conditionLine={currentData.chief_complaint?.trim() || null}
+        chipLabel={specialtyDef?.label ?? "Orthopaedic"}
+        view={orthoView}
+        assessments={assessments ?? []}
+        areaPain={parseAreaPain(currentData.area_pain)}
+        examRecord={
+          canRecordExam
+            ? { endpoint: "/api/therapist/pain-assessments/submit", patientId, overridesByRegion }
+            : undefined
+        }
+        canSetStatus={isAssigned ? { endpoint: "/api/therapist/care-status/set" } : null}
+        record={isAssigned ? { asAdmin: false } : null}
+        planner={isAssigned}
+        reopen={false}
+        enabledLicensed={licence.keys}
+        licenceUnreadable={licence.unreadable}
+      />
+    ) : null;
+
   return (
     <DashboardShell
       brandLabel="Therapist Panel"
@@ -260,11 +508,12 @@ export default async function TherapistPatientHealthProfilePage({
         "pain_assessments",
         "neuro_assessments",
         "intake_question_templates",
+        ...(isOrtho ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
       ]}
       headerTitle={patient.full_name}
       headerSubtitle={patient.patient_code ?? "Patient"}
     >
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className={`mx-auto space-y-6 ${orthoView ? "max-w-6xl" : "max-w-2xl"}`}>
         {/* No "Back to My Patients" link: this page sits inside the dashboard
             shell, whose sidebar keeps My Patients highlighted and one tap
             away. */}
@@ -273,190 +522,29 @@ export default async function TherapistPatientHealthProfilePage({
             only thing it unlocks. It now lives inside the Pain Map card,
             beside the work it gates. */}
 
-        {/* Above the notes: what the patient brought with them is context
-            for reading everything below it, and reading these needs no
-            grant -- the select policy is the assigned-therapist one. */}
-        <SurfaceCard
-          title="Test reports and scans"
-          icon="fa-folder-open"
-          subtitle="Uploaded by the patient. Worth opening before the session - these are the films and results another clinician has already taken."
-        >
-          <MedicalDocumentsPanel
-            documents={(medicalDocuments ?? []) as MedicalDocumentRow[]}
-            canManage={false}
-            emptyMessage="This patient hasn't uploaded any reports."
-          />
-        </SurfaceCard>
-
-        <SurfaceCard
-          title="Session notes" info="card:health-profile"
-          icon="fa-file-lines"
-          subtitle="What was treated, how they responded, and the plan - written after each session. Only you and the clinic's admin can read this; the patient never sees it."
-        >
-          <SessionNoteHistory
-            notes={notes}
-            emptyBody="After your first session with this patient, what you record appears here and becomes the prep for the next one."
-          />
-        </SurfaceCard>
-
-        {/* Recommendations sit beside the notes rather than on a screen of
-            their own: "what I did" and "what I think should happen next"
-            are read together, and the plan was written from the note. */}
-        <CarePlanHistory
-          versions={carePlanVersions}
-          authorNames={carePlanAuthorNames}
-          voice="clinician"
-          reviewsByPlan={carePlanReviews}
-        />
-
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-            <h2 className="font-display font-bold text-lg text-slate-800">Health Profile</h2>
-            <div className="flex items-center gap-2">
-              {!needsOnboarding && specialtyDef && (
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${specialtyDef.chipClass}`}
-                >
-                  <i aria-hidden className={`fa-solid ${specialtyDef.icon} mr-1 text-[10px]`} />
-                  {specialtyDef.label}
-                </span>
-              )}
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                {CONDITION_STATUS_LABEL[status]}
-              </span>
-            </div>
-          </div>
-          {status !== "pending_review" && lastRequest?.status === "declined" && (
-            <p className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Your last submission was declined: {lastRequest.admin_notes}. You can edit and resubmit below.
-            </p>
-          )}
-
-          {/* Onboarding is a state of this card, not a screen of its own:
-              the queue it belongs to is the same rows My Patients already
-              lists, and a different view of the same rows never earns a
-              nav entry. */}
-          {needsOnboarding ? (
-            <PatientOnboardingCard
-              patientId={patientId}
-              patientName={patient.full_name}
-              currentSpecialty={null}
-              enabledSpecialties={enabledSpecialties}
-              overrideRows={intakeOverrideRows ?? []}
-              initialTriage={(specialtyRow?.draft_triage_data ?? undefined) as Record<string, string> | undefined}
-              initialAnswers={formInitialData}
-              onFileAnswers={currentData}
-              draftSpecialty={
-                specialtyRow?.draft_specialty
-                  ? (parseConditionSpecialty(specialtyRow.draft_specialty) as ConditionSpecialty)
-                  : null
-              }
-            />
-          ) : canEditIntake ? (
-            <ConditionIntakePanel
-              specialty={specialty}
-              voice="clinician"
-              draftIsMine={specialtyRow?.draft_saved_by_role === "therapist"}
-              questions={questions}
-              endpoint="/api/therapist/condition-profile/submit"
-              draftEndpoint="/api/therapist/condition-profile/save-draft"
-              patientId={patientId}
-              currentData={currentData}
-              formInitialData={formInitialData}
-              locked={status === "pending_review"}
-              lockedMessage="A submission for this patient is already waiting on admin review - one at a time."
-            />
-          ) : (
-            // Read-only until an access grant is approved -- the same
-            // rendering the patient sees of their own answers, so the
-            // therapist reads a chart rather than a dump of field values.
-            <SpecialtySummary specialty={specialty} questions={questions} data={currentData} />
-          )}
-
-          {/* Re-triage sits with the record it describes. Changing the
-              condition type needs only assignment, like the first fill and
-              like a Pain Map exam -- it is the therapist's own clinical
-              judgement, not an edit to the patient's account of
-              themselves. */}
-          {!needsOnboarding && (
-            <PatientOnboardingCard
-              patientId={patientId}
-              patientName={patient.full_name}
-              currentSpecialty={specialty}
-              enabledSpecialties={enabledSpecialties}
-              overrideRows={intakeOverrideRows ?? []}
-              initialTriage={(specialtyRow?.triage_data ?? undefined) as Record<string, string> | undefined}
-              onFileAnswers={currentData}
-            />
-          )}
-
-          {/* The access gate lives on this card because this is the only
-              thing it still gates. Recording your own exam findings moved
-              out from behind it -- see the exam card below. */}
-          {!needsOnboarding && !canEditIntake && (
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-semibold text-slate-700">
-                {grant?.status === "requested"
-                  ? "Waiting for an admin to approve your access."
-                  : grant?.status === "declined"
-                  ? "Your last request to edit this was declined."
-                  : "You can read this, but not change it."}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                These are the patient&apos;s own words about their history, so editing them on their
-                behalf needs an admin to approve it first. Recording your own exam findings does
-                not, and neither does changing the condition type - those are your clinical
-                judgement from a session you ran.
-              </p>
-              {(!grant || grant.status === "declined" || grant.status === "revoked") && (
-                <div className="mt-2.5">
-                  <RequestConditionAccessButton patientId={patientId} />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
-            {isOrtho ? "Pain Map" : isNeuro ? "Neurological examination" : "Examination"}
-          </h2>
-          <p className="text-xs text-slate-500 mb-4">
-            {isNeuro
-              ? "Tone, power, reflexes, sensation, coordination, balance and gait - the latest examination, and what changed since the one before."
-              : !isOrtho
-              ? "What this condition type's examination chart will hold once it is built."
-              : canRecordExam
-                ? "Tap any marked point for that area's detail, or record what you found this session."
-                : "Exam findings on record, and how they compare with what the patient reported."}
-          </p>
-          <SpecialtyExamPanel
-            specialty={specialty}
-            voice="clinician"
-            assessments={assessments ?? []}
-            areaPain={isOrtho ? parseAreaPain(currentData.area_pain) : []}
-            record={
-              canRecordExam && isOrtho
-                ? {
-                    endpoint: "/api/therapist/pain-assessments/submit",
-                    patientId,
-                    overridesByRegion,
-                  }
-                : undefined
-            }
-            neuro={
-              isNeuro
-                ? {
-                    assessments: (neuroRead.data ?? []) as NeuroAssessmentRow[],
-                    loadFailed: !!neuroRead.error,
-                    record: canRecordExam
-                      ? { endpoint: "/api/therapist/neuro-assessments/submit", patientId, patientName: patient.full_name }
-                      : undefined,
-                  }
-                : undefined
-            }
-          />
-        </div>
+        {orthoTop ? (
+          // An orthopaedic chart opens on the layout shared with the patient's
+          // page (header, key numbers, body map, graph, steps, measures) and
+          // everything the page always had follows it. A patient nobody has
+          // onboarded yet sees the condition card first, because that is where
+          // onboarding happens.
+          <>
+            {needsOnboarding && conditionCard}
+            {orthoTop}
+            {plansSection}
+            {notesSection}
+            {reportsSection}
+            {!needsOnboarding && conditionCard}
+          </>
+        ) : (
+          <>
+            {reportsSection}
+            {notesSection}
+            {plansSection}
+            {conditionCard}
+            {examCard}
+          </>
+        )}
       </div>
     </DashboardShell>
   );

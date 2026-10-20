@@ -298,7 +298,10 @@ export default function ProgressGraph({
             ))}
           </svg>
 
-          <table className="sr-only">
+          {/* A table cannot be clipped by its own sr-only box (its cells size it),
+              so the box is a div around it - otherwise it widens the page. */}
+          <div className="sr-only">
+          <table>
             <caption>{`${name}: one reading at each review`}</caption>
             <thead>
               <tr>
@@ -317,6 +320,7 @@ export default function ProgressGraph({
               ))}
             </tbody>
           </table>
+          </div>
 
           <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
             <li className="flex items-center gap-1.5">

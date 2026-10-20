@@ -39,6 +39,9 @@ import {
   specialtyPatientLabel,
 } from "@/lib/conditionSpecialty";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import OrthoProfileTop from "@/components/profile/ortho/OrthoProfileTop";
+import { loadOrthoReads } from "@/lib/orthoProfileServer";
+import { shapeOrthoView } from "@/lib/orthoProfileView";
 
 export const metadata: Metadata = {
   title: "Health Profile | MoveRestore",
@@ -131,6 +134,7 @@ export default async function PatientHealthProfilePage() {
     { count: homeVisitCount },
     { count: ownedHomeVisitCount },
     { data: latestSession },
+    orthoReads,
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
     supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
@@ -212,6 +216,11 @@ export default async function PatientHealthProfilePage() {
       .order("slot_time", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // The orthopaedic progress record (measurements, goal and steps, phase
+    // and status history): three more reads, each its own call inside the
+    // loader so one failing degrades one card. Orthopaedic only, like the
+    // Pain Map above - another specialty makes none of them.
+    isOrtho ? loadOrthoReads(supabase, user.id) : Promise.resolve(null),
   ]);
 
   const questions = mergeIntakeQuestionOverrides(
@@ -282,6 +291,10 @@ export default async function PatientHealthProfilePage() {
           .limit(200)
       : { data: [] as NeuroAssessmentRow[], error: null };
   const trendPoints = painTrendSeries(assessments ?? []);
+  const orthoView =
+    isOrtho && orthoReads
+      ? shapeOrthoView({ ...orthoReads, assessments: assessments ?? [] }, "patient", orthoReads.nowMs)
+      : null;
   const intakeTrend =
     isOrtho ? [] : intakeTrendSeries((intakeHistory ?? []) as IntakeTrendRow[], specialty);
   const authorship = answerAuthorship((intakeHistory ?? []) as AuthorshipRow[]);
@@ -305,6 +318,41 @@ export default async function PatientHealthProfilePage() {
     for (const a of authors ?? []) carePlanAuthorNames.set(a.id, a.full_name);
   }
 
+  const conditionSection = (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="mb-4">
+        <h2 className="font-display text-lg font-bold text-slate-800">Your condition</h2>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {gate.canEdit
+            ? `Recorded as ${specialtyPatientLabel(specialty).toLowerCase()}. Only your therapist and the clinic can read this.`
+            : "Only your therapist and the clinic can read this."}
+        </p>
+      </div>
+      <ConditionIntakePanel
+        specialty={specialty}
+        questions={questions}
+        endpoint="/api/patient/condition-profile/submit"
+        draftEndpoint="/api/patient/condition-profile/save-draft"
+        currentData={currentData}
+        formInitialData={formInitialData}
+        canEdit={gate.canEdit}
+        authorship={authorship}
+        draftIsMine={draftIsMine}
+        locked={isPending}
+        emptyStateText={
+          gate.reason === "awaiting_therapist"
+            ? "Nothing here for you to fill in yet."
+            : undefined
+        }
+        lockedMessage={
+          gate.reason === "awaiting_therapist"
+            ? "You'll be able to correct and add to this once your therapist has been through it with you."
+            : "You can edit again as soon as the clinic finishes checking your last submission."
+        }
+      />
+    </section>
+  );
+
   return (
     <DashboardShell
       brandLabel="Patient Panel"
@@ -323,6 +371,7 @@ export default async function PatientHealthProfilePage() {
         "pain_assessments",
         "neuro_assessments",
         "intake_question_templates",
+        ...(isOrtho ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
       ]}
       headerTitle="Health Profile"
       headerSubtitle={
@@ -331,7 +380,7 @@ export default async function PatientHealthProfilePage() {
           : "Your condition, and what your therapist found."
       }
     >
-      <div className="mx-auto max-w-5xl space-y-5">
+      <div className={`mx-auto space-y-5 ${orthoView ? "max-w-6xl" : "max-w-5xl"}`}>
         <div
           className={`flex flex-wrap items-start gap-3 rounded-2xl border p-4 sm:flex-nowrap ${
             gate.reason === "awaiting_therapist"
@@ -406,132 +455,139 @@ export default async function PatientHealthProfilePage() {
           </div>
         </div>
 
-        <SpecialtySnapshotStrip
-          specialty={specialty}
-          questions={questions}
-          data={currentData}
-          assessments={assessments ?? []}
-          showProgress={!gate.canEdit}
-        />
+        {orthoView && isOrtho ? (
+          <>
+            <OrthoProfileTop
+              voice="patient"
+              patientId={user.id}
+              patientName={profile?.full_name ?? "Patient"}
+              conditionLine={currentData.chief_complaint?.trim() || null}
+              chipLabel={specialtyPatientLabel(specialty)}
+              view={orthoView}
+              assessments={assessments ?? []}
+              areaPain={selfReportedAreas}
+              canSetStatus={null}
+              record={null}
+              planner={false}
+              reopen={false}
+              enabledLicensed={[]}
+              licenceUnreadable={false}
+            />
 
-        {/* Full while the flow is still ahead of them; one line once they
-            have written to the record themselves. */}
-        <HealthProfileSteps
-          specialty={specialty}
-          collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
-        />
+            <SpecialtySnapshotStrip
+              specialty={specialty}
+              questions={questions}
+              data={currentData}
+              assessments={assessments ?? []}
+              showProgress={!gate.canEdit}
+            />
 
-        {/* Two columns on a wide screen, one on a phone: what you said on
-            the left, what the exam found on the right. The body map is
-            the heavier of the two, so it gets the sticky column -- a
-            patient scrolling their own answers keeps the figure in view. */}
-        <div className="grid gap-5 lg:grid-cols-[1.05fr_1fr] lg:items-start">
-          <div className="space-y-5">
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <HealthProfileSteps
+              specialty={specialty}
+              collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
+            />
+
+            {conditionSection}
+          </>
+        ) : (
+          <>
+          <SpecialtySnapshotStrip
+            specialty={specialty}
+            questions={questions}
+            data={currentData}
+            assessments={assessments ?? []}
+            showProgress={!gate.canEdit}
+          />
+
+          {/* Full while the flow is still ahead of them; one line once they
+              have written to the record themselves. */}
+          <HealthProfileSteps
+            specialty={specialty}
+            collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
+          />
+
+          {/* Two columns on a wide screen, one on a phone: what you said on
+              the left, what the exam found on the right. The body map is
+              the heavier of the two, so it gets the sticky column -- a
+              patient scrolling their own answers keeps the figure in view. */}
+          <div className="grid gap-5 lg:grid-cols-[1.05fr_1fr] lg:items-start">
+            <div className="space-y-5">
+              {conditionSection}
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div className="mb-3">
+                  <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-800">
+                    Are you getting better?
+                    <TutorialInfoButton section="card:health-profile" label="your progress" size="sm" />
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {specialty === "ortho"
+                      ? "Your overall pain after each exam, over time - every exam is its own dot."
+                      : specialty === "neuro"
+                        ? "How much of the day you can manage on your own, each time it has been asked."
+                        : "How many milestones your child has reached, each time this was updated."}
+                  </p>
+                </div>
+                {/* Ortho trends the Pain Map; the other two have no exam
+                    layer yet, so they trend their own headline answer out of
+                    the submissions already on file. Two components rather
+                    than one with a flag, because the direction is opposite:
+                    on a pain score down is good, on these two up is. */}
+                {specialty === "ortho" ? (
+                  <PainTrendChart points={trendPoints} />
+                ) : (
+                  <IntakeTrendChart
+                    points={intakeTrend}
+                    max={specialty === "neuro" ? 10 : milestoneCount}
+                    unit={specialty === "neuro" ? "/ 10" : "milestones"}
+                    caption={
+                      specialty === "neuro"
+                        ? "Each dot is a time your independence was recorded - the line going up is the goal."
+                        : "Each dot is a time the milestone list was updated - the line going up is the goal."
+                    }
+                    emptyText={
+                      specialty === "neuro"
+                        ? "Nothing to chart yet - this line appears once your independence has been recorded twice, and shows whether it is going up."
+                        : "Nothing to chart yet - this line appears once the milestone list has been updated twice, and shows what your child has gained."
+                    }
+                  />
+                )}
+              </section>
+            </div>
+
+            {/* Sticky only for the body map: the neurological summary can be
+                taller than the screen, and a sticky block taller than the
+                viewport hides its own bottom half until the column ends. */}
+            <section
+              className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 ${isOrtho ? "lg:sticky lg:top-4" : ""}`}
+            >
               <div className="mb-4">
-                <h2 className="font-display text-lg font-bold text-slate-800">Your condition</h2>
+                <h2 className="font-display text-lg font-bold text-slate-800">
+                  {isOrtho ? "Your body map" : "Your examination"}
+                </h2>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  {gate.canEdit
-                    ? `Recorded as ${specialtyPatientLabel(specialty).toLowerCase()}. Only your therapist and the clinic can read this.`
-                    : "Only your therapist and the clinic can read this."}
+                  {isOrtho
+                    ? "Filled in by your therapist after examining you - tap any marked point for that area's detail."
+                    : "What your therapist found when they examined you."}
                 </p>
               </div>
-              <ConditionIntakePanel
+              <SpecialtyExamPanel
                 specialty={specialty}
-                questions={questions}
-                endpoint="/api/patient/condition-profile/submit"
-                draftEndpoint="/api/patient/condition-profile/save-draft"
-                currentData={currentData}
-                formInitialData={formInitialData}
-                canEdit={gate.canEdit}
-                authorship={authorship}
-                draftIsMine={draftIsMine}
-                locked={isPending}
-                emptyStateText={
-                  gate.reason === "awaiting_therapist"
-                    ? "Nothing here for you to fill in yet."
+                assessments={assessments ?? []}
+                areaPain={selfReportedAreas}
+                neuro={
+                  specialty === "neuro"
+                    ? {
+                        assessments: (neuroRead.data ?? []) as NeuroAssessmentRow[],
+                        loadFailed: !!neuroRead.error,
+                      }
                     : undefined
-                }
-                lockedMessage={
-                  gate.reason === "awaiting_therapist"
-                    ? "You'll be able to correct and add to this once your therapist has been through it with you."
-                    : "You can edit again as soon as the clinic finishes checking your last submission."
                 }
               />
             </section>
-
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-              <div className="mb-3">
-                <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-800">
-                  Are you getting better?
-                  <TutorialInfoButton section="card:health-profile" label="your progress" size="sm" />
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {specialty === "ortho"
-                    ? "Your overall pain after each exam, over time - every exam is its own dot."
-                    : specialty === "neuro"
-                      ? "How much of the day you can manage on your own, each time it has been asked."
-                      : "How many milestones your child has reached, each time this was updated."}
-                </p>
-              </div>
-              {/* Ortho trends the Pain Map; the other two have no exam
-                  layer yet, so they trend their own headline answer out of
-                  the submissions already on file. Two components rather
-                  than one with a flag, because the direction is opposite:
-                  on a pain score down is good, on these two up is. */}
-              {specialty === "ortho" ? (
-                <PainTrendChart points={trendPoints} />
-              ) : (
-                <IntakeTrendChart
-                  points={intakeTrend}
-                  max={specialty === "neuro" ? 10 : milestoneCount}
-                  unit={specialty === "neuro" ? "/ 10" : "milestones"}
-                  caption={
-                    specialty === "neuro"
-                      ? "Each dot is a time your independence was recorded - the line going up is the goal."
-                      : "Each dot is a time the milestone list was updated - the line going up is the goal."
-                  }
-                  emptyText={
-                    specialty === "neuro"
-                      ? "Nothing to chart yet - this line appears once your independence has been recorded twice, and shows whether it is going up."
-                      : "Nothing to chart yet - this line appears once the milestone list has been updated twice, and shows what your child has gained."
-                  }
-                />
-              )}
-            </section>
           </div>
-
-          {/* Sticky only for the body map: the neurological summary can be
-              taller than the screen, and a sticky block taller than the
-              viewport hides its own bottom half until the column ends. */}
-          <section
-            className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 ${isOrtho ? "lg:sticky lg:top-4" : ""}`}
-          >
-            <div className="mb-4">
-              <h2 className="font-display text-lg font-bold text-slate-800">
-                {isOrtho ? "Your body map" : "Your examination"}
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {isOrtho
-                  ? "Filled in by your therapist after examining you - tap any marked point for that area's detail."
-                  : "What your therapist found when they examined you."}
-              </p>
-            </div>
-            <SpecialtyExamPanel
-              specialty={specialty}
-              assessments={assessments ?? []}
-              areaPain={selfReportedAreas}
-              neuro={
-                specialty === "neuro"
-                  ? {
-                      assessments: (neuroRead.data ?? []) as NeuroAssessmentRow[],
-                      loadFailed: !!neuroRead.error,
-                    }
-                  : undefined
-              }
-            />
-          </section>
-        </div>
+          </>
+        )}
 
         {/* Full width under both columns: reports belong to the whole
             chart rather than to either side of it, and a list of files
