@@ -1847,6 +1847,23 @@ function validateTrials(
   return { ok: true, trials };
 }
 
+/**
+ * A measurement as a screen sends it (the `measurement` of
+ * /api/therapist/measurements/submit and /api/admin/measurements/submit),
+ * before validateMeasurement() checks it. `items` is a score sheet's answers
+ * or a timed test's trials (a list) or a calculated measure's named readings
+ * (an object). `measuredAt` is an ISO timestamp.
+ */
+export type MeasurementInput = {
+  measureKey: string;
+  value: number;
+  measuredAt: string;
+  conditions: MeasurementConditions;
+  side?: MeasurementSide | null;
+  variant?: string | null;
+  items?: (number | null)[] | Record<string, number> | null;
+};
+
 /** How far ahead of the server's clock a measured_at may be (a phone whose
  *  clock runs a little fast), and how far back a test may be entered. */
 export const MEASURED_AT_FUTURE_SLACK_MS = 5 * 60_000;

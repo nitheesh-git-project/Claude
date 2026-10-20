@@ -177,6 +177,10 @@ function unknownKeys(raw: Record<string, unknown>, allowed: readonly string[]): 
 
 export type GoalFields = { goalText: string; targetDate: string | null; status: CareGoalStatus };
 
+/** The `goal` of /api/therapist/care-goals/save: every key optional on an
+ *  edit; `goalText` required on a create. */
+export type GoalInput = Partial<GoalFields>;
+
 const GOAL_KEYS = ["goalText", "targetDate", "status"] as const;
 
 /**
@@ -411,6 +415,11 @@ export function validateMilestoneFields(
     },
   };
 }
+
+/** The `milestone` of /api/therapist/care-milestones/save: every key
+ *  optional on an update (null clears an optional one); `title` and
+ *  `criterion` required on a create. `status` is planned or working only. */
+export type MilestoneInput = Partial<MilestoneFields>;
 
 /** The columns a MilestoneFields writes. */
 export function milestoneFieldsToRow(fields: MilestoneFields): Record<string, unknown> {
