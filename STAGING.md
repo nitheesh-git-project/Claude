@@ -41,6 +41,14 @@ staging app is running code whose policies and functions are simply absent,
 which fails in ways that read as code bugs rather than as a missing migration.
 Apply it **before** exercising the app there, not after.
 
+**Pending: the Health Profile redesign (`health-profile-redesign`).** Its
+schema - `outcome_measurements`, `care_goals`, `care_milestones`,
+`care_milestone_events`, `care_status_events` and two `site_settings`
+columns - must be applied to staging's database **before the branch merges**.
+The Health Profile's PDF export is "complete or refused": on a database
+without those tables it answers 503 rather than a shorter document, which is
+the rule working rather than a bug. Remove this paragraph once it has landed.
+
 Automating that would mean a second GitHub environment (`Staging`) holding
 that project's own `SUPABASE_ACCESS_TOKEN` and `NEXT_PUBLIC_SUPABASE_URL`, and
 a trigger naming it. That is a credentials decision rather than a code one, so

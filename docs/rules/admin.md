@@ -815,7 +815,9 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   `risk_rules`, on Today → Risk - and `enabled_intake_specialties`, which
   condition types triage offers - and `enabled_licensed_measures`, which
   licensed outcome scales the clinic holds a licence for (read in its own
-  call, failing closed - see the rule below) - and the four invite settings on Settings →
+  call, failing closed - see the rule below) - and `six_minute_walk_equation`,
+  the walk's predicted-distance formula (its own call; null is "not chosen
+  yet") - and the four invite settings on Settings →
   Offers & Discounts (on/off, what the friend gets, what the inviter gets, and the
   ceiling on rewards one patient may earn) plus `promo_codes_enabled`, whose
   switch sits on Money → Costs beside the campaigns it governs rather than in
@@ -853,6 +855,30 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   list (nothing can have been switched on there). Switching a scale off stops
   new recordings; scores already recorded stay. The debug data reset leaves
   it alone, like every other setting.
+- **The six-minute walk's predicted-distance equation is chosen on Settings
+  -> Clinical Questions, and unchosen is the default.**
+  `site_settings.six_minute_walk_equation` is nullable text; null means "not
+  chosen yet", and the walk guide then says "formula not chosen yet" and
+  shows no percentage rather than falling back to any population's formula.
+  The control (`SixMinuteWalkEquationSettings` ->
+  `SixMinuteWalkEquationPicker`) sits beside the licensed-scale switch, for
+  the same scope reasons; `update-setting` validates the value against the
+  equation table (`normaliseSixMinuteWalkEquationChoice`,
+  `src/lib/sixMinuteWalkEquation.ts`): a key that predicts, or null - blank
+  and the placeholder key are stored as null - and anything else is a 400.
+  The generic `setting.update` audit row records from and to. Enright and
+  Sherrill is selectable and labelled "US adults". Read in its own call
+  (`loadSixMinuteWalkEquation`); an unreadable value shows "we couldn't
+  check" in the control and the guide, never "not chosen". The debug data
+  reset leaves it alone.
+- **The back office sets a patient's phase or overrules their status pill
+  through `/api/admin/care-status/set`, and edits no goal or milestone.**
+  `requireAdminScope("people")` - a clinical-record capability, wherever its
+  button ends up - with a `care_status.set` audit row (from and to); the
+  change is an append-only `care_status_events` row with `set_by_role`
+  admin (`clinical.md`). Goals and milestones stay therapist-authored by
+  the owner's decision: no admin route edits one, and the only admin door
+  on a milestone is reopening one marked reached by mistake.
 - **Checkout speed is the one check that measures the product rather than
   a backlog.** The booking wizards time each Pay tap in the browser until the
   Razorpay sheet opens (`src/lib/checkoutTiming.ts`), report once,

@@ -2540,8 +2540,18 @@ everything else.
   (`/api/admin/care-milestones/reopen`), which leaves a permanent record.
   Licensed scales (Barthel, Oswestry, MDS-UPDRS III...) ship switched off;
   the Master Admin switches one on under **Settings -> Clinical Questions ->
-  Licensed outcome scales** once the clinic holds the licence. Rules:
-  `docs/rules/clinical.md`, `docs/rules/admin.md`.
+  Licensed outcome scales** once the clinic holds the licence. Goals and
+  milestones are therapist-authored; the back office does not edit them.
+  The assigned therapist (or an admin) sets which phase of the course the
+  patient is in and may overrule the computed status pill with a reason of at
+  least 10 characters (`/api/therapist/care-status/set`,
+  `/api/admin/care-status/set`); each change is an append-only
+  `care_status_events` row, so the history of who said what and why is kept.
+  On the 30-second chair stand a "used arms" tick scores 0 and keeps the
+  count done with the arms beside it. The six-minute walk's predicted-distance
+  formula is chosen under **Settings -> Clinical Questions -> Six-minute walk:
+  predicted distance**; until one is, the walk shows no percentage of
+  predicted. Rules: `docs/rules/clinical.md`, `docs/rules/admin.md`.
 
 Both question banks (Health Profile and Pain Map) are managed from
 one place - a **Manage Questions** section at the top of the admin's

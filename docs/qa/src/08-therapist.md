@@ -439,6 +439,29 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Step 5: **400** `reason_required`; then **200** - the milestone is back at **working** with no reached time, and a `care_milestone_events` row holds the reason and the measurement; the third call **409** `not_reached`. Logs -> All Activity shows **Reopened a milestone marked reached by mistake**.
 * Step 6: both raise (*"stays reached"*, *"append-only"*).
 
+#### `THR-HP-005d` - Phase, status override and the walk formula, at the routes · P1 **[API + SQL]**
+
+**Preconditions.** Phase 3a, server side only (the screens are phase 3b). Patient C as in THR-HP-005c (Parkinson's sub-profile), seen by Therapist A; a disposable project only - `care_status_events` is append-only.
+**Steps**
+1. As Therapist A, `POST /api/therapist/care-status/set` for Patient C with `{"action":"override_status","status":"needs_attention","reason":"fell"}`, then with `"reason":"Freezing at doorways is worse this week"`.
+2. As Therapist A, `{"action":"set_phase","phase":"Strengthen"}`, then `{"action":"set_phase","phase":"Learn strategies"}` twice.
+3. As Therapist B, and as Patient C, `{"action":"set_phase","phase":"Learn strategies"}` for Patient C.
+4. As Therapist A, `{"action":"clear_override"}` twice.
+5. As the admin, `POST /api/admin/care-status/set` `{"patientId":…,"action":"set_phase","phase":"Build capacity"}`.
+6. **[SQL]** `update care_status_events set value = 'improving' where id = '<step 1's id>'`.
+7. As Therapist A, `POST /api/therapist/measurements/submit` for Patient C with step 1 of THR-HP-005c's TUG plus `"usedArms": true` in `conditions`.
+8. Settings -> Clinical Questions -> **Six-minute walk: predicted distance**: pick **Enright and Sherrill (1998), US adults**, then **Not chosen yet**. Then `POST /api/admin/update-setting` `{"key":"six_minute_walk_equation","value":"enright"}`.
+
+**Expected Result**
+* Step 1: **400** `reason_required`; then **200** with `state.override` Needs attention and the reason.
+* Step 2: **400** listing Patient C's phases (Assess, Learn strategies, Build capacity, Keep it going); then **200**; the repeat is **200** `unchanged: true` and writes no row.
+* Step 3: Therapist B **403** `not_assigned`; the patient **403**.
+* Step 4: **200** with `state.override` null; the second **409** `no_override`.
+* Step 5: **200**, the event has `setByRole` admin; Logs -> All Activity shows **Set a patient's phase or overruled their status**.
+* Step 6: raises *"append-only"*.
+* Step 7: **400** *"does not record whether the arms were used"* - only the 30-second chair stand takes the tick (a geriatric measure: no condition type reaches it yet, so its own case is a unit test).
+* Step 8: each pick saves with a toast; the bad key is **400** *"Unknown six-minute walk equation."* With **Not chosen yet** the six-minute walk guide says **Formula not chosen yet** and shows no percentage of predicted.
+
 #### `THR-HP-006` - Read access needs no request · P2
 **Expected Result.** An **assigned** therapist can read the patient's intake and Pain Map with no grant. Only *editing the patient's own account of their history* needs one.
 

@@ -245,6 +245,10 @@ before.
      with `xact_id = txid_current()`, so no pair of PostgREST calls - each its
      own transaction - and no other route can open it. Exempting the service
      role instead would exempt every route in this app.
+     `care_status_events` (phase 3a) is the plain case beside it: a
+     judgement's history - the phase and the status override - kept as rows
+     with no permitted mutation at all, so "the current value" is shaped from
+     them (`careStatus.ts`) rather than stored in a cell someone can edit.
 
      **`user_activity_log` is the same rule for everyone who is not an admin**
      -- patients, therapists, hospitals and the system (All Logs is both

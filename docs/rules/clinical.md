@@ -578,8 +578,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      `riskBand()` answers "unknown" when a line needs an age, a sex or the
      patient's own limit that was not supplied. Calculators
      (`clinicalCalculators.ts`) refuse rather than guess - the six-minute walk
-     equation is a named table whose Indian-adult entry refuses until the
-     clinic chooses one, Karvonen refuses a beta-blocker or an unknown, and a
+     equation is a named table and **the clinic's choice is a setting**
+     (phase 3a, below): the placeholder entry refuses, and nothing falls back
+     to the US equation, Karvonen refuses a beta-blocker or an unknown, and a
      score sheet with too many blanks has no total. STEADI keeps two falls (or
      one injurious fall) in 12 months **high** whatever the tests show.
   6. **Same gate and posture as the neurological exam.** Read by the patient,
@@ -598,7 +599,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      reading meets the target and names it as the proof, but only the
      physiotherapist marks it; planned to working is theirs too. Starter
      templates (`milestoneTemplates.ts`, at least six per profile kind, each
-     with a measurable bar) are copied and edited, never read back.
+     with a measurable bar) are copied and edited, never read back. **Goals
+     and milestones are therapist-authored, and the back office does not
+     edit them** (the owner's decision, phase 3a): an admin reads them, and
+     the one admin door is reopening a milestone marked reached by mistake.
   `src/lib/outcomeMeasures.test.ts`, `clinicalCalculators.test.ts`,
   `milestones.test.ts`; `scripts/append-only-sql-checks.sql` for the triggers.
   **Phase 2a, the server side.** Five POST routes, every body through
@@ -717,6 +721,62 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     export route reads measurements and goals with the patient's own client and
     answers 503 if either read fails ("complete or refused"). The JSON format
     includes the three tables too. `healthProfilePdf.test.ts` builds one.
+    **Deployment: `supabase/schema.sql` must be applied to staging's database
+    before this branch merges** (`STAGING.md`) - on a database without these
+    tables the export answers 503 rather than a shorter document, which is
+    the rule working, not a bug.
+- **The phase, the status override, used arms and the walk equation
+  (Health Profile redesign, phase 3a, server side; the orthopaedic page that
+  draws them is phase 3b).**
+  - **The phase and an override of the status pill are history, not a
+    cell.** The assigned therapist (assignment alone, like a goal) or an
+    admin (`requireAdminScope("people")`, a `care_status.set` audit row with
+    from and to) sets the current phase - one of the profile kind's four,
+    `PHASES_BY_PROFILE_KIND` - or overrules the computed pill (Improving /
+    Holding steady / Needs attention) with a reason of at least 10
+    characters (`validateStatusOverride`), or clears the override. Each
+    change is a row in the append-only `care_status_events` (kind `phase` |
+    `status_override` | `override_cleared`, value, reason, profile kind,
+    who, role, when); a shape CHECK and a trigger hold it for every caller.
+    `careStatus.ts` shapes what is in force: the latest phase for this
+    profile kind wins (a phase chosen under another kind is passed over),
+    the latest override wins, a clear ends the one before it, and an
+    override older than the latest review is `stale` so the screen asks the
+    physiotherapist to look again. `inferPhase()` is only the fallback when
+    no phase is set. The reason reaches the patient and is scanned
+    (`care_status_reason`). Read by the patient, the clinical-access
+    therapist and an admin; on the realtime publication.
+  - `/api/therapist/care-status/set` and `/api/admin/care-status/set` share
+    `applyCareStatusChange()` (`src/lib/careStatusRoute.ts`): every body
+    through `parseJsonBody`; the role, assignment and profile kind
+    re-derived; 409 `no_condition_profile` with no profile on file, 503 when
+    it or the current state cannot be read (never "no override"); the same
+    phase or the same override again is 200 `unchanged` with no row; a clear
+    with nothing in force is 409 `no_override`. `loadCareStatus()`
+    (`outcomeServer.ts`) answers ok with the events, the phase and the
+    override, or "unreadable".
+  - **Used arms on the 30-second chair stand.** Per the CDC method a stand
+    that needs the arms scores 0: `conditions.usedArms` (only on a measure
+    with `usedArmsScoresZero`, today the chair stand alone) true means the
+    value must be 0 and the stands done with the arms travel in `items` as
+    `{ standsWithArms }` (`validateUsedArms`, `usedArmsEntry`); false means
+    no items. The countdown's tick records it; nothing goes in a session
+    note. The chair stand is a geriatric measure and no condition type
+    resolves to geriatric yet, so it is unreachable at the route until one
+    does.
+  - **The six-minute walk equation is the clinic's choice.**
+    `site_settings.six_minute_walk_equation` (nullable text) is set on
+    Settings -> Clinical Questions (`admin.md`). Null, an unknown key and
+    the placeholder all mean "formula not chosen yet": the guide says so and
+    shows no percentage of predicted; an unreadable setting says "we
+    couldn't check". `predictedSixMinuteWalk()` takes the key with no
+    default and `DEFAULT_SIX_MINUTE_WALK_EQUATION` is the placeholder, so
+    nothing silently uses Enright and Sherrill, which stays selectable and
+    is labelled "US adults".
+  `src/lib/careStatus.test.ts`, `sixMinuteWalkEquation.test.ts`,
+  `outcomeMeasures.test.ts`, `recordTest.test.ts`, `testTimers.test.ts`;
+  `e2e/measurements.spec.ts` MS-006 to MS-008;
+  `scripts/append-only-sql-checks.sql` for the trigger.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate
