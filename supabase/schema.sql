@@ -10225,6 +10225,12 @@ begin
     -- The neurological exam chart, append-only by trigger like the Pain Map,
     -- so CASCADE through the account delete below would raise on it.
     neuro_assessments,
+    -- The shared measurement layer (append-only by trigger, the same reason)
+    -- and the goals and milestones planned against it, named rather than
+    -- left to CASCADE (all three are at the end of this file).
+    care_milestones,
+    care_goals,
+    outcome_measurements,
     condition_change_requests,
     condition_access_grants,
     patient_condition_profiles,
@@ -17251,6 +17257,501 @@ alter table communication_flags add constraint communication_flags_surface_check
   'neuro_assessment_note',
   'session_summary'
 ));
+
+-- ---------------------------------------------------------------------
+-- The shared measurement layer: outcome_measurements.
+--
+-- Health Profile redesign, phase 1. ONE append-only table for the
+-- standardised tests of every condition type -- walking speed, Timed Up and
+-- Go, LEFS, the six-minute walk and the rest -- in the shape
+-- src/lib/outcomeMeasures.ts validates (validateMeasurement). The owner's
+-- decision: one shared table, not one per condition, because every reader
+-- (the progress graph, the status pill, the milestone maths) asks the same
+-- question of all of them: what was this measure, for this patient, each
+-- time it was taken.
+--
+-- Two layers stay exactly as they are and are NOT copied here: the Pain
+-- Map (pain_assessments, orthopaedic-only) and the neurological exam
+-- (neuro_assessments, which owns the Berg item scores, the Modified
+-- Ashworth and MRC grades, and a neurological patient's 10-metre walk and
+-- TUG). The registry marks those measures with their own source, and the
+-- validator refuses to store them twice.
+--
+-- One row per measurement:
+--   - measure_key / variant / side say exactly which line of which graph it
+--     belongs on (knee flexion active, right). Two variants never share a
+--     line, which is how active and passive range stay apart.
+--   - value is in the measure's own unit; items holds the score-sheet
+--     answers (an array) or the named raw readings (an object) it was
+--     worked out from, so a total can be re-checked later.
+--   - conditions records what has to be the same for two numbers to be
+--     comparable: walking aid, footwear, ON/OFF and the last dose
+--     (required on a Parkinson's measurement), in person or video, tester.
+--   - measured_at is when the test was done; created_at when it was
+--     written. schema_version is OUTCOME_MEASURES_VERSION.
+--
+-- Same posture as neuro_assessments in every other respect: read by the
+-- patient (their own), by an active therapist with live or delivered care
+-- (the clinical-access rule), and by an admin; inserted by a therapist only
+-- against a session that has started or been delivered (the routes, still
+-- to be written, mirror this and write with the service role, so the policy
+-- is the browser-session half); recorded_by_role is therapist or admin --
+-- never the patient, whose diaries are a later phase. Append-only BY
+-- TRIGGER, not by revoke: a re-test is a new row, and a mistaken one is
+-- corrected by recording a truer one.
+--
+-- The one mutation the trigger permits is appointment_id -> NULL, which is
+-- what `on delete set null` does when a session row is deleted (only
+-- scripts/clean-e2e-residue.mjs --apply ever deletes one). Every other
+-- column, and every other change to that one, raises. Its foreign keys are
+-- cascade (patient), set null (appointment) and no action (author, a
+-- profile the residue script never deletes) -- none is `restrict`, so there
+-- is nothing for that script to learn. The data reset truncates it (newest
+-- debug_reset_all_data(), above).
+-- ---------------------------------------------------------------------
+create table if not exists outcome_measurements (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  appointment_id uuid references appointments(id) on delete set null,
+  measure_key text not null check (measure_key ~ '^[a-z][a-z0-9_]{1,63}$'),
+  variant text check (variant is null or variant ~ '^[a-z][a-z0-9_]{0,63}$'),
+  side text check (side is null or side in ('left', 'right')),
+  value numeric not null check (value between -1000 and 100000),
+  items jsonb check (items is null or jsonb_typeof(items) in ('array', 'object')),
+  conditions jsonb not null default '{}'::jsonb check (jsonb_typeof(conditions) = 'object'),
+  recorded_by uuid not null references profiles(id),
+  recorded_by_role text not null check (recorded_by_role in ('therapist', 'admin')),
+  measured_at timestamptz not null,
+  schema_version integer not null default 1 check (schema_version >= 1),
+  created_at timestamptz not null default now(),
+  -- A phone clock running a little fast is tolerated; a test recorded as
+  -- happening tomorrow is not.
+  constraint outcome_measurements_not_in_future check (measured_at <= created_at + interval '5 minutes')
+);
+
+-- The graph's read: one measure for one patient, newest first.
+create index if not exists outcome_measurements_patient_measure_idx
+  on outcome_measurements (patient_id, measure_key, measured_at desc);
+create index if not exists outcome_measurements_recorded_by_idx
+  on outcome_measurements (recorded_by);
+create index if not exists outcome_measurements_appointment_idx
+  on outcome_measurements (appointment_id) where appointment_id is not null;
+
+alter table outcome_measurements enable row level security;
+
+drop policy if exists "outcome_measurements_select_own" on outcome_measurements;
+create policy "outcome_measurements_select_own" on outcome_measurements
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "outcome_measurements_select_assigned_therapist" on outcome_measurements;
+create policy "outcome_measurements_select_assigned_therapist" on outcome_measurements
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = outcome_measurements.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = outcome_measurements.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "outcome_measurements_select_admin" on outcome_measurements;
+create policy "outcome_measurements_select_admin" on outcome_measurements
+  for select using (is_admin());
+
+-- A linked session, when given, must be this therapist's own session with
+-- this patient: a measurement cannot be filed against somebody else's.
+drop policy if exists "outcome_measurements_insert_assigned_therapist" on outcome_measurements;
+create policy "outcome_measurements_insert_assigned_therapist" on outcome_measurements
+  for insert with check (
+    (select auth.uid()) = recorded_by and recorded_by_role = 'therapist'
+    and is_active_therapist()
+    and exists (
+      select 1 from appointments a
+      where a.patient_id = outcome_measurements.patient_id
+        and a.therapist_id = (select auth.uid())
+        and (
+          a.status = 'completed'
+          or (a.status = 'confirmed' and a.slot_time <= now() + interval '15 minutes')
+        )
+    )
+    and (
+      outcome_measurements.appointment_id is null
+      or exists (
+        select 1 from appointments s
+        where s.id = outcome_measurements.appointment_id
+          and s.patient_id = outcome_measurements.patient_id
+          and s.therapist_id = (select auth.uid())
+      )
+    )
+  );
+
+revoke update, delete on outcome_measurements from anon, authenticated;
+
+create or replace function public.outcome_measurements_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  -- The single permitted change: a deleted session's id cleared by
+  -- `on delete set null`, with every other column untouched.
+  if tg_op = 'UPDATE'
+     and old.appointment_id is not null
+     and new.appointment_id is null
+     and (to_jsonb(new) - 'appointment_id') = (to_jsonb(old) - 'appointment_id') then
+    return new;
+  end if;
+  raise exception 'outcome_measurements is append-only: a re-test is a new row, never an edit';
+end;
+$$;
+
+revoke all on function public.outcome_measurements_is_append_only() from public, anon, authenticated;
+
+drop trigger if exists outcome_measurements_no_change on outcome_measurements;
+create trigger outcome_measurements_no_change
+  before update or delete on outcome_measurements
+  for each row execute function public.outcome_measurements_is_append_only();
+
+-- ---------------------------------------------------------------------
+-- The milestone layer: care_goals and care_milestones.
+--
+-- The patient's own goal ("Play badminton with my friends on weekends
+-- again"), then small steps towards it, each with a measurable criterion
+-- so "reached" is a fact, not an opinion (src/lib/milestones.ts). Starter
+-- wording comes from src/lib/milestoneTemplates.ts and is always edited by
+-- the physiotherapist; nothing reads a template after it is copied here.
+--
+-- Unlike outcome_measurements these are a PLAN, not evidence, so the
+-- assigned therapist may edit them -- with one exception that is evidence:
+-- `reached_at`. It is written once, never moved or cleared, and a reached
+-- milestone stays reached (trigger below; the CHECK ties the status to it).
+-- A regression is a new milestone, not an edit to an old one.
+--
+-- Who: the patient reads their own; the assigned therapist reads and
+-- writes under the same clinical-access rule the measurements use (live or
+-- delivered care, an active therapist); an admin reads. Admin edits, when a
+-- screen needs them, go through a service-role route with
+-- requireAdminScope like every other back-office write. A therapist may
+-- delete a milestone only while it is not reached.
+--
+-- Foreign keys: patient cascade, the goal cascade (through a composite key,
+-- so a milestone can never point at another patient's goal), the proving
+-- measurement set null, the author no action. None is `restrict`, so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates both (newest debug_reset_all_data(), above).
+-- ---------------------------------------------------------------------
+create table if not exists care_goals (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  -- outcomeMeasures.ts ProfileKind. Parkinson's is a neuro sub-profile;
+  -- geriatric and cardiopulmonary are not condition types yet.
+  profile_kind text not null check (profile_kind in (
+    'ortho', 'neuro', 'neuro_parkinsons', 'pediatrics', 'geriatric', 'cardiopulmonary'
+  )),
+  -- In the patient's own words.
+  goal_text text not null check (char_length(btrim(goal_text)) between 1 and 300),
+  target_date date,
+  status text not null default 'active' check (status in ('active', 'achieved', 'closed')),
+  authored_by uuid not null references profiles(id),
+  authored_by_role text not null check (authored_by_role in ('therapist', 'admin')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- One goal at the top of the profile at a time.
+create unique index if not exists care_goals_one_active_per_patient
+  on care_goals (patient_id) where status = 'active';
+-- The target of care_milestones' composite foreign key.
+create unique index if not exists care_goals_id_patient_key
+  on care_goals (id, patient_id);
+create index if not exists care_goals_authored_by_idx on care_goals (authored_by);
+
+create table if not exists care_milestones (
+  id uuid primary key default gen_random_uuid(),
+  goal_id uuid not null,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  title text not null check (char_length(btrim(title)) between 1 and 120),
+  -- The measurable bar, in words the patient reads.
+  criterion text not null check (char_length(btrim(criterion)) between 1 and 200),
+  phase text check (phase is null or char_length(phase) <= 60),
+  linked_measure_key text check (linked_measure_key is null or linked_measure_key ~ '^[a-z][a-z0-9_]{1,63}$'),
+  linked_variant text check (linked_variant is null or linked_variant ~ '^[a-z][a-z0-9_]{0,63}$'),
+  linked_side text check (linked_side is null or linked_side in ('left', 'right')),
+  target_value numeric,
+  -- Where the patient started, for a "lower is better" progress bar.
+  baseline_value numeric,
+  status text not null default 'planned' check (status in ('planned', 'working', 'reached')),
+  reached_at timestamptz,
+  -- The measurement that proved it, when one did.
+  reached_measurement_id uuid references outcome_measurements(id) on delete set null,
+  target_date date,
+  sort_order integer not null default 0 check (sort_order between 0 and 1000),
+  template_key text check (template_key is null or char_length(template_key) <= 64),
+  authored_by uuid not null references profiles(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint care_milestones_goal_same_patient
+    foreign key (goal_id, patient_id) references care_goals (id, patient_id) on delete cascade,
+  -- Reached and reached_at are one fact, not two that can disagree.
+  constraint care_milestones_reached_has_time check ((status = 'reached') = (reached_at is not null)),
+  -- A number to reach needs a measure to reach it on, and the variant and
+  -- side only mean something with one.
+  constraint care_milestones_target_needs_measure check (
+    (target_value is null or linked_measure_key is not null)
+    and (linked_variant is null or linked_measure_key is not null)
+    and (linked_side is null or linked_measure_key is not null)
+  )
+);
+
+create index if not exists care_milestones_goal_idx on care_milestones (goal_id, sort_order);
+create index if not exists care_milestones_patient_idx on care_milestones (patient_id, goal_id);
+create index if not exists care_milestones_authored_by_idx on care_milestones (authored_by);
+create index if not exists care_milestones_reached_measurement_idx
+  on care_milestones (reached_measurement_id) where reached_measurement_id is not null;
+
+alter table care_goals enable row level security;
+alter table care_milestones enable row level security;
+
+drop policy if exists "care_goals_select_own" on care_goals;
+create policy "care_goals_select_own" on care_goals
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "care_goals_select_admin" on care_goals;
+create policy "care_goals_select_admin" on care_goals
+  for select using (is_admin());
+
+-- Read and write under the clinical-access rule. Written out per command
+-- (rather than one `for all`) so the insert and update halves can each pin
+-- the author to the caller.
+drop policy if exists "care_goals_select_assigned_therapist" on care_goals;
+create policy "care_goals_select_assigned_therapist" on care_goals
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_goals.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_goals.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_goals_insert_assigned_therapist" on care_goals;
+create policy "care_goals_insert_assigned_therapist" on care_goals
+  for insert with check (
+    (select auth.uid()) = authored_by and authored_by_role = 'therapist'
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_goals.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_goals.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_goals_update_assigned_therapist" on care_goals;
+create policy "care_goals_update_assigned_therapist" on care_goals
+  for update using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_goals.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_goals.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+-- A goal is closed, never deleted: its milestones are the record of what
+-- was planned and reached.
+revoke delete on care_goals from anon, authenticated;
+
+drop policy if exists "care_milestones_select_own" on care_milestones;
+create policy "care_milestones_select_own" on care_milestones
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "care_milestones_select_admin" on care_milestones;
+create policy "care_milestones_select_admin" on care_milestones
+  for select using (is_admin());
+
+drop policy if exists "care_milestones_select_assigned_therapist" on care_milestones;
+create policy "care_milestones_select_assigned_therapist" on care_milestones
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_milestones_insert_assigned_therapist" on care_milestones;
+create policy "care_milestones_insert_assigned_therapist" on care_milestones
+  for insert with check (
+    (select auth.uid()) = authored_by
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_milestones_update_assigned_therapist" on care_milestones;
+create policy "care_milestones_update_assigned_therapist" on care_milestones
+  for update using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_milestones_delete_assigned_therapist" on care_milestones;
+create policy "care_milestones_delete_assigned_therapist" on care_milestones
+  for delete using (
+    reached_at is null
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+-- Bookkeeping and the one rule that is evidence, enforced by trigger for
+-- every caller including the service role: a goal or milestone never moves
+-- to another patient (or another goal), updated_at follows every edit, and
+-- a reached milestone's reached_at is never moved or cleared.
+create or replace function public.care_goals_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.patient_id is distinct from old.patient_id then
+    raise exception 'care_goals: a goal never moves to another patient';
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+revoke all on function public.care_goals_guard() from public, anon, authenticated;
+
+drop trigger if exists care_goals_guard on care_goals;
+create trigger care_goals_guard
+  before update on care_goals
+  for each row execute function public.care_goals_guard();
+
+create or replace function public.care_milestones_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.patient_id is distinct from old.patient_id or new.goal_id is distinct from old.goal_id then
+    raise exception 'care_milestones: a milestone never moves to another patient or goal';
+  end if;
+  if old.reached_at is not null
+     and (new.reached_at is distinct from old.reached_at or new.status is distinct from 'reached') then
+    raise exception 'care_milestones: a reached milestone stays reached; reached_at is recorded once';
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+revoke all on function public.care_milestones_guard() from public, anon, authenticated;
+
+drop trigger if exists care_milestones_guard on care_milestones;
+create trigger care_milestones_guard
+  before update on care_milestones
+  for each row execute function public.care_milestones_guard();
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.

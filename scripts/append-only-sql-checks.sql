@@ -166,3 +166,75 @@ begin
   raise notice 'PASS  user_activity_log refuses UPDATE and DELETE, and only holds non-admin actors';
 end $$;
 rollback;
+
+-- outcome_measurements: the shared measurement layer. Append-only by
+-- trigger, with exactly one permitted mutation -- appointment_id cleared to
+-- NULL and nothing else (what `on delete set null` does when a session row
+-- is deleted). care_milestones in the same block: a plan the therapist may
+-- edit, except that a reached milestone's reached_at is recorded once.
+begin;
+do $$
+declare v_id uuid; v_actor uuid; v_appt uuid; v_goal uuid; v_ms uuid; v_ok boolean;
+begin
+  select id into v_actor from profiles where role = 'admin' limit 1;
+  if v_actor is null then raise exception 'no admin profile to attribute the probe rows to'; end if;
+
+  insert into outcome_measurements (patient_id, measure_key, value, conditions, recorded_by, recorded_by_role, measured_at)
+  values (v_actor, 'tug', 12.5, '{"setting":"in_person"}', v_actor, 'admin', now()) returning id into v_id;
+
+  v_ok := false;
+  begin update outcome_measurements set value = 9 where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: outcome_measurements accepted an UPDATE of value'; end if;
+
+  v_ok := false;
+  begin update outcome_measurements set appointment_id = null where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: outcome_measurements accepted an UPDATE with no appointment to clear'; end if;
+
+  v_ok := false;
+  begin delete from outcome_measurements where id = v_id;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: outcome_measurements row was deletable'; end if;
+
+  -- The permitted half, where there is a session to link it to.
+  select id into v_appt from appointments limit 1;
+  if v_appt is not null then
+    insert into outcome_measurements (patient_id, appointment_id, measure_key, value, conditions, recorded_by, recorded_by_role, measured_at)
+    values (v_actor, v_appt, 'tug', 12.5, '{"setting":"in_person"}', v_actor, 'admin', now()) returning id into v_id;
+    update outcome_measurements set appointment_id = null where id = v_id;
+    v_ok := false;
+    begin update outcome_measurements set appointment_id = null, value = 1 where id = v_id;
+    exception when others then v_ok := true; end;
+    if not v_ok then raise exception 'FAIL: outcome_measurements let a value ride along with the set-null'; end if;
+  else
+    raise notice 'SKIP  outcome_measurements set-null half: no appointment row to link';
+  end if;
+
+  insert into care_goals (patient_id, profile_kind, goal_text, authored_by, authored_by_role)
+  values (v_actor, 'ortho', 'Probe goal', v_actor, 'admin') returning id into v_goal;
+  insert into care_milestones (goal_id, patient_id, title, criterion, authored_by)
+  values (v_goal, v_actor, 'Probe', 'Probe criterion', v_actor) returning id into v_ms;
+
+  update care_milestones set title = 'Edited plan', status = 'working' where id = v_ms;
+  update care_milestones set status = 'reached', reached_at = now() where id = v_ms;
+
+  v_ok := false;
+  begin update care_milestones set reached_at = now() - interval '1 day' where id = v_ms;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_milestones let reached_at move'; end if;
+
+  v_ok := false;
+  begin update care_milestones set status = 'working', reached_at = null where id = v_ms;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_milestones let a reached milestone be un-reached'; end if;
+
+  v_ok := false;
+  begin insert into care_milestones (goal_id, patient_id, title, criterion, status, authored_by)
+    values (v_goal, v_actor, 'Probe', 'Probe criterion', 'reached', v_actor);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_milestones accepted reached with no reached_at'; end if;
+
+  raise notice 'PASS  outcome_measurements is append-only bar the set-null; a reached milestone stays reached';
+end $$;
+rollback;

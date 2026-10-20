@@ -395,6 +395,21 @@ describe("validateMeasurement", () => {
     expect(refused({ ...tug, items: [1] }, geri)).toMatch(/no item scores/);
   });
 
+  it("works an orthostatic value out of its readings and refuses one that disagrees", () => {
+    const readings = {
+      lying_systolic: 130,
+      lying_diastolic: 80,
+      standing_1min_systolic: 112,
+      standing_1min_diastolic: 76,
+    };
+    const ortho = { measureKey: "orthostatic_bp", measuredAt: AN_HOUR_AGO, conditions: { setting: "in_person" } };
+    expect(accepted({ ...ortho, value: 18, items: readings }, geri).items).toEqual(readings);
+    expect(refused({ ...ortho, value: 20, items: readings }, geri)).toMatch(/does not match/);
+    expect(refused({ ...ortho, value: 18 }, geri)).toMatch(/readings/);
+    expect(refused({ ...ortho, value: 18, items: { ...readings, pulse: 70 } }, geri)).toMatch(/unknown reading/);
+    expect(refused({ ...ortho, value: 0, items: { lying_systolic: 130, lying_diastolic: 80 } }, geri)).toMatch(/do not give/);
+  });
+
   it("needs the side and the variant where the measure has them", () => {
     const ortho = { profileKind: "ortho" as const, nowMs: NOW };
     const rom = { measureKey: "joint_range", value: 122, measuredAt: AN_HOUR_AGO, conditions: { setting: "in_person" } };

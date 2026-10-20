@@ -5,6 +5,7 @@ import {
   STEADI_GAIT_SPEED_MPS,
   STEADI_TUG_SECONDS,
   chairStandNorm,
+  orthostaticDrop,
   roundTo,
   scoreSheetTotal,
   type ScoreSheet,
@@ -213,6 +214,10 @@ export type OutcomeMeasure = {
   capture: MeasureCapture;
   trials?: TrialRule;
   scoreSheet?: ScoreSheet;
+  /** Named raw readings stored in `items` as an object, and the function
+   *  that derives the stored value from them -- so a stored value can always
+   *  be re-checked against what was measured. Required when declared. */
+  readings?: { keys: readonly string[]; derive: (r: Readonly<Record<string, number>>) => number | null };
   /** Recorded per side (left / right). */
   sided?: boolean;
   /** A measure recorded in several distinct ways that must never share a
@@ -1006,8 +1011,8 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     label: "Orthostatic blood pressure",
     plainName: "Blood pressure drop on standing",
     // The value is the systolic (top-number) drop; the lying and standing
-    // readings, and so the diastolic drop, are in `items`. orthostaticDrop()
-    // is the authority on positive / negative.
+    // readings, and so the diastolic drop, are in `items` (`readings`
+    // below). orthostaticDrop() is the authority on positive / negative.
     unit: "mmHg drop",
     min: -60,
     max: 120,
@@ -1023,6 +1028,28 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     profileKinds: ["geriatric"],
     source: "outcome_measurements",
     capture: "calculated",
+    readings: {
+      keys: [
+        "lying_systolic",
+        "lying_diastolic",
+        "standing_1min_systolic",
+        "standing_1min_diastolic",
+        "standing_3min_systolic",
+        "standing_3min_diastolic",
+      ],
+      derive: (r) => {
+        const pair = (sys: string, dia: string) =>
+          r[sys] !== undefined && r[dia] !== undefined ? { systolic: r[sys], diastolic: r[dia] } : null;
+        const lying = pair("lying_systolic", "lying_diastolic");
+        if (!lying) return null;
+        const result = orthostaticDrop({
+          lying,
+          standing1Min: pair("standing_1min_systolic", "standing_1min_diastolic"),
+          standing3Min: pair("standing_3min_systolic", "standing_3min_diastolic"),
+        });
+        return result.ok ? result.value.systolicDrop : null;
+      },
+    },
   },
 
   // ---- Cardiopulmonary ----------------------------------------------------------
@@ -1750,7 +1777,8 @@ export type MeasurementSide = "left" | "right";
 export type CleanMeasurement = {
   measureKey: string;
   value: number;
-  items: (number | null)[] | null;
+  /** Score-sheet answers (an array) or named readings (an object). */
+  items: (number | null)[] | Record<string, number> | null;
   side: MeasurementSide | null;
   variant: string | null;
   conditions: MeasurementConditions;
@@ -1821,8 +1849,22 @@ export function validateMeasurement(
     return { ok: false, error: `${m.label} has no variants.` };
   }
 
-  let items: (number | null)[] | null = null;
-  if (raw.items !== undefined && raw.items !== null) {
+  let items: CleanMeasurement["items"] = null;
+  if (m.readings) {
+    if (!isPlainObject(raw.items)) return { ok: false, error: `${m.label}: enter the readings it is worked out from.` };
+    const readings: Record<string, number> = {};
+    for (const [k, v] of Object.entries(raw.items)) {
+      if (!m.readings.keys.includes(k)) return { ok: false, error: `${m.label}: unknown reading ${k}.` };
+      if (typeof v !== "number" || !Number.isFinite(v)) return { ok: false, error: `${m.label}: ${k} must be a number.` };
+      readings[k] = v;
+    }
+    const derived = m.readings.derive(readings);
+    if (derived === null) return { ok: false, error: `${m.label}: these readings do not give a result.` };
+    if (Math.abs(roundTo(derived, m.decimals) - valueResult.value) > EPSILON) {
+      return { ok: false, error: `${m.label}: the value (${valueResult.value}) does not match the readings (${derived}).` };
+    }
+    items = readings;
+  } else if (raw.items !== undefined && raw.items !== null) {
     if (!m.scoreSheet) return { ok: false, error: `${m.label} has no item scores.` };
     if (!Array.isArray(raw.items)) return { ok: false, error: "Item scores must be a list." };
     const sheet = scoreSheetTotal(m.scoreSheet, raw.items as (number | null)[]);
