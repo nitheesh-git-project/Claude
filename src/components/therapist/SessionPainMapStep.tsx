@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client";
 import PainMapView from "@/components/profile/PainMapView";
 import PainExamDialog from "@/components/profile/PainExamDialog";
 import type { PainAssessmentRow, QuestionOverrideRow } from "@/lib/painMap";
-import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
 import { getDebugNowOffsetMs } from "@/lib/debugNow";
 import { sessionExamWindowStartMs } from "@/lib/sessionCompletion";
 
@@ -36,23 +35,20 @@ export default function SessionPainMapStep({
   const [userId, setUserId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [recording, setRecording] = useState(false);
-  // Null until read. Only an orthopaedic chart has a Pain Map -- the same
-  // rule the complete-session route applies -- so for anyone else this step
-  // stands aside and the note finishes the session on its own.
-  const [isOrtho, setIsOrtho] = useState<boolean | null>(null);
 
+  // Rendered only for an orthopaedic patient: SessionExamStep reads the
+  // condition type first and picks this step or the neurological one, the
+  // same choice complete-session makes (requiredSessionExam).
   const load = useCallback(async () => {
     const supabase = createClient();
-    const [{ data: session }, painRes, templateRes, specialtyRes] = await Promise.all([
+    const [{ data: session }, painRes, templateRes] = await Promise.all([
       supabase.auth.getSession(),
       supabase
         .from("pain_assessments")
         .select("region, side, pain_percent, created_at, submitted_by_role, submitted_by")
         .eq("patient_id", patientId),
       supabase.from("pain_map_question_templates").select("region, question_key, question_text"),
-      supabase.from("patient_condition_profiles").select("specialty").eq("patient_id", patientId).maybeSingle(),
     ]);
-    setIsOrtho(parseConditionSpecialty(specialtyRes.data?.specialty) === "ortho");
     if (painRes.error) {
       setFailed(true);
       return;
@@ -83,11 +79,8 @@ export default function SessionPainMapStep({
   );
   const recorded = thisSession.length > 0;
   useEffect(() => {
-    // Not orthopaedic: nothing to record, so nothing is missing.
-    onRecordedChange(recorded || isOrtho === false);
-  }, [recorded, isOrtho, onRecordedChange]);
-
-  if (isOrtho === false) return null;
+    onRecordedChange(recorded);
+  }, [recorded, onRecordedChange]);
 
   return (
     <div className="rounded-xl border border-slate-200 p-4">

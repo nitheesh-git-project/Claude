@@ -16,7 +16,8 @@ import CarePlanFields, {
   type CarePlanDraft,
   type RecommendableOption,
 } from "@/components/therapist/CarePlanFields";
-import SessionPainMapStep from "@/components/therapist/SessionPainMapStep";
+import SessionExamStep, { type SessionExamState } from "@/components/therapist/SessionExamStep";
+import { sessionExamMissingMessage } from "@/lib/sessionCompletion";
 import {
   SESSION_SUMMARY_FIELDS,
   SESSION_SUMMARY_MAX_CHARS,
@@ -85,7 +86,8 @@ export default function SessionNoteDialog({
   locked: boolean;
   hoursLeft: number | null;
   /** Opened from Done: saving the note also finishes the session, and the
-   *  Pain Map must be updated first. The route enforces both. */
+   *  condition type's exam (Pain Map or neurological examination) must be
+   *  recorded first. The route enforces both. */
   completeOnSave?: boolean;
   /** The session's start, for "updated during this session". */
   sessionStartIso?: string | null;
@@ -115,8 +117,10 @@ export default function SessionNoteDialog({
   const [planError, setPlanError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState<Set<string>>(new Set());
-  const [painRecorded, setPainRecorded] = useState(false);
-  const onPainRecordedChange = useCallback((recorded: boolean) => setPainRecorded(recorded), []);
+  // This condition type's examination for this session (the Pain Map or
+  // the neurological chart; nothing for paediatrics) -- what Done requires.
+  const [exam, setExam] = useState<SessionExamState>({ kind: null, recorded: false });
+  const onExamStateChange = useCallback((state: SessionExamState) => setExam(state), []);
   const canRecommend = sessionCompleted || completeOnSave;
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -189,8 +193,12 @@ export default function SessionNoteDialog({
       !(savedSummary && sameSummaryText(savedSummary, summaryCheck.value))
         ? summaryCheck.value
         : null;
-    if (completeOnSave && !painRecorded) {
-      setError("Update the Pain Map for this session before finishing it.");
+    if (completeOnSave && !exam.recorded) {
+      setError(
+        exam.kind
+          ? sessionExamMissingMessage(exam.kind)
+          : "Checking which examination this session needs - try again in a moment."
+      );
       return;
     }
     setMissing(new Set());
@@ -217,7 +225,8 @@ export default function SessionNoteDialog({
 
       // Finishing: the note is saved, so the session can close now. A refusal
       // here leaves the note safely stored and says why the session is still
-      // open -- the route is what binds (note + Pain Map + the clock).
+      // open -- the route is what binds (note + this condition type's exam +
+      // the clock).
       // The patient's summary, before the session closes: a refusal here
       // leaves the note stored and the session still open, so trying again
       // repeats nothing that already happened.
@@ -373,11 +382,12 @@ export default function SessionNoteDialog({
 
           <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
             {!locked && (
-              <SessionPainMapStep
+              <SessionExamStep
                 patientId={patientId}
+                patientName={patientName}
                 sessionStartIso={sessionStartIso}
                 required={completeOnSave}
-                onRecordedChange={onPainRecordedChange}
+                onStateChange={onExamStateChange}
               />
             )}
 

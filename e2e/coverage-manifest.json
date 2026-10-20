@@ -2280,7 +2280,7 @@
     {
       "id": "session.finish-with-note",
       "runner": "session",
-      "title": "A therapist's Done opens the session note with the Pain Map and needs both",
+      "title": "A therapist's Done opens the session note with the condition type's exam (Pain Map, or the neurological examination) and needs both",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -3919,6 +3919,7 @@
         {
           "spec": "neuro-exam.spec.ts",
           "tests": [
+            "NE-000",
             "NE-001",
             "NE-002",
             "NE-003",

@@ -15,6 +15,8 @@
 // An admin correcting the record is not subject to either; the route
 // exempts them. Dependency-free so the boundary is unit-tested.
 
+import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
+
 export type CompletionKind = "done" | "no_show";
 
 export function completionOpensAtMs(
@@ -54,4 +56,71 @@ export const SESSION_EXAM_LEAD_MS = 60 * 60_000;
  */
 export function sessionExamWindowStartMs(slotMs: number, debugOffsetMs: number): number {
   return slotMs - SESSION_EXAM_LEAD_MS - debugOffsetMs;
+}
+
+// --- Which examination Done requires -----------------------------------------
+
+/** The examination a delivered session must leave on the record, by the
+ *  patient's condition type: the Pain Map for an orthopaedic patient, the
+ *  neurological examination chart for a neurological one. */
+export type SessionExamKind = "pain_map" | "neuro_exam";
+
+/**
+ * Which exam Done requires, or null when the condition type has none.
+ *
+ * Paediatrics has no on-screen examination layer yet, so nothing is
+ * required of it -- requiring an exam nobody can record would make every
+ * paediatric session impossible to finish. When that layer is built it
+ * gets an arm here, and the exhaustive switch makes forgetting it a type
+ * error rather than an ungated condition type.
+ */
+export function requiredSessionExam(specialty: ConditionSpecialty): SessionExamKind | null {
+  switch (specialty) {
+    case "ortho":
+      return "pain_map";
+    case "neuro":
+      return "neuro_exam";
+    case "pediatrics":
+      return null;
+    default: {
+      const exhaustive: never = specialty;
+      return exhaustive;
+    }
+  }
+}
+
+/** The refusal code and sentence for a Done with no exam this session. */
+export const SESSION_EXAM_REFUSAL: Record<SessionExamKind, { code: string; error: string }> = {
+  pain_map: {
+    code: "pain_map_required",
+    error: "Update the Pain Map for this session before marking it done.",
+  },
+  neuro_exam: {
+    code: "neuro_exam_required",
+    error: "Record the neurological examination for this session before marking it done.",
+  },
+};
+
+/** The same refusal as the note dialog says it, where the act is "finishing". */
+export function sessionExamMissingMessage(kind: SessionExamKind): string {
+  return kind === "pain_map"
+    ? "Update the Pain Map for this session before finishing it."
+    : "Record the neurological examination for this session before finishing it.";
+}
+
+/**
+ * The exam Done is still missing, or null when the session may close.
+ * `counts` are the rows this therapist recorded inside
+ * `sessionExamWindowStartMs`, per layer. Only the layer the condition type
+ * requires counts: a neurological patient is never asked for pain scores,
+ * nor an orthopaedic one for a neurological chart.
+ */
+export function missingSessionExam(
+  specialty: ConditionSpecialty,
+  counts: { painMap: number; neuroExam: number }
+): SessionExamKind | null {
+  const required = requiredSessionExam(specialty);
+  if (required === "pain_map") return counts.painMap > 0 ? null : "pain_map";
+  if (required === "neuro_exam") return counts.neuroExam > 0 ? null : "neuro_exam";
+  return null;
 }

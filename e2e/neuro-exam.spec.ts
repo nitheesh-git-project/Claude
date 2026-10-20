@@ -24,6 +24,7 @@ import {
   deleteFixtureAccount,
   insertPastFixtureAppointment,
   markDashboardTourSeen,
+  pageUntilVisible,
   profileIdFor,
   rlsClientFor,
   waitForSplashToClear,
@@ -89,6 +90,61 @@ function examCard(page: import("@playwright/test").Page) {
 function scale(dialog: import("@playwright/test").Locator, group: string, grade: RegExp) {
   return dialog.getByRole("radiogroup", { name: group }).getByRole("radio", { name: grade });
 }
+
+// Done on a neurological patient's session leads with the neurological
+// examination, not the Pain Map, and the note will not finish the session
+// without one. Runs first, while this fixture patient has no exam at all --
+// any exam recorded later in the file falls inside every past session's
+// window. The finish is refused before any request, so no settlement row
+// is written; the route's own refusal and the finish after an exam are
+// finish-session.spec.ts FS-004.
+test("NE-000: Done on a neuro session asks for the neurological exam, never the Pain Map", async ({ browser }) => {
+  test.setTimeout(90_000);
+  const concern = `${MARKER} done`;
+  let seeded = false;
+  for (let h = 1; h <= 6 && !seeded; h++) {
+    const slot = new Date(Date.now() - h * 60 * 60 * 1000);
+    slot.setMinutes(0, 0, 0);
+    const { error } = await db.from("appointments").insert({
+      patient_id: patient!.id,
+      therapist_id: therapistAId,
+      slot_time: slot.toISOString(),
+      status: "confirmed",
+      payment_status: "paid",
+      visit_mode: "online",
+      duration_minutes: 30,
+      concern,
+    });
+    seeded = !error;
+  }
+  expect(seeded, "no free started hour for the Done session").toBe(true);
+
+  const { page } = await openAs(browser, QA_EMAILS.therapistA, "/therapist/dashboard/sessions");
+  try {
+    const card = page.locator("div.rounded-xl", { hasText: concern }).first();
+    expect(await pageUntilVisible(page, "sessions", card)).toBe(true);
+    await card.getByRole("button", { name: "Done", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("Finish session · write the note")).toBeVisible();
+    await expect(dialog.getByText("Neurological examination", { exact: false }).first()).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Record the examination" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Update the Pain Map" })).toHaveCount(0);
+
+    await dialog.getByLabel("What did you treat today?").fill("Gait and balance retraining");
+    // "How did the patient respond?" is a choice, not a text box -- a fill
+    // on it waits for a textbox that never appears (the CI timeout).
+    await dialog.getByRole("button", { name: "Improved", exact: true }).click();
+    await dialog.getByLabel("Plan for the next session").fill("Progress standing balance");
+    await dialog.getByRole("button", { name: /Save note & finish session/ }).click();
+    await expect(
+      dialog.getByText("Record the neurological examination for this session before finishing it.")
+    ).toBeVisible();
+    const { data: still } = await db.from("appointments").select("status").eq("concern", concern).single();
+    expect(still!.status).toBe("confirmed");
+  } finally {
+    await page.context().close();
+  }
+});
 
 test("NE-001: record an exam, reopen the record, re-examine, and read the change", async ({ browser }) => {
   test.setTimeout(120_000);
