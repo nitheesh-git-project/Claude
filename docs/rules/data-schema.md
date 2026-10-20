@@ -237,7 +237,14 @@ before.
      allowance, or the parent's delete raises on the child's trigger. Its
      plan-side neighbour `care_milestones` is editable but freezes
      `reached_at` once set, the same "one fact in a plan" shape the care-plan
-     window stamp has.
+     window stamp has. **When a frozen fact needs correcting, add a recorded
+     door, never a looser guard.** A mistaken "reached" is undone only by
+     `reopen_care_milestone()` (security definer, revoked from all three
+     roles), which writes an append-only `care_milestone_events` row and
+     clears `reached_at` in one transaction; the guard checks for that event
+     with `xact_id = txid_current()`, so no pair of PostgREST calls - each its
+     own transaction - and no other route can open it. Exempting the service
+     role instead would exempt every route in this app.
 
      **`user_activity_log` is the same rule for everyone who is not an admin**
      -- patients, therapists, hospitals and the system (All Logs is both
@@ -560,7 +567,8 @@ before.
   `adminMetrics`, `therapistEarnings`, `therapistPayouts`, `ratingAggregate`,
   `packageProgress`, `homeVisitPricing`, `homeVisitProgress`,
   `therapistCashLedger`, `healthProfileSummary`, `outcomeMeasures`,
-  `clinicalCalculators`, `milestones`) so it can be reasoned about
+  `clinicalCalculators`, `milestones`, `outcomeSeries`, `careGoals`,
+  `profileKind`, `licensedMeasures`) so it can be reasoned about
   without rendering. Keep new math there rather than inside components.
 - **Isolated is not the same as sequential.** The admin dashboard keeps its
   migration-dependent reads out of the big `Promise.all` so one

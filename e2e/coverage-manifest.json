@@ -1505,6 +1505,22 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "measurements.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -3929,6 +3945,27 @@
         }
       ],
       "limitation": "Writes append-only neurological exams, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; the scales, validation, asymmetry, Berg bands and change-since-last are unit-tested in src/lib/neuroExam.test.ts."
+    },
+    {
+      "id": "therapist.outcome-measurements",
+      "runner": "therapist",
+      "title": "A therapist records an outcome measurement and marks a milestone reached with it; the gate, the neurological-exam boundary and the licence switch refuse; an admin reopens a milestone only with a reason",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "measurements.spec.ts",
+          "tests": [
+            "MS-001",
+            "MS-002",
+            "MS-003",
+            "MS-004",
+            "MS-005"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes append-only measurements and reopen events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; no screen draws the layer yet (phase 2b), so it drives the routes and the rows. The registry, trials, series, milestone validation and proof are unit-tested in src/lib/outcomeMeasures.test.ts, outcomeSeries.test.ts and careGoals.test.ts; the reopen door in scripts/append-only-sql-checks.sql."
     }
   ],
   "removed": [

@@ -813,7 +813,9 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   `contact_scan_mode` and `contact_masking_enabled`, on Settings → Team &
   Access, and `risk_signals_enabled` with the per-detector thresholds in
   `risk_rules`, on Today → Risk - and `enabled_intake_specialties`, which
-  condition types triage offers - and the four invite settings on Settings →
+  condition types triage offers - and `enabled_licensed_measures`, which
+  licensed outcome scales the clinic holds a licence for (read in its own
+  call, failing closed - see the rule below) - and the four invite settings on Settings →
   Offers & Discounts (on/off, what the friend gets, what the inviter gets, and the
   ceiling on rewards one patient may earn) plus `promo_codes_enabled`, whose
   switch sits on Money → Costs beside the campaigns it governs rather than in
@@ -827,6 +829,30 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   ISR-cached pages under it aren't forced dynamic) and passes it into
   `Navbar`/`Footer` as props - those two components take the strings as
   props rather than hardcoding or fetching their own copy.
+- **A licensed outcome scale is switched on by the clinic, on Settings ->
+  Clinical Questions, and an unreadable switch enables nothing.**
+  `site_settings.enabled_licensed_measures` is a jsonb array of measure keys,
+  empty by default (every licensed scale in `src/lib/outcomeMeasures.ts`
+  ships off - see `clinical.md`). jsonb, not `text[]`, because
+  `update-setting`'s compare-and-swap compares the previous value as JSON
+  text, which a `text[]` column answers with a malformed-literal error. The
+  control (`LicensedMeasureSettings` -> `LicensedMeasureToggles`) renders
+  only on Settings -> Clinical Questions - Master Admin only, the scope
+  `/api/admin/update-setting` (`requireAdminScope("settings")`, the generic
+  `setting.update` audit row with from and to) accepts - and deliberately
+  **not** beside the question banks on Catalog -> Conditions, which other
+  scopes open. The route normalises the list against the registry
+  (`normaliseLicensedMeasureSelection`, `src/lib/licensedMeasures.ts`): a key
+  that is not a licensed scale is a 400, never a save that switches nothing
+  on. It is read in its own call, never through `SITE_SETTINGS_SELECT`
+  (`loadEnabledLicensedMeasures`, `src/lib/outcomeServer.ts`), and **fails
+  closed**: an unreadable value enables nothing, a route asked to record a
+  licensed scale then answers 503 "couldn't check" rather than "switched
+  off", and the control shows "couldn't check" instead of a row of boxes
+  reading off. A database without the column at all is the one honest empty
+  list (nothing can have been switched on there). Switching a scale off stops
+  new recordings; scores already recorded stay. The debug data reset leaves
+  it alone, like every other setting.
 - **Checkout speed is the one check that measures the product rather than
   a backlog.** The booking wizards time each Pay tap in the browser until the
   Razorpay sheet opens (`src/lib/checkoutTiming.ts`), report once,

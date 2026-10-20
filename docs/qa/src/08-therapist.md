@@ -420,6 +420,25 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Step 5: the patient sees **Your examination** in their own words ("Muscle strength", "Balance score", "Full strength"), the same figures and the change since last time, and **no** Record button.
 * Step 6: Therapist B gets **404** on the chart and **403** on the write (*"You can only record findings for a patient you've been assigned to."*). The bad grade answers **400** naming the Modified Ashworth Scale; the empty exam **400** *"Record at least one finding before saving the examination."* An orthopaedic patient answers **400** on this route. Before any session with the patient has started the route answers **409**.
 
+#### `THR-HP-005c` - Outcome measurements and milestones, at the routes · P1 **[API + SQL]**
+
+**Preconditions.** No screen draws this yet (Health Profile redesign phase 2b), so it is checked at the routes. Patient C (neurological) with a completed session with Therapist A, and on a disposable project only - the rows are append-only. Mark Patient C as Parkinson's by setting their intake answer `neuro_subtype` to `Parkinson's disease` in `patient_condition_profiles.data` (the intake question arrives in a later phase). Patient D: another neurological patient without that answer, also seen by Therapist A. Settings -> Clinical Questions -> **Licensed outcome scales** all off.
+**Steps**
+1. As Therapist A, `POST /api/therapist/measurements/submit` for Patient C with `{"measurement":{"measureKey":"tug","value":11,"items":[10.8,11.1,11.1],"measuredAt":"<10 minutes ago>","conditions":{"setting":"in_person","medicationState":"on","lastDoseAt":"<2 hours ago>"}}}`. Repeat with only two trials, then without `medicationState`.
+2. The same TUG (without trials or ON/OFF) for Patient D. Then `measureKey` `mds_updrs_3` for Patient C.
+3. As Therapist B, and as Patient C, call the step 1 route for Patient C.
+4. As Therapist A, `POST /api/therapist/care-goals/save` `{"goal":{"goalText":"Walk to the temple and back"}}`, then `POST /api/therapist/care-milestones/save` `{"action":"create","goalId":"<id>","milestone":{"title":"TUG under 11.5 s","criterion":"11.5 s or less, ON","linkedMeasureKey":"tug","targetValue":11.5}}`, then `{"action":"mark_reached","milestoneId":"<id>","measurementId":"<step 1's id>"}`, then `{"action":"update","milestoneId":"<id>","milestone":{"status":"working"}}`.
+5. As the admin, `POST /api/admin/care-milestones/reopen` `{"patientId":…,"milestoneId":…,"reason":"oops"}`, then with `"reason":"Marked reached on the wrong patient record"`, then again.
+6. **[SQL]** `update care_milestones set status = 'working', reached_at = null where id = '<id>'` (after re-marking it reached), and `update care_milestone_events set reason = 'x'`.
+
+**Expected Result**
+* Step 1: **200** with the stored measurement (`items` the three trials). Two trials **400** *"record all 3 trials"*; no ON/OFF **400** naming ON or OFF and the last dose.
+* Step 2: Patient D **400** *"Timed Up and Go is recorded in the neurological examination."*; the licensed scale **400** *"switched off until the clinic confirms its licence"*. Switch MDS-UPDRS III on in Settings and it is accepted (with ON/OFF).
+* Step 3: both **403**; nothing is written.
+* Step 4: the goal and milestone save (**200**); a second goal is **409** `active_goal_exists`. Mark reached **200** with `reachedMeasurementId` set; the update **409** `milestone_reached`.
+* Step 5: **400** `reason_required`; then **200** - the milestone is back at **working** with no reached time, and a `care_milestone_events` row holds the reason and the measurement; the third call **409** `not_reached`. Logs -> All Activity shows **Reopened a milestone marked reached by mistake**.
+* Step 6: both raise (*"stays reached"*, *"append-only"*).
+
 #### `THR-HP-006` - Read access needs no request · P2
 **Expected Result.** An **assigned** therapist can read the patient's intake and Pain Map with no grant. Only *editing the patient's own account of their history* needs one.
 

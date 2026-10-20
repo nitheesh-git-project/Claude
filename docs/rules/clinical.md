@@ -530,7 +530,8 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      `src/lib/neuroExam.test.ts`.
 - **Every standardised test goes in one shared measurement table, and the
   layers that already own a measure keep it.** The Health Profile redesign
-  (phase 1: modules and schema, no screen or route reads them yet) records
+  (phase 1: modules and schema; phase 2a: the routes and loaders below; no
+  screen draws them yet) records
   walking speed, Timed Up and Go, LEFS, the six-minute walk and the rest in
   **one** append-only `outcome_measurements` table for every condition type -
   the owner's decision, because the graph, the status pill and the milestone
@@ -564,7 +565,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      QuickDASH, GMFM, AIMS, Peabody, CAT, both Borg scales, MDS-UPDRS III
      (and NFOG-Q until checked) are `licence: "licensed"`,
      `enabledByDefault: false`; the module throws at load if one is on, and
-     `validateMeasurement()` refuses one the clinic has not enabled. Never
+     `validateMeasurement()` refuses one the clinic has not enabled - the
+     admin's `enabled_licensed_measures` switch (`admin.md`), read failing
+     closed. Never
      reword a licensed scale to avoid paying: it is no longer the validated
      scale. The Parkinson's symptom profile is the physiotherapist's own
      rating and is labelled so.
@@ -598,6 +601,77 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      with a measurable bar) are copied and edited, never read back.
   `src/lib/outcomeMeasures.test.ts`, `clinicalCalculators.test.ts`,
   `milestones.test.ts`; `scripts/append-only-sql-checks.sql` for the triggers.
+  **Phase 2a, the server side.** Five POST routes, every body through
+  `parseJsonBody`, every role, patient and profile kind re-derived on the
+  server (the request contracts are in each route's header comment):
+  - `/api/therapist/measurements/submit` and `/api/admin/measurements/submit`
+    share `prepareMeasurement()` / `insertMeasurement()`
+    (`src/lib/outcomeMeasurementRoute.ts`), so neither door stores what the
+    other refuses. The therapist's gate is the neurological exam's
+    (`therapistClinicalGate.ts`: active, a therapist, assigned, and a started
+    or delivered session on the debug clock); a linked `appointmentId` must
+    be this patient's and, for a therapist, their own. The admin's is
+    `requireAdminScope("people")` with an `outcome_measurement.create` audit
+    row. The free-text conditions are scanned
+    (`outcome_measurement_condition`).
+  - **The profile kind comes from `profileKindFor(specialty, intake)`**
+    (`src/lib/profileKind.ts`): `neuro_parkinsons` when the intake key
+    `neuro_subtype` reads "Parkinson's disease" (apostrophe and spacing
+    normalised), else the specialty's own kind. The question itself arrives
+    with phase 4's neurological `schema_version` bump; until then the key is
+    read when present. **No profile on file is a 409, an unreadable one a
+    503** - never the column's ortho default, which is how a neurological
+    patient would be measured against the wrong thresholds.
+  - **For a Parkinson's patient TUG and the 10-metre walk are stored here**,
+    not in the neurological exam (the registry's `ownsFor: ["neuro"]` makes
+    the sub-profile the exception), with ON/OFF, the last dose and **all
+    three trials** (`trialsRequired()`): a timed test's trials travel in
+    `items` as a list in the measure's own unit and the value must equal the
+    keep rule (average, best or median) over them. An ordinary
+    neurological patient's TUG posted here is a 400 naming the exam.
+  - `/api/therapist/care-goals/save` (create, or edit the keys sent; a
+    second active goal is a 409 `active_goal_exists` naming the one in the
+    way, never a silent close) and `/api/therapist/care-milestones/save`
+    (`create` under the active goal, `update` an unreached milestone's plan,
+    `mark_reached`) gate on the assignment alone, like their RLS policies -
+    except `mark_reached`, which is an observation and needs a started
+    session. A milestone with a measurable target held in
+    `outcome_measurements` is reached only with its proving measurement
+    (`measurementProvesMilestone()`: this patient's, the same measure,
+    variant and side, meeting the target), and `reached_at` is that
+    measurement's `measured_at`; one described in words, or linked to a
+    measure the Pain Map or the exam holds, is reached on the clinician's
+    judgement with no id. A reached milestone is not edited (409
+    `milestone_reached`). Goal and milestone text is scanned
+    (`care_goal_text`, `care_milestone_text`); writes are compare-and-set on
+    `updated_at` when the screen sends `expectedUpdatedAt`.
+  - **A milestone marked reached by mistake is reopened by the clinic, never
+    edited.** `/api/admin/care-milestones/reopen`
+    (`requireAdminScope("people")`, a reason of at least 10 characters,
+    `care_milestone.reopen` audit row) calls `reopen_care_milestone()`, which
+    in one transaction writes an append-only `care_milestone_events` row
+    (the `reached_at` withdrawn, the proving measurement, who, why) and moves
+    the milestone back to working or planned. The newest
+    `care_milestones_guard()` lets `reached_at` go only when that event, for
+    exactly that `reached_at`, was written in the same transaction
+    (`xact_id = txid_current()`) - two PostgREST calls cannot do it, so the
+    guarantee still holds for every route and the service role. Loosening
+    the guard for the service role was the rejected alternative: every route
+    is the service role. The events are admin-read only.
+  - **Reads** (`src/lib/outcomeServer.ts`) are one call each and answer a
+    discriminated result: `loadMeasurements()` (paged through `readAllRows`,
+    "unreadable" past 5,000 rows rather than a short graph),
+    `loadGoalAndMilestones()` (both reads or neither), `loadPatientProfileKind()`,
+    `loadEnabledLicensedMeasures()` (see `admin.md`). Shaping is pure and
+    tested: `outcomeSeries.ts` (one line per measure, variant, side and - on
+    the Parkinson's sub-profile - ON/OFF; one point per review, the session
+    or else the clinic-zone day, newest reading kept; the measures table's
+    first / now / goal, the goal being the target of the last step planned
+    on exactly that line) and `careGoals.ts` (row shapes, validation, the
+    milestone views). The three tables are on the realtime publication for
+    the screens phase 2b adds. `e2e/measurements.spec.ts`,
+    `src/lib/profileKind.test.ts`, `outcomeSeries.test.ts`,
+    `careGoals.test.ts`, `licensedMeasures.test.ts`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate

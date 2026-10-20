@@ -2522,6 +2522,27 @@ everything else.
   dropdown, and tapping an assessed point in view mode (patient/admin)
   opens a popup with that region's detail.
 
+  **Outcome measurements and milestones** (Health Profile redesign; the
+  server side is in, the screens follow). Standardised tests - walking
+  speed, Timed Up and Go, LEFS, the six-minute walk and the rest of
+  `src/lib/outcomeMeasures.ts` - are recorded in one append-only
+  `outcome_measurements` table by the assigned therapist from a started or
+  delivered session (`/api/therapist/measurements/submit`) or by an admin
+  (`/api/admin/measurements/submit`), never by the patient. Pain stays on the
+  Pain Map, and an ordinary neurological patient's TUG and 10-metre walk stay
+  on the neurological exam; a Parkinson's patient (a neurological record whose
+  intake says so, `profileKindFor`) records both here with ON/OFF, the last
+  dose and three trials. The patient's goal, in their own words, and the
+  milestones towards it are planned by the assigned therapist
+  (`/api/therapist/care-goals/save`, `/api/therapist/care-milestones/save`); a
+  measurable milestone is marked reached with the measurement that proves it,
+  and a reached one stays reached unless an admin reopens it with a reason
+  (`/api/admin/care-milestones/reopen`), which leaves a permanent record.
+  Licensed scales (Barthel, Oswestry, MDS-UPDRS III...) ship switched off;
+  the Master Admin switches one on under **Settings -> Clinical Questions ->
+  Licensed outcome scales** once the clinic holds the licence. Rules:
+  `docs/rules/clinical.md`, `docs/rules/admin.md`.
+
 Both question banks (Health Profile and Pain Map) are managed from
 one place - a **Manage Questions** section at the top of the admin's
 **Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient -
