@@ -4,7 +4,10 @@ import {
   STEADI_BALANCE_STAGE,
   STEADI_GAIT_SPEED_MPS,
   STEADI_TUG_SECONDS,
+  averageOfTrials,
+  bestOfTrials,
   chairStandNorm,
+  medianOfTrials,
   orthostaticDrop,
   roundTo,
   scoreSheetTotal,
@@ -1777,7 +1780,8 @@ export type MeasurementSide = "left" | "right";
 export type CleanMeasurement = {
   measureKey: string;
   value: number;
-  /** Score-sheet answers (an array) or named readings (an object). */
+  /** Score-sheet answers or a timed test's trials (an array), or named
+   *  readings (an object). */
   items: (number | null)[] | Record<string, number> | null;
   side: MeasurementSide | null;
   variant: string | null;
@@ -1785,6 +1789,63 @@ export type CleanMeasurement = {
   measuredAt: string;
   schemaVersion: number;
 };
+
+/**
+ * Whether the individual trials must travel with the value: on the
+ * Parkinson's sub-profile, a timed test that the handbook averages over
+ * trials (Timed Up and Go, the 10-metre walk) is stored with every trial,
+ * because single trials vary so much there that a reader has to be able to
+ * see the spread -- the owner's decision ("ON/OFF and 3 trials"). Everywhere
+ * else the trials are optional.
+ */
+export function trialsRequired(key: string, kind: ProfileKind): boolean {
+  const m = outcomeMeasure(key);
+  return !!m && kind === "neuro_parkinsons" && m.capture === "trials" && !!m.trials && m.medicationStateRequired === true;
+}
+
+/** How many trials a measure may carry: its count, plus the tie-breaking
+ *  third reading a "median" rule asks for (goniometry: two readings more
+ *  than 5 degrees apart get a third). */
+export function maxTrialsFor(m: OutcomeMeasure): number {
+  if (!m.trials) return 0;
+  return m.trials.keep === "median" ? m.trials.count + 1 : m.trials.count;
+}
+
+/**
+ * A timed test's individual trials, stored in `items` as a plain list of
+ * numbers in the measure's own unit, and the stored value checked against
+ * the measure's keep rule (average, best or median) -- so the number on the
+ * graph can always be re-worked from what was timed. A trial is a value the
+ * measure itself could hold. Not exported: validateMeasurement is the door.
+ */
+function validateTrials(
+  m: OutcomeMeasure,
+  raw: readonly unknown[],
+  storedValue: number
+): { ok: true; trials: number[] } | { ok: false; error: string } {
+  const rule = m.trials!;
+  const max = maxTrialsFor(m);
+  if (raw.length < 1 || raw.length > max) {
+    return { ok: false, error: `${m.label}: enter between 1 and ${max} trials.` };
+  }
+  const trials: number[] = [];
+  for (const t of raw) {
+    const checked = validateMeasurementValue(m.key, t);
+    if (!checked.ok) return { ok: false, error: `${m.label}, a trial: ${checked.error}` };
+    trials.push(checked.value);
+  }
+  let kept: number | null;
+  if (rule.keep === "average") kept = averageOfTrials(trials);
+  else if (rule.keep === "median") kept = medianOfTrials(trials);
+  else if (m.better === "higher" || m.better === "lower") kept = bestOfTrials(trials, m.better);
+  else kept = null;
+  if (kept === null) return { ok: false, error: `${m.label}: these trials do not give a result.` };
+  const keptRounded = roundTo(kept, m.decimals);
+  if (Math.abs(keptRounded - storedValue) > EPSILON) {
+    return { ok: false, error: `${m.label}: the value (${storedValue}) does not match the trials (${keptRounded}).` };
+  }
+  return { ok: true, trials };
+}
 
 /** How far ahead of the server's clock a measured_at may be (a phone whose
  *  clock runs a little fast), and how far back a test may be entered. */
@@ -1850,7 +1911,17 @@ export function validateMeasurement(
   }
 
   let items: CleanMeasurement["items"] = null;
-  if (m.readings) {
+  const trialItems = Array.isArray(raw.items) && m.capture === "trials" && !!m.trials && !m.scoreSheet;
+  if (trialItems) {
+    const trials = validateTrials(m, raw.items as unknown[], valueResult.value);
+    if (!trials.ok) return trials;
+    if (trialsRequired(key, ctx.profileKind) && trials.trials.length !== m.trials!.count) {
+      return { ok: false, error: `${m.label}: on a Parkinson's measurement, record all ${m.trials!.count} trials.` };
+    }
+    items = trials.trials;
+  } else if (trialsRequired(key, ctx.profileKind)) {
+    return { ok: false, error: `${m.label}: on a Parkinson's measurement, record all ${m.trials!.count} trials.` };
+  } else if (m.readings) {
     if (!isPlainObject(raw.items)) return { ok: false, error: `${m.label}: enter the readings it is worked out from.` };
     const readings: Record<string, number> = {};
     for (const [k, v] of Object.entries(raw.items)) {

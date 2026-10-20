@@ -22,7 +22,14 @@ export type CommunicationSurface =
   | "condition_answer"
   | "neuro_assessment_note"
   /** The patient-facing summary a therapist writes beside the session note. */
-  | "session_summary";
+  | "session_summary"
+  /** The free-text conditions on a measurement: walking aid, footwear,
+   *  who measured. The patient reads them beside the number. */
+  | "outcome_measurement_condition"
+  /** The patient's goal, typed by the therapist in the patient's words. */
+  | "care_goal_text"
+  /** A milestone's title and its criterion. */
+  | "care_milestone_text";
 
 /** Longest fragment of the original text kept as evidence. */
 const MAX_EVIDENCE_CHARS = 2000;

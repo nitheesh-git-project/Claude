@@ -11,6 +11,7 @@ import {
   MIN_SPLASH_HOLD_SECONDS,
 } from "@/lib/splashScreen";
 import { isContactScanMode } from "@/lib/adminSettings";
+import { normaliseLicensedMeasureSelection } from "@/lib/licensedMeasures";
 import { MAX_MISSION_LENGTH, MAX_VISION_LENGTH } from "@/lib/mission";
 import { isRunRateBasis } from "@/lib/financeMetrics";
 import {
@@ -64,6 +65,10 @@ const ALLOWED_COLUMNS = new Set([
   "session_completed_after_minutes",
   "booking_languages",
   "enabled_intake_specialties",
+  // Which licensed outcome measures the clinic has confirmed it holds a
+  // licence for (Settings -> Clinical Questions). Read everywhere else in
+  // its own call, failing closed (loadEnabledLicensedMeasures).
+  "enabled_licensed_measures",
   "package_default_validity_days",
   "package_therapist_lock_enabled",
   "package_bulk_schedule_max",
@@ -553,6 +558,19 @@ export async function POST(request: NextRequest) {
       picked.add(entry);
     }
     nextValue = ["ortho", "neuro", "pediatrics"].filter((s) => picked.has(s));
+  }
+
+  // Licensed scales the clinic has switched on. Normalised against the
+  // registry rather than trusted: every key must be a measure that is
+  // licensed (a free measure is always on and a typo must not read as
+  // saved), stored once each in registry order. Empty is the default and a
+  // legitimate value -- it switches every licensed scale back off.
+  if (key === "enabled_licensed_measures") {
+    const selection = normaliseLicensedMeasureSelection(value);
+    if (!selection.ok) {
+      return NextResponse.json({ error: selection.error }, { status: 400 });
+    }
+    nextValue = selection.keys;
   }
 
   if (BRAND_TEXT_FIELDS.has(key) || LONG_TEXT_FIELDS.has(key) || CONTACT_FIELDS.has(key)) {

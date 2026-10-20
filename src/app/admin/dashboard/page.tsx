@@ -154,6 +154,7 @@ import PagedList from "@/components/dashboard/PagedList";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
+import LicensedMeasureSettings from "@/components/admin/LicensedMeasureSettings";
 import ConditionsListFilter from "@/components/admin/ConditionsListFilter";
 import { parseAreaPain } from "@/lib/conditionIntake";
 import {
@@ -3945,6 +3946,13 @@ export default async function AdminDashboardPage({
         untouched.
       </p>
       <QuestionBankManager />
+      {/* The licensed-scale switch lives here and only here: Settings is
+          Master Admin only, the route it calls (update-setting) is
+          requireAdminScope("settings"), and the Patient Conditions screen
+          that also shows the question banks is open to other scopes. */}
+      <div className="mt-6 border-t border-slate-100 pt-6">
+        <LicensedMeasureSettings />
+      </div>
     </div>
   );
 

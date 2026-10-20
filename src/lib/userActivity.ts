@@ -121,6 +121,10 @@ export const USER_ACTIVITY_META = {
   },
   "pain_assessment.recorded": { label: "Recorded a Pain Map exam", group: "clinical", verb: "recorded a Pain Map exam" },
   "neuro_assessment.recorded": { label: "Recorded a neurological exam", group: "clinical", verb: "recorded a neurological exam" },
+  "outcome_measurement.recorded": { label: "Recorded a measurement", group: "clinical", verb: "recorded a measurement" },
+  "care_goal.saved": { label: "Saved a patient's goal", group: "clinical", verb: "saved a patient's goal" },
+  "care_milestone.saved": { label: "Planned a milestone", group: "clinical", verb: "planned a milestone" },
+  "care_milestone.reached": { label: "Marked a milestone reached", group: "clinical", verb: "marked a milestone reached" },
   // feedback
   "feedback.submitted": { label: "Left session feedback", group: "feedback", verb: "left feedback on a session" },
   // referral

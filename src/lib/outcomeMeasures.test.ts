@@ -22,6 +22,8 @@ import {
   validateMeasurement,
   validateMeasurementConditions,
   validateMeasurementValue,
+  maxTrialsFor,
+  trialsRequired,
 } from "@/lib/outcomeMeasures";
 
 const NOW = Date.parse("2026-10-12T10:00:00.000Z");
@@ -392,7 +394,7 @@ describe("validateMeasurement", () => {
     expect(accepted({ ...katz, value: 5 }, geri).items).toEqual([1, 1, 0, 1, 1, 1]);
     expect(refused({ ...katz, value: 6 }, geri)).toMatch(/does not match/);
     expect(refused({ ...katz, value: 4, items: [1, 1, null, null, 1, 0] }, geri)).toMatch(/Every item/);
-    expect(refused({ ...tug, items: [1] }, geri)).toMatch(/no item scores/);
+    expect(refused({ ...tug, measureKey: "chair_stand_30s", value: 10, items: [1] }, geri)).toMatch(/no item scores/);
   });
 
   it("works an orthostatic value out of its readings and refuses one that disagrees", () => {
@@ -434,5 +436,62 @@ describe("validateMeasurement", () => {
   it("refuses a body that is not an object, or names no measure", () => {
     expect(refused(null, geri)).toMatch(/Nothing/);
     expect(refused({ value: 3 }, geri)).toMatch(/Unknown/);
+  });
+});
+
+describe("a timed test's trials", () => {
+  const pd = { profileKind: "neuro_parkinsons" as const, nowMs: NOW };
+  const geri = { profileKind: "geriatric" as const, nowMs: NOW };
+  const onState = { setting: "in_person", medicationState: "on", lastDoseAt: new Date(NOW - 2 * 3_600_000).toISOString() };
+  const tug = { measureKey: "tug", measuredAt: AN_HOUR_AGO, conditions: onState };
+
+  it("stores Parkinson's TUG and the 10-metre walk here, with ON/OFF and all three trials", () => {
+    expect(trialsRequired("tug", "neuro_parkinsons")).toBe(true);
+    expect(trialsRequired("ten_metre_walk", "neuro_parkinsons")).toBe(true);
+    expect(trialsRequired("tug", "geriatric")).toBe(false);
+    expect(trialsRequired("lefs", "neuro_parkinsons")).toBe(false);
+    const m = accepted({ ...tug, value: 12.3, items: [12.1, 12.4, 12.4] }, pd);
+    expect(m.items).toEqual([12.1, 12.4, 12.4]);
+    expect(m.conditions.medicationState).toBe("on");
+    const walk = accepted({ ...tug, measureKey: "ten_metre_walk", value: 0.9, items: [0.88, 0.9, 0.92] }, pd);
+    expect(walk.value).toBe(0.9);
+  });
+
+  it("refuses a Parkinson's TUG with fewer than three trials, or none", () => {
+    expect(refused({ ...tug, value: 12.3 }, pd)).toMatch(/all 3 trials/);
+    expect(refused({ ...tug, value: 12.25, items: [12.1, 12.4] }, pd)).toMatch(/all 3 trials/);
+  });
+
+  it("refuses a value that is not the trials' keep rule", () => {
+    expect(refused({ ...tug, value: 12.1, items: [12.1, 12.4, 12.4] }, pd)).toMatch(/does not match the trials/);
+    // Best of three, for a measure kept by its best trial.
+    const peds = { profileKind: "pediatrics" as const, nowMs: NOW };
+    const stand = { measureKey: "peds_standing_seconds", measuredAt: AN_HOUR_AGO, conditions: { setting: "in_person" } };
+    expect(accepted({ ...stand, value: 9, items: [4, 9, 7] }, peds).value).toBe(9);
+    expect(refused({ ...stand, value: 7, items: [4, 9, 7] }, peds)).toMatch(/does not match/);
+  });
+
+  it("keeps trials optional off the Parkinson's profile, and bounded", () => {
+    const plain = { measureKey: "tug", measuredAt: AN_HOUR_AGO, conditions: { setting: "in_person" } };
+    expect(accepted({ ...plain, value: 13.2 }, geri).items).toBeNull();
+    expect(accepted({ ...plain, value: 13, items: [12, 14] }, geri).items).toEqual([12, 14]);
+    expect(refused({ ...plain, value: 13, items: [13, 13, 13, 13] }, geri)).toMatch(/between 1 and 3/);
+    expect(refused({ ...plain, value: 13, items: [] }, geri)).toMatch(/between 1 and 3/);
+    expect(refused({ ...plain, value: 13, items: [13, "x"] }, geri)).toMatch(/a trial/);
+    expect(refused({ ...plain, value: 13, items: [13, 400] }, geri)).toMatch(/a trial/);
+  });
+
+  it("lets a median rule carry its tie-breaking third reading", () => {
+    expect(maxTrialsFor(outcomeMeasure("joint_range")!)).toBe(3);
+    expect(maxTrialsFor(outcomeMeasure("tug")!)).toBe(3);
+    const ortho = { profileKind: "ortho" as const, nowMs: NOW };
+    const rom = { measureKey: "joint_range", side: "right", variant: "knee_flexion_active", measuredAt: AN_HOUR_AGO, conditions: { setting: "in_person" } };
+    expect(accepted({ ...rom, value: 120, items: [112, 120, 121] }, ortho).items).toEqual([112, 120, 121]);
+  });
+
+  it("still sends an ordinary neurological patient's TUG to the exam", () => {
+    expect(refused({ ...tug, value: 12.3, items: [12.1, 12.4, 12.4] }, { profileKind: "neuro", nowMs: NOW })).toMatch(
+      /neurological examination/
+    );
   });
 });

@@ -280,6 +280,10 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     kind: "text",
     describe: () => "The condition types a therapist can triage into are updated.",
   },
+  enabled_licensed_measures: {
+    kind: "text",
+    describe: () => "The licensed scales your therapists can record are updated.",
+  },
   risk_signals_enabled: {
     kind: "boolean",
     on: "Risk checks are on. Findings appear on Today → Risk.",
