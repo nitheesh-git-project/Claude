@@ -101,7 +101,9 @@ test.beforeAll(async () => {
   expect(therapistName, "the therapist fixture has a name to attribute the summary to").toBeTruthy();
 
   patient = await createFixtureAccount("Session Summary Patient");
-  // Neurological, so Done needs the note alone and no Pain Map step.
+  // Neurological, so Done needs no Pain Map -- it needs this session's
+  // neurological examination instead, which PSS-001 records through the
+  // real route before finishing.
   const { error: profileError } = await db
     .from("patient_condition_profiles")
     .upsert({ patient_id: patient.id, specialty: "neuro", status: "active" }, { onConflict: "patient_id" });
@@ -173,6 +175,15 @@ test("PSS-001: the session's therapist writes the summary on completion; nobody 
   });
   expect(res.status, res.text).toBe(200);
   expect(res.json.written).toBe(true);
+
+  // Done on a neurological patient needs this session's neurological
+  // examination by the same therapist (complete-session's
+  // neuro_exam_required gate), recorded through the real route.
+  const exam = await post("/api/therapist/neuro-assessments/submit", THERAPIST, {
+    patientId: patient.id,
+    findings: { bilateral: { power_hip_flexion: { left: "4", right: "5" } }, balance: { bergTotal: 44 } },
+  });
+  expect(exam.status, exam.text).toBe(200);
 
   const done = await post("/api/appointments/complete-session", THERAPIST, { appointmentId });
   expect(done.status, done.text).toBe(200);

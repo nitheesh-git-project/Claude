@@ -131,7 +131,9 @@ test("NE-000: Done on a neuro session asks for the neurological exam, never the 
     await expect(dialog.getByRole("button", { name: "Update the Pain Map" })).toHaveCount(0);
 
     await dialog.getByLabel("What did you treat today?").fill("Gait and balance retraining");
-    await dialog.getByLabel("How did the patient respond?").fill("Steadier by the end");
+    // "How did the patient respond?" is a choice, not a text box -- a fill
+    // on it waits for a textbox that never appears (the CI timeout).
+    await dialog.getByRole("button", { name: "Improved", exact: true }).click();
     await dialog.getByLabel("Plan for the next session").fill("Progress standing balance");
     await dialog.getByRole("button", { name: /Save note & finish session/ }).click();
     await expect(
