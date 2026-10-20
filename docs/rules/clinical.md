@@ -2,7 +2,7 @@
 
 Per-specialty intake, the Pain Map, care plans and their review, session notes, patient files, who may read a record, and the vocabulary all three roles share.
 
-**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
+**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · outcomeMeasures.ts · milestones.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
 
 > Part of `docs/rules/`. `CLAUDE.md` says which file a task needs; this one
 > is the detail. Keep it current in the same change that makes it wrong --
@@ -528,6 +528,76 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      costs the card - which says it could not load, rather than "nothing
      recorded" - and not the page. `e2e/neuro-exam.spec.ts`,
      `src/lib/neuroExam.test.ts`.
+- **Every standardised test goes in one shared measurement table, and the
+  layers that already own a measure keep it.** The Health Profile redesign
+  (phase 1: modules and schema, no screen or route reads them yet) records
+  walking speed, Timed Up and Go, LEFS, the six-minute walk and the rest in
+  **one** append-only `outcome_measurements` table for every condition type -
+  the owner's decision, because the graph, the status pill and the milestone
+  maths all ask the same question of every measure. Seven rules:
+  1. **One registry decides what a measure is.** `src/lib/outcomeMeasures.ts`
+     holds every measure in the assessment handbook's summary table: unit,
+     range, which direction is better, MDC/MCID, cut-offs per profile kind,
+     norms, licence, where it may be done (video, with a helper, home device),
+     trial rule, score sheet. The future dialog renders from it and the future
+     route validates with `validateMeasurement()`, so a value the screen
+     cannot offer is a 400. A module-load assertion throws on a duplicate key.
+     **Every threshold in it is marked "to be verified by a senior
+     physiotherapist against its source"** and none reaches a patient before
+     that review; a cut-off means "higher risk", never a diagnosis.
+  2. **The Pain Map and the neurological exam are not copied.** Pain stays
+     on the Pain Map (orthopaedic only, `source: "pain_map"`); Berg and its
+     item scores, the Modified Ashworth and MRC grades, and a neurological
+     patient's 10-metre walk and TUG stay in `neuro_assessments`
+     (`neuroExam` on the entry). `measurementSource()` says where a graph
+     reads each one, and `validateMeasurement()` refuses to store a measure
+     another layer owns - two sources for one line is a "change" that is only
+     a change of table.
+  3. **Parkinson's is a neuro sub-profile, not a condition type.** Six
+     profile kinds exist in the registry and the milestone templates -
+     `ortho`, `neuro`, `neuro_parkinsons`, `pediatrics`, `geriatric`,
+     `cardiopulmonary` - but `ConditionSpecialty` is unchanged.
+     "Strength and balance care" and "Heart and lung rehabilitation" become
+     condition types in a later phase, one condition at a time. On a
+     Parkinson's measurement ON/OFF and the last dose time are required.
+  4. **A licensed scale exists and is switched off.** Barthel, Oswestry, NDI,
+     QuickDASH, GMFM, AIMS, Peabody, CAT, both Borg scales, MDS-UPDRS III
+     (and NFOG-Q until checked) are `licence: "licensed"`,
+     `enabledByDefault: false`; the module throws at load if one is on, and
+     `validateMeasurement()` refuses one the clinic has not enabled. Never
+     reword a licensed scale to avoid paying: it is no longer the validated
+     scale. The Parkinson's symptom profile is the physiotherapist's own
+     rating and is labelled so.
+  5. **A change below the MDC is "no change".** `changeDirection()` uses the
+     MDC (falling back to the MCID, the conservative end of a range, and the
+     between-tester allowance when testers differ); a measure with no
+     direction or no known threshold answers "changed", never "better".
+     `riskBand()` answers "unknown" when a line needs an age, a sex or the
+     patient's own limit that was not supplied. Calculators
+     (`clinicalCalculators.ts`) refuse rather than guess - the six-minute walk
+     equation is a named table whose Indian-adult entry refuses until the
+     clinic chooses one, Karvonen refuses a beta-blocker or an unknown, and a
+     score sheet with too many blanks has no total. STEADI keeps two falls (or
+     one injurious fall) in 12 months **high** whatever the tests show.
+  6. **Same gate and posture as the neurological exam.** Read by the patient,
+     the clinical-access therapist and an admin; inserted by an active
+     assigned therapist with a started or delivered session, and only against
+     their own session when one is linked; therapist or admin, never the
+     patient (diaries are a later phase). Append-only by trigger; the one
+     permitted change is `appointment_id` cleared by `on delete set null`.
+  7. **Milestones are a plan, and "reached" is the one fact in it.**
+     `care_goals` (the patient's goal in their own words, one active at a
+     time) and `care_milestones` (title, measurable criterion, optional linked
+     measure, target and baseline) are edited by the assigned therapist under
+     the same rule. `reached_at` is written once and a reached milestone stays
+     reached (trigger and CHECK); a regression is a new milestone.
+     `deriveMilestone()` (`milestones.ts`) suggests "reached" when the linked
+     reading meets the target and names it as the proof, but only the
+     physiotherapist marks it; planned to working is theirs too. Starter
+     templates (`milestoneTemplates.ts`, at least six per profile kind, each
+     with a measurable bar) are copied and edited, never read back.
+  `src/lib/outcomeMeasures.test.ts`, `clinicalCalculators.test.ts`,
+  `milestones.test.ts`; `scripts/append-only-sql-checks.sql` for the triggers.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate

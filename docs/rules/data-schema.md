@@ -230,6 +230,14 @@ before.
      `session_note_revisions` takes neither. Verified with
      `scripts/append-only-sql-checks.sql`. A new table whose value is that it
      cannot be rewritten gets its guard in the same change.
+     `outcome_measurements` is the newest: append-only by trigger with one
+     permitted mutation, `appointment_id` cleared by `on delete set null`
+     (compared as the whole row minus that column, so nothing rides along).
+     A nullable link to a row that can be deleted needs exactly this
+     allowance, or the parent's delete raises on the child's trigger. Its
+     plan-side neighbour `care_milestones` is editable but freezes
+     `reached_at` once set, the same "one fact in a plan" shape the care-plan
+     window stamp has.
 
      **`user_activity_log` is the same rule for everyone who is not an admin**
      -- patients, therapists, hospitals and the system (All Logs is both
@@ -551,7 +559,8 @@ before.
 - **Business math lives in dependency-free `src/lib/` modules** (`pricing`,
   `adminMetrics`, `therapistEarnings`, `therapistPayouts`, `ratingAggregate`,
   `packageProgress`, `homeVisitPricing`, `homeVisitProgress`,
-  `therapistCashLedger`, `healthProfileSummary`) so it can be reasoned about
+  `therapistCashLedger`, `healthProfileSummary`, `outcomeMeasures`,
+  `clinicalCalculators`, `milestones`) so it can be reasoned about
   without rendering. Keep new math there rather than inside components.
 - **Isolated is not the same as sequential.** The admin dashboard keeps its
   migration-dependent reads out of the big `Promise.all` so one
