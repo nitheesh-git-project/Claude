@@ -1,6 +1,6 @@
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasureSeries, MilestoneTarget } from "@/lib/outcomeSeries";
-import { keyTile, pickHeadlineSeries, type Voice } from "@/lib/progressView";
+import { keyTile, pickHeadlineSeries, type KeyTile, type Voice } from "@/lib/progressView";
 
 const DELTA_TONE = {
   good: "text-emerald-700",
@@ -22,19 +22,24 @@ const DELTA_TONE = {
  */
 export default function KeyNumbers({
   series,
+  tiles: given,
   milestones = [],
   profileKind,
   voice,
   sessions,
 }: {
   series: MeasureSeries[];
+  /** Tiles already chosen and shaped by the profile (the neurological
+   *  four: independence, balance, walking speed, falls), instead of the
+   *  lines with the most reviews. */
+  tiles?: KeyTile[];
   milestones?: MilestoneTarget[];
   profileKind: ProfileKind;
   voice: Voice;
   /** Sessions done of the plan; `total` null when there is no fixed number. */
   sessions?: { done: number; total: number | null; next?: string | null } | null;
 }) {
-  const tiles = pickHeadlineSeries(series, sessions ? 3 : 4).map((s) => keyTile(s, milestones, profileKind, voice, series));
+  const tiles = given ?? pickHeadlineSeries(series, sessions ? 3 : 4).map((s) => keyTile(s, milestones, profileKind, voice, series));
 
   if (tiles.length === 0 && !sessions) {
     return (

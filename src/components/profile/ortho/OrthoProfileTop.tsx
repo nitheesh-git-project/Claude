@@ -1,7 +1,7 @@
-import OrthoHeader from "@/components/profile/ortho/OrthoHeader";
+import ProfileHeader from "@/components/profile/progress/ProfileHeader";
 import OrthoBodyMap from "@/components/profile/ortho/OrthoBodyMap";
-import OrthoProgressSection from "@/components/profile/ortho/OrthoProgressSection";
-import CareStatusControls from "@/components/profile/ortho/CareStatusControls";
+import ProfileProgressSection from "@/components/profile/progress/ProfileProgressSection";
+import ProfileStatusControls from "@/components/profile/progress/ProfileStatusControls";
 import KeyNumbers from "@/components/profile/progress/KeyNumbers";
 import type { AreaPainEntry } from "@/lib/conditionIntake";
 import type { OrthoView } from "@/lib/orthoProfileView";
@@ -58,8 +58,9 @@ export default function OrthoProfileTop({
 }) {
   return (
     <div className="space-y-5" data-testid="ortho-profile">
-      <OrthoHeader
+      <ProfileHeader
         voice={voice}
+        profileKind="ortho"
         name={patientName}
         conditionLine={conditionLine}
         chipLabel={chipLabel}
@@ -71,23 +72,18 @@ export default function OrthoProfileTop({
         stand={view.stand}
         lastReviewAt={view.lastReviewAt}
         controls={
-          canSetStatus && !view.statusFailed ? (
-            <CareStatusControls
-              patientId={patientId}
-              profileKind="ortho"
-              currentPhase={view.phase}
-              phaseIsInferred={view.phaseIsInferred}
-              override={view.override ? { status: view.override.status, reason: view.override.reason, setAt: view.override.setAt } : null}
-              overrideStale={view.override?.stale ?? false}
-              summary={view.stand.source === "written" ? { text: view.stand.text, setAt: view.stand.setAt } : null}
-              summaryDraft={view.stand.draft}
-              endpoint={canSetStatus.endpoint}
-            />
-          ) : canSetStatus ? (
-            <p role="status" className="text-xs text-amber-900">
-              {"We couldn't read the phase and status history just now, so they can't be changed from here. Reload to try again."}
-            </p>
-          ) : undefined
+          canSetStatus && (
+          <ProfileStatusControls
+            patientId={patientId}
+            profileKind="ortho"
+            canSetStatus={canSetStatus}
+            statusFailed={view.statusFailed}
+            phase={view.phase}
+            phaseIsInferred={view.phaseIsInferred}
+            override={view.override}
+            stand={view.stand}
+          />
+          )
         }
       />
 
@@ -107,7 +103,8 @@ export default function OrthoProfileTop({
         record={examRecord}
       />
 
-      <OrthoProgressSection
+      <ProfileProgressSection
+        profileKind="ortho"
         patientId={patientId}
         patientName={patientName}
         voice={voice}

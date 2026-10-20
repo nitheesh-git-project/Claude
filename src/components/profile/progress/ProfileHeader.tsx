@@ -5,25 +5,31 @@ import WhereThingsStand from "@/components/profile/progress/WhereThingsStand";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import type { ActiveOverride } from "@/lib/careStatus";
 import type { StatusResult } from "@/lib/profileStatus";
+import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { Voice } from "@/lib/progressView";
 import type { WhereThingsStandView } from "@/lib/whereThingsStand";
 
 /**
- * The top of the orthopaedic profile: who and what (name, condition line,
- * the condition-type chip), the status pill (the computed status, or the
- * physiotherapist's overrule with its reason), the four-stage phase bar and
- * "Where things stand".
+ * The top of a Health Profile (orthopaedic, neurological, Parkinson's): who
+ * and what (name, condition line, the condition-type chip and any extra
+ * chips, "filled in with ..."), the status pill (the computed status, or the
+ * physiotherapist's overrule with its reason), the four-stage phase bar for
+ * the record's profile kind and "Where things stand".
  *
  * An override whose read failed is not drawn as "no override": the pill is
  * the computed status plus a line saying the physiotherapist's view could
  * not be checked (`statusFailed`). A phase the physiotherapist has not set
  * is marked as the plan's suggestion, never presented as theirs.
  */
-export default function OrthoHeader({
+export default function ProfileHeader({
   voice,
+  profileKind,
   name,
   conditionLine,
   chipLabel,
+  extraChips = [],
+  provenance = null,
+  notes = [],
   computed,
   override,
   phase,
@@ -34,10 +40,20 @@ export default function OrthoHeader({
   controls,
 }: {
   voice: Voice;
+  /** Which kind's four phases the bar shows. */
+  profileKind: ProfileKind;
   name: string;
   /** "Right knee pain after a fall" - the patient's own words, or null. */
   conditionLine: string | null;
   chipLabel: string;
+  /** More chips beside the condition type (the Parkinson's group, "Tested in
+   *  ON time"): short facts, each already worded for the reader. */
+  extraChips?: string[];
+  /** "Filled in with your physiotherapist": who wrote the record, or null. */
+  provenance?: string | null;
+  /** Lines saying a read behind the status could not be made (an unreadable
+   *  diary, say), so the pill is not read as the whole picture. */
+  notes?: string[];
   computed: StatusResult;
   override: ActiveOverride | null;
   phase: string | null;
@@ -60,8 +76,14 @@ export default function OrthoHeader({
               <span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-900">
                 {chipLabel}
               </span>
+              {extraChips.map((chip) => (
+                <span key={chip} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-800">
+                  {chip}
+                </span>
+              ))}
             </div>
             {conditionLine && <p className="mt-1.5 text-sm leading-relaxed text-slate-700 [overflow-wrap:anywhere]">{conditionLine}</p>}
+            {provenance && <p className="mt-0.5 text-xs text-slate-600">{provenance}</p>}
             <div className="mt-3">
               <ProfileStatusPill
                 computed={computed}
@@ -79,6 +101,11 @@ export default function OrthoHeader({
                   {"We couldn't check whether your physiotherapist has overruled this status, so the computed one is shown."}
                 </p>
               )}
+              {notes.map((note) => (
+                <p key={note} role="status" className="mt-1.5 text-xs text-amber-900">
+                  {note}
+                </p>
+              ))}
             </div>
           </div>
 
@@ -90,7 +117,7 @@ export default function OrthoHeader({
               </span>
               {lastReviewAt && <span>Last review {formatClinicDate(lastReviewAt)}</span>}
             </div>
-            <PhaseBar profileKind="ortho" currentPhase={phase} voice={voice} />
+            <PhaseBar profileKind={profileKind} currentPhase={phase} voice={voice} />
           </div>
         </div>
         {controls && <div className="mt-4 border-t border-slate-100 pt-4">{controls}</div>}

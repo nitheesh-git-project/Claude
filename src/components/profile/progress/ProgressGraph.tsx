@@ -169,6 +169,14 @@ export default function ProgressGraph({
       )}
 
       <h3 className="mt-4 font-display text-base font-bold text-slate-900 [overflow-wrap:anywhere]">{name}</h3>
+      {!selected.joinPoints && (
+        <p className="mt-1 text-xs text-slate-700" data-testid="state-not-recorded">
+          <span className="mr-1.5 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 font-semibold text-amber-900">State not recorded</span>
+          {clinician
+            ? "These were taken without noting ON or OFF, so each dot stands alone: no line is drawn and no change is claimed."
+            : "These were taken without noting whether your medicine was working, so each dot stands alone and no change is shown between them."}
+        </p>
+      )}
 
       {!view ? (
         <div className="mt-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-6 text-sm text-slate-600">
