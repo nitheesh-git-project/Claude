@@ -457,17 +457,22 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `questionsForSpecialty` directly, so a changed question set changes the
   guide with it; the step text names the questions too, so update it in the
   same commit.
-- **An orthopaedic Health Profile is one layout in three places, and the
-  other specialties are not in it yet.** The patient's page, the therapist's
-  chart and the admin's condition detail render `OrthoProfileTop` for
-  `specialty === "ortho"`; neuro and paediatric pages keep their own layout
-  until their phase. It is mobile-first: one column on a phone, two for the
-  cards from `sm`, the body map's sticky column only from `lg`, tables
-  scroll inside their own box, every control is 44px or taller, and the page
-  never scrolls sideways (checked at 360, 390, 834 and 1280 wide, light and
-  dark). A therapist's chart for a patient nobody has onboarded shows the
-  condition card first, because onboarding happens there. The page title is
-  the shell's `h1`; the header's name is an `h2`. Detail: `clinical.md`.
+- **The orthopaedic and the neurological Health Profile are each one layout in
+  three places; paediatrics is not in one yet.** The patient's page, the
+  therapist's chart and the admin's condition detail render `OrthoProfileTop`
+  for `specialty === "ortho"` and `NeuroProfileTop` for `specialty === "neuro"`
+  (plain neurological or the Parkinson's sub-profile, by `profileKindFor`); a
+  paediatric page keeps its own layout until its phase. Both share
+  `ProfileHeader`, `ProfileProgressSection` and `KeyNumbers`. It is
+  mobile-first: one column on a phone, two for the cards from `sm`, the sticky
+  picture column (the body map, or the neurological quick-look column) only from
+  `lg`, tables scroll inside their own box, every control is 44px or taller, and
+  the page never scrolls sideways (checked at 360, 390, 834 and 1280 wide, light
+  and dark). A therapist's chart for a patient nobody has onboarded shows the
+  condition card first, because onboarding happens there. The page title is the
+  shell's `h1`; the header's name is an `h2`. A neurological page's realtime
+  tables add `patient_diary_entries`; the admin sees the diary read-only. Detail:
+  `clinical.md`.
 - **A patient nobody has onboarded is said in three places on the
   therapist's side**, because until it is done the patient's own Health
   Profile is locked: the Home feed row, a banner above the greeting

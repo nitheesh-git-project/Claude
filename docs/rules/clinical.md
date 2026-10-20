@@ -787,8 +787,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   `KeyNumbers` -> body map card -> `ProgressGraph` -> `MilestoneCards` ->
   `MeasuresTable`. Every page keeps what it had (condition record, reports,
   care plan history, notes, banners, gates) and places it around that.
-  Neurological and paediatric pages render exactly as before and **never make
-  these reads** (same two-phase rule as `pain_assessments`).
+  Paediatric pages render exactly as before, and a neurological page has its
+  own layout (the next rule); neither **makes these reads** (same two-phase
+  rule as `pain_assessments`).
   - **Every figure is computed in a tested module.** `orthoProfile.ts` (pain as
     a line, per-area first/now/change, the knee and strength picks, extension
     lag, status input, summary sentences), `orthoProfileView.ts` (one shaper
@@ -836,7 +837,8 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   `progressExport.test.ts`; `e2e/ortho-health-profile.spec.ts`; QA
   `THR-HP-005c` to `005f`, `PAT-HP-020`.
 - **Parkinson's is a sub-profile of neurological care, and its server side
-  is three layers (Health Profile redesign, phase 4a; the screens are 4b).**
+  is three layers (Health Profile redesign, phase 4a; the screens are the
+  next rule, phase 4b).**
   - **The condition group opens the follow-ups; a hidden question is never
     unanswered.** The neurological set gains `neuro_subtype` (*Condition
     group*: Stroke or brain injury, Spinal cord injury, Parkinson's disease,
@@ -902,12 +904,17 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     again `unchanged`. `shapeCareStatus()` returns the latest summary
     whatever profile kind it was written under, `stale` once a review is
     newer. The card (`WhereThingsStand`, shaped by `whereThingsStand.ts`)
-    shows the written text with "Written by your physiotherapist" (or "the
-    clinic") and the date; the generated sentences are a **draft** the
+    shows the written text with its byline - the physiotherapist's name and
+    the date ("Dr Farhan Sheikh, 12 Oct"), "The clinic" for an admin's text,
+    "Your physiotherapist" when the name could not be read; the generated sentences are a **draft** the
     writing box starts from, and with nothing written a fallback labelled as
     worked out automatically - never presented as the physiotherapist's
-    view. The PDF prints only a written summary. Today the box sits in the
-    orthopaedic *Phase and status* panel.
+    view. The PDF prints only a written summary. The box sits in the *Phase and
+    status* panel of the orthopaedic and the neurological chart. The name is
+    looked up with the admin client by the id on the event
+    (`careStatusAuthor.ts`, the care plan cards' rule: a therapist's name is not
+    readable through anyone's own session), never for the clinic's own text, and
+    its failure only costs the name.
   - **Parkinson's tests compare like with like.** TUG, the 10-metre walk,
     five times sit-to-stand and the Mini-BESTest (and every measure marked
     `medicationStateRequired`) need ON/OFF and the last dose on the
@@ -919,6 +926,100 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   `src/lib/intakeVisibility.test.ts`, `patientDiary.test.ts`,
   `careStatus.test.ts`, `whereThingsStand.test.ts`, `medicationState.test.ts`;
   `e2e/parkinsons-profile.spec.ts`; `scripts/append-only-sql-checks.sql`.
+
+- **The neurological and Parkinson's Health Profile (Health Profile
+  redesign, phase 4b).** For `specialty === "neuro"` - and only then - the
+  patient's page, the therapist's chart and the admin's condition detail render
+  `NeuroProfileTop` (`src/components/profile/neuro/`), the orthopaedic
+  skeleton with the neurological parts in its slots (`ProfileHeader`,
+  `ProfileProgressSection`, `ProfileStatusControls`, `KeyNumbers` are shared
+  with `OrthoProfileTop`): header (name, condition line from
+  `neuro_diagnosis`, condition group, **Tested in ON time**, status pill, phase
+  bar, "filled in with ...") -> *Where things stand* -> **four key numbers** ->
+  the **condition picture** -> [Parkinson's: symptom profile, stage] -> the
+  **diary** -> graph -> steps -> measures. `profileKindFor` decides plain
+  neurological or Parkinson's; the page is the same with the Parkinson's parts
+  switched on. A neurological page makes the progress reads
+  (`loadNeuroReads`, each its own call: measurements, goal and steps, phase and
+  status, the diary, the intake history, the licence switch) and a
+  non-neurological one makes none of them; realtime gains
+  `outcome_measurements`, `care_goals`, `care_milestones`,
+  `care_status_events` and `patient_diary_entries`.
+  - **Two stores, one graph, and each measure has one owner** (the registry's
+    `neuroExam.ownsFor`, `measurementSource`). For a neurological record Berg,
+    the 10-metre walk (as m/s) and Timed Up and Go are drawn **from the
+    exams**, one point per exam, and a recorded copy is dropped; on the
+    Parkinson's sub-profile the exam owns none of them (they are ON/OFF
+    measurements) so no exam point is drawn for them. FAC, Fugl-Meyer, the
+    Parkinson's tests and the rest come from `outcome_measurements`. The
+    freezing line is **one point per clinic week**: the therapist's weekly
+    count and the patient's diary weeks, the therapist's count winning for a
+    week they share; the week in progress is never a point (it would read as an
+    improvement before it is over), and a week nobody wrote in is no point
+    (`neuroProfile.ts`). The stage (Hoehn and Yahr) is a card, not a graph tab.
+  - **The four key numbers are always four** (`neuroKeyTiles`): independence,
+    balance, walking speed, falls - or, for Parkinson's, Up-and-go (the ON
+    line), freezing per week, walking speed, falls. Independence is the
+    **Barthel Index only when its licence is on and it has a reading**
+    (an unreadable licence switch does not hide a Barthel line already on the
+    record), otherwise the intake's 0-10 answer over time. A tile with no
+    reading says "Not yet"; one whose source could not be read says
+    "Unavailable" - never the same words.
+  - **A fall moves the pill only when a person stands behind it** (owner's
+    decision). The status rule's `newFall` is a fall entry a physiotherapist
+    **confirmed** (or a clinician recorded) after the last review (a recorded
+    measurement or an exam - never a diary week); a patient's unconfirmed
+    report is shown as *patient reported* and changes nothing. The main measure
+    is the first of the kind's preference list that can be compared, and a
+    Parkinson's line is only ever a single ON or OFF line whose state was
+    recorded. An unreadable diary says so under the pill and does not pretend a
+    fall check was made.
+  - **The condition picture is the examination.** `NeuroPicture` holds the
+    existing `NeuroExamPanel` (the dialog, the Done gate's exam, the change
+    since the exam before) with a **First exam / Latest** switch (the panel's
+    `snapshot`, mirroring the Pain Map's), beside the affected-side figure
+    (drawn only from the intake's `neuro_affected_side`; "Not sure" is not drawn
+    as "nothing affected"), the **walking ladder** (FAC 0-5, therapist-entered) and
+    the **walking-speed zones** (under 0.4, 0.4-0.8, 0.8 and over m/s, the
+    exam's own bands). The quick-look column is sticky only from `lg`.
+  - **Parkinson's extras draw only what exists.** The symptom profile is the
+    registry's `pd_symptom_rating` (the clinic's own six-part 0-4 rating,
+    labelled as such - not the MDS-UPDRS) and appears only when one has been
+    recorded; the stage only when recorded; "Tested in ON time" only when every
+    ON/OFF reading was ON, with the hours after the dose when it was recorded.
+    A line whose medication state was not recorded draws as unjoined dots with
+    **State not recorded** (graph heading and tab), and its tile and graph claim
+    no move.
+  - **The diary screens.** The patient's page has **Log feet getting stuck, a
+    fall or a near miss** (`DiaryLogDialog`: only the kinds `diaryKindsFor` gives
+    the profile kind, checked with the route's own `validateDiaryEntry` first,
+    real radios, 44px targets, every refusal worded for the patient -
+    `progressErrorMessage(..., "diary")`; 503 is "nothing was saved", 429 "wait",
+    never "not allowed"). The assigned therapist's chart has **Confirm** on each
+    entry waiting for them (`entriesAwaitingConfirmation`); an **admin reads the
+    diary and nothing more** - neither control is mounted, there is no admin
+    write or confirm door. The Parkinson's card draws twelve clinic weeks of
+    freezing (a blank week is "nothing written down", an open dot is the
+    patient's own account, a filled one a confirmed week) and the triggers.
+  - **The PDF export carries the diary as counts** (`diaryExport.ts`: falls,
+    near-misses and freezing episodes, split into patient reported and
+    confirmed, and the weeks with a freezing entry - never a note) for a record
+    whose profile kind keeps a diary, under "complete or refused": an unreadable
+    diary refuses the export (503), and the JSON export gains
+    `patient_diary_entries`.
+  - **Who may do what** is the orthopaedic rule: *Record a test* (neuro-aware:
+    FAC, Fugl-Meyer and, for Parkinson's, the ON/OFF measures - never what the
+    exam owns), *Goal and steps* and *Phase and status* (with the summary box)
+    for the assigned therapist; on the admin's detail the test, phase and status
+    and milestone reopen need `scopeCanManage(scope, "people")`. The "Record a
+    neurological examination" button, the exam dialog and the Done gate are
+    unchanged. The neurological summary card has a designed Parkinson's block
+    (condition group chip, year diagnosed, usual medicine times, how often the
+    feet feel stuck, worry about falling, the hardest thing), shown only while the
+    group still reads Parkinson's.
+  `src/lib/neuroProfile.test.ts`, `neuroProfileView.test.ts`,
+  `patientDiaryForm.test.ts`, `diaryExport.test.ts`; `e2e/neuro-health-profile.spec.ts`;
+  QA `THR-HP-005i`, `THR-HP-005j`, `PAT-HP-022`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate

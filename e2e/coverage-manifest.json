@@ -1553,6 +1553,22 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "neuro-health-profile.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -4039,10 +4055,35 @@
           "level": "api"
         }
       ],
-      "limitation": "Writes append-only diary entries and care_status_events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; no screen draws the diary or the Parkinson's view yet (phase 4b), so it drives the routes and the rows. Visibility, counters, the banner rule, the diary's validation and shaping, the written summary and the comparable-points rule are unit-tested in src/lib/intakeVisibility.test.ts, patientDiary.test.ts, careStatus.test.ts, whereThingsStand.test.ts and medicationState.test.ts; the triggers in scripts/append-only-sql-checks.sql.",
+      "limitation": "Writes append-only diary entries and care_status_events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; it drives the routes and the rows; the screens are covered in neuro-health-profile.spec.ts. Visibility, counters, the banner rule, the diary's validation and shaping, the written summary and the comparable-points rule are unit-tested in src/lib/intakeVisibility.test.ts, patientDiary.test.ts, careStatus.test.ts, whereThingsStand.test.ts and medicationState.test.ts; the triggers in scripts/append-only-sql-checks.sql.",
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "therapist.neuro-health-profile",
+      "runner": "therapist",
+      "title": "The neurological and Parkinson's Health Profile opens in the shared layout with the examination as its picture and the exam's lines on the graph; a patient writes a fall in their diary and it moves the status only once the assigned therapist confirms it (an admin only reads); the Parkinson's profile adds the ON-time chip and the freezing diary; the export carries the diary as counts and the summary names the physiotherapist",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "neuro-health-profile.spec.ts",
+          "tests": [
+            "NHP-001",
+            "NHP-002",
+            "NHP-003",
+            "NHP-004",
+            "NHP-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only exams, diary entries and status events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The unreadable-read cards are not driven (a browser test cannot fail one server read without dropping a table); they are unit-tested in src/lib/neuroProfileView.test.ts. The series, tiles, status input, picture and diary shaping are in neuroProfile.test.ts, patientDiaryForm.test.ts and diaryExport.test.ts.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
       ]
     }
   ],

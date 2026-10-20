@@ -894,9 +894,13 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   record without it (`clinical.md`).
 - **A patient's diary entries are read-only to the back office.** An admin
   reads them under `patient_diary_entries_select_admin`; there is no admin
-  write or confirm door yet (the column allows an admin confirmation for a
-  later one), and the scanner's Risk signals label their notes "Patient's
-  diary note".
+  write or confirm door (the owner's decision: the physiotherapist confirms; the
+  column allows an admin confirmation, but nothing offers it), and the
+  scanner's Risk signals label their notes "Patient's diary note". The
+  condition detail's neurological layout draws the diary read-only - neither
+  *Log* nor *Confirm* is mounted - while its test, phase and status, summary and
+  milestone-reopen controls need `scopeCanManage(scope, "people")`, as the
+  orthopaedic layout's do.
 - **Checkout speed is the one check that measures the product rather than
   a backlog.** The booking wizards time each Pay tap in the browser until the
   Razorpay sheet opens (`src/lib/checkoutTiming.ts`), report once,

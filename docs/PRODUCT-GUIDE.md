@@ -2567,8 +2567,22 @@ everything else.
   the sentences worked out from the numbers are a draft to start from and,
   with nothing written, a fallback labelled as automatic. Parkinson's test
   results are only compared between readings taken in the same medication
-  state (ON with ON, OFF with OFF). The diary and Parkinson's screens follow
-  in phase 4b.
+  state (ON with ON, OFF with OFF).
+
+  **Neurological and Parkinson's screens (phase 4b).** A neurological
+  patient's Health Profile (patient page, therapist chart, admin detail) now
+  opens in the same layout as the orthopaedic one: header, *Where things stand*
+  (under the physiotherapist's name and date), four key numbers (independence,
+  balance, walking speed, falls; for Parkinson's Up-and-go, freezing a week,
+  walking speed, falls), the examination as the picture (First exam / Latest, the
+  affected-side figure, the walking ladder from FAC, walking-speed zones), the
+  diary, the graph (Berg, walking speed and Up-and-go come from the
+  examinations, the rest from recorded tests), steps and measures. The patient
+  writes a fall, a near miss or - for Parkinson's - freezing with **Log ...**;
+  the assigned therapist **Confirm**s entries; an admin only reads. A fall moves
+  the status pill to *Needs attention* only after a physiotherapist has
+  confirmed it. The patient's PDF carries the diary as counts. Rules:
+  `docs/rules/clinical.md`.
 
 Both question banks (Health Profile and Pain Map) are managed from
 one place - a **Manage Questions** section at the top of the admin's
