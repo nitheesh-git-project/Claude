@@ -10,6 +10,7 @@ import {
   completionOpensAtMs,
   completionRefusal,
   missingSessionExam,
+  requiredSessionExam,
   SESSION_EXAM_REFUSAL,
   sessionExamWindowStartMs,
 } from "@/lib/sessionCompletion";
@@ -198,9 +199,10 @@ export async function POST(request: NextRequest) {
     // Done means the clinical record is written: a session note for this
     // session, and this condition type's examination updated during it
     // (owner's rule): the Pain Map for an orthopaedic patient, the
-    // neurological examination chart for a neurological one, nothing for a
-    // paediatric one until that layer exists (missingSessionExam in
-    // sessionCompletion.ts). The therapist's Done opens the note first and calls this
+    // neurological examination chart for a neurological one, the paediatric
+    // examination for a paediatric one once its dialog step ships (phase 5b;
+    // PEDS_EXAM_REQUIRED_FOR_DONE, until then nothing) -- missingSessionExam
+    // in sessionCompletion.ts. The therapist's Done opens the note first and calls this
     // only after it saved -- this is the copy that binds. "During it" is
     // from an hour before the slot, so an exam recorded while setting up
     // counts. An admin closing the record is exempt, as for the clock.
@@ -217,6 +219,7 @@ export async function POST(request: NextRequest) {
         { count: painCount, error: painError },
         { data: specialtyRow, error: specialtyError },
         { count: neuroCount, error: neuroError },
+        { count: pedsCount, error: pedsError },
       ] = await Promise.all([
         admin.from("session_notes").select("id").eq("appointment_id", appointmentId).maybeSingle(),
         admin
@@ -237,13 +240,23 @@ export async function POST(request: NextRequest) {
           .eq("patient_id", appointment.patient_id)
           .eq("submitted_by", user.id)
           .gte("created_at", sinceIso),
+        // The paediatric examination, by the same window and author rule.
+        admin
+          .from("peds_assessments")
+          .select("id", { count: "exact", head: true })
+          .eq("patient_id", appointment.patient_id)
+          .eq("submitted_by", user.id)
+          .gte("created_at", sinceIso),
       ]);
       const specialty = parseConditionSpecialty(specialtyRow?.specialty);
       // A failed exam read counts only for the layer this patient needs:
       // "we couldn't check" is a 503, never a silent pass -- but a neuro
       // read failing must not block an orthopaedic patient's Done.
+      const required = requiredSessionExam(specialty);
       const examReadFailed =
-        (specialty === "ortho" && !!painError) || (specialty === "neuro" && !!neuroError);
+        (required === "pain_map" && !!painError) ||
+        (required === "neuro_exam" && !!neuroError) ||
+        (required === "peds_exam" && !!pedsError);
       if (noteError || specialtyError || examReadFailed) {
         return NextResponse.json(
           { error: "We couldn't check this session's note just now. Please try again." },
@@ -256,7 +269,11 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
-      const missing = missingSessionExam(specialty, { painMap: painCount ?? 0, neuroExam: neuroCount ?? 0 });
+      const missing = missingSessionExam(specialty, {
+        painMap: painCount ?? 0,
+        neuroExam: neuroCount ?? 0,
+        pedsExam: pedsCount ?? 0,
+      });
       if (missing) {
         return NextResponse.json(SESSION_EXAM_REFUSAL[missing], { status: 409 });
       }

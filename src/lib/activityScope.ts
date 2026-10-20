@@ -89,6 +89,7 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "condition_change.direct_edit": "sessions",
   "pain_assessment.create": "sessions",
   "neuro_assessment.create": "sessions",
+  "peds_assessment.create": "sessions",
   // Guarded with requireAdminScope("people"), like the two exams' routes;
   // filed beside them for the same desk.
   "outcome_measurement.create": "sessions",

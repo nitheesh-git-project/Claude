@@ -19,6 +19,9 @@ import {
 } from "@/lib/conditionSpecialty";
 import { MEDICAL_DOCUMENT_TYPE_LABEL, type MedicalDocumentType } from "@/lib/medicalDocuments";
 import { describeNeuroExamForText, parseNeuroAssessments, type NeuroAssessmentRow } from "@/lib/neuroExam";
+import { describePedsExamForText, parsePedsAssessments, PEDS_ASSESSMENT_SELECT, type PedsAssessmentRow } from "@/lib/pedsExam";
+import { parseWeeksAtBirth, pedsAgeLine, pedsTodayIso, PEDS_WEEKS_AT_BIRTH_KEY } from "@/lib/pedsAge";
+import { achievedAgeLabel, pedsMilestoneWindows, PEDS_WINDOWS_VERIFICATION_NOTE } from "@/lib/pedsMilestoneWindows";
 import { loadCareStatus, loadGoalAndMilestones, loadMeasurements } from "@/lib/outcomeServer";
 import { parseMeasurementRows } from "@/lib/outcomeSeries";
 import { profileKindFor } from "@/lib/profileKind";
@@ -85,6 +88,7 @@ export async function GET(request: NextRequest) {
   const specialty = parseConditionSpecialty(specialtyRow?.specialty);
   const isOrtho = specialty === "ortho";
   const isNeuro = specialty === "neuro";
+  const isPeds = specialty === "pediatrics";
 
   // Every read that carries part of the record is checked, and the lists
   // are paged. An export is handed to another clinician as "the record", so
@@ -99,6 +103,7 @@ export async function GET(request: NextRequest) {
     changeRequestsResult,
     assessmentsResult,
     neuroResult,
+    pedsResult,
     documentsResult,
     { data: intakeOverrideRows },
     { data: painMapOverrideRows },
@@ -106,7 +111,8 @@ export async function GET(request: NextRequest) {
     measurementsRead,
     goalsRead,
   ] = await Promise.all([
-    supabase.from("profiles").select("full_name, email, patient_code").eq("id", user.id).single(),
+    // date_of_birth: the paediatric exam's corrected age (pedsAge.ts).
+    supabase.from("profiles").select("full_name, email, patient_code, date_of_birth").eq("id", user.id).single(),
     supabase
       .from("patient_condition_profiles")
       .select("data, schema_version, status, updated_at")
@@ -144,6 +150,18 @@ export async function GET(request: NextRequest) {
             .order("id", { ascending: true })
         )
       : Promise.resolve({ rows: [] as NeuroAssessmentRow[], error: null, truncated: false }),
+    // The paediatric examination, for a paediatric profile only, checked
+    // the same way: complete or refused.
+    isPeds
+      ? readAllRows<PedsAssessmentRow>(() =>
+          supabase
+            .from("peds_assessments")
+            .select(PEDS_ASSESSMENT_SELECT)
+            .eq("patient_id", user.id)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        )
+      : Promise.resolve({ rows: [] as PedsAssessmentRow[], error: null, truncated: false }),
     readAllRows<DocumentExportRow>(() =>
       supabase
         .from("patient_medical_documents")
@@ -175,6 +193,8 @@ export async function GET(request: NextRequest) {
     assessmentsResult.truncated ||
     neuroResult.error ||
     neuroResult.truncated ||
+    pedsResult.error ||
+    pedsResult.truncated ||
     documentsResult.error ||
     documentsResult.truncated ||
     // Complete or refused, for the goal, the steps and the measures too: a
@@ -218,6 +238,7 @@ export async function GET(request: NextRequest) {
       submission_history: changeRequests ?? [],
       pain_map_assessments: assessments ?? [],
       neuro_assessments: neuroResult.rows,
+      peds_assessments: pedsResult.rows,
       outcome_measurements: measurementsRead.rows,
       care_goals: goalsRead.goals,
       care_milestones: goalsRead.milestones,
@@ -267,6 +288,27 @@ export async function GET(request: NextRequest) {
     }))
     .filter((s) => s.entries.length > 0);
 
+  // The latest paediatric examination, with the child's age (corrected while
+  // it applies) and the age each milestone came at -- all worked out here,
+  // so healthProfilePdf.ts prints lines and never learns a milestone.
+  const pedsExams = isPeds ? parsePedsAssessments(pedsResult.rows) : [];
+  const pedsLatest = pedsExams[0] ?? null;
+  const birthDate = typeof profile?.date_of_birth === "string" ? profile.date_of_birth : null;
+  const pedsChart = isPeds
+    ? pedsMilestoneWindows({
+        findings: pedsLatest?.findings ?? null,
+        birthDate,
+        weeksAtBirth: parseWeeksAtBirth(answers[PEDS_WEEKS_AT_BIRTH_KEY]),
+        todayIso: pedsTodayIso(Date.now()),
+      })
+    : null;
+  const pedsAgeText = pedsChart
+    ? (pedsAgeLine(pedsChart.age) ??
+      (pedsChart.age.status === "implausible"
+        ? "the date of birth on file does not look like a child's; please check it with the clinic"
+        : "date of birth not on file"))
+    : null;
+
   const progress = buildProgressExport({
     profileKind,
     careStatus: { phase: careStatusRead.phase, override: careStatusRead.override, summary: careStatusRead.summary },
@@ -306,6 +348,23 @@ export async function GET(request: NextRequest) {
       submitted_by_role: exam.submittedByRole,
       lines: describeNeuroExamForText(exam.findings),
     })),
+    showPedsExamination: isPeds,
+    pedsAgeLine: pedsAgeText,
+    pedsVerificationNote: isPeds ? PEDS_WINDOWS_VERIFICATION_NOTE : null,
+    pedsExam:
+      pedsLatest && pedsChart
+        ? {
+            created_at: pedsLatest.createdAt,
+            submitted_by_role: pedsLatest.submittedByRole,
+            lines: describePedsExamForText(pedsLatest.findings, {
+              achievedAgeLabel: (key) => {
+                const row = pedsChart.rows.find((r) => r.key === key);
+                return row ? achievedAgeLabel(row) : null;
+              },
+            }),
+            earlierCount: pedsExams.length - 1,
+          }
+        : null,
     documents: (documents ?? []).map((d) => ({
       title: d.title,
       document_type:

@@ -566,6 +566,7 @@ const SURFACE_LABELS: Record<string, string> = {
   appointment_notes: "Patient's booking note",
   condition_answer: "Health Profile answer",
   neuro_assessment_note: "Neurological exam note",
+  peds_assessment_note: "Paediatric exam note",
   session_summary: "Session summary for the patient",
   outcome_measurement_condition: "Note on a measurement",
   care_goal_text: "Patient's goal",

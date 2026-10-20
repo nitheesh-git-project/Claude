@@ -54,6 +54,27 @@ describe("buildHealthProfilePdf progress section", () => {
   });
 });
 
+describe("buildHealthProfilePdf paediatric examination", () => {
+  it("prints the latest exam with the age line, and the empty state", async () => {
+    const withExam = await buildHealthProfilePdf({
+      ...base,
+      specialtyLabel: "Paediatric",
+      showPedsExamination: true,
+      pedsAgeLine: "14 months (11.7 months corrected, born at 30 weeks)",
+      pedsVerificationNote: "WHO windows; to be verified by a senior physiotherapist.",
+      pedsExam: {
+        created_at: "2026-10-12T06:00:00.000Z",
+        submitted_by_role: "therapist",
+        lines: ["Movement milestones (WHO):", "  Sitting without support: Achieved, first seen 3 Feb 2026, at 8 months corrected, parent reports"],
+        earlierCount: 2,
+      },
+    });
+    expect((await PDFDocument.load(withExam)).getPageCount()).toBe(1);
+    const empty = await buildHealthProfilePdf({ ...base, showPedsExamination: true, pedsAgeLine: "date of birth not on file", pedsExam: null });
+    expect((await PDFDocument.load(empty)).getPageCount()).toBe(1);
+  });
+});
+
 describe("buildHealthProfilePdf diary section", () => {
   it("prints the diary as counts, and the empty diary as empty", async () => {
     const withDiary = await buildHealthProfilePdf({

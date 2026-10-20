@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   completionOpensAtMs,
+  PEDS_EXAM_REQUIRED_FOR_DONE,
   missingSessionExam,
   requiredSessionExam,
   sessionExamMissingMessage,
@@ -56,9 +59,39 @@ describe("which examination Done requires", () => {
     expect(requiredSessionExam("neuro")).toBe("neuro_exam");
   });
 
-  it("asks nothing of a paediatric patient, who has no exam layer to record in", () => {
+  it("asks nothing of a paediatric patient while the note dialog has no paediatric exam step (phase 5b)", () => {
+    // The server half is built; the requirement waits for the control that
+    // satisfies it, so no therapist is ever blocked with nothing to press.
+    expect(PEDS_EXAM_REQUIRED_FOR_DONE).toBe(false);
     expect(requiredSessionExam("pediatrics")).toBeNull();
     expect(missingSessionExam("pediatrics", { painMap: 0, neuroExam: 0 })).toBeNull();
+    expect(missingSessionExam("pediatrics", { painMap: 0, neuroExam: 0, pedsExam: 0 })).toBeNull();
+  });
+
+  it("asks a paediatric patient for the paediatric exam once the gate is on, and no other layer stands in", () => {
+    expect(requiredSessionExam("pediatrics", true)).toBe("peds_exam");
+    expect(missingSessionExam("pediatrics", { painMap: 0, neuroExam: 0, pedsExam: 0 }, true)).toBe("peds_exam");
+    expect(missingSessionExam("pediatrics", { painMap: 0, neuroExam: 0 }, true)).toBe("peds_exam");
+    expect(missingSessionExam("pediatrics", { painMap: 4, neuroExam: 2, pedsExam: 0 }, true)).toBe("peds_exam");
+    expect(missingSessionExam("pediatrics", { painMap: 0, neuroExam: 0, pedsExam: 1 }, true)).toBeNull();
+    // A paediatric exam never satisfies the other two.
+    expect(missingSessionExam("ortho", { painMap: 0, neuroExam: 0, pedsExam: 3 }, true)).toBe("pain_map");
+    expect(missingSessionExam("neuro", { painMap: 0, neuroExam: 0, pedsExam: 3 }, true)).toBe("neuro_exam");
+    expect(SESSION_EXAM_REFUSAL.peds_exam.code).toBe("peds_exam_required");
+    expect(sessionExamMissingMessage("peds_exam")).toBe("Record the paediatric examination for this session before finishing it.");
+  });
+
+  it("is never on while the note dialog's exam step has no paediatric arm", () => {
+    // The gate and the control ship together: turning the requirement on
+    // without mounting SessionPedsExamStep would leave every paediatric
+    // session impossible to finish.
+    const step = readFileSync(join(process.cwd(), "src/components/therapist/SessionExamStep.tsx"), "utf8");
+    if (PEDS_EXAM_REQUIRED_FOR_DONE) {
+      expect(step).toMatch(/SessionPedsExamStep/);
+      expect(step).toMatch(/"peds_exam"/);
+    } else {
+      expect(PEDS_EXAM_REQUIRED_FOR_DONE).toBe(false);
+    }
   });
 
   it("refuses a neurological Done with no neuro exam this session, and allows it after one", () => {

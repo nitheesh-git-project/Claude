@@ -168,6 +168,7 @@ export type AdminActivityAction =
   | "condition_change.direct_edit"
   | "pain_assessment.create"
   | "neuro_assessment.create"
+  | "peds_assessment.create"
   | "outcome_measurement.create"
   | "care_milestone.reopen"
   | "care_status.set"
@@ -391,6 +392,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "condition_change.direct_edit": "Edited a health profile directly",
   "pain_assessment.create": "Recorded a Pain Map exam",
   "neuro_assessment.create": "Recorded a neurological exam",
+  "peds_assessment.create": "Recorded a paediatric exam",
   "outcome_measurement.create": "Recorded a measurement",
   "care_milestone.reopen": "Reopened a milestone marked reached by mistake",
   "care_status.set": "Set a patient's phase, overruled their status or wrote where things stand",

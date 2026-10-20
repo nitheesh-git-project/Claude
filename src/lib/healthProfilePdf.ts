@@ -84,6 +84,24 @@ export type HealthProfilePdfInput = {
    *  learns a scale. */
   showNeuroExaminations?: boolean;
   neuroExams?: { created_at: string; submitted_by_role: string; lines: string[] }[];
+  /** True for a paediatric profile: the LATEST paediatric examination is
+   *  printed (milestones with seen or parent-reported, the GMFCS level, the
+   *  equipment note), with the child's age line. Lines arrive as text
+   *  (`describePedsExamForText` in pedsExam.ts), so this module never learns
+   *  a milestone. Null `pedsExam` prints "No examinations recorded yet". */
+  showPedsExamination?: boolean;
+  pedsExam?: {
+    created_at: string;
+    submitted_by_role: string;
+    lines: string[];
+    /** Examinations before this one, on file and in the JSON export. */
+    earlierCount: number;
+  } | null;
+  /** "14 months (11.7 months corrected, born at 30 weeks)", or a sentence
+   *  saying why there is no age. */
+  pedsAgeLine?: string | null;
+  /** Clinicians' threshold note under the milestones. */
+  pedsVerificationNote?: string | null;
   /** The goal, its steps and the measures table, already as text
    *  (`buildProgressExport` in progressExport.ts). Omitted only by callers
    *  that predate the measurement layer. */
@@ -504,6 +522,32 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
         cur.space(8);
       }
     }
+  }
+
+  if (input.showPedsExamination) {
+    cur.heading("Paediatric examination by the therapist");
+    if (input.pedsAgeLine) cur.text(`Age: ${input.pedsAgeLine}`, { size: 10, gap: 4 });
+    const exam = input.pedsExam ?? null;
+    if (!exam) {
+      cur.text("No examinations recorded yet.", { size: 10, color: MUTED });
+    } else {
+      cur.need(44);
+      cur.text(`Latest examination, ${formatDate(exam.created_at)}`, { size: 11, bold: true, gap: 1 });
+      cur.text(`Recorded by the ${exam.submitted_by_role}`, { size: 9, color: MUTED, gap: 4 });
+      for (const line of exam.lines) {
+        const indented = line.startsWith("  ");
+        cur.text(line.trim(), { size: 10, indent: indented ? 24 : 12, gap: 1 });
+      }
+      if (exam.earlierCount > 0) {
+        cur.space(2);
+        cur.text(
+          `${exam.earlierCount} earlier ${exam.earlierCount === 1 ? "examination is" : "examinations are"} on file.`,
+          { size: 9, color: MUTED, gap: 1 }
+        );
+      }
+      if (input.pedsVerificationNote) cur.text(input.pedsVerificationNote, { size: 8, color: MUTED, gap: 1 });
+    }
+    cur.space(8);
   }
 
   // Listed, not embedded: the files themselves live in storage and are

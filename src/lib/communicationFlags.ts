@@ -21,6 +21,9 @@ export type CommunicationSurface =
   | "appointment_notes"
   | "condition_answer"
   | "neuro_assessment_note"
+  /** The free-text note and the orthoses and equipment note on a
+   *  paediatric examination; the family reads both. */
+  | "peds_assessment_note"
   /** The patient-facing summary a therapist writes beside the session note. */
   | "session_summary"
   /** The free-text conditions on a measurement: walking aid, footwear,

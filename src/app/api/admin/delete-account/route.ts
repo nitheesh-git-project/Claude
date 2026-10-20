@@ -73,6 +73,7 @@ const GROUP_BY_TABLE: Record<string, keyof AccountReferences> = {
   care_plan_reviews: "clinical",
   pain_assessments: "clinical",
   neuro_assessments: "clinical",
+  peds_assessments: "clinical",
   outcome_measurements: "clinical",
   care_goals: "clinical",
   care_milestones: "clinical",
