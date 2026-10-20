@@ -13,6 +13,7 @@ import {
   parseMultiSelect,
   serializeMultiSelect,
   toggleMultiSelectOption,
+  visibleQuestions,
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
 import { PAIN_MAP_REGIONS } from "@/lib/painMap";
@@ -43,7 +44,7 @@ const AUTOSAVE_DELAY_MS = 1500;
 // be dismissed at any step -- doesn't lose progress. See the save-draft
 // routes and patient_condition_profiles.draft_data.
 export default function ConditionIntakeWizard({
-  questions,
+  questions: allQuestions,
   endpoint,
   extraPayload,
   voice = "patient",
@@ -76,25 +77,32 @@ export default function ConditionIntakeWizard({
 }) {
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    for (const q of questions) initial[q.key] = initialData[q.key] ?? "";
+    for (const q of allQuestions) initial[q.key] = initialData[q.key] ?? "";
     return initial;
   });
+  // The questions these answers ask, recomputed on every change: choosing
+  // "Parkinson's disease" as the condition group opens its follow-ups as
+  // the very next steps, and choosing anything else closes them. A closed
+  // follow-up keeps whatever was typed (the flat blob never deletes), but
+  // it is not asked, counted or required. Every step index below is into
+  // this list; the follow-ups sit straight after the question that opens
+  // them, so the step the person is on never moves under them.
+  const questions = visibleQuestions(allQuestions, values);
   // Step 0 is the intro, 1..questions.length are the questions, the last
   // step is the review. Resume on the first unanswered question when the
   // patient already has answers to come back to, so continuing a draft
   // doesn't mean tapping Next past everything already filled in.
   const clinician = voice === "clinician";
   const [step, setStep] = useState(() => {
-    const initialCount = countAnswered(
-      questions,
-      questions.reduce<Record<string, string>>((acc, q) => {
-        acc[q.key] = initialData[q.key] ?? "";
-        return acc;
-      }, {})
-    );
+    const initialValues = allQuestions.reduce<Record<string, string>>((acc, q) => {
+      acc[q.key] = initialData[q.key] ?? "";
+      return acc;
+    }, {});
+    const initialQuestions = visibleQuestions(allQuestions, initialValues);
+    const initialCount = countAnswered(initialQuestions, initialValues);
     if (initialCount === 0) return 0;
-    const firstUnanswered = questions.findIndex((q) => !isAnswered(q, initialData));
-    return firstUnanswered === -1 ? questions.length + 1 : firstUnanswered + 1;
+    const firstUnanswered = initialQuestions.findIndex((q) => !isAnswered(q, initialData));
+    return firstUnanswered === -1 ? initialQuestions.length + 1 : firstUnanswered + 1;
   });
   const [stepError, setStepError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +115,7 @@ export default function ConditionIntakeWizard({
   const answeredCount = countAnswered(questions, values);
   // What the person is told they are doing: seven questions, whatever the
   // key count is. A pre-step is asked but not counted.
-  const countedTotal = countedQuestions(questions).length;
+  const countedTotal = countedQuestions(questions, values).length;
 
   // "Question 3 of 7", counting only the questions the person was told
   // there were. A pre-step (the paediatric caregiver pair) is asked but not
@@ -117,7 +125,7 @@ export default function ConditionIntakeWizard({
     const q = questions[atStep - 1];
     if (!q) return "";
     if (q.excludeFromCount) return "Before we start";
-    const position = countedQuestions(questions.slice(0, atStep)).length;
+    const position = countedQuestions(questions.slice(0, atStep), values).length;
     return `Question ${position} of ${countedTotal}`;
   }
 
@@ -297,7 +305,7 @@ export default function ConditionIntakeWizard({
   // Measured on the questions, not on the screens: counting the intro and
   // the review step made the bar disagree with the "Question N of M"
   // printed directly beside it.
-  const answeredSoFar = countedQuestions(questions.slice(0, Math.max(step, 0))).length;
+  const answeredSoFar = countedQuestions(questions.slice(0, Math.max(step, 0)), values).length;
   const progressPercent =
     countedTotal === 0 ? 0 : Math.round((Math.min(answeredSoFar, countedTotal) / countedTotal) * 100);
 

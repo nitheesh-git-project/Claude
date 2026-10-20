@@ -31,10 +31,17 @@ export type IntakeQuestion = {
    *  still `required`, and still blocks submission when blank; this
    *  governs the progress figures only. */
   excludeFromCount?: boolean;
-  /** Only for the triage set: show this question only once another
-   *  question has a particular answer. Nothing in the specialty sets uses
-   *  it -- a patient-facing set that hides questions can't honestly say
-   *  "N of 7". */
+  /** Ask this question only once an EARLIER question in the same set has
+   *  a particular answer -- triage's development question (children only),
+   *  and the neurological set's Parkinson's follow-ups (only when
+   *  `neuro_subtype` is "Parkinson's disease"). Evaluated by
+   *  `visibleQuestions()` and nowhere else, so the wizard, the triage
+   *  dialog, the summary panel, the required check, the "N of M" counters,
+   *  the admin's question bank and the PDF all agree. A hidden question is
+   *  never "unanswered" and never "required"; its stored answer is kept
+   *  (the flat blob never deletes) but not shown. The module-load
+   *  assertion below refuses a `showWhen` naming a later or unknown
+   *  question, or an answer the controlling question cannot give. */
   showWhen?: { key: string; equals: string };
   /** Two or three lines of plain-language explanation shown under the
    *  question in the step-by-step wizard: what we're asking for and why
@@ -101,9 +108,16 @@ export function clinicalQuestionsForSpecialty(specialty: ConditionSpecialty): In
 // they answered. Bump a specialty's entry only when its field set changes,
 // never for a wording tweak (that is already covered by the admin-editable
 // override table).
+//
+// neuro 2 (Health Profile redesign, phase 4a): `neuro_subtype` and the
+// Parkinson's follow-ups. The subtype is optional and every follow-up is
+// hidden until it reads Parkinson's, so an existing neurological record is
+// exactly as complete under v2 as it was under v1 -- and the banner below
+// (`intakeNeedsAnotherLook`) fires only when a now-required visible
+// question is unanswered, so it does not nag those patients either.
 export const INTAKE_QUESTIONS_VERSION_BY_SPECIALTY: Record<ConditionSpecialty, number> = {
   ortho: 2,
-  neuro: 1,
+  neuro: 2,
   pediatrics: 1,
 };
 
@@ -136,8 +150,97 @@ export function questionKeysForSpecialty(specialty: ConditionSpecialty): string[
       }
       seen.set(q.key, specialty);
     }
+    assertShowWhenWellFormed(questions, specialty);
   }
 })();
+
+/** A `showWhen` must name an EARLIER question of the same set (the wizard
+ *  asks in order, so a later controller would leave the follow-up hidden
+ *  for good), and for a select its `equals` must be one of that question's
+ *  options (an answer nobody can give would hide the follow-up silently).
+ *  Exported for the triage set's test. */
+export function assertShowWhenWellFormed(questions: readonly IntakeQuestion[], setName: string): void {
+  const earlier = new Map<string, IntakeQuestion>();
+  for (const q of questions) {
+    if (q.showWhen) {
+      const controller = earlier.get(q.showWhen.key);
+      if (!controller) {
+        throw new Error(
+          `Intake question "${q.key}" (${setName}) is shown when "${q.showWhen.key}" is answered, ` +
+            "but that question is not earlier in the same set."
+        );
+      }
+      if (
+        controller.options &&
+        !controller.options.some((o) => normaliseIntakeAnswer(o) === normaliseIntakeAnswer(q.showWhen!.equals))
+      ) {
+        throw new Error(
+          `Intake question "${q.key}" (${setName}) waits for "${q.showWhen.equals}", ` +
+            `which is not one of "${controller.key}"'s options.`
+        );
+      }
+    }
+    earlier.set(q.key, q);
+  }
+}
+
+/** Typographic apostrophes, case and stray spacing are the same answer, so
+ *  a pasted "Parkinson’s disease" still opens the Parkinson's follow-ups
+ *  (the rule profileKind.ts applies to the same key). */
+export function normaliseIntakeAnswer(value: string): string {
+  return value.replace(/[\u2018\u2019\u02bc]/g, "'").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/**
+ * The questions actually asked, given the answers so far, in order. A
+ * question with a `showWhen` is asked when its controlling question is
+ * itself asked and answered with `equals` (one pass is enough: the
+ * assertion above keeps every controller earlier in the list). A
+ * controller missing from the list -- a caller passing a filtered slice --
+ * is judged on the answer alone.
+ *
+ * The one place visibility is decided. The counters, the required check
+ * and every surface that lists questions go through it.
+ */
+export function visibleQuestions<Q extends Pick<IntakeQuestion, "key" | "showWhen">>(
+  questions: readonly Q[],
+  answers: Readonly<Record<string, string | undefined>>
+): Q[] {
+  const listed = new Set(questions.map((q) => q.key));
+  const shown = new Set<string>();
+  const out: Q[] = [];
+  for (const q of questions) {
+    const rule = q.showWhen;
+    const visible =
+      !rule ||
+      ((!listed.has(rule.key) || shown.has(rule.key)) &&
+        typeof answers[rule.key] === "string" &&
+        normaliseIntakeAnswer(answers[rule.key] as string) === normaliseIntakeAnswer(rule.equals));
+    if (visible) {
+      out.push(q);
+      shown.add(q.key);
+    }
+  }
+  return out;
+}
+
+/** Whether one question is asked, given the whole set and the answers. */
+export function isQuestionVisible(
+  question: Pick<IntakeQuestion, "key" | "showWhen">,
+  questions: readonly Pick<IntakeQuestion, "key" | "showWhen">[],
+  answers: Readonly<Record<string, string | undefined>>
+): boolean {
+  return visibleQuestions(questions, answers).some((q) => q.key === question.key);
+}
+
+/** The admin question bank's note under a conditional question: which
+ *  question and answer open it. Null for a question that is always asked. */
+export function describeShowWhen(question: IntakeQuestion, questions: readonly IntakeQuestion[]): string | null {
+  if (!question.showWhen) return null;
+  const controller = questions.find((q) => q.key === question.showWhen!.key);
+  const name = controller ? controller.shortLabel ?? controller.label : question.showWhen.key;
+  return `Asked only when "${name}" is "${question.showWhen.equals}".`;
+}
 
 /** Applies an incoming specialty's answers on top of what is already on
  *  file, keeping every key that specialty does not own.
@@ -356,7 +459,9 @@ export function findMissingRequiredKeys(
   questions: IntakeQuestion[],
   answers: Record<string, string>
 ): string[] {
-  return questions
+  // A question the answers so far do not ask is never missing: a stroke
+  // patient is not refused for leaving the Parkinson's follow-ups blank.
+  return visibleQuestions(questions, answers)
     .filter((q) => q.required)
     .filter((q) => {
       const value = answers[q.key];
@@ -382,16 +487,45 @@ export function isAnswered(question: IntakeQuestion, answers: Record<string, str
   return !!value && !!value.trim();
 }
 
-/** The questions that count towards the progress figures -- everything
- *  except a pre-step like the paediatric caregiver pair. Every surface
- *  that prints "N of M" runs through this so the three sets all read as
- *  seven, which is the cap they were designed to. */
-export function countedQuestions(questions: IntakeQuestion[]): IntakeQuestion[] {
-  return questions.filter((q) => !q.excludeFromCount);
+/** The questions that count towards the progress figures: the ones the
+ *  answers so far actually ask (`visibleQuestions`), less a pre-step like
+ *  the paediatric caregiver pair. Every surface that prints "N of M" runs
+ *  through this, so a hidden follow-up is never counted as unanswered and
+ *  the total grows honestly when one opens ("of 8" for most neurological
+ *  patients, "of 13" once the condition group reads Parkinson's).
+ *  `answers` is required on purpose: a count without them cannot know
+ *  which questions are asked. */
+export function countedQuestions(
+  questions: IntakeQuestion[],
+  answers: Readonly<Record<string, string | undefined>>
+): IntakeQuestion[] {
+  return visibleQuestions(questions, answers).filter((q) => !q.excludeFromCount);
 }
 
 export function countAnswered(questions: IntakeQuestion[], answers: Record<string, string>): number {
-  return countedQuestions(questions).filter((q) => isAnswered(q, answers)).length;
+  return countedQuestions(questions, answers).filter((q) => isAnswered(q, answers)).length;
+}
+
+/**
+ * Whether the "we've changed some of these questions since you answered"
+ * banner is worth showing: the record is live, it was answered under an
+ * older version of this specialty's set, AND a question that is asked and
+ * required now has no answer. An older version alone is not enough -- the
+ * neurological set's v2 added only optional or hidden questions, and a
+ * banner sending every existing neurological patient to look at a record
+ * that is already complete is a nag, not news. The admin's chart still
+ * prints the version it was answered under.
+ */
+export function intakeNeedsAnotherLook(input: {
+  status: string | null | undefined;
+  schemaVersion: number | null | undefined;
+  currentVersion: number;
+  questions: IntakeQuestion[];
+  answers: Record<string, string>;
+}): boolean {
+  if (input.status !== "active") return false;
+  if (typeof input.schemaVersion !== "number" || input.schemaVersion >= input.currentVersion) return false;
+  return findMissingRequiredKeys(input.questions, input.answers).length > 0;
 }
 
 // --- The patient's write gate --------------------------------------------

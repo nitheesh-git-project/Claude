@@ -130,7 +130,7 @@ export function intakeCompletion({
   questions: IntakeQuestion[];
   data: Record<string, string>;
 }): IntakeCompletion {
-  const total = countedQuestions(questions).length;
+  const total = countedQuestions(questions, data).length;
   const answered = countAnswered(questions, data);
   return {
     answered,
@@ -381,7 +381,7 @@ export function authorshipSplit(
   let byPatient = 0;
   let byClinician = 0;
   let unanswered = 0;
-  for (const q of countedQuestions(questions)) {
+  for (const q of countedQuestions(questions, data)) {
     if (!isAnswered(q, data)) {
       unanswered++;
       continue;

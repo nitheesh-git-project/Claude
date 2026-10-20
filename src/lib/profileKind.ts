@@ -7,10 +7,9 @@ import type { ProfileKind } from "@/lib/outcomeMeasures";
 // The owner's decision: Parkinson's is a SUB-PROFILE of neurological care,
 // not a condition type of its own, so a Parkinson's patient is a `neuro`
 // patient whose intake says so. The intake question that asks it
-// (`neuro_subtype`) arrives with the neurological question set's next
-// schema_version (Health Profile redesign, phase 4); until then this simply
-// reads the key when it is present, and every neurological patient without
-// it is `neuro`.
+// (`neuro_subtype`, intakeNeuro.ts) arrived with the neurological set's
+// schema_version 2 (Health Profile redesign, phase 4a). It is optional, so
+// a neurological patient without an answer is `neuro`.
 //
 // Geriatric and cardiopulmonary have no condition type yet, so no specialty
 // resolves to them here -- they become reachable one condition at a time in

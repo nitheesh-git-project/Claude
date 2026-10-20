@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
-import type { IntakeQuestion } from "@/lib/conditionIntake";
+import { visibleQuestions, type IntakeQuestion } from "@/lib/conditionIntake";
 import AreaPainPicker from "@/components/profile/AreaPainPicker";
 
 export default function ConditionDirectEditForm({
@@ -53,7 +53,10 @@ export default function ConditionDirectEditForm({
           don&apos;t overwrite each other.
         </p>
       )}
-      {questions.map((q) => (
+      {/* Only the questions these answers ask (the Parkinson's follow-ups
+          open when the condition group says so); a closed one keeps its
+          stored answer and is sent back unchanged. */}
+      {visibleQuestions(questions, values).map((q) => (
         <div key={q.key}>
           <label className="block text-xs font-semibold text-slate-600 mb-1">
             {q.label}

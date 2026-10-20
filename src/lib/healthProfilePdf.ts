@@ -11,6 +11,7 @@ import {
   formatAreaPainForText,
   parseAreaPain,
   parseMultiSelect,
+  visibleQuestions,
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
 import { toWinAnsi, toWinAnsiTidy, wrapText } from "@/lib/pdfText";
@@ -280,7 +281,9 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
   });
 
   cur.heading("What the patient told us");
-  const answered = input.questions.filter((q) => (input.answers[q.key] ?? "").trim());
+  // Only the questions these answers ask: a follow-up the condition group
+  // has since closed is kept on file, not printed as part of this record.
+  const answered = visibleQuestions(input.questions, input.answers).filter((q) => (input.answers[q.key] ?? "").trim());
   if (answered.length === 0) {
     cur.text("No intake answers on record yet.", { size: 10, color: MUTED });
   } else {

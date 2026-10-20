@@ -9,6 +9,7 @@ import {
   INTAKE_QUESTIONS_BY_SPECIALTY,
   mergeIntakeQuestionOverrides,
   questionsForSpecialty,
+  visibleQuestions,
   type ConditionProfileStatus,
 } from "@/lib/conditionIntake";
 import {
@@ -250,7 +251,7 @@ export async function GET(request: NextRequest) {
   const earlierProfiles = CONDITION_SPECIALTIES.filter((s) => s.key !== specialty)
     .map((s) => ({
       specialtyLabel: s.label,
-      entries: INTAKE_QUESTIONS_BY_SPECIALTY[s.key]
+      entries: visibleQuestions(INTAKE_QUESTIONS_BY_SPECIALTY[s.key], answers)
         .filter((q) => (answers[q.key] ?? "").trim())
         .map((q) => ({ label: q.label, value: (answers[q.key] ?? "").trim() })),
     }))

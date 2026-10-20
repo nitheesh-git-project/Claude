@@ -27,6 +27,7 @@ import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
 import type { PainAssessmentRow } from "@/lib/painMap";
 import type { NeuroAssessmentRow } from "@/lib/neuroExam";
 import {
+  intakeNeedsAnotherLook,
   intakeVersionForSpecialty,
   mergeIntakeQuestionOverrides,
   parseAreaPain,
@@ -260,10 +261,16 @@ export default async function PatientHealthProfilePage() {
   const currentData = (conditionProfile?.data ?? {}) as Record<string, string>;
   const isPending = status === "pending_review";
   const gate = patientIntakeGate({ data: currentData, status });
-  const isOutdatedVersion =
-    status === "active" &&
-    typeof conditionProfile?.schema_version === "number" &&
-    conditionProfile.schema_version < intakeVersionForSpecialty(specialty);
+  // Only when the newer set asks something required that this record has
+  // not answered (intakeNeedsAnotherLook): a newer version alone would send
+  // every existing neurological patient to re-read a complete record.
+  const isOutdatedVersion = intakeNeedsAnotherLook({
+    status,
+    schemaVersion: conditionProfile?.schema_version,
+    currentVersion: intakeVersionForSpecialty(specialty),
+    questions,
+    answers: currentData,
+  });
   // Resume priority: an in-progress autosaved draft beats everything else
   // (it's the most recent thing the patient was actually doing); then a
   // declined submission's answers, so the submitter edits and resubmits

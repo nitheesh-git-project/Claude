@@ -13,7 +13,7 @@ import {
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
-import { countAnswered, patientIntakeGate, questionsForSpecialty } from "@/lib/conditionIntake";
+import { countAnswered, countedQuestions, patientIntakeGate, questionsForSpecialty } from "@/lib/conditionIntake";
 import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
 import { buildPatientFeed } from "@/lib/dashboardFeed";
 import { isBookedAwaitingTherapist } from "@/lib/sessionRowStatus";
@@ -867,7 +867,11 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     string
   >) ?? {};
   const intakeAnswered = countAnswered(intakeQuestions, intakeAnswers);
-  const intakeTotal = intakeQuestions.length;
+  // Over the questions these answers ask, the same rule as the answered
+  // count beside it: the raw key count included the paediatric caregiver
+  // pair and (since neurological v2) the Parkinson's follow-ups, so a
+  // complete record could never read 100%.
+  const intakeTotal = countedQuestions(intakeQuestions, intakeAnswers).length;
   // The patient no longer opens their own record -- a therapist fills it
   // in at the first session. Until then there is nothing here for them to
   // do, and every nudge on this dashboard has to know that or it becomes a

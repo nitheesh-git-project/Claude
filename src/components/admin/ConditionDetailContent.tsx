@@ -18,6 +18,7 @@ import {
   parseAreaPain,
   parseMultiSelect,
   questionsForSpecialty,
+  visibleQuestions,
   type ConditionProfileStatus,
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
@@ -68,7 +69,9 @@ function AnswerList({
   specialty: ConditionSpecialty;
   data: Record<string, string>;
 }) {
-  const rows = questionsForSpecialty(specialty)
+  // Only the questions these answers ask: a Parkinson's follow-up kept on
+  // file after the condition group changed is not part of this answer.
+  const rows = visibleQuestions(questionsForSpecialty(specialty), data)
     .map((q) => ({ q, text: answerText(q, data[q.key]) }))
     .filter((r) => r.text);
   if (rows.length === 0) {

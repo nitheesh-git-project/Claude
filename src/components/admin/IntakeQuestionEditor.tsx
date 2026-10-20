@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import {
+  describeShowWhen,
   mergeIntakeQuestionOverrides,
   questionsForSpecialty,
   type IntakeQuestionOverrideRow,
@@ -44,6 +45,7 @@ export default function IntakeQuestionEditor({
           shortLabel={q.shortLabel ?? q.key}
           text={q.label}
           required={q.required}
+          condition={describeShowWhen(q, questions)}
         />
       ))}
     </div>
@@ -56,12 +58,15 @@ function QuestionRow({
   shortLabel,
   text,
   required,
+  condition,
 }: {
   specialty: ConditionSpecialty;
   questionKey: string;
   shortLabel: string;
   text: string;
   required: boolean;
+  /** "Asked only when ..." for a follow-up (describeShowWhen), else null. */
+  condition: string | null;
 }) {
   const fieldId = useId();
   const [value, setValue] = useState(text);
@@ -99,6 +104,7 @@ function QuestionRow({
         >
           {shortLabel}
         </label>
+        {condition && <p className="mb-1 text-[11px] text-slate-600">{condition} Required applies only then.</p>}
         <textarea
           id={fieldId}
           value={value}

@@ -1,4 +1,5 @@
 import type { IntakeQuestion } from "@/lib/conditionIntake";
+import { NEURO_SUBTYPE_KEY, NEURO_SUBTYPE_PARKINSONS } from "@/lib/profileKind";
 
 // The neurological Patient Care Intake.
 //
@@ -20,6 +21,102 @@ import type { IntakeQuestion } from "@/lib/conditionIntake";
 // in session notes, which the patient cannot see. The set is capped at
 // seven by product decision; this is the first candidate if that is ever
 // relaxed.
+//
+// Schema version 2 (Health Profile redesign, phase 4a) adds the condition
+// group (`neuro_subtype`) and, behind it, the Parkinson's follow-ups. The
+// owner's decision: Parkinson's is a SUB-PROFILE inside neurological care,
+// not a condition type -- `profileKindFor()` reads this answer to give the
+// record the `neuro_parkinsons` thresholds, tests and milestones. The
+// follow-ups carry `showWhen` and are asked only when the group reads
+// Parkinson's, so the seven above stay what every other neurological
+// patient answers (eight with the group). The group itself is optional:
+// required, it would make every existing neurological record incomplete
+// overnight, refuse an unrelated edit to one, and raise the "we've changed
+// some of these questions" banner for all of them -- and an unanswered
+// group is honestly "neurological", which is what those records are.
+
+/** The condition groups `neuro_subtype` offers. Parkinson's is the one that
+ *  changes the profile kind today; the others are recorded for the
+ *  clinician and become sub-profiles one at a time, if ever. */
+export const NEURO_SUBTYPE_OPTIONS = [
+  "Stroke or brain injury",
+  "Spinal cord injury",
+  NEURO_SUBTYPE_PARKINSONS,
+  "Multiple sclerosis",
+  "Nerve injury or neuropathy",
+  "Other or not sure",
+] as const;
+
+const WHEN_PARKINSONS = { key: NEURO_SUBTYPE_KEY, equals: NEURO_SUBTYPE_PARKINSONS };
+
+/** The questions asked only of a Parkinson's patient, in the order the
+ *  wizard asks them (straight after the condition group). */
+export const NEURO_PARKINSONS_QUESTIONS: IntakeQuestion[] = [
+  {
+    key: "neuro_pd_year_diagnosed",
+    label: "Roughly when were you diagnosed with Parkinson's?",
+    shortLabel: "Diagnosed",
+    helpText:
+      "A year is plenty. How long someone has lived with Parkinson's changes what we expect each exercise to do, and what we keep an eye on.",
+    placeholder: "e.g. 2019",
+    inputType: "text",
+    required: true,
+    showWhen: WHEN_PARKINSONS,
+  },
+  {
+    key: "neuro_pd_medication_times",
+    label: "When do you usually take your Parkinson's medicine?",
+    shortLabel: "Medicine times",
+    helpText:
+      "Your usual times, the way you would tell a friend. The medicine changes how easily you move through the day, so we plan sessions around it - and only compare tests done at the same point after a dose.",
+    placeholder: "e.g. 7 am, 1 pm and 7 pm - or \"not taking any yet\"",
+    inputType: "textarea",
+    required: false,
+    showWhen: WHEN_PARKINSONS,
+  },
+  {
+    key: "neuro_pd_freezing",
+    label: "How often do your feet feel stuck to the floor when you try to walk?",
+    shortLabel: "Feet getting stuck",
+    helpText:
+      "This is called freezing. It often happens in doorways, when turning round, or when starting to walk. It is one of the main reasons people with Parkinson's fall, so it shapes the plan.",
+    inputType: "select",
+    options: ["Never", "Less than once a week", "Most weeks", "Most days", "Several times a day", "Not sure"],
+    required: true,
+    showWhen: WHEN_PARKINSONS,
+  },
+  {
+    key: "neuro_pd_falls_worry",
+    label: "How worried are you about falling?",
+    shortLabel: "Worry about falling",
+    helpText:
+      "Worry about falling can make people move less, and moving less makes a fall more likely. Knowing how you feel helps us build confidence as well as strength.",
+    inputType: "select",
+    options: ["Not at all", "A little", "Quite a lot", "Very worried"],
+    required: false,
+    showWhen: WHEN_PARKINSONS,
+  },
+  {
+    key: "neuro_pd_main_difficulty",
+    label: "What is hardest for you day to day right now?",
+    shortLabel: "Hardest thing",
+    helpText:
+      "Pick the one that gets in the way most. We start where it matters to you, and come back to the rest.",
+    inputType: "select",
+    options: [
+      "Starting to walk, or turning round",
+      "Getting up from a chair or out of bed",
+      "Keeping my balance",
+      "Small hand movements - buttons, writing",
+      "Speaking or swallowing",
+      "Tiredness",
+      "Something else - I'll tell my physiotherapist",
+    ],
+    required: false,
+    showWhen: WHEN_PARKINSONS,
+  },
+];
+
 export const NEURO_INTAKE_QUESTIONS: IntakeQuestion[] = [
   {
     key: "neuro_diagnosis",
@@ -31,6 +128,17 @@ export const NEURO_INTAKE_QUESTIONS: IntakeQuestion[] = [
     inputType: "textarea",
     required: true,
   },
+  {
+    key: NEURO_SUBTYPE_KEY,
+    label: "Which of these best describes the condition?",
+    shortLabel: "Condition group",
+    helpText:
+      "Different neurological conditions change in different ways, so this decides which tests and goals make sense for you. If you are not sure, choose the last one - your physiotherapist will help.",
+    inputType: "select",
+    options: [...NEURO_SUBTYPE_OPTIONS],
+    required: false,
+  },
+  ...NEURO_PARKINSONS_QUESTIONS,
   {
     key: "neuro_affected_side",
     label: "Which part of the body is affected?",

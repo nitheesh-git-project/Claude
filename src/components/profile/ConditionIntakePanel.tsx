@@ -3,7 +3,13 @@
 import { useState } from "react";
 import ConditionIntakeWizard from "@/components/profile/ConditionIntakeWizard";
 import SpecialtySummary from "@/components/profile/SpecialtySummary";
-import { countAnswered, countedQuestions, isAnswered, type IntakeQuestion } from "@/lib/conditionIntake";
+import {
+  countAnswered,
+  countedQuestions,
+  findMissingRequiredKeys,
+  visibleQuestions,
+  type IntakeQuestion,
+} from "@/lib/conditionIntake";
 import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
 import { authorshipSplit, type AnswerAuthor } from "@/lib/healthProfileSummary";
 
@@ -75,12 +81,15 @@ export default function ConditionIntakePanel({
 
   // "N of 7", not "N of 9": a pre-step like the paediatric caregiver pair
   // is asked but not counted -- see IntakeQuestion.excludeFromCount.
-  const countedTotal = countedQuestions(questions).length;
+  // Counted over the questions the answers actually ask: a hidden
+  // follow-up (the Parkinson's ones, for anyone else) is neither in the
+  // total nor "missing".
+  const countedTotal = countedQuestions(questions, formInitialData).length;
   const answeredNow = countAnswered(questions, currentData);
   const draftAnswered = countAnswered(questions, formInitialData);
   const started = draftAnswered > 0;
   const complete = draftAnswered === countedTotal;
-  const missingRequired = questions.filter((q) => q.required && !isAnswered(q, formInitialData)).length;
+  const missingRequired = findMissingRequiredKeys(questions, formInitialData).length;
   // An unfinished fill the patient can pick up again: there are answers
   // in the resume buffer that haven't made it into the live profile yet.
   // Only offer to resume a draft the reader actually left. Somebody else's
@@ -88,9 +97,7 @@ export default function ConditionIntakePanel({
   // of the record), but it is never announced as theirs.
   const hasUnfinishedWork = draftAnswered > answeredNow && draftIsMine;
   const split = authorshipSplit(questions, currentData, authorship ?? new Map());
-  const missingRequiredNow = questions.filter(
-    (q) => q.required && !isAnswered(q, currentData)
-  ).length;
+  const missingRequiredNow = findMissingRequiredKeys(questions, currentData).length;
 
   return (
     <div>
@@ -107,7 +114,9 @@ export default function ConditionIntakePanel({
       ) : (
         <SpecialtySummary
           specialty={specialty}
-          questions={questions}
+          // Only what these answers ask: a follow-up the condition group
+          // has closed is kept on file but never listed.
+          questions={visibleQuestions(questions, answeredNow > 0 ? currentData : formInitialData)}
           data={answeredNow > 0 ? currentData : formInitialData}
         />
       )}
