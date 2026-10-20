@@ -65,7 +65,15 @@ begin
   end if;
 
   -- 6. A shorter window is a different window, so the same bucket starts
-  --    clean in it. This is the rollover, without waiting for a clock.
+  --    clean in it. This is the rollover, without waiting for a clock --
+  --    except in the first second of a minute, where the 1-second window
+  --    starts at the same instant as the 60-second one and IS the same row
+  --    (the gate failed on this, count 7, about one run in sixty). The
+  --    function reads clock_timestamp(), so stepping past that second is
+  --    enough.
+  if floor(extract(epoch from clock_timestamp()))::bigint % 60 = 0 then
+    perform pg_sleep(1.05);
+  end if;
   v_r := check_rate_limit(v_bucket, 3, 1);
   if (v_r->>'count')::integer <> 1 then
     raise exception 'a new window did not start clean: count is %', v_r->>'count';
