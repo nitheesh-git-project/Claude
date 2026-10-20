@@ -238,3 +238,68 @@ begin
   raise notice 'PASS  outcome_measurements is append-only bar the set-null; a reached milestone stays reached';
 end $$;
 rollback;
+
+-- care_milestone_events and reopen_care_milestone(): the one door through
+-- which a reached milestone stops being reached. Both halves: the door
+-- opens for the function (an event row and the milestone back at working,
+-- reached_at cleared), and stays shut for everything else -- a direct
+-- update still raises, an event written for a different reached_at does not
+-- open it, a short reason and a milestone that is not reached are refused
+-- as values, and the event row itself cannot be rewritten or deleted.
+begin;
+do $$
+declare v_actor uuid; v_goal uuid; v_ms uuid; v_ok boolean; v_res jsonb; v_event uuid; v_status text; v_reached timestamptz;
+begin
+  select id into v_actor from profiles where role = 'admin' limit 1;
+  if v_actor is null then raise exception 'no admin profile to attribute the probe rows to'; end if;
+
+  insert into care_goals (patient_id, profile_kind, goal_text, authored_by, authored_by_role)
+  values (v_actor, 'ortho', 'Probe goal', v_actor, 'admin') returning id into v_goal;
+  insert into care_milestones (goal_id, patient_id, title, criterion, authored_by)
+  values (v_goal, v_actor, 'Probe', 'Probe criterion', v_actor) returning id into v_ms;
+
+  v_res := reopen_care_milestone(v_ms, v_actor, v_actor, 'Ticked the wrong row by mistake', 'working');
+  if v_res->>'reason' is distinct from 'not_reached' then raise exception 'FAIL: reopened a milestone that was never reached: %', v_res; end if;
+
+  update care_milestones set status = 'reached', reached_at = now() - interval '2 hours' where id = v_ms;
+
+  v_res := reopen_care_milestone(v_ms, v_actor, v_actor, 'too short', 'working');
+  if v_res->>'reason' is distinct from 'bad_reason' then raise exception 'FAIL: accepted a reason under 10 characters: %', v_res; end if;
+  v_res := reopen_care_milestone(v_ms, v_actor, v_actor, 'Ticked the wrong row by mistake', 'reached');
+  if v_res->>'reason' is distinct from 'bad_status' then raise exception 'FAIL: reopened to reached: %', v_res; end if;
+  v_res := reopen_care_milestone(v_ms, gen_random_uuid(), v_actor, 'Ticked the wrong row by mistake', 'working');
+  if v_res->>'reason' is distinct from 'not_found' then raise exception 'FAIL: reopened through another patient: %', v_res; end if;
+
+  -- An event naming a different reached_at does not open the door.
+  insert into care_milestone_events (milestone_id, patient_id, kind, previous_status, previous_reached_at, new_status, reason, actor_id, actor_role)
+  values (v_ms, v_actor, 'reopened', 'reached', now() - interval '3 days', 'working', 'An unrelated earlier event', v_actor, 'admin');
+  v_ok := false;
+  begin update care_milestones set status = 'working', reached_at = null where id = v_ms;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: an event for another reached_at un-reached the milestone'; end if;
+
+  v_res := reopen_care_milestone(v_ms, v_actor, v_actor, 'Ticked the wrong row by mistake', 'working');
+  if (v_res->>'ok')::boolean is not true then raise exception 'FAIL: the reopen door did not open: %', v_res; end if;
+  select status, reached_at into v_status, v_reached from care_milestones where id = v_ms;
+  if v_status <> 'working' or v_reached is not null then raise exception 'FAIL: reopened milestone is % / %', v_status, v_reached; end if;
+  v_event := (v_res->>'event_id')::uuid;
+
+  v_ok := false;
+  begin update care_milestone_events set reason = 'rewritten afterwards' where id = v_event;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_milestone_events accepted an UPDATE'; end if;
+  v_ok := false;
+  begin delete from care_milestone_events where id = v_event;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_milestone_events row was deletable'; end if;
+
+  -- Reached again later: a new fact, and the guard holds it like the first.
+  update care_milestones set status = 'reached', reached_at = now() where id = v_ms;
+  v_ok := false;
+  begin update care_milestones set reached_at = now() - interval '1 day' where id = v_ms;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_milestones let a second reached_at move'; end if;
+
+  raise notice 'PASS  a reached milestone reopens only through reopen_care_milestone(), and the event is append-only';
+end $$;
+rollback;

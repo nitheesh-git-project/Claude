@@ -10227,7 +10227,9 @@ begin
     neuro_assessments,
     -- The shared measurement layer (append-only by trigger, the same reason)
     -- and the goals and milestones planned against it, named rather than
-    -- left to CASCADE (all three are at the end of this file).
+    -- left to CASCADE (all three are at the end of this file). The record
+    -- of a milestone reopened by the clinic first: it references them.
+    care_milestone_events,
     care_milestones,
     care_goals,
     outcome_measurements,
@@ -17752,6 +17754,283 @@ drop trigger if exists care_milestones_guard on care_milestones;
 create trigger care_milestones_guard
   before update on care_milestones
   for each row execute function public.care_milestones_guard();
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 2a: the server side of the measurement
+-- and milestone layers above.
+--
+-- Five things, each re-runnable on its own:
+--   1. site_settings.enabled_licensed_measures -- the admin's switch for
+--      the licensed scales;
+--   2. three new contact-scanner surfaces;
+--   3. care_milestone_events -- the append-only record of an admin
+--      reopening a milestone that was marked reached by mistake;
+--   4. reopen_care_milestone() -- the one door through which a reached
+--      milestone stops being reached;
+--   5. the newest care_milestones_guard(), which knows that door;
+-- plus the realtime publication for the three phase 1 tables.
+-- ---------------------------------------------------------------------
+
+-- 1. Which licensed outcome measures the clinic has confirmed it holds a
+-- licence for (src/lib/outcomeMeasures.ts, `licence: "licensed"`). Empty by
+-- default: every licensed scale ships switched off, and the module throws
+-- at load if one is on by default. Read in its own call, never through
+-- SITE_SETTINGS_SELECT (the newest-column rule), and failing CLOSED -- an
+-- unreadable value enables nothing (src/lib/outcomeServer.ts).
+--
+-- jsonb rather than text[] on purpose: /api/admin/update-setting compares
+-- the previous value as its JSON text for its compare-and-swap, which is
+-- correct for a jsonb array and a malformed-literal error for a text[] one
+-- (the 22P02 that once took booking_languages down). The keys are checked
+-- against the registry by that route; the CHECK only pins the shape.
+alter table site_settings
+  add column if not exists enabled_licensed_measures jsonb not null default '[]'::jsonb;
+
+alter table site_settings drop constraint if exists site_settings_enabled_licensed_measures_is_array;
+alter table site_settings add constraint site_settings_enabled_licensed_measures_is_array
+  check (jsonb_typeof(enabled_licensed_measures) = 'array');
+
+-- 2. The new free text that reaches a patient goes through the contact
+-- scanner, so the evidence table has to accept its surface names: the
+-- free-text conditions on a measurement (walking aid, footwear, who
+-- measured), the patient's goal, and a milestone's title and criterion.
+-- Widened by restating the whole list, as the session_summary change above
+-- did; every existing row satisfies the wider rule.
+alter table communication_flags drop constraint if exists communication_flags_surface_check;
+alter table communication_flags add constraint communication_flags_surface_check check (surface in (
+  'session_suggestion_note',
+  'care_plan_rationale',
+  'care_plan_instructions',
+  'pain_assessment_answer',
+  'appointment_notes',
+  'condition_answer',
+  'neuro_assessment_note',
+  'session_summary',
+  'outcome_measurement_condition',
+  'care_goal_text',
+  'care_milestone_text'
+));
+
+-- 3. care_milestone_events: a milestone marked reached by mistake.
+--
+-- The phase 1 guard makes reached_at a fact written once, for every caller
+-- including the service role -- and that is right, because "reached" is the
+-- one thing on a milestone that is evidence. But a physiotherapist can tick
+-- the wrong row, and the only honest fix for a fact recorded in error is a
+-- second fact saying so, not an edit that makes the first one disappear.
+--
+-- Two designs were possible, and this is the safer of them:
+--
+--   * Loosen the guard for the service role (or behind a session GUC).
+--     Rejected: every route writes with the service role, so "the service
+--     role may clear reached_at" is "any route may", which is the silent
+--     move the guard exists to stop -- and a GUC can be set by any code
+--     holding the connection.
+--   * A narrow, recorded door (chosen). An append-only event row naming
+--     the milestone, the reached_at being withdrawn, who and why (a reason
+--     of at least 10 characters), written by reopen_care_milestone() below
+--     IN THE SAME TRANSACTION as the update. The guard lets reached_at go
+--     only when such a row exists for exactly that milestone, exactly that
+--     reached_at, and exactly this transaction (xact_id = txid_current()).
+--     A route cannot satisfy that with two PostgREST calls -- each is its
+--     own transaction -- and nothing but the function can insert the row
+--     (no insert grant or policy for anon or authenticated; the function
+--     is revoked from all three and run by the service role through
+--     /api/admin/care-milestones/reopen). So "reached once" still holds for
+--     everybody else, and a reopening is never silent: it leaves this row
+--     and an audit-log entry.
+--
+-- Read by an admin only: the reason is back-office text. The patient and
+-- the therapist see the milestone back at planned or working.
+--
+-- Append-only by trigger. Foreign keys: the milestone and the patient
+-- cascade, which the trigger turns into a refusal -- a milestone that was
+-- once reached and reopened cannot be deleted afterwards, which keeps the
+-- record of the correction with it (the same posture outcome_measurements
+-- takes on a patient delete). previous_measurement_id is a plain uuid, not a
+-- foreign key: a set-null would be an update this table refuses. None is
+-- `restrict`, so scripts/clean-e2e-residue.mjs has nothing to learn. The
+-- data reset truncates it (newest debug_reset_all_data(), above).
+create table if not exists care_milestone_events (
+  id uuid primary key default gen_random_uuid(),
+  milestone_id uuid not null references care_milestones(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  kind text not null check (kind in ('reopened')),
+  previous_status text not null check (previous_status = 'reached'),
+  previous_reached_at timestamptz not null,
+  previous_measurement_id uuid,
+  new_status text not null check (new_status in ('planned', 'working')),
+  reason text not null check (char_length(btrim(reason)) between 10 and 500),
+  actor_id uuid not null references profiles(id),
+  actor_role text not null check (actor_role = 'admin'),
+  -- The transaction that wrote this row: the guard's proof that the update
+  -- it is judging is the one this event was written for.
+  xact_id bigint not null default txid_current(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists care_milestone_events_milestone_idx
+  on care_milestone_events (milestone_id, created_at desc);
+create index if not exists care_milestone_events_patient_idx
+  on care_milestone_events (patient_id);
+create index if not exists care_milestone_events_actor_idx
+  on care_milestone_events (actor_id);
+
+alter table care_milestone_events enable row level security;
+
+drop policy if exists "care_milestone_events_select_admin" on care_milestone_events;
+create policy "care_milestone_events_select_admin" on care_milestone_events
+  for select using (is_admin());
+
+revoke insert, update, delete on care_milestone_events from anon, authenticated;
+
+create or replace function public.care_milestone_events_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  raise exception 'care_milestone_events is append-only: it is the record of a milestone reopened by the clinic';
+end;
+$$;
+
+revoke all on function public.care_milestone_events_is_append_only() from public, anon, authenticated;
+
+drop trigger if exists care_milestone_events_no_change on care_milestone_events;
+create trigger care_milestone_events_no_change
+  before update or delete on care_milestone_events
+  for each row execute function public.care_milestone_events_is_append_only();
+
+-- 4. The door. Returns {ok: true, event_id, previous_reached_at,
+-- previous_measurement_id} or {ok: false, reason} with reason one of
+-- bad_status, bad_reason, not_admin, not_found, not_reached -- refusals as
+-- values, so the route can say which. The row is locked first, so two
+-- admins reopening at once write one event and the second reads
+-- not_reached.
+create or replace function public.reopen_care_milestone(
+  p_milestone_id uuid,
+  p_patient_id uuid,
+  p_actor_id uuid,
+  p_reason text,
+  p_reopen_to text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row care_milestones%rowtype;
+  v_event_id uuid;
+  v_reason text := btrim(coalesce(p_reason, ''));
+begin
+  if p_reopen_to is null or p_reopen_to not in ('planned', 'working') then
+    return jsonb_build_object('ok', false, 'reason', 'bad_status');
+  end if;
+  if char_length(v_reason) < 10 or char_length(v_reason) > 500 then
+    return jsonb_build_object('ok', false, 'reason', 'bad_reason');
+  end if;
+  if not exists (select 1 from profiles where id = p_actor_id and role = 'admin') then
+    return jsonb_build_object('ok', false, 'reason', 'not_admin');
+  end if;
+
+  select * into v_row
+  from care_milestones
+  where id = p_milestone_id and patient_id = p_patient_id
+  for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'not_found');
+  end if;
+  if v_row.reached_at is null then
+    return jsonb_build_object('ok', false, 'reason', 'not_reached');
+  end if;
+
+  insert into care_milestone_events (
+    milestone_id, patient_id, kind, previous_status, previous_reached_at,
+    previous_measurement_id, new_status, reason, actor_id, actor_role
+  ) values (
+    v_row.id, v_row.patient_id, 'reopened', 'reached', v_row.reached_at,
+    v_row.reached_measurement_id, p_reopen_to, v_reason, p_actor_id, 'admin'
+  )
+  returning id into v_event_id;
+
+  update care_milestones
+  set status = p_reopen_to, reached_at = null, reached_measurement_id = null
+  where id = v_row.id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'event_id', v_event_id,
+    'previous_reached_at', v_row.reached_at,
+    'previous_measurement_id', v_row.reached_measurement_id
+  );
+end;
+$$;
+
+revoke all on function public.reopen_care_milestone(uuid, uuid, uuid, text, text) from public, anon, authenticated;
+
+-- 5. The guard, superseding the phase 1 declaration above (the last
+-- `create or replace` wins). Everything it refused, it still refuses,
+-- except one transition: reached -> planned/working with reached_at
+-- cleared, when the reopen event for exactly that reached_at was written
+-- in this same transaction (see 3).
+create or replace function public.care_milestones_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.patient_id is distinct from old.patient_id or new.goal_id is distinct from old.goal_id then
+    raise exception 'care_milestones: a milestone never moves to another patient or goal';
+  end if;
+  if old.reached_at is not null
+     and (new.reached_at is distinct from old.reached_at or new.status is distinct from 'reached') then
+    if not (
+      new.reached_at is null
+      and new.status in ('planned', 'working')
+      and exists (
+        select 1 from care_milestone_events e
+        where e.milestone_id = old.id
+          and e.kind = 'reopened'
+          and e.previous_reached_at = old.reached_at
+          and e.xact_id = txid_current()
+      )
+    ) then
+      raise exception 'care_milestones: a reached milestone stays reached; reached_at is recorded once';
+    end if;
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+revoke all on function public.care_milestones_guard() from public, anon, authenticated;
+
+drop trigger if exists care_milestones_guard on care_milestones;
+create trigger care_milestones_guard
+  before update on care_milestones
+  for each row execute function public.care_milestones_guard();
+
+-- The Health Profile refreshes when a measurement, the goal or a milestone
+-- lands (the screens that subscribe arrive in phase 2b; published ahead of
+-- them, which check-realtime-coverage.mjs allows).
+do $$
+begin
+  alter publication supabase_realtime add table outcome_measurements;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table care_goals;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table care_milestones;
+exception when duplicate_object then null;
+end $$;
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
