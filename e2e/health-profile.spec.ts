@@ -383,7 +383,8 @@ test("SP-002/006: a paediatric profile shows milestones, no body map, and says 7
   const { ctx, page } = await pageAs(browser, PATIENT);
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
   await expect(page.getByText(/Not sitting without support/i).first()).toBeVisible(SEEN);
-  await expect(page.getByText(/MILESTONES REACHED/i).first()).toBeVisible(SEEN);
+  // The milestone tick list the parent answered, in the paediatric layout.
+  await expect(page.getByTestId("peds-checklist")).toBeVisible(SEEN);
   await expect(page.getByText(/Your body map/i)).toHaveCount(0);
   await expect(page.getByText(/AREAS YOU MARKED/i)).toHaveCount(0);
   const body = await page.locator("body").innerText();

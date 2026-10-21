@@ -460,7 +460,16 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Step 4: Therapist B and the family **403**; Therapist B reads **no** rows.
 * Step 5: **200**, `submitted_by_role: "admin"`, and a *Recorded a paediatric exam* entry (`peds_assessment.create`); without the People scope **403**.
 * Step 6: both raise *append-only*.
-* Step 7: the Done goes through on the note alone: the paediatric exam is **not yet required** (owner's decision that it will be; switched on with the note dialog's paediatric exam step, phase 5b). When it is on, the same Done is refused **409** `peds_exam_required` until this therapist records an exam from an hour before the slot.
+* Step 7: the Done is refused **409** `peds_exam_required` until this therapist records a paediatric exam from an hour before the slot (the gate is on since phase 5b); with the exam it goes through.
+
+#### `THR-HP-005l` - The paediatric chart, the exam dialog and the Done step · P0
+**Preconditions.** A paediatric patient born premature (intake *Weeks at birth* 33), caregiver *Priya Sharma*, *Mother*, assigned to Therapist A with a started session; one exam recorded.
+1. Open the child's Health Profile as Therapist A at 390 px, 834 px and 1280 px.
+2. Tap **Record a re-examination**. Set *Sitting without support* to **Achieved**, *Parent reports*, pick a date and tick **The date is approximate**; set *Standing alone* to **Emerging** (Seen); leave the rest **Not assessed**; choose a GMFCS level. Save.
+3. On the chart tap a milestone row; tap **Show as a table**.
+4. Open the session's note as Therapist A, then **Finish**.
+5. Set the patient's date of birth to an adult date and reload.
+**Expected Result.** Step 1: header with the child's name, *Told by Priya Sharma, her mother*, the age line with both ages (*20.6 months (19 months corrected, born at 33 weeks)*), phase bar, four tiles, the bars with a today line and the legend; no horizontal scroll; every control at least 44 px tall. Step 2: saved; the approximate date reads *about* on the chart (a dashed ring) and in the table; a *seen* date has no approximate option. Step 3: the row opens its definition, who saw it, the date and the usual range; the table has the same facts. Step 4: the note's first step is **Paediatric examination** with **Record the paediatric exam**; Finish is refused until recorded; a failed read says *couldn't be loaded, so it is not counted as recorded* with **Try again**. Step 5: no chart; a *Check the date of birth* card says where it is fixed (the family's Profile, a reviewed field). Past 18 months corrected with walking alone never assessed the chart says *Walking alone not assessed yet*; not walking (not yet / emerging) shows the doctor's-review prompt.
 
 #### `THR-HP-005b` - The neurological examination chart · P0
 

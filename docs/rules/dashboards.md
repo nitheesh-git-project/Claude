@@ -457,12 +457,23 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `questionsForSpecialty` directly, so a changed question set changes the
   guide with it; the step text names the questions too, so update it in the
   same commit.
-- **The orthopaedic and the neurological Health Profile are each one layout in
-  three places; paediatrics is not in one yet.** The patient's page, the
+- **The orthopaedic, the neurological and the paediatric Health Profile are
+  each one layout in three places.** The patient's page, the
   therapist's chart and the admin's condition detail render `OrthoProfileTop`
-  for `specialty === "ortho"` and `NeuroProfileTop` for `specialty === "neuro"`
-  (plain neurological or the Parkinson's sub-profile, by `profileKindFor`); a
-  paediatric page keeps its own layout until its phase. Both share
+  for `specialty === "ortho"`, `NeuroProfileTop` for `specialty === "neuro"`
+  (plain neurological or the Parkinson's sub-profile, by `profileKindFor`) and
+  `PedsProfileTop` (`src/components/profile/peds/`, phase 5b) for
+  `"pediatrics"`: the child's name, the concern and the age line
+  (chronological and corrected), the status pill, the phase bar, *Told by
+  Priya Sharma, her mother*, equipment chips -> *Where things stand* -> four
+  tiles (milestones achieved of 6, or of the intake's list before an exam;
+  independent steps; independent standing; sessions) -> the milestone-window
+  chart with the intake's "what your child does on their own" list -> the
+  graph -> steps -> measures. The parent's page is written for the parent
+  ("your child"; `childVoice.ts` turns the shared components' patient
+  sentences into the parent's via a `child` prop). No four-figure
+  `SpecialtySnapshotStrip` on a neurological or paediatric page (the tiles
+  cover it; it remains for ortho and any specialty not on the new layout). Both share
   `ProfileHeader`, `ProfileProgressSection` and `KeyNumbers`. It is
   mobile-first: one column on a phone, two for the cards from `sm`, the sticky
   picture column (the body map, or the neurological quick-look column) only from

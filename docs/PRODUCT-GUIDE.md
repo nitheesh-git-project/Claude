@@ -2484,8 +2484,8 @@ everything else.
   **Finishing a session needs this condition type's exam.** A therapist's
   **Done** opens the session note, whose first step is the patient's
   examination: the Pain Map for an orthopaedic patient, the neurological
-  examination for a neurological one, nothing for a paediatric one (that
-  layer is not built yet). The session closes only once that exam has been
+  examination for a neurological one, the paediatric examination for a
+  paediatric one. The session closes only once that exam has been
   recorded by this therapist since an hour before the slot - the note says
   so before sending anything, and `complete-session` refuses
   (`pain_map_required` / `neuro_exam_required`) if it is not. The window
@@ -2602,10 +2602,14 @@ everything else.
   physiotherapist. Routes: `/api/therapist/peds-assessments/submit` (assigned
   therapist with a started session) and `/api/admin/peds-assessments/submit`
   (People scope, audited). The family's PDF prints the latest examination.
-  The owner has decided a paediatric Done will require the examination; it
-  is switched on together with the note dialog's paediatric exam step in
-  phase 5b, so until then a paediatric session finishes on the note alone.
-  There is no paediatric diary. Rules: `docs/rules/clinical.md`.
+  A paediatric Done requires the examination (the note dialog's
+  "Record the paediatric exam", phase 5b). The paediatric Health Profile is
+  the milestone-window chart (one bar per WHO milestone, a marker for the
+  child: solid seen, hollow told by parents, dashed ring approximate), with
+  the parent's list of what the child does on their own; a date of birth
+  that cannot be a child's is not charted (a card for the clinician, a
+  neutral line for the family). There is no paediatric diary and no screen yet
+  to edit a date of birth (a patient's change goes to the clinic to approve). Rules: `docs/rules/clinical.md`.
 
 Both question banks (Health Profile and Pain Map) are managed from
 one place - a **Manage Questions** section at the top of the admin's

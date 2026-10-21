@@ -1,6 +1,4 @@
-// The paediatric examination's server side (Health Profile redesign, phase
-// 5a; no screen draws it yet -- the dialog, the milestone-window chart and
-// SessionPedsExamStep are phase 5b): a therapist records an exam at the
+// The paediatric examination (Health Profile redesign, phases 5a and 5b): a therapist records an exam at the
 // route and the family reads it at RLS; the route refuses what the chart
 // does not have (an unknown milestone, a date before birth or in the
 // future, the two timed counts that belong to Record a test); a patient not
@@ -8,12 +6,13 @@
 // patient is refused and reads nothing; the admin door writes an audit row;
 // and the Done gate.
 //
-// THE DONE GATE: the owner's decision is that a paediatric Done requires
-// this exam, like the Pain Map and the neurological exam. The server half
-// is built but switched off (PEDS_EXAM_REQUIRED_FOR_DONE) until the note
-// dialog can record one, so PE-005 asserts whichever state the constant is
-// in: off, a paediatric Done passes on the note alone; on, it is refused 409
-// peds_exam_required until this session's exam exists.
+// THE DONE GATE: a paediatric Done requires this exam, like the Pain Map and
+// the neurological exam (PEDS_EXAM_REQUIRED_FOR_DONE is true since phase 5b,
+// which shipped the dialog and SessionPedsExamStep). PE-005 asserts the gate
+// is ON: refused 409 peds_exam_required until this session's exam exists,
+// passes after it. PE-006 to PE-008 are the screens: the page structure for
+// the parent and the therapist, the implausible date of birth, and a rough
+// ("approximate") date.
 //
 // Fixtures: a throwaway paediatric patient (born at 30 weeks, a date of
 // birth on the profile), a throwaway neurological patient, one completed
@@ -23,11 +22,12 @@
 // the exams this writes stay -- disposable projects only. For the same
 // reason the fixture accounts cannot be deleted afterwards; the cleanup
 // says so rather than failing the run.
-import { test, expect, request as playwrightRequest } from "@playwright/test";
+import { test, expect, request as playwrightRequest, type Browser } from "@playwright/test";
 import {
   BASE,
   QA_EMAILS,
   adminClient,
+  browserCookiesFor,
   cookieHeaderFor,
   createFixtureAccount,
   deleteFixtureAccount,
@@ -241,29 +241,30 @@ test("PE-004b: an admin records one on the family's behalf, with an audit row", 
   expect(audit?.actor_id).toBe(adminId);
 });
 
-test("PE-005: a paediatric Done follows the gate's switch", async () => {
-  test.setTimeout(90_000);
-  let appointmentId = "";
-  for (let h = 2; h <= 12 && !appointmentId; h++) {
+async function startedAppointment(patientId: string, concern: string): Promise<string> {
+  for (let h = 2; h <= 12; h++) {
     const slot = new Date(Date.now() - h * HOUR);
     slot.setMinutes(0, 0, 0);
     const { data } = await db
       .from("appointments")
       .insert({
-        patient_id: child!.id,
+        patient_id: patientId,
         therapist_id: therapistAId,
         slot_time: slot.toISOString(),
         status: "confirmed",
         payment_status: "paid",
         visit_mode: "online",
         duration_minutes: 30,
-        concern: `${MARKER} done`,
+        concern,
       })
       .select("id")
       .single();
-    if (data) appointmentId = data.id as string;
+    if (data) return data.id as string;
   }
-  expect(appointmentId, "no free started hour for the Done session").not.toBe("");
+  throw new Error("no free started hour for the Done session");
+}
+
+async function noteFor(appointmentId: string) {
   const note = await post("/api/therapist/session-notes/submit", QA_EMAILS.therapistA, {
     appointmentId,
     data: { treated: "Supported standing play", response: "Improved", next_plan: "Cruising along the sofa" },
@@ -271,36 +272,112 @@ test("PE-005: a paediatric Done follows the gate's switch", async () => {
     baseUpdatedAt: null,
   });
   expect(note.status, note.text).toBe(200);
+}
 
-  if (!PEDS_EXAM_REQUIRED_FOR_DONE) {
-    // Off until SessionPedsExamStep ships (phase 5b): the note alone
-    // finishes a paediatric session, so nobody is blocked with nothing to
-    // press -- whether or not an exam sits in the window.
-    const done = await post("/api/appointments/complete-session", QA_EMAILS.therapistA, { appointmentId });
-    expect(done.status, done.text).toBe(200);
-    return;
-  }
-
-  // On: refused by its own code until this session has its exam -- unless
-  // an earlier run's exam already sits inside the window.
-  const { data: slotRow } = await db.from("appointments").select("slot_time").eq("id", appointmentId).single();
-  const windowStart = new Date(new Date(slotRow!.slot_time as string).getTime() - HOUR).toISOString();
-  const { count: inWindow } = await db
-    .from("peds_assessments")
-    .select("id", { count: "exact", head: true })
-    .eq("patient_id", child!.id)
-    .eq("submitted_by", therapistAId)
-    .gte("created_at", windowStart);
-  if (!inWindow) {
+test("PE-005: a paediatric Done requires the exam - refused without it, passes with it", async () => {
+  test.setTimeout(120_000);
+  // The gate is ON (the dialog and SessionPedsExamStep exist).
+  expect(PEDS_EXAM_REQUIRED_FOR_DONE).toBe(true);
+  // A child with no exam at all, so nothing sits in the window.
+  const bare = await createFixtureAccount("Peds Exam Bare", { date_of_birth: BIRTH_DATE, gender: "Male" });
+  try {
+    await db.from("patient_condition_profiles").insert({ patient_id: bare.id, specialty: "pediatrics", status: "active", data: { peds_concern: `${MARKER}: bare` } });
+    const appointmentId = await startedAppointment(bare.id, `${MARKER} done`);
+    await noteFor(appointmentId);
     const refused = await post("/api/appointments/complete-session", QA_EMAILS.therapistA, { appointmentId });
     expect(refused.status).toBe(409);
     expect(refused.body.code).toBe("peds_exam_required");
+    const exam = await post(THERAPIST_ROUTE, QA_EMAILS.therapistA, {
+      patientId: bare.id,
+      findings: { milestones: { standing_alone: { status: "emerging", source: "seen" } } },
+    });
+    expect(exam.status, exam.text).toBe(200);
+    const done = await post("/api/appointments/complete-session", QA_EMAILS.therapistA, { appointmentId });
+    expect(done.status, done.text).toBe(200);
+  } finally {
+    await deleteFixtureAccount(bare.id);
   }
-  const exam = await post(THERAPIST_ROUTE, QA_EMAILS.therapistA, {
-    patientId: child!.id,
-    findings: { milestones: { standing_alone: { status: "emerging", source: "seen" } } },
-  });
-  expect(exam.status, exam.text).toBe(200);
+});
+
+test("PE-005b: a paediatric Done with this session's exam already recorded passes on the note", async () => {
+  test.setTimeout(90_000);
+  const appointmentId = await startedAppointment(child!.id, `${MARKER} done with exam`);
+  await noteFor(appointmentId);
+  // PE-001's exam sits inside the window (it was written after the slot opened).
   const done = await post("/api/appointments/complete-session", QA_EMAILS.therapistA, { appointmentId });
   expect(done.status, done.text).toBe(200);
+});
+
+async function pageAs(browser: Browser, email: string, path: string, viewport = { width: 1280, height: 900 }) {
+  const context = await browser.newContext({ viewport });
+  await context.addCookies(await browserCookiesFor(email));
+  const page = await context.newPage();
+  await page.goto(`${BASE}${path}`);
+  return { page, context };
+}
+
+const SEEN = { timeout: 60_000 };
+
+test("PE-006: the page is the milestone chart, in the parent's voice and the clinician's", async ({ browser }) => {
+  test.setTimeout(120_000);
+  // The parent: the child's name, who told us, the chart, the checklist; no clinician words.
+  const own = await pageAs(browser, child!.email, "/patient/dashboard/health-profile", { width: 390, height: 844 });
+  await expect(own.page.getByTestId("peds-profile")).toBeVisible(SEEN);
+  await expect(own.page.getByText("Told by Priya Sharma, her mother")).toBeVisible();
+  await expect(own.page.getByRole("heading", { name: "How your child is moving" })).toBeVisible();
+  await expect(own.page.getByTestId("peds-chart")).toBeVisible();
+  await expect(own.page.getByRole("button", { name: /Record the paediatric exam|Record a re-examination/ })).toHaveCount(0);
+  const text = await own.page.getByTestId("peds-profile").innerText();
+  expect(text).not.toMatch(/triage|specialty|referral|doctor's review|GMFCS level/i);
+  expect(await own.page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await own.context.close();
+
+  // The treating therapist: the same layout with the recording button and the dialog.
+  const treating = await pageAs(browser, QA_EMAILS.therapistA, `/therapist/dashboard/health-profile/${child!.id}`);
+  await expect(treating.page.getByTestId("peds-profile")).toBeVisible(SEEN);
+  await treating.page.getByRole("button", { name: "Record a re-examination" }).click();
+  const dialog = treating.page.getByTestId("peds-exam-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(/Standing time and independent steps are not here/)).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toHaveCount(0);
+  await treating.context.close();
+
+  // Done and Done-gate surface: the admin sees the same layout.
+  const admin = await pageAs(browser, QA_EMAILS.admin, `/admin/dashboard/conditions/${child!.id}`);
+  await expect(admin.page.getByTestId("peds-profile")).toBeVisible(SEEN);
+  await admin.context.close();
+});
+
+test("PE-007: an implausible date of birth is not charted - a card to the clinician, a neutral line to the family", async ({ browser }) => {
+  test.setTimeout(120_000);
+  await db.from("profiles").update({ date_of_birth: "1990-04-01" }).eq("id", child!.id);
+  try {
+    const treating = await pageAs(browser, QA_EMAILS.therapistA, `/therapist/dashboard/health-profile/${child!.id}`);
+    await expect(treating.page.getByTestId("peds-dob-card")).toContainText("Check the date of birth", SEEN);
+    await expect(treating.page.locator("[data-testid=peds-chart]")).toHaveCount(0);
+    await treating.context.close();
+    const own = await pageAs(browser, child!.email, "/patient/dashboard/health-profile");
+    await expect(own.page.getByTestId("peds-dob-card")).toContainText("We're checking your child's date of birth", SEEN);
+    await expect(own.page.locator("[data-testid=peds-chart]")).toHaveCount(0);
+    await own.context.close();
+  } finally {
+    await db.from("profiles").update({ date_of_birth: BIRTH_DATE }).eq("id", child!.id);
+  }
+});
+
+test("PE-008: a parent's rough date is kept as approximate; a seen date must be exact", async () => {
+  const rough = await post(THERAPIST_ROUTE, QA_EMAILS.therapistA, {
+    patientId: child!.id,
+    findings: { milestones: { standing_with_help: { status: "achieved", firstSeenOn: "2026-02-01", source: "reported", approximate: true } } },
+  });
+  expect(rough.status, rough.text).toBe(200);
+  const { data } = await db.from("peds_assessments").select("findings").eq("patient_id", child!.id).order("created_at", { ascending: false }).limit(1).single();
+  expect((data!.findings as { milestones: Record<string, { approximate?: boolean }> }).milestones.standing_with_help.approximate).toBe(true);
+  const seen = await post(THERAPIST_ROUTE, QA_EMAILS.therapistA, {
+    patientId: child!.id,
+    findings: { milestones: { standing_with_help: { status: "achieved", firstSeenOn: "2026-02-01", source: "seen", approximate: true } } },
+  });
+  expect(seen.status).toBe(400);
+  expect(String(seen.body.error)).toMatch(/exact/);
 });
