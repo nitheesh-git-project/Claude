@@ -1,5 +1,6 @@
 "use client";
 
+import { voiceWords } from "@/lib/childVoice";
 import { useState, type ReactNode } from "react";
 import ReopenMilestoneDialog from "@/components/profile/progress/ReopenMilestoneDialog";
 import { formatClinicDate } from "@/lib/formatDateTime";
@@ -39,6 +40,7 @@ export default function MilestoneCards({
   goal,
   views,
   voice,
+  child = false,
   measurements = [],
   loadFailed = false,
   renderActions,
@@ -47,19 +49,22 @@ export default function MilestoneCards({
   goal: CareGoal | null;
   views: MilestoneView[];
   voice: Voice;
+  /** The reader is a parent and the patient their child. */
+  child?: boolean;
   measurements?: MeasurementPoint[];
   loadFailed?: boolean;
   renderActions?: (view: MilestoneView) => ReactNode;
   reopen?: { patientId: string };
 }) {
   const clinician = voice === "clinician";
+  const w = voiceWords(child);
   const [reopening, setReopening] = useState<MilestoneView | null>(null);
 
   if (loadFailed) {
     return (
       <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <p className="font-semibold">
-          {clinician ? "We couldn't load the goal and milestones just now." : "We couldn't load your goal just now."}
+          {clinician ? "We couldn't load the goal and milestones just now." : w("We couldn't load your goal just now.")}
         </p>
         <p className="mt-0.5 text-xs">Nothing is lost - this is a problem reading the record, not an empty one.</p>
       </div>
@@ -73,7 +78,7 @@ export default function MilestoneCards({
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-4 sm:p-5">
-        <p className="text-xs font-bold uppercase tracking-wide text-teal-800">{clinician ? "Patient's goal" : "Your goal"}</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-teal-800">{clinician ? "Patient's goal" : w("Your goal")}</p>
         {goal ? (
           <>
             <p className="mt-1 font-display text-lg font-bold leading-snug text-slate-900 [overflow-wrap:anywhere] sm:text-xl">
@@ -90,7 +95,7 @@ export default function MilestoneCards({
           <p className="mt-1 text-sm text-slate-700">
             {clinician
               ? "No goal is set. Ask the patient what they want to be able to do, and write it in their words."
-              : "Your physiotherapist will set your goal with you, in your own words, at your next visit."}
+              : w("Your physiotherapist will set your goal with you, in your own words, at your next visit.")}
           </p>
         )}
       </div>
@@ -124,7 +129,7 @@ export default function MilestoneCards({
           <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-5 text-sm text-slate-600">
             {clinician
               ? "No steps are planned yet. Add milestones, or start from a template for this kind of patient."
-              : "Your physiotherapist will plan the steps towards your goal here."}
+              : w("Your physiotherapist will plan the steps towards your goal here.")}
           </p>
         )
       ) : (
@@ -134,6 +139,7 @@ export default function MilestoneCards({
               key={view.milestone.id}
               view={view}
               voice={voice}
+              child={child}
               measurements={measurements}
               actions={renderActions?.(view)}
               onReopen={reopen && view.derived.status === "reached" ? () => setReopening(view) : undefined}
@@ -157,18 +163,21 @@ export default function MilestoneCards({
 function MilestoneCard({
   view,
   voice,
+  child,
   measurements,
   actions,
   onReopen,
 }: {
   view: MilestoneView;
   voice: Voice;
+  child?: boolean;
   measurements: MeasurementPoint[];
   actions?: ReactNode;
   onReopen?: () => void;
 }) {
   const { milestone, derived, overdue } = view;
   const clinician = voice === "clinician";
+  const w = voiceWords(child);
   const status = derived.status;
   const measure = milestone.linkedMeasureKey ? outcomeMeasure(milestone.linkedMeasureKey) : null;
   const reading = (v: number) => (measure ? formatReading(v, measure.decimals, measure.unit) : String(v));
@@ -194,7 +203,7 @@ function MilestoneCard({
               ? " · shown by a recorded measurement"
               : clinician
                 ? " · on clinical judgement"
-                : " · confirmed by your physiotherapist"}
+                : w(" · confirmed by your physiotherapist")}
         </p>
       ) : (
         <>
@@ -223,7 +232,7 @@ function MilestoneCard({
             <p className="text-xs font-semibold text-emerald-800">
               {clinician
                 ? `The latest reading${derived.provedBy ? ` (${reading(derived.provedBy.value)})` : ""} meets this target. You can mark it reached.`
-                : "Your latest reading meets this target. Your physiotherapist will confirm it."}
+                : w("Your latest reading meets this target. Your physiotherapist will confirm it.")}
             </p>
           )}
           {milestone.targetDate && (

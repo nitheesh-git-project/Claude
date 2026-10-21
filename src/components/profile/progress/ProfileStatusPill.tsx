@@ -1,3 +1,4 @@
+import { voiceWords } from "@/lib/childVoice";
 import { StatusPill } from "@/components/dashboard/SurfaceCard";
 import {
   PROFILE_STATUS_LABEL,
@@ -29,22 +30,26 @@ export default function ProfileStatusPill({
   computed,
   override = null,
   voice,
+  child = false,
   showReason = false,
 }: {
+  /** The reader is a parent and the patient their child. */
+  child?: boolean;
   computed: StatusResult;
   override?: StatusOverride | null;
   voice: Voice;
   showReason?: boolean;
 }) {
+  const w = voiceWords(child);
   const shown = effectiveStatus(computed, override);
-  const reason = shown.overridden ? shown.reasonText : statusReasonText(computed.reason, voice);
+  const reason = shown.overridden ? shown.reasonText : w(statusReasonText(computed.reason, voice));
 
   return (
     <div className="inline-flex flex-col items-start gap-1">
       <StatusPill tone={TONE[shown.status]}>
         {PROFILE_STATUS_LABEL[shown.status]}
         {shown.overridden && (
-          <span className="font-normal">{voice === "clinician" ? " (set by you)" : " (set by your physiotherapist)"}</span>
+          <span className="font-normal">{voice === "clinician" ? " (set by you)" : w(" (set by your physiotherapist)")}</span>
         )}
       </StatusPill>
       {showReason && reason && <p className="max-w-prose text-xs text-slate-600">{reason}</p>}

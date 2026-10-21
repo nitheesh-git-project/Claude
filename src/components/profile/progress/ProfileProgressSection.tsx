@@ -42,6 +42,7 @@ export default function ProfileProgressSection({
   patientId,
   patientName,
   voice,
+  child = false,
   series,
   recordedSeries,
   tableRows,
@@ -71,6 +72,8 @@ export default function ProfileProgressSection({
   patientId: string;
   patientName?: string;
   voice: Voice;
+  /** The reader is a parent and the patient their child. */
+  child?: boolean;
   series: MeasureSeries[];
   recordedSeries: MeasureSeries[];
   tableRows: MeasureTableRow[];
@@ -101,7 +104,9 @@ export default function ProfileProgressSection({
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900">
-              {clinician ? "Progress" : profileKind === "neuro_parkinsons" ? "Is it holding, or getting better?" : "Are you getting better?"}
+              {clinician ? "Progress" : profileKind === "neuro_parkinsons" ? "Is it holding, or getting better?" : child
+                  ? "Is your child getting better?"
+                  : "Are you getting better?"}
               <TutorialInfoButton section="card:health-profile" label="your progress" size="sm" />
             </h2>
             <p className="mt-0.5 text-sm text-slate-700">One dot per review. The green band is where we are aiming.</p>
@@ -142,6 +147,7 @@ export default function ProfileProgressSection({
           milestones={targets}
           profileKind={profileKind}
           voice={voice}
+          child={child}
           loadFailed={measuresFailed && painOnly.length === 0}
         />
       </section>
@@ -151,6 +157,7 @@ export default function ProfileProgressSection({
           goal={goal}
           views={views}
           voice={voice}
+          child={child}
           measurements={points}
           loadFailed={goalsFailed}
           reopen={reopen ? { patientId } : undefined}
@@ -159,7 +166,7 @@ export default function ProfileProgressSection({
 
       <section aria-label="Measures" className={CARD}>
         <div className="mb-3">
-          <h2 className="font-display text-lg font-bold text-slate-900">{clinician ? "Measures" : "Your measures"}</h2>
+          <h2 className="font-display text-lg font-bold text-slate-900">{clinician ? "Measures" : child ? "Your child's measures" : "Your measures"}</h2>
           <p className="mt-0.5 text-sm text-slate-700">First reading, latest reading and goal for each.</p>
         </div>
         {measuresFailed && tableRows.length === 0 ? (
@@ -167,7 +174,7 @@ export default function ProfileProgressSection({
             {"We couldn't load the measures just now."} They are not missing - please try again in a moment.
           </p>
         ) : (
-          <MeasuresTable rows={tableRows} voice={voice} />
+          <MeasuresTable rows={tableRows} voice={voice} child={child} />
         )}
       </section>
 

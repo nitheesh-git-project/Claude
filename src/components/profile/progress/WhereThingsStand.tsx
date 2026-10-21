@@ -1,3 +1,4 @@
+import { voiceWords } from "@/lib/childVoice";
 import type { ReactNode } from "react";
 import { formatClinicDateShort } from "@/lib/formatDateTime";
 import type { Voice } from "@/lib/progressView";
@@ -18,7 +19,10 @@ export default function WhereThingsStand({
   voice,
   loadFailed = false,
   action,
+  child = false,
 }: {
+  /** The reader is a parent and the patient their child. */
+  child?: boolean;
   view: WhereThingsStandView;
   voice: Voice;
   /** The written summary could not be read (the status history failed). */
@@ -27,6 +31,7 @@ export default function WhereThingsStand({
   action?: ReactNode;
 }) {
   const clinician = voice === "clinician";
+  const w = voiceWords(child);
   const byline = whereThingsStandByline(view, voice);
 
   return (
@@ -45,7 +50,7 @@ export default function WhereThingsStand({
           <p className="mt-2 text-sm text-slate-600">
             {clinician
               ? "Nothing written yet. A few plain sentences for the patient after each review - how they are doing, what is next - appear here."
-              : "Your physiotherapist will add a short summary here after your next review: how you are doing and what comes next."}
+              : w("Your physiotherapist will add a short summary here after your next review: how you are doing and what comes next.")}
           </p>
         )
       ) : (
@@ -59,7 +64,7 @@ export default function WhereThingsStand({
           </p>
           {byline && (
             <p className="mt-2 text-xs text-slate-600">
-              {byline}
+              {byline ? w(byline) : byline}
               {view.source === "written" ? `, ${formatClinicDateShort(view.setAt)}` : ""}
             </p>
           )}

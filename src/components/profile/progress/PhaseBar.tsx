@@ -1,3 +1,4 @@
+import { voiceWords } from "@/lib/childVoice";
 import { PHASES_BY_PROFILE_KIND } from "@/lib/milestoneTemplates";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { Voice } from "@/lib/progressView";
@@ -18,18 +19,22 @@ export default function PhaseBar({
   profileKind,
   currentPhase,
   voice,
+  child = false,
 }: {
+  /** The reader is a parent and the patient their child. */
+  child?: boolean;
   profileKind: ProfileKind;
   /** One of the kind's four phase names, or null when none is set. */
   currentPhase: string | null;
   voice: Voice;
 }) {
+  const w = voiceWords(child);
   const phases = PHASES_BY_PROFILE_KIND[profileKind];
   const currentIndex = currentPhase ? phases.indexOf(currentPhase) : -1;
 
   return (
     <div>
-      <ol className="grid grid-cols-4 gap-1.5 sm:gap-2" aria-label={voice === "clinician" ? "Phase of care" : "Where you are in your care"}>
+      <ol className="grid grid-cols-4 gap-1.5 sm:gap-2" aria-label={voice === "clinician" ? "Phase of care" : w("Where you are in your care")}>
         {phases.map((phase, i) => {
           const state = currentIndex < 0 ? "ahead" : i < currentIndex ? "done" : i === currentIndex ? "current" : "ahead";
           return (
@@ -44,7 +49,7 @@ export default function PhaseBar({
                 }`}
               >
                 {phase}
-                <span className="sr-only">{state === "done" ? " (done)" : state === "current" ? " (you are here)" : " (ahead)"}</span>
+                <span className="sr-only">{state === "done" ? " (done)" : state === "current" ? w(" (you are here)") : " (ahead)"}</span>
               </p>
             </li>
           );
@@ -54,7 +59,7 @@ export default function PhaseBar({
         <p className="mt-2 text-xs text-slate-600">
           {voice === "clinician"
             ? "No phase is set yet. Set it from the plan when the first stage's criteria are met."
-            : "Your physiotherapist will mark which stage you are in."}
+            : w("Your physiotherapist will mark which stage you are in.")}
         </p>
       )}
     </div>

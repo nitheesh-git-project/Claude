@@ -26,6 +26,7 @@ export default function KeyNumbers({
   milestones = [],
   profileKind,
   voice,
+  child = false,
   sessions,
 }: {
   series: MeasureSeries[];
@@ -36,6 +37,8 @@ export default function KeyNumbers({
   milestones?: MilestoneTarget[];
   profileKind: ProfileKind;
   voice: Voice;
+  /** The reader is a parent and the patient their child. */
+  child?: boolean;
   /** Sessions done of the plan; `total` null when there is no fixed number. */
   sessions?: { done: number; total: number | null; next?: string | null } | null;
 }) {
@@ -46,7 +49,9 @@ export default function KeyNumbers({
       <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-5 text-sm text-slate-600">
         {voice === "clinician"
           ? "Headline numbers appear once a measure has been recorded."
-          : "Your key numbers appear after your first measurements."}
+          : child
+            ? "Your child's key numbers appear after their first measurements."
+            : "Your key numbers appear after your first measurements."}
       </p>
     );
   }

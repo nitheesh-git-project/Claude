@@ -1,5 +1,6 @@
 "use client";
 
+import { voiceWords } from "@/lib/childVoice";
 import { useMemo, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { formatClinicDate, formatClinicDateShort } from "@/lib/formatDateTime";
@@ -60,6 +61,7 @@ export default function ProgressGraph({
   milestones = [],
   profileKind,
   voice,
+  child = false,
   loadFailed = false,
   initialSeriesKey,
 }: {
@@ -69,12 +71,15 @@ export default function ProgressGraph({
   milestones?: MilestoneTarget[];
   profileKind: ProfileKind;
   voice: Voice;
+  /** The reader is a parent and the patient their child: "your child's ...". */
+  child?: boolean;
   /** The measurements could not be read: said apart from "none yet". */
   loadFailed?: boolean;
   initialSeriesKey?: string;
 }) {
   const router = useRouter();
   const clinician = voice === "clinician";
+  const w = voiceWords(child);
   const [pickedKey, setPickedKey] = useState<string | null>(initialSeriesKey ?? null);
 
   const selected = useMemo(() => series.find((s) => s.key === pickedKey) ?? series[0] ?? null, [series, pickedKey]);
@@ -98,7 +103,7 @@ export default function ProgressGraph({
     return (
       <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <p className="font-semibold">
-          {clinician ? "We couldn't load the measurements just now." : "We couldn't load your progress just now."}
+          {clinician ? "We couldn't load the measurements just now." : w("We couldn't load your progress just now.")}
         </p>
         <p className="mt-0.5 text-xs">
           Nothing is lost - this is a problem reading the record, not an empty one.{" "}
@@ -119,7 +124,7 @@ export default function ProgressGraph({
       <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-6 text-sm text-slate-600">
         {clinician
           ? "No measurements are recorded yet. The graph appears once a measure has been recorded at two reviews."
-          : "Your progress graph appears once your physiotherapist has measured you at two reviews. Each dot will be one review."}
+          : w("Your progress graph appears once your physiotherapist has measured you at two reviews. Each dot will be one review.")}
       </p>
     );
   }
@@ -195,7 +200,7 @@ export default function ProgressGraph({
           <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <p className="font-display text-3xl font-bold leading-none text-slate-900">{reading(now.value)}</p>
             <p className="text-xs text-slate-600">
-              {clinician ? "latest" : "at your latest review"}
+              {clinician ? "latest" : w("at your latest review")}
               {view.delta && (
                 <>
                   {" · "}

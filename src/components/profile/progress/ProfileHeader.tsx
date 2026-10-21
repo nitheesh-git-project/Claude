@@ -23,6 +23,7 @@ import type { WhereThingsStandView } from "@/lib/whereThingsStand";
  */
 export default function ProfileHeader({
   voice,
+  child = false,
   profileKind,
   name,
   conditionLine,
@@ -40,6 +41,8 @@ export default function ProfileHeader({
   controls,
 }: {
   voice: Voice;
+  /** The reader is a parent and the patient their child ("your child's ..."). */
+  child?: boolean;
   /** Which kind's four phases the bar shows. */
   profileKind: ProfileKind;
   name: string;
@@ -89,6 +92,7 @@ export default function ProfileHeader({
                 computed={computed}
                 override={override ? { status: override.status, reason: override.reason } : null}
                 voice={voice}
+                child={child}
                 showReason
               />
               {override?.stale && clinician && (
@@ -117,13 +121,13 @@ export default function ProfileHeader({
               </span>
               {lastReviewAt && <span>Last review {formatClinicDate(lastReviewAt)}</span>}
             </div>
-            <PhaseBar profileKind={profileKind} currentPhase={phase} voice={voice} />
+            <PhaseBar profileKind={profileKind} currentPhase={phase} voice={voice} child={child} />
           </div>
         </div>
         {controls && <div className="mt-4 border-t border-slate-100 pt-4">{controls}</div>}
       </header>
 
-      <WhereThingsStand view={stand} voice={voice} loadFailed={statusFailed} />
+      <WhereThingsStand view={stand} voice={voice} child={child} loadFailed={statusFailed} />
     </div>
   );
 }
