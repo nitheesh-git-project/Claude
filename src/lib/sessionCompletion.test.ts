@@ -59,13 +59,12 @@ describe("which examination Done requires", () => {
     expect(requiredSessionExam("neuro")).toBe("neuro_exam");
   });
 
-  it("asks nothing of a paediatric patient while the note dialog has no paediatric exam step (phase 5b)", () => {
-    // The server half is built; the requirement waits for the control that
-    // satisfies it, so no therapist is ever blocked with nothing to press.
-    expect(PEDS_EXAM_REQUIRED_FOR_DONE).toBe(false);
-    expect(requiredSessionExam("pediatrics")).toBeNull();
-    expect(missingSessionExam("pediatrics", { painMap: 0, neuroExam: 0 })).toBeNull();
-    expect(missingSessionExam("pediatrics", { painMap: 0, neuroExam: 0, pedsExam: 0 })).toBeNull();
+  it("asks a paediatric patient for the paediatric exam, as it does ortho and neuro (phase 5b)", () => {
+    expect(PEDS_EXAM_REQUIRED_FOR_DONE).toBe(true);
+    expect(requiredSessionExam("pediatrics")).toBe("peds_exam");
+    expect(missingSessionExam("pediatrics", { painMap: 0, neuroExam: 0 })).toBe("peds_exam");
+    expect(missingSessionExam("pediatrics", { painMap: 0, neuroExam: 0, pedsExam: 0 })).toBe("peds_exam");
+    expect(missingSessionExam("pediatrics", { painMap: 0, neuroExam: 0, pedsExam: 1 })).toBeNull();
   });
 
   it("asks a paediatric patient for the paediatric exam once the gate is on, and no other layer stands in", () => {
@@ -92,6 +91,20 @@ describe("which examination Done requires", () => {
     } else {
       expect(PEDS_EXAM_REQUIRED_FOR_DONE).toBe(false);
     }
+  });
+
+  it("gives the therapist something to press, and says when it could not read", () => {
+    const peds = readFileSync(join(process.cwd(), "src/components/therapist/SessionPedsExamStep.tsx"), "utf8");
+    // Offered exactly like the neurological one: a button, a required marker,
+    // and a read that failed is said and never counted as recorded.
+    expect(peds).toMatch(/Record the paediatric exam/);
+    expect(peds).toMatch(/Record another examination/);
+    expect(peds).toMatch(/const recorded = !failed && thisSession\.length > 0/);
+    expect(peds).toMatch(/so it is not\s+counted as recorded/);
+    // The button is not disabled by a failed or pending read.
+    expect(peds).not.toMatch(/disabled=\{rows === null\}/);
+    const step = readFileSync(join(process.cwd(), "src/components/therapist/SessionExamStep.tsx"), "utf8");
+    expect(step).toMatch(/couldn&apos;t check which examination this session needs/);
   });
 
   it("refuses a neurological Done with no neuro exam this session, and allows it after one", () => {

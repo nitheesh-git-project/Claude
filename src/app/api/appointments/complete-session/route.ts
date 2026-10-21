@@ -200,8 +200,8 @@ export async function POST(request: NextRequest) {
     // session, and this condition type's examination updated during it
     // (owner's rule): the Pain Map for an orthopaedic patient, the
     // neurological examination chart for a neurological one, the paediatric
-    // examination for a paediatric one once its dialog step ships (phase 5b;
-    // PEDS_EXAM_REQUIRED_FOR_DONE, until then nothing) -- missingSessionExam
+    // examination for a paediatric one (PEDS_EXAM_REQUIRED_FOR_DONE, on since
+    // its dialog step shipped in phase 5b) -- missingSessionExam
     // in sessionCompletion.ts. The therapist's Done opens the note first and calls this
     // only after it saved -- this is the copy that binds. "During it" is
     // from an hour before the slot, so an exam recorded while setting up

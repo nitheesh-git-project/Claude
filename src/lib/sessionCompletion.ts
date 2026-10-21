@@ -67,22 +67,19 @@ export function sessionExamWindowStartMs(slotMs: number, debugOffsetMs: number):
 export type SessionExamKind = "pain_map" | "neuro_exam" | "peds_exam";
 
 /**
- * Whether a paediatric Done requires the paediatric examination yet.
+ * Whether a paediatric Done requires the paediatric examination: it does,
+ * exactly like ortho and neuro (the owner's decision), now that the note
+ * dialog can record one - `SessionPedsExamStep`, mounted as the "peds_exam"
+ * arm of `SessionExamStep` (Health Profile redesign, phase 5b). The server
+ * half (peds_assessments, both submit routes, the complete-session read and
+ * its 409 `peds_exam_required`) was built first (phase 5a) and held the
+ * requirement off until a control existed to satisfy it, since a gate with
+ * nothing to press would have blocked every paediatric session.
  *
- * The owner's decision is that it does, exactly like ortho and neuro -- and
- * the server half is built (peds_assessments, both submit routes, the
- * complete-session read and its 409 `peds_exam_required`). But the note
- * dialog has no control to record one until the paediatric exam dialog and
- * `SessionPedsExamStep` ship (Health Profile redesign, phase 5b). Requiring
- * an exam nobody can record from the dialog would make every paediatric
- * session impossible to finish, so the requirement stays OFF until then.
- *
- * Phase 5b turns it on by setting this to true in the same change that
- * mounts `SessionPedsExamStep` in `SessionExamStep`;
- * sessionCompletion.test.ts fails if it is on while SessionExamStep has no
- * paediatric arm.
+ * sessionCompletion.test.ts fails if this is on while SessionExamStep has no
+ * paediatric arm, so the two cannot drift apart again.
  */
-export const PEDS_EXAM_REQUIRED_FOR_DONE = false;
+export const PEDS_EXAM_REQUIRED_FOR_DONE = true;
 
 /**
  * Which exam Done requires, or null when the condition type has none.
