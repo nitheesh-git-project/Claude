@@ -42,11 +42,15 @@ import {
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import OrthoProfileTop from "@/components/profile/ortho/OrthoProfileTop";
 import NeuroProfileTop from "@/components/profile/neuro/NeuroProfileTop";
+import PedsProfileTop from "@/components/profile/peds/PedsProfileTop";
 import { loadOrthoReads } from "@/lib/orthoProfileServer";
 import { shapeOrthoView } from "@/lib/orthoProfileView";
 import { loadNeuroReads } from "@/lib/neuroProfileServer";
 import { shapeNeuroView } from "@/lib/neuroProfileView";
 import { filledInLine, type NeuroKind } from "@/lib/neuroProfile";
+import { loadPedsReads } from "@/lib/pedsProfileServer";
+import { shapePedsView } from "@/lib/pedsProfileView";
+import { pedsEquipmentChips } from "@/lib/pedsProfile";
 import { profileKindFor } from "@/lib/profileKind";
 
 export const metadata: Metadata = {
@@ -300,7 +304,12 @@ export default async function PatientHealthProfilePage() {
   // or the Parkinson's sub-profile - is read from the answers just fetched.
   const neuroKind: NeuroKind | null =
     specialty === "neuro" ? (profileKindFor(specialty, currentData) === "neuro_parkinsons" ? "neuro_parkinsons" : "neuro") : null;
-  const [neuroRead, neuroReads] = await Promise.all([
+  // The paediatric profile: its own reads (the examinations, the child's date
+  // of birth, the measurements, the goal and steps, the phase and status, the
+  // sessions), each its own call inside the loader, and only for a
+  // paediatric record - another condition type makes none of them.
+  const isPeds = specialty === "pediatrics";
+  const [neuroRead, neuroReads, pedsReads] = await Promise.all([
     specialty === "neuro"
       ? supabase
           .from("neuro_assessments")
@@ -310,6 +319,7 @@ export default async function PatientHealthProfilePage() {
           .limit(200)
       : Promise.resolve({ data: [] as NeuroAssessmentRow[], error: null }),
     neuroKind ? loadNeuroReads(supabase, user.id, { kind: neuroKind }) : Promise.resolve(null),
+    isPeds ? loadPedsReads(supabase, user.id) : Promise.resolve(null),
   ]);
   const neuroView =
     neuroKind && neuroReads
@@ -317,6 +327,14 @@ export default async function PatientHealthProfilePage() {
           { ...neuroReads, exams: (neuroRead.data ?? []) as NeuroAssessmentRow[], examsFailed: !!neuroRead.error },
           { kind: neuroKind, intake: currentData, voice: "patient", nowMs: neuroReads.nowMs }
         )
+      : null;
+  const pedsView =
+    isPeds && pedsReads
+      ? shapePedsView(pedsReads, {
+          intake: currentData,
+          voice: "patient",
+          milestoneOptions: questions.find((q) => q.key === "peds_milestones")?.options ?? [],
+        })
       : null;
   const trendPoints = painTrendSeries(assessments ?? []);
   const orthoView =
@@ -399,8 +417,9 @@ export default async function PatientHealthProfilePage() {
         "pain_assessments",
         "neuro_assessments",
         "intake_question_templates",
-        ...(isOrtho || neuroView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
+        ...(isOrtho || neuroView || pedsView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
         ...(neuroView ? ["patient_diary_entries"] : []),
+        ...(pedsView ? ["peds_assessments", "appointments"] : []),
       ]}
       headerTitle="Health Profile"
       headerSubtitle={
@@ -409,7 +428,7 @@ export default async function PatientHealthProfilePage() {
           : "Your condition, and what your therapist found."
       }
     >
-      <div className={`mx-auto space-y-5 ${orthoView || neuroView ? "max-w-6xl" : "max-w-5xl"}`}>
+      <div className={`mx-auto space-y-5 ${orthoView || neuroView || pedsView ? "max-w-6xl" : "max-w-5xl"}`}>
         <div
           className={`flex flex-wrap items-start gap-3 rounded-2xl border p-4 sm:flex-nowrap ${
             gate.reason === "awaiting_therapist"
@@ -518,6 +537,30 @@ export default async function PatientHealthProfilePage() {
 
             {conditionSection}
           </>
+        ) : pedsView && isPeds ? (
+          <>
+            <PedsProfileTop
+              voice="patient"
+              patientId={user.id}
+              patientName={profile?.full_name ?? "Patient"}
+              chipLabel={specialtyPatientLabel(specialty)}
+              view={pedsView}
+              equipmentChips={pedsEquipmentChips(currentData.peds_equipment, pedsView.exam.latest?.findings.equipment)}
+              canSetStatus={null}
+              record={null}
+              planner={false}
+              reopen={false}
+              enabledLicensed={[]}
+              licenceUnreadable={false}
+            />
+
+            <HealthProfileSteps
+              specialty={specialty}
+              collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
+            />
+
+            {conditionSection}
+          </>
         ) : neuroView && neuroKind ? (
           <>
             <NeuroProfileTop
@@ -538,14 +581,8 @@ export default async function PatientHealthProfilePage() {
               licenceUnreadable={false}
             />
 
-            <SpecialtySnapshotStrip
-              specialty={specialty}
-              questions={questions}
-              data={currentData}
-              assessments={[]}
-              showProgress={!gate.canEdit}
-            />
-
+            {/* No four-figure strip here: the key numbers above already show
+                independence and falls. */}
             <HealthProfileSteps
               specialty={specialty}
               collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}

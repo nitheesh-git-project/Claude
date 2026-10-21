@@ -36,11 +36,15 @@ import {
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import OrthoProfileTop from "@/components/profile/ortho/OrthoProfileTop";
 import NeuroProfileTop from "@/components/profile/neuro/NeuroProfileTop";
+import PedsProfileTop from "@/components/profile/peds/PedsProfileTop";
 import { loadLicenceForRecording, loadOrthoReads } from "@/lib/orthoProfileServer";
 import { shapeOrthoView } from "@/lib/orthoProfileView";
 import { loadNeuroReads } from "@/lib/neuroProfileServer";
 import { shapeNeuroView } from "@/lib/neuroProfileView";
 import { filledInLine, type NeuroKind } from "@/lib/neuroProfile";
+import { loadPedsReads } from "@/lib/pedsProfileServer";
+import { shapePedsView } from "@/lib/pedsProfileView";
+import { pedsEquipmentChips } from "@/lib/pedsProfile";
 import { profileKindFor } from "@/lib/profileKind";
 
 export const metadata: Metadata = {
@@ -86,6 +90,7 @@ export default async function TherapistPatientHealthProfilePage({
   const specialty = parseConditionSpecialty(specialtyRow?.specialty);
   const isOrtho = specialty === "ortho";
   const isNeuro = specialty === "neuro";
+  const isPeds = specialty === "pediatrics";
 
   const [
     { data: profile },
@@ -174,7 +179,7 @@ export default async function TherapistPatientHealthProfilePage({
   // one this record is comes from the intake answers just read.
   const neuroKind: NeuroKind | null =
     isNeuro ? (profileKindFor("neuro", earlyData) === "neuro_parkinsons" ? "neuro_parkinsons" : "neuro") : null;
-  const [neuroRead, neuroReads] = await Promise.all([
+  const [neuroRead, neuroReads, pedsReads] = await Promise.all([
     isNeuro
       ? supabase
           .from("neuro_assessments")
@@ -188,6 +193,11 @@ export default async function TherapistPatientHealthProfilePage({
     // switch), each its own call, through the assigned-therapist policies.
     // Neurological only: another condition type makes none of them.
     neuroKind ? loadNeuroReads(supabase, patientId, { kind: neuroKind }) : Promise.resolve(null),
+    // The paediatric chart's reads (the examinations, the date of birth, the
+    // measurements, the goal and steps, the phase and status, the sessions),
+    // each its own call, through the assigned-therapist policies. Paediatric
+    // only, like the others.
+    isPeds ? loadPedsReads(supabase, patientId) : Promise.resolve(null),
   ]);
 
   const overridesByRegion: Record<string, QuestionOverrideRow[]> = {};
@@ -231,7 +241,7 @@ export default async function TherapistPatientHealthProfilePage({
   // requirement. Reaching this page at all already means assigned, but the
   // flag is passed explicitly rather than assumed.
   const canEditIntake = grant?.status === "approved";
-  const canRecordExam = isAssigned && (isOrtho || isNeuro);
+  const canRecordExam = isAssigned && (isOrtho || isNeuro || isPeds);
   // "Nobody has onboarded this patient" is "there is no record on file",
   // not "the specialty column is null": the column defaults to ortho, and
   // an autosaved draft creates the row before anyone has decided anything.
@@ -253,10 +263,22 @@ export default async function TherapistPatientHealthProfilePage({
           { kind: neuroKind, intake: currentData, voice: "clinician", nowMs: neuroReads.nowMs }
         )
       : null;
+  const pedsView =
+    isPeds && pedsReads
+      ? shapePedsView(pedsReads, {
+          intake: currentData,
+          voice: "clinician",
+          milestoneOptions: questions.find((q) => q.key === "peds_milestones")?.options ?? [],
+        })
+      : null;
   const licence =
     orthoView && isAssigned
       ? await loadLicenceForRecording(admin)
-      : neuroReads
+      : pedsReads
+        ? pedsReads.licence.status === "ok"
+          ? { keys: pedsReads.licence.keys, unreadable: false }
+          : { keys: [] as string[], unreadable: true }
+        : neuroReads
         ? neuroReads.licence.status === "ok"
           ? { keys: neuroReads.licence.keys, unreadable: false }
           : { keys: [] as string[], unreadable: true }
@@ -542,6 +564,25 @@ export default async function TherapistPatientHealthProfilePage({
       />
     ) : null;
 
+  const pedsTop =
+    pedsView && isPeds ? (
+      <PedsProfileTop
+        voice="clinician"
+        patientId={patientId}
+        patientName={patient.full_name}
+        chipLabel={specialtyDef?.label ?? "Paediatric"}
+        view={pedsView}
+        equipmentChips={pedsEquipmentChips(currentData.peds_equipment, pedsView.exam.latest?.findings.equipment)}
+        examRecord={canRecordExam ? { endpoint: "/api/therapist/peds-assessments/submit", patientId, patientName: patient.full_name } : undefined}
+        canSetStatus={isAssigned ? { endpoint: "/api/therapist/care-status/set" } : null}
+        record={isAssigned ? { asAdmin: false } : null}
+        planner={isAssigned}
+        reopen={false}
+        enabledLicensed={licence.keys}
+        licenceUnreadable={licence.unreadable}
+      />
+    ) : null;
+
   return (
     <DashboardShell
       brandLabel="Therapist Panel"
@@ -560,13 +601,14 @@ export default async function TherapistPatientHealthProfilePage({
         "pain_assessments",
         "neuro_assessments",
         "intake_question_templates",
-        ...(isOrtho || neuroView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
+        ...(isOrtho || neuroView || pedsView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
         ...(neuroView ? ["patient_diary_entries"] : []),
+        ...(pedsView ? ["peds_assessments", "appointments"] : []),
       ]}
       headerTitle={patient.full_name}
       headerSubtitle={patient.patient_code ?? "Patient"}
     >
-      <div className={`mx-auto space-y-6 ${orthoView || neuroView ? "max-w-6xl" : "max-w-2xl"}`}>
+      <div className={`mx-auto space-y-6 ${orthoView || neuroView || pedsView ? "max-w-6xl" : "max-w-2xl"}`}>
         {/* No "Back to My Patients" link: this page sits inside the dashboard
             shell, whose sidebar keeps My Patients highlighted and one tap
             away. */}
@@ -584,6 +626,19 @@ export default async function TherapistPatientHealthProfilePage({
           <>
             {needsOnboarding && conditionCard}
             {orthoTop}
+            {plansSection}
+            {notesSection}
+            {reportsSection}
+            {!needsOnboarding && conditionCard}
+          </>
+        ) : pedsTop ? (
+          // A paediatric chart opens on the layout shared with the parent's
+          // page; the examination, with its "Record a re-examination" button,
+          // is the condition picture inside it, so the old exam card is not
+          // repeated below.
+          <>
+            {needsOnboarding && conditionCard}
+            {pedsTop}
             {plansSection}
             {notesSection}
             {reportsSection}

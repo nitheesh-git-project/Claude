@@ -18627,6 +18627,19 @@ exception when duplicate_object then null;
 end $$;
 
 -- ---------------------------------------------------------------------
+-- Phase 5b: the paediatric exam joins the realtime publication, as
+-- neuro_assessments and pain_assessments did, so a parent's open Health
+-- Profile and the therapist's chart refresh when an examination is saved
+-- (the paediatric pages list peds_assessments in their realtime tables).
+-- Realtime still only delivers rows RLS lets the subscriber read.
+-- ---------------------------------------------------------------------
+do $$
+begin
+  alter publication supabase_realtime add table peds_assessments;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --
 -- Every RPC this application makes goes through the service-role client,

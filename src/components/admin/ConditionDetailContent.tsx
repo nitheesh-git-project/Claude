@@ -35,11 +35,15 @@ import { getAdminContext } from "@/lib/supabase/requireAdmin";
 import { scopeCanManage } from "@/lib/adminScope";
 import OrthoProfileTop from "@/components/profile/ortho/OrthoProfileTop";
 import NeuroProfileTop from "@/components/profile/neuro/NeuroProfileTop";
+import PedsProfileTop from "@/components/profile/peds/PedsProfileTop";
 import { loadLicenceForRecording, loadOrthoReads } from "@/lib/orthoProfileServer";
 import { shapeOrthoView } from "@/lib/orthoProfileView";
 import { loadNeuroReads } from "@/lib/neuroProfileServer";
 import { shapeNeuroView } from "@/lib/neuroProfileView";
 import { filledInLine, type NeuroKind } from "@/lib/neuroProfile";
+import { loadPedsReads } from "@/lib/pedsProfileServer";
+import { shapePedsView } from "@/lib/pedsProfileView";
+import { pedsEquipmentChips } from "@/lib/pedsProfile";
 import { profileKindFor } from "@/lib/profileKind";
 
 const regionLabel = (region: string) =>
@@ -126,6 +130,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
   const specialty = parseConditionSpecialty(specialtyRow?.specialty);
   const isOrthoProfile = specialty === "ortho";
   const isNeuroProfile = specialty === "neuro";
+  const isPedsProfile = specialty === "pediatrics";
   // The neurological chart, read for a neurological profile only and in
   // its own call (neuro_assessments is a new table, so a database without
   // it costs this card -- which says so -- rather than the screen). The
@@ -141,7 +146,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           .order("created_at", { ascending: false })
           .limit(200)
       : Promise.resolve({ data: [] as NeuroAssessmentRow[], error: null }),
-    isNeuroProfile || isOrthoProfile ? getAdminContext() : Promise.resolve(null),
+    isNeuroProfile || isOrthoProfile || isPedsProfile ? getAdminContext() : Promise.resolve(null),
     // The orthopaedic progress record (measurements, goal and steps, phase and
     // status history), each read its own call inside the loader; orthopaedic
     // only, like the Pain Map.
@@ -284,6 +289,25 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
     neuroReads && neuroReads.licence.status === "ok"
       ? { keys: neuroReads.licence.keys, unreadable: false }
       : { keys: [] as string[], unreadable: !!neuroReads };
+
+  // The paediatric layout, read for a paediatric profile only (each read its
+  // own call). What an admin may do follows the routes' own gates: the
+  // examination, a test, the phase and status and a milestone reopen need the
+  // People scope; there is no diary, and the goal planner is the treating
+  // physiotherapist's.
+  const pedsReads = isPedsProfile ? await loadPedsReads(admin, id) : null;
+  const pedsView =
+    isPedsProfile && pedsReads
+      ? shapePedsView(pedsReads, {
+          intake: currentData,
+          voice: "clinician",
+          milestoneOptions: questions.find((q) => q.key === "peds_milestones")?.options ?? [],
+        })
+      : null;
+  const pedsLicence =
+    pedsReads && pedsReads.licence.status === "ok"
+      ? { keys: pedsReads.licence.keys, unreadable: false }
+      : { keys: [] as string[], unreadable: !!pedsReads };
 
   const requestedGrants = (grants ?? []).filter((g) => g.status === "requested");
   const approvedGrants = (grants ?? []).filter((g) => g.status === "approved");
@@ -526,6 +550,28 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
             reopen={canManagePeople}
             enabledLicensed={orthoLicence.keys}
             licenceUnreadable={orthoLicence.unreadable}
+          />
+          <p className="text-xs text-slate-500">
+            Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a new reading rather
+            than editing any past one, since examination history is append-only.
+          </p>
+        </>
+      ) : pedsView && isPedsProfile ? (
+        <>
+          <PedsProfileTop
+            voice="clinician"
+            patientId={id}
+            patientName={patient.full_name}
+            chipLabel={specialtyDef?.label ?? "Paediatric"}
+            view={pedsView}
+            equipmentChips={pedsEquipmentChips(currentData.peds_equipment, pedsView.exam.latest?.findings.equipment)}
+            examRecord={canManagePeople ? { endpoint: "/api/admin/peds-assessments/submit", patientId: id, patientName: patient.full_name } : undefined}
+            canSetStatus={canManagePeople ? { endpoint: "/api/admin/care-status/set" } : null}
+            record={canManagePeople ? { asAdmin: true } : null}
+            planner={false}
+            reopen={canManagePeople}
+            enabledLicensed={pedsLicence.keys}
+            licenceUnreadable={pedsLicence.unreadable}
           />
           <p className="text-xs text-slate-500">
             Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a new reading rather
