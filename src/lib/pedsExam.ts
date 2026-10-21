@@ -177,6 +177,11 @@ export type PedsMilestoneFinding = {
   firstSeenOn?: string;
   /** Required for `emerging` and `achieved`: who saw it. */
   source?: PedsObservationSource;
+  /** True when the date is the family's rough recollection ("around
+   *  March"). Only for a parent's report with a date -- a date the
+   *  physiotherapist saw is exact -- and absent (never `false`) otherwise,
+   *  so an exact date and an old row read the same. */
+  approximate?: boolean;
 };
 
 export type PedsFindings = {
@@ -261,10 +266,13 @@ export function validatePedsFindings(raw: unknown, ctx: PedsValidationContext): 
     // Not assessed: nothing sent, or an empty choice.
     if (value === undefined || value === null) continue;
     if (!isPlainObject(value)) return { ok: false, error: `${milestone.label}: the finding is not readable.` };
-    if (Object.keys(value).some((k) => !["status", "firstSeenOn", "source"].includes(k))) {
-      return { ok: false, error: `${milestone.label}: only a status, the date first seen and who saw it can be recorded.` };
+    if (Object.keys(value).some((k) => !["status", "firstSeenOn", "source", "approximate"].includes(k))) {
+      return {
+        ok: false,
+        error: `${milestone.label}: only a status, the date first seen, whether it is approximate and who saw it can be recorded.`,
+      };
     }
-    const { status, firstSeenOn, source } = value;
+    const { status, firstSeenOn, source, approximate } = value;
     const blank = (v: unknown) => v === undefined || v === null || v === "";
     if (blank(status)) {
       if (blank(firstSeenOn) && blank(source)) continue;
@@ -300,6 +308,24 @@ export function validatePedsFindings(raw: unknown, ctx: PedsValidationContext): 
         ok: false,
         error: `${milestone.label}: add the date it was first seen (for a parent's report, roughly when it started).`,
       };
+    }
+
+    // A rough date: the family's recollection only. A date the
+    // physiotherapist saw is exact, and "about" with no date is nothing.
+    if (approximate !== undefined && approximate !== null && approximate !== false) {
+      if (approximate !== true) {
+        return { ok: false, error: `${milestone.label}: whether the date is approximate must be yes or no.` };
+      }
+      if (out.source !== "reported") {
+        return {
+          ok: false,
+          error: `${milestone.label}: only a date the family reports can be approximate - a date you saw is exact.`,
+        };
+      }
+      if (!out.firstSeenOn) {
+        return { ok: false, error: `${milestone.label}: add the rough date, or leave it out - "about" needs a date.` };
+      }
+      out.approximate = true;
     }
     findings.milestones[milestone.key] = out;
   }
@@ -452,7 +478,7 @@ export function describePedsExamForText(
     for (const m of assessed) {
       const f = findings.milestones[m.key]!;
       const parts: string[] = [statusLabel(f.status)];
-      if (f.firstSeenOn) parts.push(`first seen ${formatClinicDate(f.firstSeenOn)}`);
+      if (f.firstSeenOn) parts.push(`first seen ${f.approximate ? "about " : ""}${formatClinicDate(f.firstSeenOn)}`);
       const age = f.status === "achieved" ? (opts.achievedAgeLabel?.(m.key) ?? null) : null;
       if (age) parts.push(`at ${age}`);
       if (f.status !== "not_yet" && f.source) parts.push(f.source === "seen" ? "seen by the physiotherapist" : "parent reports");

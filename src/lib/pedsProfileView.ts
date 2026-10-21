@@ -20,10 +20,31 @@
 //   - No paediatric diary (DIARY_KINDS_BY_PROFILE_KIND.pediatrics is empty),
 //     so there is no diary read here.
 
-import type { OutcomeMeasurementRow } from "@/lib/outcomeSeries";
-import type { CareGoal, CareMilestone } from "@/lib/careGoals";
-import type { CareStatusEvent } from "@/lib/careStatus";
-import type { Voice } from "@/lib/progressView";
+import {
+  buildMeasureSeries,
+  measureTableRows,
+  parseMeasurementRows,
+  type MeasureSeries,
+  type MeasureTableRow,
+  type MeasurementPoint,
+  type OutcomeMeasurementRow,
+} from "@/lib/outcomeSeries";
+import { shapeMilestones, type CareGoal, type CareMilestone, type MilestoneView } from "@/lib/careGoals";
+import { EMPTY_CARE_STATUS, shapeCareStatus, type ActiveOverride, type CareStatusEvent } from "@/lib/careStatus";
+import { computeProfileStatus, type StatusResult } from "@/lib/profileStatus";
+import { inferPhase, type KeyTile, type Voice } from "@/lib/progressView";
+import { whereThingsStandView, type WhereThingsStandView } from "@/lib/whereThingsStand";
+import {
+  intakeChecklist,
+  pedsConditionLine,
+  pedsKeyTiles,
+  pedsLastReviewAt,
+  pedsSeries,
+  pedsStandSummary,
+  pedsStatusInput,
+  PEDS_PROFILE_KIND,
+  type PedsSessions,
+} from "@/lib/pedsProfile";
 import {
   comparePedsExams,
   pedsExamTally,
@@ -50,6 +71,8 @@ export type PedsReads = {
     | { status: "unreadable" };
   careStatus: { status: "ok"; events: CareStatusEvent[] } | { status: "unreadable" };
   licence: { status: "ok"; keys: string[] } | { status: "unreadable" };
+  /** Sessions finished, and the next one booked. */
+  sessions: ({ status: "ok" } & PedsSessions) | { status: "unreadable" };
   /** Who wrote the current "Where things stand" text: the therapist's name,
    *  null for the clinic's own text or a failed lookup. */
   summaryAuthorName: string | null;
@@ -139,6 +162,9 @@ export type PedsExamView = {
   changes: PedsChange[];
   /** Clinicians only: null in the patient's voice, whatever the chart says. */
   referral: { clinicianText: string } | null;
+  /** Clinicians only: "Walking alone not assessed yet" past 18 months
+   *  corrected, a gap to close and not a referral prompt. */
+  walkingNotAssessed: { clinicianText: string } | null;
 };
 
 export function shapePedsExamView(
@@ -175,5 +201,110 @@ export function shapePedsExamView(
     tally: latest ? pedsExamTally(latest.findings) : null,
     changes: exams.length > 1 ? comparePedsExams(exams[0].findings, exams[1].findings) : [],
     referral: ctx.voice === "clinician" ? windows.referral : null,
+    walkingNotAssessed: ctx.voice === "clinician" ? windows.walkingNotAssessed : null,
+  };
+}
+
+// --- The whole page --------------------------------------------------------------
+
+export type PedsChecklistItem = { label: string; done: boolean };
+
+/** Everything a paediatric Health Profile draws, shaped once so the parent's
+ *  page, the therapist's chart and the admin's chart show the same figures. */
+export type PedsView = {
+  exam: PedsExamView;
+  series: MeasureSeries[];
+  recordedSeries: MeasureSeries[];
+  points: MeasurementPoint[];
+  tableRows: MeasureTableRow[];
+  goal: CareGoal | null;
+  views: MilestoneView[];
+  computed: StatusResult;
+  override: ActiveOverride | null;
+  phase: string | null;
+  phaseIsInferred: boolean;
+  stand: WhereThingsStandView;
+  lastReviewAt: string | null;
+  keyTiles: KeyTile[];
+  conditionLine: string | null;
+  /** The intake's "what they do on their own" list with ticks. */
+  checklist: PedsChecklistItem[];
+  /** The date of birth is on file but not plausible for a child: the chart
+   *  is not drawn and a card asks for it to be checked. */
+  dobImplausible: null | "future" | "adult";
+  measuresFailed: boolean;
+  goalsFailed: boolean;
+  statusFailed: boolean;
+  examsFailed: boolean;
+  birthFailed: boolean;
+};
+
+export function shapePedsView(
+  reads: PedsReads,
+  ctx: { intake: Readonly<Record<string, string>>; voice: Voice; milestoneOptions: readonly string[] }
+): PedsView {
+  const { voice } = ctx;
+  const exam = shapePedsExamView(reads, { intake: ctx.intake, voice });
+  const measuresFailed = reads.measurements.status !== "ok";
+  const points = reads.measurements.status === "ok" ? parseMeasurementRows(reads.measurements.rows) : [];
+  const recordedSeries = buildMeasureSeries(points, { profileKind: PEDS_PROFILE_KIND });
+  const series = pedsSeries({ recorded: recordedSeries, exams: exam.exams });
+
+  const goalsFailed = reads.goals.status !== "ok";
+  const goal = reads.goals.status === "ok" ? reads.goals.activeGoal : null;
+  const planMilestones = reads.goals.status === "ok" && goal ? reads.goals.milestones.filter((m) => m.goalId === goal.id) : [];
+  const views = shapeMilestones(planMilestones, points, reads.nowMs);
+
+  const lastReviewAt = pedsLastReviewAt(series, exam.exams);
+  const statusFailed = reads.careStatus.status !== "ok";
+  const careState =
+    reads.careStatus.status === "ok"
+      ? shapeCareStatus(reads.careStatus.events, { profileKind: PEDS_PROFILE_KIND, latestReviewAt: lastReviewAt })
+      : EMPTY_CARE_STATUS;
+  const computed = computeProfileStatus(pedsStatusInput(series));
+  const inferred = careState.phase ? null : inferPhase(planMilestones, PEDS_PROFILE_KIND);
+
+  const checklist = intakeChecklist(ctx.milestoneOptions, ctx.intake.peds_milestones);
+  const keyTiles = pedsKeyTiles({
+    series,
+    exams: exam.exams,
+    examsFailed: exam.examsFailed,
+    measuresFailed,
+    milestones: planMilestones,
+    voice,
+    checklist,
+    sessions: reads.sessions.status === "ok" ? { done: reads.sessions.done, next: reads.sessions.next } : null,
+  });
+  const stand = whereThingsStandView({
+    written: careState.summary,
+    authorName: reads.summaryAuthorName ?? null,
+    generated: pedsStandSummary({ series, voice }),
+    // The draft is for the parent to read, whoever is typing it.
+    draft: pedsStandSummary({ series, voice: "patient" }),
+  });
+
+  return {
+    exam,
+    series,
+    recordedSeries,
+    points,
+    tableRows: measureTableRows(series, planMilestones, { profileKind: PEDS_PROFILE_KIND }),
+    goal,
+    views,
+    computed,
+    override: careState.override,
+    phase: careState.phase?.phase ?? inferred,
+    phaseIsInferred: !careState.phase && inferred !== null,
+    stand,
+    lastReviewAt,
+    keyTiles,
+    conditionLine: pedsConditionLine(ctx.intake),
+    checklist,
+    dobImplausible: exam.age.status === "implausible" ? exam.age.reason : null,
+    measuresFailed,
+    goalsFailed,
+    statusFailed,
+    examsFailed: exam.examsFailed,
+    birthFailed: exam.birthFailed,
   };
 }

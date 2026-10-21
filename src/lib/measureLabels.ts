@@ -29,6 +29,9 @@ const SHORT_MEASURE: Record<string, { patient: string; clinician: string }> = {
   freezing_episodes: { patient: "Feet getting stuck, per week", clinician: "Freezing per week" },
   pd_symptom_rating: { patient: "Symptom profile", clinician: "Symptom rating (clinic's own)" },
   hoehn_yahr: { patient: "Stage", clinician: "Hoehn and Yahr stage" },
+  peds_milestones_achieved: { patient: "Milestones reached", clinician: "Milestones achieved" },
+  peds_independent_steps: { patient: "Steps on their own", clinician: "Independent steps" },
+  peds_standing_seconds: { patient: "Standing on their own", clinician: "Independent standing" },
 };
 
 /** Short names for the strength-compared-with-the-other-side variants. */

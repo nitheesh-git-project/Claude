@@ -186,3 +186,42 @@ describe("the walking referral prompt", () => {
     expect(view.referral).toBeNull();
   });
 });
+
+describe("walking alone never assessed", () => {
+  const older = { birthDate: "2025-01-01", weeksAtBirth: 30, todayIso: "2026-10-20" }; // 19.3 months corrected
+
+  it("tells clinicians it is not assessed yet - a gap, not a referral prompt", () => {
+    const view = pedsMilestoneWindows({ findings: { milestones: { standing_alone: { status: "not_yet" } } }, ...older });
+    expect(view.walkingNotAssessed?.clinicianText).toBe("Walking alone not assessed yet.");
+    expect(view.referral).toBeNull();
+    // With no exam at all the same gap is true.
+    expect(pedsMilestoneWindows({ findings: null, ...older }).walkingNotAssessed).not.toBeNull();
+  });
+
+  it("is absent under 18 months corrected, once it is assessed, and with no age", () => {
+    expect(pedsMilestoneWindows({ findings: { milestones: {} }, ...CHILD }).walkingNotAssessed).toBeNull();
+    expect(
+      pedsMilestoneWindows({ findings: { milestones: { walking_alone: { status: "not_yet" } } }, ...older }).walkingNotAssessed
+    ).toBeNull();
+    expect(pedsMilestoneWindows({ findings: { milestones: {} }, birthDate: null, weeksAtBirth: null, todayIso: "2026-10-20" }).walkingNotAssessed).toBeNull();
+  });
+});
+
+describe("a rough date on a milestone row", () => {
+  it("is carried to the row, only for a parent's report", () => {
+    const view = pedsMilestoneWindows({
+      findings: {
+        milestones: {
+          sitting_without_support: { status: "achieved", firstSeenOn: "2026-01-01", source: "reported", approximate: true },
+          hands_knees_crawling: { status: "achieved", firstSeenOn: "2026-03-02", source: "reported" },
+          standing_with_help: { status: "achieved", firstSeenOn: "2026-08-20", source: "seen" },
+        },
+      },
+      ...CHILD,
+    });
+    expect(row(view, "sitting_without_support").approximate).toBe(true);
+    expect(row(view, "hands_knees_crawling").approximate).toBe(false);
+    expect(row(view, "standing_with_help").approximate).toBe(false);
+    expect(row(view, "walking_alone").approximate).toBe(false);
+  });
+});

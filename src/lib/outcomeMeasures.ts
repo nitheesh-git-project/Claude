@@ -758,6 +758,29 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     note: "Recorded in the paediatric examination: the date first seen and seen or parent-reported; the corrected age is worked out from it.",
   },
   {
+    // The count of the six WHO milestones recorded as achieved, as at each
+    // paediatric examination (pedsProfile.ts builds the line from the exams;
+    // a milestone achieved stays counted until a later exam finds otherwise).
+    // Derived, so the exam owns it and the measurement route refuses it, and
+    // it carries no threshold or norm: more is further along, nothing says
+    // how many a child "should" have without an age.
+    key: "peds_milestones_achieved",
+    label: "Movement milestones achieved",
+    plainName: "Movement milestones reached",
+    unit: "of 6",
+    min: 0,
+    max: 6,
+    decimals: 0,
+    better: "higher",
+    licence: "free",
+    enabledByDefault: true,
+    videoUse: "with_parent",
+    profileKinds: ["pediatrics"],
+    source: "peds_exam",
+    capture: "calculated",
+    note: "Worked out from the paediatric examinations; the six milestones are recorded there.",
+  },
+  {
     key: "peds_standing_seconds",
     label: "Independent standing time",
     plainName: "Standing without holding on",

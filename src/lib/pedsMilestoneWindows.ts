@@ -61,6 +61,9 @@ export type MilestoneWindowRow = {
   status: PedsMilestoneStatus | "not_assessed";
   source: PedsObservationSource | null;
   firstSeenOn: string | null;
+  /** The family's rough recollection of the date ("about"). Only ever true
+   *  for a parent's report; a date the physiotherapist saw is exact. */
+  approximate: boolean;
   /** The child's age (corrected while it applied) on the day first seen,
    *  for an achieved milestone with a usable date of birth. The chart's dot. */
   achievedAgeMonths: number | null;
@@ -81,6 +84,11 @@ export type MilestoneWindowsView = {
   rows: MilestoneWindowRow[];
   /** Clinicians only. Null when the prompt does not apply. */
   referral: { clinicianText: string } | null;
+  /** Clinicians only: past 18 months (corrected) with walking alone never
+   *  assessed. It is a gap in the record, not a referral prompt -- the
+   *  prompt needs a finding that the child is not walking -- so it says
+   *  "not assessed yet" and nothing more. Null when it does not apply. */
+  walkingNotAssessed: { clinicianText: string } | null;
   verificationNote: string;
 };
 
@@ -133,6 +141,7 @@ export function pedsMilestoneWindows(input: {
         status: "not_assessed" as const,
         source: null,
         firstSeenOn: null,
+        approximate: false,
         achievedAgeMonths: null,
         achievedAgeBasis: null,
         band: "not_assessed" as const,
@@ -181,6 +190,7 @@ export function pedsMilestoneWindows(input: {
       status: finding.status,
       source: finding.source ?? null,
       firstSeenOn: finding.firstSeenOn ?? null,
+      approximate: finding.approximate === true,
       achievedAgeMonths,
       achievedAgeBasis,
       band,
@@ -204,7 +214,15 @@ export function pedsMilestoneWindows(input: {
         }
       : null;
 
-  return { age, rows, referral, verificationNote: PEDS_WINDOWS_VERIFICATION_NOTE };
+  const walkingNotAssessed =
+    walking &&
+    walking.status === "not_assessed" &&
+    age.status === "ok" &&
+    age.windowAgeMonths >= PEDS_WALKING_REFERRAL_MONTHS
+      ? { clinicianText: "Walking alone not assessed yet." }
+      : null;
+
+  return { age, rows, referral, walkingNotAssessed, verificationNote: PEDS_WINDOWS_VERIFICATION_NOTE };
 }
 
 /** The age a milestone came at, worded for the PDF: "10.2 months corrected". */

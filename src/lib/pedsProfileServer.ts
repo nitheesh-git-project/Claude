@@ -63,6 +63,35 @@ export async function loadPedsBirth(admin: AnyClient, patientId: string): Promis
 }
 
 /**
+ * Sessions finished (appointments marked completed) and the next one still
+ * booked, for the sessions tile. Read with the admin client for the same
+ * reason as the date of birth -- a therapist's session sees only their own
+ * appointments, and "how many sessions has this child had" is the clinic's
+ * count -- the caller has already authorised the page. Two calls, so one
+ * failing never reads as zero.
+ */
+export async function loadPedsSessions(admin: AnyClient, patientId: string, nowMs: number): Promise<PedsReads["sessions"]> {
+  try {
+    const [done, next] = await Promise.all([
+      admin.from("appointments").select("id", { count: "exact", head: true }).eq("patient_id", patientId).eq("status", "completed"),
+      admin
+        .from("appointments")
+        .select("slot_time")
+        .eq("patient_id", patientId)
+        .eq("status", "confirmed")
+        .gt("slot_time", new Date(nowMs).toISOString())
+        .order("slot_time", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    if (done.error || next.error) return { status: "unreadable" };
+    return { status: "ok", done: done.count ?? 0, next: typeof next.data?.slot_time === "string" ? next.data.slot_time : null };
+  } catch {
+    return { status: "unreadable" };
+  }
+}
+
+/**
  * Every read behind the paediatric Health Profile, each its own call and run
  * together: the examinations, the date of birth, the recorded measurements
  * (standing time and independent steps live there), the goal and steps, the
@@ -73,9 +102,10 @@ export async function loadPedsBirth(admin: AnyClient, patientId: string): Promis
  */
 export async function loadPedsReads(client: AnyClient, patientId: string): Promise<PedsReads> {
   const admin = createAdminClient();
-  const [exams, birth, measurements, goals, careStatus, licence] = await Promise.all([
+  const [exams, birth, sessions, measurements, goals, careStatus, licence] = await Promise.all([
     loadPedsExams(client, patientId),
     loadPedsBirth(admin, patientId),
+    loadPedsSessions(admin, patientId, Date.now()),
     loadMeasurements(client, patientId),
     loadGoalAndMilestones(client, patientId),
     loadCareStatus(client, patientId, { profileKind: "pediatrics" }),
@@ -91,6 +121,7 @@ export async function loadPedsReads(client: AnyClient, patientId: string): Promi
     goals,
     careStatus: careStatus.status === "ok" ? { status: "ok", events: careStatus.events } : { status: "unreadable" },
     licence: licence.status === "ok" ? { status: "ok", keys: licence.keys } : { status: "unreadable" },
+    sessions,
     summaryAuthorName,
     nowMs,
     todayIso: pedsTodayIso(nowMs),

@@ -297,3 +297,54 @@ describe("parsePedsAssessments", () => {
     expect(parsed[1].findings.gmfcsLevel).toBe(2);
   });
 });
+
+describe("a rough date first seen (approximate)", () => {
+  const reported = { status: "achieved", firstSeenOn: "2026-03-01", source: "reported", approximate: true } as const;
+
+  it("is kept for a parent's report with a date", () => {
+    const f = ok({ milestones: { sitting_without_support: reported } });
+    expect(f.milestones.sitting_without_support).toEqual(reported);
+  });
+
+  it("is dropped when false, so an exact date and an old row read the same", () => {
+    const f = ok({ milestones: { sitting_without_support: { ...reported, approximate: false } } });
+    expect(f.milestones.sitting_without_support).toEqual({ status: "achieved", firstSeenOn: "2026-03-01", source: "reported" });
+    expect("approximate" in f.milestones.sitting_without_support!).toBe(false);
+  });
+
+  it("is refused on a date the physiotherapist saw: a seen date is exact", () => {
+    expect(refused({ milestones: { sitting_without_support: { ...reported, source: "seen" } } })).toMatch(/only a date the family reports/);
+  });
+
+  it("is refused with no date, and when it is not a boolean", () => {
+    expect(
+      refused({ milestones: { hands_knees_crawling: { status: "emerging", source: "reported", approximate: true } } })
+    ).toMatch(/needs a date/);
+    expect(refused({ milestones: { sitting_without_support: { ...reported, approximate: "yes" } } })).toMatch(/yes or no/);
+  });
+
+  it("still gets the date checks: a rough date cannot be in the future or before birth", () => {
+    expect(refused({ milestones: { sitting_without_support: { ...reported, firstSeenOn: "2026-11-01" } } })).toMatch(/future/);
+    expect(refused({ milestones: { sitting_without_support: { ...reported, firstSeenOn: "2025-01-01" } } })).toMatch(/before the child's date of birth/);
+  });
+
+  it("is read back from a stored row, and an old row without it is still valid", () => {
+    const stored = readStoredPedsFindings({ milestones: { sitting_without_support: reported, standing_alone: { status: "achieved", firstSeenOn: "2026-08-01", source: "seen" } } });
+    expect(stored.milestones.sitting_without_support?.approximate).toBe(true);
+    expect(stored.milestones.standing_alone?.approximate).toBeUndefined();
+  });
+
+  it("is said as 'about' in the PDF lines, and only when it is", () => {
+    const lines = describePedsExamForText({
+      milestones: { sitting_without_support: reported, standing_alone: { status: "achieved", firstSeenOn: "2026-08-01", source: "seen" } },
+    });
+    expect(lines.find((l) => l.includes("Sitting"))).toMatch(/first seen about /);
+    expect(lines.find((l) => l.includes("Standing alone"))).not.toMatch(/about/);
+  });
+
+  it("is not a change by itself: a firmer date for the same finding is not progress", () => {
+    const rough = { milestones: { sitting_without_support: reported } };
+    const exact = { milestones: { sitting_without_support: { status: "achieved" as const, firstSeenOn: "2026-03-01", source: "reported" as const } } };
+    expect(comparePedsExams(exact, rough)).toEqual([]);
+  });
+});
