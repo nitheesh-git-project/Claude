@@ -1,3 +1,4 @@
+import { phaseBarState } from "@/lib/phaseSuggestion";
 import { voiceWords } from "@/lib/childVoice";
 import { PHASES_BY_PROFILE_KIND } from "@/lib/milestoneTemplates";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
@@ -18,6 +19,7 @@ import type { Voice } from "@/lib/progressView";
 export default function PhaseBar({
   profileKind,
   currentPhase,
+  suggested = false,
   voice,
   child = false,
 }: {
@@ -26,6 +28,9 @@ export default function PhaseBar({
   profileKind: ProfileKind;
   /** One of the kind's four phase names, or null when none is set. */
   currentPhase: string | null;
+  /** `currentPhase` is the plan's inference, not the physiotherapist's call:
+   *  drawn lighter, dashed and labelled, never as a confirmed stage. */
+  suggested?: boolean;
   voice: Voice;
 }) {
   const w = voiceWords(child);
@@ -36,20 +41,28 @@ export default function PhaseBar({
     <div>
       <ol className="grid grid-cols-4 gap-1.5 sm:gap-2" aria-label={voice === "clinician" ? "Phase of care" : w("Where you are in your care")}>
         {phases.map((phase, i) => {
-          const state = currentIndex < 0 ? "ahead" : i < currentIndex ? "done" : i === currentIndex ? "current" : "ahead";
+          const state = phaseBarState(i, currentIndex, suggested);
           return (
             <li key={phase} aria-current={state === "current" ? "step" : undefined} className="min-w-0">
               <div
                 aria-hidden
-                className={`h-2 rounded-full ${state === "done" ? "bg-teal-700" : state === "current" ? "bg-teal-400" : "bg-slate-200"}`}
+                className={`h-2 rounded-full ${
+                  state === "done"
+                    ? "bg-teal-700"
+                    : state === "current"
+                      ? "bg-teal-400"
+                      : state === "suggested"
+                        ? "border border-dashed border-teal-600 bg-teal-50"
+                        : "bg-slate-200"
+                }`}
               />
               <p
                 className={`mt-1.5 text-[11px] leading-tight sm:text-xs [overflow-wrap:anywhere] ${
-                  state === "current" ? "font-bold text-slate-900" : state === "done" ? "text-slate-700" : "text-slate-600"
+                  state === "current" ? "font-bold text-slate-900" : state === "suggested" ? "font-semibold italic text-teal-900" : state === "done" ? "text-slate-700" : "text-slate-600"
                 }`}
               >
                 {phase}
-                <span className="sr-only">{state === "done" ? " (done)" : state === "current" ? w(" (you are here)") : " (ahead)"}</span>
+                <span className="sr-only">{state === "done" ? " (done)" : state === "current" ? w(" (you are here)") : state === "suggested" ? " (suggested, not confirmed)" : " (ahead)"}</span>
               </p>
             </li>
           );

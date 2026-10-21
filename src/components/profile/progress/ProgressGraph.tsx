@@ -131,7 +131,10 @@ export default function ProgressGraph({
 
   const name = seriesName(selected, voice);
   const unit = selected.unit;
-  const reading = (v: number) => `${formatMeasureValue(v, selected.decimals)}${unitSuffix(unit)}`;
+  const reading = (v: number) => {
+    const shown = formatMeasureValue(v, selected.decimals);
+    return `${shown}${unitSuffix(unit, shown)}`;
+  };
   const first = selected.points[0];
   const now = selected.points[selected.points.length - 1];
   const scale = scaleLine(selected.measureKey);

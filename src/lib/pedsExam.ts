@@ -461,6 +461,26 @@ export function comparePedsExams(current: PedsFindings, previous: PedsFindings):
 }
 
 /**
+ * One "since last time" line in words. The clinician reads the change as it
+ * happened ("emerging -> achieved", "now seen by the physiotherapist (was
+ * parent report)"); a source change is never shown to the parent (the caller
+ * filters it), so the parent form only covers a status move.
+ */
+export function describePedsChange(change: PedsChange, voice: "clinician" | "patient"): string {
+  if (change.id.endsWith(".source")) {
+    const label = change.label.replace(/: who saw it$/, "");
+    const was = change.from === "Parent reports" ? "parent report" : change.from.toLowerCase();
+    const now = change.to.toLowerCase();
+    return `${label}: now ${now} (was ${was})`;
+  }
+  const isMilestone = change.id.startsWith("milestone.");
+  const from = isMilestone ? change.from.toLowerCase() : change.from;
+  const to = isMilestone ? change.to.toLowerCase() : change.to;
+  if (voice === "clinician") return `${change.label}: ${from} \u2192 ${to}`;
+  return `${change.label}: ${from} to ${to}${change.direction === "better" ? " (progress)" : ""}`;
+}
+
+/**
  * The exam as plain lines for the PDF export -- the module that prints never
  * learns a milestone. `achievedAgeLabel` (from pedsMilestoneWindows.ts) adds
  * the age the skill came at, when the caller can work it out. Milestones not

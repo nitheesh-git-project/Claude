@@ -161,6 +161,7 @@ export default function ProfileProgressSection({
           measurements={points}
           loadFailed={goalsFailed}
           reopen={reopen ? { patientId } : undefined}
+          onSetGoal={planner ? () => setPlanning(true) : undefined}
         />
       </section>
 

@@ -119,7 +119,8 @@ export function pickHeadlineSeries(series: readonly MeasureSeries[], max = 4): M
 
 /** The reading beside its unit, "122°", "0.85 m/s", "58". */
 export function readingText(value: number, decimals: number, unit: string): string {
-  return `${formatMeasureValue(value, decimals)}${unitSuffix(unit)}`;
+  const shown = formatMeasureValue(value, decimals);
+  return `${shown}${unitSuffix(unit, shown)}`;
 }
 
 /**

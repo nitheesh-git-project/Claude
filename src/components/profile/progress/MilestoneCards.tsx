@@ -45,6 +45,7 @@ export default function MilestoneCards({
   loadFailed = false,
   renderActions,
   reopen,
+  onSetGoal,
 }: {
   goal: CareGoal | null;
   views: MilestoneView[];
@@ -55,6 +56,10 @@ export default function MilestoneCards({
   loadFailed?: boolean;
   renderActions?: (view: MilestoneView) => ReactNode;
   reopen?: { patientId: string };
+  /** Passed only to a clinician who may use the planner: the empty goal card
+   *  then offers "Set a goal". Anyone else (an admin has no planner) reads
+   *  plain text. */
+  onSetGoal?: () => void;
 }) {
   const clinician = voice === "clinician";
   const w = voiceWords(child);
@@ -92,11 +97,25 @@ export default function MilestoneCards({
             </p>
           </>
         ) : (
-          <p className="mt-1 text-sm text-slate-700">
-            {clinician
-              ? "No goal is set. Ask the patient what they want to be able to do, and write it in their words."
-              : w("Your physiotherapist will set your goal with you, in your own words, at your next visit.")}
-          </p>
+          <div className="mt-1 space-y-3">
+            <p className="text-sm text-slate-700">
+              {!clinician
+                ? w("Your physiotherapist will set your goal with you, in your own words, at your next visit.")
+                : onSetGoal
+                  ? "No goal is set. Ask the patient what they want to be able to do, and write it in their words."
+                  : "No goal set yet"}
+            </p>
+            {clinician && onSetGoal && (
+              <button
+                type="button"
+                onClick={onSetGoal}
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 sm:w-auto print:hidden"
+              >
+                <i aria-hidden className="fa-solid fa-bullseye text-xs" />
+                Set a goal
+              </button>
+            )}
+          </div>
         )}
       </div>
 

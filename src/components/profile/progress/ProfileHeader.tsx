@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import PhaseBar from "@/components/profile/progress/PhaseBar";
 import ProfileStatusPill from "@/components/profile/progress/ProfileStatusPill";
 import WhereThingsStand from "@/components/profile/progress/WhereThingsStand";
+import { describePhase } from "@/lib/phaseSuggestion";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import type { ActiveOverride } from "@/lib/careStatus";
 import type { StatusResult } from "@/lib/profileStatus";
@@ -69,6 +70,7 @@ export default function ProfileHeader({
   controls?: ReactNode;
 }) {
   const clinician = voice === "clinician";
+  const phaseText = describePhase({ phase, suggested: phaseIsInferred, voice, child });
   return (
     <div className="space-y-4">
       <header className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
@@ -116,12 +118,12 @@ export default function ProfileHeader({
           <div className="min-w-0 space-y-2">
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm text-slate-700">
               <span>
-                <strong className="text-slate-900">{phase ?? "Phase not set"}</strong>
-                {phaseIsInferred && phase ? " (suggested by the plan)" : ""}
+                <strong className="text-slate-900">{phaseText.headline}</strong>
+                {phaseText.detail ? ` ${phaseText.detail}` : ""}
               </span>
               {lastReviewAt && <span>Last review {formatClinicDate(lastReviewAt)}</span>}
             </div>
-            <PhaseBar profileKind={profileKind} currentPhase={phase} voice={voice} child={child} />
+            <PhaseBar profileKind={profileKind} currentPhase={phase} suggested={phaseIsInferred} voice={voice} child={child} />
           </div>
         </div>
         {controls && <div className="mt-4 border-t border-slate-100 pt-4">{controls}</div>}

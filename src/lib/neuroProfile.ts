@@ -453,11 +453,11 @@ function lineTile(
   // The tile's label already says "per week"; repeating the unit in the value
   // wrapped it onto two lines on a phone.
   if (s.measureKey === "freezing_episodes") {
-    const bare = (t: string) => t.replace(/ episodes \/ week/g, "");
+    const bare = (t: string) => t.replace(/ episodes? \/ week/g, "");
     return { ...tile, label: rename ?? tile.label, valueText: bare(tile.valueText), deltaText: bare(tile.deltaText), goalText: tile.goalText ? bare(tile.goalText) : null };
   }
   // "10.8 seconds" wrapped a tile's value onto two lines on a phone.
-  const value = tile.valueText.replace(/ seconds$/, " s");
+  const value = tile.valueText.replace(/ seconds?$/, " s");
   return rename ? { ...tile, valueText: value, label: s.medicationState ? `${rename} (${s.medicationState.toUpperCase()})` : rename } : { ...tile, valueText: value };
 }
 

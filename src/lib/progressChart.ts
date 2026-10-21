@@ -21,6 +21,7 @@
 //   - A flat series and a one-point series are real cases (the first
 //     review; a value that did not move) and get a sensible scale, never a
 //     division by zero.
+import { unitForValue } from "@/lib/unitPlural";
 
 import type { BetterDirection } from "@/lib/outcomeMeasures";
 
@@ -294,8 +295,8 @@ export function formatMeasureValue(value: number, decimals: number): string {
 /** The unit as it follows a number: degrees and per cent attach, a range
  *  label ("0-80", "stage 0-4") says nothing after a number, a word gets a
  *  space. */
-export function unitSuffix(unit: string): string {
-  const u = unit.trim();
+export function unitSuffix(unit: string, shownValue?: string | number): string {
+  const u = shownValue === undefined ? unit.trim() : unitForValue(unit.trim(), shownValue);
   if (!u) return "";
   if (u === "%") return "%";
   if (u === "degrees") return "°";
@@ -305,7 +306,8 @@ export function unitSuffix(unit: string): string {
 }
 
 export function formatReading(value: number, decimals: number, unit: string): string {
-  return `${formatMeasureValue(value, decimals)}${unitSuffix(unit)}`;
+  const shown = formatMeasureValue(value, decimals);
+  return `${shown}${unitSuffix(unit, shown)}`;
 }
 
 export type DeltaTone = "good" | "bad" | "neutral";
@@ -334,7 +336,7 @@ export function describeDelta(input: {
   if (!finite(first) || !finite(now) || change === null) return null;
   const amount = Math.abs(now - first);
   if (amount < EPSILON) return { text: "No change", amount: 0, tone: "neutral" };
-  const shown = `${formatMeasureValue(amount, decimals)}${unitSuffix(unit)}`;
+  const shown = formatReading(amount, decimals, unit);
   const direction = now > first ? "Up" : "Down";
   if (change === "no_change") return { text: `${direction} ${shown}, within the usual error`, amount, tone: "neutral" };
   return { text: `${direction} ${shown}`, amount, tone: change === "better" ? "good" : change === "worse" ? "bad" : "neutral" };

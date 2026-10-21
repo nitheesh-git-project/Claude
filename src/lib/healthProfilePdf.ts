@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { unitForValue } from "@/lib/unitPlural";
 import {
   PAIN_MAP_REGIONS,
   formatPainOutOfTen,
@@ -491,7 +492,7 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
       cur.text(`Entries from ${diary.firstOn} to ${diary.lastOn}.`, { size: 9, color: MUTED, gap: 4 });
       for (const line of diary.lines) {
         cur.need(30);
-        cur.text(`${line.label}: ${line.total} ${line.unit}`, { size: 11, bold: true, gap: 1 });
+        cur.text(`${line.label}: ${line.total} ${unitForValue(line.unit, line.total)}`, { size: 11, bold: true, gap: 1 });
         cur.text(`${line.patientReported} patient reported, ${line.confirmed} confirmed by a physiotherapist`, { size: 9.5, indent: 12, gap: 4 });
       }
       if (diary.freezingWeeks.length > 0) {

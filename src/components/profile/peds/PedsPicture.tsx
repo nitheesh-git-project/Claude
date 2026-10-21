@@ -5,7 +5,7 @@ import MilestoneWindowChart from "@/components/profile/peds/MilestoneWindowChart
 import PedsExamDialog from "@/components/profile/peds/PedsExamDialog";
 import { useRouter } from "@/lib/useRouter";
 import { formatClinicDate } from "@/lib/formatDateTime";
-import { gmfcsLabel, GMFCS_LEVELS } from "@/lib/pedsExam";
+import { describePedsChange, gmfcsLabel, GMFCS_LEVELS } from "@/lib/pedsExam";
 import { pedsChartUnplacedReason } from "@/lib/pedsChartGeometry";
 import type { PedsChecklistItem, PedsExamView } from "@/lib/pedsProfileView";
 import type { Voice } from "@/lib/progressView";
@@ -241,13 +241,7 @@ export default function PedsPicture({
                 )
                 .map((c) => (
                   <li key={c.id} className="[overflow-wrap:anywhere]">
-                    <span className="font-semibold">{c.label}:</span> {c.from}{" "}
-                    to {c.to}
-                    {clinician
-                      ? ` (${c.direction})`
-                      : c.direction === "better"
-                        ? " - progress"
-                        : ""}
+                    {describePedsChange(c, clinician ? "clinician" : "patient")}
                   </li>
                 ))}
             </ul>

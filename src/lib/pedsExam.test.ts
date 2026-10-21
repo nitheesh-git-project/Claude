@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { WHO_MOTOR_MILESTONES } from "@/lib/outcomeMeasures";
 import {
   comparePedsExams,
+  describePedsChange,
   describePedsExamForText,
   GMFCS_LEVELS,
   isPedsExamEmpty,
@@ -251,6 +252,23 @@ describe("comparePedsExams", () => {
       { id: "gmfcs", label: "GMFCS level", from: "Level III", to: "Level II", direction: "changed" },
       { id: "equipment", label: "Orthoses and equipment", from: "Ankle splints", to: "Ankle splints and a walker", direction: "changed" },
     ]);
+  });
+
+  it("words each change in the clinician's voice, and the parent's for a status move", () => {
+    const c = (id: string, label: string, from: string, to: string, direction: "better" | "worse" | "changed") => ({ id, label, from, to, direction });
+    expect(describePedsChange(c("milestone.crawling", "Hands-and-knees crawling", "Emerging", "Achieved", "better"), "clinician")).toBe(
+      "Hands-and-knees crawling: emerging \u2192 achieved"
+    );
+    expect(
+      describePedsChange(
+        c("milestone.sitting_without_support.source", "Sitting without support: who saw it", "Parent reports", "Seen by the physiotherapist", "changed"),
+        "clinician"
+      )
+    ).toBe("Sitting without support: now seen by the physiotherapist (was parent report)");
+    expect(describePedsChange(c("gmfcs", "GMFCS level", "Level III", "Level II", "changed"), "clinician")).toBe("GMFCS level: Level III \u2192 Level II");
+    expect(describePedsChange(c("milestone.crawling", "Hands-and-knees crawling", "Emerging", "Achieved", "better"), "patient")).toBe(
+      "Hands-and-knees crawling: emerging to achieved (progress)"
+    );
   });
 
   it("never reports a finding new to this exam against a blank", () => {
