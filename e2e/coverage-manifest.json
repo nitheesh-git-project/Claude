@@ -1569,6 +1569,22 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "peds-exam.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/roster.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -4059,6 +4075,32 @@
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "therapist.peds-exam",
+      "runner": "therapist",
+      "title": "A therapist records a paediatric examination (WHO milestones, seen or parent-reported) and the family reads it; the route refuses what the chart does not have and a patient not recorded as paediatric; an unassigned therapist is refused and reads nothing; an admin records one with an audit row; a paediatric Done follows the gate's switch",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "peds-exam.spec.ts",
+          "tests": [
+            "PE-001",
+            "PE-002",
+            "PE-003",
+            "PE-004",
+            "PE-004b",
+            "PE-005"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes append-only paediatric exams, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; no screen draws the exam yet (phase 5b), so it drives the routes and the rows, and the Done gate is asserted in whichever state PEDS_EXAM_REQUIRED_FOR_DONE is in (off until SessionPedsExamStep ships). Validation, change since last, corrected age, the milestone windows, the referral prompt and the caregiver line are unit-tested in src/lib/pedsExam.test.ts, pedsAge.test.ts, pedsMilestoneWindows.test.ts and pedsProfileView.test.ts; the trigger in scripts/append-only-sql-checks.sql.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/roster.md"
       ]
     },
     {

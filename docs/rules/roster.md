@@ -213,8 +213,12 @@ Availability as periods over hour rows, specialisation as a value, what readines
   **orthopaedic** patient, 409 `neuro_exam_required` for a **neurological**
   one (`missingSessionExam`, `src/lib/sessionCompletion.ts`; see
   `clinical.md`). A paediatric patient's session finishes on the note
-  alone, and the dialog's exam step stands aside
-  (`e2e/finish-session.spec.ts`, `e2e/neuro-exam.spec.ts` NE-000). Admins and
+  alone, and the dialog's exam step stands aside - **for now**: the owner
+  has decided it will need the paediatric exam (409 `peds_exam_required`,
+  built), switched on by `PEDS_EXAM_REQUIRED_FOR_DONE` in the same change as
+  the note dialog's `SessionPedsExamStep` (phase 5b), never before it
+  (`e2e/finish-session.spec.ts`, `e2e/neuro-exam.spec.ts` NE-000,
+  `e2e/peds-exam.spec.ts` PE-005). Admins and
   No-show are exempt. The "not started yet" line wraps under the buttons
   (`basis-full`) so No-show stays beside Done.
   **The admin half of it is a Sessions write, and asks for `manage`.** This

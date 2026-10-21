@@ -266,7 +266,7 @@ This is the regression that guards the whole design. See `XCFG-ROSTER-001`.
 3. Call `POST /api/appointments/complete-session` directly for an orthopaedic and a neurological session that have a note but no exam this session. Repeat step 2 with the debug bar's clock moved to just after a future session's start.
 
 **Expected Result**
-* Step 1: the orthopaedic note's first step is **Pain Map** with **Update the Pain Map**, and finishing is refused with *"Update the Pain Map for this session before finishing it."* The neurological note's first step is **Neurological examination** with **Record the examination** - never a Pain Map - and finishing is refused with *"Record the neurological examination for this session before finishing it."* The paediatric note has no exam step and finishes on the note alone. Nothing is completed by a refusal.
+* Step 1: the orthopaedic note's first step is **Pain Map** with **Update the Pain Map**, and finishing is refused with *"Update the Pain Map for this session before finishing it."* The neurological note's first step is **Neurological examination** with **Record the examination** - never a Pain Map - and finishing is refused with *"Record the neurological examination for this session before finishing it."* The paediatric note has no exam step and finishes on the note alone - until the paediatric exam step ships (phase 5b), when it will ask for the paediatric examination the same way (`THR-HP-005k` step 7). Nothing is completed by a refusal.
 * Step 2: the step reads *"Recorded for this session at <time>."* and the session finishes; the rating form follows.
 * Step 3: the route answers **409** `pain_map_required` (orthopaedic) and **409** `neuro_exam_required` with *"Record the neurological examination for this session before marking it done."* (neurological). A Pain Map reading does not satisfy a neurological session and a neurological exam does not satisfy an orthopaedic one. Under the simulated clock the exam just recorded counts for that session (the window moves with the debug clock), exactly as for the Pain Map.
 
@@ -442,6 +442,25 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Preconditions.** A neurological patient with a recent review (an exam or a test), a Parkinson's patient, and a patient-written fall dated after the review (`PAT-HP-022`).
 **Steps.** As the assigned therapist, open the chart: read the pill, find **Waiting for you to confirm**, press **Confirm** on the fall. Reload. As an admin open the condition detail. As an unassigned therapist, try the chart.
 **Expected Result.** Before: the fall is shown *Patient reported* and the pill is **not** "Needs attention" because of it. After **Confirm** (44 px, one press, a toast): the entry moves out of the waiting box, reads *confirmed*, stays the patient's own account, and the pill reads **Needs attention** with *A new fall is recorded since the last review*; after the next review it returns to the numbers. An overrule still wins. The admin sees the diary with **no** Confirm and **no** Log button. The unassigned therapist cannot open the chart. With the diary unreadable, a line under the pill says a new fall could not be checked, and the falls tile says *Unavailable*.
+
+#### `THR-HP-005k` - The paediatric examination, at the route · P0 **[API]**
+**Preconditions.** A paediatric patient (born 1 Jun 2025 on the profile, intake **Weeks at birth** *30 weeks*, caregiver *Priya Sharma*, *Mother*) with a **completed** session with Therapist A; a neurological patient with a completed session with Therapist A; Therapist B has never been on either. No screen draws the exam yet (phase 5b).
+**Steps.**
+1. As Therapist A, `POST /api/therapist/peds-assessments/submit` `{ "patientId": "<child>", "findings": { "milestones": { "sitting_without_support": { "status": "achieved", "firstSeenOn": "2026-01-10", "source": "seen" }, "hands_knees_crawling": { "status": "achieved", "firstSeenOn": "2026-03-02", "source": "reported" }, "walking_alone": { "status": "not_yet" } }, "equipment": "Ankle splints" } }`. Read the row in `peds_assessments`.
+2. Repeat with each of: an unknown milestone; `achieved` with no `firstSeenOn`; a `firstSeenOn` before the date of birth, and one tomorrow; `emerging` with no `source`; `"standingSeconds": 8`; `"gmfcsLevel": 6`; `{}`; a body that is not JSON.
+3. Post a valid exam for the **neurological** patient as Therapist A, and through `/api/admin/peds-assessments/submit` as an admin.
+4. As Therapist B, and as the child's family, post the step-1 exam. As Therapist B read `peds_assessments` for the child through the browser's Supabase client.
+5. As an admin, post `{ "milestones": { "standing_with_help": { "status": "emerging", "source": "reported" } }, "gmfcsLevel": 2 }` for the child; open All Logs. As an admin without the People scope, post it again.
+6. With the service role, try to update and delete the step-1 row.
+7. Finish a paediatric session as Therapist A with only the session note written.
+**Expected Result.**
+* Step 1: **200**; one row, `submitted_by_role: "therapist"`, `schema_version` 1, the three milestones stored as sent and the other three **absent** (not assessed), never "not yet".
+* Step 2: every one **400** with a sentence saying what to fix; standing time and steps are refused with *recorded with Record a test*; nothing is written.
+* Step 3: both **400** `not_paediatric`.
+* Step 4: Therapist B and the family **403**; Therapist B reads **no** rows.
+* Step 5: **200**, `submitted_by_role: "admin"`, and a *Recorded a paediatric exam* entry (`peds_assessment.create`); without the People scope **403**.
+* Step 6: both raise *append-only*.
+* Step 7: the Done goes through on the note alone: the paediatric exam is **not yet required** (owner's decision that it will be; switched on with the note dialog's paediatric exam step, phase 5b). When it is on, the same Done is refused **409** `peds_exam_required` until this therapist records an exam from an hour before the slot.
 
 #### `THR-HP-005b` - The neurological examination chart · P0
 

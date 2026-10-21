@@ -2456,9 +2456,9 @@ everything else.
   both exam-submit routes refuse such a patient rather than accumulating
   rows nothing renders. Those two specialties get a progress line anyway,
   read back out of the approved submissions already on file - independence
-  over time, or milestones reached. The paediatric examination layer
-  (posture and milestones) is still deferred, and `SpecialtyExamPanel` says
-  so in its place.
+  over time, or milestones reached. The paediatric examination layer now
+  exists on the server (`peds_assessments`, phase 5a, below); until its
+  screens ship in phase 5b, `SpecialtyExamPanel` still says it is coming.
 
   **The neurological examination chart** is the neurological profile's
   exam layer (`neuro_assessments`, `src/lib/neuroExam.ts`, `NeuroExamPanel`).
@@ -2583,6 +2583,29 @@ everything else.
   the status pill to *Needs attention* only after a physiotherapist has
   confirmed it. The patient's PDF carries the diary as counts. Rules:
   `docs/rules/clinical.md`.
+
+  **Paediatric examination (phase 5a, server side).** A child's examination
+  records the six WHO movement milestones (sitting without support,
+  hands-and-knees crawling, standing and walking with help, standing and
+  walking alone): each *not yet*, *emerging* or *achieved*, with the date
+  first seen and whether the physiotherapist saw it or the parent reported
+  it; a milestone nobody looked at is "not assessed", never "not yet". GMFCS
+  (Level I-V) for a child with cerebral palsy and an orthoses and equipment
+  note are optional. Standing time and independent steps are recorded with
+  **Record a test** (best of three), not in the examination. The child's age
+  is shown both ways - chronological and corrected for prematurity while
+  under two and born before 37 weeks - from the date of birth on the patient
+  record and the intake's new optional **Weeks at birth** question; each
+  milestone is placed against its WHO window, gently worded for the family,
+  with a clinicians-only prompt when a child is not walking alone by 18
+  months corrected. Every threshold is to be verified by a senior
+  physiotherapist. Routes: `/api/therapist/peds-assessments/submit` (assigned
+  therapist with a started session) and `/api/admin/peds-assessments/submit`
+  (People scope, audited). The family's PDF prints the latest examination.
+  The owner has decided a paediatric Done will require the examination; it
+  is switched on together with the note dialog's paediatric exam step in
+  phase 5b, so until then a paediatric session finishes on the note alone.
+  There is no paediatric diary. Rules: `docs/rules/clinical.md`.
 
 Both question banks (Health Profile and Pain Map) are managed from
 one place - a **Manage Questions** section at the top of the admin's

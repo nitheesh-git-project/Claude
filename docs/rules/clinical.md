@@ -53,7 +53,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      `specialty` column on `pain_assessments`. Its components import
      nothing from `painMap.ts` (no `PAIN_MAP_REGIONS`, no `parseAreaPain`);
      that import boundary is what keeps the rule true in practice. The
-     paediatric layer is still deferred and still says so.
+     paediatric layer followed the same shape (phase 5a, below): its own
+     table (`peds_assessments`), its own module (`src/lib/pedsExam.ts`),
+     nothing imported from `painMap.ts` or `neuroExam.ts`.
 
   **The therapist owns the first fill, and it is not reviewed.** A
   patient's record does not exist until a therapist triages them
@@ -125,7 +127,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   inputs, and every reading figure on the page is derived in
   `src/lib/healthProfileSummary.ts`, not inside a component - that module
   now carries `orthoSnapshot` / `neuroSnapshot` / `pediatricsSnapshot`
-  plus `intakeTrendSeries()`, which gives the two specialties with no
+  plus `intakeTrendSeries()`, which gave the two specialties that had no
   exam layer a progress line read back out of the approved submissions
   already on file (no new table, no cron).
 
@@ -521,9 +523,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      (`SessionExamStep` -> `SessionNeuroExamStep`). Which layer is required
      is one decision, `requiredSessionExam()` / `missingSessionExam()` in
      `sessionCompletion.ts`: Pain Map for ortho, neurological exam for
-     neuro, **nothing for paediatrics** (no layer to record in yet), and
-     neither layer stands in for the other. A failed read of the required
-     layer answers 503, never a pass.
+     neuro, the paediatric exam for paediatrics **once its dialog step
+     ships** (phase 5a below: built, and switched off by
+     `PEDS_EXAM_REQUIRED_FOR_DONE` until then), and no layer stands in for
+     another. A failed read of the required layer answers 503, never a pass.
   7. **Every read of it is its own call**, so a database without the table
      costs the card - which says it could not load, rather than "nothing
      recorded" - and not the page. `e2e/neuro-exam.spec.ts`,
@@ -546,11 +549,13 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      **Every threshold in it is marked "to be verified by a senior
      physiotherapist against its source"** and none reaches a patient before
      that review; a cut-off means "higher risk", never a diagnosis.
-  2. **The Pain Map and the neurological exam are not copied.** Pain stays
+  2. **The Pain Map and the two exams are not copied.** Pain stays
      on the Pain Map (orthopaedic only, `source: "pain_map"`); Berg and its
      item scores, the Modified Ashworth and MRC grades, and a neurological
      patient's 10-metre walk and TUG stay in `neuro_assessments`
-     (`neuroExam` on the entry). `measurementSource()` says where a graph
+     (`neuroExam` on the entry); a child's WHO milestones and GMFCS level stay
+     in `peds_assessments` (`source: "peds_exam"`, phase 5a), while standing
+     time and independent steps are measurements. `measurementSource()` says where a graph
      reads each one, and `validateMeasurement()` refuses to store a measure
      another layer owns - two sources for one line is a "change" that is only
      a change of table.
@@ -1020,6 +1025,92 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   `src/lib/neuroProfile.test.ts`, `neuroProfileView.test.ts`,
   `patientDiaryForm.test.ts`, `diaryExport.test.ts`; `e2e/neuro-health-profile.spec.ts`;
   QA `THR-HP-005i`, `THR-HP-005j`, `PAT-HP-022`.
+- **The paediatric examination is a milestone chart, and "not assessed" is
+  never "not yet" (Health Profile redesign, phase 5a: the server side; the
+  screens are phase 5b).** `peds_assessments` - one append-only row per
+  examination (trigger, like `neuro_assessments`), `findings` jsonb in the
+  shape `validatePedsFindings()` (`src/lib/pedsExam.ts`) accepts,
+  `schema_version` = `PEDS_EXAM_VERSION`. Eight rules:
+  1. **Six WHO milestones, one table of windows.** The windows (1st to 99th
+     percentile) and the "counts as reached when" definitions live once, in
+     `WHO_MOTOR_MILESTONES` (`outcomeMeasures.ts`); `pedsExam.ts` refuses to
+     load if its keys drift from it. Each milestone is `not_yet` /
+     `emerging` / `achieved`; emerging and achieved need **who saw it**
+     (`seen` - in a session or on a parent's video - or `reported`, the
+     handbook's "parent reports"), achieved needs the **date first seen**
+     (never after the clinic's today, never before the date of birth), and
+     not yet has no date. A milestone nobody looked at is **absent**; "not
+     yet" means looked for and not there. GMFCS (Level I-V, for a child with
+     cerebral palsy) classifies and is never better or worse; the orthoses
+     and equipment note and the note are free text.
+  2. **One owner per measure.** The exam owns the WHO milestones and GMFCS
+     (the registry's `who_motor_milestone` and `gmfcs` are `source:
+     "peds_exam"`, so the measurement route refuses them). **Standing time
+     and independent steps stay in `outcome_measurements`**, where their
+     three-try best-kept rule, the Record a test timer and the starter
+     milestones that link to them already live; the exam refuses them by
+     name and points at Record a test. Two tables for one line is a change
+     that is only a change of table.
+  3. **Change is only between findings recorded both times**
+     (`comparePedsExams()`): along not yet -> emerging -> achieved is better,
+     back is worse, a parent's report now seen in a session is "changed".
+  4. **Corrected age is derived, never stored** (`pedsAge.ts`): the date of
+     birth is the patient record's own `profiles.date_of_birth` (the
+     patient is the child; the intake does not ask again), weeks at birth is
+     the paediatric intake's optional `peds_weeks_at_birth` (22-44, the
+     set's `schema_version` 2, at the end of the set, so nobody is nagged -
+     `intakeNeedsAnotherLook` needs a required question). Corrected only
+     below 37 weeks and under 24 months chronological; no weeks is
+     chronological age, said so; no date of birth is "not on file"; one that
+     makes the patient an adult is implausible and never charted. "Today" is
+     the clinic's day (`pedsTodayIso`).
+  5. **Where a milestone sits is derived** (`pedsMilestoneWindows.ts`): an
+     achieved one by the corrected age on the day first seen (within, or
+     later than most; earlier than most is still within), one not there by
+     the age today (before, within or past its window). The parent's words
+     are gentle and never diagnostic ("Came a little later than most
+     children"); **the referral prompt - not walking alone by 18 months
+     corrected - is for clinicians only** (`referral` is null in the
+     patient's voice and never printed in the family's PDF). Every window
+     and line is marked *to be verified by a senior physiotherapist*.
+  6. **Same gate and posture as the neurological exam.** Assigned, active,
+     with a started or delivered session on the debug clock
+     (`/api/therapist/peds-assessments/submit` mirrors
+     `peds_assessments_insert_assigned_therapist`; the note and equipment
+     note are scanned, `peds_assessment_note`); an admin through
+     `/api/admin/peds-assessments/submit` (`requireAdminScope("people")`,
+     `peds_assessment.create`). Both share `pedsExamRoute.ts`, 400
+     `not_paediatric` for a patient not recorded as paediatric (503 when
+     that cannot be read), validate against the child's date of birth, and
+     503 on a database without the table. Reads follow the clinical-access
+     rule plus the family's own and the admin's.
+  7. **Done will require it, and does not yet.** The owner's decision is
+     that a paediatric Done needs this exam like the other two: the 409
+     `peds_exam_required`, the `sessionExamWindowStartMs` window and the
+     complete-session read are built. But the note dialog cannot record one
+     until `SessionPedsExamStep` ships (5b), and a gate with no control to
+     satisfy it would block every paediatric session, so
+     `PEDS_EXAM_REQUIRED_FOR_DONE` is false; 5b sets it true in the change
+     that mounts the step in `SessionExamStep`, and a unit test fails if it
+     is on without that arm.
+  8. **What the screens get** (5b): `loadPedsReads()` / `loadPedsExams()`
+     (`pedsProfileServer.ts`, each ok or unreadable - an unreadable exam
+     read is never "nothing recorded"; the date of birth is read with the
+     admin client and never leaves the server, only the ages do) and
+     `shapePedsExamView()` (`pedsProfileView.ts`): the header's provenance
+     from the caregiver pre-step (*Told by Priya Sharma, her mother*,
+     "their" when the child's gender is not on file; a relationship it does
+     not know stays in the caregiver's words) - while **"Where things
+     stand" keeps the physiotherapist's byline**; the latest and first
+     exams with a chart for each, the tally and the change. **No paediatric
+     diary** (`DIARY_KINDS_BY_PROFILE_KIND.pediatrics` stays empty). The PDF
+     export prints the latest exam with the age line and the age each
+     milestone came at, complete or refused; the JSON export carries every
+     row.
+  `src/lib/pedsExam.test.ts`, `pedsAge.test.ts`, `pedsMilestoneWindows.test.ts`,
+  `pedsProfileView.test.ts`, `sessionCompletion.test.ts`;
+  `e2e/peds-exam.spec.ts`; `scripts/append-only-sql-checks.sql`; QA
+  `THR-HP-005k`, `PAT-HP-023`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate

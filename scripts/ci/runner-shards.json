@@ -97,6 +97,7 @@
       "mobile-smoke.spec.ts": 40,
       "navigation-feedback.spec.ts": 19,
       "neuro-exam.spec.ts": 45,
+      "peds-exam.spec.ts": 30,
       "numeric-input.spec.ts": 7,
       "pain-trend.spec.ts": 7,
       "patient-cancel-cutoff.spec.ts": 11,
