@@ -22,7 +22,11 @@
 
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { formatAgeMonths, type PedsAgeView } from "@/lib/pedsAge";
-import { achievedAgeLabel, type MilestoneWindowRow, type MilestoneWindowsView } from "@/lib/pedsMilestoneWindows";
+import {
+  achievedAgeLabel,
+  type MilestoneWindowRow,
+  type MilestoneWindowsView,
+} from "@/lib/pedsMilestoneWindows";
 import type { Voice } from "@/lib/progressView";
 
 export const PEDS_CHART_MIN_MONTHS = 24;
@@ -68,17 +72,53 @@ export type ChartGeometry = {
   rows: ChartRow[];
 };
 
-export const PEDS_CHART_LEGEND: readonly { id: string; label: string; marker: ChartMarker | "bar" | "today" }[] = [
-  { id: "bar", label: "Age range in which most children reach it", marker: "bar" },
-  { id: "seen", label: "Reached - seen by the physiotherapist", marker: { shape: "dot", fill: "solid", dashed: false, xPct: 0 } },
-  { id: "told", label: "Reached - told by parents", marker: { shape: "dot", fill: "hollow", dashed: false, xPct: 0 } },
-  { id: "about", label: "Dashed ring - the date is approximate", marker: { shape: "dot", fill: "hollow", dashed: true, xPct: 0 } },
-  { id: "emerging", label: "Starting to come (shown at today's age)", marker: { shape: "diamond", fill: "half", dashed: false, xPct: 0 } },
-  { id: "not_yet", label: "Not yet (shown at today's age)", marker: { shape: "diamond", fill: "hollow", dashed: false, xPct: 0 } },
-  { id: "today", label: "Today", marker: "today" },
+export const PEDS_CHART_LEGEND: readonly {
+  id: string;
+  label: string;
+  patientLabel: string;
+  marker: ChartMarker | "bar" | "today";
+}[] = [
+  {
+    id: "bar",
+    label: "Age range in which most children reach it",
+    patientLabel: "Age range in which most children reach it",
+    marker: "bar",
+  },
+  {
+    id: "seen",
+    label: "Reached - seen by the physiotherapist",
+    patientLabel: "Reached - seen in a session",
+    marker: { shape: "dot", fill: "solid", dashed: false, xPct: 0 },
+  },
+  {
+    id: "told",
+    label: "Reached - told by parents",
+    patientLabel: "Reached - you told us",
+    marker: { shape: "dot", fill: "hollow", dashed: false, xPct: 0 },
+  },
+  {
+    id: "about",
+    label: "Dashed ring - the date is approximate",
+    patientLabel: "Dashed ring - the date is approximate",
+    marker: { shape: "dot", fill: "hollow", dashed: true, xPct: 0 },
+  },
+  {
+    id: "emerging",
+    label: "Emerging (shown at today's age)",
+    patientLabel: "Starting to come (shown at today's age)",
+    marker: { shape: "diamond", fill: "half", dashed: false, xPct: 0 },
+  },
+  {
+    id: "not_yet",
+    label: "Not yet (shown at today's age)",
+    patientLabel: "Not yet (shown at today's age)",
+    marker: { shape: "diamond", fill: "hollow", dashed: false, xPct: 0 },
+  },
+  { id: "today", label: "Today", patientLabel: "Today", marker: "today" },
 ];
 
-const clampPct = (n: number) => Math.round(Math.min(100, Math.max(0, n)) * 100) / 100;
+const clampPct = (n: number) =>
+  Math.round(Math.min(100, Math.max(0, n)) * 100) / 100;
 
 /** The axis length: 24 months, or the next 6 above anything on it, to 48. */
 export function chartAxisMax(view: MilestoneWindowsView): number {
@@ -86,26 +126,38 @@ export function chartAxisMax(view: MilestoneWindowsView): number {
   for (const r of view.rows) {
     extent = Math.max(extent, r.windowMonths[1], r.achievedAgeMonths ?? 0);
   }
-  if (view.age.status === "ok") extent = Math.max(extent, view.age.windowAgeMonths);
+  if (view.age.status === "ok")
+    extent = Math.max(extent, view.age.windowAgeMonths);
   const rounded = Math.ceil((extent + 1) / 6) * 6;
-  return Math.min(PEDS_CHART_MAX_MONTHS, Math.max(PEDS_CHART_MIN_MONTHS, rounded));
+  return Math.min(
+    PEDS_CHART_MAX_MONTHS,
+    Math.max(PEDS_CHART_MIN_MONTHS, rounded),
+  );
 }
 
 export function chartTicks(axisMax: number): ChartTick[] {
   const step = axisMax <= 24 ? 3 : 6;
   const out: ChartTick[] = [];
-  for (let m = 0; m <= axisMax + 1e-9; m += step) out.push({ months: m, xPct: clampPct((m / axisMax) * 100), label: String(m) });
+  for (let m = 0; m <= axisMax + 1e-9; m += step)
+    out.push({
+      months: m,
+      xPct: clampPct((m / axisMax) * 100),
+      label: String(m),
+    });
   return out;
 }
 
-const windowText = (w: readonly [number, number]) => `${w[0]} to ${w[1]} months`;
+const windowText = (w: readonly [number, number]) =>
+  `${w[0]} to ${w[1]} months`;
 
 function statusWords(row: MilestoneWindowRow, voice: Voice): string {
   const clinician = voice === "clinician";
   switch (row.status) {
     case "achieved": {
       const age = achievedAgeLabel(row);
-      return age ? `Reached at ${row.approximate ? "about " : ""}${age}` : "Reached";
+      return age
+        ? `Reached at ${row.approximate ? "about " : ""}${age}`
+        : "Reached";
     }
     case "emerging":
       return clinician ? "Emerging" : "Starting to come";
@@ -122,9 +174,13 @@ function whenWords(row: MilestoneWindowRow): string {
 }
 
 function whoWords(row: MilestoneWindowRow, voice: Voice): string {
-  if (row.status === "not_assessed" || row.status === "not_yet" || !row.source) return "";
-  if (voice === "patient") return row.source === "seen" ? "Seen in a session" : "You told us";
-  return row.source === "seen" ? "Seen by the physiotherapist" : "Parent reports";
+  if (row.status === "not_assessed" || row.status === "not_yet" || !row.source)
+    return "";
+  if (voice === "patient")
+    return row.source === "seen" ? "Seen in a session" : "You told us";
+  return row.source === "seen"
+    ? "Seen by the physiotherapist"
+    : "Parent reports";
 }
 
 /**
@@ -133,7 +189,10 @@ function whoWords(row: MilestoneWindowRow, voice: Voice): string {
  * implausible): the bars and ticks are still computed, but no marker is
  * placed and the component says why instead of drawing a guess.
  */
-export function pedsChartGeometry(view: MilestoneWindowsView, voice: Voice): ChartGeometry {
+export function pedsChartGeometry(
+  view: MilestoneWindowsView,
+  voice: Voice,
+): ChartGeometry {
   const axisMax = chartAxisMax(view);
   const x = (months: number) => clampPct((months / axisMax) * 100);
   const age = view.age;
@@ -144,16 +203,32 @@ export function pedsChartGeometry(view: MilestoneWindowsView, voice: Voice): Cha
   const rows: ChartRow[] = view.rows.map((r) => {
     let marker: ChartMarker | null = null;
     if (r.status === "achieved" && r.achievedAgeMonths !== null) {
-      marker = { shape: "dot", fill: r.source === "seen" ? "solid" : "hollow", dashed: r.approximate, xPct: x(r.achievedAgeMonths) };
-    } else if ((r.status === "emerging" || r.status === "not_yet") && todayPct !== null) {
-      marker = { shape: "diamond", fill: r.status === "emerging" ? "half" : "hollow", dashed: false, xPct: todayPct };
+      marker = {
+        shape: "dot",
+        fill: r.source === "seen" ? "solid" : "hollow",
+        dashed: r.approximate,
+        xPct: x(r.achievedAgeMonths),
+      };
+    } else if (
+      (r.status === "emerging" || r.status === "not_yet") &&
+      todayPct !== null
+    ) {
+      marker = {
+        shape: "diamond",
+        fill: r.status === "emerging" ? "half" : "hollow",
+        dashed: false,
+        xPct: todayPct,
+      };
     }
     const position = voice === "clinician" ? r.clinicianLabel : r.patientLabel;
     const when = whenWords(r);
     const who = whoWords(r, voice);
     const status = statusWords(r, voice);
     const bits = [`${r.label}.`, `${status}.`];
-    if (when) bits.push(`${r.approximate ? "Date approximate: " : "First seen "}${when.replace(/^About /, "about ")}.`);
+    if (when)
+      bits.push(
+        `${r.approximate ? "Date approximate: " : "First seen "}${when.replace(/^About /, "about ")}.`,
+      );
     if (who) bits.push(`${who}.`);
     if (r.status !== "not_assessed") bits.push(`${position}.`);
     bits.push(`Most children: ${windowText(r.windowMonths)}.`);
@@ -162,7 +237,10 @@ export function pedsChartGeometry(view: MilestoneWindowsView, voice: Voice): Cha
       label: r.label,
       reachedWhen: r.reachedWhen,
       barLeftPct: x(r.windowMonths[0]),
-      barWidthPct: Math.max(1, Math.round((x(r.windowMonths[1]) - x(r.windowMonths[0])) * 100) / 100),
+      barWidthPct: Math.max(
+        1,
+        Math.round((x(r.windowMonths[1]) - x(r.windowMonths[0])) * 100) / 100,
+      ),
       marker,
       summary: bits.join(" "),
       windowText: windowText(r.windowMonths),
@@ -179,13 +257,18 @@ export function pedsChartGeometry(view: MilestoneWindowsView, voice: Voice): Cha
     ticks: chartTicks(axisMax),
     todayPct,
     todayOffAxis: todayMonths !== null && todayMonths > axisMax,
-    todayLabel: ageOk ? `Today, ${formatAgeMonths(age.windowAgeMonths)}${age.basis === "corrected" ? " corrected" : ""}` : null,
+    todayLabel: ageOk
+      ? `Today, ${formatAgeMonths(age.windowAgeMonths)}${age.basis === "corrected" ? " corrected" : ""}`
+      : null,
     rows,
   };
 }
 
 /** Why nothing is placed, worded for who is reading; null when it is. */
-export function pedsChartUnplacedReason(age: PedsAgeView, voice: Voice): string | null {
+export function pedsChartUnplacedReason(
+  age: PedsAgeView,
+  voice: Voice,
+): string | null {
   if (age.status === "ok") return null;
   if (age.status === "no_birth_date") {
     return voice === "clinician"
