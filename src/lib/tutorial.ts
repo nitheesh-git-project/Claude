@@ -146,7 +146,7 @@ const PATIENT: TutorialChapter[] = [
     id: "patient-booking",
     title: "Booking a session",
     icon: "fa-calendar-plus",
-    sections: ["book", "sessions", "card:session-status"],
+    sections: ["book", "sessions", "session", "card:session-status"],
     steps: [
       {
         id: "book",
@@ -353,7 +353,7 @@ const THERAPIST: TutorialChapter[] = [
     id: "therapist-sessions",
     title: "Sessions",
     icon: "fa-calendar-check",
-    sections: ["sessions", "card:session-status"],
+    sections: ["sessions", "assessment", "card:session-status"],
     steps: [
       {
         id: "session",
@@ -694,6 +694,14 @@ const ROLE_BASE: Record<TutorialRole, string> = {
   therapist: "/therapist/dashboard",
   hospital: "/hospital/dashboard",
 };
+
+/** Screens a first-visit tour must never open over: the guided assessment's
+ *  two live screens (the physiotherapist's cockpit and the patient's display).
+ *  The tour is still there from any (i); it just does not arrive by itself on
+ *  top of a test in progress. */
+export function tutorialMayAutoStart(pathname: string): boolean {
+  return !(pathname === "/patient/dashboard/session" || pathname.startsWith("/therapist/dashboard/assessment/"));
+}
 
 /** Which role's dashboard a path belongs to, or null for any other page. */
 export function tutorialRoleForPath(pathname: string): TutorialRole | null {
