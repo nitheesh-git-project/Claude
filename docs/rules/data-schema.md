@@ -253,7 +253,12 @@ before.
      re-adding `care_status_events_kind_check` (Postgres's name for the
      inline column CHECK) and `care_status_events_shape` under their own
      names - **a CHECK is widened at the end of the file, never edited where
-     it was declared.** `patient_diary_entries` (phase 4a) is the
+     it was declared.** Phase 6a did the same for the four condition-type
+     CHECKs (`patient_condition_profiles_specialty_check`,
+     `condition_change_requests_proposed_specialty_check`,
+     `intake_question_templates_specialty_check`,
+     `treatment_categories_specialty_check`), which now list `geriatric` and
+     `cardiopulmonary` beside the original three. `patient_diary_entries` (phase 4a) is the
      third shape: a patient-written record whose one permitted change is a
      *stamp by somebody else* - the confirmation, once, on a patient's own
      entry, with every other column compared unchanged and the time set by

@@ -602,6 +602,14 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 3. As an admin set the date of birth to an adult date; reload as the family.
 **Expected Result.** Written for the parent: *your child*, *You told us* / *Seen in a session*, *Started to come*, never *triage*, *specialty*, a referral or a doctor's-review prompt; solid dot seen, hollow dot told by parents, dashed ring approximate, diamond not yet/emerging at today's age; the first/latest switch; no horizontal scroll. Step 3: no chart, only *We're checking your child's date of birth*.
 
+#### `PAT-HP-025` - The diary and the PDF for Strength and balance care and Heart and lung rehabilitation · P1 **[API]**
+**Preconditions.** Patients G and H from `THR-HP-005m` (Patient H with the step 5 readings). The screens are phase 6b; this case drives the diary route and the export.
+1. As Patient G, `POST /api/patient/diary/add` a `fall` with `{"injured": false}` dated yesterday, a `near_miss`, and an `active_minutes` entry.
+2. As Patient H, add an `active_minutes` entry of 40 and a `fall`.
+3. As Patient G, export the Health Profile PDF; as Therapist A confirm G's fall, then export again.
+4. As Patient H, export the PDF.
+**Expected Result.** Step 1: the fall and the near miss are saved; active minutes are refused (not a kind this profile keeps). Step 2: active minutes saved; the fall refused. Step 3: the header reads *Their son, Ramesh, helps at home* (or *Her*/*His* by the recorded gender); a **Fall risk and daily living** section opens *Fall risk (CDC STEADI): High.* with the rule (two falls in the last 12 months, whatever the tests show), lists each STEADI test as recorded or *not recorded*, says *1 more fall reported by the patient, not yet confirmed (not counted)* before the confirmation and counts it after, and *Daily living (Katz): 5 of 6 without help; needs help with bathing or washing*. The diary counts say patient reported / confirmed. Step 4: **Safety limits and vitals** opens *Oxygen stop limit: 90% or a drop of 4 from resting (default for a heart condition, until the doctor sets one).*, says *Beta-blocker: not recorded. Paced by the talk test until it is.*, the surgeon's precautions with their end date, the latest resting readings with dates, and no Borg scale anywhere. Neither PDF names a category word to the patient.
+
 #### `PAT-HP-023` - The paediatric examination in the family's PDF, and corrected age · P1 **[API]**
 **Preconditions.** A paediatric patient whose profile has a date of birth (born at 30 weeks: the intake's **Weeks at birth** answered *30 weeks*), with one or more paediatric examinations recorded by Therapist A (`THR-HP-005k`). A second paediatric patient with no date of birth on the profile. The screens are phase 5b; this case drives the export and the rows.
 **Steps.**

@@ -2,7 +2,7 @@
 
 Per-specialty intake, the Pain Map, care plans and their review, session notes, patient files, who may read a record, and the vocabulary all three roles share.
 
-**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · outcomeMeasures.ts · milestones.ts · patientDiary.ts · careStatus.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
+**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · outcomeMeasures.ts · milestones.ts · patientDiary.ts · careStatus.ts · geriatricRisk.ts · cardioSafety.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
 
 > Part of `docs/rules/`. `CLAUDE.md` says which file a task needs; this one
 > is the detail. Keep it current in the same change that makes it wrong --
@@ -12,14 +12,16 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
 
 - **Patient Care Intake and Pain Map are two separate data layers**, and
   the intake is **per specialty**. A `patient_condition_profiles` row
-  carries `specialty` - `ortho`, `neuro` or `pediatrics` - and that
+  carries `specialty` - `ortho`, `neuro`, `pediatrics`, `geriatric` or
+  `cardiopulmonary` (the last two since phase 6a, below) - and that
   decides its question set (`src/lib/intakeOrtho.ts` / `intakeNeuro.ts` /
-  `intakePediatrics.ts`, assembled in `conditionIntake.ts`), its summary
-  card, its snapshot strip and its progress line. Four things about this
-  are load-bearing:
-  1. **Question keys are globally unique across the three sets and `data`
+  `intakePediatrics.ts` / `intakeGeriatric.ts` / `intakeCardio.ts`,
+  assembled in `conditionIntake.ts`), its summary card, its snapshot strip
+  and its progress line. Four things about this are load-bearing:
+  1. **Question keys are globally unique across the five sets and `data`
      stays flat.** Ortho keys are unchanged, neuro keys are all `neuro_*`,
-     peds keys all `peds_*`. That is what lets a re-triaged patient keep
+     peds keys all `peds_*`, geriatric keys all `geri_*`, cardiopulmonary
+     keys all `cardio_*`. That is what lets a re-triaged patient keep
      the previous specialty's answers in the same blob (hidden, never
      deleted) with no jsonb migration inside a re-runnable file. A
      module-load assertion in `conditionIntake.ts` throws if the rule is
@@ -156,12 +158,16 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
 
   **Admin edits wording per specialty, and can switch one off.**
   `intake_question_templates` is keyed `(specialty, question_key)`;
-  Manage Questions has one tab per specialty (tabs, not three stacked
+  Manage Questions has one tab per specialty (tabs, not stacked
   sections - twenty-odd textareas is the wall-of-fields shape this
   codebase keeps correcting). `enabled_intake_specialties` removes a
   specialty from **triage only**: an existing profile carrying it must
   keep rendering, and a therapist re-triaging such a patient is still
-  offered it. Ortho can never be switched off.
+  offered it. Ortho can never be switched off. **Geriatric and
+  cardiopulmonary are off until an admin switches them on**: the setting
+  is the list of what triage offers, its default (and what an unreadable
+  read fails open to) is the three original types, and a type the clinic
+  has not staffed must not appear in a therapist's picker on deploy.
 
   **"None of these" means none of the others.** A `multi_select` whose list
   carries a "None" answer declares it in `exclusiveOptions`, and every tap
@@ -524,8 +530,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      is one decision, `requiredSessionExam()` / `missingSessionExam()` in
      `sessionCompletion.ts`: Pain Map for ortho, neurological exam for
      neuro, the paediatric exam for paediatrics (phase 5b: its dialog step
-     shipped and `PEDS_EXAM_REQUIRED_FOR_DONE` is true), and no layer stands in for
-     another. A failed read of the required layer answers 503, never a pass.
+     shipped and `PEDS_EXAM_REQUIRED_FOR_DONE` is true), **none** for
+     geriatric and cardiopulmonary (phase 6a, the owner's decision: their
+     progress is recorded measurements, and no layer means "examined"), and
+     no layer stands in for another. A failed read of the required layer answers 503, never a pass.
   7. **Every read of it is its own call**, so a database without the table
      costs the card - which says it could not load, rather than "nothing
      recorded" - and not the page. `e2e/neuro-exam.spec.ts`,
@@ -561,10 +569,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   3. **Parkinson's is a neuro sub-profile, not a condition type.** Six
      profile kinds exist in the registry and the milestone templates -
      `ortho`, `neuro`, `neuro_parkinsons`, `pediatrics`, `geriatric`,
-     `cardiopulmonary` - but `ConditionSpecialty` is unchanged; the
-     neurological intake's condition group decides it (phase 4a, below).
-     "Strength and balance care" and "Heart and lung rehabilitation" become
-     condition types in a later phase, one condition at a time. On a
+     `cardiopulmonary` - and the neurological intake's condition group
+     decides Parkinson's (phase 4a, below). Geriatric ("Strength and balance
+     care") and cardiopulmonary ("Heart and lung rehabilitation") became
+     condition types in phase 6a, each resolving to its own kind. On a
      Parkinson's measurement ON/OFF and the last dose time are required.
   4. **A licensed scale exists and is switched off.** Barthel, Oswestry, NDI,
      QuickDASH, GMFM, AIMS, Peabody, CAT, both Borg scales, MDS-UPDRS III
@@ -767,9 +775,8 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     value must be 0 and the stands done with the arms travel in `items` as
     `{ standsWithArms }` (`validateUsedArms`, `usedArmsEntry`); false means
     no items. The countdown's tick records it; nothing goes in a session
-    note. The chair stand is a geriatric measure and no condition type
-    resolves to geriatric yet, so it is unreachable at the route until one
-    does.
+    note. The chair stand is a geriatric measure, reachable at the route
+    since phase 6a made geriatric a condition type.
   - **The six-minute walk equation is the clinic's choice.**
     `site_settings.six_minute_walk_equation` (nullable text) is set on
     Settings -> Clinical Questions (`admin.md`). Null, an unknown key and
@@ -882,9 +889,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     its own `note` column, scanned as `patient_diary_note` and recorded, never
     blocked - the booking-note posture). Which kinds a patient keeps follows
     the server-derived profile kind (`DIARY_KINDS_BY_PROFILE_KIND`: freezing
-    for Parkinson's only; falls and near-misses wherever falls are the risk;
-    active minutes for heart and lung, unreachable until that is a condition
-    type). `/api/patient/diary/add` takes the patient, author and role from
+    for Parkinson's only; falls and near-misses wherever falls are the risk,
+    geriatric included; active minutes for cardiopulmonary, reachable since
+    phase 6a). `/api/patient/diary/add` takes the patient, author and role from
     the session (never the body), is rate limited (`patientDiary`), refuses
     a future time and one older than 92 days, and answers a double tap as
     `duplicate` (a unique index over the content). RLS: the patient reads
@@ -1146,16 +1153,140 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   5. **Walking alone never assessed** past 18 months corrected is, to a
      clinician only, "Walking alone not assessed yet" (`walkingNotAssessed`); the
      doctor's-review prompt still needs a finding that the child is not walking.
-  6. **The parent's voice**: the shared progress components take `child` and
-     speak "your child's ..." through `childVoice.ts`. A new patient-voice
-     sentence there is covered by its rules (a unit test walks the status
-     reasons).
+  6. **The parent's voice**: the shared progress components take `subject`
+     (`"self" | "child"`, `ProfileSubject` in `childVoice.ts`; it replaced a
+     boolean `child` in phase 6a) and speak "your child's ..." through
+     `subjectWords(subject, voice)`, which rewrites patient-voice text only.
+     A new patient-voice sentence there is covered by its rules (a unit test
+     walks the status reasons).
   7. **Realtime**: the paediatric pages refresh on `peds_assessments`
      (appended to the publication at the end of `schema.sql`),
      `appointments` (the sessions tile) and the progress tables.
   `src/lib/pedsChartGeometry.test.ts`, `pedsProfile.test.ts`,
   `pedsExamForm.test.ts`, `childVoice.test.ts`; `e2e/peds-exam.spec.ts`
   PE-005 to PE-008; QA `THR-HP-005l`, `PAT-HP-024`.
+- **Strength and balance care and Heart and lung rehabilitation are
+  condition types of their own (Health Profile redesign, phase 6a: the
+  server side and the data; phase 6b draws the screens).** `geriatric` and
+  `cardiopulmonary` join `ConditionSpecialty` and `CONDITION_SPECIALTIES`
+  (sky `fa-person-cane` and rose `fa-lungs`, the same icon and colour as
+  the therapist specialisations of those names). Parkinson's stays inside
+  neuro. Eight rules:
+  1. **The words.** The clinician's `label` is **Geriatric** /
+     **Cardiopulmonary**; the patient's `patientLabel` is exactly **Strength
+     and balance care** / **Heart and lung rehabilitation**
+     (`PROFILE_KIND_LABELS` agrees). A patient never reads "geriatric",
+     "elderly" or "cardiopulmonary".
+  2. **Two intake sets, seven counted questions each**, `schema_version` 1,
+     every key prefixed (`geri_*`, `cardio_*`), each question with a
+     patient-plain `helpText` and a `shortLabel`. Geriatric
+     (`intakeGeriatric.ts`): main concern; the three **STEADI screening
+     questions**, required - falls in the last 12 months (*No falls / One
+     fall, without an injury / One fall, with an injury / Two or more
+     falls*), unsteady standing or walking, worried about falling; walking
+     aid; **which of the Katz six they need help with** (`multi_select`,
+     "None - I manage all of these on my own" exclusive); goal. An
+     **optional carer pre-step** (`geri_carer_name`,
+     `geri_carer_relationship`) is the paediatric caregiver pattern, but
+     optional and excluded from the count. Cardiopulmonary
+     (`intakeCardio.ts`): condition (open-heart surgery, heart attack,
+     stent, heart failure, COPD, another lung condition, other) and when;
+     beta-blocker (*Yes / No / Not sure*); breathlessness today as the
+     **mMRC grade 0-4 in plain words** (the option index is the grade);
+     home oxygen; the doctor's oxygen stop limit (a select, *No limit given,
+     or not sure* or 85-94%, so the answer is always a number); goal.
+     Three follow-ups ask only when they apply (`showWhen`, the Parkinson's
+     precedent): the surgeon's breastbone precautions and their end date
+     **only after open-heart surgery** (a COPD patient is never asked about
+     a breastbone), the oxygen prescription only with home oxygen. No
+     template rows are seeded; the question bank lists them from the code.
+  3. **Triage suggests them, never picks them.**
+     `suggestSpecialtyFromTriage(answers, { offered })` (presenting problem
+     *Falls, unsteadiness or getting weaker with age* and *A heart or lung
+     condition, or after heart surgery or a heart attack*) suggests
+     Cardiopulmonary for a heart or lung referral (adults; before any sign),
+     neuro for a stroke or long-term neurological referral, Geriatric for a
+     falls referral with at most the balance sign, or **65 or older whose
+     only sign is balance or walking**, then neuro for any other sign. Never
+     for a child. **It only suggests what the dialog offers** (the enabled
+     types plus the profile's own): a rule whose type is switched off is
+     passed over and the reason says so ("Geriatric would fit, but it is
+     switched off in Settings") - which also stopped a switched-off
+     neurological type being pre-selected. Still arrives pre-selected and is
+     never auto-accepted. `triageSuggestion.test.ts`.
+  4. **No exam before Done** (owner's decision): `requiredSessionExam`
+     answers null for both, so Done needs the session note alone. Both have
+     no exam layer; `SpecialtyExamPanel` renders nothing for them (no
+     "still being built" notice for a chart that is not coming).
+  5. **The fall-risk level is STEADI's, with the rule that decided it**
+     (`geriatricRisk.ts`, over `steadiFallRisk`). Two or more falls, or one
+     with an injury, in 12 months is **high whatever the tests show**, until
+     those falls are a year old; "Tests in the safer range: n of 4" is a
+     separate line, never folded into the level (the handbook's fix for the
+     mockup). Without that history a fully negative screen is low, and
+     otherwise the four tests (TUG at 12 s, the chair stand against the CDC
+     age-and-sex norm - 0 when the arms were used, unjudged with no age or
+     sex - the heel-to-toe stage, walking speed under 0.8 m/s) decide low or
+     moderate; with no test it is "not known yet", never low. **Falls come
+     from two places and are never counted twice**: the intake's answer,
+     dated when that answer was **first** given (`answerFirstGivenAt` - a
+     re-save of the same answer does not move it; an unreadable history
+     dates it today, the conservative way) and counting for a year after;
+     and diary falls **after** that answer that a physiotherapist confirmed
+     or a clinician entered. A patient's unconfirmed report is shown as
+     patient reported and decides nothing. Katz is the physiotherapist's
+     score sheet when there is one, else six less the intake's ticks;
+     standing blood pressure is re-derived from the three stored readings
+     (positive at 20 top or 10 bottom: "for the patient's doctor").
+  6. **The heart and lung safety rules** (`cardioSafety.ts`). The oxygen stop
+     limit is **the patient's own**: the doctor's figure, else the default
+     for the condition - **88% for a lung condition, 90% (or a 4-point fall
+     from the resting reading) for a heart one and for no answer** - always
+     labelled as a default. Before exercise, resting heart rate over 120,
+     blood pressure over 180/100 or resting oxygen below the limit is "do not
+     exercise today, tell the doctor" (patient: *Please don't exercise today.
+     Rest, and tell your physiotherapist and your doctor about this
+     reading.*; clinician: *Do not exercise or test today. Contact the
+     patient's doctor.*); a reading not taken is "not checked", never clear.
+     Karvonen only for a patient recorded as **not** on a beta-blocker with
+     an exercise-test maximum (never 220 minus age); "Yes", "Not sure" and
+     no answer are the talk test. The surgeon's precautions are active
+     through their end date in the clinic's zone (`parseClinicDate` reads
+     ISO, "20 Sep 2026" and day-first "20/09/2026"; anything else is "end
+     date unknown", never passed). The six-minute walk's % of predicted uses
+     the clinic's equation setting: "formula not chosen yet", "we couldn't
+     check", or - height and weight not being on the record yet - "needs the
+     patient's height, weight".
+  7. **New free measures, no licensed ones switched on.** The registry gains
+     `blood_pressure` (rest / after exercise; both numbers in `items`, the
+     top one the value), `resting_spo2` (against the patient's limit) and
+     `talk_test` (0 too easy, 1 just right, 2 too hard; a classification).
+     Borg (both), CAT and Barthel stay licensed and off. Diary:
+     `DIARY_KINDS_BY_PROFILE_KIND` gives geriatric falls and near-misses and
+     cardiopulmonary active minutes; `activeMinutesWeeklySeries` totals
+     clinic weeks against the WHO's 150 (light minutes apart; the week in
+     progress marked, never a fall).
+  8. **What 6b draws** (`geriatricProfile.ts` `shapeGeriatricView`,
+     `cardioProfile.ts` `shapeCardioView`, over `progressProfileBase.ts`;
+     reads by `loadGeriatricReads` / `loadCardioReads`, each its own call,
+     ok or unreadable). Status: a confirmed fall since the last review is
+     *Needs attention* (the neurological rule); a pre-exercise red flag from
+     the **latest review's** vitals is the pill's red flag; the main measure
+     is walking speed then TUG, chair stand, balance (geriatric) or the
+     six-minute walk then the sit-to-stand, mMRC, breathlessness
+     (cardiopulmonary). Both speak to the patient (`subject: "self"`); a
+     named carer is a header line ("Ramesh, your son, helps at home"), not a
+     voice. **Goals and milestones stay therapist-only.** The PDF export adds
+     "Fall risk and daily living" or "Safety limits and vitals" and the carer
+     line, under complete or refused. Until 6b the pages list the answers
+     (`IntakeAnswersCard`). The catalogue's condition-type tag
+     (`treatment_categories.specialty`) takes both too. Every threshold is
+     **to be verified by a senior physiotherapist against its source.**
+  `src/lib/triageSuggestion.test.ts`, `intakeGeriatricCardio.test.ts`,
+  `geriatricRisk.test.ts`, `cardioSafety.test.ts`,
+  `geriatricCardioProfile.test.ts`, `sessionCompletion.test.ts`;
+  `e2e/geriatric-cardio-intake.spec.ts`; QA `THR-HP-005m`, `PAT-HP-025`,
+  `ADM-SET-020a`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate

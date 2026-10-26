@@ -892,6 +892,25 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   while it is asked, and making the condition group itself required raises
   the "we've changed some of these questions" banner for every neurological
   record without it (`clinical.md`).
+- **Strength and balance care and Heart and lung rehabilitation are
+  switched on by an admin (phase 6a).** Settings -> Clinical Questions'
+  *Condition types offered at triage* lists all five; **Geriatric** and
+  **Cardiopulmonary** start unticked, because `enabled_intake_specialties`
+  means "what triage offers" and its default - and what an unreadable read
+  fails open to - is the three original types (`DEFAULT_ENABLED_INTAKE_SPECIALTIES`).
+  Ticking one offers it in the therapist's triage, with its suggestion
+  (`clinical.md`); unticking it later hides it from triage only, and a
+  patient already recorded under it keeps their profile. The route
+  normalises the list against `CONDITION_SPECIALTY_KEYS` and always keeps
+  ortho. Manage Questions gains a **Geriatric** and a **Cardiopulmonary**
+  tab (listed from the code; no template rows are seeded), editable while
+  the type is off; the cardiopulmonary tab notes its three follow-ups
+  ("Asked only when ..."), and the geriatric carer pair is an optional
+  pre-step. Catalog -> Conditions' *Condition type* picker offers both, so
+  a programme can be grouped under them in the recommendation picker.
+  Patients never see that tag. The public showcase is unchanged: it has no
+  sample for either type, so switching one on does not change the public
+  pages.
 - **A patient's diary entries are read-only to the back office.** An admin
   reads them under `patient_diary_entries_select_admin`; there is no admin
   write or confirm door (the owner's decision: the physiotherapist confirms; the

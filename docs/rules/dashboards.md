@@ -471,7 +471,9 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   chart with the intake's "what your child does on their own" list -> the
   graph -> steps -> measures. The parent's page is written for the parent
   ("your child"; `childVoice.ts` turns the shared components' patient
-  sentences into the parent's via a `child` prop). No four-figure
+  sentences into the parent's via a `subject="child"` prop - `"self"`
+  everywhere else, Strength and balance care included, where a named carer is
+  a header line rather than a voice). No four-figure
   `SpecialtySnapshotStrip` on a neurological or paediatric page (the tiles
   cover it; it remains for ortho and any specialty not on the new layout). Both share
   `ProfileHeader`, `ProfileProgressSection` and `KeyNumbers`. It is

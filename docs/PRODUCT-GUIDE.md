@@ -2358,7 +2358,8 @@ patient's condition data, both surfaced on `/patient/dashboard/health-profile`
 and the admin's **Patient Conditions** tab.
 
 **The intake is per specialty.** A `patient_condition_profiles` row carries
-`specialty` - `ortho`, `neuro` or `pediatrics` - and that decides everything
+`specialty` - `ortho`, `neuro`, `pediatrics`, `geriatric` or `cardiopulmonary`
+- and that decides everything
 about how the profile reads: which seven questions are asked, which summary
 card renders, which four figures the snapshot strip shows, and what the
 progress line plots. The original set only ever fitted orthopaedic patients:
@@ -2371,10 +2372,12 @@ milestones reached.
 | Orthopaedic | complaint, how long, 0–10 severity, painful areas on the body map, what worsens it, what helps, other notes | pain, from the Pain Map |
 | Neurological | condition and onset, affected side, how they move indoors, 0–10 independence, symptoms present, falls in three months, main goal | `neuro_independence` |
 | Paediatric | main concern, birth history, milestones reached, diagnosis, equipment, hardest day-to-day, goal (plus a caregiver "who is answering" pre-step) | milestones ticked |
+| Geriatric ("Strength and balance care" to the patient) | main concern, falls in 12 months (with or without an injury), unsteady, worried about falling, walking aid, which of the Katz six they need help with, goal (plus an optional carer pre-step) | the STEADI fall-risk level, with the rule that decided it |
+| Cardiopulmonary ("Heart and lung rehabilitation") | condition and when, beta-blocker, breathlessness (mMRC, plain words), home oxygen, the doctor's oxygen stop limit, goal (plus the surgeon's precautions after open-heart surgery, and the oxygen prescription) | the six-minute walk, against the patient's own oxygen limit |
 
-Neither of the two new sets has a pain scale or a body map. Their keys are
-namespaced (`neuro_*`, `peds_*`) so that `patient_condition_profiles.data`
-can stay one flat blob shared by all three: re-triaging a patient keeps the
+None of the non-orthopaedic sets has a pain scale or a body map. Their keys
+are namespaced (`neuro_*`, `peds_*`, `geri_*`, `cardio_*`) so that
+`patient_condition_profiles.data` can stay one flat blob shared by all five: re-triaging a patient keeps the
 previous specialty's answers on file rather than deleting them, and
 approving a change *merges* rather than replaces.
 
@@ -2393,7 +2396,10 @@ then.** The flow, end to end:
    questions (`ConditionTriageDialog`) - age band, presenting problem,
    neurological signs, and, for a child, whether there is a developmental
    concern. Those *suggest* a specialty, with the reason shown; the
-   therapist confirms or overrides. A fourteen-year-old with a sprained
+   therapist confirms or overrides. Geriatric (a falls referral, or 65 or
+   older whose only sign is balance) and Cardiopulmonary (a heart or lung
+   referral) are suggested only once an admin has switched them on - they
+   start off - and a switched-off type is named in the reason instead. A fourteen-year-old with a sprained
    ankle correctly lands on orthopaedic, which is why the child question
    exists.
 4. The dialog runs straight on into that specialty's own questions, in the
@@ -2610,6 +2616,21 @@ everything else.
   that cannot be a child's is not charted (a card for the clinician, a
   neutral line for the family). There is no paediatric diary and no screen yet
   to edit a date of birth (a patient's change goes to the clinic to approve). Rules: `docs/rules/clinical.md`.
+
+  **Strength and balance care and Heart and lung rehabilitation (phase 6a,
+  server side; the screens are 6b).** Two more condition types, off until an
+  admin ticks them on Settings -> Clinical Questions. Neither has an exam
+  before Done. A geriatric record's fall risk is the CDC STEADI level with
+  the rule that decided it - two falls, or one with an injury, in 12 months
+  keeps it high whatever the four tests show, and "tests in the safer range"
+  is said separately - and only falls a physiotherapist confirmed count. A
+  heart and lung record checks every session against the patient's own
+  oxygen stop limit (the doctor's, else 88% for a lung condition and 90% for
+  a heart one, marked as a default), a resting heart rate over 120 and a
+  blood pressure over 180/100; a beta-blocker means the talk test, never a
+  heart-rate target; the surgeon's breastbone precautions run to their end
+  date; the patient logs active minutes against the WHO's 150 a week. The
+  PDF export prints both. Rules: `docs/rules/clinical.md`.
 
 Both question banks (Health Profile and Pain Map) are managed from
 one place - a **Manage Questions** section at the top of the admin's

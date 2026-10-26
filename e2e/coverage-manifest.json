@@ -1586,6 +1586,23 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "geriatric-cardio-intake.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -4106,6 +4123,30 @@
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/roster.md"
+      ]
+    },
+    {
+      "id": "therapist.geriatric-cardio-intake",
+      "runner": "therapist",
+      "title": "Strength and balance care and Heart and lung rehabilitation are off until an admin switches them on: /onboard refuses a switched-off one (the profile's own type is still allowed on re-triage), stores the geri_/cardio_ sets at schema_version 1 with the STEADI questions required and the carer optional; triage offers and suggests Geriatric only when it is on, naming a switched-off type in the reason, never accepting for the therapist; the diary keeps falls and near-misses for geriatric and active minutes for cardiopulmonary; the vitals are recorded at the shared route with both blood-pressure numbers kept, the licensed Borg scale refused; the PDF export is complete for both",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "geriatric-cardio-intake.spec.ts",
+          "tests": [
+            "GC-001",
+            "GC-002",
+            "GC-003",
+            "GC-004"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes append-only diary entries and measurements, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The fall-risk level and its rule, the oxygen stop limit, the pre-exercise red-flag wording, the precautions' end date and the walk prediction are pure modules unit-tested in src/lib/geriatricRisk.test.ts, cardioSafety.test.ts and geriatricCardioProfile.test.ts (the screens that print them are phase 6b); no exam before Done is sessionCompletion.test.ts; the triage rules are triageSuggestion.test.ts.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md"
       ]
     },
     {

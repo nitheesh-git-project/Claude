@@ -302,6 +302,26 @@ The screen warns you to turn it on only once System Health has been clean.
 * `schema_version` is **per specialty**, so changing a neuro question must **not** fire the "we've changed some of these questions" banner at orthopaedic patients.
 * Pain Map templates edit per region and question; unknown values are refused with `Unknown region` / `Unknown questionKey for this region`.
 
+
+#### `ADM-SET-020a` - Switching on Strength and balance care and Heart and lung rehabilitation · P0
+
+**Steps**
+1. On a database where nobody has touched the setting, open **Settings → Clinical Questions** and read **Condition types offered at triage**.
+2. As Therapist A, open triage for a new patient aged 65 or older referred for falls.
+3. As the admin tick **Geriatric** and **Cardiopulmonary**; open the question bank's **Geriatric** and **Cardiopulmonary** tabs; reword *Do you worry about falling?* and save.
+4. Repeat step 2.
+5. `POST /api/admin/update-setting` `{"key":"enabled_intake_specialties","value":["geriatric","elderly"]}`, then `{"key":"enabled_intake_specialties","value":["cardiopulmonary"]}`.
+6. On **Catalog → Conditions** edit a condition and open **Condition type**.
+7. Open the public home page and `/how-it-works`.
+
+**Expected Result**
+* Step 1: five types; **Geriatric** and **Cardiopulmonary** are **unticked** (off until an admin chooses them); Orthopaedic is ticked and locked.
+* Step 2: neither new type is offered; the suggestion names the switched-off type in its reason.
+* Step 3: the questions are listed from the code: on **Geriatric** the optional carer pair first, then the seven; on **Cardiopulmonary** the seven with three follow-ups, noted *Asked only when "Condition" is "Heart bypass or valve surgery (open-heart)"* under the two precautions questions and *Asked only when "Home oxygen" is "Yes"* under the prescription. The new wording saves (no 500: the template table accepts the new type).
+* Step 4: both types are offered; Geriatric is suggested with its reason.
+* Step 5: the unknown type is a 400 *Unknown condition type.*; the second saves as Orthopaedic + Cardiopulmonary (Orthopaedic is always kept).
+* Step 6: Geriatric and Cardiopulmonary are offered, for grouping the therapist's recommendation picker only.
+* Step 7: unchanged - the public showcase has no sample for either type.
 #### `ADM-SET-025` - User Access: scopes · P0
 
 **Steps**

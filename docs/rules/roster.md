@@ -216,7 +216,9 @@ Availability as periods over hour rows, specialisation as a value, what readines
   the same way (409 `peds_exam_required`; `PEDS_EXAM_REQUIRED_FOR_DONE` is
   true since phase 5b, which mounted `SessionPedsExamStep` - "Record the
   paediatric exam" - as the `"peds_exam"` arm of `SessionExamStep`; a unit
-  test fails if the gate is on without that arm). A condition-type read that
+  test fails if the gate is on without that arm). **Geriatric** and **cardiopulmonary** patients
+  (phase 6a) need no exam: `requiredSessionExam` answers null for them (the
+  owner's decision), so their Done is the session note alone. A condition-type read that
   fails in the note dialog says so with "Try again"; it is never taken for
   orthopaedic (`e2e/finish-session.spec.ts`, `e2e/neuro-exam.spec.ts`
   NE-000, `e2e/peds-exam.spec.ts` PE-005). Admins and
