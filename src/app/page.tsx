@@ -361,15 +361,16 @@ export default async function Home() {
         </Reveal>
       </Section>
 
-      {/* The specialty dashboards with sample data, beside a short pitch and
-          the booking button -- the full tour is on /how-it-works. */}
+      {/* The Health Profile of each kind of care the clinic offers, with sample
+          data, beside a short pitch and the booking button -- the full tour
+          is on /how-it-works. */}
       {showcaseProfiles.length > 0 && (
         <Section
           id="health-profile"
           tone={bandTone("health-profile")}
           eyebrow="Your recovery, tracked"
           title="See every step of your recovery"
-          lede="Orthopaedic, neurological and paediatric care - each with a dashboard of its own."
+          lede="Goal, scores and milestones, in one place."
         >
           <HealthProfileShowcase profiles={showcaseProfiles} variant="home" />
         </Section>

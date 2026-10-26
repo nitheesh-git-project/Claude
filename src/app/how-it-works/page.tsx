@@ -176,15 +176,15 @@ export default async function HowItWorksPage() {
         </Stagger>
       </Section>
 
-      {/* The profile a patient fills in, per specialty, and what it watches
+      {/* The profile a patient opens, per kind of care, and what it watches
           over a course -- shown through the real components with sample
-          data. Only the specialties the clinic has switched on. */}
+          data. Only the condition types the clinic offers. */}
       {showcaseProfiles.length > 0 && (
         <Section
           id="health-profile"
           eyebrow="Your health profile"
           title="Everything is tracked. All of it is yours to see."
-          lede="A sample dashboard for each kind of care - the same one you get from your first session."
+          lede="A sample profile for each kind of care."
         >
           <HealthProfileShowcase profiles={showcaseProfiles} />
         </Section>
