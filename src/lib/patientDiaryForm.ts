@@ -2,6 +2,7 @@ import { CLINIC_TIMEZONE } from "@/lib/bookingSlots";
 import { clinicDateKey } from "@/lib/clinicWeek";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import {
+  DIARY_ACTIVE_MINUTES_MAX,
   DIARY_FREEZING_COUNT_MAX,
   DIARY_KIND_LABEL as KIND_LABEL,
   diaryKindsFor,
@@ -9,7 +10,9 @@ import {
   type DiaryAddRequest,
   type DiaryEntry,
   type DiaryKind,
+  type ActivityIntensity,
   type DiaryMedicationState,
+  type ActiveMinutesDetails,
   type DiaryPlace,
   type FallDetails,
   type FreezingDetails,
@@ -42,6 +45,9 @@ export type DiaryDraft = {
   gotUp: "" | "yes" | "no";
   place: DiaryPlace | "";
   medicationState: DiaryMedicationState | "";
+  /** Typed digits: the minutes of activity (heart and lung diary). */
+  minutes: string;
+  intensity: ActivityIntensity | "";
   note: string;
 };
 
@@ -60,15 +66,18 @@ export function emptyDiaryDraft(nowMs: number, kind: DiaryKind | "" = ""): Diary
     gotUp: "",
     place: "",
     medicationState: "",
+    minutes: "",
+    intensity: "",
     note: "",
   };
 }
 
 /** The kinds the form offers, as the server will accept them. */
 export function offeredDiaryKinds(profileKind: ProfileKind): DiaryKind[] {
-  // Active minutes are the heart and lung programme's dose, not a thing a
-  // neurological patient writes down from this form.
-  return diaryKindsFor(profileKind).filter((k) => k !== "active_minutes");
+  // Active minutes are the heart and lung programme's dose: diaryKindsFor
+  // gives them to that record alone, so a neurological patient is never
+  // offered them.
+  return [...diaryKindsFor(profileKind)];
 }
 
 export type DiaryRequestResult = { ok: true; body: DiaryAddRequest } | { ok: false; error: string };
@@ -98,13 +107,21 @@ export function buildDiaryRequest(draft: DiaryDraft, ctx: { profileKind: Profile
       details.count = count;
     }
     if (draft.trigger) details.trigger = draft.trigger;
+  } else if (draft.kind === "active_minutes") {
+    const text = draft.minutes.trim();
+    const minutes = /^\d+$/.test(text) ? Number(text) : NaN;
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > DIARY_ACTIVE_MINUTES_MAX) {
+      return { ok: false, error: `Type how many minutes, as a whole number from 1 to ${DIARY_ACTIVE_MINUTES_MAX}.` };
+    }
+    details.minutes = minutes;
+    if (draft.intensity) details.intensity = draft.intensity;
   } else if (draft.kind === "fall") {
     if (!draft.injured) return { ok: false, error: "Say whether you were hurt." };
     details.injured = draft.injured === "yes";
     if (draft.gotUp) details.gotUpAlone = draft.gotUp === "yes";
   }
-  if (draft.kind !== "freezing" && draft.place) details.place = draft.place;
-  if (draft.medicationState) details.medicationState = draft.medicationState;
+  if (draft.kind !== "freezing" && draft.kind !== "active_minutes" && draft.place) details.place = draft.place;
+  if (draft.kind !== "active_minutes" && draft.medicationState) details.medicationState = draft.medicationState;
 
   const note = draft.note.trim();
   const body: DiaryAddRequest = { kind: draft.kind, occurredAt: new Date(at).toISOString(), details, ...(note ? { note } : {}) };
@@ -123,6 +140,12 @@ export const MEDICATION_STATE_LABEL: Record<DiaryMedicationState, string> = {
   on: "Medicine working well (ON)",
   off: "Medicine wearing off (OFF)",
   not_sure: "Not sure",
+};
+
+export const INTENSITY_LABEL: Record<ActivityIntensity, { label: string; hint: string }> = {
+  light: { label: "Light", hint: "You could sing" },
+  moderate: { label: "Moderate", hint: "You could talk, not sing" },
+  vigorous: { label: "Hard", hint: "You could not finish a sentence" },
 };
 
 export const PERIOD_LABEL: Record<FreezingPeriod, string> = {
@@ -170,7 +193,10 @@ export function diaryEntrySummary(entry: Pick<DiaryEntry, "kind" | "details">, v
     if (d.place) parts.push(PLACE_LABEL[d.place].toLowerCase());
     if (d.medicationState) parts.push(STATE_WORDS[d.medicationState]);
   } else {
-    parts.push(label);
+    const d = entry.details as ActiveMinutesDetails;
+    const minutes = typeof d.minutes === "number" ? d.minutes : 0;
+    const how = d.intensity === "vigorous" ? "vigorous" : d.intensity === "moderate" ? "moderate" : d.intensity === "light" ? "light" : null;
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} of ${how ? `${how} ` : ""}activity`;
   }
   return parts.join(", ");
 }

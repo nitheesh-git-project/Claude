@@ -452,6 +452,29 @@ export function computeEntry(m: OutcomeMeasure, st: EditorState, useTimer: boole
     };
   }
 
+  if (m.readings && m.checklist) {
+    // A yes/no checklist (the home safety check): every item is answered, 1
+    // for done and 0 for not yet, so an unticked item is a statement and
+    // not a blank.
+    const readings: Record<string, number> = {};
+    let answered = 0;
+    for (const key of m.readings.keys) {
+      const text = (st.readingTexts[key] ?? "").trim();
+      if (text === "1" || text === "0") {
+        readings[key] = Number(text);
+        answered += 1;
+      }
+    }
+    if (answered === 0) return NOTHING;
+    if (answered < m.readings.keys.length) {
+      const left = m.readings.keys.length - answered;
+      return { ...NOTHING, items: readings, problem: `Answer every item: ${left} ${left === 1 ? "is" : "are"} left.` };
+    }
+    const derived = m.readings.derive(readings);
+    if (derived === null) return { ...NOTHING, items: readings, problem: "These answers do not give a result." };
+    return { value: roundTo(derived, m.decimals), items: readings, problem: null, working: `${derived} of ${m.readings.keys.length} done` };
+  }
+
   if (m.readings) {
     const readings: Record<string, number> = {};
     for (const key of m.readings.keys) {

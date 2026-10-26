@@ -14,10 +14,11 @@ describe("the diary form", () => {
     expect(emptyDiaryDraft(Date.parse("2026-10-19T18:30:00Z")).time).toBe("00:00");
   });
 
-  it("offers only what the profile kind keeps, and never active minutes", () => {
+  it("offers only what the profile kind keeps: active minutes to a heart and lung record alone", () => {
     expect(offeredDiaryKinds("neuro")).toEqual(["fall", "near_miss"]);
     expect(offeredDiaryKinds("neuro_parkinsons")).toEqual(["freezing", "fall", "near_miss"]);
-    expect(offeredDiaryKinds("cardiopulmonary")).toEqual([]);
+    expect(offeredDiaryKinds("cardiopulmonary")).toEqual(["active_minutes"]);
+    expect(offeredDiaryKinds("geriatric")).toEqual(["fall", "near_miss"]);
     expect(offeredDiaryKinds("ortho")).toEqual([]);
   });
 

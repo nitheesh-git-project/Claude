@@ -71,8 +71,21 @@ export type CardioVitals = {
   spo2Rest: VitalReading | null;
   spo2Lowest: VitalReading | null;
   breathlessnessRest: VitalReading | null;
+  /** After the walk or exercise (the vitals strip's second row). */
+  bloodPressureAfter: (VitalReading & { systolic: number; diastolic: number | null }) | null;
+  breathlessnessAfter: VitalReading | null;
   /** The latest talk-test grade (0 too easy, 1 just right, 2 too hard). */
   talkTest: VitalReading | null;
+};
+
+/** The two ends of the starting heart-rate range, as a share of the heart
+ *  rate reserve ("usually starting around 40-60% and building up", the
+ *  handbook). To be verified by a senior physiotherapist against its source. */
+export const HEART_RATE_RANGE_PERCENT = [40, 60] as const;
+
+export type MaxHeartRate = VitalReading & {
+  /** "From an exercise test" or "estimated": said beside any target. */
+  provenance: "exercise_test" | "estimated" | "not_said";
 };
 
 export type CardioView = {
@@ -104,7 +117,20 @@ export type CardioView = {
    *  4-point drop from rest). */
   oxygenCheck: DuringExerciseCheck;
   effort: EffortGuidance;
+  /** The low end of the heart-rate range, present only when `effort` is a
+   *  heart-rate target (never for a beta-blocker). */
+  effortLow: EffortGuidance | null;
+  maxHeartRate: MaxHeartRate | null;
   onBetaBlocker: boolean | null;
+  /** Height and weight, recorded by the physiotherapist (latest wins). */
+  body: { height: VitalReading | null; weight: VitalReading | null };
+  /** The clinic's six-minute walk equation, as read (the guide predicts by it). */
+  equation: SixMinuteWalkEquationRead;
+  /** What the predicted six-minute walk is waiting for, in words, naming
+   *  exactly what is missing (empty when it can be shown or is unreadable). */
+  predictionNeeds: string[];
+  /** The patient facts the six-minute walk guide predicts from. */
+  patientFacts: { sex: "female" | "male" | null; ageYears: number | null; heightCm: number | null; weightKg: number | null };
   precautions: SternalPrecautions;
   walk: { first: VitalReading | null; latest: VitalReading | null; prediction: SixMinuteWalkPrediction };
   /** mMRC grade 0-4: the latest measurement, else the intake answer. */
@@ -144,10 +170,22 @@ const reading = (p: MeasurementPoint | null): VitalReading | null =>
   p ? { value: p.value, measuredAt: p.measuredAt, measurementId: p.id } : null;
 
 /** The latest of each vital on the record. */
+function bpReading(bp: MeasurementPoint | null): (VitalReading & { systolic: number; diastolic: number | null }) | null {
+  if (!bp) return null;
+  const items = bp.items && !Array.isArray(bp.items) ? (bp.items as Record<string, number>) : null;
+  return {
+    ...reading(bp)!,
+    systolic: typeof items?.systolic === "number" ? items.systolic : bp.value,
+    diastolic: typeof items?.diastolic === "number" ? items.diastolic : null,
+  };
+}
+
 export function latestCardioVitals(points: readonly MeasurementPoint[]): CardioVitals {
   const bp = latest(points, "blood_pressure", "rest");
   const items = bp && bp.items && !Array.isArray(bp.items) ? (bp.items as Record<string, number>) : null;
   return {
+    bloodPressureAfter: bpReading(latest(points, "blood_pressure", "after_exercise")),
+    breathlessnessAfter: reading(latest(points, "breathlessness_nrs", "after_test")),
     restingHeartRate: reading(latest(points, "resting_heart_rate")),
     bloodPressureRest: bp
       ? {
@@ -179,6 +217,12 @@ export function vitalsRedFlagAtLatestReview(vitals: CardioVitals, check: PreExer
   });
 }
 
+/** "90% (default)" / "88% (set by your doctor)": the limit on one short
+ *  line, for a tile or a chip; `limit.label` is the long form. */
+export function limitShort(limit: OxygenStopLimit, voice: Voice): string {
+  return `${limit.percent}% (${limit.source === "doctor" ? (voice === "patient" ? "set by your doctor" : "set by the doctor") : "default"})`;
+}
+
 function placeholderTile(key: string, label: string, deltaText: string, valueText = "Not yet"): KeyTile {
   return { key, label, fullLabel: label, valueText, sparkPath: null, deltaText, deltaTone: "neutral", goalText: null };
 }
@@ -192,6 +236,9 @@ export function cardioKeyTiles(input: {
   vitals: CardioVitals;
   limit: OxygenStopLimit;
   prediction: SixMinuteWalkPrediction;
+  /** The predicted-distance line already worded for the reader
+   *  (predictionLine); the walk tile shows it when it has one. */
+  predictionText?: string | null;
   activeMinutes: CardioView["activeMinutes"];
   measuresFailed: boolean;
 }): KeyTile[] {
@@ -201,7 +248,8 @@ export function cardioKeyTiles(input: {
     ? (() => {
         const t = keyTile(walkLine, input.milestones, CARDIO_PROFILE_KIND, voice, series);
         const p = input.prediction;
-        const extra = p.status === "ok" && p.percent !== null ? `${p.percent}% of predicted` : p.status === "ok" ? null : p.text;
+        const extra =
+          p.status === "ok" ? (p.percent !== null ? `${p.percent}% of predicted` : null) : input.predictionText !== undefined ? input.predictionText : p.text;
         return { ...t, label: "Six-minute walk", goalText: t.goalText ?? extra };
       })()
     : input.measuresFailed
@@ -217,11 +265,11 @@ export function cardioKeyTiles(input: {
           sparkPath: null,
           deltaText: vitals.spo2Rest && vitals.spo2Lowest ? `${vitals.spo2Lowest.value}% lowest on exercise` : "",
           deltaTone: "neutral",
-          goalText: `${voice === "patient" ? "Your stop limit" : "Stop limit"}: ${limit.label}`,
+          goalText: `${voice === "patient" ? "Your stop limit" : "Stop limit"}: ${limitShort(limit, voice)}`,
         }
       : input.measuresFailed
         ? placeholderTile("oxygen", "Oxygen", COULDNT_LOAD, "Unavailable")
-        : { ...placeholderTile("oxygen", "Oxygen", "Not measured yet"), goalText: `${voice === "patient" ? "Your stop limit" : "Stop limit"}: ${limit.label}` };
+        : { ...placeholderTile("oxygen", "Oxygen", "Not measured yet"), goalText: `${voice === "patient" ? "Your stop limit" : "Stop limit"}: ${limitShort(limit, voice)}` };
   const hrLine = series.find((s) => s.measureKey === "resting_heart_rate" && s.points.length > 0);
   const hr: KeyTile = hrLine
     ? { ...keyTile(hrLine, input.milestones, CARDIO_PROFILE_KIND, voice, series), label: "Resting heart rate" }
@@ -282,6 +330,50 @@ export function cardioStandSummary(input: {
   return out.length > 0 ? out.join(" ") : null;
 }
 
+/**
+ * What the six-minute walk's "% of predicted" is waiting for, exactly: the
+ * clinic's formula, the patient's sex, age, height and weight. Empty when
+ * nothing is missing, and also when a read failed (the screen then says "we
+ * couldn't check", which is not "needs").
+ */
+export function predictionNeedsList(input: {
+  equation: SixMinuteWalkEquationRead;
+  sex: unknown;
+  ageYears: number | null;
+  heightKnown: boolean;
+  weightKnown: boolean;
+  measuresFailed: boolean;
+  personFailed: boolean;
+}): string[] {
+  if (input.equation.status !== "ok" || input.measuresFailed || input.personFailed) return [];
+  const out: string[] = [];
+  if (!input.equation.chosen) out.push("the clinic's formula");
+  if (!input.sex) out.push("sex");
+  if (input.ageYears === null) out.push("age");
+  if (!input.heightKnown) out.push("height");
+  if (!input.weightKnown) out.push("weight");
+  return out;
+}
+
+/** The predicted-distance line a screen shows under the walk, in the
+ *  reader's words: the percentage and its equation, "we couldn't check", or
+ *  "needs ..." naming exactly what is missing. Null when there is no walk. */
+export function predictionLine(view: Pick<CardioView, "walk" | "predictionNeeds" | "measuresFailed" | "personFailed">, voice: Voice): string | null {
+  if (!view.walk.latest) return null;
+  const p = view.walk.prediction;
+  if (p.status === "ok") return p.percent !== null ? `${p.percent}% of the distance expected (${p.equation}), ${p.predictedMetres} m` : null;
+  if (p.status === "unreadable") return "We couldn't check which formula the clinic uses, so no expected distance is shown. It is not missing.";
+  if (view.measuresFailed || view.personFailed) {
+    return "We couldn't read the height, weight or age just now, so no expected distance is shown. It is not missing.";
+  }
+  if (view.predictionNeeds.length > 0) {
+    return voice === "patient"
+      ? `The expected distance for someone like you needs ${view.predictionNeeds.join(", ")}.`
+      : `Predicted distance needs ${view.predictionNeeds.join(", ")}.`;
+  }
+  return p.text;
+}
+
 export function shapeCardioView(reads: CardioReads, ctx: { intake: Readonly<Record<string, string>>; voice: Voice }): CardioView {
   const { voice, intake } = ctx;
   const base = shapeMeasuredBase(reads, CARDIO_PROFILE_KIND);
@@ -301,7 +393,18 @@ export function shapeCardioView(reads: CardioReads, ctx: { intake: Readonly<Reco
   );
   const oxygenCheck = duringExerciseOxygenCheck({ spo2Lowest: vitals.spo2Lowest?.value ?? null, spo2Rest: vitals.spo2Rest?.value ?? null, limit });
   const onBetaBlocker = betaBlockerFromIntake(intake);
-  const effort = effortGuidance({ onBetaBlocker, restingBpm: vitals.restingHeartRate?.value ?? null });
+  const height = reading(latest(base.points, "height_cm"));
+  const weight = reading(latest(base.points, "weight_kg"));
+  const maxPoint = latest(base.points, "max_hr_bpm");
+  const maxHeartRate: MaxHeartRate | null = maxPoint
+    ? {
+        ...reading(maxPoint)!,
+        provenance: maxPoint.variant === "exercise_test" ? "exercise_test" : maxPoint.variant === "estimated" ? "estimated" : "not_said",
+      }
+    : null;
+  const effortInput = { onBetaBlocker, restingBpm: vitals.restingHeartRate?.value ?? null, maximumBpm: maxHeartRate?.value ?? null };
+  const effort = effortGuidance({ ...effortInput, intensityPercent: HEART_RATE_RANGE_PERCENT[1] });
+  const effortLow = effort.mode === "heart_rate" ? effortGuidance({ ...effortInput, intensityPercent: HEART_RATE_RANGE_PERCENT[0] }) : null;
   const precautions = sternalPrecautions(intake, reads.todayIso);
   const latestWalk = reading(latest(base.points, "six_minute_walk"));
   const walk = {
@@ -309,8 +412,21 @@ export function shapeCardioView(reads: CardioReads, ctx: { intake: Readonly<Reco
     latest: latestWalk,
     // Height and weight are not on the record yet, so the prediction says it
     // needs them once the clinic has chosen an equation.
-    prediction: sixMinuteWalkPrediction({ walkedMetres: latestWalk?.value ?? null, equation: reads.equation, person: { sex, ageYears } }),
+    prediction: sixMinuteWalkPrediction({
+      walkedMetres: latestWalk?.value ?? null,
+      equation: reads.equation,
+      person: { sex, ageYears, heightCm: height?.value ?? null, weightKg: weight?.value ?? null },
+    }),
   };
+  const predictionNeeds = predictionNeedsList({
+    equation: reads.equation,
+    sex,
+    ageYears,
+    heightKnown: !!height,
+    weightKnown: !!weight,
+    measuresFailed: base.measuresFailed,
+    personFailed: base.personFailed,
+  });
   const mmrcPoint = latest(base.points, "mmrc");
   const mmrcIntake = mmrcGradeFromIntake(intake);
   const statusInput: StatusInput = {
@@ -354,6 +470,7 @@ export function shapeCardioView(reads: CardioReads, ctx: { intake: Readonly<Reco
       vitals,
       limit,
       prediction: walk.prediction,
+      predictionText: predictionLine({ walk, predictionNeeds, measuresFailed: base.measuresFailed, personFailed: base.personFailed }, voice),
       activeMinutes,
       measuresFailed: base.measuresFailed,
     }),
@@ -364,7 +481,13 @@ export function shapeCardioView(reads: CardioReads, ctx: { intake: Readonly<Reco
     vitalsCheck,
     oxygenCheck,
     effort,
+    effortLow,
+    maxHeartRate,
     onBetaBlocker,
+    body: { height, weight },
+    equation: reads.equation,
+    predictionNeeds,
+    patientFacts: { sex, ageYears, heightCm: height?.value ?? null, weightKg: weight?.value ?? null },
     precautions,
     walk,
     mmrc: mmrcPoint ? { grade: mmrcPoint.value, source: "measurement" } : mmrcIntake !== null ? { grade: mmrcIntake, source: "intake" } : null,
@@ -392,6 +515,17 @@ export function shapeCardioView(reads: CardioReads, ctx: { intake: Readonly<Reco
 
 // --- The PDF export ---------------------------------------------------------------------
 
+/** "Aim for 95 to 108 beats a minute (from an exercise test, 172 at most)",
+ *  or null when there is no heart-rate target (beta-blocker, no maximum). */
+export function heartRateTargetText(view: Pick<CardioView, "effort" | "effortLow" | "maxHeartRate">): string | null {
+  if (view.effort.mode !== "heart_rate") return null;
+  const hi = view.effort.targetBpm;
+  const lo = view.effortLow && view.effortLow.mode === "heart_rate" ? view.effortLow.targetBpm : null;
+  const max = view.maxHeartRate;
+  const from = max ? (max.provenance === "exercise_test" ? "from an exercise test" : max.provenance === "estimated" ? "estimated" : "maximum recorded") : "";
+  return `Aim for ${lo !== null && lo !== hi ? `${lo} to ${hi}` : hi} beats a minute${max ? ` (${from}, ${max.value} at most)` : ""}.`;
+}
+
 /** The PDF's "Safety limits and vitals" section, as lines. `formatDate` is
  *  the clinic-zone formatter (formatDateTime.ts), passed in so this module
  *  stays dependency-free. */
@@ -405,9 +539,14 @@ export function cardioExportSection(
     view.onBetaBlocker === true
       ? "Beta-blocker: yes. Exercise is paced by the talk test, not heart rate."
       : view.onBetaBlocker === false
-        ? `Beta-blocker: no. ${view.effort.mode === "heart_rate" ? `Training heart rate ${view.effort.targetBpm} bpm (${view.effort.working}).` : "No exercise-test maximum on file, so paced by the talk test."}`
+        ? `Beta-blocker: no. ${heartRateTargetText(view) ?? "No exercise-test maximum on file, so paced by the talk test."}`
         : "Beta-blocker: not recorded. Paced by the talk test until it is."
   );
+  if (view.body.height || view.body.weight) {
+    lines.push(
+      `Height and weight: ${[view.body.height ? `${view.body.height.value} cm` : "height not recorded", view.body.weight ? `${view.body.weight.value} kg` : "weight not recorded"].join(", ")}.`
+    );
+  }
   const p = view.precautions;
   if (p.status === "active") lines.push(`Surgeon's precautions, until ${formatDate(p.until)}: ${p.text ?? "as the surgeon set them"}.`);
   else if (p.status === "ended") lines.push(`Surgeon's precautions ended on ${formatDate(p.until)}${p.text ? ` (${p.text})` : ""}. Check with the surgeon before lifting them.`);
@@ -435,7 +574,7 @@ export function cardioExportSection(
     const predicted =
       pred.status === "ok"
         ? ` Predicted ${pred.predictedMetres} m${pred.percent !== null ? ` (${pred.percent}%)` : ""} by ${pred.equation}.`
-        : ` ${pred.text}`;
+        : ` ${predictionLine(view, "clinician") ?? pred.text}`;
     lines.push(`Six-minute walk: ${view.walk.latest.value} m (${formatDate(view.walk.latest.measuredAt)})${first}.${predicted}`);
   }
   if (view.activeMinutes.status === "ok") {

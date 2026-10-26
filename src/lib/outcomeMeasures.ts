@@ -230,6 +230,10 @@ export type OutcomeMeasure = {
    *  that derives the stored value from them -- so a stored value can always
    *  be re-checked against what was measured. Required when declared. */
   readings?: { keys: readonly string[]; derive: (r: Readonly<Record<string, number>>) => number | null };
+  /** A yes/no checklist stored as `readings` (1 done, 0 not): the screen
+   *  draws ticks with these labels instead of number boxes, and the value is
+   *  how many are ticked (the home safety check). */
+  checklist?: readonly { key: string; label: string }[];
   /** Recorded per side (left / right). */
   sided?: boolean;
   /** A measure recorded in several distinct ways that must never share a
@@ -401,6 +405,18 @@ const ALL_ADULT_FALLS: readonly ProfileKind[] = ["neuro", "neuro_parkinsons", "g
 // Order follows the handbook's "All measures at a glance" table, then the
 // measures it describes but leaves out of that table, then the licensed
 // scales (all off by default).
+
+/** The home safety check's items, in the order the physiotherapist walks
+ *  through the house (phase 6b). Ticked means done. Wording is the clinic's;
+ *  to be verified by a senior physiotherapist against its source. */
+export const HOME_SAFETY_ITEMS: readonly { key: string; label: string }[] = [
+  { key: "grab_rail_toilet", label: "Grab rail by the toilet" },
+  { key: "night_light_bathroom", label: "Night light to the bathroom" },
+  { key: "loose_rugs_removed", label: "Loose rugs taken up" },
+  { key: "non_slip_shower_mat", label: "Non-slip mat in the shower" },
+  { key: "raised_toilet_seat", label: "Raised toilet seat" },
+  { key: "stair_rails", label: "Rails on the stairs" },
+];
 
 export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
   // ---- Orthopaedic -------------------------------------------------------------
@@ -1106,6 +1122,39 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     },
   },
 
+  {
+    key: "home_safety_check",
+    label: "Home safety check",
+    plainName: "Home safety changes made",
+    // The value is how many of the items are done; each item is in `items`
+    // (1 done, 0 not yet). A snapshot: a re-check is a new row.
+    unit: "items done",
+    min: 0,
+    max: HOME_SAFETY_ITEMS.length,
+    decimals: 0,
+    better: "higher",
+    licence: "free",
+    enabledByDefault: true,
+    videoUse: "yes",
+    profileKinds: ["geriatric"],
+    source: "outcome_measurements",
+    capture: "calculated",
+    classification: true,
+    checklist: HOME_SAFETY_ITEMS,
+    readings: {
+      keys: HOME_SAFETY_ITEMS.map((i) => i.key),
+      derive: (r) => {
+        let done = 0;
+        for (const { key } of HOME_SAFETY_ITEMS) {
+          if (r[key] !== 0 && r[key] !== 1) return null;
+          done += r[key];
+        }
+        return done;
+      },
+    },
+    note: "Tick what is already in place at the patient's home. Every item is recorded; an unticked one is not done yet.",
+  },
+
   // ---- Cardiopulmonary ----------------------------------------------------------
   {
     key: "six_minute_walk",
@@ -1271,6 +1320,69 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     profileKinds: ["cardiopulmonary"],
     source: "outcome_measurements",
     capture: "rating",
+  },
+  {
+    key: "height_cm",
+    label: "Height",
+    plainName: "Height",
+    unit: "cm",
+    min: 100,
+    max: 230,
+    decimals: 0,
+    // A fact the six-minute walk's predicted distance needs, not a score:
+    // recorded once and again only when it changes (latest wins).
+    better: "hold",
+    licence: "free",
+    enabledByDefault: true,
+    videoUse: "home_measured",
+    profileKinds: ["cardiopulmonary", "geriatric"],
+    source: "outcome_measurements",
+    capture: "single",
+    classification: true,
+    note: "Barefoot, against a wall. Recorded once; record it again only if it has changed.",
+  },
+  {
+    key: "weight_kg",
+    label: "Weight",
+    plainName: "Weight",
+    unit: "kg",
+    min: 20,
+    max: 250,
+    decimals: 1,
+    better: "hold",
+    licence: "free",
+    enabledByDefault: true,
+    videoUse: "home_device",
+    profileKinds: ["cardiopulmonary", "geriatric"],
+    source: "outcome_measurements",
+    capture: "single",
+    classification: true,
+    note: "Light clothes, no shoes. Record it again when it changes; the latest reading is the one used.",
+  },
+  {
+    key: "max_hr_bpm",
+    label: "Maximum heart rate",
+    plainName: "Highest heart rate reached",
+    unit: "bpm",
+    min: 80,
+    max: 230,
+    decimals: 0,
+    // The ceiling a heart-rate target is worked out from, only for a patient
+    // recorded as not on a beta-blocker. From an exercise test; never 220
+    // minus age.
+    better: "hold",
+    licence: "free",
+    enabledByDefault: true,
+    videoUse: "no",
+    profileKinds: ["cardiopulmonary"],
+    source: "outcome_measurements",
+    capture: "single",
+    classification: true,
+    variants: [
+      { key: "exercise_test", label: "From an exercise test" },
+      { key: "estimated", label: "Estimated (never 220 minus age)" },
+    ],
+    note: "The highest heart rate reached on an exercise test. Used for a heart-rate target only when the patient is not on a beta-blocker; everyone else is paced by the talk test.",
   },
   {
     key: "active_minutes",

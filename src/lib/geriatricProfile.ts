@@ -1,4 +1,5 @@
 import { clinicDateKey } from "@/lib/clinicWeek";
+import { HOME_SAFETY_ITEMS } from "@/lib/outcomeMeasures";
 import { entriesAwaitingConfirmation, type DiaryEntry } from "@/lib/patientDiary";
 import { fallsInWindow, newConfirmedFall, type FallsWindow } from "@/lib/neuroProfile";
 import {
@@ -52,6 +53,61 @@ export const GERIATRIC_MAIN_PREFERENCE = ["gait_speed_4m", "tug", "chair_stand_3
 
 export type GeriatricReads = MeasuredProfileReads;
 
+/** "Start the falls check": the four STEADI tests in the order the clinic
+ *  runs them, each with the timer its own test gets in Record a test. */
+export const FALLS_CHECK_STEPS: readonly { measureKey: string; title: string }[] = [
+  { measureKey: "tug", title: "Timed Up and Go" },
+  { measureKey: "chair_stand_30s", title: "30-second chair stand" },
+  { measureKey: "four_stage_balance", title: "4-stage balance" },
+  { measureKey: "gait_speed_4m", title: "4-metre walking speed" },
+];
+
+export type HomeSafetyItemView = { key: string; label: string; done: boolean; newlyDone: boolean };
+
+/** The home safety check: the latest snapshot (n of N done, and which), with
+ *  the one before it for "was 3 of 6". */
+export type HomeSafetyView =
+  | { status: "not_recorded" }
+  | {
+      status: "recorded";
+      done: number;
+      total: number;
+      measuredAt: string;
+      items: HomeSafetyItemView[];
+      previous: { done: number; total: number; measuredAt: string } | null;
+    };
+
+function doneKeys(items: unknown): Set<string> | null {
+  if (!items || typeof items !== "object" || Array.isArray(items)) return null;
+  const r = items as Record<string, unknown>;
+  return new Set(HOME_SAFETY_ITEMS.filter((i) => r[i.key] === 1).map((i) => i.key));
+}
+
+export function homeSafetyView(points: readonly MeasurementPoint[]): HomeSafetyView {
+  const checks = points
+    .filter((p) => p.measureKey === "home_safety_check")
+    .sort((a, b) => Date.parse(b.measuredAt) - Date.parse(a.measuredAt) || (a.id < b.id ? 1 : -1));
+  const latest = checks[0];
+  if (!latest) return { status: "not_recorded" };
+  const total = HOME_SAFETY_ITEMS.length;
+  const now = doneKeys(latest.items);
+  const before = checks[1] ?? null;
+  const was = before ? doneKeys(before.items) : null;
+  return {
+    status: "recorded",
+    done: now ? now.size : latest.value,
+    total,
+    measuredAt: latest.measuredAt,
+    items: HOME_SAFETY_ITEMS.map((i) => ({
+      key: i.key,
+      label: i.label,
+      done: now ? now.has(i.key) : false,
+      newlyDone: !!now && !!was && now.has(i.key) && !was.has(i.key),
+    })),
+    previous: before ? { done: was ? was.size : before.value, total, measuredAt: before.measuredAt } : null,
+  };
+}
+
 export type GeriatricDiaryView =
   | { status: "ok"; entries: DiaryEntry[]; falls: FallsWindow; awaiting: DiaryEntry[] }
   | { status: "unreadable" };
@@ -78,6 +134,8 @@ export type GeriatricView = {
   conditionLine: string | null;
   /** "79 years", or null with no date of birth on file. */
   ageLine: string | null;
+  /** What the chair-stand norm is judged by (null when not on file). */
+  person: { ageYears: number | null; sex: "female" | "male" | null };
   /** "Ramesh, your son, helps at home" -- the optional carer pre-step. */
   carerLine: string | null;
   fallRisk: GeriatricFallRisk;
@@ -86,6 +144,7 @@ export type GeriatricView = {
   fallRiskText: string;
   katz: KatzView | null;
   orthostatic: OrthostaticFlag;
+  homeSafety: HomeSafetyView;
   walkingAid: string | null;
   diary: GeriatricDiaryView;
   /** Lines saying a read behind the status could not be made. */
@@ -125,6 +184,12 @@ export function fallRiskSentence(risk: GeriatricFallRisk, voice: Voice): string 
     return voice === "patient" ? "Low: no falls, not unsteady and not worried about falling." : risk.rule;
   }
   return voice === "patient" ? `${LEVEL_WORD[risk.level]}, from your balance, strength and walking tests.` : risk.rule;
+}
+
+/** The same sentence cut to its first clause, for a tile ("High because of 3
+ *  falls in the last 12 months"): the dial carries the rest. */
+export function fallRiskShort(risk: GeriatricFallRisk, voice: Voice): string {
+  return fallRiskSentence(risk, voice).split(/\.\s|\s\(STEADI/)[0].replace(/\.$/, "");
 }
 
 /** "Ramesh, your son, helps at home" (patient) / "Her son, Ramesh, helps at
@@ -169,7 +234,7 @@ export function geriatricKeyTiles(input: {
     fullLabel: "Fall risk today (CDC STEADI)",
     valueText: risk.level ? LEVEL_WORD[risk.level] : "Not known yet",
     sparkPath: null,
-    deltaText: fallRiskSentence(risk, voice),
+    deltaText: fallRiskShort(risk, voice),
     deltaTone: "neutral",
     goalText: null,
   };
@@ -307,11 +372,13 @@ export function shapeGeriatricView(
     keyTiles: geriatricKeyTiles({ risk: fallRisk, katz, series: base.series, milestones: base.milestones, voice, measuresFailed: base.measuresFailed }),
     conditionLine: (intake.geri_concern ?? "").split("\n")[0].trim() || null,
     ageLine: ageYears !== null ? `${ageYears} years` : null,
+    person: { ageYears, sex },
     carerLine: geriatricCarerLine(intake, voice, person?.gender ?? null),
     fallRisk,
     fallRiskText: fallRiskSentence(fallRisk, voice),
     katz,
     orthostatic: orthostaticFlag(base.points),
+    homeSafety: homeSafetyView(base.points),
     walkingAid: (intake.geri_walking_aid ?? "").trim() || null,
     diary: base.diaryEntries
       ? {
@@ -391,6 +458,12 @@ export function geriatricExportSection(
         ? `Standing blood pressure: positive (${drops}), ${formatDate(o.measuredAt)}. For the patient's doctor to review.`
         : `Standing blood pressure: negative (${drops}), ${formatDate(o.measuredAt)}.`
     );
+  }
+  const h = view.homeSafety;
+  if (h.status === "recorded") {
+    const was = h.previous ? ` (${h.previous.done} of ${h.previous.total} on ${formatDate(h.previous.measuredAt)})` : "";
+    const open = h.items.filter((i) => !i.done).map((i) => i.label.toLowerCase());
+    lines.push(`Home safety check, ${formatDate(h.measuredAt)}: ${h.done} of ${h.total} done${was}.${open.length > 0 ? ` Not yet: ${open.join(", ")}.` : ""}`);
   }
   if (view.walkingAid) lines.push(`Walking aid: ${view.walkingAid}.`);
   return {
