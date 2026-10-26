@@ -82,7 +82,7 @@ describe("estimated from an image: first and now", () => {
     const rows = measureTableRows(buildMeasureSeries(pts, { profileKind: "ortho" }), [], { profileKind: "ortho" });
     expect(rows[0].first.estimatedFromImage).toBe(false);
     expect(rows[0].now.estimatedFromImage).toBe(true);
-    const exported = buildProgressExport({ profileKind: "ortho", careStatus: null, points: pts, goals: [], milestones: [], nowMs: NOW });
+    const exported = buildProgressExport({ profileKind: "ortho", careStatus: undefined, points: pts, goals: [], milestones: [], nowMs: NOW });
     expect(exported.measures[0].now.toLowerCase()).toContain("estimated from a photo");
     expect(exported.measures[0].first.toLowerCase()).not.toContain("estimated from a photo");
   });

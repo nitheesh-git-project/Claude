@@ -10,6 +10,8 @@ import {
   interiorAngle,
   measureAngle,
   mirrorPoint,
+  meaningLine,
+  mostImportantWarning,
   rotatePointClockwise,
   roundDegrees,
   tiltFromLevel,
@@ -299,5 +301,33 @@ describe("the table", () => {
   it("finds a movement's geometry", () => {
     expect(angleMovementFor("knee_extension")?.usualSign).toBe(-1);
     expect(angleMovementFor("neck_rotation")).toBeNull();
+  });
+});
+
+describe("mostImportantWarning", () => {
+  it("shows one warning, the most serious first, or none", () => {
+    expect(mostImportantWarning([])).toBeNull();
+    const w = (code: "small_frame" | "foreshortened" | "within_error") => ({ code, message: code });
+    expect(mostImportantWarning([w("within_error"), w("small_frame"), w("foreshortened")])?.code).toBe("foreshortened");
+    expect(mostImportantWarning([w("within_error")])?.code).toBe("within_error");
+  });
+  it("gives every warning a short one-line fix", () => {
+    const hip = { x: 100, y: 400 };
+    const knee = { x: 700, y: 400 };
+    const r = value("knee_flexion", [hip, knee, at(60, 80, knee)], { previous: 118 });
+    for (const x of r.warnings) expect(x.message.length).toBeLessThan(110);
+  });
+});
+
+describe("meaningLine", () => {
+  it("says what the number means in plain words", () => {
+    expect(meaningLine("knee_flexion", 92)).toBe("Bent 92 degrees from straight (this is the flexion angle).");
+    expect(meaningLine("knee_flexion", 0)).toBe("Straight. That is 0.");
+    expect(meaningLine("knee_extension", -8)).toBe("Short of straight by 8 degrees.");
+    expect(meaningLine("knee_extension", 1)).toBe("Straight, and 1 degree past it.");
+    expect(meaningLine("ankle_dorsiflexion", -5)).toContain("short of a right angle");
+    expect(meaningLine("shoulder_external_rotation", 40)).toContain("from upright");
+    expect(meaningLine("shoulder_flexion", 0)).toContain("by the side");
+    expect(meaningLine("neck_rotation", 10)).toBeNull();
   });
 });

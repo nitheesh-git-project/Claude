@@ -18,6 +18,8 @@ import SixMinuteWalkGuide, { type SixMinuteWalkResult } from "@/components/profi
 import { sixMinuteWalkEquationKeyFor, type SixMinuteWalkEquationRead } from "@/lib/sixMinuteWalkEquation";
 import type { OxygenStopLimit } from "@/lib/cardioSafety";
 import { afterWalkReadings, restingReadings } from "@/lib/walkMeasurements";
+import AngleTool from "@/components/profile/progress/angle/AngleTool";
+import { canMeasureFromImage } from "@/lib/angleMeasure";
 import TapTimer from "@/components/profile/progress/timers/TapTimer";
 import { useDialogChrome } from "@/lib/useDialogChrome";
 import { useRouter } from "@/lib/useRouter";
@@ -169,6 +171,7 @@ export default function RecordTestDialog({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [angleOpen, setAngleOpen] = useState(false);
   const savingRef = useRef(false);
 
   const measure = measureKey ? outcomeMeasure(measureKey) : null;
@@ -199,6 +202,11 @@ export default function RecordTestDialog({
 
   function requestClose() {
     if (saving) return;
+    // Escape inside "Measure from a photo" goes back to the form, not out of the dialog.
+    if (angleOpen) {
+      setAngleOpen(false);
+      return;
+    }
     if (dirty && !confirmingDiscard) {
       setConfirmingDiscard(true);
       return;
@@ -583,9 +591,9 @@ export default function RecordTestDialog({
         <div
           ref={panelRef}
           {...dialogProps}
-          className="flex h-full w-full flex-col overflow-hidden bg-white shadow-xl sm:h-[92vh] sm:max-w-3xl sm:rounded-2xl"
+          className="relative flex h-full w-full flex-col overflow-hidden bg-white shadow-xl sm:h-[92vh] sm:max-w-3xl sm:rounded-2xl"
         >
-          <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4">
+          <div inert={angleOpen} className="flex items-start justify-between gap-4 border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4">
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-wide text-teal-800">Record a test</p>
               <h2 id={titleId} className="font-display text-lg font-bold text-slate-900 [overflow-wrap:anywhere]">
@@ -605,7 +613,7 @@ export default function RecordTestDialog({
             </button>
           </div>
 
-          <div className="flex-1 space-y-6 overflow-y-auto px-4 py-4 sm:px-6">
+          <div inert={angleOpen} className="flex-1 space-y-6 overflow-y-auto px-4 py-4 sm:px-6">
             {flow && (
               <div data-testid="flow-step" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2">
                 <p className="text-sm font-bold text-teal-900">
@@ -745,6 +753,25 @@ export default function RecordTestDialog({
                   <p className="pb-2 text-xs text-slate-700">{JOINT_READING_RULE}</p>
                 </details>
               )}
+
+              {measure?.key === "joint_range" && jointMovement && canMeasureFromImage(jointMovement) && (
+                <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3">
+                  <button
+                    type="button"
+                    data-testid="measure-from-image"
+                    onClick={() => setAngleOpen(true)}
+                    disabled={!side || !jointMode}
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-teal-700 bg-white px-4 text-sm font-bold text-teal-900 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <i aria-hidden className="fa-solid fa-camera" /> Measure from an image
+                  </button>
+                  <p className="mt-1 text-xs text-slate-700">
+                    {!side || !jointMode
+                      ? "Choose the side and active or passive first."
+                      : "For a video session: tap the joint on a screenshot and the angle is worked out for you. It is an estimate, and the photo is not saved."}
+                  </p>
+                </div>
+              )}
             </section>
 
             {measure && fields && (
@@ -756,7 +783,7 @@ export default function RecordTestDialog({
                   <fieldset>
                     <legend className="text-sm font-semibold text-slate-900">Where</legend>
                     <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-                      {radio("setting", "in_person", cond.setting, "In person", () => patchCond({ setting: "in_person" }))}
+                      {radio("setting", "in_person", cond.setting, "In person", () => patchCond({ setting: "in_person", estimatedFromImage: false }))}
                       {radio(
                         "setting",
                         "video",
@@ -792,6 +819,18 @@ export default function RecordTestDialog({
                   )}
                   {cond.setting === "video" && fields.estimateOverVideo && (
                     <p className="text-xs text-slate-600">Over video this reading is shown as an estimate on the graph.</p>
+                  )}
+                  {cond.setting === "video" && fields.estimateOverVideo && cond.estimatedFromImage && (
+                    <div data-testid="image-estimate-chip" className="flex flex-wrap items-center gap-2 rounded-xl bg-amber-100 px-3 py-2 text-sm font-bold text-amber-950">
+                      <span>Estimated from a photo. It is marked as an estimate everywhere it is shown.</span>
+                      <button
+                        type="button"
+                        onClick={() => patchCond({ estimatedFromImage: false })}
+                        className="min-h-[44px] rounded-lg px-3 text-sm font-semibold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                      >
+                        It was not from a photo
+                      </button>
+                    </div>
                   )}
                   {cond.setting === "video" && fields.parentOverVideo && (
                     <p className="text-xs text-slate-600">Over video, the parent does the activity with the child while you watch.</p>
@@ -1017,7 +1056,7 @@ export default function RecordTestDialog({
             )}
           </div>
 
-          <div className="border-t border-slate-100 px-4 py-3 sm:px-6">
+          <div inert={angleOpen} className="border-t border-slate-100 px-4 py-3 sm:px-6">
             {error && (
               <p role="alert" data-form-error className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
                 {error}
@@ -1065,6 +1104,25 @@ export default function RecordTestDialog({
               )}
             </div>
           </div>
+          {angleOpen && jointMovement && (side === "left" || side === "right") && jointMode && (
+            <AngleTool
+              movement={jointMovement}
+              side={side}
+              mode={jointMode}
+              previous={previous?.value ?? null}
+              onClose={() => setAngleOpen(false)}
+              onUse={(value) => {
+                // The number goes into the first empty reading box; the photo and the points stay behind.
+                const room = maxTrialsFor(measure!);
+                const texts = Array.from({ length: room }, (_, i) => editor.trialTexts[i] ?? "");
+                const at = texts.findIndex((t) => t.trim() === "");
+                texts[at < 0 ? room - 1 : at] = String(value);
+                patchEditor({ trialTexts: texts });
+                patchCond({ setting: "video", estimatedFromImage: true });
+                setAngleOpen(false);
+              }}
+            />
+          )}
         </div>
       </div>
     </OverlayPortal>

@@ -417,7 +417,7 @@ export function measureAngle(input: AngleInput): AngleResult {
   if (total < SMALL_FRAME_SHARE * diagonal) {
     warnings.push({
       code: "small_frame",
-      message: "The limb fills only a small part of the picture, so a few pixels are several degrees. Move the camera closer or crop to the limb and place the points again.",
+      message: "The leg looks small in the photo. Move the camera closer and take it again.",
     });
   }
   if (need === 3) {
@@ -425,34 +425,69 @@ export function measureAngle(input: AngleInput): AngleResult {
     if (Math.min(s1, s2) < FORESHORTEN_RATIO * Math.max(s1, s2)) {
       warnings.push({
         code: "foreshortened",
-        message: "One segment looks much shorter than the other, which usually means the limb points towards the camera. The angle will be unreliable; take the photo again side-on.",
+        message: "The camera is not at the side. Move the camera to the side of the joint and take it again.",
       });
     }
   }
   if (p.some((pt) => pt.x < 0 || pt.y < 0 || pt.x > width || pt.y > height)) {
-    warnings.push({ code: "outside_image", message: "A point is outside the picture. Part of the limb was out of shot, so its end is a guess." });
+    warnings.push({ code: "outside_image", message: "A point is off the photo. Take it again with the whole limb in view." });
   }
   if (input.referenceTiltDegrees != null && Math.abs(input.referenceTiltDegrees) > LEVEL_TOLERANCE_DEGREES) {
     warnings.push({
       code: "tilted_reference",
-      message: `The reference line is ${Math.abs(Math.round(input.referenceTiltDegrees * 10) / 10)} degrees off. The camera or the picture is tilted; level it, or turn the picture, and measure again.`,
+      message: `The photo is tilted by about ${Math.abs(Math.round(input.referenceTiltDegrees))} degrees. Hold the camera level and take it again.`,
     });
   }
   const measure = JOINT_MOVEMENTS.find((m) => m.key === input.movement);
   if (measure && (reading > measure.usualDegrees + 25 || reading < -45)) {
     warnings.push({
       code: "out_of_range",
-      message: "This is far outside what a joint usually reaches. Check that the points are on the right landmarks and that the right-hand tick box matches the picture.",
+      message: "This number looks too big or too small. Check each point sits on its landmark.",
     });
   }
   if (input.previous != null && Number.isFinite(input.previous) && Math.abs(reading - input.previous) <= TYPICAL_ERROR_DEGREES.high) {
     warnings.push({
       code: "within_error",
-      message: `This is within ${TYPICAL_ERROR_DEGREES.high} degrees of the last reading, which is inside the usual error of a photo. It is not evidence of a change.`,
+      message: `This is within ${TYPICAL_ERROR_DEGREES.high} degrees of the last reading. A photo cannot show a change that small.`,
     });
   }
 
   return { ok: true, value: reading, drawn: Math.round(drawn * 10) / 10, warnings, text: describe(reading, input.movement) };
+}
+
+/** One plain line saying what the number means, with the technical word in brackets. */
+export function meaningLine(movement: string, value: number): string | null {
+  const def = angleMovementFor(movement);
+  if (!def) return null;
+  const n = Math.abs(value);
+  const deg = `${n} degree${n === 1 ? "" : "s"}`;
+  switch (def.rule) {
+    case "from_straight":
+      if (def.usualSign === -1) {
+        if (value === 0) return "Fully straight. That is 0.";
+        return value < 0 ? `Short of straight by ${deg}.` : `Straight, and ${deg} past it.`;
+      }
+      if (value === 0) return "Straight. That is 0.";
+      return value > 0 ? `Bent ${deg} from straight (this is the flexion angle).` : `${deg} past straight.`;
+    case "direct":
+      return value === 0 ? "Arm is by the side. That is 0." : `${deg} away from the side of the body (flexion or abduction angle).`;
+    case "from_right_angle":
+      return value === 0 ? "A right angle. That is 0." : `${deg} ${value > 0 ? "on from" : "short of"} a right angle.`;
+    case "from_vertical":
+      return value === 0 ? "Pointing straight up. That is 0." : `Turned ${deg} from upright (rotation angle).`;
+  }
+}
+
+/** Warnings in the order that matters most; the screen shows only the first. */
+const WARNING_ORDER: readonly AngleWarningCode[] = ["outside_image", "foreshortened", "tilted_reference", "small_frame", "out_of_range", "within_error"];
+
+/** The one warning worth showing now, or null. */
+export function mostImportantWarning(warnings: readonly AngleWarning[]): AngleWarning | null {
+  for (const code of WARNING_ORDER) {
+    const w = warnings.find((x) => x.code === code);
+    if (w) return w;
+  }
+  return null;
 }
 
 // --- The conditions note -----------------------------------------------------------------------------
