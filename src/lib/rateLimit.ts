@@ -242,6 +242,39 @@ export const RATE_LIMITS = {
     windowSeconds: 3600,
     message: "We've saved a lot of diary entries from this account just now.",
   },
+
+  /**
+   * The guided video assessment's live display: the therapist's cockpit
+   * telling the patient's companion screen which step, phase and clock to
+   * show (/api/therapist/assessment-runs/display).
+   *
+   * Called on every step and phase change -- get ready, go, done, rest --
+   * but never once a second (the screen runs the clock itself from a start
+   * time), so a whole eight-step assessment is a few dozen calls. Its own
+   * scope on the one-scope-per-flow rule, so a busy session can never spend
+   * the allowance the run's saves need. Keyed on the therapist's account;
+   * generous, and fails open: refusing it costs the patient their screen in
+   * the middle of a test, which is worse than the burst.
+   */
+  assessmentDisplay: {
+    scope: "assessment-display",
+    limit: 300,
+    windowSeconds: 600,
+    message: "The patient's screen has been updated a lot just now.",
+  },
+
+  /**
+   * The guided video assessment's other writes: start, the step events
+   * (set-up, safety, saved, skipped, stopped, opened) and end. Keyed on the
+   * therapist's account. A run is tens of events, so the ceiling bounds the
+   * tables, not a person. Fails open (the default).
+   */
+  assessmentRun: {
+    scope: "assessment-run",
+    limit: 400,
+    windowSeconds: 3600,
+    message: "We've recorded a lot of assessment steps from this account just now.",
+  },
 } as const satisfies Record<string, RateLimit>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

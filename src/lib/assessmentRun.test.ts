@@ -316,6 +316,7 @@ describe("the live display", () => {
       {
         run_id: "run-1",
         patient_id: "pat-1",
+        protocol_key: "ortho_knee",
         current_step_id: "chair_stand",
         phase: "go",
         clock_started_at: "2026-10-26T09:00:00.000Z",
@@ -329,6 +330,6 @@ describe("the live display", () => {
     expect(view?.clock).toEqual({ mode: "countdown", seconds: 30, startedAt: "2026-10-26T09:00:00.000Z" });
     expect(clockReading(view!.clock!, Date.parse("2026-10-26T09:00:11.500Z"))).toBe(19);
     expect(clockReading(view!.clock!, Date.parse("2026-10-26T09:01:00.000Z"))).toBe(0);
-    expect(parseLiveDisplayRow({ run_id: "run-1", current_step_id: "chair_stand", phase: "go", display: { line: "9 stands" }, updated_at: "x" }, () => knee)).toBeNull();
+    expect(parseLiveDisplayRow({ run_id: "run-1", protocol_key: "ortho_knee", current_step_id: "chair_stand", phase: "go", display: { line: "9 stands" }, updated_at: "x" }, () => knee)).toBeNull();
   });
 });

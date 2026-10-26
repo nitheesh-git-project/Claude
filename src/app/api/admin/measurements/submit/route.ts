@@ -18,7 +18,9 @@ import { checkLinkedAppointment, insertMeasurement, prepareMeasurement } from "@
 // Request:  { patientId: string, appointmentId?: string | null,
 //             measurement: MeasurementInput }
 // Response: 200 { success: true, measurement: MeasurementPoint }
-//           400 validation, 403 scope, 404 no such patient,
+//           400 validation (and { code: "run_is_therapist_only" } for a
+//               runId or stepId: the back office has no assessment door),
+//           403 scope, 404 no such patient,
 //           409 { code: "no_condition_profile" }, 503 a check not run.
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("people");
@@ -30,8 +32,18 @@ export async function POST(request: NextRequest) {
     patientId?: unknown;
     appointmentId?: unknown;
     measurement?: unknown;
+    runId?: unknown;
+    stepId?: unknown;
   }>(request);
   if (parseError) return parseError;
+  // The guided video assessment is the physiotherapist's own, live in a
+  // session (phase 7a): the back office reads runs and has no door into one.
+  if ((body.runId !== undefined && body.runId !== null) || (body.stepId !== undefined && body.stepId !== null)) {
+    return NextResponse.json(
+      { error: "A guided video assessment is run by the physiotherapist in the session.", code: "run_is_therapist_only" },
+      { status: 400 }
+    );
+  }
   const patientId = typeof body.patientId === "string" ? body.patientId.trim() : "";
   if (!patientId) {
     return NextResponse.json({ error: "Missing patientId" }, { status: 400 });

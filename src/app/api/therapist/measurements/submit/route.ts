@@ -5,6 +5,7 @@ import { guardCommunication } from "@/lib/communicationFlags";
 import { serverNowMs } from "@/lib/debugClock";
 import { requireAssignedTherapist, requireSignedInUser, requireStartedSession } from "@/lib/therapistClinicalGate";
 import { checkLinkedAppointment, insertMeasurement, prepareMeasurement } from "@/lib/outcomeMeasurementRoute";
+import { checkMeasurementInRun, insertRunEvent } from "@/lib/assessmentRunServer";
 
 // A therapist records one standardised test -- walking speed, Timed Up and
 // Go, LEFS, the six-minute walk... -- in the shared measurement layer
@@ -26,11 +27,31 @@ import { checkLinkedAppointment, insertMeasurement, prepareMeasurement } from "@
 // not switched on is refused, and a Parkinson's TUG or walk needs ON/OFF,
 // the last dose and all three trials. Append-only: a re-test is a new row.
 //
+// Inside a guided video assessment (phase 7a) the screen also sends `runId`
+// and `stepId`. The step is then re-derived from the run's protocol and the
+// save is refused (409 with a code) unless the step's set-up was confirmed
+// in this run, a helper was confirmed where the step needs one (and the
+// reading says so), the red flags were answered with none present, the
+// measure is one the step records, the reading was taken over video, a vital
+// sign is marked as read off the patient's own device, and -- on the heart
+// and lung protocol -- the pre-exercise check worked out from this run's own
+// resting vitals is clear before any exertion measure (the six-minute walk,
+// the sit-to-stand tests, the walks). The run must be this therapist's, this
+// patient's and in progress. The measurement then writes the run's "saved"
+// event itself; if that one write fails the reading stands (it is
+// append-only) and `runEvent.recorded` is false, for the cockpit to retry
+// through /api/therapist/assessment-runs/event. Without `runId` nothing
+// changes from before.
+//
 // Request:  { patientId: string, appointmentId?: string | null,
-//             measurement: MeasurementInput }   (see outcomeMeasures.ts)
-// Response: 200 { success: true, measurement: MeasurementPoint }
-//           400 validation, 403 not this therapist's patient / session,
-//           409 { code: "session_not_started" | "no_condition_profile" },
+//             measurement: MeasurementInput,   (see outcomeMeasures.ts)
+//             runId?: string, stepId?: string }
+// Response: 200 { success: true, measurement: MeasurementPoint,
+//                 runEvent?: { recorded: boolean, eventId: string | null } }
+//           400 validation, 403 not this therapist's patient / session / run,
+//           404 no such run,
+//           409 { code: "session_not_started" | "no_condition_profile"
+//                 | an assessment-run code (assessmentRun.ts RunRefusalCode) },
 //           503 a check that could not be run.
 export async function POST(request: NextRequest) {
   const who = await requireSignedInUser();
@@ -40,6 +61,8 @@ export async function POST(request: NextRequest) {
     patientId?: unknown;
     appointmentId?: unknown;
     measurement?: unknown;
+    runId?: unknown;
+    stepId?: unknown;
   }>(request);
   if (parseError) return parseError;
   const patientId = typeof body.patientId === "string" ? body.patientId.trim() : "";
@@ -68,7 +91,31 @@ export async function POST(request: NextRequest) {
   );
   if (notStarted) return notStarted;
 
-  const linked = await checkLinkedAppointment(admin, body.appointmentId, patientId, therapistId);
+  const inRun = body.runId !== undefined && body.runId !== null;
+  let run: { id: string; appointmentId: string | null; stepId: string } | null = null;
+  if (inRun || (body.stepId !== undefined && body.stepId !== null)) {
+    const m = prepared.measurement;
+    const checked = await checkMeasurementInRun(admin, {
+      therapistId,
+      patientId,
+      runId: body.runId,
+      stepId: body.stepId,
+      measurement: { measureKey: m.measureKey, variant: m.variant, conditions: m.conditions },
+    });
+    if (!checked.ok) return checked.response;
+    run = { id: checked.run.id, appointmentId: checked.run.appointmentId, stepId: checked.step.id };
+  }
+
+  // A reading in a run is filed against the run's session unless the screen
+  // names one, and never against a different one.
+  const appointmentRaw = body.appointmentId ?? run?.appointmentId ?? null;
+  if (run?.appointmentId && body.appointmentId && body.appointmentId !== run.appointmentId) {
+    return NextResponse.json(
+      { error: "This reading belongs to the assessment's own session.", code: "appointment_mismatch" },
+      { status: 409 }
+    );
+  }
+  const linked = await checkLinkedAppointment(admin, appointmentRaw, patientId, therapistId);
   if (!linked.ok) return linked.response;
 
   // The patient reads these beside the number (their Health Profile), so
@@ -101,6 +148,22 @@ export async function POST(request: NextRequest) {
     appointmentId: linked.appointmentId,
     details: { measureKey: prepared.measurement.measureKey },
   });
+
+  if (run) {
+    const event = await insertRunEvent(admin, {
+      runId: run.id,
+      stepId: run.stepId,
+      kind: "saved",
+      details: {},
+      measurementId: inserted.point.id,
+      actor: therapistId,
+    });
+    return NextResponse.json({
+      success: true,
+      measurement: inserted.point,
+      runEvent: { recorded: event.ok, eventId: event.ok ? event.event.id : null },
+    });
+  }
 
   return NextResponse.json({ success: true, measurement: inserted.point });
 }

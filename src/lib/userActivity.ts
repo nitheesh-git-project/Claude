@@ -133,6 +133,16 @@ export const USER_ACTIVITY_META = {
   },
   "patient_diary.added": { label: "Wrote in their diary", group: "clinical", verb: "wrote in their diary" },
   "patient_diary.confirmed": { label: "Confirmed a diary entry", group: "clinical", verb: "confirmed a patient's diary entry" },
+  "assessment_run.started": {
+    label: "Started a guided video assessment",
+    group: "clinical",
+    verb: "started a guided video assessment",
+  },
+  "assessment_run.ended": {
+    label: "Ended a guided video assessment",
+    group: "clinical",
+    verb: "ended a guided video assessment",
+  },
   // feedback
   "feedback.submitted": { label: "Left session feedback", group: "feedback", verb: "left feedback on a session" },
   // referral

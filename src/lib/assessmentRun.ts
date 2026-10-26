@@ -86,7 +86,7 @@ export const ASSESSMENT_RUN_SELECT =
   "id, patient_id, appointment_id, therapist_id, protocol_key, protocol_version, profile_kind, status, started_at, ended_at, ended_reason";
 export const ASSESSMENT_RUN_EVENT_SELECT = "id, run_id, step_id, kind, measurement_id, details, actor, created_at";
 export const ASSESSMENT_LIVE_DISPLAY_SELECT =
-  "run_id, patient_id, current_step_id, phase, clock_started_at, clock_seconds, display, ended_at, updated_at";
+  "run_id, patient_id, protocol_key, current_step_id, phase, clock_started_at, clock_seconds, display, ended_at, updated_at";
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -662,14 +662,15 @@ export type LiveDisplayView = {
   updatedAt: string;
 };
 
-export function parseLiveDisplayRow(raw: unknown, protocolFor: (runId: string) => SessionProtocol | null): LiveDisplayView | null {
+export function parseLiveDisplayRow(raw: unknown, protocolFor: (protocolKey: string) => SessionProtocol | null): LiveDisplayView | null {
   if (!isObject(raw)) return null;
   const runId = str(raw.run_id);
   const stepId = str(raw.current_step_id);
   const updatedAt = str(raw.updated_at);
   if (!runId || !stepId || !updatedAt) return null;
   if (!(LIVE_PHASES as readonly unknown[]).includes(raw.phase)) return null;
-  const protocol = protocolFor(runId);
+  const protocolKey = str(raw.protocol_key);
+  const protocol = protocolKey ? protocolFor(protocolKey) : null;
   if (!protocol) return null;
   const checked = validateLiveDisplay(protocol, stepId, raw.display);
   if (!checked.ok) return null;

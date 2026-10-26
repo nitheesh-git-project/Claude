@@ -18949,6 +18949,9 @@ create table if not exists assessment_live_display (
   run_id uuid primary key references assessment_runs(id) on delete cascade,
   patient_id uuid not null references profiles(id) on delete cascade,
   therapist_id uuid not null references profiles(id),
+  -- Which protocol's text this is, so the patient's screen can re-check it
+  -- without reading the run (the patient has no policy on runs).
+  protocol_key text not null check (char_length(protocol_key) between 1 and 60),
   current_step_id text not null check (char_length(current_step_id) between 1 and 60),
   phase text not null check (phase in ('ready', 'go', 'done', 'rest', 'paused')),
   clock_started_at timestamptz,

@@ -610,8 +610,8 @@ begin
   exception when others then v_ok := true; end;
   if not v_ok then raise exception 'FAIL: assessment_run_events row was deletable'; end if;
 
-  insert into assessment_live_display (run_id, patient_id, therapist_id, current_step_id, phase, display)
-  values (v_run, v_actor, v_actor, 'safety', 'ready',
+  insert into assessment_live_display (run_id, patient_id, therapist_id, protocol_key, current_step_id, phase, display)
+  values (v_run, v_actor, v_actor, 'ortho_knee', 'safety', 'ready',
           '{"progress": "Step 1 of 8", "title": "Safety check", "line": "A few safety questions first.", "picture": "sitting"}'::jsonb);
   update assessment_live_display set phase = 'go', clock_started_at = now(), clock_seconds = 30 where run_id = v_run;
 
