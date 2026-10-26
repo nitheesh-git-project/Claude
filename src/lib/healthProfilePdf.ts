@@ -110,6 +110,16 @@ export type HealthProfilePdfInput = {
   /** The patient's diary as counts (diaryExport.ts), for a record whose
    *  profile kind keeps one. Null/absent prints nothing. */
   diary?: DiaryExport | null;
+  /** Strength and balance care / Heart and lung rehabilitation (phase 6a):
+   *  the fall-risk level with the rule that decided it, daily living and
+   *  standing blood pressure, or the oxygen stop limit, the latest vitals,
+   *  effort and the surgeon's precautions -- already as text
+   *  (geriatricProfile.ts `geriatricExportSection`, cardioProfile.ts
+   *  `cardioExportSection`), so this module never learns a rule. */
+  conditionSection?: { heading: string; lines: string[]; note?: string | null } | null;
+  /** "Ramesh, the patient's son, helps at home": the geriatric carer
+   *  pre-step, printed in the header block beside the condition type. */
+  carerLine?: string | null;
 };
 
 // Renders one stored answer the way a person reads it, driven off the
@@ -298,6 +308,7 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
       { size: 10, color: MUTED, gap: 1 }
     );
   }
+  if (input.carerLine) cur.text(toWinAnsiTidy(input.carerLine, ""), { size: 10, color: MUTED, gap: 1 });
   cur.text(`Downloaded ${formatDate(input.exportedAt)}  |  Intake status: ${input.status}`, {
     size: 9,
     color: MUTED,
@@ -474,6 +485,16 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
       cur.space(8);
     }
   }
+  }
+
+  if (input.conditionSection && input.conditionSection.lines.length > 0) {
+    const section = input.conditionSection;
+    cur.heading(toWinAnsiTidy(section.heading, "Safety and risk"));
+    for (const line of section.lines) {
+      cur.need(16);
+      cur.text(toWinAnsiTidy(line, ""), { size: 10, gap: 2 });
+    }
+    if (section.note) cur.text(toWinAnsiTidy(section.note, ""), { size: 9, color: MUTED, gap: 4 });
   }
 
   // The diary, as counts only and always saying whose word it is. The route

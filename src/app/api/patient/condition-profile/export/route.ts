@@ -22,13 +22,18 @@ import { describeNeuroExamForText, parseNeuroAssessments, type NeuroAssessmentRo
 import { describePedsExamForText, parsePedsAssessments, PEDS_ASSESSMENT_SELECT, type PedsAssessmentRow } from "@/lib/pedsExam";
 import { parseWeeksAtBirth, pedsAgeLine, pedsTodayIso, PEDS_WEEKS_AT_BIRTH_KEY } from "@/lib/pedsAge";
 import { achievedAgeLabel, pedsMilestoneWindows, PEDS_WINDOWS_VERIFICATION_NOTE } from "@/lib/pedsMilestoneWindows";
-import { loadCareStatus, loadGoalAndMilestones, loadMeasurements } from "@/lib/outcomeServer";
+import { loadCareStatus, loadGoalAndMilestones, loadMeasurements, loadSixMinuteWalkEquation } from "@/lib/outcomeServer";
 import { parseMeasurementRows } from "@/lib/outcomeSeries";
 import { profileKindFor } from "@/lib/profileKind";
 import { buildProgressExport } from "@/lib/progressExport";
 import { buildDiaryExport } from "@/lib/diaryExport";
 import { loadDiaryEntries } from "@/lib/patientDiaryServer";
 import { diaryKindsFor } from "@/lib/patientDiary";
+import { clinicDateKey } from "@/lib/clinicWeek";
+import { formatClinicDate } from "@/lib/formatDateTime";
+import { geriatricExportSection, shapeGeriatricView } from "@/lib/geriatricProfile";
+import { cardioExportSection, shapeCardioView } from "@/lib/cardioProfile";
+import type { MeasuredProfileReads } from "@/lib/progressProfileBase";
 
 /** Shape of the rows the Pain Map query returns, so the non-orthopaedic
  *  branch's empty placeholder keeps the same type. */
@@ -89,6 +94,8 @@ export async function GET(request: NextRequest) {
   const isOrtho = specialty === "ortho";
   const isNeuro = specialty === "neuro";
   const isPeds = specialty === "pediatrics";
+  const isGeriatric = specialty === "geriatric";
+  const isCardio = specialty === "cardiopulmonary";
 
   // Every read that carries part of the record is checked, and the lists
   // are paged. An export is handed to another clinician as "the record", so
@@ -111,8 +118,10 @@ export async function GET(request: NextRequest) {
     measurementsRead,
     goalsRead,
   ] = await Promise.all([
-    // date_of_birth: the paediatric exam's corrected age (pedsAge.ts).
-    supabase.from("profiles").select("full_name, email, patient_code, date_of_birth").eq("id", user.id).single(),
+    // date_of_birth: the paediatric exam's corrected age (pedsAge.ts), and
+    // with gender the geriatric chair-stand norms and the cardiopulmonary
+    // predicted walk (phase 6a).
+    supabase.from("profiles").select("full_name, email, patient_code, date_of_birth, gender").eq("id", user.id).single(),
     supabase
       .from("patient_condition_profiles")
       .select("data, schema_version, status, updated_at")
@@ -121,7 +130,7 @@ export async function GET(request: NextRequest) {
     readAllRows<ChangeRequestExportRow>(() =>
       supabase
         .from("condition_change_requests")
-        .select("submitted_by_role, proposed_data, status, admin_notes, created_at")
+        .select("submitted_by_role, proposed_data, status, admin_notes, reviewed_at, created_at")
         .eq("patient_id", user.id)
         .order("created_at", { ascending: false })
         .order("id", { ascending: true })
@@ -220,6 +229,10 @@ export async function GET(request: NextRequest) {
   // record handed over without its falls reads as a record with none.
   const diaryRead = diaryKindsFor(profileKind).length > 0 ? await loadDiaryEntries(supabase, user.id) : null;
   if (diaryRead && diaryRead.status !== "ok") return exportUnavailable();
+  // The clinic's six-minute walk equation, for a cardiopulmonary record's
+  // "% of predicted". A setting rather than part of the record, so an
+  // unreadable one prints "we couldn't check" instead of refusing.
+  const equationRead = isCardio ? await loadSixMinuteWalkEquation(supabase) : null;
 
   const changeRequests = changeRequestsResult.rows;
   const assessments = assessmentsResult.rows;
@@ -309,6 +322,48 @@ export async function GET(request: NextRequest) {
         : "date of birth not on file"))
     : null;
 
+  // Strength and balance care / Heart and lung rehabilitation (phase 6a):
+  // the fall-risk level with its rule, or the safety limits and vitals,
+  // shaped by the same view the screens use from the reads above -- every
+  // one of which was checked, so this section is complete or the export
+  // was already refused.
+  let conditionSection: { heading: string; lines: string[]; note: string } | null = null;
+  let carerLine: string | null = null;
+  if ((isGeriatric || isCardio) && diaryRead?.status === "ok") {
+    const nowMs = Date.now();
+    const reads: MeasuredProfileReads = {
+      measurements: { status: "ok", rows: measurementsRead.rows },
+      goals: goalsRead,
+      careStatus: { status: "ok", events: careStatusRead.events },
+      diary: { status: "ok", entries: diaryRead.entries },
+      intakeHistory: {
+        status: "ok",
+        rows: changeRequests.map((r) => ({
+          proposed_data: (r.proposed_data ?? null) as Record<string, string> | null,
+          reviewed_at: r.reviewed_at ?? null,
+          created_at: r.created_at,
+          status: r.status,
+        })),
+      },
+      licence: { status: "ok", keys: [] },
+      person: {
+        status: "ok",
+        birthDate: typeof profile?.date_of_birth === "string" ? profile.date_of_birth : null,
+        gender: typeof profile?.gender === "string" ? profile.gender : null,
+      },
+      nowMs,
+      todayIso: clinicDateKey(nowMs),
+    };
+    if (isGeriatric) {
+      const view = shapeGeriatricView(reads, { intake: answers, voice: "clinician" });
+      conditionSection = geriatricExportSection(view, formatClinicDate);
+      carerLine = view.carerLine;
+    } else {
+      const view = shapeCardioView({ ...reads, equation: equationRead ?? { status: "unreadable" } }, { intake: answers, voice: "clinician" });
+      conditionSection = cardioExportSection(view, formatClinicDate);
+    }
+  }
+
   const progress = buildProgressExport({
     profileKind,
     careStatus: { phase: careStatusRead.phase, override: careStatusRead.override, summary: careStatusRead.summary },
@@ -329,6 +384,8 @@ export async function GET(request: NextRequest) {
     respondent,
     progress,
     diary: diaryRead ? buildDiaryExport(diaryRead.entries, { profileKind, nowMs: Date.now() }) : null,
+    conditionSection,
+    carerLine,
     questions,
     answers,
     earlierProfiles,
@@ -394,6 +451,7 @@ type ChangeRequestExportRow = {
   proposed_data: unknown;
   status: string;
   admin_notes: string | null;
+  reviewed_at: string | null;
   created_at: string;
 };
 

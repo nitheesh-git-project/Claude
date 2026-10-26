@@ -5,26 +5,11 @@ import { loadDiaryEntries } from "@/lib/patientDiaryServer";
 import { loadSummaryAuthorName } from "@/lib/careStatusAuthor";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { NeuroReads } from "@/lib/neuroProfileView";
-import type { IntakeTrendRow } from "@/lib/healthProfileSummary";
+import { loadIntakeHistory } from "@/lib/profileReadsServer";
 import type { NeuroKind } from "@/lib/neuroProfile";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyClient = SupabaseClient<any, any, any>;
-
-async function loadIntakeHistory(client: AnyClient, patientId: string): Promise<NeuroReads["intakeHistory"]> {
-  try {
-    const { data, error } = await client
-      .from("condition_change_requests")
-      .select("proposed_data, submitted_by_role, reviewed_at, created_at, status")
-      .eq("patient_id", patientId)
-      .eq("status", "approved")
-      .order("created_at", { ascending: true });
-    if (error) return { status: "unreadable" };
-    return { status: "ok", rows: (data ?? []) as IntakeTrendRow[] };
-  } catch {
-    return { status: "unreadable" };
-  }
-}
 
 /**
  * The reads behind the neurological and Parkinson's Health Profile, each its
