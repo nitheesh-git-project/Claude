@@ -58,7 +58,7 @@ async function post(request: APIRequestContext, path: string, email: string, dat
   });
 }
 
-const event = (request: APIRequestContext, runId: string, stepId: string, kind: string, details?: unknown, email = QA_EMAILS.therapistA) =>
+const event = (request: APIRequestContext, runId: string, stepId: string, kind: string, details?: unknown, email: string = QA_EMAILS.therapistA) =>
   post(request, "/api/therapist/assessment-runs/event", email, { runId, stepId, kind, details });
 
 const measure = (request: APIRequestContext, patientId: string, runId: string, stepId: string, measurement: unknown) =>
