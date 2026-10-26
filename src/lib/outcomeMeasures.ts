@@ -645,7 +645,10 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     licence: "free",
     enabledByDefault: true,
     videoUse: "home_measured",
-    profileKinds: ["neuro", "neuro_parkinsons"],
+    // Orthopaedic since phase 7a: the knee-pain guided video assessment's
+    // walk (sessionProtocols.ts), on the path the family marked out. To be
+    // verified by a senior physiotherapist against its source.
+    profileKinds: ["neuro", "neuro_parkinsons", "ortho"],
     source: "outcome_measurements",
     // A neurological patient's walk time is on their exam (seconds, which
     // gaitSpeedFromTenMetre converts); the Parkinson's sub-profile records
@@ -989,7 +992,11 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     licence: "free",
     enabledByDefault: true,
     videoUse: "with_helper",
-    profileKinds: ["geriatric"],
+    // Orthopaedic since phase 7a: the knee-pain guided video assessment's
+    // 30-second chair stand (sessionProtocols.ts). The CDC age-and-sex norm is
+    // the same line whoever stands. To be verified by a senior
+    // physiotherapist against its source.
+    profileKinds: ["geriatric", "ortho"],
     source: "outcome_measurements",
     capture: "single",
     usedArmsScoresZero: true,
@@ -1896,6 +1903,37 @@ export function validateMeasurementValue(key: string, raw: unknown): ValueResult
 
 export type MeasurementSetting = "in_person" | "video";
 
+/** Where a vital sign was read from (phase 7a). Over video the therapist reads
+ *  the patient's own oximeter or blood-pressure monitor off the camera; in
+ *  person it is the clinic's device. Only on a vitals measure. */
+export type ReadFrom = "clinic_device" | "patient_device_on_video";
+
+export const READ_FROM_VALUES: readonly ReadFrom[] = ["clinic_device", "patient_device_on_video"];
+
+/** The words a reading carries wherever it is shown (graph, table, PDF). */
+export const READ_FROM_LABELS: Record<ReadFrom, string> = {
+  clinic_device: "Clinic device",
+  patient_device_on_video: "Read off the patient's own device on video",
+};
+
+/** The vital signs: the measures a device reads (heart rate, oxygen, blood
+ *  pressure). `conditions.readFrom` is accepted on these alone. */
+export const VITALS_MEASURE_KEYS: readonly string[] = [
+  "resting_heart_rate",
+  "lowest_spo2",
+  "blood_pressure",
+  "resting_spo2",
+  "orthostatic_bp",
+];
+
+export function isVitalsMeasure(key: string): boolean {
+  return VITALS_MEASURE_KEYS.includes(key);
+}
+
+for (const key of VITALS_MEASURE_KEYS) {
+  if (!BY_KEY.has(key)) throw new Error(`outcomeMeasures: vitals measure "${key}" is not in the registry`);
+}
+
 /** What was true when the number was taken. A number without these cannot
  *  be compared later. Stored as outcome_measurements.conditions (jsonb). */
 export type MeasurementConditions = {
@@ -1925,6 +1963,9 @@ export type MeasurementConditions = {
    *  call (angleMeasure.ts), not read off a goniometer. Always an estimate;
    *  the photo itself is never stored. */
   estimatedFromImage?: boolean;
+  /** Vitals only: read off the clinic's device in person, or off the
+   *  patient's own device on camera during a video session. */
+  readFrom?: ReadFrom;
 };
 
 /** The one key `items` holds when the arms were used: what was counted
@@ -1945,6 +1986,7 @@ const CONDITION_KEYS: readonly (keyof MeasurementConditions)[] = [
   "painBefore",
   "usedArms",
   "estimatedFromImage",
+  "readFrom",
 ];
 
 export const CONDITION_TEXT_MAX = 80;
@@ -2008,6 +2050,20 @@ export function validateMeasurementConditions(
       if (raw.setting !== "video") return { ok: false, error: "A reading estimated from an image is taken over video." };
       out.estimatedFromImage = true;
     }
+  }
+
+  if (raw.readFrom !== undefined && raw.readFrom !== null) {
+    if (typeof raw.readFrom !== "string" || !(READ_FROM_VALUES as readonly string[]).includes(raw.readFrom)) {
+      return { ok: false, error: "Say whether the reading came from the clinic's device or the patient's own device." };
+    }
+    if (!isVitalsMeasure(m.key)) return { ok: false, error: `${m.label} is not read off a device.` };
+    if (raw.readFrom === "patient_device_on_video" && raw.setting !== "video") {
+      return { ok: false, error: "A reading off the patient's own device on camera is taken over video." };
+    }
+    if (raw.readFrom === "clinic_device" && raw.setting !== "in_person") {
+      return { ok: false, error: "A reading off the clinic's device is taken in person." };
+    }
+    out.readFrom = raw.readFrom as ReadFrom;
   }
 
   if (raw.method !== undefined && raw.method !== null) {

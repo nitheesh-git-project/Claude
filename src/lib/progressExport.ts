@@ -8,7 +8,7 @@ import { shapeMilestones, type CareGoal, type CareMilestone } from "@/lib/careGo
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { MILESTONE_STATUS_LABEL } from "@/lib/milestones";
 import { outcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
-import { buildMeasureSeries, measureTableRows, type MeasurementPoint } from "@/lib/outcomeSeries";
+import { buildMeasureSeries, measureTableRows, readFromLabel, type MeasurementPoint, type SeriesPoint } from "@/lib/outcomeSeries";
 import { IMAGE_ESTIMATE_LABEL } from "@/lib/angleMeasure";
 import { formatReading } from "@/lib/progressChart";
 import { linkSummary } from "@/lib/milestonePlanner";
@@ -41,6 +41,16 @@ const GOAL_STATUS: Record<CareGoal["status"], string> = { active: "In progress",
  * the registry's own judgement of the change (a move inside the measurement
  * error reads "No real change").
  */
+
+/** The marks a reading carries in the PDF: a photo estimate, a vital sign
+ *  read off the patient's own device on video. */
+function provenance(point: SeriesPoint): string {
+  const marks: string[] = [];
+  if (point.estimatedFromImage) marks.push(IMAGE_ESTIMATE_LABEL.toLowerCase());
+  const device = readFromLabel(point);
+  if (device) marks.push(device.toLowerCase());
+  return marks.length ? ` ${marks.join(", ")}` : "";
+}
 export function buildProgressExport(input: {
   profileKind: ProfileKind;
   points: readonly MeasurementPoint[];
@@ -82,11 +92,8 @@ export function buildProgressExport(input: {
         { label: row.label, plainName: row.label, variantLabel: row.variantLabel, side: row.side, medicationState: row.medicationState },
         "clinician"
       ),
-      first: `${reading(row.first.value)} (${when(row.first.measuredAt)})${row.first.estimatedFromImage ? ` ${IMAGE_ESTIMATE_LABEL.toLowerCase()}` : ""}`,
-      now:
-        row.reviews > 1
-          ? `${reading(row.now.value)} (${when(row.now.measuredAt)})${row.now.estimatedFromImage ? ` ${IMAGE_ESTIMATE_LABEL.toLowerCase()}` : ""}`
-          : "First reading",
+      first: `${reading(row.first.value)} (${when(row.first.measuredAt)})${provenance(row.first)}`,
+      now: row.reviews > 1 ? `${reading(row.now.value)} (${when(row.now.measuredAt)})${provenance(row.now)}` : "First reading",
       goal: row.goal ? `${reading(row.goal.value)}${row.goal.reached ? " (reached)" : ""}` : "Not set",
       change: row.change === null ? (m ? "First reading" : "Not judged") : changeWord(row.change),
       reviews: row.reviews,

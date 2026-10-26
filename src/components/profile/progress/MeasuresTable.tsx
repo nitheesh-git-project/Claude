@@ -2,7 +2,7 @@ import { subjectWords, type ProfileSubject } from "@/lib/childVoice";
 import { IMAGE_ESTIMATE_LABEL } from "@/lib/angleMeasure";
 import { formatClinicDateShort } from "@/lib/formatDateTime";
 import { outcomeMeasure } from "@/lib/outcomeMeasures";
-import type { MeasureTableRow } from "@/lib/outcomeSeries";
+import { readFromLabel, type MeasureTableRow } from "@/lib/outcomeSeries";
 import { describeDelta, formatReading } from "@/lib/progressChart";
 import { shortSeriesLabel } from "@/lib/measureLabels";
 import { changeWord, seriesName, type Voice } from "@/lib/progressView";
@@ -89,11 +89,13 @@ export default function MeasuresTable({ rows, voice, subject = "self" }: { rows:
                   {reading(row.first.value)}
                   <span className="block text-xs text-slate-600">{formatClinicDateShort(row.first.measuredAt)}</span>
                   {row.first.estimatedFromImage && <span className="block text-xs font-semibold text-amber-900">{IMAGE_ESTIMATE_LABEL}</span>}
+                  {readFromLabel(row.first) && <span className="block text-xs text-slate-600">{readFromLabel(row.first)}</span>}
                 </td>
                 <td className="px-3 py-3 font-semibold text-slate-900">
                   {reading(row.now.value)}
                   <span className="block text-xs font-normal text-slate-600">{formatClinicDateShort(row.now.measuredAt)}</span>
                   {row.now.estimatedFromImage && <span className="block text-xs font-semibold text-amber-900">{IMAGE_ESTIMATE_LABEL}</span>}
+                  {readFromLabel(row.now) && <span className="block text-xs text-slate-600">{readFromLabel(row.now)}</span>}
                 </td>
                 <td className="px-3 py-3 text-slate-800">
                   {row.goal ? (

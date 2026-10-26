@@ -12,6 +12,8 @@ import {
   type MeasurementSetting,
   type MeasurementSide,
   type ProfileKind,
+  type ReadFrom,
+  READ_FROM_LABELS,
 } from "@/lib/outcomeMeasures";
 import type { MeasurementReading, MilestoneStatus } from "@/lib/milestones";
 
@@ -201,10 +203,21 @@ export type SeriesPoint = {
   testerName: string | null;
   /** The number was estimated from a photograph, not read off a goniometer. */
   estimatedFromImage: boolean;
+  /** Vitals only: where the reading came from (the clinic's device, or the
+   *  patient's own device read on camera); null when not recorded. */
+  readFrom: ReadFrom | null;
   /** How many readings of this line the review held; the point is the
    *  newest of them. Above 1 means it was re-tested within the review. */
   readingsInReview: number;
 };
+
+/** The label a vital sign carries when it was read off the patient's own
+ *  device on camera (phase 7a): shown on the graph, the measures table and
+ *  the PDF beside the number. Null for everything else -- a clinic device
+ *  in person is the ordinary case and goes unlabelled. */
+export function readFromLabel(point: Pick<SeriesPoint, "readFrom">): string | null {
+  return point.readFrom === "patient_device_on_video" ? READ_FROM_LABELS.patient_device_on_video : null;
+}
 
 export type MeasureSeries = {
   key: string;
@@ -292,6 +305,10 @@ export function buildMeasureSeries(
         recordedBy: newest.recordedBy,
         testerName: typeof newest.conditions.testerName === "string" ? newest.conditions.testerName : null,
         estimatedFromImage: isEstimate(newest),
+        readFrom:
+          newest.conditions.readFrom === "clinic_device" || newest.conditions.readFrom === "patient_device_on_video"
+            ? newest.conditions.readFrom
+            : null,
         readingsInReview: inReview.length,
       });
     }

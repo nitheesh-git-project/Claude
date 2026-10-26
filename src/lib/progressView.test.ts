@@ -27,6 +27,7 @@ const line = (over: Partial<MeasureSeries>, points = 2): MeasureSeries => ({
     recordedBy: "t",
     testerName: null,
     estimatedFromImage: false,
+    readFrom: null,
     readingsInReview: 1,
   })),
   ...over,
