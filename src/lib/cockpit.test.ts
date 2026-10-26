@@ -3,7 +3,9 @@ import {
   RUN_REFUSAL_CODES,
   cockpitFailure,
   failureText,
+  exertionBlock,
   firstOpenStepId,
+  preExerciseFromEvents,
   isLastStep,
   nextStepId,
   patientControls,
@@ -234,5 +236,23 @@ describe("every protocol", () => {
         expect(patientControls(s).length).toBeGreaterThanOrEqual(4);
       }
     }
+  });
+});
+
+describe("the resting check on the heart and lung protocol", () => {
+  const check = (status: string) => ev("resting_check", "safety_confirmed", { details: { gate: "cardio_pre_exercise", status, flags: [], notChecked: [] } });
+  it("reads the newest check the server wrote", () => {
+    expect(preExerciseFromEvents([])).toBeNull();
+    expect(preExerciseFromEvents([check("incomplete"), check("clear")])).toBe("clear");
+    expect(preExerciseFromEvents([clear])).toBeNull();
+  });
+  it("holds an exertion step until the check is clear, and says why", () => {
+    const sit = protocolStep(cardio, "sit_to_stand")!;
+    expect(exertionBlock(cardio, sit, null)).toMatch(/resting check/i);
+    expect(exertionBlock(cardio, sit, "incomplete")).toMatch(/resting check/i);
+    expect(exertionBlock(cardio, sit, "stop")).toMatch(/not to exercise/i);
+    expect(exertionBlock(cardio, sit, "clear")).toBeNull();
+    expect(exertionBlock(cardio, protocolStep(cardio, "breathless_now")!, null)).toBeNull();
+    expect(exertionBlock(knee, protocolStep(knee, "chair_stand")!, null)).toBeNull();
   });
 });

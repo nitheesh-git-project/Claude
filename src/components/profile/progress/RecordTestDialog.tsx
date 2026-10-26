@@ -36,7 +36,7 @@ import {
   type JointMode,
 } from "@/lib/jointLandmarks";
 import { isVitalsMeasure, JOINT_MOVEMENTS, type CleanMeasurement, maxTrialsFor, outcomeMeasure, READ_FROM_LABELS, STANDS_WITH_ARMS_KEY, usedArmsEntry, validateMeasurement, type OutcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
-import type { MeasureSeries } from "@/lib/outcomeSeries";
+import type { MeasurementPoint, MeasureSeries } from "@/lib/outcomeSeries";
 import { formatReading } from "@/lib/progressChart";
 import { NETWORK_ERROR_MESSAGE, progressErrorMessage, readProgressFailure, type ProgressApiFailure } from "@/lib/progressErrors";
 import {
@@ -73,8 +73,16 @@ type PatientFacts = {
  *  variants), taken over video, and the cockpit's own Save and next calling
  *  its registered `save()`. The reading goes through the same measurement
  *  route with the run and step named; the route re-derives and gates them. */
+export type EmbeddedSaved = {
+  /** The stored reading; null when it was saved earlier and not changed since. */
+  measurement: MeasurementPoint | null;
+  /** The run's "saved" event was written with it. False: the reading stands
+   *  and the cockpit records the event itself (the route's retry path). */
+  eventRecorded: boolean;
+  eventId: string | null;
+};
 export type EmbeddedSaveResult =
-  | { ok: true; alreadySaved: boolean }
+  | ({ ok: true; alreadySaved: boolean } & EmbeddedSaved)
   | { ok: false; kind: "local"; message: string }
   | { ok: false; kind: "server"; failure: ProgressApiFailure }
   | { ok: false; kind: "network" };
@@ -435,7 +443,7 @@ export default function RecordTestDialog({
    *  words every refusal itself. */
   async function embeddedSave(): Promise<EmbeddedSaveResult> {
     if (!embedded) return { ok: false, kind: "local", message: "This is not part of an assessment." };
-    if (savedOnce) return { ok: true, alreadySaved: true };
+    if (savedOnce) return { ok: true, alreadySaved: true, measurement: null, eventRecorded: true, eventId: null };
     if (savingRef.current) return { ok: false, kind: "local", message: "Still saving. One moment." };
     const prepared = prepareMeasurement();
     if (!prepared.ok) return { ok: false, kind: "local", message: prepared.message };
@@ -454,8 +462,18 @@ export default function RecordTestDialog({
         }),
       });
       if (!res.ok) return { ok: false, kind: "server", failure: await readProgressFailure(res) };
+      const body = (await res.json().catch(() => null)) as {
+        measurement?: MeasurementPoint;
+        runEvent?: { recorded?: boolean; eventId?: string | null };
+      } | null;
       setSavedOnce(true);
-      return { ok: true, alreadySaved: false };
+      return {
+        ok: true,
+        alreadySaved: false,
+        measurement: body?.measurement ?? null,
+        eventRecorded: body?.runEvent?.recorded === true,
+        eventId: body?.runEvent?.eventId ?? null,
+      };
     } catch {
       return { ok: false, kind: "network" };
     } finally {

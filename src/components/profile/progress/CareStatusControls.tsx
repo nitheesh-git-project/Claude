@@ -44,6 +44,7 @@ export default function CareStatusControls({
   summary = null,
   summaryDraft = null,
   endpoint = "/api/therapist/care-status/set",
+  summaryOnly = false,
 }: {
   patientId: string;
   profileKind: ProfileKind;
@@ -57,11 +58,15 @@ export default function CareStatusControls({
    *  without the physiotherapist pressing Save). */
   summaryDraft?: string | null;
   endpoint?: string;
+  /** Only "Where things stand", open: the end of a guided assessment, where
+   *  the draft from the run is waiting to be put into the physiotherapist's
+   *  own words. The phase and the overrule are not offered there. */
+  summaryOnly?: boolean;
 }) {
   const router = useRouter();
   const { show } = useToast();
   const baseId = useId();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(summaryOnly);
   const phases = PHASES_BY_PROFILE_KIND[profileKind];
   const [phase, setPhase] = useState(currentPhase && !phaseIsInferred ? currentPhase : "");
   const [status, setStatus] = useState<StatusOverride["status"] | "">(override?.status ?? "");
@@ -105,19 +110,23 @@ export default function CareStatusControls({
 
   return (
     <div className="print:hidden">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={`${baseId}-panel`}
-        onClick={() => setOpen((v) => !v)}
-        className={`${BUTTON} border border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}
-      >
-        <i aria-hidden className="fa-solid fa-sliders text-xs" />
-        Phase and status
-      </button>
+      {!summaryOnly && (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={`${baseId}-panel`}
+          onClick={() => setOpen((v) => !v)}
+          className={`${BUTTON} border border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}
+        >
+          <i aria-hidden className="fa-solid fa-sliders text-xs" />
+          Phase and status
+        </button>
+      )}
 
       {open && (
-        <div id={`${baseId}-panel`} className="mt-3 space-y-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div id={`${baseId}-panel`} className={`${summaryOnly ? "" : "mt-3 "}space-y-5 rounded-xl border border-slate-200 bg-slate-50 p-4`}>
+          {!summaryOnly && (
+            <>
           <form
             className="space-y-2"
             onSubmit={(e) => {
@@ -151,9 +160,11 @@ export default function CareStatusControls({
               </button>
             </div>
           </form>
+            </>
+          )}
 
           <form
-            className="space-y-2 border-t border-slate-200 pt-4"
+            className={`space-y-2 ${summaryOnly ? "" : "border-t border-slate-200 pt-4"}`}
             onSubmit={(e) => {
               e.preventDefault();
               if (status && !reasonShort) void send("override", { action: "override_status", status, reason: trimmed }, "Status overruled");
@@ -232,7 +243,7 @@ export default function CareStatusControls({
           </form>
 
           <form
-            className="space-y-2 border-t border-slate-200 pt-4"
+            className={`space-y-2 ${summaryOnly ? "" : "border-t border-slate-200 pt-4"}`}
             onSubmit={(e) => {
               e.preventDefault();
               if (summaryClean && !summaryUnchanged) void send("summary", { action: "set_summary", text: summaryClean }, "Summary saved");

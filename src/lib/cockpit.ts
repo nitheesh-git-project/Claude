@@ -8,10 +8,11 @@ import {
   protocolStep,
   redFlagStep,
   stepIndex,
+  needsPreExerciseCheck,
   type ProtocolStep,
   type SessionProtocol,
 } from "@/lib/sessionProtocols";
-import type { LivePhase, RunRefusalCode, RunState } from "@/lib/assessmentRun";
+import { orderRunEvents, type LivePhase, type RunEvent, type RunRefusalCode, type RunState } from "@/lib/assessmentRun";
 
 // The session cockpit's logic (Health Profile redesign, phase 7b), kept out
 // of the components so it is tested without a browser: which step the person
@@ -380,4 +381,30 @@ export const STOP_OPTIONS = Object.entries(STOP_REASONS).map(([key, label]) => (
 /** The step the person is on, or the first step if the id is stale. */
 export function currentStep(protocol: SessionProtocol, stepId: string): ProtocolStep {
   return protocolStep(protocol, stepId) ?? protocol.steps[0];
+}
+
+// --- The heart and lung resting check --------------------------------------------------------------
+
+export type PreExerciseStatus = "stop" | "clear" | "incomplete";
+
+/** The newest pre-exercise check the server wrote into the run, or null when
+ *  none has been (the resting step is not saved yet). Read from the events,
+ *  never worked out here: the server is the one that checks. */
+export function preExerciseFromEvents(events: readonly RunEvent[]): PreExerciseStatus | null {
+  let status: PreExerciseStatus | null = null;
+  for (const e of orderRunEvents(events)) {
+    if (e.kind !== "safety_confirmed" || e.details.gate !== "cardio_pre_exercise") continue;
+    const s = e.details.status;
+    if (s === "stop" || s === "clear" || s === "incomplete") status = s;
+  }
+  return status;
+}
+
+/** Why an exertion step on the heart and lung protocol cannot be saved yet
+ *  (the server refuses it too); null when nothing stands in the way. */
+export function exertionBlock(protocol: SessionProtocol, step: ProtocolStep, check: PreExerciseStatus | null): string | null {
+  if (!needsPreExerciseCheck(protocol, step)) return null;
+  if (check === "clear") return null;
+  if (check === "stop") return "The resting check says not to exercise today. Skip this step and contact the patient's doctor.";
+  return "Save the resting check before any exercise.";
 }
