@@ -489,23 +489,58 @@ Eight pages from one design system, the word budgets, why every photograph carri
   (`src/lib/whyChooseUs.ts`, home and `/mission`) and the health-profile
   showcase. Copy may still say the physiotherapist's *own* notes shape the
   next session; it must not offer them to the reader.
-- **The health profile is shown as the dashboard a patient gets, never with
-  a real patient's data.** `HealthProfileShowcase` draws a sample dashboard
-  per enabled specialty (`site_settings.enabled_intake_specialties`): stat
-  tiles, the real `PainTrendChart` / `PainMapView` / `IntakeTrendChart`, the
-  care plan's progress and an "Every action, recorded" timeline, from
-  `SAMPLE_DASHBOARDS` in `src/lib/healthProfileShowcase.ts`, labelled
-  "Sample patient". Every stat and timeline entry is something the product
-  records -- home exercises *prescribed* in a session summary, never
-  completion, which it does not track -- and a unit test holds the sample's headline
-  figures to what its charts draw. On `/how-it-works` it sits beside "What
-  we track"; on the home page it is its own band beside a short pitch and
-  **Book your first session**. **It is the one public widget that moves on
-  its own**, every five seconds, which the carousel rule below otherwise
-  forbids, so the movement is held to the reader: only while its frame is
-  at least half on screen (never alongside `JourneySteps`), never while
-  hovered, focused or touched, never again once a tab is picked, never
-  under reduced motion, and always with a pause button
+- **The health profile is shown through the real components, never with a
+  real patient's data.** `HealthProfileShowcase` draws one tab per condition
+  type the clinic offers, each for an invented patient, under the patient's
+  own name for the care (*Orthopaedic care*, *Neurological care*,
+  *Paediatric physiotherapy*, *Strength and balance care*, *Heart and lung
+  rehabilitation*; never "specialty", "triage", "case" or "geriatric").
+  Every tab carries who it is for (one line), what it watches (three lines
+  naming the measures in plain words), the headline change (from -> to), the
+  condition picture (body map and knee dial; walking ladder and
+  examination; milestone windows; fall-risk dial and the four tests; the
+  six-minute walk and the oxygen bar), the real `ProgressGraph` with its
+  goal band and the real `MilestoneCards` (reached / working on / planned),
+  so a visitor sees what the profile is for: how the patient is now, how
+  they improved, and which milestones were planned and achieved. Beside
+  every profile sits *Sample patient - figures are made up*.
+  The data is `src/lib/healthProfileSamples.ts`: raw measurement rows,
+  exams, goal and milestones (copied from `milestoneTemplates.ts`) fed
+  through the product's own `shapeOrthoView` / `shapeNeuroView` /
+  `shapePedsView` / `shapeGeriatricView` / `shapeCardioView`, with fixed
+  dates, so nothing is typed in twice and the server and browser draw the
+  same output. `healthProfileShowcase.test.ts` holds each headline to what
+  its chart draws, every measure to the registry (none licensed), every
+  threshold to the registry, the paediatric windows to the WHO table and the
+  corrected age to the weeks at birth. Figures agree with the clinical
+  modules: Strength and balance is High because of 3 falls whatever the
+  tests show, with "tests in the safer range 3 of 4" apart; Heart and lung
+  shows the patient's *own* oxygen limit (set by their doctor) and no
+  expected distance (the formula is the clinic's choice); Parkinson's is
+  tested in ON time. Parkinson's is an *example inside* the neurological tab
+  (a pair of buttons), not a sixth tab. Wording says what the profile
+  **shows**, never what treatment will achieve.
+  **Which tabs appear:** `enabledShowcaseProfiles(enabled_intake_specialties)`.
+  Orthopaedic always; neurological and paediatric with their switch (on by
+  default); Strength and balance care and Heart and lung rehabilitation
+  appear on their own once an admin ticks them (Settings -> Clinical
+  Questions) and vanish when unticked. With only the original three the band
+  is three tabs; it is never empty.
+  **Weight and layout:** only the active tab's panel is rendered, each panel
+  its own lazily loaded chunk (`next/dynamic`); the tab row scrolls sideways
+  inside its own container on a phone (44px targets, arrow keys, Home/End);
+  while the tour can still rotate the frame keeps the tallest height any
+  profile has drawn at that width, so the page below does not move. On
+  `/how-it-works` it sits above the five-step strip (profile, goal and
+  milestones, scores after each session, reviews, the PDF record); on the
+  home page it is its own band beside a short pitch and **Book your first
+  session**, drawing the graph and milestones only.
+  **It is the one public widget that moves on its own**, every five seconds,
+  which the carousel rule below otherwise forbids, so the movement is held
+  to the reader: only while its frame is at least half on screen (never
+  alongside `JourneySteps`), never while hovered, focused or touched, never
+  again once a tab or the Parkinson's example is picked, never under reduced
+  motion, and always with a pause button
   (`e2e/health-profile-showcase.spec.ts`).
 - **Why choose us is a bento grid of drawn vignettes, Real benefits a
   photograph beside illustrated rows.** The vignettes are built from the

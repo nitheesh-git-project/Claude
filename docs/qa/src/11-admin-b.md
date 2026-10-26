@@ -321,7 +321,7 @@ The screen warns you to turn it on only once System Health has been clean.
 * Step 4: both types are offered; Geriatric is suggested with its reason.
 * Step 5: the unknown type is a 400 *Unknown condition type.*; the second saves as Orthopaedic + Cardiopulmonary (Orthopaedic is always kept).
 * Step 6: Geriatric and Cardiopulmonary are offered, for grouping the therapist's recommendation picker only.
-* Step 7: unchanged - the public showcase has no sample for either type.
+* Step 7: after step 4 the public health-profile showcase (home band and `/how-it-works`) gains a **Strength and balance care** tab (and **Heart and lung rehabilitation** once that is ticked); while a type is unticked it has no tab. Orthopaedic is always there. The figures are labelled *Sample patient - figures are made up*.
 #### `ADM-SET-025` - User Access: scopes · P0
 
 **Steps**

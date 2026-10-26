@@ -313,7 +313,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - Formatted public copy is an allow-listed document, never HTML
 - An admin write that a public page renders must invalidate that page
 - The public pages promise the patient a summary, never "session notes"
-- The health profile is shown as the dashboard a patient gets, never with a real patient's data
+- The health profile is shown through the real components, never with a real patient's data
 - Why choose us is a bento grid of drawn vignettes, Real benefits a photograph beside illustrated rows
 - The home page's mission band steps from the concrete to the why: Why choose us, then The real benefits, then mission and vision
 - A connector shows the whole of what is short and the headline of what is long
