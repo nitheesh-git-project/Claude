@@ -27,11 +27,14 @@ export default function RedFlagsTool({
           const answer = answers[q.id];
           return (
             <li key={q.id} data-testid={`flag-${q.id}`}>
-              <fieldset disabled={disabled} className="rounded-xl border border-slate-200 p-3">
-                <legend className="px-1 text-base font-semibold text-slate-900">{q.question}</legend>
-                <div className="mt-1.5 grid grid-cols-2 gap-2">
+              <div role="group" aria-labelledby={`flag-q-${q.id}`} className="rounded-xl border border-slate-200 p-3">
+                <p id={`flag-q-${q.id}`} className="text-base font-semibold text-slate-900">
+                  {q.question}
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
                   <button
                     type="button"
+                    disabled={disabled}
                     aria-pressed={answer === false}
                     onClick={() => onAnswer(q.id, false)}
                     className={`min-h-[52px] rounded-xl border text-lg font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-1 disabled:opacity-60 ${
@@ -42,6 +45,7 @@ export default function RedFlagsTool({
                   </button>
                   <button
                     type="button"
+                    disabled={disabled}
                     aria-pressed={answer === true}
                     onClick={() => onAnswer(q.id, true)}
                     className={`min-h-[52px] rounded-xl border text-lg font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1 disabled:opacity-60 ${
@@ -51,7 +55,7 @@ export default function RedFlagsTool({
                     Yes
                   </button>
                 </div>
-              </fieldset>
+              </div>
             </li>
           );
         })}

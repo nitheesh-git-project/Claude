@@ -34,7 +34,7 @@ export default function ActionBar({
   onSave: () => void;
 }) {
   return (
-    <div className="sticky bottom-0 z-20 -mx-3 space-y-1.5 bg-slate-50/95 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+    <div className="sticky bottom-0 z-20 -mx-3 space-y-1.5 bg-slate-50 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 sm:-mx-1 sm:px-1">
       <div role="group" aria-label="Step actions" className="flex flex-wrap gap-2.5 rounded-2xl border border-slate-200 bg-white p-3">
         <button
           type="button"

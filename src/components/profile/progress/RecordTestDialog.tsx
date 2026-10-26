@@ -108,6 +108,29 @@ export type EmbeddedRecorder = {
   onTimerStart?: () => void;
 };
 
+/** "How it was done": a section in the dialog, and a folded-away one inside a
+ *  guided step, where the set-up is the step's and only the details that can
+ *  matter (the walking aid, the shoes, ON or OFF) are here, open when one is
+ *  required. */
+function HowItWasDone({ embedded, openByDefault, children }: { embedded: boolean; openByDefault: boolean; children: ReactNode }) {
+  if (!embedded) {
+    return (
+      <section className="space-y-3">
+        <h3 className="font-display text-base font-bold text-slate-900">How it was done</h3>
+        {children}
+      </section>
+    );
+  }
+  return (
+    <details open={openByDefault} className="rounded-xl border border-slate-200 px-3">
+      <summary className="flex min-h-[44px] cursor-pointer items-center font-display text-base font-bold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+        How it was done
+      </summary>
+      <div className="space-y-3 pb-3">{children}</div>
+    </details>
+  );
+}
+
 /** The variant, movement and mode a step that records only some variants
  *  starts on, so the person is never asked what the step has decided. */
 function startingVariant(measureKey: string, allowed: readonly string[] | undefined): { variant: string; movement: string; mode: JointMode | "" } {
@@ -940,8 +963,7 @@ export default function RecordTestDialog({
             {measure && fields && (
               <>
                 {/* 2. How it was done */}
-                <section className="space-y-3">
-                  <h3 className="font-display text-base font-bold text-slate-900">How it was done</h3>
+                <HowItWasDone embedded={!!embedded} openByDefault={!!fields.medication}>
 
                   {!embedded && (
                   <fieldset>
@@ -1153,7 +1175,7 @@ export default function RecordTestDialog({
                       </div>
                     </fieldset>
                   )}
-                </section>
+                </HowItWasDone>
 
                 {/* 3. The result */}
                 <section className="space-y-3">

@@ -1,3 +1,4 @@
+import type { LivePhase } from "@/lib/assessmentRun";
 import { PICTURE_DESCRIPTIONS } from "@/lib/companionScreen";
 import type { PatientPicture } from "@/lib/sessionProtocols";
 
@@ -40,17 +41,19 @@ function Standing({ x = 100, scale = 1, color = BODY }: { x?: number; scale?: nu
 
 const ARMS_CROSSED = <path d="M92 64 L112 78 M108 64 L88 78" stroke={INK} strokeWidth="5" strokeLinecap="round" fill="none" />;
 
-function Scene({ picture }: { picture: PatientPicture }) {
+function Scene({ picture, standing }: { picture: PatientPicture; standing: boolean }) {
   switch (picture) {
     case "sitting":
       return (
         <>
           <Ground />
           <Chair />
-          <circle cx="98" cy="42" r="14" fill={BODY} />
-          <rect x="87" y="58" width="22" height="48" rx="11" fill={BODY} />
-          <g transform="translate(-2 -2)">{ARMS_CROSSED}</g>
-          <path d="M98 104 L62 104 M62 104 L62 148" stroke={BODY} strokeWidth="10" strokeLinecap="round" fill="none" />
+          <g transform="translate(20 0)">
+            <circle cx="98" cy="42" r="14" fill={BODY} />
+            <rect x="87" y="58" width="22" height="48" rx="11" fill={BODY} />
+            <g transform="translate(-2 -2)">{ARMS_CROSSED}</g>
+            <path d="M98 104 L62 104 M62 104 L62 148" stroke={BODY} strokeWidth="10" strokeLinecap="round" fill="none" />
+          </g>
         </>
       );
     case "chair_stand":
@@ -58,12 +61,21 @@ function Scene({ picture }: { picture: PatientPicture }) {
         <>
           <Ground />
           <Chair />
-          <g>
-            <circle cx="100" cy="30" r="14" fill={BODY} />
-            <rect x="89" y="48" width="22" height="48" rx="11" fill={BODY} />
-            <g transform="translate(0 -4)">{ARMS_CROSSED}</g>
-            <path d="M94 96 L94 148 M106 96 L106 148" stroke={BODY} strokeWidth="10" strokeLinecap="round" fill="none" />
-          </g>
+          {standing ? (
+            <g>
+              <circle cx="100" cy="30" r="14" fill={BODY} />
+              <rect x="89" y="48" width="22" height="48" rx="11" fill={BODY} />
+              <g transform="translate(0 -4)">{ARMS_CROSSED}</g>
+              <path d="M94 96 L94 148 M106 96 L106 148" stroke={BODY} strokeWidth="10" strokeLinecap="round" fill="none" />
+            </g>
+          ) : (
+            <g transform="translate(20 0)">
+              <circle cx="98" cy="42" r="14" fill={BODY} />
+              <rect x="87" y="58" width="22" height="48" rx="11" fill={BODY} />
+              <g transform="translate(-2 -2)">{ARMS_CROSSED}</g>
+              <path d="M98 104 L62 104 M62 104 L62 148" stroke={BODY} strokeWidth="10" strokeLinecap="round" fill="none" />
+            </g>
+          )}
           <path d="M40 80 L40 44 M30 54 L40 44 L50 54" stroke={SOFT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
           <path d="M40 100 L40 136 M30 126 L40 136 L50 126" stroke={SOFT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         </>
@@ -94,7 +106,7 @@ function Scene({ picture }: { picture: PatientPicture }) {
           <rect x="93" y="48" width="22" height="48" rx="11" fill={BODY} transform="rotate(6 104 72)" />
           <path d="M104 96 L82 148 M104 96 L128 146" stroke={BODY} strokeWidth="10" strokeLinecap="round" fill="none" />
           <path d="M96 60 L80 86 M112 60 L130 84" stroke={BODY} strokeWidth="8" strokeLinecap="round" fill="none" />
-          <path d="M150 150 L184 150 M174 140 L184 150 L174 160" stroke={SOFT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path d="M146 112 L184 112 M174 102 L184 112 L174 122" stroke={SOFT} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         </>
       );
     case "balance":
@@ -126,18 +138,18 @@ function Scene({ picture }: { picture: PatientPicture }) {
   }
 }
 
-/** The picture for a step. It describes itself to a screen reader; the words
+/** The picture for a step; the chair stand sits until *go*, then stands. It describes itself to a screen reader; the words
  *  on the screen carry the instruction, the picture only shows the position. */
-export default function PositionPicture({ picture }: { picture: PatientPicture }) {
+export default function PositionPicture({ picture, phase }: { picture: PatientPicture; phase?: LivePhase }) {
   return (
     <svg
-      viewBox="0 0 200 170"
+      viewBox={picture === "lying" ? "0 64 200 90" : "0 0 200 170"}
       role="img"
       aria-label={PICTURE_DESCRIPTIONS[picture]}
       data-picture={picture}
-      className="h-auto w-[clamp(160px,26vw,300px)] shrink-0"
+      className={`h-auto shrink-0 ${picture === "lying" ? "w-[clamp(240px,42vw,440px)]" : "w-[clamp(160px,26vw,300px)]"}`}
     >
-      <Scene picture={picture} />
+      <Scene picture={picture} standing={phase === "go"} />
     </svg>
   );
 }

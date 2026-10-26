@@ -86,7 +86,7 @@ export default function ToolArea({
   if (mode === "summary") {
     return (
       <div className="space-y-1.5" data-testid="summary-tool">
-        <p className="text-base font-semibold text-slate-900">Check today{"'"}s results on the right.</p>
+        <p className="text-base font-semibold text-slate-900">Check today{"'"}s results before you finish.</p>
         <p className="text-sm text-slate-700">{summaryLine}</p>
         <p className="text-sm text-slate-700">
           Save and finish ends the assessment and gives you a draft of {"“"}Where things stand{"”"} to put into your own words.

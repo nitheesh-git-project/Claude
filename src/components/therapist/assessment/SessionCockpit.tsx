@@ -476,8 +476,8 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
         </p>
       )}
 
-      <div className="flex flex-wrap items-start gap-3.5">
-        <section className="flex min-w-0 flex-[3_1_30rem] flex-col gap-3.5" aria-label="Current step">
+      <div className="flex flex-col gap-3.5 lg:flex-row lg:items-start">
+        <section className="flex min-w-0 flex-col gap-3.5 lg:flex-[3_1_30rem]" aria-label="Current step">
           {ended ? (
             <FinishedPanel
               patientId={patient.id}
@@ -572,7 +572,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
           )}
         </section>
 
-        <aside className="flex min-w-0 flex-[1_1_17.5rem] flex-col gap-3.5" aria-label="Results and the patient's screen">
+        <aside className="flex min-w-0 flex-col gap-3.5 lg:flex-[1_1_17.5rem]" aria-label="Results and the patient's screen">
           <Disclosure title="Today's results" defaultOpen={false}>
             <ResultsPanel rows={rows} />
           </Disclosure>

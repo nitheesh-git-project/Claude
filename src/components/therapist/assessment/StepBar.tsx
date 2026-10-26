@@ -32,7 +32,7 @@ export default function StepBar({ items, onPick }: { items: StepNavItem[]; onPic
                 data-testid={`step-${item.id}`}
                 disabled={!item.available}
                 aria-current={item.current ? "step" : undefined}
-                aria-label={`Step ${item.index + 1}, ${item.title}${word ? `, ${word}` : ""}${item.lockedReason ? `. ${item.lockedReason}` : ""}`}
+                aria-label={`Step ${item.index + 1}, ${item.short}${word ? `, ${word}` : ""}${item.lockedReason ? `. ${item.lockedReason}` : ""}`}
                 onClick={() => onPick(item.id)}
                 className={`flex min-h-[44px] w-full items-center gap-2 whitespace-nowrap rounded-xl border px-3.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
                   item.current

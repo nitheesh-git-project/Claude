@@ -1,3 +1,4 @@
+import { splitJointVariant } from "@/lib/jointLandmarks";
 import { outcomeMeasure } from "@/lib/outcomeMeasures";
 import type { MeasurementPoint } from "@/lib/outcomeSeries";
 import { formatReading } from "@/lib/progressChart";
@@ -218,7 +219,8 @@ function readingValue(m: MeasurementPoint): string {
 /** "Right, active" for a sided, variant reading; empty when there is nothing to add. */
 function readingQualifier(m: MeasurementPoint): string {
   const measure = outcomeMeasure(m.measureKey);
-  const variant = measure?.variants?.find((v) => v.key === m.variant)?.label ?? null;
+  const joint = m.measureKey === "joint_range" ? splitJointVariant(m.variant) : null;
+  const variant = joint ? joint.mode : measure?.variants?.find((v) => v.key === m.variant)?.label ?? null;
   const parts = [m.side ? m.side.charAt(0).toUpperCase() + m.side.slice(1) : null, variant ? lowerFirst(variant) : null].filter(Boolean);
   return parts.join(", ");
 }

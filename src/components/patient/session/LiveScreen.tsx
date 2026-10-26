@@ -25,7 +25,7 @@ export default function LiveScreen({ view, clock }: { view: LiveDisplayView; clo
         {t.line}
       </h1>
       <div className="flex flex-wrap items-center justify-center gap-[clamp(16px,4vw,48px)]">
-        <PositionPicture picture={t.picture} />
+        <PositionPicture picture={t.picture} phase={view.phase} />
         {clock && <BigClock clock={clock} />}
       </div>
       {t.sub && (
