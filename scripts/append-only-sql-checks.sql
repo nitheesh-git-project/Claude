@@ -556,3 +556,98 @@ begin
   raise notice 'PASS  peds_assessments takes an exam and refuses every change to it';
 end $$;
 rollback;
+
+-- The guided video assessment (Health Profile redesign, phase 7a). Three
+-- tables, both halves each:
+--   assessment_runs: a run lands, a second run in progress for the same
+--     patient is refused (the partial unique index), ending it once lands
+--     with the end time set by the trigger, and then nothing changes -- a
+--     second end, an edit and a delete all raise;
+--   assessment_run_events: an event lands while the run is in progress and
+--     is never rewritten or deleted; a measurement id on anything but a save
+--     is refused by the CHECK; an event into an ended run raises;
+--   assessment_live_display: the patient-safe keys land and may be updated
+--     (it is a live screen, not evidence), and any other key -- a result --
+--     is refused by the CHECK.
+begin;
+do $$
+declare v_actor uuid; v_run uuid; v_event uuid; v_ok boolean; v_ended timestamptz;
+begin
+  select id into v_actor from profiles where role = 'admin' limit 1;
+  if v_actor is null then raise exception 'no admin profile to attribute the probe rows to'; end if;
+
+  insert into assessment_runs (patient_id, therapist_id, protocol_key, protocol_version, profile_kind)
+  values (v_actor, v_actor, 'ortho_knee', 1, 'ortho')
+  returning id into v_run;
+  if v_run is null then raise exception 'FAIL: assessment_runs refused a well-formed run'; end if;
+
+  v_ok := false;
+  begin
+    insert into assessment_runs (patient_id, therapist_id, protocol_key, protocol_version, profile_kind)
+    values (v_actor, v_actor, 'ortho_knee', 1, 'ortho');
+  exception when unique_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: assessment_runs accepted a second run in progress for one patient'; end if;
+
+  insert into assessment_run_events (run_id, step_id, kind, details, actor)
+  values (v_run, 'safety', 'setup_confirmed', '{"items": ["clear_space"], "helperPresent": false}'::jsonb, v_actor)
+  returning id into v_event;
+  if v_event is null then raise exception 'FAIL: assessment_run_events refused a well-formed event'; end if;
+
+  v_ok := false;
+  begin
+    insert into assessment_run_events (run_id, step_id, kind, measurement_id, actor)
+    values (v_run, 'walk', 'stopped', gen_random_uuid(), v_actor);
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: assessment_run_events accepted a measurement on a stop'; end if;
+
+  v_ok := false;
+  begin update assessment_run_events set details = '{}'::jsonb where id = v_event;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: assessment_run_events accepted an UPDATE'; end if;
+
+  v_ok := false;
+  begin delete from assessment_run_events where id = v_event;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: assessment_run_events row was deletable'; end if;
+
+  insert into assessment_live_display (run_id, patient_id, therapist_id, current_step_id, phase, display)
+  values (v_run, v_actor, v_actor, 'safety', 'ready',
+          '{"progress": "Step 1 of 8", "title": "Safety check", "line": "A few safety questions first.", "picture": "sitting"}'::jsonb);
+  update assessment_live_display set phase = 'go', clock_started_at = now(), clock_seconds = 30 where run_id = v_run;
+
+  v_ok := false;
+  begin update assessment_live_display set display = display || '{"result": "9 stands"}'::jsonb where run_id = v_run;
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: assessment_live_display accepted a key that is not patient-safe'; end if;
+
+  -- Ending: the one permitted change, with the end time the database's own.
+  update assessment_runs set status = 'completed', ended_at = '2000-01-01T00:00:00Z' where id = v_run;
+  select ended_at into v_ended from assessment_runs where id = v_run;
+  if v_ended is null or v_ended < now() - interval '1 minute' then
+    raise exception 'FAIL: assessment_runs kept the caller''s end time instead of setting its own';
+  end if;
+
+  v_ok := false;
+  begin update assessment_runs set status = 'abandoned', ended_reason = 'other' where id = v_run;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: assessment_runs accepted a second end'; end if;
+
+  v_ok := false;
+  begin update assessment_runs set protocol_key = 'neuro' where id = v_run;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: assessment_runs accepted an edit'; end if;
+
+  v_ok := false;
+  begin delete from assessment_runs where id = v_run;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: assessment_runs row was deletable'; end if;
+
+  v_ok := false;
+  begin
+    insert into assessment_run_events (run_id, step_id, kind, actor) values (v_run, 'walk', 'step_opened', v_actor);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: assessment_run_events accepted an event into an ended run'; end if;
+
+  raise notice 'PASS  assessment_runs ends once, assessment_run_events is append-only, assessment_live_display takes patient-safe keys only';
+end $$;
+rollback;

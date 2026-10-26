@@ -10242,6 +10242,12 @@ begin
     -- The patient diary (phase 4a, end of this file), append-only by
     -- trigger like the measurements beside it.
     patient_diary_entries,
+    -- The guided video assessment (phase 7a, end of this file): the events
+    -- are append-only by trigger and the runs refuse a delete, so they are
+    -- named here rather than left to CASCADE; the live display goes with them.
+    assessment_live_display,
+    assessment_run_events,
+    assessment_runs,
     condition_change_requests,
     condition_access_grants,
     patient_condition_profiles,
@@ -18687,6 +18693,303 @@ alter table treatment_categories
 alter table treatment_categories
   add constraint treatment_categories_specialty_check
   check (specialty is null or specialty in ('ortho', 'neuro', 'pediatrics', 'geriatric', 'cardiopulmonary'));
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 7a: the guided video assessment.
+--
+-- Every measurement happens LIVE in a video session, guided by the
+-- physiotherapist (video stays on Google Meet; the app does not embed it).
+-- The therapist runs one step at a time from a protocol in
+-- src/lib/sessionProtocols.ts; the patient watches a display-only
+-- companion screen. Three tables, each re-runnable on its own:
+--   1. assessment_runs -- one run of a protocol, at most one in progress
+--      per patient;
+--   2. assessment_run_events -- what the therapist confirmed, saved,
+--      skipped, stopped or opened, step by step; APPEND-ONLY BY TRIGGER,
+--      because the measurement route refuses a save from these rows (the
+--      set-up confirmed, the helper, the red flags answered), so a rewrite
+--      would rewrite why a reading was allowed;
+--   3. assessment_live_display -- one row per run: what the patient's
+--      companion shows (the protocol's own patient-safe text, the phase and
+--      the clock), written only by /api/therapist/assessment-runs/display
+--      with the service role, read by the patient and the run's therapist,
+--      and on the realtime publication.
+--
+-- Who: runs and events are read by the clinical-access therapist (the
+-- rule care_status_events uses) and an admin -- the patient reads neither,
+-- only the live display. Nobody writes any of the three from a browser
+-- session (revoked; no insert policy): the four routes under
+-- /api/therapist/assessment-runs/ are the writers, with the service role,
+-- after the assigned-therapist and started-session gate. An admin has no
+-- run door.
+--
+-- Foreign keys: the patient cascade on all three, which the runs' and the
+-- events' triggers turn into a refusal (a patient with clinical history is
+-- suspended, not deleted -- /api/admin/delete-account names these
+-- "clinical"); the session `on delete set null`, which the runs' guard
+-- permits; the measurement `on delete set null` (an outcome measurement is
+-- never deleted, so this is the outcome_measurements precedent's allowance
+-- and nothing more); the therapist and the actor no action. None is
+-- `restrict`, so scripts/clean-e2e-residue.mjs has nothing to learn. The
+-- data reset truncates all three (newest debug_reset_all_data(), above).
+--
+-- APPLY THIS TO STAGING'S DATABASE BEFORE THE BRANCH MERGES. The routes
+-- answer 503 on a database without these tables, never a 500.
+-- ---------------------------------------------------------------------
+
+-- 1. assessment_runs
+create table if not exists assessment_runs (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  appointment_id uuid references appointments(id) on delete set null,
+  therapist_id uuid not null references profiles(id),
+  protocol_key text not null check (char_length(protocol_key) between 1 and 60),
+  protocol_version integer not null check (protocol_version >= 1),
+  profile_kind text not null check (profile_kind in (
+    'ortho', 'neuro', 'neuro_parkinsons', 'pediatrics', 'geriatric', 'cardiopulmonary'
+  )),
+  status text not null default 'in_progress' check (status in ('in_progress', 'completed', 'abandoned')),
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  ended_reason text check (ended_reason is null or ended_reason in (
+    'red_flag', 'patient_unwell', 'connection_lost', 'out_of_time', 'patient_declined', 'other'
+  )),
+  -- In progress has no end; completed has an end and no reason; abandoned
+  -- has both.
+  constraint assessment_runs_end_shape check (
+    (status = 'in_progress' and ended_at is null and ended_reason is null)
+    or (status = 'completed' and ended_at is not null and ended_reason is null)
+    or (status = 'abandoned' and ended_at is not null and ended_reason is not null)
+  )
+);
+
+-- At most one run in progress per patient: a second start is answered with
+-- the one already open (the start route's 409), never a second run.
+create unique index if not exists assessment_runs_one_in_progress
+  on assessment_runs (patient_id) where status = 'in_progress';
+create index if not exists assessment_runs_patient_idx
+  on assessment_runs (patient_id, started_at desc);
+create index if not exists assessment_runs_therapist_idx
+  on assessment_runs (therapist_id);
+create index if not exists assessment_runs_appointment_idx
+  on assessment_runs (appointment_id) where appointment_id is not null;
+
+alter table assessment_runs enable row level security;
+
+drop policy if exists "assessment_runs_select_admin" on assessment_runs;
+create policy "assessment_runs_select_admin" on assessment_runs
+  for select using (is_admin());
+
+drop policy if exists "assessment_runs_select_assigned_therapist" on assessment_runs;
+create policy "assessment_runs_select_assigned_therapist" on assessment_runs
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = assessment_runs.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = assessment_runs.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+revoke insert, update, delete on assessment_runs from anon, authenticated;
+
+-- A run is evidence of how a session's readings were taken: it is ended,
+-- never deleted, and the one change is ending it -- in progress to
+-- completed or abandoned, once, with the end time set here rather than by
+-- the caller. A deleted session's id may be cleared by `on delete set null`
+-- with every other column untouched.
+create or replace function public.assessment_runs_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'assessment_runs is evidence: a run is ended, never deleted';
+  end if;
+  if old.appointment_id is not null
+     and new.appointment_id is null
+     and (to_jsonb(new) - 'appointment_id') = (to_jsonb(old) - 'appointment_id') then
+    return new;
+  end if;
+  if old.status = 'in_progress'
+     and new.status in ('completed', 'abandoned')
+     and (to_jsonb(new) - 'status' - 'ended_at' - 'ended_reason')
+       = (to_jsonb(old) - 'status' - 'ended_at' - 'ended_reason') then
+    new.ended_at := now();
+    return new;
+  end if;
+  raise exception 'assessment_runs: the only change is ending a run that is in progress';
+end;
+$$;
+
+revoke all on function public.assessment_runs_guard() from public, anon, authenticated;
+
+drop trigger if exists assessment_runs_guard on assessment_runs;
+create trigger assessment_runs_guard
+  before update or delete on assessment_runs
+  for each row execute function public.assessment_runs_guard();
+
+-- 2. assessment_run_events
+create table if not exists assessment_run_events (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null references assessment_runs(id) on delete cascade,
+  step_id text not null check (char_length(step_id) between 1 and 60),
+  kind text not null check (kind in (
+    'setup_confirmed', 'safety_confirmed', 'saved', 'skipped', 'stopped', 'step_opened'
+  )),
+  -- The reading a 'saved' event stored; only a save carries one.
+  measurement_id uuid references outcome_measurements(id) on delete set null,
+  -- Shaped and validated in src/lib/assessmentRun.ts (set-up items, the
+  -- red-flag answers, the pre-exercise result, a skip or stop reason, a
+  -- layer record id). Structured answers only, never free text.
+  details jsonb not null default '{}'::jsonb check (jsonb_typeof(details) = 'object'),
+  actor uuid not null references profiles(id),
+  created_at timestamptz not null default now(),
+  constraint assessment_run_events_measurement_only_on_save check (kind = 'saved' or measurement_id is null)
+);
+
+create index if not exists assessment_run_events_run_idx
+  on assessment_run_events (run_id, created_at);
+create index if not exists assessment_run_events_actor_idx
+  on assessment_run_events (actor);
+-- One reading is linked to a run once: the measurement route's own 'saved'
+-- event and a retry from the cockpit cannot both land.
+create unique index if not exists assessment_run_events_one_link_per_measurement
+  on assessment_run_events (measurement_id) where measurement_id is not null;
+
+alter table assessment_run_events enable row level security;
+
+drop policy if exists "assessment_run_events_select_admin" on assessment_run_events;
+create policy "assessment_run_events_select_admin" on assessment_run_events
+  for select using (is_admin());
+
+drop policy if exists "assessment_run_events_select_assigned_therapist" on assessment_run_events;
+create policy "assessment_run_events_select_assigned_therapist" on assessment_run_events
+  for select using (
+    is_active_therapist()
+    and exists (
+      select 1 from assessment_runs r
+      where r.id = assessment_run_events.run_id
+        and (
+          exists (
+            select 1 from appointments a
+            where a.patient_id = r.patient_id
+              and a.therapist_id = (select auth.uid())
+              and a.status in ('requested', 'confirmed', 'completed')
+          )
+          or exists (
+            select 1 from patient_package_purchases pp
+            where pp.patient_id = r.patient_id
+              and pp.locked_therapist_id = (select auth.uid())
+              and pp.payment_status = 'paid'
+              and pp.status = 'active'
+              and (pp.expires_at is null or pp.expires_at > now())
+          )
+        )
+    )
+  );
+
+revoke insert, update, delete on assessment_run_events from anon, authenticated;
+
+-- Append-only for every caller, the service role included. An event is
+-- written only into a run that is still in progress (an ended run's history
+-- is closed), and the one permitted change is the measurement link cleared
+-- by `on delete set null`.
+create or replace function public.assessment_run_events_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if not exists (select 1 from assessment_runs r where r.id = new.run_id and r.status = 'in_progress') then
+      raise exception 'assessment_run_events: the run is not in progress';
+    end if;
+    return new;
+  end if;
+  if tg_op = 'UPDATE'
+     and old.measurement_id is not null
+     and new.measurement_id is null
+     and (to_jsonb(new) - 'measurement_id') = (to_jsonb(old) - 'measurement_id') then
+    return new;
+  end if;
+  raise exception 'assessment_run_events is append-only: what happened in a run is history; record a new event instead';
+end;
+$$;
+
+revoke all on function public.assessment_run_events_guard() from public, anon, authenticated;
+
+drop trigger if exists assessment_run_events_guard on assessment_run_events;
+create trigger assessment_run_events_guard
+  before insert or update or delete on assessment_run_events
+  for each row execute function public.assessment_run_events_guard();
+
+-- 3. assessment_live_display
+--
+-- The companion screen's one row. `display` holds ONLY the protocol's own
+-- patient-safe text keys (src/lib/assessmentRun.ts validateLiveDisplay:
+-- the step counter, title, line, second line, picture, clock label -- never
+-- a result); the CHECK below refuses any other key at the storage layer
+-- too. The clock is a start time and, for a countdown, its length: the
+-- screen works out the seconds itself, so the route is called on a step or
+-- phase change, not every second.
+create table if not exists assessment_live_display (
+  run_id uuid primary key references assessment_runs(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  therapist_id uuid not null references profiles(id),
+  current_step_id text not null check (char_length(current_step_id) between 1 and 60),
+  phase text not null check (phase in ('ready', 'go', 'done', 'rest', 'paused')),
+  clock_started_at timestamptz,
+  clock_seconds integer check (clock_seconds is null or clock_seconds between 1 and 600),
+  display jsonb not null default '{}'::jsonb check (
+    jsonb_typeof(display) = 'object'
+    and (display - array['progress', 'title', 'line', 'sub', 'picture', 'clockLabel']) = '{}'::jsonb
+  ),
+  ended_at timestamptz,
+  updated_at timestamptz not null default now(),
+  constraint assessment_live_display_clock_shape check (clock_seconds is null or clock_started_at is not null)
+);
+
+create index if not exists assessment_live_display_patient_idx
+  on assessment_live_display (patient_id, updated_at desc);
+create index if not exists assessment_live_display_therapist_idx
+  on assessment_live_display (therapist_id);
+
+alter table assessment_live_display enable row level security;
+
+drop policy if exists "assessment_live_display_select_own" on assessment_live_display;
+create policy "assessment_live_display_select_own" on assessment_live_display
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "assessment_live_display_select_run_therapist" on assessment_live_display;
+create policy "assessment_live_display_select_run_therapist" on assessment_live_display
+  for select using (is_active_therapist() and (select auth.uid()) = therapist_id);
+
+drop policy if exists "assessment_live_display_select_admin" on assessment_live_display;
+create policy "assessment_live_display_select_admin" on assessment_live_display
+  for select using (is_admin());
+
+revoke insert, update, delete on assessment_live_display from anon, authenticated;
+
+-- The companion screen follows the therapist live (filtered to the
+-- patient's own row; RLS decides what the socket delivers).
+do $$
+begin
+  alter publication supabase_realtime add table assessment_live_display;
+exception when duplicate_object then null;
+end $$;
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
