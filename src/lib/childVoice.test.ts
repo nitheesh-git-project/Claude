@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { childWords, voiceWords } from "@/lib/childVoice";
+import { childWords, speaksToParent, subjectWords } from "@/lib/childVoice";
 import { statusReasonText, type StatusReasonCode } from "@/lib/profileStatus";
 
 describe("childWords", () => {
@@ -69,15 +69,19 @@ describe("childWords", () => {
     }
   });
 
-  it("voiceWords is a no-op for the person themselves", () => {
-    expect(voiceWords(false)("Your physiotherapist")).toBe(
-      "Your physiotherapist",
-    );
-    expect(voiceWords(undefined)("Your physiotherapist")).toBe(
-      "Your physiotherapist",
-    );
-    expect(voiceWords(true)("Your physiotherapist")).toBe(
-      "Your child's physiotherapist",
-    );
+  it("subjectWords is a no-op for the person themselves and for clinician text", () => {
+    expect(subjectWords("self", "patient")("Your physiotherapist")).toBe("Your physiotherapist");
+    expect(subjectWords(undefined, "patient")("Your physiotherapist")).toBe("Your physiotherapist");
+    expect(subjectWords("child", "clinician")("Your physiotherapist")).toBe("Your physiotherapist");
+    expect(subjectWords("child", "patient")("Your physiotherapist")).toBe("Your child's physiotherapist");
+    expect(subjectWords("child")("Your physiotherapist")).toBe("Your child's physiotherapist");
   });
+
+  it("speaksToParent only for a child's record in the patient voice", () => {
+    expect(speaksToParent("child", "patient")).toBe(true);
+    expect(speaksToParent("child", "clinician")).toBe(false);
+    expect(speaksToParent("self", "patient")).toBe(false);
+    expect(speaksToParent(undefined, "patient")).toBe(false);
+  });
+
 });

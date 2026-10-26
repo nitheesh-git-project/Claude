@@ -1,6 +1,6 @@
 "use client";
 
-import { voiceWords } from "@/lib/childVoice";
+import { subjectWords, type ProfileSubject } from "@/lib/childVoice";
 import { useMemo, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { formatClinicDate, formatClinicDateShort } from "@/lib/formatDateTime";
@@ -61,7 +61,7 @@ export default function ProgressGraph({
   milestones = [],
   profileKind,
   voice,
-  child = false,
+  subject = "self",
   loadFailed = false,
   initialSeriesKey,
 }: {
@@ -71,15 +71,15 @@ export default function ProgressGraph({
   milestones?: MilestoneTarget[];
   profileKind: ProfileKind;
   voice: Voice;
-  /** The reader is a parent and the patient their child: "your child's ...". */
-  child?: boolean;
+  /** Who the patient-voice sentences are about (childVoice.ts): "child" speaks to a parent ("your child's ..."). */
+  subject?: ProfileSubject;
   /** The measurements could not be read: said apart from "none yet". */
   loadFailed?: boolean;
   initialSeriesKey?: string;
 }) {
   const router = useRouter();
   const clinician = voice === "clinician";
-  const w = voiceWords(child);
+  const w = subjectWords(subject, voice);
   const [pickedKey, setPickedKey] = useState<string | null>(initialSeriesKey ?? null);
 
   const selected = useMemo(() => series.find((s) => s.key === pickedKey) ?? series[0] ?? null, [series, pickedKey]);

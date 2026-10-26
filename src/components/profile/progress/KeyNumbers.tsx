@@ -1,3 +1,4 @@
+import type { ProfileSubject } from "@/lib/childVoice";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasureSeries, MilestoneTarget } from "@/lib/outcomeSeries";
 import { keyTile, pickHeadlineSeries, type KeyTile, type Voice } from "@/lib/progressView";
@@ -26,7 +27,7 @@ export default function KeyNumbers({
   milestones = [],
   profileKind,
   voice,
-  child = false,
+  subject = "self",
   sessions,
 }: {
   series: MeasureSeries[];
@@ -37,8 +38,8 @@ export default function KeyNumbers({
   milestones?: MilestoneTarget[];
   profileKind: ProfileKind;
   voice: Voice;
-  /** The reader is a parent and the patient their child. */
-  child?: boolean;
+  /** Who the patient-voice sentences are about (childVoice.ts): "child" speaks to a parent ("your child's ..."). */
+  subject?: ProfileSubject;
   /** Sessions done of the plan; `total` null when there is no fixed number. */
   sessions?: { done: number; total: number | null; next?: string | null } | null;
 }) {
@@ -49,7 +50,7 @@ export default function KeyNumbers({
       <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-5 text-sm text-slate-600">
         {voice === "clinician"
           ? "Headline numbers appear once a measure has been recorded."
-          : child
+          : subject === "child"
             ? "Your child's key numbers appear after their first measurements."
             : "Your key numbers appear after your first measurements."}
       </p>

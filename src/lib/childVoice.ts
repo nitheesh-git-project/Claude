@@ -4,7 +4,7 @@
 // progress", "your physiotherapist"). On a paediatric record the reader is a
 // parent and the patient is the child, so the same sentences must say "your
 // child's progress". The shared components keep ONE set of patient-voice
-// sentences and are handed `child`; this turns a sentence into its parent
+// sentences and are handed `subject`; this turns a sentence into its parent
 // form. A rule list, not a second copy of every string, so a new sentence in
 // a shared component is covered by the same rules - and childVoice.test.ts
 // walks the status reasons to catch one the rules miss.
@@ -37,9 +37,36 @@ export function childWords(text: string): string {
   return out;
 }
 
-/** The helper the components use: a no-op unless `child`. */
-export function voiceWords(
-  child: boolean | undefined,
+/**
+ * Who a patient-voice sentence is about, from the reader's side
+ * (Health Profile redesign, phase 6a -- it replaced a boolean `child` prop
+ * on the shared progress components):
+ *  - "self": the reader is the patient ("your progress"). Every profile but
+ *    the paediatric one, including Strength and balance care, where a carer
+ *    may sit beside the patient but the record still speaks to the patient
+ *    (the carer gets a line in the header, not a voice of their own).
+ *  - "child": the reader is a parent and the patient their child ("your
+ *    child's progress").
+ * Two values, not three: a carer reading on the patient's behalf is still
+ * read to as "you" about the patient's own body, and a third voice nobody
+ * yet needs is a third copy of every sentence to keep right. A union rather
+ * than a boolean so that one can be added without touching every prop.
+ */
+export type ProfileSubject = "self" | "child";
+
+/** The helper the components use: the parent's form for a child's record
+ *  in the patient voice, and the sentence unchanged otherwise -- clinician
+ *  text is never rewritten, whatever the subject. */
+export function subjectWords(
+  subject: ProfileSubject | undefined,
+  voice: "patient" | "clinician" = "patient",
 ): (text: string) => string {
-  return child ? childWords : (text) => text;
+  return subject === "child" && voice === "patient" ? childWords : (text) => text;
+}
+
+/** Whether the parent's voice applies: a child's record, read in the
+ *  patient voice. For the few sentences a component chooses whole rather
+ *  than rewrites ("Your child's measures"). */
+export function speaksToParent(subject: ProfileSubject | undefined, voice: "patient" | "clinician"): boolean {
+  return subject === "child" && voice === "patient";
 }

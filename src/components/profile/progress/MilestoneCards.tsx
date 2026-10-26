@@ -1,6 +1,6 @@
 "use client";
 
-import { voiceWords } from "@/lib/childVoice";
+import { subjectWords, type ProfileSubject } from "@/lib/childVoice";
 import { useState, type ReactNode } from "react";
 import ReopenMilestoneDialog from "@/components/profile/progress/ReopenMilestoneDialog";
 import { formatClinicDate } from "@/lib/formatDateTime";
@@ -40,7 +40,7 @@ export default function MilestoneCards({
   goal,
   views,
   voice,
-  child = false,
+  subject = "self",
   measurements = [],
   loadFailed = false,
   renderActions,
@@ -50,8 +50,8 @@ export default function MilestoneCards({
   goal: CareGoal | null;
   views: MilestoneView[];
   voice: Voice;
-  /** The reader is a parent and the patient their child. */
-  child?: boolean;
+  /** Who the patient-voice sentences are about (childVoice.ts): "child" speaks to a parent ("your child's ..."). */
+  subject?: ProfileSubject;
   measurements?: MeasurementPoint[];
   loadFailed?: boolean;
   renderActions?: (view: MilestoneView) => ReactNode;
@@ -62,7 +62,7 @@ export default function MilestoneCards({
   onSetGoal?: () => void;
 }) {
   const clinician = voice === "clinician";
-  const w = voiceWords(child);
+  const w = subjectWords(subject, voice);
   const [reopening, setReopening] = useState<MilestoneView | null>(null);
 
   if (loadFailed) {
@@ -158,7 +158,7 @@ export default function MilestoneCards({
               key={view.milestone.id}
               view={view}
               voice={voice}
-              child={child}
+              subject={subject}
               measurements={measurements}
               actions={renderActions?.(view)}
               onReopen={reopen && view.derived.status === "reached" ? () => setReopening(view) : undefined}
@@ -182,21 +182,21 @@ export default function MilestoneCards({
 function MilestoneCard({
   view,
   voice,
-  child,
+  subject,
   measurements,
   actions,
   onReopen,
 }: {
   view: MilestoneView;
   voice: Voice;
-  child?: boolean;
+  subject?: ProfileSubject;
   measurements: MeasurementPoint[];
   actions?: ReactNode;
   onReopen?: () => void;
 }) {
   const { milestone, derived, overdue } = view;
   const clinician = voice === "clinician";
-  const w = voiceWords(child);
+  const w = subjectWords(subject, voice);
   const status = derived.status;
   const measure = milestone.linkedMeasureKey ? outcomeMeasure(milestone.linkedMeasureKey) : null;
   const reading = (v: number) => (measure ? formatReading(v, measure.decimals, measure.unit) : String(v));

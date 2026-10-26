@@ -4,7 +4,7 @@
 // suggestion -- never as the physiotherapist's own call. With nothing to go
 // on it stays "Phase not set". Shared by ortho, neuro and paediatric pages.
 
-import { childWords } from "@/lib/childVoice";
+import { subjectWords, type ProfileSubject } from "@/lib/childVoice";
 import type { Voice } from "@/lib/progressView";
 
 export type PhaseHeadline = {
@@ -15,15 +15,15 @@ export type PhaseHeadline = {
   state: "confirmed" | "suggested" | "unset";
 };
 
-export function describePhase(input: { phase: string | null; suggested: boolean; voice: Voice; child?: boolean }): PhaseHeadline {
-  const { phase, suggested, voice, child = false } = input;
+export function describePhase(input: { phase: string | null; suggested: boolean; voice: Voice; subject?: ProfileSubject }): PhaseHeadline {
+  const { phase, suggested, voice, subject = "self" } = input;
   if (!phase) return { headline: "Phase not set", detail: null, state: "unset" };
   if (!suggested) return { headline: phase, detail: null, state: "confirmed" };
   if (voice === "clinician") {
     return { headline: `Suggested: ${phase}`, detail: "(from the milestones) - set the phase to confirm", state: "suggested" };
   }
   const confirm = "Your physiotherapist will confirm.";
-  return { headline: `Suggested stage: ${phase}.`, detail: child ? childWords(confirm) : confirm, state: "suggested" };
+  return { headline: `Suggested stage: ${phase}.`, detail: subjectWords(subject, voice)(confirm), state: "suggested" };
 }
 
 export type PhaseBarState = "done" | "current" | "suggested" | "ahead";

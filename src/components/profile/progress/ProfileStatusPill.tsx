@@ -1,4 +1,4 @@
-import { voiceWords } from "@/lib/childVoice";
+import { subjectWords, type ProfileSubject } from "@/lib/childVoice";
 import { StatusPill } from "@/components/dashboard/SurfaceCard";
 import {
   PROFILE_STATUS_LABEL,
@@ -30,17 +30,17 @@ export default function ProfileStatusPill({
   computed,
   override = null,
   voice,
-  child = false,
+  subject = "self",
   showReason = false,
 }: {
-  /** The reader is a parent and the patient their child. */
-  child?: boolean;
+  /** Who the patient-voice sentences are about (childVoice.ts): "child" speaks to a parent ("your child's ..."). */
+  subject?: ProfileSubject;
   computed: StatusResult;
   override?: StatusOverride | null;
   voice: Voice;
   showReason?: boolean;
 }) {
-  const w = voiceWords(child);
+  const w = subjectWords(subject, voice);
   const shown = effectiveStatus(computed, override);
   const reason = shown.overridden ? shown.reasonText : w(statusReasonText(computed.reason, voice));
 

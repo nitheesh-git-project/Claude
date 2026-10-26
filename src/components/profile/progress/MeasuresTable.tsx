@@ -1,4 +1,4 @@
-import { voiceWords } from "@/lib/childVoice";
+import { subjectWords, type ProfileSubject } from "@/lib/childVoice";
 import { formatClinicDateShort } from "@/lib/formatDateTime";
 import { outcomeMeasure } from "@/lib/outcomeMeasures";
 import type { MeasureTableRow } from "@/lib/outcomeSeries";
@@ -22,8 +22,8 @@ const CHANGE_CLASS: Record<NonNullable<MeasureTableRow["change"]>, string> = {
  * as well as a colour, and a move inside the measurement error reads "No
  * real change" - never green.
  */
-export default function MeasuresTable({ rows, voice, child = false }: { rows: MeasureTableRow[]; voice: Voice; child?: boolean }) {
-  const w = voiceWords(child);
+export default function MeasuresTable({ rows, voice, subject = "self" }: { rows: MeasureTableRow[]; voice: Voice; subject?: ProfileSubject }) {
+  const w = subjectWords(subject, voice);
   if (rows.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-5 text-sm text-slate-600">

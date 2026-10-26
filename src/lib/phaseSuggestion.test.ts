@@ -6,7 +6,7 @@ describe("describePhase", () => {
     expect(describePhase({ phase: "Strengthen", suggested: false, voice: "patient" })).toEqual({ headline: "Strengthen", detail: null, state: "confirmed" });
   });
   it("labels an inferred phase as a suggestion in each voice", () => {
-    expect(describePhase({ phase: "New skills", suggested: true, voice: "patient", child: true })).toEqual({
+    expect(describePhase({ phase: "New skills", suggested: true, voice: "patient", subject: "child" })).toEqual({
       headline: "Suggested stage: New skills.",
       detail: "Your child's physiotherapist will confirm.",
       state: "suggested",

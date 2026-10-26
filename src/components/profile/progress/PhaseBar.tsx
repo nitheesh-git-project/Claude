@@ -1,5 +1,5 @@
 import { phaseBarState } from "@/lib/phaseSuggestion";
-import { voiceWords } from "@/lib/childVoice";
+import { subjectWords, type ProfileSubject } from "@/lib/childVoice";
 import { PHASES_BY_PROFILE_KIND } from "@/lib/milestoneTemplates";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { Voice } from "@/lib/progressView";
@@ -21,10 +21,10 @@ export default function PhaseBar({
   currentPhase,
   suggested = false,
   voice,
-  child = false,
+  subject = "self",
 }: {
-  /** The reader is a parent and the patient their child. */
-  child?: boolean;
+  /** Who the patient-voice sentences are about (childVoice.ts): "child" speaks to a parent ("your child's ..."). */
+  subject?: ProfileSubject;
   profileKind: ProfileKind;
   /** One of the kind's four phase names, or null when none is set. */
   currentPhase: string | null;
@@ -33,7 +33,7 @@ export default function PhaseBar({
   suggested?: boolean;
   voice: Voice;
 }) {
-  const w = voiceWords(child);
+  const w = subjectWords(subject, voice);
   const phases = PHASES_BY_PROFILE_KIND[profileKind];
   const currentIndex = currentPhase ? phases.indexOf(currentPhase) : -1;
 

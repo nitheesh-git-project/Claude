@@ -1,3 +1,4 @@
+import type { ProfileSubject } from "@/lib/childVoice";
 import type { ReactNode } from "react";
 import PhaseBar from "@/components/profile/progress/PhaseBar";
 import ProfileStatusPill from "@/components/profile/progress/ProfileStatusPill";
@@ -24,13 +25,14 @@ import type { WhereThingsStandView } from "@/lib/whereThingsStand";
  */
 export default function ProfileHeader({
   voice,
-  child = false,
+  subject = "self",
   profileKind,
   name,
   conditionLine,
   chipLabel,
   extraChips = [],
   provenance = null,
+  carerLine = null,
   notes = [],
   computed,
   override,
@@ -42,8 +44,8 @@ export default function ProfileHeader({
   controls,
 }: {
   voice: Voice;
-  /** The reader is a parent and the patient their child ("your child's ..."). */
-  child?: boolean;
+  /** Who the patient-voice sentences are about (childVoice.ts): "child" speaks to a parent ("your child's ..."). */
+  subject?: ProfileSubject;
   /** Which kind's four phases the bar shows. */
   profileKind: ProfileKind;
   name: string;
@@ -55,6 +57,12 @@ export default function ProfileHeader({
   extraChips?: string[];
   /** "Filled in with your physiotherapist": who wrote the record, or null. */
   provenance?: string | null;
+  /** Who helps the patient at home, already worded for the reader ("Her son,
+   *  Ramesh, joins the home visits"): the geriatric carer pre-step
+   *  (geriatricProfile.ts `geriatricCarerLine`), or null. A fact about the
+   *  household, not a change of voice -- the page still speaks to the
+   *  patient. */
+  carerLine?: string | null;
   /** Lines saying a read behind the status could not be made (an unreadable
    *  diary, say), so the pill is not read as the whole picture. */
   notes?: string[];
@@ -70,7 +78,7 @@ export default function ProfileHeader({
   controls?: ReactNode;
 }) {
   const clinician = voice === "clinician";
-  const phaseText = describePhase({ phase, suggested: phaseIsInferred, voice, child });
+  const phaseText = describePhase({ phase, suggested: phaseIsInferred, voice, subject });
   return (
     <div className="space-y-4">
       <header className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
@@ -89,12 +97,13 @@ export default function ProfileHeader({
             </div>
             {conditionLine && <p className="mt-1.5 text-sm leading-relaxed text-slate-700 [overflow-wrap:anywhere]">{conditionLine}</p>}
             {provenance && <p className="mt-0.5 text-xs text-slate-600">{provenance}</p>}
+            {carerLine && <p className="mt-0.5 text-xs text-slate-600 [overflow-wrap:anywhere]">{carerLine}</p>}
             <div className="mt-3">
               <ProfileStatusPill
                 computed={computed}
                 override={override ? { status: override.status, reason: override.reason } : null}
                 voice={voice}
-                child={child}
+                subject={subject}
                 showReason
               />
               {override?.stale && clinician && (
@@ -123,13 +132,13 @@ export default function ProfileHeader({
               </span>
               {lastReviewAt && <span>Last review {formatClinicDate(lastReviewAt)}</span>}
             </div>
-            <PhaseBar profileKind={profileKind} currentPhase={phase} suggested={phaseIsInferred} voice={voice} child={child} />
+            <PhaseBar profileKind={profileKind} currentPhase={phase} suggested={phaseIsInferred} voice={voice} subject={subject} />
           </div>
         </div>
         {controls && <div className="mt-4 border-t border-slate-100 pt-4">{controls}</div>}
       </header>
 
-      <WhereThingsStand view={stand} voice={voice} child={child} loadFailed={statusFailed} />
+      <WhereThingsStand view={stand} voice={voice} subject={subject} loadFailed={statusFailed} />
     </div>
   );
 }

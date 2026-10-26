@@ -72,7 +72,7 @@ export default function PedsProfileTop({
     >
       <ProfileHeader
         voice={voice}
-        child={!clinician}
+        subject="child"
         profileKind={PEDS_PROFILE_KIND}
         name={patientName}
         conditionLine={conditionLine}
@@ -108,7 +108,7 @@ export default function PedsProfileTop({
         tiles={view.keyTiles}
         profileKind={PEDS_PROFILE_KIND}
         voice={voice}
-        child={!clinician}
+        subject="child"
       />
 
       <PedsPicture
@@ -134,7 +134,7 @@ export default function PedsProfileTop({
         patientId={patientId}
         patientName={patientName}
         voice={voice}
-        child={!clinician}
+        subject="child"
         series={view.series}
         recordedSeries={view.recordedSeries}
         tableRows={view.tableRows}
