@@ -663,7 +663,10 @@ export default async function TherapistPatientHealthProfilePage({
             {notesSection}
             {plansSection}
             {conditionCard}
-            {examCard}
+            {/* Strength and balance care and Heart and lung rehabilitation
+                have no exam layer (phase 6a); their measurements are drawn
+                by their own layout in phase 6b. */}
+            {specialty !== "geriatric" && specialty !== "cardiopulmonary" && examCard}
           </>
         )}
       </div>

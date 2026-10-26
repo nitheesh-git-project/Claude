@@ -604,6 +604,9 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
             account and the treating physiotherapist confirms it; it is read-only here.
           </p>
         </>
+      ) : specialty === "geriatric" || specialty === "cardiopulmonary" ? (
+        // No exam layer by design (phase 6a); the measured layout is 6b.
+        null
       ) : (
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-display font-bold text-lg text-slate-800 mb-1">

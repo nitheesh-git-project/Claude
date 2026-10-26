@@ -607,10 +607,19 @@ export default async function PatientHealthProfilePage() {
             collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
           />
 
-          {/* Two columns on a wide screen, one on a phone: what you said on
+          {/* Strength and balance care and Heart and lung rehabilitation
+              (phase 6a) have no exam layer and no intake trend card: their
+              progress is the recorded measurements, which their own layout
+              draws (phase 6b). Until then the page lists the answers only,
+              rather than an empty "Your examination" card or a trend
+              worded for another condition type. */}
+          {specialty === "geriatric" || specialty === "cardiopulmonary" ? (
+            conditionSection
+          ) : (
+          /* Two columns on a wide screen, one on a phone: what you said on
               the left, what the exam found on the right. The body map is
               the heavier of the two, so it gets the sticky column -- a
-              patient scrolling their own answers keeps the figure in view. */}
+              patient scrolling their own answers keeps the figure in view. */
           <div className="grid gap-5 lg:grid-cols-[1.05fr_1fr] lg:items-start">
             <div className="space-y-5">
               {conditionSection}
@@ -687,6 +696,7 @@ export default async function PatientHealthProfilePage() {
               />
             </section>
           </div>
+          )}
           </>
         )}
 
