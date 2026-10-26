@@ -1,5 +1,5 @@
-import { clockReading, type LiveDisplayView } from "@/lib/assessmentRun";
-import type { PatientPicture } from "@/lib/sessionProtocols";
+import { CLOCK_LABELS, LIVE_PHASES, clockReading, type ClockLabel, type LiveDisplayView } from "@/lib/assessmentRun";
+import { PATIENT_PICTURES, type PatientPicture } from "@/lib/sessionProtocols";
 
 // The patient's companion screen, as functions (Health Profile redesign,
 // phase 7b): what the screen is showing at a moment, how the big clock reads,
@@ -99,3 +99,51 @@ export const WAITING_TEXT = {
   line: "You do not need to do anything yet. This screen will change by itself when it starts.",
   calm: "Sit comfortably and take a slow breath.",
 } as const;
+
+// --- Reading what the poll route sends ------------------------------------------------------------------
+
+const isText = (v: unknown): v is string => typeof v === "string";
+
+/**
+ * The shape of a display view that came over the wire (the poll route sends
+ * the view the server already checked against the patient-safe whitelist).
+ * Anything that is not exactly that shape is null: the screen keeps what it
+ * has rather than draw something it cannot vouch for.
+ */
+export function asLiveDisplayView(raw: unknown): LiveDisplayView | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const v = raw as Record<string, unknown>;
+  const text = v.text as Record<string, unknown> | null;
+  if (!isText(v.runId) || !isText(v.stepId) || !isText(v.updatedAt) || typeof v.ended !== "boolean") return null;
+  if (!(LIVE_PHASES as readonly unknown[]).includes(v.phase)) return null;
+  if (typeof text !== "object" || text === null) return null;
+  if (!isText(text.progress) || !isText(text.title) || !isText(text.line) || !isText(text.picture)) return null;
+  if (text.sub !== undefined && !isText(text.sub)) return null;
+  if (text.clockLabel !== undefined && !isText(text.clockLabel)) return null;
+  let clock: LiveDisplayView["clock"] = null;
+  if (v.clock !== null && v.clock !== undefined) {
+    const c = v.clock as Record<string, unknown>;
+    if (!isText(c.startedAt) || !Number.isFinite(Date.parse(c.startedAt))) return null;
+    if (c.mode === "countdown" && typeof c.seconds === "number" && c.seconds > 0) clock = { mode: "countdown", seconds: c.seconds, startedAt: c.startedAt };
+    else if (c.mode === "count_up") clock = { mode: "count_up", startedAt: c.startedAt };
+    else return null;
+  }
+  if (!(PATIENT_PICTURES as readonly string[]).includes(text.picture)) return null;
+  if (text.clockLabel !== undefined && !(CLOCK_LABELS as readonly string[]).includes(text.clockLabel as string)) return null;
+  return {
+    runId: v.runId,
+    stepId: v.stepId,
+    phase: v.phase as LiveDisplayView["phase"],
+    clock,
+    text: {
+      progress: text.progress,
+      title: text.title,
+      line: text.line,
+      picture: text.picture as PatientPicture,
+      ...(isText(text.sub) ? { sub: text.sub } : {}),
+      ...(isText(text.clockLabel) ? { clockLabel: text.clockLabel as ClockLabel } : {}),
+    },
+    ended: v.ended,
+    updatedAt: v.updatedAt,
+  };
+}

@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
+import Link from "next/link";
+import { hasStartedSessionWithPatient, isTherapistAssignedToPatient } from "@/lib/conditionAccess";
+import { cockpitHref } from "@/lib/guidedAssessmentEntry";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import ConditionIntakePanel from "@/components/profile/ConditionIntakePanel";
 import SpecialtySummary from "@/components/profile/SpecialtySummary";
@@ -56,6 +58,11 @@ import { profileKindFor } from "@/lib/profileKind";
 export const metadata: Metadata = {
   title: "Patient Health Profile | MoveRestore",
 };
+
+// A clock read behind a function: the page reads "now" once per request.
+function nowTimestamp() {
+  return Date.now();
+}
 
 export default async function TherapistPatientHealthProfilePage({
   params,
@@ -263,6 +270,11 @@ export default async function TherapistPatientHealthProfilePage({
   const needsOnboarding = !questions.some((q) => currentData[q.key]?.trim());
   const specialtyDef = CONDITION_SPECIALTIES.find((s) => s.key === specialty);
   const adminSettings = parseAdminSettings(settingsRow);
+  // The guided video assessment's door: for the assigned therapist with a
+  // session that has started or been delivered. A check that could not be run
+  // offers nothing here (the cockpit page says so if it is opened).
+  const startedSession =
+    isAssigned && (await hasStartedSessionWithPatient(admin, user.id, patientId, adminSettings.joinWindowMinutes, nowTimestamp())) === true;
   const orthoView =
     isOrtho && orthoReads
       ? shapeOrthoView({ ...orthoReads, assessments: assessments ?? [] }, "clinician", orthoReads.nowMs)
@@ -678,6 +690,23 @@ export default async function TherapistPatientHealthProfilePage({
         {/* The edit-access card used to sit here, three sections above the
             only thing it unlocks. It now lives inside the Pain Map card,
             beside the work it gates. */}
+
+        {startedSession && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50/60 p-4">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900">Guided video assessment</p>
+              <p className="text-xs text-slate-700">Lead the checks live over the video call, one step at a time, from a second screen.</p>
+            </div>
+            <Link
+              href={cockpitHref(patientId)}
+              data-testid="chart-start-guided-assessment"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+            >
+              <i className="fa-solid fa-clipboard-check" aria-hidden="true" />
+              Start guided assessment
+            </Link>
+          </div>
+        )}
 
         {orthoTop ? (
           // An orthopaedic chart opens on the layout shared with the patient's

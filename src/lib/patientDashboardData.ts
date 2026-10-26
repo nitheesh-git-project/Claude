@@ -6,6 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadActiveCarePlan, loadCarePlanHistory } from "@/lib/carePlanServer";
 import { summariseVersion } from "@/lib/carePlans";
 import { buildSuggestedTeaser } from "@/lib/suggestedTeaser";
+import { loadLiveDisplay } from "@/lib/assessmentRunServer";
+import { companionMoment } from "@/lib/companionScreen";
 import {
   applyLedgerSessionBalances,
   applyLedgerVisitBalances,
@@ -1158,6 +1160,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     payLater = await loadPatientPayLater(admin, user.id);
   }
 
+  const liveRead = await loadLiveDisplay(supabase, user.id);
+  const guidedCheck = liveRead.status === "ok" && companionMoment(liveRead.display, nowTimestamp()).kind === "live";
+
   return {
     // The one read every screen here is built from. A failure renders the
     // load banner rather than "no sessions yet" -- see AdminDataLoadBanner.
@@ -1188,6 +1193,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // The one-line nudge every screen but Suggested Sessions carries.
     suggestedTeaser:
       screen === "suggested" ? null : buildSuggestedTeaser(activeCarePlan, pendingSuggestions.length, nowTimestamp()),
+    // The physiotherapist has a guided video assessment open for this patient
+    // right now: every screen offers the way to the companion screen. A read
+    // that could not be run offers nothing (the screen itself is the check).
+    guidedCheckLive: guidedCheck,
     ownedPackages: ownedPackagesForDisplay,
     ownedHomeVisitPackages: ownedHomeVisitPackagesForDisplay,
     bookableCategories: hubCategoriesWithCovers,

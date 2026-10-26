@@ -4,6 +4,7 @@ import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import type { PatientDashboardData } from "@/lib/patientDashboardData";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
+import GuidedCheckBar from "@/components/patient/GuidedCheckBar";
 import SuggestedTeaserBar from "@/components/patient/SuggestedTeaserBar";
 
 /**
@@ -62,6 +63,9 @@ export default function PatientDashboardShell({
         "care_plan_versions",
         // A session summary lands as the therapist finishes the session.
         "session_summaries",
+        // The physiotherapist starting a guided video assessment offers the
+        // companion screen without the patient reloading.
+        "assessment_live_display",
       ]}
       headerTitle={title}
       headerSubtitle={subtitle}
@@ -71,6 +75,7 @@ export default function PatientDashboardShell({
           <AdminDataLoadBanner missing={data.loadIssues.missing} />
         </div>
       )}
+      {data.guidedCheckLive && <GuidedCheckBar />}
       {data.suggestedTeaser && <SuggestedTeaserBar teaser={data.suggestedTeaser} />}
       {children}
     </DashboardShell>

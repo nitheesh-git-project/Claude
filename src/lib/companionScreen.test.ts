@@ -5,6 +5,7 @@ import {
   ENDED_SCREEN_MAX_AGE_MS,
   LIVE_SCREEN_MAX_AGE_MS,
   PICTURE_DESCRIPTIONS,
+  asLiveDisplayView,
   clockIsRunning,
   clockShown,
   companionMoment,
@@ -106,5 +107,27 @@ describe("the rest", () => {
   });
   it("polls every three seconds", () => {
     expect(COMPANION_POLL_MS).toBe(3000);
+  });
+});
+
+describe("asLiveDisplayView", () => {
+  it("accepts exactly the view the route sends", () => {
+    const v = view({ clock: { mode: "countdown", seconds: 30, startedAt: new Date(NOW).toISOString() } });
+    expect(asLiveDisplayView(JSON.parse(JSON.stringify(v)))).toEqual(v);
+    expect(asLiveDisplayView(JSON.parse(JSON.stringify(view())))).toEqual(view());
+  });
+  it("refuses anything else rather than draw it", () => {
+    expect(asLiveDisplayView(null)).toBeNull();
+    expect(asLiveDisplayView({})).toBeNull();
+    expect(asLiveDisplayView({ ...view(), phase: "dancing" })).toBeNull();
+    expect(asLiveDisplayView({ ...view(), text: { ...view().text, picture: "swimming" } })).toBeNull();
+    expect(asLiveDisplayView({ ...view(), text: { ...view().text, clockLabel: "Your score" } })).toBeNull();
+    expect(asLiveDisplayView({ ...view(), clock: { mode: "countdown", seconds: 0, startedAt: "x" } })).toBeNull();
+  });
+  it("drops keys it does not know, so a result cannot ride along", () => {
+    const sneaky = { ...view(), score: 11, text: { ...view().text, note: "LEFS 40" } };
+    const out = asLiveDisplayView(sneaky) as unknown as Record<string, unknown>;
+    expect(out.score).toBeUndefined();
+    expect((out.text as Record<string, unknown>).note).toBeUndefined();
   });
 });

@@ -16,6 +16,7 @@ import RevealContactButton from "@/components/therapist/RevealContactButton";
 import { maskPhone } from "@/lib/contactMasking";
 import { formatRupees } from "@/lib/formatMoney";
 import OnboardingGuideButton from "@/components/therapist/OnboardingGuideButton";
+import StartGuidedAssessmentLink from "@/components/therapist/StartGuidedAssessmentLink";
 
 // "Onboarding needed" on the card of a patient nobody has onboarded yet --
 // the card is what a therapist has open when the first session starts, and
@@ -162,6 +163,17 @@ export function renderTherapistSessionCard(
             slotTime={a.slot_time}
             status={a.status}
             durationMinutes={a.duration_minutes}
+          />
+          {/* The guided video assessment: the cockpit for this session, from
+              the moment the join window opens. The route behind it makes the
+              same started-session check, so this only decides whether the
+              door is shown. */}
+          <StartGuidedAssessmentLink
+            patientId={a.patient_id}
+            appointmentId={a.id}
+            slotTime={a.slot_time}
+            status={a.status}
+            noShow={!!a.no_show}
           />
           {/* Done opens the note (with the Pain Map); saving it is what
               finishes the session, so a confirmed card has no separate

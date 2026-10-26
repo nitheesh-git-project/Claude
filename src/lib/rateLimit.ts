@@ -275,6 +275,21 @@ export const RATE_LIMITS = {
     windowSeconds: 3600,
     message: "We've recorded a lot of assessment steps from this account just now.",
   },
+
+  /**
+   * The patient's companion screen asking for its row when live updates are
+   * not reaching it (/api/patient/assessment-display): once every three
+   * seconds for as long as the fallback is in use, so a 40-minute session is
+   * about 800 reads. Keyed on the patient's account, in its own scope so it
+   * can never spend an allowance something else needs, and it fails open:
+   * refusing it blanks a screen in front of a person mid-test.
+   */
+  assessmentDisplayRead: {
+    scope: "assessment-display-read",
+    limit: 1500,
+    windowSeconds: 3600,
+    message: "This screen has asked for updates a lot just now.",
+  },
 } as const satisfies Record<string, RateLimit>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;
