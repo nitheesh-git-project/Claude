@@ -48,6 +48,12 @@ import { shapeOrthoView } from "@/lib/orthoProfileView";
 import { loadNeuroReads } from "@/lib/neuroProfileServer";
 import { shapeNeuroView } from "@/lib/neuroProfileView";
 import { filledInLine, type NeuroKind } from "@/lib/neuroProfile";
+import GeriatricProfileTop from "@/components/profile/geriatric/GeriatricProfileTop";
+import CardioProfileTop from "@/components/profile/cardio/CardioProfileTop";
+import { loadGeriatricReads } from "@/lib/geriatricProfileServer";
+import { loadCardioReads } from "@/lib/cardioProfileServer";
+import { shapeGeriatricView } from "@/lib/geriatricProfile";
+import { shapeCardioView } from "@/lib/cardioProfile";
 import { loadPedsReads } from "@/lib/pedsProfileServer";
 import { shapePedsView } from "@/lib/pedsProfileView";
 import { pedsEquipmentChips } from "@/lib/pedsProfile";
@@ -309,7 +315,12 @@ export default async function PatientHealthProfilePage() {
   // sessions), each its own call inside the loader, and only for a
   // paediatric record - another condition type makes none of them.
   const isPeds = specialty === "pediatrics";
-  const [neuroRead, neuroReads, pedsReads] = await Promise.all([
+  // Strength and balance care and Heart and lung rehabilitation (phase 6b):
+  // their own reads, each its own call inside the loader, for those records
+  // only. Neither has an examination layer.
+  const isGeriatric = specialty === "geriatric";
+  const isCardio = specialty === "cardiopulmonary";
+  const [neuroRead, neuroReads, pedsReads, geriReads, cardioReads] = await Promise.all([
     specialty === "neuro"
       ? supabase
           .from("neuro_assessments")
@@ -320,7 +331,11 @@ export default async function PatientHealthProfilePage() {
       : Promise.resolve({ data: [] as NeuroAssessmentRow[], error: null }),
     neuroKind ? loadNeuroReads(supabase, user.id, { kind: neuroKind }) : Promise.resolve(null),
     isPeds ? loadPedsReads(supabase, user.id) : Promise.resolve(null),
+    isGeriatric ? loadGeriatricReads(supabase, user.id) : Promise.resolve(null),
+    isCardio ? loadCardioReads(supabase, user.id) : Promise.resolve(null),
   ]);
+  const geriView = isGeriatric && geriReads ? shapeGeriatricView(geriReads, { intake: currentData, voice: "patient" }) : null;
+  const cardioView = isCardio && cardioReads ? shapeCardioView(cardioReads, { intake: currentData, voice: "patient" }) : null;
   const neuroView =
     neuroKind && neuroReads
       ? shapeNeuroView(
@@ -417,8 +432,8 @@ export default async function PatientHealthProfilePage() {
         "pain_assessments",
         "neuro_assessments",
         "intake_question_templates",
-        ...(isOrtho || neuroView || pedsView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
-        ...(neuroView ? ["patient_diary_entries"] : []),
+        ...(isOrtho || neuroView || pedsView || geriView || cardioView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
+        ...(neuroView || geriView || cardioView ? ["patient_diary_entries"] : []),
         ...(pedsView ? ["peds_assessments", "appointments"] : []),
       ]}
       headerTitle="Health Profile"
@@ -428,7 +443,7 @@ export default async function PatientHealthProfilePage() {
           : "Your condition, and what your therapist found."
       }
     >
-      <div className={`mx-auto space-y-5 ${orthoView || neuroView || pedsView ? "max-w-6xl" : "max-w-5xl"}`}>
+      <div className={`mx-auto space-y-5 ${orthoView || neuroView || pedsView || geriView || cardioView ? "max-w-6xl" : "max-w-5xl"}`}>
         <div
           className={`flex flex-wrap items-start gap-3 rounded-2xl border p-4 sm:flex-nowrap ${
             gate.reason === "awaiting_therapist"
@@ -590,15 +605,69 @@ export default async function PatientHealthProfilePage() {
 
             {conditionSection}
           </>
+        ) : geriView && isGeriatric ? (
+          <>
+            <GeriatricProfileTop
+              voice="patient"
+              patientId={user.id}
+              patientName={profile?.full_name ?? "Patient"}
+              chipLabel={specialtyPatientLabel(specialty)}
+              provenance={filledInLine(conditionProfile?.last_submitted_role, "patient")}
+              view={geriView}
+              canSetStatus={null}
+              record={null}
+              planner={false}
+              reopen={false}
+              canLogDiary
+              canConfirmDiary={false}
+              enabledLicensed={[]}
+              licenceUnreadable={false}
+            />
+
+            <HealthProfileSteps
+              specialty={specialty}
+              collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
+            />
+
+            {conditionSection}
+          </>
+        ) : cardioView && isCardio ? (
+          <>
+            <CardioProfileTop
+              voice="patient"
+              patientId={user.id}
+              patientName={profile?.full_name ?? "Patient"}
+              chipLabel={specialtyPatientLabel(specialty)}
+              provenance={filledInLine(conditionProfile?.last_submitted_role, "patient")}
+              view={cardioView}
+              canSetStatus={null}
+              record={null}
+              planner={false}
+              reopen={false}
+              canLogDiary
+              canConfirmDiary={false}
+              enabledLicensed={[]}
+              licenceUnreadable={false}
+            />
+
+            <HealthProfileSteps
+              specialty={specialty}
+              collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
+            />
+
+            {conditionSection}
+          </>
         ) : (
           <>
-          <SpecialtySnapshotStrip
-            specialty={specialty}
-            questions={questions}
-            data={currentData}
-            assessments={assessments ?? []}
-            showProgress={!gate.canEdit}
-          />
+          {specialty !== "geriatric" && specialty !== "cardiopulmonary" && (
+            <SpecialtySnapshotStrip
+              specialty={specialty}
+              questions={questions}
+              data={currentData}
+              assessments={assessments ?? []}
+              showProgress={!gate.canEdit}
+            />
+          )}
 
           {/* Full while the flow is still ahead of them; one line once they
               have written to the record themselves. */}
@@ -607,12 +676,10 @@ export default async function PatientHealthProfilePage() {
             collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
           />
 
-          {/* Strength and balance care and Heart and lung rehabilitation
-              (phase 6a) have no exam layer and no intake trend card: their
-              progress is the recorded measurements, which their own layout
-              draws (phase 6b). Until then the page lists the answers only,
-              rather than an empty "Your examination" card or a trend
-              worded for another condition type. */}
+          {/* Strength and balance care and Heart and lung rehabilitation have
+              their own layouts above (phase 6b) and no exam layer or intake
+              trend card; this is only the defensive fallback, which lists
+              the answers rather than an empty "Your examination" card. */}
           {specialty === "geriatric" || specialty === "cardiopulmonary" ? (
             conditionSection
           ) : (

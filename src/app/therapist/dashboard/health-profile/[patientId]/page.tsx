@@ -39,6 +39,12 @@ import NeuroProfileTop from "@/components/profile/neuro/NeuroProfileTop";
 import PedsProfileTop from "@/components/profile/peds/PedsProfileTop";
 import { loadLicenceForRecording, loadOrthoReads } from "@/lib/orthoProfileServer";
 import { shapeOrthoView } from "@/lib/orthoProfileView";
+import GeriatricProfileTop from "@/components/profile/geriatric/GeriatricProfileTop";
+import CardioProfileTop from "@/components/profile/cardio/CardioProfileTop";
+import { loadGeriatricReads } from "@/lib/geriatricProfileServer";
+import { loadCardioReads } from "@/lib/cardioProfileServer";
+import { shapeGeriatricView } from "@/lib/geriatricProfile";
+import { shapeCardioView } from "@/lib/cardioProfile";
 import { loadNeuroReads } from "@/lib/neuroProfileServer";
 import { shapeNeuroView } from "@/lib/neuroProfileView";
 import { filledInLine, type NeuroKind } from "@/lib/neuroProfile";
@@ -91,6 +97,8 @@ export default async function TherapistPatientHealthProfilePage({
   const isOrtho = specialty === "ortho";
   const isNeuro = specialty === "neuro";
   const isPeds = specialty === "pediatrics";
+  const isGeriatric = specialty === "geriatric";
+  const isCardio = specialty === "cardiopulmonary";
 
   const [
     { data: profile },
@@ -179,7 +187,7 @@ export default async function TherapistPatientHealthProfilePage({
   // one this record is comes from the intake answers just read.
   const neuroKind: NeuroKind | null =
     isNeuro ? (profileKindFor("neuro", earlyData) === "neuro_parkinsons" ? "neuro_parkinsons" : "neuro") : null;
-  const [neuroRead, neuroReads, pedsReads] = await Promise.all([
+  const [neuroRead, neuroReads, pedsReads, geriReads, cardioReads] = await Promise.all([
     isNeuro
       ? supabase
           .from("neuro_assessments")
@@ -198,6 +206,13 @@ export default async function TherapistPatientHealthProfilePage({
     // each its own call, through the assigned-therapist policies. Paediatric
     // only, like the others.
     isPeds ? loadPedsReads(supabase, patientId) : Promise.resolve(null),
+    // Strength and balance care and Heart and lung rehabilitation (phase
+    // 6b): measurements, goal and steps, phase and status, the diary, the
+    // intake history, the licence switch, the date of birth (and, for the
+    // heart and lung chart, the clinic's six-minute walk formula), each its
+    // own call, through the assigned-therapist policies. Those records only.
+    isGeriatric ? loadGeriatricReads(supabase, patientId) : Promise.resolve(null),
+    isCardio ? loadCardioReads(supabase, patientId) : Promise.resolve(null),
   ]);
 
   const overridesByRegion: Record<string, QuestionOverrideRow[]> = {};
@@ -271,9 +286,16 @@ export default async function TherapistPatientHealthProfilePage({
           milestoneOptions: questions.find((q) => q.key === "peds_milestones")?.options ?? [],
         })
       : null;
+  const geriView = isGeriatric && geriReads ? shapeGeriatricView(geriReads, { intake: currentData, voice: "clinician" }) : null;
+  const cardioView = isCardio && cardioReads ? shapeCardioView(cardioReads, { intake: currentData, voice: "clinician" }) : null;
+  const newTypeReads = geriReads ?? cardioReads;
   const licence =
     orthoView && isAssigned
       ? await loadLicenceForRecording(admin)
+      : newTypeReads
+        ? newTypeReads.licence.status === "ok"
+          ? { keys: newTypeReads.licence.keys, unreadable: false }
+          : { keys: [] as string[], unreadable: true }
       : pedsReads
         ? pedsReads.licence.status === "ok"
           ? { keys: pedsReads.licence.keys, unreadable: false }
@@ -564,6 +586,46 @@ export default async function TherapistPatientHealthProfilePage({
       />
     ) : null;
 
+  const geriTop =
+    geriView && isGeriatric ? (
+      <GeriatricProfileTop
+        voice="clinician"
+        patientId={patientId}
+        patientName={patient.full_name}
+        chipLabel={specialtyDef?.label ?? "Geriatric"}
+        provenance={filledInLine(conditionProfile?.last_submitted_role, "clinician")}
+        view={geriView}
+        canSetStatus={isAssigned ? { endpoint: "/api/therapist/care-status/set" } : null}
+        record={isAssigned ? { asAdmin: false } : null}
+        planner={isAssigned}
+        reopen={false}
+        canLogDiary={false}
+        canConfirmDiary={isAssigned}
+        enabledLicensed={licence.keys}
+        licenceUnreadable={licence.unreadable}
+      />
+    ) : null;
+
+  const cardioTop =
+    cardioView && isCardio ? (
+      <CardioProfileTop
+        voice="clinician"
+        patientId={patientId}
+        patientName={patient.full_name}
+        chipLabel={specialtyDef?.label ?? "Cardiopulmonary"}
+        provenance={filledInLine(conditionProfile?.last_submitted_role, "clinician")}
+        view={cardioView}
+        canSetStatus={isAssigned ? { endpoint: "/api/therapist/care-status/set" } : null}
+        record={isAssigned ? { asAdmin: false } : null}
+        planner={isAssigned}
+        reopen={false}
+        canLogDiary={false}
+        canConfirmDiary={isAssigned}
+        enabledLicensed={licence.keys}
+        licenceUnreadable={licence.unreadable}
+      />
+    ) : null;
+
   const pedsTop =
     pedsView && isPeds ? (
       <PedsProfileTop
@@ -601,14 +663,14 @@ export default async function TherapistPatientHealthProfilePage({
         "pain_assessments",
         "neuro_assessments",
         "intake_question_templates",
-        ...(isOrtho || neuroView || pedsView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
-        ...(neuroView ? ["patient_diary_entries"] : []),
+        ...(isOrtho || neuroView || pedsView || geriView || cardioView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
+        ...(neuroView || geriView || cardioView ? ["patient_diary_entries"] : []),
         ...(pedsView ? ["peds_assessments", "appointments"] : []),
       ]}
       headerTitle={patient.full_name}
       headerSubtitle={patient.patient_code ?? "Patient"}
     >
-      <div className={`mx-auto space-y-6 ${orthoView || neuroView || pedsView ? "max-w-6xl" : "max-w-2xl"}`}>
+      <div className={`mx-auto space-y-6 ${orthoView || neuroView || pedsView || geriView || cardioView ? "max-w-6xl" : "max-w-2xl"}`}>
         {/* No "Back to My Patients" link: this page sits inside the dashboard
             shell, whose sidebar keeps My Patients highlighted and one tap
             away. */}
@@ -652,6 +714,18 @@ export default async function TherapistPatientHealthProfilePage({
           <>
             {needsOnboarding && conditionCard}
             {neuroTop}
+            {plansSection}
+            {notesSection}
+            {reportsSection}
+            {!needsOnboarding && conditionCard}
+          </>
+        ) : geriTop || cardioTop ? (
+          // Strength and balance care and Heart and lung rehabilitation open
+          // on the layout shared with the patient's page; there is no
+          // examination card for either (phase 6a: no exam before Done).
+          <>
+            {needsOnboarding && conditionCard}
+            {geriTop ?? cardioTop}
             {plansSection}
             {notesSection}
             {reportsSection}

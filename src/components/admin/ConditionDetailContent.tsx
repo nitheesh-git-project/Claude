@@ -38,6 +38,12 @@ import NeuroProfileTop from "@/components/profile/neuro/NeuroProfileTop";
 import PedsProfileTop from "@/components/profile/peds/PedsProfileTop";
 import { loadLicenceForRecording, loadOrthoReads } from "@/lib/orthoProfileServer";
 import { shapeOrthoView } from "@/lib/orthoProfileView";
+import GeriatricProfileTop from "@/components/profile/geriatric/GeriatricProfileTop";
+import CardioProfileTop from "@/components/profile/cardio/CardioProfileTop";
+import { loadGeriatricReads } from "@/lib/geriatricProfileServer";
+import { loadCardioReads } from "@/lib/cardioProfileServer";
+import { shapeGeriatricView } from "@/lib/geriatricProfile";
+import { shapeCardioView } from "@/lib/cardioProfile";
 import { loadNeuroReads } from "@/lib/neuroProfileServer";
 import { shapeNeuroView } from "@/lib/neuroProfileView";
 import { filledInLine, type NeuroKind } from "@/lib/neuroProfile";
@@ -131,6 +137,8 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
   const isOrthoProfile = specialty === "ortho";
   const isNeuroProfile = specialty === "neuro";
   const isPedsProfile = specialty === "pediatrics";
+  const isGeriatricProfile = specialty === "geriatric";
+  const isCardioProfile = specialty === "cardiopulmonary";
   // The neurological chart, read for a neurological profile only and in
   // its own call (neuro_assessments is a new table, so a database without
   // it costs this card -- which says so -- rather than the screen). The
@@ -146,7 +154,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           .order("created_at", { ascending: false })
           .limit(200)
       : Promise.resolve({ data: [] as NeuroAssessmentRow[], error: null }),
-    isNeuroProfile || isOrthoProfile || isPedsProfile ? getAdminContext() : Promise.resolve(null),
+    isNeuroProfile || isOrthoProfile || isPedsProfile || isGeriatricProfile || isCardioProfile ? getAdminContext() : Promise.resolve(null),
     // The orthopaedic progress record (measurements, goal and steps, phase and
     // status history), each read its own call inside the loader; orthopaedic
     // only, like the Pain Map.
@@ -308,6 +316,21 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
     pedsReads && pedsReads.licence.status === "ok"
       ? { keys: pedsReads.licence.keys, unreadable: false }
       : { keys: [] as string[], unreadable: !!pedsReads };
+
+  // Strength and balance care and Heart and lung rehabilitation (phase 6b),
+  // read for those records only, each read its own call. The admin records
+  // tests and sets the status under People scope; the diary is the patient's
+  // own account and the treating physiotherapist confirms it, so it is
+  // read-only here; the goal planner is the treating physiotherapist's.
+  const geriReads = isGeriatricProfile ? await loadGeriatricReads(admin, id) : null;
+  const cardioReads = isCardioProfile ? await loadCardioReads(admin, id) : null;
+  const geriView = isGeriatricProfile && geriReads ? shapeGeriatricView(geriReads, { intake: currentData, voice: "clinician" }) : null;
+  const cardioView = isCardioProfile && cardioReads ? shapeCardioView(cardioReads, { intake: currentData, voice: "clinician" }) : null;
+  const newTypeReads = geriReads ?? cardioReads;
+  const newTypeLicence =
+    newTypeReads && newTypeReads.licence.status === "ok"
+      ? { keys: newTypeReads.licence.keys, unreadable: false }
+      : { keys: [] as string[], unreadable: !!newTypeReads };
 
   const requestedGrants = (grants ?? []).filter((g) => g.status === "requested");
   const approvedGrants = (grants ?? []).filter((g) => g.status === "approved");
@@ -604,9 +627,55 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
             account and the treating physiotherapist confirms it; it is read-only here.
           </p>
         </>
-      ) : specialty === "geriatric" || specialty === "cardiopulmonary" ? (
-        // No exam layer by design (phase 6a); the measured layout is 6b.
-        null
+      ) : geriView && isGeriatricProfile ? (
+        <>
+          <GeriatricProfileTop
+            voice="clinician"
+            patientId={id}
+            patientName={patient.full_name}
+            chipLabel={specialtyDef?.label ?? "Geriatric"}
+            provenance={filledInLine(profile?.last_submitted_role, "clinician")}
+            view={geriView}
+            canSetStatus={canManagePeople ? { endpoint: "/api/admin/care-status/set" } : null}
+            record={canManagePeople ? { asAdmin: true } : null}
+            planner={false}
+            reopen={canManagePeople}
+            canLogDiary={false}
+            canConfirmDiary={false}
+            enabledLicensed={newTypeLicence.keys}
+            licenceUnreadable={newTypeLicence.unreadable}
+          />
+          <p className="text-xs text-slate-500">
+            Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a new reading rather
+            than editing any past one. The diary is the patient&apos;s own account and the treating physiotherapist
+            confirms it; it is read-only here.
+          </p>
+        </>
+      ) : cardioView && isCardioProfile ? (
+        <>
+          <CardioProfileTop
+            voice="clinician"
+            patientId={id}
+            patientName={patient.full_name}
+            chipLabel={specialtyDef?.label ?? "Cardiopulmonary"}
+            provenance={filledInLine(profile?.last_submitted_role, "clinician")}
+            view={cardioView}
+            canSetStatus={canManagePeople ? { endpoint: "/api/admin/care-status/set" } : null}
+            record={canManagePeople ? { asAdmin: true } : null}
+            planner={false}
+            reopen={canManagePeople}
+            canLogDiary={false}
+            canConfirmDiary={false}
+            enabledLicensed={newTypeLicence.keys}
+            licenceUnreadable={newTypeLicence.unreadable}
+          />
+          <p className="text-xs text-slate-500">
+            Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a new reading rather
+            than editing any past one. The pre-exercise refusal is enforced on the guided six-minute walk, which an
+            admin can run only under People scope. The diary is the patient&apos;s own account and the treating
+            physiotherapist confirms it; it is read-only here.
+          </p>
+        </>
       ) : (
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
