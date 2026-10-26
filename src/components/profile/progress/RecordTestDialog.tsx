@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import OverlayPortal from "@/components/system/OverlayPortal";
 import Spinner from "@/components/system/Spinner";
 import {
@@ -32,12 +32,13 @@ import {
   joinJointVariant,
   landmarksFor,
   movementLabel,
+  splitJointVariant,
   type JointMode,
 } from "@/lib/jointLandmarks";
-import { JOINT_MOVEMENTS, maxTrialsFor, outcomeMeasure, STANDS_WITH_ARMS_KEY, usedArmsEntry, validateMeasurement, type OutcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
+import { isVitalsMeasure, JOINT_MOVEMENTS, type CleanMeasurement, maxTrialsFor, outcomeMeasure, READ_FROM_LABELS, STANDS_WITH_ARMS_KEY, usedArmsEntry, validateMeasurement, type OutcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasureSeries } from "@/lib/outcomeSeries";
 import { formatReading } from "@/lib/progressChart";
-import { NETWORK_ERROR_MESSAGE, progressErrorMessage, readProgressFailure } from "@/lib/progressErrors";
+import { NETWORK_ERROR_MESSAGE, progressErrorMessage, readProgressFailure, type ProgressApiFailure } from "@/lib/progressErrors";
 import {
   EMPTY_CONDITION_DRAFT,
   buildConditions,
@@ -66,6 +67,55 @@ type PatientFacts = {
   heightCm?: number | null;
   weightKg?: number | null;
 };
+
+/** What the session cockpit asks of the dialog when it embeds it as a step's
+ *  tool: no overlay, no footer, the test chosen by the step (and only its
+ *  variants), taken over video, and the cockpit's own Save and next calling
+ *  its registered `save()`. The reading goes through the same measurement
+ *  route with the run and step named; the route re-derives and gates them. */
+export type EmbeddedSaveResult =
+  | { ok: true; alreadySaved: boolean }
+  | { ok: false; kind: "local"; message: string }
+  | { ok: false; kind: "server"; failure: ProgressApiFailure }
+  | { ok: false; kind: "network" };
+export type EmbeddedStatus = {
+  /** A usable number is entered (the Save and next button needs it). */
+  hasResult: boolean;
+  /** The one thing that is missing, as a sentence; null when nothing is. */
+  missing: string | null;
+  /** Saved and unchanged since. */
+  saved: boolean;
+};
+export type EmbeddedHandle = { save: () => Promise<EmbeddedSaveResult> };
+export type EmbeddedRecorder = {
+  run: { runId: string; stepId: string };
+  /** The registry variants this step may record; absent means any. */
+  variants?: readonly string[];
+  /** The step's helper item is ticked: the reading says so. */
+  helperPresent: boolean;
+  /** Hands the cockpit the dialog's save; called with null when it unmounts. */
+  register: (handle: EmbeddedHandle | null) => void;
+  onStatus: (status: EmbeddedStatus) => void;
+  /** The test's own countdown was started (the cockpit starts the patient's clock). */
+  onTimerStart?: () => void;
+};
+
+/** The variant, movement and mode a step that records only some variants
+ *  starts on, so the person is never asked what the step has decided. */
+function startingVariant(measureKey: string, allowed: readonly string[] | undefined): { variant: string; movement: string; mode: JointMode | "" } {
+  const none = { variant: "", movement: "", mode: "" as const };
+  if (!allowed || allowed.length === 0 || !measureKey) return none;
+  if (measureKey === "joint_range") {
+    const parts = allowed.map((v) => splitJointVariant(v)).filter((p): p is NonNullable<typeof p> => !!p);
+    const movements = new Set(parts.map((p) => p.movement));
+    if (movements.size !== 1) return none;
+    const movement = parts[0].movement;
+    const modes = new Set(parts.map((p) => p.mode));
+    const mode = modes.size === 1 ? parts[0].mode : "";
+    return { variant: joinJointVariant(movement, mode), movement, mode };
+  }
+  return { variant: allowed.length === 1 ? allowed[0] : "", movement: "", mode: "" };
+}
 
 /**
  * Recording one standardised test, in the clinician's voice: pick the test,
@@ -110,6 +160,7 @@ export default function RecordTestDialog({
   initialConditions,
   onSaved,
   onClose,
+  embedded,
 }: {
   patientId: string;
   patientName?: string;
@@ -142,6 +193,8 @@ export default function RecordTestDialog({
   /** Called after a reading is saved, instead of closing the dialog. */
   onSaved?: (saved: { measureKey: string; conditions: ConditionDraft }) => void;
   onClose: () => void;
+  /** Rendered inline as a guided assessment step's tool; see EmbeddedRecorder. */
+  embedded?: EmbeddedRecorder;
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -155,19 +208,28 @@ export default function RecordTestDialog({
   );
   const startKey = choices.find((c) => c.selectable && c.measure.key === initialMeasureKey)?.measure.key ?? "";
 
+  const startingChoice = useMemo(() => startingVariant(startKey, embedded?.variants), [startKey, embedded?.variants]);
+  const allowedVariants = embedded?.variants ?? null;
   const [measureKey, setMeasureKey] = useState(startKey);
-  const [variant, setVariant] = useState("");
+  const [variant, setVariant] = useState(startingChoice.variant);
   // Goniometry stores the movement and its mode in one variant string; the
   // screen asks for them as two answers (jointLandmarks.ts joins them).
-  const [jointMovement, setJointMovement] = useState("");
-  const [jointMode, setJointMode] = useState<JointMode | "">("");
+  const [jointMovement, setJointMovement] = useState(startingChoice.movement);
+  const [jointMode, setJointMode] = useState<JointMode | "">(startingChoice.mode);
   const [side, setSide] = useState<"" | "left" | "right">("");
   const [editor, setEditor] = useState<EditorState>(() => emptyEditorState(startKey ? outcomeMeasure(startKey) : null));
   const [useTimer, setUseTimer] = useState(true);
   const [timerRun, setTimerRun] = useState(0);
   const [walks, setWalks] = useState<SixMinuteWalkResult[]>([]);
   const [timerFlag, setTimerFlag] = useState(false);
-  const [cond, setCond] = useState<ConditionDraft>(initialConditions ?? EMPTY_CONDITION_DRAFT);
+  const [condState, setCondState] = useState<ConditionDraft>(initialConditions ?? EMPTY_CONDITION_DRAFT);
+  // Inside a run the test is taken over video, at the patient's home, with the
+  // step's helper, and the vital signs read off the patient's own device on
+  // camera: none of that is a choice.
+  const cond: ConditionDraft = embedded
+    ? { ...condState, setting: "video", helperPresent: embedded.helperPresent, homeMeasured: true, readOffPatientDevice: true }
+    : condState;
+  const [savedOnce, setSavedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
@@ -198,7 +260,7 @@ export default function RecordTestDialog({
     : null;
   const landmark = measure?.key === "joint_range" && jointMovement ? landmarksFor(jointMovement) : null;
 
-  const dirty = !!measure && (entry?.value != null || (cond !== EMPTY_CONDITION_DRAFT && cond !== initialConditions));
+  const dirty = !!measure && (entry?.value != null || (condState !== EMPTY_CONDITION_DRAFT && condState !== initialConditions));
 
   function requestClose() {
     if (saving) return;
@@ -213,7 +275,7 @@ export default function RecordTestDialog({
     }
     onClose();
   }
-  const { panelRef, dialogProps } = useDialogChrome({ onClose: requestClose, labelledBy: titleId });
+  const { panelRef, dialogProps } = useDialogChrome({ onClose: requestClose, labelledBy: titleId, active: !embedded });
 
   function pickMeasure(key: string) {
     setConfirmingDiscard(false);
@@ -229,17 +291,24 @@ export default function RecordTestDialog({
     setWalks([]);
     setTimerFlag(false);
     setTimerRun((n) => n + 1);
-    setCond((c) => (c === EMPTY_CONDITION_DRAFT || c === initialConditions ? c : { ...EMPTY_CONDITION_DRAFT, setting: c.setting, testerName: c.testerName }));
+    setCondState((c) => (c === EMPTY_CONDITION_DRAFT || c === initialConditions ? c : { ...EMPTY_CONDITION_DRAFT, setting: c.setting, testerName: c.testerName }));
+  }
+
+  /** A choice changed after a save: the next save is a new reading. */
+  function touch() {
+    setSavedOnce(false);
   }
 
   function patchCond(patch: Partial<ConditionDraft>) {
     setConfirmingDiscard(false);
     setError(null);
-    setCond((c) => ({ ...c, ...patch }));
+    setSavedOnce(false);
+    setCondState((c) => ({ ...c, ...patch }));
   }
   function patchEditor(patch: Partial<EditorState>) {
     setConfirmingDiscard(false);
     setError(null);
+    setSavedOnce(false);
     setEditor((e) => ({ ...e, ...patch }));
   }
 
@@ -270,45 +339,46 @@ export default function RecordTestDialog({
     return failed;
   }
 
-  async function save() {
-    if (savingRef.current || !measure || !fields || !entry) return;
-    setConfirmingDiscard(false);
-    if (!cond.setting) {
-      setError("Say whether the test was in person or over video.");
-      return;
-    }
-    if (measure.sided && !side) {
-      setError(`${measure.label}: say which side.`);
-      return;
-    }
-    if (measure.variants && !variant) {
-      setError(`${measure.label}: say which one was measured.`);
-      return;
-    }
-    if (entry.problem) {
-      setError(entry.problem);
-      return;
-    }
-    if (entry.value === null) {
-      setError("Enter the result first.");
-      return;
-    }
+  /** The reading as the route will see it, or the one sentence that stops it.
+   *  Shared by the dialog's Save and the cockpit's Save and next. */
+  function prepareMeasurement():
+    | { ok: true; measurement: CleanMeasurement; nowMs: number }
+    | { ok: false; message: string } {
+    if (!measure || !fields || !entry) return { ok: false, message: "Choose a test first." };
+    if (!cond.setting) return { ok: false, message: "Say whether the test was in person or over video." };
+    if (measure.sided && !side) return { ok: false, message: `${measure.label}: say which side.` };
+    if (measure.variants && !variant) return { ok: false, message: `${measure.label}: say which one was measured.` };
+    if (entry.problem) return { ok: false, message: entry.problem };
+    if (entry.value === null) return { ok: false, message: "Enter the result first." };
     const nowMs = debugNow();
+    const built = buildConditions(measure, profileKind, cond, nowMs, entry.usedArms);
     const measurement = {
       measureKey: measure.key,
       value: entry.value,
       measuredAt: new Date(nowMs).toISOString(),
-      conditions: buildConditions(measure, profileKind, cond, nowMs, entry.usedArms),
+      // A step that needs a helper says so on the reading whatever the test's
+      // own video rule is: the route checks the two agree.
+      conditions: embedded?.helperPresent ? { ...built, helperPresent: true } : built,
       ...(measure.sided ? { side } : {}),
       ...(measure.variants ? { variant } : {}),
       ...(entry.items !== null ? { items: entry.items } : {}),
     };
     // The route's own check, in the route's own words, before the round trip.
     const checked = validateMeasurement(measurement, { profileKind, nowMs, enabledLicensed: enabledSet });
-    if (!checked.ok) {
-      setError(checked.error);
+    if (!checked.ok) return { ok: false, message: checked.error };
+    return { ok: true, measurement: checked.measurement, nowMs };
+  }
+
+  async function save() {
+    if (savingRef.current || !measure || !fields || !entry) return;
+    setConfirmingDiscard(false);
+    const prepared = prepareMeasurement();
+    if (!prepared.ok) {
+      setError(prepared.message);
       return;
     }
+    const { measurement, nowMs } = prepared;
+    const checked = { measurement };
 
     savingRef.current = true;
     setSaving(true);
@@ -327,7 +397,7 @@ export default function RecordTestDialog({
       }
       const variantLabel = measure.variants?.find((v) => v.key === variant)?.label;
       show(
-        `${measure.label}${variantLabel ? ` (${variantLabel})` : ""} recorded: ${formatReading(entry.value, measure.decimals, measure.unit)}${
+        `${measure.label}${variantLabel ? ` (${variantLabel})` : ""} recorded: ${formatReading(measurement.value, measure.decimals, measure.unit)}${
           patientName ? ` for ${patientName}` : ""
         }`
       );
@@ -359,6 +429,73 @@ export default function RecordTestDialog({
       setSaving(false);
     }
   }
+
+  /** The cockpit's Save and next: the same reading, the same route, with the
+   *  run and step named so the route can gate it. Never throws; the cockpit
+   *  words every refusal itself. */
+  async function embeddedSave(): Promise<EmbeddedSaveResult> {
+    if (!embedded) return { ok: false, kind: "local", message: "This is not part of an assessment." };
+    if (savedOnce) return { ok: true, alreadySaved: true };
+    if (savingRef.current) return { ok: false, kind: "local", message: "Still saving. One moment." };
+    const prepared = prepareMeasurement();
+    if (!prepared.ok) return { ok: false, kind: "local", message: prepared.message };
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/therapist/measurements/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...debugNowHeaders() },
+        body: JSON.stringify({
+          patientId,
+          appointmentId,
+          measurement: prepared.measurement,
+          runId: embedded.run.runId,
+          stepId: embedded.run.stepId,
+        }),
+      });
+      if (!res.ok) return { ok: false, kind: "server", failure: await readProgressFailure(res) };
+      setSavedOnce(true);
+      return { ok: true, alreadySaved: false };
+    } catch {
+      return { ok: false, kind: "network" };
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
+
+  // The cockpit reads the handle and the status from outside; both are kept
+  // current in effects, never during render.
+  const embeddedSaveRef = useRef(embeddedSave);
+  useEffect(() => {
+    embeddedSaveRef.current = embeddedSave;
+  });
+  const register = embedded?.register;
+  useEffect(() => {
+    if (!register) return;
+    register({ save: () => embeddedSaveRef.current() });
+    return () => register(null);
+  }, [register]);
+  const onStatus = embedded?.onStatus;
+  const missingNow = !measure
+    ? "Choose a test."
+    : measure.sided && !side
+      ? "Choose left or right."
+      : measure.variants && !variant
+        ? measure.key === "joint_range"
+          ? !jointMovement
+            ? "Choose the movement."
+            : "Choose active or passive."
+          : "Choose which one was measured."
+        : entry?.problem
+          ? entry.problem
+          : entry?.value == null
+            ? "Take the reading first."
+            : null;
+  const hasResultNow = !!measure && entry?.value != null && !entry.problem;
+  useEffect(() => {
+    onStatus?.({ hasResult: hasResultNow, missing: missingNow, saved: savedOnce });
+  }, [onStatus, hasResultNow, missingNow, savedOnce]);
 
   // --- The result section -----------------------------------------------------------------------
 
@@ -487,6 +624,7 @@ export default function RecordTestDialog({
               title={timer.title}
               description={timer.description}
               armsRule={timer.armsRule}
+              onStart={embedded?.onTimerStart}
               onUse={(r) => {
                 flag(r.interrupted);
                 // The CDC rule: arms used scores 0, and the count with the
@@ -541,7 +679,7 @@ export default function RecordTestDialog({
           maxTrials={maxTrialsFor(m)}
         />
       ) : m.grades || m.capture === "rating" ? (
-        <ChoiceButtons measure={m} label={`${m.plainName} (${m.label})`} value={editor.choice} onChange={(choice) => patchEditor({ choice })} />
+        <ChoiceButtons measure={m} label={`${m.plainName} (${m.label})`} value={editor.choice} onChange={(choice) => patchEditor({ choice })} large={!!embedded} />
       ) : (
         <NumberBox measure={m} label={`Result (${m.unit})`} text={editor.numberText} onText={(numberText) => patchEditor({ numberText })} />
       );
@@ -585,35 +723,29 @@ export default function RecordTestDialog({
 
   const ownedNote = ownedElsewhereNote(profileKind);
 
-  return (
-    <OverlayPortal>
-      <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-slate-900/40 backdrop-blur-sm sm:items-center sm:p-4">
-        <div
-          ref={panelRef}
-          {...dialogProps}
-          className="relative flex h-full w-full flex-col overflow-hidden bg-white shadow-xl sm:h-[92vh] sm:max-w-3xl sm:rounded-2xl"
-        >
-          <div inert={angleOpen} className="flex items-start justify-between gap-4 border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4">
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-teal-800">Record a test</p>
-              <h2 id={titleId} className="font-display text-lg font-bold text-slate-900 [overflow-wrap:anywhere]">
-                {patientName ? `Measuring ${patientName}` : "Recording a measurement"}
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-600">
-                Stored as a new reading on the record. An earlier reading is never changed; a re-test is a new one.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={requestClose}
-              aria-label="Close"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-600 transition hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
-            >
-              <i aria-hidden className="fa-solid fa-xmark text-lg" />
-            </button>
-          </div>
+  const angleTool =
+    jointMovement && (side === "left" || side === "right") && jointMode ? (
+      <AngleTool
+        movement={jointMovement}
+        side={side}
+        mode={jointMode}
+        previous={previous?.value ?? null}
+        onClose={() => setAngleOpen(false)}
+        onUse={(value) => {
+          // The number goes into the first empty reading box; the photo and the points stay behind.
+          const room = maxTrialsFor(measure!);
+          const texts = Array.from({ length: room }, (_, i) => editor.trialTexts[i] ?? "");
+          const at = texts.findIndex((t) => t.trim() === "");
+          texts[at < 0 ? room - 1 : at] = String(value);
+          patchEditor({ trialTexts: texts });
+          patchCond({ setting: "video", estimatedFromImage: true });
+          setAngleOpen(false);
+        }}
+      />
+    ) : null;
 
-          <div inert={angleOpen} className="flex-1 space-y-6 overflow-y-auto px-4 py-4 sm:px-6">
+  const sections = (
+    <>
             {flow && (
               <div data-testid="flow-step" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2">
                 <p className="text-sm font-bold text-teal-900">
@@ -631,7 +763,7 @@ export default function RecordTestDialog({
             )}
             {/* 1. Which test */}
             <section className="space-y-3">
-              <div className={lockedMeasure && measure ? "sr-only" : undefined}>
+              <div className={embedded ? "hidden" : lockedMeasure && measure ? "sr-only" : undefined}>
                 <label htmlFor={`${baseId}-measure`} className="block text-sm font-semibold text-slate-900">
                   Which test?
                 </label>
@@ -660,6 +792,7 @@ export default function RecordTestDialog({
 
               {measure?.key === "joint_range" ? (
                 <>
+                  {!(embedded && startingChoice.movement) && (
                   <div>
                     <label htmlFor={`${baseId}-movement`} className="block text-sm font-semibold text-slate-900">
                       Which movement?
@@ -668,6 +801,7 @@ export default function RecordTestDialog({
                       id={`${baseId}-movement`}
                       value={jointMovement}
                       onChange={(e) => {
+                        touch();
                         setJointMovement(e.target.value);
                         setVariant(joinJointVariant(e.target.value, jointMode));
                         setError(null);
@@ -682,11 +816,15 @@ export default function RecordTestDialog({
                       ))}
                     </select>
                   </div>
+                  )}
                   <fieldset>
                     <legend className="text-sm font-semibold text-slate-900">Active or passive?</legend>
                     <div className="mt-1 flex gap-2">
-                      {JOINT_MODES.map((md) =>
+                      {JOINT_MODES.filter(
+                        (md) => !allowedVariants || allowedVariants.some((v) => splitJointVariant(v)?.mode === md.key)
+                      ).map((md) =>
                         radio("mode", md.key, jointMode, md.label, () => {
+                          touch();
                           setJointMode(md.key);
                           setVariant(joinJointVariant(jointMovement, md.key));
                           setError(null);
@@ -699,7 +837,7 @@ export default function RecordTestDialog({
                   </fieldset>
                 </>
               ) : (
-                measure?.variants && (
+                measure?.variants && !(allowedVariants && allowedVariants.length === 1) && (
                   <div>
                     <label htmlFor={`${baseId}-variant`} className="block text-sm font-semibold text-slate-900">
                       Which one?
@@ -708,13 +846,14 @@ export default function RecordTestDialog({
                       id={`${baseId}-variant`}
                       value={variant}
                       onChange={(e) => {
+                        touch();
                         setVariant(e.target.value);
                         setError(null);
                       }}
                       className={`mt-1 ${FIELD}`}
                     >
                       <option value="">Choose</option>
-                      {measure.variants.map((v) => (
+                      {measure.variants.filter((v) => !allowedVariants || allowedVariants.includes(v.key)).map((v) => (
                         <option key={v.key} value={v.key}>
                           {v.label}
                         </option>
@@ -728,8 +867,14 @@ export default function RecordTestDialog({
                 <fieldset>
                   <legend className="text-sm font-semibold text-slate-900">Which side?</legend>
                   <div className="mt-1 flex gap-2">
-                    {radio("side", "left", side, SIDE_LABEL.left, () => setSide("left"))}
-                    {radio("side", "right", side, SIDE_LABEL.right, () => setSide("right"))}
+                    {radio("side", "left", side, SIDE_LABEL.left, () => {
+                      touch();
+                      setSide("left");
+                    })}
+                    {radio("side", "right", side, SIDE_LABEL.right, () => {
+                      touch();
+                      setSide("right");
+                    })}
                   </div>
                 </fieldset>
               )}
@@ -780,6 +925,7 @@ export default function RecordTestDialog({
                 <section className="space-y-3">
                   <h3 className="font-display text-base font-bold text-slate-900">How it was done</h3>
 
+                  {!embedded && (
                   <fieldset>
                     <legend className="text-sm font-semibold text-slate-900">Where</legend>
                     <div className="mt-1 flex flex-col gap-2 sm:flex-row">
@@ -794,8 +940,30 @@ export default function RecordTestDialog({
                       )}
                     </div>
                   </fieldset>
+                  )}
 
-                  {cond.setting === "video" && fields.helperOverVideo && (
+                  {cond.setting === "video" && isVitalsMeasure(measure.key) && (
+                    embedded ? (
+                      <p data-testid="read-from-note" className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                        {READ_FROM_LABELS.patient_device_on_video}.
+                      </p>
+                    ) : (
+                      <label className="flex min-h-[44px] items-start gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                        <input
+                          type="checkbox"
+                          checked={cond.readOffPatientDevice}
+                          onChange={(e) => patchCond({ readOffPatientDevice: e.target.checked })}
+                          className="mt-0.5 h-5 w-5 shrink-0 accent-teal-700"
+                        />
+                        <span>
+                          I read it off the patient{"'"}s own device on camera
+                          <span className="block text-xs text-slate-600">Marked on the record as: {READ_FROM_LABELS.patient_device_on_video}.</span>
+                        </span>
+                      </label>
+                    )
+                  )}
+
+                  {!embedded && cond.setting === "video" && fields.helperOverVideo && (
                     <label className="flex min-h-[44px] items-start gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-800">
                       <input
                         type="checkbox"
@@ -806,7 +974,7 @@ export default function RecordTestDialog({
                       <span>Another adult stood beside the patient throughout</span>
                     </label>
                   )}
-                  {cond.setting === "video" && fields.homeOverVideo && (
+                  {!embedded && cond.setting === "video" && fields.homeOverVideo && (
                     <label className="flex min-h-[44px] items-start gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-800">
                       <input
                         type="checkbox"
@@ -937,6 +1105,7 @@ export default function RecordTestDialog({
                         />
                       </div>
                     )}
+                    {!embedded && (
                     <div className={fields.walkingAid ? "sm:col-span-2" : ""}>
                       <label htmlFor={`${baseId}-tester`} className="block text-sm font-semibold text-slate-900">
                         Measured by, if not you
@@ -954,6 +1123,7 @@ export default function RecordTestDialog({
                         A different person measuring widens the allowance before a change counts as real.
                       </p>
                     </div>
+                    )}
                   </div>
 
                   {fields.method && (
@@ -995,6 +1165,11 @@ export default function RecordTestDialog({
                   {entry?.problem && (
                     <p role="alert" className="text-sm font-semibold text-red-800">
                       {entry.problem}
+                    </p>
+                  )}
+                  {embedded && savedOnce && (
+                    <p role="status" data-testid="embedded-saved" className="text-sm font-bold text-emerald-800">
+                      Saved to the record.
                     </p>
                   )}
                 </section>
@@ -1054,6 +1229,52 @@ export default function RecordTestDialog({
                 )}
               </>
             )}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div data-testid="embedded-recorder" className="space-y-5">
+        {sections}
+        {angleOpen && jointMovement && (side === "left" || side === "right") && jointMode && measure && (
+          <OverlayPortal>
+            <div className="fixed inset-0 z-50 bg-white">{angleTool}</div>
+          </OverlayPortal>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <OverlayPortal>
+      <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-slate-900/40 backdrop-blur-sm sm:items-center sm:p-4">
+        <div
+          ref={panelRef}
+          {...dialogProps}
+          className="relative flex h-full w-full flex-col overflow-hidden bg-white shadow-xl sm:h-[92vh] sm:max-w-3xl sm:rounded-2xl"
+        >
+          <div inert={angleOpen} className="flex items-start justify-between gap-4 border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-teal-800">Record a test</p>
+              <h2 id={titleId} className="font-display text-lg font-bold text-slate-900 [overflow-wrap:anywhere]">
+                {patientName ? `Measuring ${patientName}` : "Recording a measurement"}
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-600">
+                Stored as a new reading on the record. An earlier reading is never changed; a re-test is a new one.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={requestClose}
+              aria-label="Close"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-600 transition hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+            >
+              <i aria-hidden className="fa-solid fa-xmark text-lg" />
+            </button>
+          </div>
+
+          <div inert={angleOpen} className="flex-1 space-y-6 overflow-y-auto px-4 py-4 sm:px-6">
+            {sections}
           </div>
 
           <div inert={angleOpen} className="border-t border-slate-100 px-4 py-3 sm:px-6">
@@ -1104,25 +1325,7 @@ export default function RecordTestDialog({
               )}
             </div>
           </div>
-          {angleOpen && jointMovement && (side === "left" || side === "right") && jointMode && (
-            <AngleTool
-              movement={jointMovement}
-              side={side}
-              mode={jointMode}
-              previous={previous?.value ?? null}
-              onClose={() => setAngleOpen(false)}
-              onUse={(value) => {
-                // The number goes into the first empty reading box; the photo and the points stay behind.
-                const room = maxTrialsFor(measure!);
-                const texts = Array.from({ length: room }, (_, i) => editor.trialTexts[i] ?? "");
-                const at = texts.findIndex((t) => t.trim() === "");
-                texts[at < 0 ? room - 1 : at] = String(value);
-                patchEditor({ trialTexts: texts });
-                patchCond({ setting: "video", estimatedFromImage: true });
-                setAngleOpen(false);
-              }}
-            />
-          )}
+          {angleOpen && jointMovement && (side === "left" || side === "right") && jointMode && angleTool}
         </div>
       </div>
     </OverlayPortal>

@@ -69,11 +69,14 @@ export function ChoiceButtons({
   label,
   value,
   onChange,
+  large = false,
 }: {
   measure: OutcomeMeasure;
   label: string;
   value: number | null;
   onChange: (next: number | null) => void;
+  /** Bigger buttons: the session cockpit's scale, tapped from arm's length. */
+  large?: boolean;
 }) {
   const options: { value: number; short: string; meaning?: string }[] = measure.grades
     ? measure.grades.map((g) => ({ value: g.value, short: String(g.value), meaning: g.label }))
@@ -91,7 +94,7 @@ export function ChoiceButtons({
             type="button"
             aria-pressed={value === o.value}
             onClick={() => onChange(value === o.value ? null : o.value)}
-            className={`min-h-[48px] min-w-[48px] rounded-xl border px-3 text-base font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-1 ${
+            className={`${large ? "min-h-[56px] min-w-[56px] text-xl font-bold" : "min-h-[48px] min-w-[48px] text-base font-semibold"} rounded-xl border px-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-1 ${
               value === o.value
                 ? "border-teal-700 bg-teal-700 text-white"
                 : "border-slate-300 bg-white text-slate-800 hover:border-teal-500"

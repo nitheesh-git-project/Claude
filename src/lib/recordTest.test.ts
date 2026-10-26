@@ -4,6 +4,7 @@ import {
   computeEntry,
   emptyEditorState,
   buildConditions,
+  readFromFor,
   conditionFieldsFor,
   doseTimeToIso,
   mustUseTrials,
@@ -392,5 +393,33 @@ describe("otherSideReading and pendingExtensionLag", () => {
     expect(pendingExtensionLag(series, { measureKey: "joint_range", variant: "knee_extension_active", side: null }, -8)).toBeNull();
     expect(pendingExtensionLag(series, { measureKey: "joint_range", variant: "knee_extension_active", side: "right" }, null)).toBeNull();
     expect(pendingExtensionLag(series, { measureKey: "joint_range", variant: "knee_extension_active", side: "left" }, -8)).toBeNull();
+  });
+});
+
+describe("where a vital sign was read from", () => {
+  const draft = { ...EMPTY_CONDITION_DRAFT };
+  it("says the clinic's device in person and the patient's own device only when read on camera", () => {
+    expect(readFromFor("resting_spo2", "in_person", false)).toBe("clinic_device");
+    expect(readFromFor("resting_spo2", "video", true)).toBe("patient_device_on_video");
+    expect(readFromFor("resting_spo2", "video", false)).toBeNull();
+    expect(readFromFor("resting_spo2", "", true)).toBeNull();
+  });
+  it("is never put on a reading that is not read off a device", () => {
+    expect(readFromFor("chair_stand_30s", "video", true)).toBeNull();
+    expect(readFromFor("breathlessness_nrs", "in_person", false)).toBeNull();
+  });
+  it("travels in the conditions and passes the route's own check", () => {
+    const conditions = buildConditions(m("resting_heart_rate"), "cardiopulmonary", { ...draft, setting: "video", homeMeasured: true, readOffPatientDevice: true }, NOW);
+    expect(conditions.readFrom).toBe("patient_device_on_video");
+    const checked = validateMeasurement(
+      { measureKey: "resting_heart_rate", value: 72, measuredAt: new Date(NOW).toISOString(), conditions },
+      { profileKind: "cardiopulmonary", nowMs: NOW, enabledLicensed: new Set() }
+    );
+    expect(checked.ok).toBe(true);
+  });
+  it("leaves a video vital the patient took at home unlabelled as read on camera", () => {
+    const conditions = buildConditions(m("resting_heart_rate"), "cardiopulmonary", { ...draft, setting: "video", homeMeasured: true }, NOW);
+    expect(conditions.readFrom).toBeUndefined();
+    expect(conditions.homeMeasured).toBe(true);
   });
 });

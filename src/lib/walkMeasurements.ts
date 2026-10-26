@@ -1,4 +1,5 @@
 import type { MeasurementConditions, MeasurementInput } from "@/lib/outcomeMeasures";
+import { readFromFor } from "@/lib/recordTest";
 
 // The readings a guided six-minute walk or a pre-session safety check leaves
 // behind (Health Profile redesign, phase 6b): each vital becomes its own
@@ -29,6 +30,14 @@ export type WalkReading = {
 
 const has = (v: number | undefined): v is number => typeof v === "number" && Number.isFinite(v);
 
+/** The conditions for one reading: a vital sign taken in person says it was
+ *  read off the clinic's device (`readFrom`); every other reading, and a vital
+ *  the patient took at home, keeps the walk's conditions as they are. */
+function conditionsFor(measureKey: string, base: MeasurementConditions): MeasurementConditions {
+  const readFrom = readFromFor(measureKey, base.setting, false);
+  return readFrom ? { ...base, readFrom } : base;
+}
+
 /** The resting readings taken before exercise (the safety check, or the
  *  start of a walk). */
 export function restingReadings(v: WalkVitalsInput, base: { measuredAt: string; conditions: MeasurementConditions }): WalkReading[] {
@@ -38,13 +47,13 @@ export function restingReadings(v: WalkVitalsInput, base: { measuredAt: string; 
   if (has(v.systolic) && has(v.diastolic)) {
     out.push({
       label: "Blood pressure before the walk",
-      measurement: { measureKey: "blood_pressure", value: v.systolic, items: { systolic: v.systolic, diastolic: v.diastolic }, variant: "rest", measuredAt: at, conditions },
+      measurement: { measureKey: "blood_pressure", value: v.systolic, items: { systolic: v.systolic, diastolic: v.diastolic }, variant: "rest", measuredAt: at, conditions: conditionsFor("blood_pressure", conditions) },
     });
   }
-  if (has(v.spo2)) out.push({ label: "Oxygen at rest", measurement: { measureKey: "resting_spo2", value: v.spo2, measuredAt: at, conditions } });
-  if (has(v.heartRate)) out.push({ label: "Resting heart rate", measurement: { measureKey: "resting_heart_rate", value: v.heartRate, measuredAt: at, conditions } });
+  if (has(v.spo2)) out.push({ label: "Oxygen at rest", measurement: { measureKey: "resting_spo2", value: v.spo2, measuredAt: at, conditions: conditionsFor("resting_spo2", conditions) } });
+  if (has(v.heartRate)) out.push({ label: "Resting heart rate", measurement: { measureKey: "resting_heart_rate", value: v.heartRate, measuredAt: at, conditions: conditionsFor("resting_heart_rate", conditions) } });
   if (has(v.breathlessness)) {
-    out.push({ label: "Breathlessness before the walk", measurement: { measureKey: "breathlessness_nrs", value: v.breathlessness, variant: "rest", measuredAt: at, conditions } });
+    out.push({ label: "Breathlessness before the walk", measurement: { measureKey: "breathlessness_nrs", value: v.breathlessness, variant: "rest", measuredAt: at, conditions: conditionsFor("breathlessness_nrs", conditions) } });
   }
   return out;
 }
@@ -62,13 +71,13 @@ export function afterWalkReadings(
   if (has(v.systolic) && has(v.diastolic)) {
     out.push({
       label: "Blood pressure after the walk",
-      measurement: { measureKey: "blood_pressure", value: v.systolic, items: { systolic: v.systolic, diastolic: v.diastolic }, variant: "after_exercise", measuredAt: at, conditions },
+      measurement: { measureKey: "blood_pressure", value: v.systolic, items: { systolic: v.systolic, diastolic: v.diastolic }, variant: "after_exercise", measuredAt: at, conditions: conditionsFor("blood_pressure", conditions) },
     });
   }
-  if (has(v.spo2)) out.push({ label: "Lowest oxygen on the walk", measurement: { measureKey: "lowest_spo2", value: v.spo2, measuredAt: at, conditions } });
+  if (has(v.spo2)) out.push({ label: "Lowest oxygen on the walk", measurement: { measureKey: "lowest_spo2", value: v.spo2, measuredAt: at, conditions: conditionsFor("lowest_spo2", conditions) } });
   if (has(v.breathlessness)) {
-    out.push({ label: "Breathlessness after the walk", measurement: { measureKey: "breathlessness_nrs", value: v.breathlessness, variant: "after_test", measuredAt: at, conditions } });
+    out.push({ label: "Breathlessness after the walk", measurement: { measureKey: "breathlessness_nrs", value: v.breathlessness, variant: "after_test", measuredAt: at, conditions: conditionsFor("breathlessness_nrs", conditions) } });
   }
-  if (talkTest !== null) out.push({ label: "Talk test", measurement: { measureKey: "talk_test", value: talkTest, measuredAt: at, conditions } });
+  if (talkTest !== null) out.push({ label: "Talk test", measurement: { measureKey: "talk_test", value: talkTest, measuredAt: at, conditions: conditionsFor("talk_test", conditions) } });
   return out;
 }

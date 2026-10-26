@@ -11,6 +11,7 @@
 import { extensionLag } from "@/lib/clinicalCalculators";
 import { clinicDateKey } from "@/lib/clinicWeek";
 import {
+  isVitalsMeasure,
   measurementSource,
   measuresForProfileKind,
   isMeasureEnabled,
@@ -19,6 +20,7 @@ import {
   type MeasurementConditions,
   type OutcomeMeasure,
   type ProfileKind,
+  type ReadFrom,
 } from "@/lib/outcomeMeasures";
 import type { MeasureSeries } from "@/lib/outcomeSeries";
 import {
@@ -158,6 +160,9 @@ export type ConditionDraft = {
   estimatedFromImage: boolean;
   painBefore: string;
   oxygenLpm: string;
+  /** A vital sign only: the therapist read it off the patient's own device
+   *  on camera (video). In person the clinic's device is implied. */
+  readOffPatientDevice: boolean;
 };
 
 export const EMPTY_CONDITION_DRAFT: ConditionDraft = {
@@ -173,7 +178,19 @@ export const EMPTY_CONDITION_DRAFT: ConditionDraft = {
   estimatedFromImage: false,
   painBefore: "",
   oxygenLpm: "",
+  readOffPatientDevice: false,
 };
+
+/** Where a vital sign was read from, for the conditions: the clinic's device
+ *  in person, the patient's own device on camera when the therapist says they
+ *  read it off the screen. Null for any other measure, and for a video vital
+ *  the patient took on their own (that one is "measured at home"). */
+export function readFromFor(measureKey: string, setting: "" | "in_person" | "video", readOffPatientDevice: boolean): ReadFrom | null {
+  if (!isVitalsMeasure(measureKey)) return null;
+  if (setting === "in_person") return "clinic_device";
+  if (setting === "video" && readOffPatientDevice) return "patient_device_on_video";
+  return null;
+}
 
 const CLINIC_UTC_OFFSET = "+05:30";
 
@@ -224,6 +241,8 @@ export function buildConditions(
   if (fields.painBefore && draft.painBefore.trim() !== "") out.painBefore = Number(draft.painBefore);
   if (fields.oxygen && draft.oxygenLpm.trim() !== "") out.supplementalOxygenLpm = Number(draft.oxygenLpm);
   if (m.usedArmsScoresZero && usedArms !== undefined) out.usedArms = usedArms;
+  const readFrom = readFromFor(m.key, draft.setting, draft.readOffPatientDevice);
+  if (readFrom) out.readFrom = readFrom;
   return out;
 }
 

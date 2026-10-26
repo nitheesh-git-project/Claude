@@ -46,6 +46,7 @@ export default function CountdownCounter({
   description,
   armsRule = true,
   onUse,
+  onStart,
   disabled = false,
 }: {
   seconds?: number;
@@ -56,6 +57,8 @@ export default function CountdownCounter({
   /** Offer the "used arms" tick (the chair stand's CDC rule). */
   armsRule?: boolean;
   onUse: (result: CountdownCounterResult) => void;
+  /** The clock was started (the session cockpit starts the patient's clock too). */
+  onStart?: () => void;
   disabled?: boolean;
 }) {
   const [countdown, setCountdown] = useState<CountdownState>(() => createCountdown(seconds * 1000));
@@ -84,6 +87,7 @@ export default function CountdownCounter({
     setArmsUsed(false);
     setInterrupted(false);
     setCountdown(startCountdown(createCountdown(seconds * 1000), readClock()));
+    onStart?.();
   }
 
   function tap() {
