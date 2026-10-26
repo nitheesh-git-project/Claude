@@ -1620,6 +1620,22 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "angle-tool.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -4190,6 +4206,28 @@
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "therapist.angle-tool",
+      "runner": "therapist",
+      "title": "Measure from an image in Record a test: a screenshot of a video call is loaded in the browser, three taps give the joint angle in the goniometer's own convention, the number reads out large with at most one plain warning, a drag, the arrow keys, Undo and Start again work, and Use this angle fills the reading as an estimate over video; no request carries the picture; a stored estimate is labelled on the measures table and the route refuses one that claims to be in person",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "angle-tool.spec.ts",
+          "tests": [
+            "AT-001",
+            "AT-002",
+            "AT-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes an append-only measurement, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The geometry, the conventions per movement, the refusals and the framing warnings are pure modules unit-tested in src/lib/angleMeasure.test.ts, angleView.test.ts, angleFraming.test.ts and imageEstimate.test.ts. Pinch zoom and the touch drag are checked by hand on a phone; the light and dark rendering and the 390, 834 and 1280 widths are checked by screenshot in the build, not here.",
+      "rules": [
+        "docs/rules/clinical.md"
       ]
     },
     {

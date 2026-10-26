@@ -100,6 +100,7 @@
       "peds-exam.spec.ts": 30,
       "geriatric-cardio-intake.spec.ts": 25,
       "geriatric-cardio-profile.spec.ts": 30,
+      "angle-tool.spec.ts": 25,
       "numeric-input.spec.ts": 7,
       "pain-trend.spec.ts": 7,
       "patient-cancel-cutoff.spec.ts": 11,

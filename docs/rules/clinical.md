@@ -805,7 +805,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     a line, per-area first/now/change, the knee and strength picks, extension
     lag, status input, summary sentences), `orthoProfileView.ts` (one shaper
     for all three pages), `rangeGauge.ts` (dial and bar geometry),
-    `jointLandmarks.ts` (how to measure each movement; the handbook table).
+    `jointLandmarks.ts` (how to measure each movement; the handbook table), `angleMeasure.ts` / `angleFraming.ts` / `angleView.ts` (the image-angle tool's maths, camera guide and picture geometry).
   - **Pain is not a measurement.** The Pain Map owns it; it is drawn as one
     more line by `painMapSeries()` (average of each area's latest score after
     each exam, 0-10, one decimal) and is the main measure for the status rule
@@ -835,6 +835,20 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     line), limb symmetry from three trials a side, the LEFS score sheet, and
     KOOS-12 (free). Licensed scales are listed and unselectable while off.
     The spine's modified Schober (centimetres) is **not** in the registry yet.
+  - **An angle taken from an image is an estimate, and the image is never
+    kept.** Goniometry's "Measure from an image" (`AngleTool.tsx`, maths in
+    `angleMeasure.ts`) draws the joint angle from three taps on a screenshot of
+    the video call, in the goniometer's own convention (straight knee 0, short
+    of straight negative). The picture is drawn to a canvas in the browser and
+    is never uploaded, stored or logged, and neither are the landmark
+    positions: "Use this angle" hands back one whole-degree number, which the
+    dialog files as `conditions.estimatedFromImage` over video. That mark is
+    labelled everywhere a video estimate is shown (hollow dots on the graph,
+    the measures table's First and Now, the PDF), a goniometer reading taken
+    at the same review is kept in front of it, and the route refuses the mark
+    on anything but a joint range over video. Photo error is about 5 to 10
+    degrees and grows off side-on, so never word it as equal to a goniometer.
+    The screen shows one step, one big number and at most one warning at a time.
   - **"Where things stand" is the physiotherapist's written text** when
     there is one (phase 4a, below); the sentences generated from the numbers
     are only a draft for the writing box and, with nothing written, a
