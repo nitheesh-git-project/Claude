@@ -11,7 +11,7 @@ import type { MeasurementPoint, MeasureSeries } from "@/lib/outcomeSeries";
 /** What every sample panel takes: whether to draw the condition picture (the
  *  full page does, the home teaser shows the graph and milestones only), and
  *  a way to say a visitor chose something, which stops the tour. */
-export type SampleProps = { showPicture: boolean; onPick?: () => void };
+export type SampleProps = { showPicture: boolean; compact?: boolean; onPick?: () => void };
 
 const CARD = "min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6";
 

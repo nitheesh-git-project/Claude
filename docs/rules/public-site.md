@@ -534,7 +534,9 @@ Eight pages from one design system, the word budgets, why every photograph carri
   `/how-it-works` it sits above the five-step strip (profile, goal and
   milestones, scores after each session, reviews, the PDF record); on the
   home page it is its own band beside a short pitch and **Book your first
-  session**, drawing the graph and milestones only.
+  session**, drawing the graph and milestones only. On a phone (below `md`) the home band is
+  compact by CSS alone: headline change, graph and milestones, with the
+  "what it watches" list and the Parkinson's buttons hidden.
   **It is the one public widget that moves on its own**, every five seconds,
   which the carousel rule below otherwise forbids, so the movement is held
   to the reader: only while its frame is at least half on screen (never

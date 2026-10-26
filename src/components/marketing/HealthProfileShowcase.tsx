@@ -61,6 +61,10 @@ const PITCH = [
  * content below stays put. Once a visitor picks a tab the minimum is dropped,
  * since the page then changes only because they asked it to.
  *
+ * `variant="home"` on a phone (below md) is compact: only the headline
+ * change, the graph and the milestone cards under the pitch and tabs (the
+ * "what it watches" list and the neurological example buttons are hidden by
+ * CSS alone, so the held height still applies per width).
  * `variant="home"` is the teaser: the graph and the milestone cards beside a
  * short pitch and a booking button. `"full"` (/how-it-works) adds the
  * condition picture and the five-step strip underneath.
@@ -261,7 +265,7 @@ export default function HealthProfileShowcase({
           aria-labelledby={`${baseId}-tab-${current.specialty}`}
           className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-50/60 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_32px_64px_-32px_rgba(15,23,42,0.35)]"
         >
-          <ProfileHeader profile={current} />
+          <ProfileHeader profile={current} compact={variant === "home"} />
           <AnimatePresence initial={false}>
             <motion.div
               key={current.specialty}
@@ -270,7 +274,7 @@ export default function HealthProfileShowcase({
               transition={{ duration: reduceMotion ? 0.1 : 0.3, ease: [0.16, 1, 0.3, 1] }}
               className="min-w-0 p-3 sm:p-5"
             >
-              <Panel showPicture={variant === "full"} onPick={() => setChosen(true)} />
+              <Panel showPicture={variant === "full"} compact={variant === "home"} onPick={() => setChosen(true)} />
             </motion.div>
           </AnimatePresence>
         </div>
@@ -359,7 +363,7 @@ export default function HealthProfileShowcase({
 
 /** Who it is for, what it watches and the headline change: the part of a
  *  frame that is plain words, drawn before the heavy components arrive. */
-function ProfileHeader({ profile }: { profile: ShowcaseProfile }) {
+function ProfileHeader({ profile, compact }: { profile: ShowcaseProfile; compact: boolean }) {
   return (
     <div className="border-b border-slate-200 bg-white p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -391,7 +395,8 @@ function ProfileHeader({ profile }: { profile: ShowcaseProfile }) {
           </p>
           <p className="mt-1 text-xs text-slate-700">{profile.sample.line}</p>
         </div>
-        <div>
+        {/* The home teaser drops this on a phone (below md) to stay short. */}
+        <div className={compact ? "max-md:hidden" : undefined}>
           <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-teal-700">What this profile watches</p>
           <ul className="mt-2 space-y-2">
             {profile.watches.map((line) => (

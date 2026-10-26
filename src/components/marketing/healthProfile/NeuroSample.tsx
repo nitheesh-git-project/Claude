@@ -22,7 +22,7 @@ const EXAMPLES: { key: Example; label: string }[] = [
  * pair of buttons inside the panel, not another tab, so the tour still has
  * one stop per kind of care; picking one stops the tour like any other pick.
  */
-export default function NeuroSample({ showPicture, onPick }: SampleProps) {
+export default function NeuroSample({ showPicture, compact, onPick }: SampleProps) {
   const [example, setExample] = useState<Example>("stroke");
   const stroke = useMemo(() => sampleNeuroStroke(), []);
   const pd = useMemo(() => sampleNeuroParkinsons(), []);
@@ -32,7 +32,7 @@ export default function NeuroSample({ showPicture, onPick }: SampleProps) {
 
   return (
     <div className="space-y-4">
-      <div role="group" aria-label="Neurological example" className="flex flex-wrap items-center gap-2">
+      <div role="group" aria-label="Neurological example" className={`flex flex-wrap items-center gap-2 ${compact ? "max-md:hidden" : ""}`}>
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Example</span>
         <div className="inline-flex rounded-xl bg-slate-100 p-1">
           {EXAMPLES.map((e) => (
