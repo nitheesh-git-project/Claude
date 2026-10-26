@@ -108,6 +108,7 @@ export function milestoneSeries(
     setting: null,
     recordedBy: c.byRole,
     testerName: null,
+    estimatedFromImage: false,
     readingsInReview: 1,
   }));
   return {

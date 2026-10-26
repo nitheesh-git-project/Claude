@@ -9,6 +9,7 @@ import { formatClinicDate } from "@/lib/formatDateTime";
 import { MILESTONE_STATUS_LABEL } from "@/lib/milestones";
 import { outcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
 import { buildMeasureSeries, measureTableRows, type MeasurementPoint } from "@/lib/outcomeSeries";
+import { IMAGE_ESTIMATE_LABEL } from "@/lib/angleMeasure";
 import { formatReading } from "@/lib/progressChart";
 import { linkSummary } from "@/lib/milestonePlanner";
 import { changeWord, seriesName } from "@/lib/progressView";
@@ -81,8 +82,11 @@ export function buildProgressExport(input: {
         { label: row.label, plainName: row.label, variantLabel: row.variantLabel, side: row.side, medicationState: row.medicationState },
         "clinician"
       ),
-      first: `${reading(row.first.value)} (${when(row.first.measuredAt)})`,
-      now: row.reviews > 1 ? `${reading(row.now.value)} (${when(row.now.measuredAt)})` : "First reading",
+      first: `${reading(row.first.value)} (${when(row.first.measuredAt)})${row.first.estimatedFromImage ? ` ${IMAGE_ESTIMATE_LABEL.toLowerCase()}` : ""}`,
+      now:
+        row.reviews > 1
+          ? `${reading(row.now.value)} (${when(row.now.measuredAt)})${row.now.estimatedFromImage ? ` ${IMAGE_ESTIMATE_LABEL.toLowerCase()}` : ""}`
+          : "First reading",
       goal: row.goal ? `${reading(row.goal.value)}${row.goal.reached ? " (reached)" : ""}` : "Not set",
       change: row.change === null ? (m ? "First reading" : "Not judged") : changeWord(row.change),
       reviews: row.reviews,

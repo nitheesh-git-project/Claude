@@ -1,6 +1,7 @@
 "use client";
 
 import { subjectWords, type ProfileSubject } from "@/lib/childVoice";
+import { IMAGE_ESTIMATE_LABEL } from "@/lib/angleMeasure";
 import { useMemo, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { formatClinicDate, formatClinicDateShort } from "@/lib/formatDateTime";
@@ -144,6 +145,7 @@ export default function ProgressGraph({
   const scale = scaleLine(selected.measureKey);
   const hint = directionHint(selected.better);
   const videoReadings = selected.points.filter((p) => p.setting === "video").length;
+  const imageReadings = selected.points.filter((p) => p.estimatedFromImage).length;
 
   const summary = chartSummaryText({
     label: name,
@@ -205,7 +207,11 @@ export default function ProgressGraph({
       ) : (
         <>
           <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <p className="font-display text-3xl font-bold leading-none text-slate-900">{reading(now.value)}</p>
+            <p className="font-display text-3xl font-bold leading-none text-slate-900">
+              {now.estimatedFromImage && <span aria-hidden>~</span>}
+              {reading(now.value)}
+            </p>
+            {now.estimatedFromImage && <p className="text-xs font-semibold text-amber-900">{IMAGE_ESTIMATE_LABEL}</p>}
             <p className="text-xs text-slate-600">
               {clinician ? "latest" : w("at your latest review")}
               {view.delta && (
@@ -296,7 +302,12 @@ export default function ProgressGraph({
               const below = labelPlacement(all, i) === "below";
               return (
                 <g key={selected.points[i].measurementId}>
-                  <circle cx={p.x} cy={p.y} r={last ? 5 : 4} fill="var(--chart-brand-soft)" stroke="#ffffff" strokeWidth={2} />
+                  {selected.points[i].estimatedFromImage ? (
+                    // A photo estimate is a hollow ring, dashed: it reads as "about", not as a measured point.
+                    <circle cx={p.x} cy={p.y} r={last ? 5 : 4} fill="#ffffff" stroke="var(--chart-brand-soft)" strokeWidth={2} strokeDasharray="2 1.5" />
+                  ) : (
+                    <circle cx={p.x} cy={p.y} r={last ? 5 : 4} fill="var(--chart-brand-soft)" stroke="#ffffff" strokeWidth={2} />
+                  )}
                   {showValue && (
                     <text
                       x={p.x}
@@ -344,7 +355,10 @@ export default function ProgressGraph({
                 <tr key={p.measurementId}>
                   <th scope="row">{formatClinicDate(p.measuredAt)}</th>
                   <td>{reading(p.value)}</td>
-                  <td>{p.setting === "video" ? "Over video" : p.setting === "in_person" ? "In person" : "Not recorded"}</td>
+                  <td>
+                    {p.setting === "video" ? "Over video" : p.setting === "in_person" ? "In person" : "Not recorded"}
+                    {p.estimatedFromImage ? ` (${IMAGE_ESTIMATE_LABEL.toLowerCase()})` : ""}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -381,11 +395,13 @@ export default function ProgressGraph({
               <dt className="text-xs font-semibold uppercase tracking-wide text-slate-600">First</dt>
               <dd className="font-display text-lg font-bold text-slate-900">{reading(first.value)}</dd>
               <dd className="text-xs text-slate-600">{formatClinicDate(first.measuredAt)}</dd>
+              {first.estimatedFromImage && <dd className="text-xs font-semibold text-amber-900">{IMAGE_ESTIMATE_LABEL}</dd>}
             </div>
             <div>
               <dt className="text-xs font-semibold uppercase tracking-wide text-slate-600">Now</dt>
               <dd className="font-display text-lg font-bold text-slate-900">{reading(now.value)}</dd>
               <dd className="text-xs text-slate-600">{formatClinicDate(now.measuredAt)}</dd>
+              {now.estimatedFromImage && <dd className="text-xs font-semibold text-amber-900">{IMAGE_ESTIMATE_LABEL}</dd>}
             </div>
           </dl>
         </>
@@ -396,6 +412,11 @@ export default function ProgressGraph({
         {scale && (
           <p>
             <span className="font-semibold text-slate-700">Measured as:</span> {scale}
+          </p>
+        )}
+        {imageReadings > 0 && (
+          <p data-testid="image-estimate-note">
+            {imageReadings === 1 ? "One reading is" : `${imageReadings} readings are`} {IMAGE_ESTIMATE_LABEL.toLowerCase()}, shown as hollow dots. A photo is good to about 5 to 10 degrees and is not a goniometer reading.
           </p>
         )}
         {videoReadings > 0 && (

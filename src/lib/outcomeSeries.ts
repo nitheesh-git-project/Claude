@@ -199,6 +199,8 @@ export type SeriesPoint = {
   recordedBy: string;
   /** The person who measured, when it was not the person recording. */
   testerName: string | null;
+  /** The number was estimated from a photograph, not read off a goniometer. */
+  estimatedFromImage: boolean;
   /** How many readings of this line the review held; the point is the
    *  newest of them. Above 1 means it was re-tested within the review. */
   readingsInReview: number;
@@ -275,7 +277,11 @@ export function buildMeasureSeries(
     }
     const seriesPoints: SeriesPoint[] = [];
     for (const [reviewKey, inReview] of byReview) {
-      const newest = [...inReview].sort(newerFirst)[0];
+      // A goniometer reading outranks a photo estimate taken at the same review:
+      // the estimate stands for the review only when nothing better was taken.
+      const isEstimate = (p: MeasurementPoint) => p.conditions.estimatedFromImage === true;
+      const ordered = [...inReview].sort(newerFirst);
+      const newest = ordered.find((p) => !isEstimate(p)) ?? ordered[0];
       seriesPoints.push({
         measurementId: newest.id,
         value: newest.value,
@@ -285,6 +291,7 @@ export function buildMeasureSeries(
         setting: newest.conditions.setting === "in_person" || newest.conditions.setting === "video" ? newest.conditions.setting : null,
         recordedBy: newest.recordedBy,
         testerName: typeof newest.conditions.testerName === "string" ? newest.conditions.testerName : null,
+        estimatedFromImage: isEstimate(newest),
         readingsInReview: inReview.length,
       });
     }

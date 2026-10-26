@@ -41,6 +41,7 @@ export function painMapSeries(assessments: readonly PainAssessmentRow[]): Measur
     setting: null,
     recordedBy: PAIN_SOURCE,
     testerName: null,
+    estimatedFromImage: false,
     readingsInReview: 1,
   }));
   return {

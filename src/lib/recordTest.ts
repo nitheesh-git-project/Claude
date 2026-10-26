@@ -154,6 +154,8 @@ export type ConditionDraft = {
   helperPresent: boolean;
   homeMeasured: boolean;
   method: "" | "observed" | "reported";
+  /** Joint range only: the value came from "Measure from an image". */
+  estimatedFromImage: boolean;
   painBefore: string;
   oxygenLpm: string;
 };
@@ -168,6 +170,7 @@ export const EMPTY_CONDITION_DRAFT: ConditionDraft = {
   helperPresent: false,
   homeMeasured: false,
   method: "",
+  estimatedFromImage: false,
   painBefore: "",
   oxygenLpm: "",
 };
@@ -215,6 +218,7 @@ export function buildConditions(
   if (out.setting === "video") {
     if (fields.helperOverVideo) out.helperPresent = draft.helperPresent;
     if (fields.homeOverVideo) out.homeMeasured = draft.homeMeasured;
+    if (fields.estimateOverVideo && draft.estimatedFromImage) out.estimatedFromImage = true;
   }
   if (fields.method && draft.method) out.method = draft.method;
   if (fields.painBefore && draft.painBefore.trim() !== "") out.painBefore = Number(draft.painBefore);

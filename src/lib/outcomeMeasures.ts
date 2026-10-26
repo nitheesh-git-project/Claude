@@ -1921,6 +1921,10 @@ export type MeasurementConditions = {
    *  stand): the score is then 0, and the stands with the arms are in
    *  `items`. Only on a measure with `usedArmsScoresZero`. */
   usedArms?: boolean;
+  /** Joint range only: the number was worked out from a photograph of a video
+   *  call (angleMeasure.ts), not read off a goniometer. Always an estimate;
+   *  the photo itself is never stored. */
+  estimatedFromImage?: boolean;
 };
 
 /** The one key `items` holds when the arms were used: what was counted
@@ -1940,6 +1944,7 @@ const CONDITION_KEYS: readonly (keyof MeasurementConditions)[] = [
   "supplementalOxygenLpm",
   "painBefore",
   "usedArms",
+  "estimatedFromImage",
 ];
 
 export const CONDITION_TEXT_MAX = 80;
@@ -1994,6 +1999,15 @@ export function validateMeasurementConditions(
     if (typeof raw.usedArms !== "boolean") return { ok: false, error: "Used arms must be yes or no." };
     if (!m.usedArmsScoresZero) return { ok: false, error: `${m.label} does not record whether the arms were used.` };
     out.usedArms = raw.usedArms;
+  }
+
+  if (raw.estimatedFromImage !== undefined && raw.estimatedFromImage !== null) {
+    if (typeof raw.estimatedFromImage !== "boolean") return { ok: false, error: "Estimated from an image must be yes or no." };
+    if (raw.estimatedFromImage) {
+      if (m.key !== "joint_range") return { ok: false, error: `${m.label} cannot be estimated from an image.` };
+      if (raw.setting !== "video") return { ok: false, error: "A reading estimated from an image is taken over video." };
+      out.estimatedFromImage = true;
+    }
   }
 
   if (raw.method !== undefined && raw.method !== null) {

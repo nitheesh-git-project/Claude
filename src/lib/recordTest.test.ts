@@ -199,8 +199,8 @@ describe("previousReading", () => {
     decimals: 0,
     better: "toward_normal",
     points: [
-      { measurementId: "a", value: 100, measuredAt: "2026-09-01T00:00:00.000Z", reviewKey: "r1", appointmentId: null, setting: null, recordedBy: "t", testerName: null, readingsInReview: 1 },
-      { measurementId: "b", value: 118, measuredAt: "2026-10-01T00:00:00.000Z", reviewKey: "r2", appointmentId: null, setting: null, recordedBy: "t", testerName: null, readingsInReview: 1 },
+      { measurementId: "a", value: 100, measuredAt: "2026-09-01T00:00:00.000Z", reviewKey: "r1", appointmentId: null, setting: null, recordedBy: "t", testerName: null, estimatedFromImage: false, readingsInReview: 1 },
+      { measurementId: "b", value: 118, measuredAt: "2026-10-01T00:00:00.000Z", reviewKey: "r2", appointmentId: null, setting: null, recordedBy: "t", testerName: null, estimatedFromImage: false, readingsInReview: 1 },
     ],
     ...over,
   });
@@ -370,7 +370,7 @@ describe("otherSideReading and pendingExtensionLag", () => {
       unit: "degrees",
       decimals: 0,
       better: "toward_normal",
-      points: [{ measurementId: "x", value, measuredAt: "2026-09-01T05:00:00.000Z", reviewKey: "day:2026-09-01", appointmentId: null, setting: null, recordedBy: "t", testerName: null, readingsInReview: 1 }],
+      points: [{ measurementId: "x", value, measuredAt: "2026-09-01T05:00:00.000Z", reviewKey: "day:2026-09-01", appointmentId: null, setting: null, recordedBy: "t", testerName: null, estimatedFromImage: false, readingsInReview: 1 }],
     }) as never;
   const series = [mk("knee_flexion_active", "left", 140), mk("knee_extension_passive", "right", 0)];
 

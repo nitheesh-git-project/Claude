@@ -101,6 +101,7 @@ export function neuroExamSeries(exams: readonly ParsedNeuroAssessment[], kind: P
         setting: null,
         recordedBy: exam.submittedByRole,
         testerName: null,
+        estimatedFromImage: false,
         readingsInReview: 1,
       });
     }
@@ -151,6 +152,7 @@ export function freezingDiaryPoints(entries: readonly DiaryEntry[], nowMs: numbe
       setting: null,
       recordedBy: "patient",
       testerName: null,
+      estimatedFromImage: false,
       readingsInReview: 1,
     }));
 }
