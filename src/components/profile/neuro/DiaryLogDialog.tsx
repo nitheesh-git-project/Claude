@@ -14,11 +14,14 @@ import {
   DIARY_KIND_LABEL,
   DIARY_NOTE_MAX,
   DIARY_PLACES,
+  ACTIVITY_INTENSITIES,
+  DIARY_ACTIVE_MINUTES_MAX,
   FREEZING_PERIODS,
   FREEZING_TRIGGERS,
   type DiaryKind,
 } from "@/lib/patientDiary";
 import {
+  INTENSITY_LABEL,
   MEDICATION_STATE_LABEL,
   PERIOD_LABEL,
   PLACE_LABEL,
@@ -37,7 +40,7 @@ const KIND_HELP: Record<DiaryKind, string> = {
   freezing: "Your feet feel stuck to the floor. Add up a day or a week if you would rather tell us once.",
   fall: "You ended up on the floor or the ground.",
   near_miss: "You caught yourself, or someone caught you, before you fell.",
-  active_minutes: "",
+  active_minutes: "Time spent walking, cycling or doing your exercises.",
 };
 
 /**
@@ -276,6 +279,32 @@ export default function DiaryLogDialog({
                         )}
                         {placeGroup}
                         {parkinsons && stateGroup}
+                      </>
+                    )}
+
+                    {draft.kind === "active_minutes" && (
+                      <>
+                        <label className="block text-sm text-slate-900">
+                          <span className="font-semibold">How many minutes?</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            value={draft.minutes}
+                            onChange={(e) => patch({ minutes: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+                            className={`mt-1 max-w-xs ${FIELD}`}
+                            placeholder="e.g. 20"
+                            aria-describedby={`${baseId}-minutes-hint`}
+                          />
+                          <span id={`${baseId}-minutes-hint`} className="mt-0.5 block text-xs text-slate-700">
+                            Whole minutes, up to {DIARY_ACTIVE_MINUTES_MAX}. Add up a walk or a session; write a long day in more than one go if you like.
+                          </span>
+                        </label>
+                        {group(
+                          "How did it feel?",
+                          ACTIVITY_INTENSITIES.map((v) => choice("intensity", v, draft.intensity, INTENSITY_LABEL[v].label, () => patch({ intensity: v }), INTENSITY_LABEL[v].hint)),
+                          true
+                        )}
                       </>
                     )}
 

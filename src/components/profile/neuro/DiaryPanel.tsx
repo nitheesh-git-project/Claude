@@ -20,7 +20,7 @@ const RECENT = 6;
 
 /** The log button's own words, from the kinds the record keeps. */
 function logLabel(kinds: readonly string[]): string {
-  const words = kinds.map((k) => (k === "freezing" ? "feet getting stuck" : k === "fall" ? "a fall" : "a near miss"));
+  const words = kinds.map((k) => (k === "freezing" ? "feet getting stuck" : k === "fall" ? "a fall" : k === "active_minutes" ? "your active minutes" : "a near miss"));
   if (words.length <= 1) return `Log ${words[0] ?? "something"}`;
   return `Log ${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}`;
 }
@@ -189,7 +189,7 @@ function ConfirmButton({ entry }: { entry: DiaryEntry }) {
   );
 }
 
-function EntryRow({ entry, voice, canConfirm }: { entry: DiaryEntry; voice: Voice; canConfirm: boolean }) {
+export function EntryRow({ entry, voice, canConfirm }: { entry: DiaryEntry; voice: Voice; canConfirm: boolean }) {
   const provenance = diaryProvenance(entry);
   return (
     <li className="flex min-w-0 flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between">
@@ -226,10 +226,14 @@ export default function DiaryPanel({
   triggers,
   canLog,
   canConfirm,
+  heading,
 }: {
   voice: Voice;
   profileKind: ProfileKind;
+  /** Falls and near-misses (the neurological and geriatric pages). */
   diary: NeuroDiaryView;
+  /** Overrides the card's title ("Falls and near misses"). */
+  heading?: { clinician: string; patient: string };
   /** The twelve freezing weeks (Parkinson's only; empty otherwise). */
   bars: FreezingBar[];
   triggers: { trigger: string; label: string; episodes: number }[];
@@ -245,7 +249,7 @@ export default function DiaryPanel({
   const header = (
     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="font-display text-lg font-bold text-slate-900">{clinician ? "Patient diary" : "Your diary"}</h2>
+        <h2 className="font-display text-lg font-bold text-slate-900">{heading ? heading[clinician ? "clinician" : "patient"] : clinician ? "Patient diary" : "Your diary"}</h2>
         <p className="mt-0.5 text-sm text-slate-700">
           {clinician
             ? "What the patient (or their family) wrote down between sessions. It is their own account until you confirm you have seen it."

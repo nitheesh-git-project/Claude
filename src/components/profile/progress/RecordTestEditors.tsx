@@ -405,3 +405,57 @@ export function ReadingsEditor({
     </fieldset>
   );
 }
+
+/**
+ * A yes/no checklist (the home safety check): each item is answered "Done"
+ * or "Not yet", never left blank, so an unticked item is a statement. The
+ * answers are stored as 1 / 0 in the same readings map the blood-pressure
+ * boxes use (computeEntry reads them).
+ */
+export function ChecklistEditor({
+  items,
+  texts,
+  onTexts,
+}: {
+  items: readonly { key: string; label: string }[];
+  texts: Record<string, string>;
+  onTexts: (next: Record<string, string>) => void;
+}) {
+  const id = useId();
+  const done = items.filter((i) => texts[i.key] === "1").length;
+  return (
+    <fieldset>
+      <legend className="text-sm font-semibold text-slate-900">What is already in place at home</legend>
+      <p className="mt-0.5 text-xs text-slate-600">Answer every line. {done} of {items.length} done so far.</p>
+      <ul className="mt-2 space-y-2">
+        {items.map((item) => (
+          <li key={item.key} className="rounded-xl border border-slate-200 p-2">
+            <p id={`${id}-${item.key}`} className="text-sm font-semibold text-slate-900">
+              {item.label}
+            </p>
+            <div role="radiogroup" aria-labelledby={`${id}-${item.key}`} className="mt-1 flex gap-2">
+              {([["1", "Done"], ["0", "Not yet"]] as const).map(([value, label]) => (
+                <label
+                  key={value}
+                  className={`flex min-h-[44px] flex-1 cursor-pointer items-center justify-center rounded-xl border px-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-teal-600 ${
+                    texts[item.key] === value ? "border-teal-700 bg-teal-50 text-teal-900" : "border-slate-300 bg-white text-slate-800"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name={`${id}-${item.key}`}
+                    value={value}
+                    checked={texts[item.key] === value}
+                    onChange={() => onTexts({ ...texts, [item.key]: value })}
+                    className="sr-only"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </fieldset>
+  );
+}

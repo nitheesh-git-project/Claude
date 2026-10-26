@@ -3,6 +3,8 @@
 import { useEffect, useId, useState } from "react";
 import { readClock, useRunClock } from "@/components/profile/progress/timers/useRunClock";
 import type { SixMinuteWalkEquationKey } from "@/lib/clinicalCalculators";
+import { duringExerciseOxygenCheck, preExerciseCheck, resolveOxygenStopLimit, type OxygenStopLimit } from "@/lib/cardioSafety";
+import { TALK_TEST_GRADES } from "@/lib/outcomeMeasures";
 import {
   SIX_MINUTE_WALK_LAP_METRES,
   SIX_MINUTE_WALK_MS,
@@ -43,6 +45,9 @@ export type SixMinuteWalkResult = {
   percentPredicted: number | null;
   /** The equation named under the figure, or null when none applies. */
   equation: string | null;
+  /** How the walk felt to talk through (0 too easy, 1 just right, 2 too
+   *  hard), or null when it was not asked. */
+  talkTest: 0 | 1 | 2 | null;
   interrupted: boolean;
 };
 
@@ -70,11 +75,13 @@ function VitalsFields({
   value,
   onChange,
   withLegs,
+  spo2Label = "Oxygen (%)",
 }: {
   legend: string;
   value: VitalsText;
   onChange: (next: VitalsText) => void;
   withLegs: boolean;
+  spo2Label?: string;
 }) {
   const id = useId();
   const field = (key: keyof WalkVitals, label: string, hint: string) => (
@@ -101,7 +108,7 @@ function VitalsFields({
         {field("heartRate", "Heart rate (beats a minute)", "e.g. 78")}
         {field("systolic", "Blood pressure, top", "e.g. 128")}
         {field("diastolic", "Blood pressure, bottom", "e.g. 80")}
-        {field("spo2", "Oxygen (%)", "e.g. 96")}
+        {field("spo2", spo2Label, "e.g. 96")}
         {field("breathlessness", "Breathlessness, 0 to 10", "0 = none")}
         {withLegs && field("legTiredness", "Leg tiredness, 0 to 10", "0 = none")}
       </div>
@@ -137,10 +144,14 @@ export default function SixMinuteWalkGuide({
   patient,
   equationKey,
   equationUnreadable = false,
+  oxygenLimit,
   onUse,
   disabled = false,
 }: {
   patient: PatientFacts | null;
+  /** The patient's own oxygen stop limit (cardioSafety.ts). Absent means the
+   *  heart default; the screen always passes the patient's. */
+  oxygenLimit?: OxygenStopLimit;
   /** The clinic's choice from Settings -> Clinical Questions
    *  (loadSixMinuteWalkEquation). Absent is "formula not chosen yet". */
   equationKey?: SixMinuteWalkEquationKey;
@@ -158,6 +169,7 @@ export default function SixMinuteWalkGuide({
   const [partLap, setPartLap] = useState("");
   const [stoppedEarly, setStoppedEarly] = useState(false);
   const [interrupted, setInterrupted] = useState(false);
+  const [talk, setTalk] = useState<0 | 1 | 2 | null>(null);
   const partId = useId();
 
   const running = countdown.status === "running";
@@ -187,8 +199,18 @@ export default function SixMinuteWalkGuide({
   const beforeProblems = vitalsProblems(beforeVitals);
   const afterProblems = vitalsProblems(afterVitals);
   const concerns = preTestConcerns(beforeVitals);
+  const limit = oxygenLimit ?? resolveOxygenStopLimit({});
+  // The pre-exercise refusal is enforced here, on the screen: a resting
+  // reading over the red flags means the walk cannot be started (the route
+  // has no say in when a walk starts, so this is the only door).
+  const preCheck = preExerciseCheck(
+    { restingHeartRate: beforeVitals.heartRate, systolic: beforeVitals.systolic, diastolic: beforeVitals.diastolic, spo2Rest: beforeVitals.spo2 },
+    limit
+  );
+  const refused = preCheck.status === "stop";
+  const afterOxygen = duringExerciseOxygenCheck({ spo2Lowest: afterVitals.spo2, spo2Rest: beforeVitals.spo2, limit });
   const checklistDone = safetyChecklistComplete(ticked);
-  const canStart = checklistDone && beforeProblems.length === 0 && !disabled;
+  const canStart = checklistDone && beforeProblems.length === 0 && !refused && !disabled;
 
   const partMetres = partLap.trim() === "" ? 0 : Number(partLap);
   const distance = sixMinuteWalkDistance({ laps, partLapMetres: partMetres });
@@ -200,6 +222,7 @@ export default function SixMinuteWalkGuide({
   });
 
   function begin() {
+    if (!canStart) return;
     setCountdown(startCountdown(createCountdown(SIX_MINUTE_WALK_MS), readClock()));
     setLaps(0);
     setPartLap("");
@@ -223,6 +246,7 @@ export default function SixMinuteWalkGuide({
     setStoppedEarly(false);
     setInterrupted(false);
     setAfter(EMPTY_VITALS);
+    setTalk(null);
   }
 
   return (
@@ -270,11 +294,28 @@ export default function SixMinuteWalkGuide({
               {p}
             </p>
           ))}
-          {concerns.map((c) => (
-            <p key={c} role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
-              {c}
+          {refused && preCheck.refusal && (
+            <div role="alert" data-testid="walk-refusal" className="rounded-xl border border-red-300 bg-red-50 px-3 py-3 text-sm text-red-900">
+              <p className="font-bold">{preCheck.refusal.clinician}</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                {preCheck.flags.map((f) => (
+                  <li key={f.code}>{f.clinicianText}</li>
+                ))}
+              </ul>
+              <p className="mt-1 text-xs">The walk cannot be started while this stands. Re-check the reading if it looks wrong.</p>
+            </div>
+          )}
+          {!refused && preCheck.status === "incomplete" && (
+            <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+              Not checked: {preCheck.notChecked.join(", ")}. A reading not taken is not a clear reading.
             </p>
-          ))}
+          )}
+          {!refused &&
+            concerns.map((c) => (
+              <p key={c} role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+                {c}
+              </p>
+            ))}
 
           <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-800">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Say to the patient</p>
@@ -295,7 +336,9 @@ export default function SixMinuteWalkGuide({
                 ? "Tick every safety check to start the walk."
                 : beforeProblems.length > 0
                   ? "Fix the readings above to start."
-                  : ""}
+                  : refused
+                    ? "Not today: see the reading above."
+                    : ""}
             </p>
           )}
         </div>
@@ -415,12 +458,33 @@ export default function SixMinuteWalkGuide({
             />
           </div>
 
-          <VitalsFields legend="Readings straight after the walk" value={after} onChange={setAfter} withLegs />
+          <VitalsFields legend="Readings straight after the walk" value={after} onChange={setAfter} withLegs spo2Label="Lowest oxygen on the walk (%)" />
           {afterProblems.map((p) => (
             <p key={p} role="alert" className="text-sm text-red-800">
               {p}
             </p>
           ))}
+          {afterOxygen.stop && afterOxygen.reason && (
+            <p role="alert" data-testid="walk-oxygen-stop" className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">
+              {afterOxygen.reason.clinician}
+            </p>
+          )}
+          <fieldset>
+            <legend className="text-sm font-semibold text-slate-900">How did talking feel on the walk?</legend>
+            <div className="mt-1 grid gap-2 sm:grid-cols-3">
+              {TALK_TEST_GRADES.map((g) => (
+                <label
+                  key={g.value}
+                  className={`flex min-h-[44px] cursor-pointer items-center justify-center rounded-xl border px-3 py-2 text-center text-sm font-semibold focus-within:ring-2 focus-within:ring-teal-600 ${
+                    talk === g.value ? "border-teal-700 bg-teal-50 text-teal-900" : "border-slate-300 bg-white text-slate-800"
+                  }`}
+                >
+                  <input type="radio" name="walk-talk" className="sr-only" checked={talk === g.value} onChange={() => setTalk(g.value as 0 | 1 | 2)} />
+                  {g.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
           <div className="rounded-xl bg-slate-50 p-3">
             {distance.ok ? (
@@ -501,6 +565,7 @@ export default function SixMinuteWalkGuide({
                   after: afterVitals,
                   percentPredicted: prediction.status === "ok" ? prediction.percent : null,
                   equation: prediction.status === "ok" ? prediction.equation : null,
+                  talkTest: talk,
                   interrupted,
                 });
               }}

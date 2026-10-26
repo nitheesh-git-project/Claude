@@ -64,6 +64,7 @@ export default function ProgressGraph({
   subject = "self",
   loadFailed = false,
   initialSeriesKey,
+  riskOverrides,
 }: {
   /** Every line on the record (buildMeasureSeries). */
   series: MeasureSeries[];
@@ -76,6 +77,9 @@ export default function ProgressGraph({
   /** The measurements could not be read: said apart from "none yet". */
   loadFailed?: boolean;
   initialSeriesKey?: string;
+  /** A risk line for a measure whose line depends on the person (the chair
+   *  stand's age-and-sex norm), by measure key; replaces the registry's. */
+  riskOverrides?: Record<string, { value: number; label: string }>;
 }) {
   const router = useRouter();
   const clinician = voice === "clinician";
@@ -88,7 +92,7 @@ export default function ProgressGraph({
     if (!selected || selected.points.length < 2) return null;
     const m = outcomeMeasure(selected.measureKey);
     const goal = goalForSeries(selected, milestones);
-    const risk = riskLineFor(selected.measureKey, profileKind);
+    const risk = riskOverrides?.[selected.measureKey] ?? riskLineFor(selected.measureKey, profileKind);
     const geometry = buildChartGeometry({
       values: selected.points.map((p) => p.value),
       better: selected.better,
@@ -97,7 +101,7 @@ export default function ProgressGraph({
       bounds: boundsFor(m),
     });
     return { geometry, goal, risk, delta: seriesDelta(selected, profileKind) };
-  }, [selected, milestones, profileKind]);
+  }, [selected, milestones, profileKind, riskOverrides]);
 
   if (loadFailed) {
     return (

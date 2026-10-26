@@ -12,6 +12,9 @@ import type { CareGoal, MilestoneView } from "@/lib/careGoals";
 import type { MeasureSeries, MeasureTableRow, MeasurementPoint } from "@/lib/outcomeSeries";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { Voice } from "@/lib/progressView";
+import type { ReactNode } from "react";
+import type { OxygenStopLimit } from "@/lib/cardioSafety";
+import type { SixMinuteWalkEquationRead } from "@/lib/sixMinuteWalkEquation";
 
 const CARD = "min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6";
 const ACTION =
@@ -57,6 +60,10 @@ export default function ProfileProgressSection({
   record,
   planner,
   reopen,
+  riskOverrides,
+  title,
+  recordExtras,
+  stepsExtra,
 }: {
   profileKind: ProfileKind;
   /** Measure keys whose lines come from a store other than the recorded
@@ -88,6 +95,19 @@ export default function ProfileProgressSection({
   record: { asAdmin: boolean } | null;
   planner: boolean;
   reopen: boolean;
+  /** A person-specific risk line for a measure, by key (ProgressGraph). */
+  riskOverrides?: Record<string, { value: number; label: string }>;
+  /** The patient's heading for the graph ("Are you getting steadier?"). */
+  title?: { patient: string; clinician?: string };
+  /** A card that sits with the plan's steps but is not one of them (the
+   *  surgeon's precautions end date, on the heart and lung page). */
+  stepsExtra?: ReactNode;
+  /** What the six-minute walk in Record a test needs (heart and lung). */
+  recordExtras?: {
+    patient: { sex?: "female" | "male" | null; ageYears?: number | null; heightCm?: number | null; weightKg?: number | null };
+    walkEquation: SixMinuteWalkEquationRead;
+    oxygenLimit: OxygenStopLimit;
+  };
 }) {
   const clinician = voice === "clinician";
   const [recording, setRecording] = useState(false);
@@ -105,7 +125,7 @@ export default function ProfileProgressSection({
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900">
-              {clinician ? "Progress" : profileKind === "neuro_parkinsons" ? "Is it holding, or getting better?" : subject === "child"
+              {clinician ? (title?.clinician ?? "Progress") : title ? title.patient : profileKind === "neuro_parkinsons" ? "Is it holding, or getting better?" : subject === "child"
                   ? "Is your child getting better?"
                   : "Are you getting better?"}
               <TutorialInfoButton section="card:health-profile" label="your progress" size="sm" />
@@ -150,6 +170,7 @@ export default function ProfileProgressSection({
           voice={voice}
           subject={subject}
           loadFailed={measuresFailed && painOnly.length === 0}
+          riskOverrides={riskOverrides}
         />
       </section>
 
@@ -164,6 +185,7 @@ export default function ProfileProgressSection({
           reopen={reopen ? { patientId } : undefined}
           onSetGoal={planner ? () => setPlanning(true) : undefined}
         />
+        {stepsExtra}
       </section>
 
       <section aria-label="Measures" className={CARD}>
@@ -189,6 +211,9 @@ export default function ProfileProgressSection({
           enabledLicensed={enabledLicensed}
           licenceUnreadable={licenceUnreadable}
           asAdmin={record.asAdmin}
+          patient={recordExtras?.patient}
+          walkEquation={recordExtras?.walkEquation}
+          oxygenLimit={recordExtras?.oxygenLimit}
           onClose={() => setRecording(false)}
         />
       )}

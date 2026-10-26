@@ -4,6 +4,7 @@ import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import OverlayPortal from "@/components/system/OverlayPortal";
 import Spinner from "@/components/system/Spinner";
 import {
+  ChecklistEditor,
   ChoiceButtons,
   NumberBox,
   ReadingsEditor,
@@ -15,6 +16,8 @@ import BalanceHolds from "@/components/profile/progress/timers/BalanceHolds";
 import CountdownCounter from "@/components/profile/progress/timers/CountdownCounter";
 import SixMinuteWalkGuide, { type SixMinuteWalkResult } from "@/components/profile/progress/timers/SixMinuteWalkGuide";
 import { sixMinuteWalkEquationKeyFor, type SixMinuteWalkEquationRead } from "@/lib/sixMinuteWalkEquation";
+import type { OxygenStopLimit } from "@/lib/cardioSafety";
+import { afterWalkReadings, restingReadings } from "@/lib/walkMeasurements";
 import TapTimer from "@/components/profile/progress/timers/TapTimer";
 import { useDialogChrome } from "@/lib/useDialogChrome";
 import { useRouter } from "@/lib/useRouter";
@@ -99,6 +102,11 @@ export default function RecordTestDialog({
   appointmentId = null,
   asAdmin = false,
   initialMeasureKey,
+  lockedMeasure = false,
+  oxygenLimit,
+  flow,
+  initialConditions,
+  onSaved,
   onClose,
 }: {
   patientId: string;
@@ -119,6 +127,18 @@ export default function RecordTestDialog({
   appointmentId?: string | null;
   asAdmin?: boolean;
   initialMeasureKey?: string;
+  /** Hide the "Which test?" picker: a guided flow has chosen the test. */
+  lockedMeasure?: boolean;
+  /** The patient's own oxygen stop limit, for the six-minute walk's
+   *  pre-exercise refusal. */
+  oxygenLimit?: OxygenStopLimit;
+  /** A guided flow ("Start the falls check"): where this step sits, and the
+   *  way to leave it out. The flow owns what happens after a save. */
+  flow?: { position: number; of: number; title: string; onSkip: () => void };
+  /** Conditions carried from the step before (in person, the walking aid). */
+  initialConditions?: ConditionDraft;
+  /** Called after a reading is saved, instead of closing the dialog. */
+  onSaved?: (saved: { measureKey: string; conditions: ConditionDraft }) => void;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -145,7 +165,7 @@ export default function RecordTestDialog({
   const [timerRun, setTimerRun] = useState(0);
   const [walks, setWalks] = useState<SixMinuteWalkResult[]>([]);
   const [timerFlag, setTimerFlag] = useState(false);
-  const [cond, setCond] = useState<ConditionDraft>(EMPTY_CONDITION_DRAFT);
+  const [cond, setCond] = useState<ConditionDraft>(initialConditions ?? EMPTY_CONDITION_DRAFT);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
@@ -175,7 +195,7 @@ export default function RecordTestDialog({
     : null;
   const landmark = measure?.key === "joint_range" && jointMovement ? landmarksFor(jointMovement) : null;
 
-  const dirty = !!measure && (entry?.value != null || cond !== EMPTY_CONDITION_DRAFT);
+  const dirty = !!measure && (entry?.value != null || (cond !== EMPTY_CONDITION_DRAFT && cond !== initialConditions));
 
   function requestClose() {
     if (saving) return;
@@ -201,7 +221,7 @@ export default function RecordTestDialog({
     setWalks([]);
     setTimerFlag(false);
     setTimerRun((n) => n + 1);
-    setCond((c) => (c === EMPTY_CONDITION_DRAFT ? c : { ...EMPTY_CONDITION_DRAFT, setting: c.setting, testerName: c.testerName }));
+    setCond((c) => (c === EMPTY_CONDITION_DRAFT || c === initialConditions ? c : { ...EMPTY_CONDITION_DRAFT, setting: c.setting, testerName: c.testerName }));
   }
 
   function patchCond(patch: Partial<ConditionDraft>) {
@@ -213,6 +233,33 @@ export default function RecordTestDialog({
     setConfirmingDiscard(false);
     setError(null);
     setEditor((e) => ({ ...e, ...patch }));
+  }
+
+  /** Save the vitals a walk produced, one reading at a time through the
+   *  existing route; returns a sentence for each that did not save. */
+  async function saveExtraReadings(
+    readings: { label: string; measurement: Parameters<typeof validateMeasurement>[0] }[],
+    nowMs: number
+  ): Promise<string[]> {
+    const failed: string[] = [];
+    for (const r of readings) {
+      const checked = validateMeasurement(r.measurement, { profileKind, nowMs, enabledLicensed: enabledSet });
+      if (!checked.ok) {
+        failed.push(`${r.label} (${checked.error})`);
+        continue;
+      }
+      try {
+        const res = await fetch(asAdmin ? "/api/admin/measurements/submit" : "/api/therapist/measurements/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...debugNowHeaders() },
+          body: JSON.stringify({ patientId, appointmentId, measurement: checked.measurement }),
+        });
+        if (!res.ok) failed.push(`${r.label} (${progressErrorMessage(await readProgressFailure(res), "measurement")})`);
+      } catch {
+        failed.push(`${r.label} (${NETWORK_ERROR_MESSAGE})`);
+      }
+    }
+    return failed;
   }
 
   async function save() {
@@ -276,8 +323,27 @@ export default function RecordTestDialog({
           patientName ? ` for ${patientName}` : ""
         }`
       );
-      onClose();
+      // A guided six-minute walk also leaves its vitals behind, each its own
+      // reading through the same route. The distance is already saved; a
+      // vital that cannot be saved is said, never dropped quietly.
+      let vitalsFailed: string[] = [];
+      if (measure.key === "six_minute_walk" && walks.length > 0) {
+        const best = walks.reduce((a, b) => (b.distance > a.distance ? b : a));
+        const base = { measuredAt: measurement.measuredAt, conditions: measurement.conditions };
+        const extras = [
+          ...restingReadings({ ...best.before }, base),
+          ...afterWalkReadings({ ...best.after }, best.talkTest, base),
+        ];
+        vitalsFailed = await saveExtraReadings(extras.map((x) => ({ label: x.label, measurement: x.measurement })), nowMs);
+      }
+      if (vitalsFailed.length > 0) {
+        setError(`The walk was saved, but these readings were not: ${vitalsFailed.join("; ")}. Record them with Record a test.`);
+        router.refresh();
+        return;
+      }
       router.refresh();
+      if (onSaved) onSaved({ measureKey: measure.key, conditions: cond });
+      else onClose();
     } catch {
       setError(NETWORK_ERROR_MESSAGE);
     } finally {
@@ -306,6 +372,9 @@ export default function RecordTestDialog({
       return (
         <ScoreSheetEditor measure={m} sheet={m.scoreSheet} answers={editor.answers} onChange={(answers) => patchEditor({ answers })} />
       );
+    }
+    if (m.readings && m.checklist) {
+      return <ChecklistEditor items={m.checklist} texts={editor.readingTexts} onTexts={(readingTexts) => patchEditor({ readingTexts })} />;
     }
     if (m.readings) {
       return <ReadingsEditor keys={m.readings.keys} texts={editor.readingTexts} onTexts={(readingTexts) => patchEditor({ readingTexts })} />;
@@ -441,6 +510,7 @@ export default function RecordTestDialog({
               patient={patient}
               equationKey={walkEquation ? sixMinuteWalkEquationKeyFor(walkEquation) : undefined}
               equationUnreadable={walkEquation?.status === "unreadable"}
+              oxygenLimit={oxygenLimit}
               onUse={(walk) => {
                 flag(walk.interrupted);
                 const next = [...walks, walk];
@@ -536,9 +606,24 @@ export default function RecordTestDialog({
           </div>
 
           <div className="flex-1 space-y-6 overflow-y-auto px-4 py-4 sm:px-6">
+            {flow && (
+              <div data-testid="flow-step" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2">
+                <p className="text-sm font-bold text-teal-900">
+                  Step {flow.position} of {flow.of}: {flow.title}
+                </p>
+                <button
+                  type="button"
+                  onClick={flow.onSkip}
+                  disabled={saving}
+                  className="min-h-[44px] rounded-lg px-3 text-sm font-semibold text-teal-900 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                >
+                  Leave this one out
+                </button>
+              </div>
+            )}
             {/* 1. Which test */}
             <section className="space-y-3">
-              <div>
+              <div className={lockedMeasure && measure ? "sr-only" : undefined}>
                 <label htmlFor={`${baseId}-measure`} className="block text-sm font-semibold text-slate-900">
                   Which test?
                 </label>

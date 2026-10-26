@@ -34,6 +34,7 @@ export default function ProfileHeader({
   provenance = null,
   carerLine = null,
   notes = [],
+  safetyRow = null,
   computed,
   override,
   phase,
@@ -66,6 +67,10 @@ export default function ProfileHeader({
   /** Lines saying a read behind the status could not be made (an unreadable
    *  diary, say), so the pill is not read as the whole picture. */
   notes?: string[];
+  /** A row of safety limits under the identity lines (the heart and lung
+   *  page: the patient's oxygen stop limit, the beta-blocker note, the
+   *  surgeon's precautions), visible without scrolling. */
+  safetyRow?: ReactNode;
   computed: StatusResult;
   override: ActiveOverride | null;
   phase: string | null;
@@ -98,6 +103,7 @@ export default function ProfileHeader({
             {conditionLine && <p className="mt-1.5 text-sm leading-relaxed text-slate-700 [overflow-wrap:anywhere]">{conditionLine}</p>}
             {provenance && <p className="mt-0.5 text-xs text-slate-600">{provenance}</p>}
             {carerLine && <p className="mt-0.5 text-xs text-slate-600 [overflow-wrap:anywhere]">{carerLine}</p>}
+            {safetyRow && <div className="mt-3">{safetyRow}</div>}
             <div className="mt-3">
               <ProfileStatusPill
                 computed={computed}
