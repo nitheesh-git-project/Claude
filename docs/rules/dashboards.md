@@ -494,6 +494,20 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `SpecialtySnapshotStrip` on either. Dials, tracks and bars are SVG or divs
   that stay readable at 360 and use the chart colour variables so they hold
   in dark. Detail: `clinical.md` rule 9 of the phase 6a/6b entry.
+- **The guided video assessment's companion follows the cockpit live
+  (phase 7a server side; the screens are 7b and 7c).** The patient's
+  display-only screen reads one row, `assessment_live_display`, with the
+  patient's own client (`loadLiveDisplay`; `assessment_live_display_select_own`
+  is the gate) and subscribes to it on the realtime publication filtered to
+  `patient_id=eq.<their id>` - RLS decides what the socket delivers, so the
+  patient never receives the therapist's runs or events, which they have no
+  policy on. Each change is a step or phase change, never a tick: the row
+  holds the clock's start time and length and the screen counts, correcting
+  for its own clock with the loader's `serverNow`. A row whose text fails
+  `validateLiveDisplay` is not drawn at all ("unreadable", never a partial
+  screen); an ended run shows *All done*. The live display is the one
+  realtime table this feature adds; the cockpit is the writer and needs no
+  subscription. Detail: `clinical.md`.
 - **A patient nobody has onboarded is said in three places on the
   therapist's side**, because until it is done the patient's own Health
   Profile is locked: the Home feed row, a banner above the greeting

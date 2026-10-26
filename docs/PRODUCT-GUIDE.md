@@ -2632,6 +2632,31 @@ everything else.
   date; the patient logs active minutes against the WHO's 150 a week. The
   PDF export prints both. Rules: `docs/rules/clinical.md`.
 
+  **The guided video assessment (phase 7a, server side; the session cockpit
+  and the patient's companion screen are 7b and 7c).** Every measurement in a
+  video session happens live, led by the physiotherapist - nothing relies on
+  the patient measuring alone, and the video itself stays on Google Meet. The
+  therapist runs one protocol per condition type (`src/lib/sessionProtocols.ts`:
+  knee pain first, then joint or back pain, neurological, Parkinson's,
+  paediatric, falls and strength, heart and lung) one step at a time: a short
+  script to say, a set-up checklist to tick, the right tool, and Stop test,
+  Skip or Save and next. The server, not the screen, refuses what the order
+  does not allow: no step after the safety check until every red-flag
+  question is answered, no test once one is answered yes, no save before the
+  step's set-up (with its helper, where one is needed) is ticked, and on the
+  heart and lung protocol no exercise until the resting heart rate, blood
+  pressure and oxygen read off the patient's own devices on camera pass the
+  pre-exercise check. Stop test throws the reading away. The patient's
+  companion shows only the step name, one instruction, a position picture
+  and a clock - never a result - and has nothing to press. When the run ends
+  the physiotherapist gets a draft *Where things stand* built from what was
+  saved, to edit and save as their own. Vital signs read off the patient's
+  own device are labelled so on the graph, the table and the PDF. Every step
+  is marked to be verified by a senior physiotherapist. Routes:
+  `/api/therapist/assessment-runs/{start,event,display,end}`, plus `runId` and
+  `stepId` on `/api/therapist/measurements/submit`. Rules:
+  `docs/rules/clinical.md`.
+
 Both question banks (Health Profile and Pain Map) are managed from
 one place - a **Manage Questions** section at the top of the admin's
 **Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient -

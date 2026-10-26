@@ -266,6 +266,20 @@ before.
      `before insert`, so an entry cannot arrive already confirmed; and a
      unique index over the content (`md5(details::text)`, the note) is what
      makes a double tap one row rather than two falls.
+     The guided video assessment (phase 7a) adds the fourth and fifth
+     shapes. `assessment_run_events` is plain append-only with one extra
+     rule in the guard: an event is written only into a run that is still
+     **in progress**, because the measurement route allows a save from these
+     rows (the set-up confirmed, the helper, the red flags answered) - a late
+     or rewritten event would rewrite why a reading was allowed. Its
+     `measurement_id` takes the `on delete set null` allowance and a unique
+     index links one reading to a run once. `assessment_runs` is a record with
+     one permitted transition - in progress to completed or abandoned, once,
+     with the end time set by the trigger - and no delete; the session's
+     `on delete set null` is allowed. Their live neighbour
+     `assessment_live_display` is mutable (a screen, not evidence) and holds
+     its patient-safe guarantee in a CHECK on its jsonb keys. Checked in
+     `scripts/append-only-sql-checks.sql`.
 
      **`user_activity_log` is the same rule for everyone who is not an admin**
      -- patients, therapists, hospitals and the system (All Logs is both

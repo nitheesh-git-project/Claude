@@ -359,6 +359,16 @@ client is the only writer and the log is append-only from any session.
   learns nothing about what to change. A switch that is off answers **404**, but
   a switch that could not be *read* falls back to the default (on) -- "we could
   not check" is not "an admin turned it off".
+- **The guided video assessment has two limits of its own** (phase 7a,
+  `src/lib/rateLimit.ts`): `assessmentDisplay` for the companion screen's
+  display route and `assessmentRun` for start, the step events and end, both
+  keyed on the therapist's account and failing open. The display route is
+  called on every step and phase change but never once a second - the
+  patient's screen runs the clock from a stored start time - so a whole
+  assessment is a few dozen calls and the ceiling only bounds a runaway
+  client. It has its own scope so a busy session never spends the allowance
+  the run's saves need; refusing it mid-test would cost the patient their
+  screen, which is why it fails open.
 - **A flag is never an accusation, and never carries a penalty.** The
   detectors (`src/lib/riskDetectors.ts`, vocabulary in
   `src/lib/riskSignals.ts`) run as a bounded lazy sweep after the admin

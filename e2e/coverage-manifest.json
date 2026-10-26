@@ -1636,6 +1636,22 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "assessment-run.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -4228,6 +4244,34 @@
       "limitation": "Writes an append-only measurement, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The geometry, the conventions per movement, the refusals and the framing warnings are pure modules unit-tested in src/lib/angleMeasure.test.ts, angleView.test.ts, angleFraming.test.ts and imageEstimate.test.ts. Pinch zoom and the touch drag are checked by hand on a phone; the light and dark rendering and the 390, 834 and 1280 widths are checked by screenshot in the build, not here.",
       "rules": [
         "docs/rules/clinical.md"
+      ]
+    },
+    {
+      "id": "therapist.assessment-run",
+      "runner": "therapist",
+      "title": "The guided video assessment's server side: the assigned therapist starts one protocol per patient from the server-derived profile kind (a second start answers with the open run); every step after the safety check is refused until the red flags are answered, a save until the step's whole set-up (with its helper) is ticked, a measure the step does not record, a vital sign not marked as read off the patient's own device, and heart and lung exertion until the pre-exercise check from the run's own resting vitals is clear; Stop test saves nothing; the patient reads only the patient-safe live display, never the run or its results; an unassigned therapist is refused and reads nothing; the admin has no run door; a run ends once",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "assessment-run.spec.ts",
+          "tests": [
+            "AR-001",
+            "AR-002",
+            "AR-003",
+            "AR-004",
+            "AR-005",
+            "AR-006",
+            "AR-007",
+            "AR-008"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Written, not run, in phase 7a (no test project reachable). Writes append-only run events and measurements, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit and the companion screens are phases 7b and 7c; the realtime delivery of the live display is not driven here. The step order, the gates, the patient-safe display whitelist, the pre-exercise derivation and the summary draft are pure modules unit-tested in src/lib/sessionProtocols.test.ts, assessmentRun.test.ts and assessmentSummaryDraft.test.ts; the triggers in scripts/append-only-sql-checks.sql.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
       ]
     },
     {

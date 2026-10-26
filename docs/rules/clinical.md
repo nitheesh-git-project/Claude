@@ -2,7 +2,7 @@
 
 Per-specialty intake, the Pain Map, care plans and their review, session notes, patient files, who may read a record, and the vocabulary all three roles share.
 
-**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · outcomeMeasures.ts · milestones.ts · patientDiary.ts · careStatus.ts · geriatricRisk.ts · cardioSafety.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
+**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · outcomeMeasures.ts · milestones.ts · patientDiary.ts · careStatus.ts · geriatricRisk.ts · cardioSafety.ts · sessionProtocols.ts · assessmentRun.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
 
 > Part of `docs/rules/`. `CLAUDE.md` says which file a task needs; this one
 > is the detail. Keep it current in the same change that makes it wrong --
@@ -1332,7 +1332,8 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      never "needs". A heart-rate range (40-60% of reserve, to be verified) is
      offered only off a beta-blocker with a recorded maximum; everyone else is
      talk-test paced and never shown a target. **The pre-exercise refusal is
-     enforced on the screen, not at a route:** the guided six-minute walk
+     enforced on the screen, not at a route** (outside a guided video
+     assessment - inside one, phase 7a enforces it at the route): the guided six-minute walk
      cannot start while `preExerciseCheck` says stop (the clinician wording),
      and the route still stores a flagged reading as a fact. The walk saves its
      before and after vitals and the talk test as readings through the
@@ -1347,6 +1348,106 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   `geriatricCardioProfile.test.ts`, `sessionCompletion.test.ts`;
   `e2e/geriatric-cardio-intake.spec.ts`; QA `THR-HP-005m`, `PAT-HP-025`,
   `ADM-SET-020a`.
+- **The guided video assessment is live, therapist-led, and gated by the
+  server (Health Profile redesign, phase 7a: the server side; the session
+  cockpit is 7b and the patient's companion 7c).** The owner's decisions:
+  every measurement in a video session happens LIVE, guided by the
+  physiotherapist, and nothing relies on the patient measuring alone; the
+  video stays on Google Meet (the app embeds none); the therapist works from a
+  second-screen cockpit, one step at a time, with exactly three actions -
+  Stop test, Skip, Save and next; the patient's companion is display-only.
+  Eight rules:
+  1. **One ordered protocol per profile kind, checked at load.**
+     `src/lib/sessionProtocols.ts`: `ortho_knee` (the approved cockpit's
+     Safety, Pain, Function, Knee bend, Knee straightening, 30-second chair
+     stand, walk, Summary - the orthopaedic default) and `ortho_general`,
+     `neuro`, `neuro_parkinsons`, `pediatrics`, `geriatric`,
+     `cardiopulmonary`. Each step has a title, a tab label, a script of at most
+     two short sentences, one patient line, a picture from a fixed set, a
+     set-up checklist, a tool, the measures it may record (a variant list where
+     it matters - the knee bend saves knee flexion, never a shoulder) or the
+     layer that records it instead (Pain Map, neurological or paediatric exam),
+     helper, exertion and skippable flags. The module throws at load on a
+     duplicate id, a measure the registry does not hold, one not used on the
+     kind or owned by another layer there, a licensed scale, an
+     **in-person-only (`videoUse: "no"`) measure in a video protocol**, a
+     helper measure on a step not marked as needing one (or a helper step with
+     no helper item to tick), an exertion measure on a step not marked
+     exertion, a first step that is not the red-flag check, a last that is not
+     the summary, a heart and lung exertion step before the resting check, or
+     a clinic word ("triage", "case", "patient", "geriatric"...) in what the
+     patient sees. The six-minute walk is in person only, so the heart and lung
+     protocol uses the one-minute sit-to-stand (the handbook's video stand-in);
+     the chair stand and the 10-metre walk were opened to the orthopaedic
+     profile for the knee protocol. **Every step, script, red-flag question and
+     set-up item is marked "to be verified by a senior physiotherapist".**
+  2. **The gates are the server's, not the screen's.** The measurement route
+     takes `runId` and `stepId`; with them it re-derives the step from the
+     run's protocol and refuses (409 with a code, `assessmentRun.ts`
+     `checkRunSave`) unless: the run is this therapist's, this patient's, in
+     progress and on the protocol version it started on; every red-flag
+     question was answered before step 2 and none was answered yes (a flag
+     leaves only the summary open); the step's whole set-up was confirmed in
+     this run, with its helper where the step needs one (and the reading's
+     `helperPresent` agrees); the measure and variant are the step's; the
+     reading was taken over video; a vital sign says it was read off the
+     patient's own device; and, on the heart and lung protocol, **the
+     pre-exercise check is clear before any exertion** - worked out on the
+     server by `preExerciseCheck` from the resting heart rate, blood pressure
+     and oxygen **saved in this run's resting step** and the patient's own
+     oxygen limit, never from what the cockpit says ("not recorded" is
+     `cardio_check_not_recorded`, a red flag `cardio_red_flag`). The same gate
+     refuses that exertion step's set-up and its *go* on the patient's screen.
+     This moves the 6b pre-exercise refusal, which was UI only, to the route
+     for any reading inside a run; a reading outside a run keeps today's
+     behaviour.
+  3. **Stop test throws the reading away.** It writes one `stopped` event and
+     nothing else; a stopped step is never a result.
+  4. **Three tables** (`schema.sql`, phase 7a): `assessment_runs` (one in
+     progress per patient by a partial unique index; ended once - the trigger
+     sets the end time - and never deleted), `assessment_run_events` (kinds
+     `setup_confirmed`, `safety_confirmed`, `saved`, `skipped`, `stopped`,
+     `step_opened`; append-only by trigger and written only into a run in
+     progress, because a save is allowed by these rows; `details` validated in
+     `assessmentRun.ts`, structured answers only; one link per measurement) and
+     `assessment_live_display` (one row per run). Runs and events are read by
+     the clinical-access therapist and an admin; **the patient reads only the
+     live display**. Nobody writes any of them from a browser session.
+  5. **The companion shows patient-safe text only, chosen by the server.**
+     `/api/therapist/assessment-runs/display` takes a step, a phase (`ready`,
+     `go`, `done`, `rest`, `paused`) and whether the clock starts - never text.
+     The words are the step's own title and patient line, the fixed phase
+     lines, the step counter and a clock label (`buildLiveDisplay`);
+     `validateLiveDisplay` re-checks the stored jsonb against that whitelist on
+     the way in and out, and the table's CHECK refuses any other key. No
+     result, score, number other than the clock and the counter, or note can
+     reach the patient's screen. The clock is a start time and a length; the
+     screen counts.
+  6. **Routes.** `/api/therapist/assessment-runs/start` (the protocol from the
+     server-derived profile kind; `protocolKey` only chooses among that kind's;
+     a linked session must be this therapist's video session; a second start
+     is 409 `run_in_progress` with the open run), `/event`, `/display`, `/end`
+     (completed, or abandoned with a fixed reason). All take the
+     assigned-therapist and started-session gate on the debug clock, every body
+     through `parseJsonBody`, rate limited (`assessmentRun`,
+     `assessmentDisplay`). **No admin door**: the admin measurement route
+     refuses a `runId` (`run_is_therapist_only`). Reads: `loadRun`,
+     `loadActiveRun`, `loadRunMeasurements`, `loadLiveDisplay` (the patient's
+     own client) in `assessmentRunServer.ts`, each ok or unreadable.
+  7. **The run leaves a draft, never a summary.** `assessmentSummaryDraft()`
+     writes two to four plain sentences from what was SAVED in the run, naming
+     a skipped or stopped step honestly and a red flag or early end; the end
+     route returns it in the patient's voice for the writing box, and it is
+     saved, if at all, through the care-status `set_summary` action as the
+     physiotherapist's own text.
+  8. **Vitals read on video are labelled.** `conditions.readFrom`
+     (`clinic_device` in person, `patient_device_on_video` over video; vitals
+     measures only, `VITALS_MEASURE_KEYS`) is required inside a run and drawn
+     as "Read off the patient's own device on video" by `readFromLabel()` on
+     the measures table and in the PDF.
+  `src/lib/sessionProtocols.test.ts`, `assessmentRun.test.ts`,
+  `assessmentSummaryDraft.test.ts`; `e2e/assessment-run.spec.ts` (written, not
+  run); `scripts/append-only-sql-checks.sql`; QA `THR-HP-005q`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate
