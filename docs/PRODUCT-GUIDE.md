@@ -516,11 +516,16 @@ screen.
 
 **Patient:** `/patient/register`, `/patient/login`, `/patient/dashboard`,
 and its sections - `/sessions`, `/book`, `/packages`, `/suggested`,
-`/payments`, `/health-profile`, `/profile`.
+`/payments`, `/health-profile`, `/profile`; plus `/session`, the display-only
+screen the patient follows during a guided video assessment (not in the
+sidebar: a bar on every patient screen offers it while a check is live).
 
 **Therapist:** `/therapist/login`, `/therapist/dashboard`, and its sections -
 `/sessions`, `/availability`, `/earnings`, `/health-profile`,
-`/health-profile/[patientId]`, `/profile`.
+`/health-profile/[patientId]`, `/profile`; plus `/assessment/[patientId]`, the
+session cockpit for a guided video assessment (a standalone second screen, not
+in the sidebar: reached from *Start guided assessment* on a video session's card
+and on the patient's chart).
 
 **Hospital:** `/hospital/login`, `/hospital/dashboard`, and its sections -
 `/refer`, `/referrals`, `/revenue`, `/profile`.
@@ -2632,8 +2637,8 @@ everything else.
   date; the patient logs active minutes against the WHO's 150 a week. The
   PDF export prints both. Rules: `docs/rules/clinical.md`.
 
-  **The guided video assessment (phase 7a, server side; the session cockpit
-  and the patient's companion screen are 7b and 7c).** Every measurement in a
+  **The guided video assessment (phase 7a, server side; phase 7b, the session
+  cockpit and the patient's companion screen).** Every measurement in a
   video session happens live, led by the physiotherapist - nothing relies on
   the patient measuring alone, and the video itself stays on Google Meet. The
   therapist runs one protocol per condition type (`src/lib/sessionProtocols.ts`:
@@ -2654,7 +2659,24 @@ everything else.
   own device are labelled so on the graph, the table and the PDF. Every step
   is marked to be verified by a senior physiotherapist. Routes:
   `/api/therapist/assessment-runs/{start,event,display,end}`, plus `runId` and
-  `stepId` on `/api/therapist/measurements/submit`. Rules:
+  `stepId` on `/api/therapist/measurements/submit`, and
+  `/api/patient/assessment-display` (the companion's three-second fallback).
+  **The two screens.** The physiotherapist's cockpit
+  (`/therapist/dashboard/assessment/[patientId]`) is built to sit on a second
+  screen next to Google Meet: the steps across the top, the current step as one
+  card (what to say in large type, the set-up checklist that must be fully
+  ticked, a red safety line where another adult has to stand beside the
+  patient, and the right tool in the same place) and always the same three
+  actions - **Stop test**, **Skip** and one big **Save and next**, which stays
+  grey, with a line saying what is missing, until the set-up and a result are in.
+  Beside it: today's results so far (*Not done* until a step is saved), a small
+  preview of what the patient sees with *Get ready*, *Go*, *Done* and *Rest*,
+  and a *Stop at once if* box. On a phone the results and preview fold away
+  under the step. The patient's screen (`/patient/dashboard/session`) is dark and
+  large, shows one instruction, a picture of the position and a giant clock, has
+  nothing to press, follows the physiotherapist live and polls every three
+  seconds if the live connection is down. With no check running it says *Your
+  physiotherapist will start the guided check soon*. Rules:
   `docs/rules/clinical.md`.
 
 Both question banks (Health Profile and Pain Map) are managed from

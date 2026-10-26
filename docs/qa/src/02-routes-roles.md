@@ -41,6 +41,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/patient/dashboard/packages` | Owned programmes and their remaining credits | `PAT-PKG-001` |
 | `/patient/dashboard/payments` | Receipts | `PAT-PAY-010` |
 | `/patient/dashboard/health-profile` | Health Profile: intake answers, snapshot, documents, care-plan history | `PAT-HP-001` |
+| `/patient/dashboard/session` | The guided check's companion screen: dark, large, display only; follows the physiotherapist live and polls every 3 seconds if the live connection is down. **Not in the sidebar** - a bar on every patient screen offers it while a check is live | `PAT-HP-006` |
 | `/patient/dashboard/profile` | Edit Profile: photo, personal, contact, addresses, account security | `PAT-PROF-001` |
 
 ### 3.4 Therapist portal
@@ -54,6 +55,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/therapist/dashboard/earnings` | Earnings, payout requests, receipts | `THR-EARN-001` |
 | `/therapist/dashboard/health-profile` | My Patients (Patients / Programmes toggle) | `THR-PAT-001` |
 | `/therapist/dashboard/health-profile/[patientId]` | One patient's chart: intake, Pain Map (orthopaedic) or neurological examination, care plans, notes | `THR-HP-001`, `THR-HP-005b` |
+| `/therapist/dashboard/assessment/[patientId]` | The session cockpit for a guided video assessment: a standalone second screen next to Google Meet (steps, one card, Stop test / Skip / Save and next, results, a preview of the patient's screen). **Not in the sidebar**: reached from *Start guided assessment* on a video session's card and on the chart | `THR-HP-005r` |
 | `/therapist/dashboard/profile` | Edit Profile | `THR-PROF-001` |
 
 ### 3.5 Hospital portal

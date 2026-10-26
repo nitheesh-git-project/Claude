@@ -102,6 +102,7 @@
       "geriatric-cardio-profile.spec.ts": 30,
       "angle-tool.spec.ts": 25,
       "assessment-run.spec.ts": 25,
+      "assessment-cockpit.spec.ts": 40,
       "numeric-input.spec.ts": 7,
       "pain-trend.spec.ts": 7,
       "patient-cancel-cutoff.spec.ts": 11,

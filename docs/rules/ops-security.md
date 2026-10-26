@@ -359,10 +359,14 @@ client is the only writer and the log is append-only from any session.
   learns nothing about what to change. A switch that is off answers **404**, but
   a switch that could not be *read* falls back to the default (on) -- "we could
   not check" is not "an admin turned it off".
-- **The guided video assessment has two limits of its own** (phase 7a,
-  `src/lib/rateLimit.ts`): `assessmentDisplay` for the companion screen's
+- **The guided video assessment has three limits of its own** (phases 7a and
+  7b, `src/lib/rateLimit.ts`): `assessmentDisplay` for the companion screen's
   display route and `assessmentRun` for start, the step events and end, both
-  keyed on the therapist's account and failing open. The display route is
+  keyed on the therapist's account and failing open, and
+  `assessmentDisplayRead` (1,500 an hour, keyed on the patient's account, fails
+  open) for the companion's three-second polling fallback at
+  `/api/patient/assessment-display`, which reads only the patient's own
+  display row through their own row-level-scoped client. The display route is
   called on every step and phase change but never once a second - the
   patient's screen runs the clock from a stored start time - so a whole
   assessment is a few dozen calls and the ceiling only bounds a runaway

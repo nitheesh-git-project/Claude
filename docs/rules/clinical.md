@@ -1349,14 +1349,15 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   `e2e/geriatric-cardio-intake.spec.ts`; QA `THR-HP-005m`, `PAT-HP-025`,
   `ADM-SET-020a`.
 - **The guided video assessment is live, therapist-led, and gated by the
-  server (Health Profile redesign, phase 7a: the server side; the session
-  cockpit is 7b and the patient's companion 7c).** The owner's decisions:
+  server (Health Profile redesign, phase 7a: the server side; phase 7b: the
+  therapist's session cockpit and the patient's companion screen).** The
+  owner's decisions:
   every measurement in a video session happens LIVE, guided by the
   physiotherapist, and nothing relies on the patient measuring alone; the
   video stays on Google Meet (the app embeds none); the therapist works from a
   second-screen cockpit, one step at a time, with exactly three actions -
   Stop test, Skip, Save and next; the patient's companion is display-only.
-  Eight rules:
+  Ten rules:
   1. **One ordered protocol per profile kind, checked at load.**
      `src/lib/sessionProtocols.ts`: `ortho_knee` (the approved cockpit's
      Safety, Pain, Function, Knee bend, Knee straightening, 30-second chair
@@ -1445,9 +1446,66 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      measures only, `VITALS_MEASURE_KEYS`) is required inside a run and drawn
      as "Read off the patient's own device on video" by `readFromLabel()` on
      the measures table and in the PDF.
+  9. **The cockpit has three actions, always the same, always on screen.**
+     `/therapist/dashboard/assessment/[patientId]` (guarded like the chart:
+     the assigned therapist, anyone else a 404; the started-session half is
+     the routes', on the debug clock) is the physiotherapist's second screen
+     next to Google Meet: steps across the top as 44px-plus buttons (a tick
+     once saved, a step the order keeps shut is disabled and says why), the
+     current step as **one** card - *Step n of N*, the title, *Say to the
+     patient* in large type, *Set up first* as real checkboxes that must **all**
+     be ticked, a red-bordered safety line where another adult has to stand
+     beside the patient, then the step's tool - and at the bottom, sticky on
+     every width, exactly **Stop test** (throws this step's reading away and
+     writes a `stopped` event only), **Skip** (only where the step is
+     skippable, with an optional fixed reason from `SKIP_REASONS`) and one big
+     **Save and next**, disabled until the set-up (the helper named on its own),
+     the safety answers and a result are all in, with the line underneath
+     saying which is missing (`saveReadiness`, `cockpit.ts`). The tool is the
+     existing recorder inline (`RecordTestDialog` with `embedded`: the same
+     timers, score sheet and angle tool, the test and its variants chosen by
+     the step, always over video, the vitals marked *read off the patient's own
+     device on video*), the Pain Map, neurological or paediatric exam dialog
+     for a layer step (its record named in the `saved` event), or the safety
+     questions. **A save is three calls, in order**: `setup_confirmed`, the
+     result (the measurement route with `runId` and `stepId`, or the layer's
+     route and `saved`), then on to the next step; **every refusal code is a
+     sentence with the single fix** (`cockpitFailure`, one row per
+     `RunRefusalCode`, so a new code fails the build until it is worded), a
+     503 is "we could not check, nothing was saved", never "not allowed", and
+     a 429 is a wait. The server is still the only gate: the screen mirrors it
+     (`stepAvailability`, `exertionBlock`, the resting-check banner) so nobody
+     is surprised, never replaces it. The patient's screen is told only a
+     phase and whether the clock starts, debounced to the last tap with one
+     request in flight (`latestWins.ts`); on a phone the results and the
+     preview fold away under the step. The end of a run puts the draft in the
+     existing *Where things stand* editor (`CareStatusControls summaryOnly`).
+     Entry: *Start guided assessment* on a video session's card (from the join
+     window, judged on the debug clock) and on the chart (assigned, with a
+     started session).
+  10. **The companion is display-only, dark and large, and counts against
+     server time.** `/patient/dashboard/session`: the step name small, **one**
+     big instruction, one of seven simple position pictures (`PATIENT_PICTURES`),
+     a giant clock when the step has one and one calming line; no button, link
+     or field while a check is live (the only thing that can be pressed is the
+     way back to the dashboard, on the waiting screen). Nothing but the
+     server's whitelisted text reaches it (rule 5), and a row that fails
+     `validateLiveDisplay` is not drawn. It follows the patient's own display
+     row on realtime and **falls back to polling `/api/patient/assessment-display`
+     every three seconds** whenever realtime is not reaching it; the clock is
+     the row's start time and length read against the loader's `serverNow`
+     (`clockShown`), never a client-trusted timer, and it never announces
+     itself per second to a screen reader. With no run it says *Your
+     physiotherapist will start the guided check soon*; *All done* shows for
+     fifteen minutes after a run ends, then it waits again. Every patient screen
+     carries a bar to it while a check is live. The first-visit tour never opens
+     over either live screen (`tutorialMayAutoStart`).
   `src/lib/sessionProtocols.test.ts`, `assessmentRun.test.ts`,
-  `assessmentSummaryDraft.test.ts`; `e2e/assessment-run.spec.ts` (written, not
-  run); `scripts/append-only-sql-checks.sql`; QA `THR-HP-005q`.
+  `assessmentSummaryDraft.test.ts`, `cockpit.test.ts`, `companionScreen.test.ts`,
+  `latestWins.test.ts`, `guidedAssessmentEntry.test.ts`;
+  `e2e/assessment-run.spec.ts` and `e2e/assessment-cockpit.spec.ts` (written,
+  not run); `scripts/append-only-sql-checks.sql`; QA `THR-HP-005q`,
+  `THR-HP-005r`, `PAT-HP-006`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate

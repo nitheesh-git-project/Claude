@@ -557,6 +557,18 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 **Expected Result.** A typeset **PDF** downloads, named `QA Patient A_PT####.pdf` (name + patient code). It contains the intake answers and the Pain Map data. **Session notes are excluded from every format.** `?format=json` still serves raw JSON for portability but is not linked anywhere in the UI.
 **Boundary.** A patient whose name contains non-Latin characters (set the name to `पूजा शर्मा` temporarily) must still export successfully - the PDF encoder transliterates rather than throwing a 500.
 
+#### `PAT-HP-006` - The guided check's screen: display only, calm, and live · P0
+
+**Preconditions.** Patient A has a video session today with Therapist A; Therapist A has the guided assessment open (`THR-HP-005r`). Open `/patient/dashboard/session` on a second device or a second browser window, signed in as Patient A. Also try it before any assessment is started.
+**Steps.**
+1. Open the screen **before** the assessment starts.
+2. The therapist starts the assessment, then moves to *Sit to stand for 30 seconds*, taps **Get ready**, **Count 3, 2, 1**, **Go and start the clock**, **Done**, **Rest**, then ends the assessment.
+3. Open any other patient screen (for example Your Sessions) while the assessment is running.
+4. With the screen open during a check, switch the device's network off for ten seconds and on again; and separately open it with the live connection blocked (for example a network that refuses websockets).
+5. Look at it from three metres on a laptop and on a phone, in a bright and a dim room.
+6. Tab through it with a keyboard; use a screen reader.
+**Expected Result.** 1: *Your physiotherapist will start the guided check soon*, one calm line and a small *Back to your dashboard* link - nothing else to press. 2: the screen follows without a reload: the step counter and name small, **one** big instruction, a simple picture of the position, and a giant clock only where the step has one (*Starting in 3, 2, 1*, then *Time left*, counting down in amber then white, *Finished* at 0); **Done** says *Well done. You can rest now.*; **Rest** says *Have a rest.*; ending it shows *All done* for a while, then the waiting screen again. It never shows a result, a score, a number other than the clock and the step count, a clinic word or the physiotherapist's notes. 3: every patient screen shows a *Happening now* bar to the check while it runs and loses it when it ends. 4: the clock is the same as the physiotherapist's within a second even with the device's own clock set wrong, and with live updates blocked the screen still follows within about three seconds; if reads keep failing it says *Reconnecting* rather than freezing silently. 5: the instruction and clock read from three metres; nothing is cut off at 360 px, and nothing scrolls sideways. 6: during a live check there is nothing to tab to (no button, link or field); the step changes are announced once each, never the clock every second. The first-visit tour does not open over it.
+
 #### `PAT-DOC-001` - Upload a report · P0
 
 **Steps.** On the Health Profile, open the reports panel. Tap the upload control. Choose `Spine_Report_E2E.pdf`. Pick the type `Scan or X-ray`. Submit.

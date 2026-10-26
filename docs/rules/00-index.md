@@ -90,7 +90,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - The paediatric examination is a milestone chart, and "not assessed" is never "not yet" (Health Profile redesign, phase 5a: the server side; the screens are phase 5b, the next rule)
 - The paediatric Health Profile is the milestone-window chart (Health Profile redesign, phase 5b)
 - Strength and balance care and Heart and lung rehabilitation are condition types of their own (Health Profile redesign, phase 6a: the server side and the data; phase 6b draws the screens)
-- The guided video assessment is live, therapist-led, and gated by the server (Health Profile redesign, phase 7a: the server side; the session cockpit is 7b and the patient's companion 7c)
+- The guided video assessment is live, therapist-led, and gated by the server (Health Profile redesign, phase 7a: the server side; phase 7b: the therapist's session cockpit and the patient's companion screen)
 - Patient-uploaded reports live in Storage; the database holds only metadata
 - An uploaded report is typed by its bytes, not its label, and only a patient uploads one
 - Session notes are clinician-only, and they are the prep loop
@@ -123,7 +123,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - Navigation is chosen by width, and only one form is ever displayed
 - The dashboard tutorial is told with dummy data, and its (i) explains the thing it sits beside
 - The orthopaedic, the neurological and the paediatric Health Profile are each one layout in three places
-- The guided video assessment's companion follows the cockpit live (phase 7a server side; the screens are 7b and 7c)
+- The guided video assessment's two screens (phase 7b): the cockpit is a standalone second screen, the companion follows it live
 - A patient nobody has onboarded is said in three places on the therapist's side
 - From `2xl` the dashboards use the width by moving blocks, never by adding them
 - The phone's More button carries the Suggested badge
@@ -229,7 +229,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 `docs/rules/ops-security.md` -- 21 rules
 
 - Rate limiting is Postgres, not Redis, and it fails open
-- The guided video assessment has two limits of its own
+- The guided video assessment has three limits of its own
 - A flag is never an accusation, and never carries a penalty
 - The platform keeps its own conversations, and leaves evidence when it doesn't
 - Only a patient account can book; one account carries one role

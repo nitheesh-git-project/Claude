@@ -1652,6 +1652,22 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "assessment-cockpit.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -4269,6 +4285,33 @@
         }
       ],
       "limitation": "Written, not run, in phase 7a (no test project reachable). Writes append-only run events and measurements, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit and the companion screens are phases 7b and 7c; the realtime delivery of the live display is not driven here. The step order, the gates, the patient-safe display whitelist, the pre-exercise derivation and the summary draft are pure modules unit-tested in src/lib/sessionProtocols.test.ts, assessmentRun.test.ts and assessmentSummaryDraft.test.ts; the triggers in scripts/append-only-sql-checks.sql.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "therapist.assessment-cockpit",
+      "runner": "therapist",
+      "title": "The guided video assessment's two screens: the chart offers Start guided assessment and the therapist's session cockpit opens on the safety step with the step bar, the card and exactly three actions; Save and next stays disabled until the set-up is ticked and every safety question answered, and says what is missing, with the next step shut until then; Stop test writes a stopped event and saves nothing; the patient's companion waits calmly with no run, then shows only the step counter, the step name and one patient-safe line with nothing to press; neither screen scrolls sideways at 390 px and the three actions stay on screen; an unassigned therapist gets a 404",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "assessment-cockpit.spec.ts",
+          "tests": [
+            "AC-001",
+            "AC-002",
+            "AC-003",
+            "AC-004",
+            "AC-005",
+            "AC-006",
+            "AC-007"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Written, not run, in phase 7b (no test project reachable). Writes append-only run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. A saved step, the timers, the score sheet, the angle tool and the exam dialogs are not driven here (a test does not time itself in a browser test, and each is the existing recorder embedded): the readiness, the step order, every refusal sentence, the patient-screen clock against server time and the polling and entry rules are pure modules unit-tested in src/lib/cockpit.test.ts, companionScreen.test.ts, latestWins.test.ts and guidedAssessmentEntry.test.ts; the server's gates are assessment-run.spec.ts. The realtime delivery and the three-second polling fallback are checked by hand on two devices (PAT-HP-006), and the light and dark rendering and the 390, 834 and 1280 widths by screenshot in the phase's review, not here.",
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/dashboards.md"

@@ -494,20 +494,43 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `SpecialtySnapshotStrip` on either. Dials, tracks and bars are SVG or divs
   that stay readable at 360 and use the chart colour variables so they hold
   in dark. Detail: `clinical.md` rule 9 of the phase 6a/6b entry.
-- **The guided video assessment's companion follows the cockpit live
-  (phase 7a server side; the screens are 7b and 7c).** The patient's
-  display-only screen reads one row, `assessment_live_display`, with the
+- **The guided video assessment's two screens (phase 7b): the cockpit is a
+  standalone second screen, the companion follows it live.** Neither is in a
+  sidebar: they have no dashboard shell, because one is a second screen beside
+  a video call and the other is a display. **The cockpit**
+  (`/therapist/dashboard/assessment/[patientId]`) has no nav entry; it is
+  reached by *Start guided assessment* on a video session's card (decided in
+  the browser on the debug clock, `StartGuidedAssessmentLink`) and on the
+  chart, and it carries its own way back (Chart). It needs no realtime
+  subscription: it is the writer, and what it does it merges into its own
+  state and then `router.refresh()`es. **The companion**
+  (`/patient/dashboard/session`) is not in the patient's sidebar either ("a
+  screen that can only ever be empty is not in the sidebar"): while a check is
+  live every patient screen carries `GuidedCheckBar` (the dashboard loader
+  reads the patient's own display row, `guidedCheckLive`, and the shell
+  subscribes to `assessment_live_display` so the bar appears and goes by
+  itself), and the cockpit tells the therapist the address to hand over
+  (*Open the patient screen*). The companion reads one row, `assessment_live_display`, with the
   patient's own client (`loadLiveDisplay`; `assessment_live_display_select_own`
   is the gate) and subscribes to it on the realtime publication filtered to
   `patient_id=eq.<their id>` - RLS decides what the socket delivers, so the
   patient never receives the therapist's runs or events, which they have no
   policy on. Each change is a step or phase change, never a tick: the row
   holds the clock's start time and length and the screen counts, correcting
-  for its own clock with the loader's `serverNow`. A row whose text fails
-  `validateLiveDisplay` is not drawn at all ("unreadable", never a partial
-  screen); an ended run shows *All done*. The live display is the one
-  realtime table this feature adds; the cockpit is the writer and needs no
-  subscription. Detail: `clinical.md`.
+  for its own clock with the loader's `serverNow` (it reads once as soon as it
+  opens, since the page's own `serverNow` is as old as the page load).
+  **Realtime is not trusted to be there:** until the channel reports
+  `SUBSCRIBED` (after a four-second grace), and again whenever it reports an
+  error, a timeout or a close, the screen polls
+  `/api/patient/assessment-display` every three seconds (the same loader, the
+  patient's own client, rate limited under its own scope and failing open), a
+  tab coming back to the front reads at once, and three failed reads in a row
+  say *Reconnecting* rather than leave a frozen screen unexplained. A row that
+  fails `validateLiveDisplay` is not drawn at all ("unreadable", never a
+  partial screen); an ended run shows *All done* for fifteen minutes, a run
+  nobody has touched for six hours is not a run in progress. The live display
+  is the one realtime table this feature adds. Detail: `clinical.md` rules 9
+  and 10.
 - **A patient nobody has onboarded is said in three places on the
   therapist's side**, because until it is done the patient's own Health
   Profile is locked: the Home feed row, a banner above the greeting
