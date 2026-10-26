@@ -50,9 +50,8 @@ import {
 // "Parkinson's" is NOT a condition type. It is a sub-profile inside the
 // existing `neuro` specialty (`neuro_parkinsons` below); "Strength and
 // balance care" (geriatric) and "Heart and lung rehabilitation"
-// (cardiopulmonary) become condition types in a later phase. The registry
-// can already refer to all six profile kinds so the measures and the
-// milestone templates do not have to be rewritten when they arrive.
+// (cardiopulmonary) became condition types in phase 6a, each its own
+// profile kind.
 //
 // THRESHOLDS: every range, real-change value, cut-off and norm below is
 // copied from the clinic's Health Profile Assessment Handbook (draft for
@@ -86,8 +85,10 @@ export const PROFILE_KIND_LABELS: Record<ProfileKind, { label: string; patientLa
   neuro: { label: "Neurological", patientLabel: "Neurological care" },
   neuro_parkinsons: { label: "Neurological: Parkinson's", patientLabel: "Parkinson's care" },
   pediatrics: { label: "Paediatric", patientLabel: "Paediatric physiotherapy" },
-  geriatric: { label: "Strength and balance care", patientLabel: "Strength and balance care" },
-  cardiopulmonary: { label: "Heart and lung rehabilitation", patientLabel: "Heart and lung rehabilitation" },
+  // The clinician words follow the condition types (conditionSpecialty.ts,
+  // phase 6a); the patient words are the owner's.
+  geriatric: { label: "Geriatric", patientLabel: "Strength and balance care" },
+  cardiopulmonary: { label: "Cardiopulmonary", patientLabel: "Heart and lung rehabilitation" },
 };
 
 export function isProfileKind(value: unknown): value is ProfileKind {
@@ -96,11 +97,13 @@ export function isProfileKind(value: unknown): value is ProfileKind {
 
 /** Which profile kinds a recorded condition type can carry today. A
  *  Parkinson's patient is a neurological patient whose profile is the
- *  Parkinson's sub-profile; geriatric and cardiopulmonary have no condition
- *  type yet, so no specialty maps to them. */
+ *  Parkinson's sub-profile; geriatric and cardiopulmonary (condition types
+ *  since phase 6a) each carry their own kind. */
 export function profileKindsForSpecialty(specialty: ConditionSpecialty): readonly ProfileKind[] {
   if (specialty === "neuro") return ["neuro", "neuro_parkinsons"];
   if (specialty === "pediatrics") return ["pediatrics"];
+  if (specialty === "geriatric") return ["geriatric"];
+  if (specialty === "cardiopulmonary") return ["cardiopulmonary"];
   return ["ortho"];
 }
 
@@ -368,6 +371,15 @@ const MMRC_GRADES: readonly Grade[] = [
   { value: 2, label: "2: walks slower than others of the same age, or stops at own pace" },
   { value: 3, label: "3: stops for breath after about 100 m or a few minutes on the level" },
   { value: 4, label: "4: too breathless to leave the house, or when dressing" },
+];
+
+/** The talk test (handbook): at the right effort a person can talk in full
+ *  sentences but not sing. 1 is "just right". To be verified by a senior
+ *  physiotherapist against its source. */
+export const TALK_TEST_GRADES: readonly Grade[] = [
+  { value: 0, label: "Can sing: too easy" },
+  { value: 1, label: "Can talk, not sing: just right" },
+  { value: 2, label: "Can't finish a sentence: too hard" },
 ];
 
 const FOUR_STAGE_GRADES: readonly Grade[] = [
@@ -1173,6 +1185,92 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     profileKinds: ["cardiopulmonary"],
     source: "outcome_measurements",
     capture: "single",
+  },
+  // ---- Cardiopulmonary vitals (phase 6a) -----------------------------------------
+  // What every heart and lung session's safety check reads (cardioSafety.ts):
+  // the resting heart rate and lowest oxygen above, plus the three below.
+  // All free. The modified Borg and the Borg 6-20 stay licensed and off
+  // (below); the free 0-10 breathlessness rating and the talk test stand in
+  // for them.
+  {
+    key: "blood_pressure",
+    label: "Blood pressure",
+    plainName: "Blood pressure",
+    // The value is the top (systolic) number; both numbers are in `items`
+    // (`readings`), so the bottom one is never lost and the safety check
+    // (cardioSafety.ts, over 180/100) reads both.
+    unit: "mmHg (top number)",
+    min: 50,
+    max: 260,
+    decimals: 0,
+    // A rise with exercise is normal and a fall is a reason to stop, so no
+    // direction is "better" on its own.
+    better: "hold",
+    cutOffs: [
+      // To be verified by a senior physiotherapist against its source.
+      { type: "fixed", comparison: "above", value: 180, level: "very_high_risk", label: "Do not exercise: over 180/100 at rest (handbook)" },
+    ],
+    licence: "free",
+    enabledByDefault: true,
+    videoUse: "home_device",
+    profileKinds: ["cardiopulmonary"],
+    source: "outcome_measurements",
+    capture: "calculated",
+    variants: [
+      { key: "rest", label: "At rest, before exercise" },
+      { key: "after_exercise", label: "After exercise" },
+    ],
+    readings: {
+      keys: ["systolic", "diastolic"],
+      derive: (r) =>
+        r.systolic !== undefined &&
+        r.diastolic !== undefined &&
+        r.systolic > r.diastolic &&
+        r.diastolic >= 20 &&
+        r.diastolic <= 160
+          ? r.systolic
+          : null,
+    },
+    note: "Seated, same arm each time. Both numbers are kept; the graph draws the top one.",
+  },
+  {
+    key: "resting_spo2",
+    label: "Oxygen saturation at rest (SpO2)",
+    plainName: "Oxygen level at rest",
+    unit: "%",
+    min: 50,
+    max: 100,
+    decimals: 0,
+    better: "higher",
+    // The patient's own stop limit (cardioSafety.ts), never a fixed line.
+    cutOffs: [{ type: "patient_limit", comparison: "below", label: "Below this patient's own limit" }],
+    licence: "free",
+    enabledByDefault: true,
+    videoUse: "home_device",
+    profileKinds: ["cardiopulmonary"],
+    source: "outcome_measurements",
+    capture: "single",
+    note: "Warm finger, no nail varnish, wait for a steady reading.",
+  },
+  {
+    key: "talk_test",
+    label: "Talk test",
+    plainName: "How hard the exercise felt",
+    unit: "grade 0-2",
+    min: 0,
+    max: 2,
+    decimals: 0,
+    grades: TALK_TEST_GRADES,
+    // The free stand-in for the Borg effort scale: where the effort sat, not
+    // a score to improve. Context, never a goal.
+    better: "hold",
+    classification: true,
+    licence: "free",
+    enabledByDefault: true,
+    videoUse: "yes",
+    profileKinds: ["cardiopulmonary"],
+    source: "outcome_measurements",
+    capture: "rating",
   },
   {
     key: "active_minutes",

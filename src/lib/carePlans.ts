@@ -13,6 +13,8 @@
 // or home visits is not a separate choice either: "needs hands-on
 // treatment" decides it (`offerKindFor`).
 
+import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
+
 export const CARE_PLAN_STATUSES = [
   "pending_review",
   "active",
@@ -72,9 +74,9 @@ export type CourseRate = {
  */
 export type RecommendableRate = CourseRate & {
   id: string;
-  /** Which of the three condition types the condition belongs to, for
-   *  grouping the picker. Null where an admin has not tagged it. */
-  specialty: "ortho" | "neuro" | "pediatrics" | null;
+  /** Which condition type the condition belongs to, for grouping the
+   *  picker. Null where an admin has not tagged it. */
+  specialty: ConditionSpecialty | null;
 };
 
 export function validateSessionCount(count: unknown): string | null {

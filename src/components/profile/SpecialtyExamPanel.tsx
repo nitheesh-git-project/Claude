@@ -62,6 +62,13 @@ export default function SpecialtyExamPanel({
       );
     case "pediatrics":
       return <DeferredExamNotice specialty={specialty} voice={voice} />;
+    // No examination layer by design (phase 6a): their progress is the
+    // shared measurements -- the STEADI tests, the six-minute walk, the
+    // vitals -- drawn by the profile's own layout (6b). Nothing here rather
+    // than a "still being built" notice for a chart that is not coming.
+    case "geriatric":
+    case "cardiopulmonary":
+      return null;
     default: {
       const exhaustive: never = specialty;
       return exhaustive;

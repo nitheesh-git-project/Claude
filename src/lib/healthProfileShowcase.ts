@@ -15,8 +15,14 @@ import { PEDS_INTAKE_QUESTIONS } from "@/lib/intakePediatrics";
 import type { PainAssessmentRow } from "@/lib/painMap";
 import type { IntakeTrendPoint } from "@/lib/healthProfileSummary";
 
+/** The condition types the public showcase has a sample for. Strength and
+ *  balance care and heart and lung rehabilitation (phase 6a) have none yet,
+ *  so switching one on does not change the public pages; adding a sample is
+ *  a public-site change of its own. */
+export type ShowcaseSpecialty = Extract<ConditionSpecialty, "ortho" | "neuro" | "pediatrics">;
+
 export type ShowcaseProfile = {
-  specialty: ConditionSpecialty;
+  specialty: ShowcaseSpecialty;
   label: string;
   icon: string;
   /** Who it is for, in one line. */
@@ -150,7 +156,7 @@ export type SampleDashboard = {
 
 const at = (day: string) => `${day}T12:30:00.000Z`;
 
-export const SAMPLE_DASHBOARDS: Record<ConditionSpecialty, SampleDashboard> = {
+export const SAMPLE_DASHBOARDS: Record<ShowcaseSpecialty, SampleDashboard> = {
   ortho: {
     patient: "Riya",
     condition: "Right knee pain, lower back",

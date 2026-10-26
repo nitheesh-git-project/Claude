@@ -3,9 +3,9 @@ import type { ProfileKind } from "@/lib/outcomeMeasures";
 
 // The patient diary (Health Profile redesign, phase 4a): what a patient --
 // or the family member holding their phone -- writes down between sessions.
-// Freezing episodes, falls and near-misses for the Parkinson's sub-profile
-// today; active minutes for heart and lung rehabilitation once that becomes
-// a condition type. ONE generic, append-only table (patient_diary_entries,
+// Freezing episodes, falls and near-misses for the Parkinson's sub-profile;
+// falls and near-misses for neurological care and Strength and balance
+// care; active minutes for Heart and lung rehabilitation (phase 6a). ONE generic, append-only table (patient_diary_entries,
 // supabase/schema.sql) with a `kind` and a `details` object in the shape
 // this module validates, the outcome_measurements pattern: every reader
 // (weekly counts, falls since a date, the freezing graph) asks the same
@@ -40,9 +40,10 @@ export type DiaryEnteredByRole = "patient" | "therapist" | "admin";
 
 /** The kinds each profile kind's diary offers. Falls and near-misses matter
  *  wherever falls are the risk; freezing is a Parkinson's symptom; active
- *  minutes are the heart and lung programme's dose (defined now, reachable
- *  when that condition type is). Ortho and paediatric records have no
- *  diary yet. */
+ *  minutes are the heart and lung programme's dose (reachable since phase
+ *  6a made it a condition type). Ortho and paediatric records have no
+ *  diary yet. Strength and balance care keeps falls and near-misses -- the
+ *  confirmed falls feed its STEADI level (geriatricRisk.ts). */
 export const DIARY_KINDS_BY_PROFILE_KIND: Record<ProfileKind, readonly DiaryKind[]> = {
   ortho: [],
   neuro: ["fall", "near_miss"],
@@ -472,6 +473,67 @@ export function freezingWeeklySeries(
       patientReported: inWeek.length > 0 && inWeek.every((e) => e.enteredByRole === "patient"),
     };
   });
+}
+
+/** The WHO's weekly aim for adults (150-300 minutes of moderate activity),
+ *  the active-minutes graph's goal line. To be verified by a senior
+ *  physiotherapist against its source. */
+export const WHO_ACTIVE_MINUTES_PER_WEEK = 150;
+
+export type ActiveMinutesWeekPoint = {
+  weekStart: string;
+  /** Moderate, vigorous and unmarked minutes: what counts towards the 150.
+   *  Light activity does not pass the talk test, so it is kept apart. */
+  minutes: number;
+  lightMinutes: number;
+  /** False for a week with no entry at all ("nothing written down", not
+   *  "no activity"). */
+  written: boolean;
+  /** Every entry that week is the patient's own account. */
+  patientReported: boolean;
+  /** The week reached the WHO aim. */
+  metGoal: boolean;
+  /** The week still in progress: drawn, but never a point the trend reads
+   *  as a fall (it is not over). */
+  inProgress: boolean;
+};
+
+/** The heart and lung programme's dose: active minutes per clinic week for
+ *  the last `weeks` weeks (default 12) up to `nowMs`'s week, against the
+ *  WHO's 150. */
+export function activeMinutesWeeklySeries(
+  entries: readonly Pick<DiaryEntry, "kind" | "details" | "occurredAt" | "enteredByRole" | "confirmedAt">[],
+  opts: { nowMs: number; weeks?: number; goal?: number }
+): { goal: number; weeks: ActiveMinutesWeekPoint[] } {
+  const weeks = Math.max(1, Math.floor(opts.weeks ?? 12));
+  const goal = opts.goal ?? WHO_ACTIVE_MINUTES_PER_WEEK;
+  const thisWeek = clinicWeekStart(opts.nowMs);
+  const fromWeekStart = addDays(thisWeek, -7 * (weeks - 1));
+  const active = entries.filter((e) => e.kind === "active_minutes" && Number.isFinite(Date.parse(e.occurredAt)));
+  const rows = weeklyDiaryTotals(active, { nowMs: opts.nowMs, fromWeekStart, kinds: ["active_minutes"] });
+  return {
+    goal,
+    weeks: rows.map((row) => {
+      const inWeek = active.filter((e) => clinicWeekStart(e.occurredAt) === row.weekStart);
+      let minutes = 0;
+      let lightMinutes = 0;
+      for (const e of inWeek) {
+        const d = e.details as ActiveMinutesDetails;
+        const amount = typeof d?.minutes === "number" && Number.isFinite(d.minutes) ? d.minutes : 0;
+        if (d?.intensity === "light") lightMinutes += amount;
+        else minutes += amount;
+      }
+      return {
+        weekStart: row.weekStart,
+        minutes,
+        lightMinutes,
+        written: inWeek.length > 0,
+        patientReported: inWeek.length > 0 && inWeek.every((e) => e.enteredByRole === "patient"),
+        metGoal: minutes >= goal,
+        inProgress: row.weekStart === thisWeek,
+      };
+    }),
+  };
 }
 
 export type FallsSince = {

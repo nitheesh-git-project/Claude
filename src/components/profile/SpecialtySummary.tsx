@@ -1,6 +1,7 @@
 import OrthoSummaryCard from "@/components/profile/OrthoSummaryCard";
 import NeuroSummaryCard from "@/components/profile/NeuroSummaryCard";
 import PediatricsSummaryCard from "@/components/profile/PediatricsSummaryCard";
+import IntakeAnswersCard from "@/components/profile/IntakeAnswersCard";
 import type { IntakeQuestion } from "@/lib/conditionIntake";
 import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
 
@@ -27,6 +28,11 @@ export default function SpecialtySummary({
       return <NeuroSummaryCard questions={questions} data={data} />;
     case "pediatrics":
       return <PediatricsSummaryCard questions={questions} data={data} />;
+    // Phase 6a ships the data; the designed cards are phase 6b. Until then
+    // every answered question is listed, so nothing on file is hidden.
+    case "geriatric":
+    case "cardiopulmonary":
+      return <IntakeAnswersCard questions={questions} data={data} />;
     default: {
       const exhaustive: never = specialty;
       return exhaustive;

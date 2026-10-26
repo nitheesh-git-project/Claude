@@ -63,7 +63,8 @@ export function sessionExamWindowStartMs(slotMs: number, debugOffsetMs: number):
 /** The examination a delivered session must leave on the record, by the
  *  patient's condition type: the Pain Map for an orthopaedic patient, the
  *  neurological examination chart for a neurological one, the paediatric
- *  examination (milestones) for a paediatric one. */
+ *  examination (milestones) for a paediatric one. Geriatric and
+ *  cardiopulmonary patients have none (requiredSessionExam returns null). */
 export type SessionExamKind = "pain_map" | "neuro_exam" | "peds_exam";
 
 /**
@@ -98,6 +99,16 @@ export function requiredSessionExam(
       return "neuro_exam";
     case "pediatrics":
       return pedsGate ? "peds_exam" : null;
+    // Phase 6a, the owner's decision: Strength and balance care and Heart and
+    // lung rehabilitation have NO exam before Done. Their progress is the
+    // shared measurements (the four STEADI tests, the six-minute walk, the
+    // vitals) recorded through Record a test, and no single layer stands for
+    // "this session was examined" the way the Pain Map does for ortho. A
+    // therapist's Done still needs the session note. If that decision
+    // changes, this is the one place to give them a layer.
+    case "geriatric":
+    case "cardiopulmonary":
+      return null;
     default: {
       const exhaustive: never = specialty;
       return exhaustive;

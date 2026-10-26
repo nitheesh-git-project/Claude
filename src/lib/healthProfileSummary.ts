@@ -15,6 +15,9 @@ import {
   parseMultiSelect,
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
+import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
+import { katzFromIntake } from "@/lib/geriatricRisk";
+import { mmrcGradeFromIntake } from "@/lib/cardioSafety";
 
 // The reading layer of the Health Profile: everything the patient's page
 // shows at a glance is derived here rather than inside a component, same
@@ -291,28 +294,45 @@ export type IntakeTrendRow = {
 
 export type IntakeTrendPoint = {
   date: string;
-  /** 0-10 for neuro (independence), 0-N for paediatrics (milestones). */
+  /** 0-10 for neuro (independence), 0-N for paediatrics (milestones), 0-6
+   *  for geriatric (Katz activities done without help), 0-4 for
+   *  cardiopulmonary (the mMRC breathlessness grade, lower is better). */
   value: number;
 };
 
+/** The intake answer each non-orthopaedic type trends over its approved
+ *  submissions. */
+function intakeTrendValue(specialty: Exclude<ConditionSpecialty, "ortho">, data: Record<string, string>): number {
+  switch (specialty) {
+    case "neuro":
+      return Number.parseInt(data.neuro_independence ?? "", 10);
+    case "pediatrics":
+      return data.peds_milestones ? parseMultiSelect(data.peds_milestones).length : NaN;
+    case "geriatric":
+      return katzFromIntake(data)?.score ?? NaN;
+    case "cardiopulmonary":
+      return mmrcGradeFromIntake(data) ?? NaN;
+    default: {
+      const exhaustive: never = specialty;
+      return exhaustive;
+    }
+  }
+}
+
 export function intakeTrendSeries(
   rows: IntakeTrendRow[],
-  specialty: "neuro" | "pediatrics"
+  specialty: Exclude<ConditionSpecialty, "ortho">
 ): IntakeTrendPoint[] {
   const points: IntakeTrendPoint[] = [];
   for (const row of rows) {
     if (row.status !== "approved" || !row.proposed_data) continue;
     const at = row.reviewed_at ?? row.created_at;
     if (!at) continue;
-    const value =
-      specialty === "neuro"
-        ? Number.parseInt(row.proposed_data.neuro_independence ?? "", 10)
-        : parseMultiSelect(row.proposed_data.peds_milestones).length;
+    const value = intakeTrendValue(specialty, row.proposed_data);
     // A submission that did not answer the headline question tells us
     // nothing about the trend, so it is skipped rather than plotted as a
     // zero -- which would read as a collapse.
     if (!Number.isFinite(value)) continue;
-    if (specialty === "pediatrics" && !row.proposed_data.peds_milestones) continue;
     points.push({ date: at.slice(0, 10), value });
   }
   // One point per day, last submission of that day wins.

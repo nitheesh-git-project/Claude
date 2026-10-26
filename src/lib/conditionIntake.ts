@@ -7,6 +7,8 @@ import {
 import { ORTHO_INTAKE_QUESTIONS } from "@/lib/intakeOrtho";
 import { NEURO_INTAKE_QUESTIONS } from "@/lib/intakeNeuro";
 import { PEDS_CAREGIVER_QUESTIONS, PEDS_INTAKE_QUESTIONS } from "@/lib/intakePediatrics";
+import { GERI_CARER_QUESTIONS, GERI_INTAKE_QUESTIONS } from "@/lib/intakeGeriatric";
+import { CARDIO_INTAKE_QUESTIONS } from "@/lib/intakeCardio";
 
 // Patient Care Intake: the general (non-region) history/severity form
 // behind patient_condition_profiles / condition_change_requests (see
@@ -25,10 +27,11 @@ export type IntakeQuestion = {
    *  storage, the required check, the diff view or the PDF. */
   options?: string[];
   /** True for a question that is asked but does not count towards "N of
-   *  7" -- the paediatric caregiver pre-step. Who is speaking for the
-   *  child is provenance, not a clinical question, so counting it would
-   *  make that set read as nine questions when the cap is seven. It is
-   *  still `required`, and still blocks submission when blank; this
+   *  7" -- the paediatric caregiver pre-step and the geriatric carer
+   *  pre-step. Who is speaking for the patient is provenance, not a
+   *  clinical question, so counting it would make that set read as nine
+   *  questions when the cap is seven. Its `required` still applies (the
+   *  paediatric pair is required, the geriatric carer optional); this
    *  governs the progress figures only. */
   excludeFromCount?: boolean;
   /** Ask this question only once an EARLIER question in the same set has
@@ -66,7 +69,7 @@ export type IntakeQuestion = {
   exclusiveOptions?: string[];
 };
 
-// The three question sets, one per specialty. `data` is a FLAT blob shared
+// The question sets, one per specialty (five since phase 6a). `data` is a FLAT blob shared
 // by all of them -- re-triaging a patient keeps the previous specialty's
 // answers rather than deleting them -- which only works while the key
 // namespaces are disjoint. assertDisjointKeys below is what enforces that;
@@ -81,15 +84,21 @@ export const INTAKE_QUESTIONS_BY_SPECIALTY: Record<ConditionSpecialty, IntakeQue
   ortho: ORTHO_INTAKE_QUESTIONS,
   neuro: NEURO_INTAKE_QUESTIONS,
   pediatrics: [...PEDS_CAREGIVER_QUESTIONS, ...PEDS_INTAKE_QUESTIONS],
+  // Phase 6a. The geriatric carer pair is a pre-step like the paediatric
+  // caregiver's, but optional: the patient usually speaks for themselves.
+  geriatric: [...GERI_CARER_QUESTIONS, ...GERI_INTAKE_QUESTIONS],
+  cardiopulmonary: CARDIO_INTAKE_QUESTIONS,
 };
 
 /** The questions that count towards "N of 7" and towards the seven-question
- *  cap. Pediatrics' caregiver pre-step is excluded; every other set is its
- *  whole list. */
+ *  cap. The paediatric caregiver and the geriatric carer pre-steps are
+ *  excluded; every other set is its whole list. */
 export const CLINICAL_QUESTIONS_BY_SPECIALTY: Record<ConditionSpecialty, IntakeQuestion[]> = {
   ortho: ORTHO_INTAKE_QUESTIONS,
   neuro: NEURO_INTAKE_QUESTIONS,
   pediatrics: PEDS_INTAKE_QUESTIONS,
+  geriatric: GERI_INTAKE_QUESTIONS,
+  cardiopulmonary: CARDIO_INTAKE_QUESTIONS,
 };
 
 export function questionsForSpecialty(specialty: ConditionSpecialty): IntakeQuestion[] {
@@ -120,6 +129,9 @@ export const INTAKE_QUESTIONS_VERSION_BY_SPECIALTY: Record<ConditionSpecialty, n
   neuro: 2,
   // 2: peds_weeks_at_birth (optional, at the end of the set; phase 5a).
   pediatrics: 2,
+  // 1: the sets as they first shipped (phase 6a).
+  geriatric: 1,
+  cardiopulmonary: 1,
 };
 
 export function intakeVersionForSpecialty(specialty: ConditionSpecialty): number {

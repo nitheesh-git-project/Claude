@@ -60,15 +60,19 @@ export default function ConditionTriageDialog({
 
   const missing = findMissingRequiredKeys(shownQuestions, answers);
   const ready = missing.length === 0;
-  const suggestion = ready ? suggestSpecialtyFromTriage(answers) : null;
-  const effectivePick = picked ?? suggestion?.suggested ?? null;
-
   // A specialty switched off in Settings is not offered -- except the one
   // this profile already has, so turning pediatrics off cannot strand an
   // existing paediatric patient whose record needs re-triaging.
   const offered = CONDITION_SPECIALTIES.filter(
     (s) => enabledSpecialties.includes(s.key) || s.key === currentSpecialty
   );
+  // The suggestion is chosen from what is offered, so it never pre-selects
+  // a card this dialog is not showing (a switched-off type is named in the
+  // reason instead).
+  const suggestion = ready
+    ? suggestSpecialtyFromTriage(answers, { offered: offered.map((s) => s.key) })
+    : null;
+  const effectivePick = picked ?? suggestion?.suggested ?? null;
 
   function handleContinue() {
     if (!ready) {

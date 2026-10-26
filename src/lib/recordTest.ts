@@ -385,7 +385,7 @@ export type EditorState = {
   /** Strength: three pushes each side. */
   injuredTexts: string[];
   healthyTexts: string[];
-  /** Orthostatic readings by key. */
+  /** Blood pressure readings by key (orthostatic, or a seated pair). */
   readingTexts: Record<string, string>;
   /** What an embedded timer produced. `usedArms` is the chair stand's
    *  tick (the score is then 0 and `items` holds the stands with arms). */
@@ -462,7 +462,12 @@ export function computeEntry(m: OutcomeMeasure, st: EditorState, useTimer: boole
     }
     if (Object.keys(readings).length === 0) return NOTHING;
     const derived = m.readings.derive(readings);
-    if (derived === null) return { ...NOTHING, items: readings, problem: "Enter the lying reading and at least one standing reading (top number above the bottom)." };
+    if (derived === null) {
+      const problem = m.readings.keys.includes("lying_systolic")
+        ? "Enter the lying reading and at least one standing reading (top number above the bottom)."
+        : "Enter both numbers, the top one above the bottom one.";
+      return { ...NOTHING, items: readings, problem };
+    }
     const value = roundTo(derived, m.decimals);
     return { value, items: readings, problem: null, working: null };
   }

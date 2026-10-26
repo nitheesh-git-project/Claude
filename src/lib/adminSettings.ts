@@ -1,4 +1,9 @@
-import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
+import {
+  CONDITION_SPECIALTY_KEYS,
+  DEFAULT_ENABLED_INTAKE_SPECIALTIES,
+  isConditionSpecialty,
+  type ConditionSpecialty,
+} from "@/lib/conditionSpecialty";
 
 import { DEFAULT_PAYMENT_GATEWAY_FEE_PERCENT } from "@/lib/operatingCosts";
 import {
@@ -204,7 +209,9 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   abandonedBookingAccountDays: 3,
   patientCancelCutoffMinutes: 15,
   paymentGatewayFeePercent: DEFAULT_PAYMENT_GATEWAY_FEE_PERCENT,
-  enabledIntakeSpecialties: ["ortho", "neuro", "pediatrics"],
+  // The three original types; Strength and balance care and Heart and lung
+  // rehabilitation (phase 6a) are off until an admin switches them on.
+  enabledIntakeSpecialties: [...DEFAULT_ENABLED_INTAKE_SPECIALTIES],
   journeyStepSeconds: 4,
   splashEnabled: true,
   followDeviceTheme: false,
@@ -315,11 +322,11 @@ export function parseEnabledIntakeSpecialties(raw: unknown): ConditionSpecialty[
   if (!Array.isArray(raw)) return DEFAULT_ADMIN_SETTINGS.enabledIntakeSpecialties;
   const seen = new Set<ConditionSpecialty>(["ortho"]);
   for (const entry of raw) {
-    if (entry === "ortho" || entry === "neuro" || entry === "pediatrics") seen.add(entry);
+    if (isConditionSpecialty(entry)) seen.add(entry);
   }
   // Stable order, so the toggles and the triage picker never disagree
   // about which comes first.
-  return (["ortho", "neuro", "pediatrics"] as const).filter((s) => seen.has(s));
+  return CONDITION_SPECIALTY_KEYS.filter((s) => seen.has(s));
 }
 
 // A stored-but-blank string (e.g. a field an admin cleared and never

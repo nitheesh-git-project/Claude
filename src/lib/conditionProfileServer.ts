@@ -8,6 +8,8 @@ import {
 } from "@/lib/conditionIntake";
 import {
   DEFAULT_CONDITION_SPECIALTY,
+  DEFAULT_ENABLED_INTAKE_SPECIALTIES,
+  isConditionSpecialty,
   parseConditionSpecialty,
   type ConditionSpecialty,
 } from "@/lib/conditionSpecialty";
@@ -99,11 +101,12 @@ export async function readEnabledSpecialties(admin: AnyClient): Promise<Conditio
     .eq("id", true)
     .maybeSingle();
   const raw = data?.enabled_intake_specialties;
-  if (!Array.isArray(raw)) return ["ortho", "neuro", "pediatrics"];
-  const parsed = raw.filter((v): v is ConditionSpecialty =>
-    v === "ortho" || v === "neuro" || v === "pediatrics"
-  );
+  // Failing open means the column's own default -- the three original types.
+  // The two phase-6a types are never switched on by a failed read: they are
+  // off until an admin chooses them.
+  if (!Array.isArray(raw)) return [...DEFAULT_ENABLED_INTAKE_SPECIALTIES];
+  const parsed = raw.filter(isConditionSpecialty);
   // Never empty, and ortho is always available: an admin cannot switch off
   // every specialty and leave triage with nothing to pick.
-  return parsed.length > 0 ? Array.from(new Set(["ortho" as const, ...parsed])) : ["ortho", "neuro", "pediatrics"];
+  return parsed.length > 0 ? Array.from(new Set(["ortho" as const, ...parsed])) : [...DEFAULT_ENABLED_INTAKE_SPECIALTIES];
 }

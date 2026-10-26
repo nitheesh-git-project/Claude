@@ -144,12 +144,16 @@ describe("the registry", () => {
     expect(outcomeMeasure("fugl_meyer_ue")!.scoreSheet!.sections!.map((s) => s.itemCount)).toEqual([18, 5, 7, 3]);
   });
 
-  it("names the six profile kinds, with Parkinson's under neuro and the two new ones unmapped", () => {
+  it("names the six profile kinds, with Parkinson's under neuro and the two phase-6a types each their own", () => {
     expect(PROFILE_KINDS).toHaveLength(6);
     for (const kind of PROFILE_KINDS) expect(PROFILE_KIND_LABELS[kind].patientLabel).toBeTruthy();
     expect(profileKindsForSpecialty("neuro")).toEqual(["neuro", "neuro_parkinsons"]);
     expect(profileKindsForSpecialty("ortho")).toEqual(["ortho"]);
     expect(profileKindsForSpecialty("pediatrics")).toEqual(["pediatrics"]);
+    expect(profileKindsForSpecialty("geriatric")).toEqual(["geriatric"]);
+    expect(profileKindsForSpecialty("cardiopulmonary")).toEqual(["cardiopulmonary"]);
+    expect(PROFILE_KIND_LABELS.geriatric).toEqual({ label: "Geriatric", patientLabel: "Strength and balance care" });
+    expect(PROFILE_KIND_LABELS.cardiopulmonary).toEqual({ label: "Cardiopulmonary", patientLabel: "Heart and lung rehabilitation" });
     for (const kind of PROFILE_KINDS) expect(measuresForProfileKind(kind).length, kind).toBeGreaterThan(0);
   });
 });
@@ -566,5 +570,36 @@ describe("a timed test's trials", () => {
     expect(refused({ ...tug, value: 12.3, items: [12.1, 12.4, 12.4] }, { profileKind: "neuro", nowMs: NOW })).toMatch(
       /neurological examination/
     );
+  });
+});
+
+describe("the heart and lung vitals (phase 6a)", () => {
+  const cardio = { profileKind: "cardiopulmonary" as const, nowMs: NOW };
+  const setting = { setting: "in_person" };
+
+  it("stores a blood pressure with both numbers, the top one as the value, at rest or after exercise", () => {
+    const m = accepted(
+      { measureKey: "blood_pressure", variant: "rest", value: 124, items: { systolic: 124, diastolic: 78 }, measuredAt: AN_HOUR_AGO, conditions: setting },
+      cardio
+    );
+    expect(m).toMatchObject({ value: 124, variant: "rest", items: { systolic: 124, diastolic: 78 } });
+    expect(refused({ measureKey: "blood_pressure", variant: "rest", value: 124, items: { systolic: 124, diastolic: 130 }, measuredAt: AN_HOUR_AGO, conditions: setting }, cardio)).toMatch(
+      /do not give a result/
+    );
+    expect(refused({ measureKey: "blood_pressure", value: 124, items: { systolic: 124, diastolic: 78 }, measuredAt: AN_HOUR_AGO, conditions: setting }, cardio)).toBeTruthy();
+    expect(outcomeMeasure("blood_pressure")!.variants!.map((v) => v.key)).toEqual(["rest", "after_exercise"]);
+  });
+
+  it("keeps resting oxygen against the patient's own limit, and the talk test as context with three grades", () => {
+    expect(riskBand("resting_spo2", 87, { profileKind: "cardiopulmonary", patientLimit: 88 })).toMatchObject({ band: "higher_risk" });
+    expect(accepted({ measureKey: "talk_test", value: 1, measuredAt: AN_HOUR_AGO, conditions: setting }, cardio).value).toBe(1);
+    expect(refused({ measureKey: "talk_test", value: 3, measuredAt: AN_HOUR_AGO, conditions: setting }, cardio)).toBeTruthy();
+    expect(outcomeMeasure("talk_test")!.better).toBe("hold");
+    expect(outcomeMeasure("talk_test")!.classification).toBe(true);
+  });
+
+  it("keeps both Borg scales licensed and off, with the free ratings beside them", () => {
+    for (const key of ["borg_cr10", "borg_rpe", "cat"]) expect(isMeasureEnabled(key), key).toBe(false);
+    for (const key of ["breathlessness_nrs", "talk_test", "blood_pressure", "resting_spo2"]) expect(isMeasureEnabled(key), key).toBe(true);
   });
 });

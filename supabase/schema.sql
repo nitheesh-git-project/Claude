@@ -18640,6 +18640,55 @@ exception when duplicate_object then null;
 end $$;
 
 -- ---------------------------------------------------------------------
+-- Phase 6a: two more condition types, `geriatric` ("Strength and balance
+-- care" to the patient) and `cardiopulmonary` ("Heart and lung
+-- rehabilitation"). See src/lib/conditionSpecialty.ts and
+-- docs/rules/clinical.md.
+--
+-- The four specialty CHECKs are widened to the five types -- extended, not
+-- weakened: each still lists every value it allows, and nothing else in
+-- them changes. Each is dropped and re-added under its OWN name so the
+-- block re-runs cleanly (the earlier `add constraint` statements sit in
+-- duplicate_object guards and are no-ops on a database that already has
+-- the constraint, so on every run this block is what leaves the wider
+-- list in place). treatment_categories' CHECK was an inline column check,
+-- so its name is Postgres's deterministic auto-name.
+--
+-- No data moves: nothing was ever stored as either new value, and the
+-- question keys are new (`geri_*`, `cardio_*`) in the same flat blob.
+-- `enabled_intake_specialties` keeps its default -- the three original
+-- types -- so neither new type is offered at triage until an admin
+-- switches it on (Settings -> Clinical Questions). No intake template rows
+-- are seeded: the question bank lists the new questions from the code.
+-- ---------------------------------------------------------------------
+alter table patient_condition_profiles
+  drop constraint if exists patient_condition_profiles_specialty_check;
+alter table patient_condition_profiles
+  add constraint patient_condition_profiles_specialty_check
+  check (specialty in ('ortho', 'neuro', 'pediatrics', 'geriatric', 'cardiopulmonary'));
+
+alter table condition_change_requests
+  drop constraint if exists condition_change_requests_proposed_specialty_check;
+alter table condition_change_requests
+  add constraint condition_change_requests_proposed_specialty_check
+  check (
+    proposed_specialty is null
+    or proposed_specialty in ('ortho', 'neuro', 'pediatrics', 'geriatric', 'cardiopulmonary')
+  );
+
+alter table intake_question_templates
+  drop constraint if exists intake_question_templates_specialty_check;
+alter table intake_question_templates
+  add constraint intake_question_templates_specialty_check
+  check (specialty in ('ortho', 'neuro', 'pediatrics', 'geriatric', 'cardiopulmonary'));
+
+alter table treatment_categories
+  drop constraint if exists treatment_categories_specialty_check;
+alter table treatment_categories
+  add constraint treatment_categories_specialty_check
+  check (specialty is null or specialty in ('ortho', 'neuro', 'pediatrics', 'geriatric', 'cardiopulmonary'));
+
+-- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --
 -- Every RPC this application makes goes through the service-role client,

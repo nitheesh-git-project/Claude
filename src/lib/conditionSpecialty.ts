@@ -12,7 +12,31 @@ import type { IntakeQuestion } from "@/lib/conditionIntake";
 // pull twenty long helpText strings into their graph to get it, so the
 // question sets live in intakeOrtho/intakeNeuro/intakePediatrics and are
 // assembled in conditionIntake.ts.
-export type ConditionSpecialty = "ortho" | "neuro" | "pediatrics";
+//
+// Health Profile redesign, phase 6a: two more condition types, `geriatric`
+// ("Strength and balance care" to the patient) and `cardiopulmonary`
+// ("Heart and lung rehabilitation"). Parkinson's is NOT one of them -- it
+// stays a sub-profile inside neurological care (profileKind.ts). Both new
+// types are OFF in `enabled_intake_specialties` until an admin turns them
+// on (DEFAULT_ENABLED_INTAKE_SPECIALTIES below): the setting is a list of
+// what triage offers, and a type the clinic has not yet staffed or
+// reviewed must not appear in a therapist's picker on deploy.
+export type ConditionSpecialty = "ortho" | "neuro" | "pediatrics" | "geriatric" | "cardiopulmonary";
+
+/** Every condition type, in the order the triage picker and the settings
+ *  toggles show them. */
+export const CONDITION_SPECIALTY_KEYS: readonly ConditionSpecialty[] = [
+  "ortho",
+  "neuro",
+  "pediatrics",
+  "geriatric",
+  "cardiopulmonary",
+];
+
+/** What `enabled_intake_specialties` means when nothing is stored, the
+ *  column's own default in schema.sql: the three original types. The two
+ *  phase-6a types are deliberately absent -- an admin switches them on. */
+export const DEFAULT_ENABLED_INTAKE_SPECIALTIES: readonly ConditionSpecialty[] = ["ortho", "neuro", "pediatrics"];
 
 export const DEFAULT_CONDITION_SPECIALTY: ConditionSpecialty = "ortho";
 
@@ -68,6 +92,30 @@ export const CONDITION_SPECIALTIES: ConditionSpecialtyDef[] = [
     chipClass: "border-amber-200 bg-amber-50 text-amber-700",
     accent: "bg-amber-500",
   },
+  {
+    key: "geriatric",
+    label: "Geriatric",
+    // The owner's words. Never "geriatric" or "elderly" to the patient:
+    // nobody wants to read that word about themselves, and the care is
+    // what they came for.
+    patientLabel: "Strength and balance care",
+    blurb: "Later life: falls, unsteadiness, getting weaker, staying independent at home.",
+    // Same icon and colour as the therapist specialisation of the same name
+    // (therapistSpecialties.ts), as ortho, neuro and paediatric already are,
+    // so one kind of care is one colour on the roster and on the chart.
+    icon: "fa-person-cane",
+    chipClass: "border-sky-200 bg-sky-50 text-sky-700",
+    accent: "bg-sky-500",
+  },
+  {
+    key: "cardiopulmonary",
+    label: "Cardiopulmonary",
+    patientLabel: "Heart and lung rehabilitation",
+    blurb: "After heart surgery or a heart attack, or with a lung condition such as COPD.",
+    icon: "fa-lungs",
+    chipClass: "border-rose-200 bg-rose-50 text-rose-700",
+    accent: "bg-rose-500",
+  },
 ];
 
 const BY_KEY = new Map(CONDITION_SPECIALTIES.map((s) => [s.key, s]));
@@ -101,6 +149,11 @@ export const TRIAGE_NEURO_NONE = "None of these";
 export const TRIAGE_PROBLEM_DEVELOPMENT = "Delayed development or a condition present from birth or childhood";
 export const TRIAGE_PROBLEM_STROKE = "After a stroke, brain or spinal injury";
 export const TRIAGE_PROBLEM_LONGTERM_NEURO = "A long-term neurological condition (Parkinson's, MS, neuropathy)";
+export const TRIAGE_AGE_65_PLUS = "65 or older";
+/** Phase 6a: the two presenting problems that route to the new types. */
+export const TRIAGE_PROBLEM_FALLS = "Falls, unsteadiness or getting weaker with age";
+export const TRIAGE_PROBLEM_HEART_LUNG = "A heart or lung condition, or after heart surgery or a heart attack";
+export const TRIAGE_SIGN_BALANCE = "Difficulty with balance or walking";
 
 export const TRIAGE_QUESTIONS: IntakeQuestion[] = [
   {
@@ -110,7 +163,7 @@ export const TRIAGE_QUESTIONS: IntakeQuestion[] = [
     helpText:
       "Age on its own does not decide the answer, but it changes what the rest of these questions mean.",
     inputType: "select",
-    options: [TRIAGE_AGE_UNDER_18, "18 to 64", "65 or older"],
+    options: [TRIAGE_AGE_UNDER_18, "18 to 64", TRIAGE_AGE_65_PLUS],
     required: true,
   },
   {
@@ -125,6 +178,8 @@ export const TRIAGE_QUESTIONS: IntakeQuestion[] = [
       TRIAGE_PROBLEM_STROKE,
       TRIAGE_PROBLEM_LONGTERM_NEURO,
       TRIAGE_PROBLEM_DEVELOPMENT,
+      TRIAGE_PROBLEM_FALLS,
+      TRIAGE_PROBLEM_HEART_LUNG,
       "A long-standing ache with no clear cause",
     ],
     required: true,
@@ -139,7 +194,7 @@ export const TRIAGE_QUESTIONS: IntakeQuestion[] = [
     options: [
       "Weakness on one side",
       "Numbness or altered sensation",
-      "Difficulty with balance or walking",
+      TRIAGE_SIGN_BALANCE,
       "Tremor, stiffness or spasticity",
       "Difficulty speaking or swallowing",
       TRIAGE_NEURO_NONE,
@@ -189,12 +244,39 @@ export type SpecialtySuggestion = {
   because: string;
 };
 
-/** Suggests a specialty from the triage answers. A suggestion only -- the
- *  therapist always confirms and can always override, so this deliberately
- *  has no notion of confidence and never picks on the patient's behalf. */
+/**
+ * Suggests a specialty from the triage answers. A suggestion only -- the
+ * therapist always confirms and can always override, so this deliberately
+ * has no notion of confidence and never picks on the patient's behalf.
+ *
+ * `offered` is what triage may offer right now (the enabled types plus the
+ * profile's current one -- the dialog's own list). A rule whose type is not
+ * offered is passed over and the next one answers, so the picker never
+ * pre-selects a card it is not showing: a 70-year-old who keeps falling,
+ * at a clinic that has not switched on Strength and balance care, is
+ * suggested what the clinic does offer, with that rule's own reason. Ortho
+ * is always offered (it cannot be switched off), so there is always an
+ * answer. Omitted, every type is offered.
+ *
+ * The rules, in order -- the first that applies and is offered wins:
+ *  1. Paediatric: a child with a development concern or referral.
+ *  2. Cardiopulmonary: referred for a heart or lung condition or after
+ *     heart surgery (an adult; a child's heart condition goes to the
+ *     clinician's judgement through the ordinary rules).
+ *  3. Neurological: referred after a stroke or for a long-term
+ *     neurological condition.
+ *  4. Geriatric: referred for falls or unsteadiness (an adult), or 65 or
+ *     older whose only sign is difficulty with balance or walking. More
+ *     neurological signs than that is rule 5's cluster.
+ *  5. Neurological: any neurological sign.
+ *  6. Orthopaedic.
+ */
 export function suggestSpecialtyFromTriage(
-  answers: Record<string, string>
+  answers: Record<string, string>,
+  options: { offered?: readonly ConditionSpecialty[] } = {}
 ): SpecialtySuggestion {
+  const offered = new Set<ConditionSpecialty>(options.offered ?? CONDITION_SPECIALTY_KEYS);
+  offered.add("ortho");
   const age = (answers.age_band ?? "").trim();
   const problem = (answers.presenting_problem ?? "").trim();
   const development = (answers.development_concern ?? "").trim();
@@ -204,32 +286,76 @@ export function suggestSpecialtyFromTriage(
     .filter((s) => s && s !== TRIAGE_NEURO_NONE);
 
   const isChild = age === TRIAGE_AGE_UNDER_18;
+  const isOlder = age === TRIAGE_AGE_65_PLUS;
+  const candidates: SpecialtySuggestion[] = [];
 
   if (isChild && (development === "Yes" || problem === TRIAGE_PROBLEM_DEVELOPMENT)) {
-    return {
+    candidates.push({
       suggested: "pediatrics",
       because:
         development === "Yes"
           ? "A child with a concern about milestones or a condition present from birth."
           : "A child referred for delayed development.",
-    };
+    });
+  }
+
+  if (!isChild && problem === TRIAGE_PROBLEM_HEART_LUNG) {
+    candidates.push({
+      suggested: "cardiopulmonary",
+      because: "Referred for a heart or lung condition, or after heart surgery or a heart attack.",
+    });
   }
 
   if (problem === TRIAGE_PROBLEM_STROKE || problem === TRIAGE_PROBLEM_LONGTERM_NEURO) {
-    return { suggested: "neuro", because: `Referred for ${problem.toLowerCase()}.` };
+    candidates.push({ suggested: "neuro", because: `Referred for ${problem.toLowerCase()}.` });
+  }
+
+  if (!isChild && problem === TRIAGE_PROBLEM_FALLS && (signs.length === 0 || onlyBalanceSign(signs))) {
+    candidates.push({
+      suggested: "geriatric",
+      because: isOlder
+        ? "Aged 65 or older and referred for falls, unsteadiness or getting weaker."
+        : "Referred for falls, unsteadiness or getting weaker, with no other neurological sign.",
+    });
+  } else if (isOlder && onlyBalanceSign(signs)) {
+    candidates.push({
+      suggested: "geriatric",
+      because: "Aged 65 or older with difficulty with balance or walking and no other neurological sign.",
+    });
   }
 
   if (signs.length > 0) {
-    return {
+    candidates.push({
       suggested: "neuro",
       because: `Neurological signs present: ${signs.join(", ").toLowerCase()}.`,
-    };
+    });
   }
 
-  return {
+  const adultOnlyProblem = problem === TRIAGE_PROBLEM_FALLS || problem === TRIAGE_PROBLEM_HEART_LUNG;
+  candidates.push({
     suggested: "ortho",
-    because: isChild
-      ? "A child with a musculoskeletal complaint and no developmental concern - under 18 on its own is not a paediatric case."
-      : "A musculoskeletal complaint with no neurological signs.",
+    because:
+      isChild && adultOnlyProblem
+        ? "A child: Geriatric and Cardiopulmonary are adult condition types, so this is the closest - change it if another fits better."
+        : isChild
+          ? "A child with a musculoskeletal complaint and no developmental concern - under 18 on its own is not a paediatric case."
+          : "A musculoskeletal complaint with no neurological signs.",
+  });
+
+  const index = candidates.findIndex((c) => offered.has(c.suggested));
+  const chosen = candidates[index >= 0 ? index : candidates.length - 1];
+  // Say what was passed over, so a clinician reading "Orthopaedic" for a
+  // patient who keeps falling knows why rather than doubting the rule.
+  const skipped = Array.from(
+    new Set(candidates.slice(0, Math.max(index, 0)).map((c) => specialtyLabel(c.suggested)))
+  );
+  if (skipped.length === 0) return chosen;
+  return {
+    ...chosen,
+    because: `${chosen.because} (${skipped.join(" and ")} would fit, but ${skipped.length > 1 ? "they are" : "it is"} switched off in Settings.)`,
   };
+}
+
+function onlyBalanceSign(signs: readonly string[]): boolean {
+  return signs.length === 1 && signs[0] === TRIAGE_SIGN_BALANCE;
 }

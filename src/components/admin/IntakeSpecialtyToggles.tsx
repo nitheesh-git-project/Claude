@@ -12,7 +12,7 @@ import { CONDITION_SPECIALTIES, type ConditionSpecialty } from "@/lib/conditionS
 // turning pediatrics off would blank live patient charts and strand the
 // records already under it.
 //
-// Orthopaedic cannot be switched off: an admin who turned all three off
+// Orthopaedic cannot be switched off: an admin who turned every type off
 // would leave triage with nothing to pick and no way to onboard anybody.
 // Enforced server-side too, in the update-setting route and in
 // parseEnabledIntakeSpecialties -- this checkbox being disabled is the

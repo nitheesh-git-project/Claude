@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { profileKindsForSpecialty } from "@/lib/outcomeMeasures";
+import { CONDITION_SPECIALTY_KEYS } from "@/lib/conditionSpecialty";
 import { NEURO_SUBTYPE_KEY, NEURO_SUBTYPE_PARKINSONS, profileKindFor } from "@/lib/profileKind";
 
 describe("profileKindFor", () => {
@@ -7,6 +8,8 @@ describe("profileKindFor", () => {
     expect(profileKindFor("ortho", {})).toBe("ortho");
     expect(profileKindFor("neuro", {})).toBe("neuro");
     expect(profileKindFor("pediatrics", {})).toBe("pediatrics");
+    expect(profileKindFor("geriatric", {})).toBe("geriatric");
+    expect(profileKindFor("cardiopulmonary", {})).toBe("cardiopulmonary");
     expect(profileKindFor("neuro", null)).toBe("neuro");
     expect(profileKindFor("ortho", undefined)).toBe("ortho");
   });
@@ -25,10 +28,11 @@ describe("profileKindFor", () => {
     // The key on a non-neurological record is not a sub-profile of it.
     expect(profileKindFor("ortho", { neuro_subtype: NEURO_SUBTYPE_PARKINSONS })).toBe("ortho");
     expect(profileKindFor("pediatrics", { neuro_subtype: NEURO_SUBTYPE_PARKINSONS })).toBe("pediatrics");
+    expect(profileKindFor("geriatric", { neuro_subtype: NEURO_SUBTYPE_PARKINSONS })).toBe("geriatric");
   });
 
   it("only ever answers a kind the specialty can carry", () => {
-    for (const specialty of ["ortho", "neuro", "pediatrics"] as const) {
+    for (const specialty of CONDITION_SPECIALTY_KEYS) {
       for (const data of [{}, { neuro_subtype: NEURO_SUBTYPE_PARKINSONS }]) {
         expect(profileKindsForSpecialty(specialty)).toContain(profileKindFor(specialty, data));
       }

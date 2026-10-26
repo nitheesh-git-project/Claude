@@ -11,9 +11,9 @@ import type { ProfileKind } from "@/lib/outcomeMeasures";
 // schema_version 2 (Health Profile redesign, phase 4a). It is optional, so
 // a neurological patient without an answer is `neuro`.
 //
-// Geriatric and cardiopulmonary have no condition type yet, so no specialty
-// resolves to them here -- they become reachable one condition at a time in
-// a later phase (docs/rules/clinical.md, the measurement layer rule).
+// Geriatric ("Strength and balance care") and cardiopulmonary ("Heart and
+// lung rehabilitation") became condition types in phase 6a, and each
+// resolves to its own profile kind -- no sub-profile inside either yet.
 //
 // Dependency-free so the routes, the loaders and the screens all answer the
 // question the same way, and it is tested without a database.
@@ -42,5 +42,7 @@ export function profileKindFor(
     return "neuro";
   }
   if (specialty === "pediatrics") return "pediatrics";
+  if (specialty === "geriatric") return "geriatric";
+  if (specialty === "cardiopulmonary") return "cardiopulmonary";
   return "ortho";
 }

@@ -59,6 +59,13 @@ describe("which examination Done requires", () => {
     expect(requiredSessionExam("neuro")).toBe("neuro_exam");
   });
 
+  it("asks nothing of a geriatric or cardiopulmonary patient (phase 6a, the owner's decision)", () => {
+    for (const specialty of ["geriatric", "cardiopulmonary"] as const) {
+      expect(requiredSessionExam(specialty)).toBeNull();
+      expect(missingSessionExam(specialty, { painMap: 0, neuroExam: 0, pedsExam: 0 })).toBeNull();
+    }
+  });
+
   it("asks a paediatric patient for the paediatric exam, as it does ortho and neuro (phase 5b)", () => {
     expect(PEDS_EXAM_REQUIRED_FOR_DONE).toBe(true);
     expect(requiredSessionExam("pediatrics")).toBe("peds_exam");

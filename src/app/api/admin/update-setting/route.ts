@@ -13,6 +13,7 @@ import {
 import { isContactScanMode } from "@/lib/adminSettings";
 import { normaliseLicensedMeasureSelection } from "@/lib/licensedMeasures";
 import { normaliseSixMinuteWalkEquationChoice } from "@/lib/sixMinuteWalkEquation";
+import { CONDITION_SPECIALTY_KEYS, isConditionSpecialty } from "@/lib/conditionSpecialty";
 import { MAX_MISSION_LENGTH, MAX_VISION_LENGTH } from "@/lib/mission";
 import { isRunRateBasis } from "@/lib/financeMetrics";
 import {
@@ -550,7 +551,7 @@ export async function POST(request: NextRequest) {
   // Which specialties triage offers. Normalised rather than trusted for
   // the same reason as booking_languages, plus two invariants the parser
   // in adminSettings.ts also enforces: never empty, and always containing
-  // ortho. An admin who switched all three off would leave the therapist's
+  // ortho. An admin who switched every type off would leave the therapist's
   // onboarding picker with nothing to pick and no way to onboard anybody.
   if (key === "enabled_intake_specialties") {
     if (!Array.isArray(value)) {
@@ -558,12 +559,12 @@ export async function POST(request: NextRequest) {
     }
     const picked = new Set<string>(["ortho"]);
     for (const entry of value) {
-      if (entry !== "ortho" && entry !== "neuro" && entry !== "pediatrics") {
+      if (!isConditionSpecialty(entry)) {
         return NextResponse.json({ error: "Unknown condition type." }, { status: 400 });
       }
       picked.add(entry);
     }
-    nextValue = ["ortho", "neuro", "pediatrics"].filter((s) => picked.has(s));
+    nextValue = CONDITION_SPECIALTY_KEYS.filter((s) => picked.has(s));
   }
 
   // Licensed scales the clinic has switched on. Normalised against the

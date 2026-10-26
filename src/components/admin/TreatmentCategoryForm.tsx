@@ -304,6 +304,8 @@ export default function TreatmentCategoryForm({
           <option value="ortho">Orthopaedic</option>
           <option value="neuro">Neurological</option>
           <option value="pediatrics">Paediatric</option>
+          <option value="geriatric">Geriatric</option>
+          <option value="cardiopulmonary">Cardiopulmonary</option>
         </select>
         <p className="text-[11px] text-slate-500 mt-1">
           Groups this condition in the therapist&apos;s recommendation picker. Patients never

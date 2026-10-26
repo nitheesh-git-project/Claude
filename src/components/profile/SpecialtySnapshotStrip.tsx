@@ -41,6 +41,11 @@ export default function SpecialtySnapshotStrip({
       return <NeuroSnapshotStrip showProgress={showProgress} snapshot={neuroSnapshot({ questions, data })} />;
     case "pediatrics":
       return <PediatricsSnapshotStrip showProgress={showProgress} snapshot={pediatricsSnapshot({ questions, data })} />;
+    // Their key numbers are the profile layout's tiles (geriatricProfile.ts /
+    // cardioProfile.ts, drawn in phase 6b), not an intake strip.
+    case "geriatric":
+    case "cardiopulmonary":
+      return null;
     default: {
       const exhaustive: never = specialty;
       return exhaustive;

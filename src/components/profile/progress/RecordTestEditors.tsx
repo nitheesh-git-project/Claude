@@ -359,10 +359,13 @@ const READING_LABEL: Record<string, string> = {
   standing_1min_diastolic: "Standing 1 minute, bottom",
   standing_3min_systolic: "Standing 3 minutes, top",
   standing_3min_diastolic: "Standing 3 minutes, bottom",
+  systolic: "Top number",
+  diastolic: "Bottom number",
 };
 
-/** Blood pressure lying and standing (orthostatic drop): the registry's own
- *  named readings, from which the drop is derived and re-checked. */
+/** Blood pressure readings: lying and standing (the orthostatic drop) or a
+ *  single seated pair (`blood_pressure`) -- the registry's own named
+ *  readings, from which the value is derived and re-checked. */
 export function ReadingsEditor({
   keys,
   texts,
@@ -377,7 +380,9 @@ export function ReadingsEditor({
     <fieldset>
       <legend className="text-sm font-semibold text-slate-900">Blood pressure readings (mmHg)</legend>
       <p className="mt-0.5 text-xs text-slate-600">
-        Lie down for 5 minutes and measure. Stand, and measure at 1 minute and at 3 minutes. A fall of 20 or more in the top number, or 10 or more in the bottom, is positive.
+        {keys.includes("lying_systolic")
+          ? "Lie down for 5 minutes and measure. Stand, and measure at 1 minute and at 3 minutes. A fall of 20 or more in the top number, or 10 or more in the bottom, is positive."
+          : "Seated, same arm each time. Over 180/100 at rest means no exercise today: tell the patient's doctor."}
       </p>
       <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {keys.map((key) => (
