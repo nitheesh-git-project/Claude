@@ -99,6 +99,7 @@
       "neuro-exam.spec.ts": 45,
       "peds-exam.spec.ts": 30,
       "geriatric-cardio-intake.spec.ts": 25,
+      "geriatric-cardio-profile.spec.ts": 30,
       "numeric-input.spec.ts": 7,
       "pain-trend.spec.ts": 7,
       "patient-cancel-cutoff.spec.ts": 11,

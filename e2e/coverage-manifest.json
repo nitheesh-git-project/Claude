@@ -1603,6 +1603,23 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "geriatric-cardio-profile.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -4147,6 +4164,32 @@
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "therapist.geriatric-cardio-profile",
+      "runner": "therapist",
+      "title": "Strength and balance care and Heart and lung rehabilitation open in the shared layout: the fall-risk dial names the STEADI rule that decided it with the tests-in-the-safer-range line apart, four test cards, daily living and the home safety check (a free measure of one tick per item) are drawn for the patient and the physiotherapist; the safety limits row, the oxygen bar with the patient's own limit and the pre-session check are drawn for the heart and lung page; the guided six-minute walk cannot be started while a pre-exercise red flag stands; active minutes are written in the diary and confirmed once by the assigned therapist; neither page scrolls sideways",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "geriatric-cardio-profile.spec.ts",
+          "tests": [
+            "GP-001",
+            "GP-002",
+            "GP-003",
+            "GP-004",
+            "GP-005",
+            "GP-006"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only measurements and diary entries, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The pre-exercise refusal is enforced on the screen that starts exercise, not at a route, so it is driven in the browser (GP-004). The STEADI level, the card badges, the walk track and oxygen bar geometry, the predicted-distance 'needs ...' line, the heart-rate target rules and the readings a walk leaves behind are pure modules unit-tested in src/lib/phase6bProfile.test.ts, steadiCards.test.ts, cardioPicture.test.ts and geriatricCardioProfile.test.ts. The guided falls check is driven only as far as its first two steps (a test does not time itself in a browser test); the unreadable-read cards are unit-tested, not driven. The light and dark rendering and the tablet width are checked by screenshot in the phase's review, not here.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
       ]
     },
     {

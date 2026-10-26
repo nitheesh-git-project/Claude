@@ -1278,10 +1278,56 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      named carer is a header line ("Ramesh, your son, helps at home"), not a
      voice. **Goals and milestones stay therapist-only.** The PDF export adds
      "Fall risk and daily living" or "Safety limits and vitals" and the carer
-     line, under complete or refused. Until 6b the pages list the answers
-     (`IntakeAnswersCard`). The catalogue's condition-type tag
+     line, under complete or refused (phase 6b adds the home safety check, and
+     height and weight and the highest heart rate when present). The catalogue's condition-type tag
      (`treatment_categories.specialty`) takes both too. Every threshold is
      **to be verified by a senior physiotherapist against its source.**
+  9. **Phase 6b draws the two pages** (`GeriatricProfileTop`,
+     `CardioProfileTop`, shared by the patient, the therapist and the admin;
+     `ProfileHeader`'s `carerLine` and `safetyRow`). Geriatric: the dial
+     (`FallRiskDial`) names the STEADI level AND the rule that decided it,
+     with "Tests in the safer range: n of 4" as its own line; four test cards
+     (`steadiCards.ts`: In the safer range / Close / Not yet / Not done yet /
+     Recorded, not judged - "Close" is a margin this module chose, to be
+     verified); daily living (Katz); the home safety check; the standing blood
+     pressure, whose positive result says "tell the patient's doctor" (whether
+     the doctor was told is NOT recorded: the registry has nowhere for it
+     without a schema change); the falls diary; the graph of the Up and Go,
+     chair stand (its risk line is the person's age-and-sex norm,
+     `riskOverrides`) and walking speed. Cardiopulmonary: the safety-limits
+     chip row in the header (the patient's own oxygen limit labelled default or
+     set by the doctor, the beta-blocker note, the precautions and their end
+     date), the six-minute-walk track, the oxygen bar with the patient's own
+     limit, the talk test, the vitals strip (rest and after), the mMRC grade,
+     the weekly active minutes against 150 (the diary dialog takes active
+     minutes), a gentle red "Stop and tell your physiotherapist" box that
+     names the patient's own limit, the precautions end date beside the plan's
+     steps, and the graph of the walk, breathlessness and resting heart rate.
+     The physiotherapist's controls (Record a test, the guided falls check,
+     the guided walk, the pre-session safety check, height or weight, highest
+     heart rate) are absent, not disabled, for anyone else; an admin with
+     People scope can record and set the status; the diary is confirmed by the
+     assigned therapist only. **Free measures added:** `height_cm`,
+     `weight_kg` (latest wins), `max_hr_bpm` (variant *from an exercise test*
+     or *estimated*, never 220 minus age) and `home_safety_check` (one 1 or 0
+     per item in `items`, the value how many are done, a re-check is a new
+     row; `checklist` on the registry draws ticks). The predicted walk shows a
+     percentage only when sex, age, height, weight AND the admin-chosen
+     formula exist; otherwise a line names exactly what is missing
+     (`predictionNeedsList`), and an unreadable read is "we couldn't check",
+     never "needs". A heart-rate range (40-60% of reserve, to be verified) is
+     offered only off a beta-blocker with a recorded maximum; everyone else is
+     talk-test paced and never shown a target. **The pre-exercise refusal is
+     enforced on the screen, not at a route:** the guided six-minute walk
+     cannot start while `preExerciseCheck` says stop (the clinician wording),
+     and the route still stores a flagged reading as a fact. The walk saves its
+     before and after vitals and the talk test as readings through the
+     existing route (`walkMeasurements.ts`); the heart rate straight after a
+     walk has no measure and is not stored. Every sign-off item stays "to be
+     verified by a senior physiotherapist". Tests: `phase6bProfile.test.ts`,
+     `steadiCards.test.ts`, `cardioPicture.test.ts`;
+     `e2e/geriatric-cardio-profile.spec.ts` (written, not run); QA
+     `THR-HP-005n`, `THR-HP-005o`, `PAT-HP-026`.
   `src/lib/triageSuggestion.test.ts`, `intakeGeriatricCardio.test.ts`,
   `geriatricRisk.test.ts`, `cardioSafety.test.ts`,
   `geriatricCardioProfile.test.ts`, `sessionCompletion.test.ts`;

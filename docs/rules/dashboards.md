@@ -486,6 +486,14 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   shell's `h1`; the header's name is an `h2`. A neurological page's realtime
   tables add `patient_diary_entries`; the admin sees the diary read-only. Detail:
   `clinical.md`.
+  Strength and balance care and Heart and lung rehabilitation (phase 6b) use
+  the same skeleton (`GeriatricProfileTop`, `CardioProfileTop`: header,
+  where things stand, four tiles, the condition picture, the diary, graph,
+  steps, measures) with `subject="self"`; their realtime tables add
+  `patient_diary_entries` and the progress tables, no new table. No
+  `SpecialtySnapshotStrip` on either. Dials, tracks and bars are SVG or divs
+  that stay readable at 360 and use the chart colour variables so they hold
+  in dark. Detail: `clinical.md` rule 9 of the phase 6a/6b entry.
 - **A patient nobody has onboarded is said in three places on the
   therapist's side**, because until it is done the patient's own Health
   Profile is locked: the Home feed row, a banner above the greeting
