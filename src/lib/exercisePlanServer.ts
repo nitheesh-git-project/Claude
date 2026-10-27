@@ -11,6 +11,7 @@ import {
   EXERCISE_PLAN_SELECT,
   EXERCISE_TEACHING_EVENT_SELECT,
   contraFlagsFromIntake,
+  homeExerciseNotePrefill,
   orderTeachingEvents,
   parsePlanItemRow,
   parsePlanRow,
@@ -70,7 +71,7 @@ async function loadItems(client: AnyClient, planIds: readonly string[]) {
   return items as NonNullable<(typeof items)[number]>[];
 }
 
-async function loadEventsWhere(client: AnyClient, column: "plan_id" | "run_id", value: string): Promise<TeachingEvent[] | null> {
+async function loadEventsWhere(client: AnyClient, column: "plan_id" | "run_id" | "patient_id", value: string): Promise<TeachingEvent[] | null> {
   const { data, error } = await client
     .from("exercise_teaching_events")
     .select(EXERCISE_TEACHING_EVENT_SELECT)
@@ -151,6 +152,47 @@ export async function loadTeachingEvents(client: AnyClient, runId: string): Prom
   } catch {
     return { status: "unreadable" };
   }
+}
+
+export type PatientTeachingRead = { status: "ok"; events: TeachingEvent[] } | { status: "not_migrated" } | { status: "unreadable" };
+
+/** Every teaching mark for a patient across all plan versions, oldest first
+ *  (the clinician's chart; past the row cap it is unreadable, not short). */
+export async function loadPatientTeachingEvents(client: AnyClient, patientId: string): Promise<PatientTeachingRead> {
+  try {
+    const { error: probe } = await client.from("exercise_teaching_events").select("id").limit(0);
+    if (probe) return MISSING.has(probe.code ?? "") ? { status: "not_migrated" } : { status: "unreadable" };
+    const events = await loadEventsWhere(client, "patient_id", patientId);
+    return events ? { status: "ok", events } : { status: "unreadable" };
+  } catch {
+    return { status: "unreadable" };
+  }
+}
+
+/**
+ * For the session note dialog's prefill: each patient's ACTIVE plan as the
+ * clinician-register line (homeExerciseNotePrefill). A convenience, so it
+ * is tolerant: a database without the tables, or a read that fails, gives
+ * an empty map and the field simply stays empty -- never a refusal.
+ */
+export async function loadHomeExerciseNotePrefills(client: AnyClient, patientIds: readonly string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  try {
+    for (let i = 0; i < patientIds.length; i += 100) {
+      const chunk = patientIds.slice(i, i + 100);
+      const { data, error } = await client.from("exercise_plans").select(EXERCISE_PLAN_SELECT).eq("status", "active").in("patient_id", chunk);
+      if (error || !data || data.length === 0) continue;
+      const items = await loadItems(client, data.map((r) => r.id as string));
+      if (!items) continue;
+      for (const row of data) {
+        const plan = parsePlanRow(row, items);
+        if (plan && plan.items.length > 0) out.set(plan.patientId, homeExerciseNotePrefill(plan));
+      }
+    }
+  } catch {
+    /* the prefill is a convenience */
+  }
+  return out;
 }
 
 export type ExerciseContextRead =

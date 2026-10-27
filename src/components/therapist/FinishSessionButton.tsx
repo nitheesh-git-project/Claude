@@ -31,6 +31,7 @@ export default function FinishSessionButton({
   recommendationNeedsApproval = true,
   recommendationAwaitingClinic = false,
   summary,
+  homeExercisePrefill = null,
   beside,
 }: {
   /** Rendered next to Done in one unbreakable pair (the card's No Show), so
@@ -51,6 +52,8 @@ export default function FinishSessionButton({
   recommendationAwaitingClinic?: boolean;
   /** The patient's summary of this session, written beside the note. */
   summary: SummaryForDialog;
+  /** The active Home exercises as a line, for a new note's empty field. */
+  homeExercisePrefill?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [notYet, setNotYet] = useState(false);
@@ -97,6 +100,7 @@ export default function FinishSessionButton({
           recommendationNeedsApproval={recommendationNeedsApproval}
           recommendationAwaitingClinic={recommendationAwaitingClinic}
           summary={summary}
+          homeExercisePrefill={homeExercisePrefill}
           completeOnSave
           sessionStartIso={slotTime}
           onClose={() => setOpen(false)}

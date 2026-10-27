@@ -1,5 +1,6 @@
 "use client";
 
+import { homeExerciseInitialValue } from "@/lib/exercisePlan";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useToast } from "@/lib/toast";
 import { debugNowHeaders } from "@/lib/debugNow";
@@ -55,6 +56,7 @@ export default function SessionNoteDialog({
   recommendationNeedsApproval,
   recommendationAwaitingClinic,
   summary,
+  homeExercisePrefill = null,
   completeOnSave = false,
   sessionStartIso = null,
   onClose,
@@ -78,6 +80,9 @@ export default function SessionNoteDialog({
    *  the patient reads. Its own record (session_summaries), never part of
    *  the note. */
   summary: SummaryForDialog;
+  /** The patient's active Home exercises as one line, for a NEW note's empty
+   *  home-exercise field only (never over text already there). */
+  homeExercisePrefill?: string | null;
   /** When the session was, for the dialog's own subtitle. */
   sessionLabel: string;
   existing: SessionNoteRow | null;
@@ -97,6 +102,7 @@ export default function SessionNoteDialog({
   const [values, setValues] = useState<SessionNoteData>(() => {
     const initial: SessionNoteData = {};
     for (const f of SESSION_NOTE_FIELDS) initial[f.key] = existing?.data?.[f.key] ?? "";
+    initial.home_exercise = homeExerciseInitialValue({ existingText: initial.home_exercise, isNewNote: !existing, prefill: homeExercisePrefill });
     return initial;
   });
   const [freeText, setFreeText] = useState(existing?.free_text ?? "");

@@ -13,6 +13,9 @@ import PatientOnboardingCard from "@/components/therapist/PatientOnboardingCard"
 import SurfaceCard from "@/components/dashboard/SurfaceCard";
 import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
 import CarePlanHistory from "@/components/therapist/CarePlanHistory";
+import HomeExercisesChart, { type HomeExercisesChartRead } from "@/components/therapist/HomeExercisesChart";
+import { loadExercisePlanHistory, loadPatientTeachingEvents } from "@/lib/exercisePlanServer";
+import { exerciseChartView } from "@/lib/exerciseChart";
 import { loadCarePlanHistory, loadCarePlanReviews } from "@/lib/carePlanServer";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
 import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
@@ -346,6 +349,24 @@ export default async function TherapistPatientHealthProfilePage({
     for (const a of authors ?? []) carePlanAuthorNames.set(a.id, a.full_name);
   }
 
+  // Home exercises (phase 7d): every version and every mark, read with the
+  // admin client after the access checks above, and said as "could not load"
+  // or "not set up" when it is, never as "none yet".
+  const [exerciseHistory, exerciseMarks] = await Promise.all([loadExercisePlanHistory(admin, patientId), loadPatientTeachingEvents(admin, patientId)]);
+  let exercisesRead: HomeExercisesChartRead;
+  if (exerciseHistory.status === "not_migrated" || exerciseMarks.status === "not_migrated") exercisesRead = { status: "not_migrated" };
+  else if (exerciseHistory.status !== "ok" || exerciseMarks.status !== "ok") exercisesRead = { status: "unreadable" };
+  else {
+    const ids = [...new Set([...exerciseHistory.plans.map((p) => p.authoredBy), ...exerciseMarks.events.map((e) => e.actor)])];
+    const exerciseNames = new Map<string, string>();
+    if (ids.length > 0) {
+      const { data: people, error: peopleError } = await admin.from("profiles").select("id, full_name").in("id", ids);
+      if (!peopleError) for (const person of people ?? []) exerciseNames.set(person.id as string, person.full_name as string);
+    }
+    exercisesRead = { status: "ok", versions: exerciseChartView(exerciseHistory.plans, exerciseMarks.events, exerciseNames) };
+  }
+  const exercisesSection = <HomeExercisesChart read={exercisesRead} />;
+
   const reportsSection = (
     <>
       {/* Above the notes: what the patient brought with them is context
@@ -675,6 +696,7 @@ export default async function TherapistPatientHealthProfilePage({
         "pain_assessments",
         "neuro_assessments",
         "intake_question_templates",
+        "exercise_plans",
         ...(isOrtho || neuroView || pedsView || geriView || cardioView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
         ...(neuroView || geriView || cardioView ? ["patient_diary_entries"] : []),
         ...(pedsView ? ["peds_assessments", "appointments"] : []),
@@ -718,6 +740,7 @@ export default async function TherapistPatientHealthProfilePage({
             {needsOnboarding && conditionCard}
             {orthoTop}
             {plansSection}
+            {exercisesSection}
             {notesSection}
             {reportsSection}
             {!needsOnboarding && conditionCard}
@@ -731,6 +754,7 @@ export default async function TherapistPatientHealthProfilePage({
             {needsOnboarding && conditionCard}
             {pedsTop}
             {plansSection}
+            {exercisesSection}
             {notesSection}
             {reportsSection}
             {!needsOnboarding && conditionCard}
@@ -744,6 +768,7 @@ export default async function TherapistPatientHealthProfilePage({
             {needsOnboarding && conditionCard}
             {neuroTop}
             {plansSection}
+            {exercisesSection}
             {notesSection}
             {reportsSection}
             {!needsOnboarding && conditionCard}
@@ -756,6 +781,7 @@ export default async function TherapistPatientHealthProfilePage({
             {needsOnboarding && conditionCard}
             {geriTop ?? cardioTop}
             {plansSection}
+            {exercisesSection}
             {notesSection}
             {reportsSection}
             {!needsOnboarding && conditionCard}

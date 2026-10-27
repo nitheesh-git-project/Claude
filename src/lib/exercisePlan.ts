@@ -653,6 +653,19 @@ export function practisedLine(practised: PlanItemView["practised"], dateText: st
   return opts.parent ? "Your child will practise this together with the physiotherapist next time." : "You will practise this together next time.";
 }
 
+/**
+ * What the session note's free-text "Home exercise prescribed" field starts
+ * with. Text already there is never touched; the prefill goes in ONLY when
+ * the note is NEW and the field is empty -- an existing note's empty field
+ * is the therapist's own choice and stays empty.
+ */
+export function homeExerciseInitialValue(input: { existingText: string | null | undefined; isNewNote: boolean; prefill: string | null | undefined }): string {
+  const existing = input.existingText ?? "";
+  if (existing.trim()) return existing;
+  if (!input.isNewNote) return existing;
+  return input.prefill?.trim() ? input.prefill : "";
+}
+
 // --- The session's summary draft and the session note --------------------------------------------
 
 const lowerFirst = (t: string) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);

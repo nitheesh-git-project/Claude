@@ -20,6 +20,7 @@ import {
   parseTeachingEventRow,
   planItemsJson,
   practisedLine,
+  homeExerciseInitialValue,
   teachingSummarySentence,
   validateDose,
   validatePlanItems,
@@ -302,5 +303,22 @@ describe("the Home exercises step's own gate", () => {
     expect(allExercisesMarked(plan, [event({ exerciseKey: "sit_to_stand" }), event({ id: "2", exerciseKey: "heel_raise", runId: "other" })], "run-1")).toBe(false);
     expect(allExercisesMarked(plan, [event({ exerciseKey: "sit_to_stand" }), event({ id: "2", exerciseKey: "heel_raise" })], "run-1")).toBe(true);
     expect(allExercisesMarked({ id: "plan-1", exerciseKeys: [] }, [], "run-1")).toBe(false);
+  });
+});
+
+describe("homeExerciseInitialValue", () => {
+  const prefill = "Home exercises, version 2: Bottom lift: 2 sets of 10.";
+  it("prefills an empty field on a new note", () => {
+    expect(homeExerciseInitialValue({ existingText: "", isNewNote: true, prefill })).toBe(prefill);
+    expect(homeExerciseInitialValue({ existingText: null, isNewNote: true, prefill })).toBe(prefill);
+    expect(homeExerciseInitialValue({ existingText: "  ", isNewNote: true, prefill })).toBe(prefill);
+  });
+  it("never overwrites text already there", () => {
+    expect(homeExerciseInitialValue({ existingText: "Wall slides daily", isNewNote: true, prefill })).toBe("Wall slides daily");
+    expect(homeExerciseInitialValue({ existingText: "Wall slides daily", isNewNote: false, prefill })).toBe("Wall slides daily");
+  });
+  it("leaves an existing note's empty field empty, and no prefill gives none", () => {
+    expect(homeExerciseInitialValue({ existingText: "", isNewNote: false, prefill })).toBe("");
+    expect(homeExerciseInitialValue({ existingText: "", isNewNote: true, prefill: null })).toBe("");
   });
 });

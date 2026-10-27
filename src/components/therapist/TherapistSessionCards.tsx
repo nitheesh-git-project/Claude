@@ -82,6 +82,7 @@ function finishProps(d: TherapistDashboardData, a: TherapistDashboardData["appoi
     recommendationNeedsApproval: d.carePlanRequiresApproval,
     recommendationAwaitingClinic: d.patientsAwaitingClinic.has(a.patient_id),
     summary: summaryForDialog(d.summaryByAppointmentId.get(a.id), d.summariesLoadFailed, d.nowMs),
+    homeExercisePrefill: d.homeExercisePrefillByPatientId.get(a.patient_id) ?? null,
   };
 }
 
@@ -214,6 +215,7 @@ export function renderTherapistSessionCard(
                 recommendationCategoryId={a.category_id ?? null}
                 recommendationNeedsApproval={carePlanRequiresApproval}
                 recommendationAwaitingClinic={patientsAwaitingClinic.has(a.patient_id)}
+                homeExercisePrefill={d.homeExercisePrefillByPatientId.get(a.patient_id) ?? null}
                 summary={summaryForDialog(
                   d.summaryByAppointmentId.get(a.id),
                   d.summariesLoadFailed,

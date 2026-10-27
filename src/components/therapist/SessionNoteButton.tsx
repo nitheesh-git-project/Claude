@@ -28,6 +28,7 @@ export default function SessionNoteButton({
   recommendationNeedsApproval = true,
   recommendationAwaitingClinic = false,
   summary,
+  homeExercisePrefill = null,
 }: {
   appointmentId: string;
   patientName: string;
@@ -59,6 +60,8 @@ export default function SessionNoteButton({
   recommendationAwaitingClinic?: boolean;
   /** The patient's summary of this session, written beside the note. */
   summary: SummaryForDialog;
+  /** The active Home exercises as a line, for a new note's empty field. */
+  homeExercisePrefill?: string | null;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -92,6 +95,7 @@ export default function SessionNoteButton({
           recommendationNeedsApproval={recommendationNeedsApproval}
           recommendationAwaitingClinic={recommendationAwaitingClinic}
           summary={summary}
+          homeExercisePrefill={homeExercisePrefill}
           onClose={() => setOpen(false)}
         />
       )}

@@ -5,6 +5,7 @@ import { readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows"
 import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadHomeExerciseNotePrefills } from "@/lib/exercisePlanServer";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
@@ -366,6 +367,9 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     ),
   ];
   const admin = createAdminClient();
+  // The patient's active Home exercises as a line for a NEW session note's
+  // free-text field (the dialog prefills only an empty field).
+  const homeExercisePrefillByPatientId = needNotes ? await loadHomeExerciseNotePrefills(admin, patientIds) : new Map<string, string>();
   const [
     { data: upcomingOverrides, error: upcomingOverridesError },
     { data: patients },
@@ -994,6 +998,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     noteByAppointmentId,
     summaryByAppointmentId,
     summariesLoadFailed,
+    homeExercisePrefillByPatientId,
     recommendableRates,
     patientsAwaitingClinic,
     carePlanRequiresApproval,
