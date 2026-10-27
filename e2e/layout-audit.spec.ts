@@ -137,3 +137,35 @@ for (const t of ALL) {
     ).toEqual([]);
   });
 }
+
+// The compact "what you chose" summary on booking step 2 shares a row with a
+// `w-full` actions slot. It had no flex-wrap, so on a phone the slot took the
+// row and squeezed the title column to a sliver -- a condition name printed
+// one letter per line. The generic probe above cannot see that (nothing
+// overflows, overlaps or clips), so this one measures the title itself:
+// readable width, and the Change button wrapped beneath it rather than beside.
+test("LAYOUT: the chosen-service summary keeps its title readable on a phone", async ({ browser }) => {
+  test.setTimeout(120_000);
+  for (const width of [360, 390]) {
+    const context = await browser.newContext({ reducedMotion: "reduce", viewport: { width, height: 844 } });
+    const page = await context.newPage();
+    await page.goto(`${BASE}/book`, { waitUntil: "domcontentloaded" });
+    await settle(page);
+    await page.getByRole("button", { name: /Continue to Medical Details/ }).click();
+
+    const summary = page.getByTestId("chosen-service-summary");
+    await expect(summary, `${width}px: the summary renders on step 2`).toBeVisible();
+    const box = await summary.boundingBox();
+    const title = await summary.locator("h3").boundingBox();
+    const change = await summary.getByRole("button", { name: "Change" }).boundingBox();
+    expect(box && title && change, `${width}px: summary, title and Change all measured`).toBeTruthy();
+    // A title narrower than a few words is the squeeze.
+    expect(title!.width, `${width}px: the service name has room to read`).toBeGreaterThan(140);
+    // Beneath the title, not beside it.
+    expect(change!.y, `${width}px: Change sits on its own row`).toBeGreaterThanOrEqual(title!.y + title!.height - 1);
+    expect(change!.x + change!.width, `${width}px: Change stays inside the card`).toBeLessThanOrEqual(
+      box!.x + box!.width + 1
+    );
+    await context.close();
+  }
+});

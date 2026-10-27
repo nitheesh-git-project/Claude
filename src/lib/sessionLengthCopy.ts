@@ -63,6 +63,39 @@ export function closingSessionLine(rows: DurationRow[]): string {
     : "One session. Leave with a plan.";
 }
 
+/**
+ * "An hour, one-to-one." for the home page, How it works and the mission
+ * closing band -- the sentence all three used to hard-code as "An hour".
+ *
+ * Built from the catalogue like every other length on the public pages: one
+ * shared length is named (an hour is said as "An hour"; anything else as
+ * "45 minutes"), differing or unknown lengths name no figure at all.
+ */
+export function oneToOneLine(rows: DurationRow[]): string {
+  const shared = sharedDurationMinutes(rows);
+  if (shared === null) return "One-to-one, with a physiotherapist.";
+  if (shared === 60) return "An hour, one-to-one.";
+  return `${shared} minutes, one-to-one.`;
+}
+
+/**
+ * "12 hours' notice" -- the lead time is the admin's
+ * (`online_booking_lead_time_hours`), so the sentence is built from the
+ * setting the booking wizard enforces rather than typed beside it.
+ */
+export function hoursNoticeLabel(hours: number): string {
+  if (!Number.isFinite(hours) || hours <= 0) return "no advance notice";
+  const n = Math.round(hours);
+  return n === 1 ? "1 hour's notice" : `${n} hours' notice`;
+}
+
+/** "Cancel 24 hours ahead for a full refund." from the admin's refund window. */
+export function refundWindowLine(hours: number): string {
+  if (!Number.isFinite(hours) || hours <= 0) return "Cancel any time before it starts for a full refund.";
+  const n = Math.round(hours);
+  return `Cancel ${n === 1 ? "1 hour" : `${n} hours`} ahead for a full refund.`;
+}
+
 /** The footnote under a programme's detail dialog. */
 export function programmeOpensWithLine(minutes: number | null | undefined): string {
   const m = knownMinutes(minutes);
