@@ -445,3 +445,34 @@ export function timerStartBlock(
   if (setupProgress(step, ticked).helperMissing) return "Tick the helper first";
   return null;
 }
+
+// --- Keyboard ---------------------------------------------------------------------------------------
+
+/** The one-line hint under the action bar. Space and Enter are the focused
+ *  button's own keys (the counter takes the focus when it starts). */
+export const COCKPIT_KEY_HINT = "Keys: Space or Enter taps the focused button (the counter, once started) · N saves and moves on · Esc stops the test";
+
+const TYPING_INPUT_TYPES = new Set(["text", "number", "search", "email", "tel", "url", "password", "date", "time", "datetime-local"]);
+
+/**
+ * What a key press on the cockpit means: N is Save and next, Esc is Stop
+ * test. Nothing while the person is typing (a text box, a select, an
+ * editable area), while a dialog is open (its own Esc closes it), for a
+ * held-down key's repeats, or with a modifier - so neither can fire twice
+ * by accident or steal a letter typed into a field.
+ */
+export function cockpitShortcut(
+  event: { key: string; repeat: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean },
+  target: { tag: string; inputType?: string | null; editable: boolean } | null,
+  dialogOpen: boolean
+): "save" | "stop" | null {
+  if (dialogOpen || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return null;
+  if (target) {
+    const tag = target.tag.toUpperCase();
+    if (target.editable || tag === "TEXTAREA" || tag === "SELECT") return null;
+    if (tag === "INPUT" && TYPING_INPUT_TYPES.has((target.inputType ?? "text").toLowerCase())) return null;
+  }
+  if (event.key === "Escape") return "stop";
+  if (event.key === "n" || event.key === "N") return "save";
+  return null;
+}

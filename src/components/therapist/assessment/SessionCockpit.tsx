@@ -16,11 +16,13 @@ import {
   type RunEvent,
 } from "@/lib/assessmentRun";
 import {
+  COCKPIT_KEY_HINT,
   OFFLINE_FAILURE,
   READY_NOTE,
   SKIP_OPTIONS,
   STOP_OPTIONS,
   cockpitFailure,
+  cockpitShortcut,
   currentStep,
   exertionBlock,
   firstOpenStepId,
@@ -493,6 +495,36 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   }
   const startBlocked = timerStartBlock(protocol, step, preExercise, tickedSet);
 
+  // N is Save and next (when it is on), Esc is Stop test. The handler reads
+  // the latest render through a ref; cockpitShortcut ignores typing, an open
+  // dialog (its own Esc closes it), repeats and modifiers.
+  const keyActions = useRef({ save: () => {}, stop: () => {}, canSave: false, dialogOpen: false, ended: false });
+  useEffect(() => {
+    keyActions.current = { save: () => void save(), stop: stopNow, canSave: canPrimary && !busy, dialogOpen: dialog !== null, ended: !!ended };
+  });
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const now = keyActions.current;
+      if (now.ended) return;
+      const el = e.target instanceof HTMLElement ? e.target : null;
+      const modal = now.dialogOpen || !!document.querySelector('[aria-modal="true"]');
+      const action = cockpitShortcut(
+        e,
+        el ? { tag: el.tagName, inputType: el instanceof HTMLInputElement ? el.type : null, editable: el.isContentEditable } : null,
+        modal
+      );
+      if (action === "save" && now.canSave) {
+        e.preventDefault();
+        now.save();
+      } else if (action === "stop") {
+        e.preventDefault();
+        now.stop();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const flagged = redFlagsRaised(state);
   const safetyChip = !state.redFlags
     ? { text: "Safety questions not asked yet", tone: "bg-slate-100 text-slate-800" }
@@ -673,6 +705,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                 onStop={stopNow}
                 onSkip={() => setDialog("skip")}
                 onSave={() => void save()}
+                keyHint={COCKPIT_KEY_HINT}
                 screen={{
                   firstName,
                   controls: patientControls(step),

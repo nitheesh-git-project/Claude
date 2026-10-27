@@ -1500,7 +1500,11 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      screen controls are a segmented control in the sticky bar. **A timer's
      Start stays off, saying why, until the step's helper is ticked and the
      resting check is clear** (`timerStartBlock`; the server is still the
-     gate on the save). The tool is the
+     gate on the save). **Keys:** N is Save and next when it is on, Esc is
+     Stop test - never while typing, with a dialog open, on a key repeat or
+     with a modifier (`cockpitShortcut`) - and the counter takes the focus
+     when it starts, so Space or Enter counts a stand; a one-line hint sits
+     under the bar. The tool is the
      existing recorder inline (`RecordTestDialog` with `embedded`: the same
      timers, score sheet and angle tool, the test and its variants chosen by
      the step, always over video, the vitals marked *read off the patient's own

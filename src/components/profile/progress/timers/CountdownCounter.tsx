@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTimerClockEvents } from "@/components/profile/progress/timers/useTimerClockEvents";
 import type { TimerClockEvent } from "@/lib/timerClock";
 import { readClock, useRunClock } from "@/components/profile/progress/timers/useRunClock";
@@ -88,8 +88,23 @@ export default function CountdownCounter({
 
   const remaining = countdownRemainingMs(settled, clock.now);
 
+  // The Start button goes away the moment the count starts: the focus moves
+  // to the tap target (so Space or Enter counts a stand), and when time is up
+  // to "Use" (after a discard, back to Start), rather than being dropped on the page.
+  const tapRef = useRef<HTMLButtonElement>(null);
+  const doneRef = useRef<HTMLButtonElement>(null);
+  const startRef = useRef<HTMLButtonElement>(null);
+  const hadFocus = useRef(false);
+  useEffect(() => {
+    if (!hadFocus.current) return;
+    if (settled.status === "running") tapRef.current?.focus();
+    else if (settled.status === "finished") doneRef.current?.focus();
+    else if (settled.status === "aborted") startRef.current?.focus();
+  }, [settled.status]);
+
   function start() {
     if (disabled || blockedReason) return;
+    hadFocus.current = true;
     setCount(0);
     setArmsUsed(false);
     setInterrupted(false);
@@ -114,6 +129,7 @@ export default function CountdownCounter({
 
       {settled.status === "idle" || settled.status === "aborted" ? (
         <button
+          ref={startRef}
           type="button"
           onClick={start}
           disabled={disabled || !!blockedReason}
@@ -124,6 +140,7 @@ export default function CountdownCounter({
       ) : running ? (
         <>
           <button
+            ref={tapRef}
             type="button"
             onClick={tap}
             className="mt-4 flex min-h-[9rem] w-full flex-col items-center justify-center rounded-2xl bg-teal-700 text-white transition active:bg-teal-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/40"
@@ -206,6 +223,7 @@ export default function CountdownCounter({
               Do it again
             </button>
             <button
+              ref={doneRef}
               type="button"
               onClick={() =>
                 onUse({

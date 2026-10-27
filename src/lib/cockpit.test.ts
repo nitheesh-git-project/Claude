@@ -15,6 +15,7 @@ import {
   setupProgress,
   stepAvailability,
   stepNav,
+  cockpitShortcut,
   timerStartBlock,
   toolMode,
   toolSlots,
@@ -274,5 +275,34 @@ describe("a guided step's timer start (A1)", () => {
     expect(timerStartBlock(cardio, sit, "incomplete", helper)).toBe("Save the resting check first");
     expect(timerStartBlock(cardio, sit, "clear", new Set())).toBe("Tick the helper first");
     expect(timerStartBlock(cardio, sit, "clear", helper)).toBeNull();
+  });
+});
+
+describe("the cockpit's keys (B7)", () => {
+  const key = (k: string, over: Partial<{ repeat: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean }> = {}) => ({
+    key: k,
+    repeat: false,
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    ...over,
+  });
+  const button = { tag: "BUTTON", editable: false };
+  it("N saves and Esc stops", () => {
+    expect(cockpitShortcut(key("n"), button, false)).toBe("save");
+    expect(cockpitShortcut(key("N"), null, false)).toBe("save");
+    expect(cockpitShortcut(key("Escape"), button, false)).toBe("stop");
+    expect(cockpitShortcut(key("x"), button, false)).toBeNull();
+    // A ticked checkbox is not typing.
+    expect(cockpitShortcut(key("n"), { tag: "INPUT", inputType: "checkbox", editable: false }, false)).toBe("save");
+  });
+  it("does nothing while typing, in a dialog, on a repeat or with a modifier", () => {
+    expect(cockpitShortcut(key("n"), { tag: "INPUT", inputType: "text", editable: false }, false)).toBeNull();
+    expect(cockpitShortcut(key("Escape"), { tag: "TEXTAREA", editable: false }, false)).toBeNull();
+    expect(cockpitShortcut(key("n"), { tag: "SELECT", editable: false }, false)).toBeNull();
+    expect(cockpitShortcut(key("n"), { tag: "DIV", editable: true }, false)).toBeNull();
+    expect(cockpitShortcut(key("Escape"), button, true)).toBeNull();
+    expect(cockpitShortcut(key("Escape", { repeat: true }), button, false)).toBeNull();
+    expect(cockpitShortcut(key("n", { metaKey: true }), button, false)).toBeNull();
   });
 });

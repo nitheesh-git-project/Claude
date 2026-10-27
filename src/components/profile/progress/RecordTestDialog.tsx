@@ -1304,7 +1304,9 @@ export default function RecordTestDialog({
         {sections}
         {angleOpen && jointMovement && (side === "left" || side === "right") && jointMode && measure && (
           <OverlayPortal>
-            <div className="fixed inset-0 z-50 bg-white">{angleTool}</div>
+            <div role="dialog" aria-modal="true" aria-label="Measure from an image" className="fixed inset-0 z-50 bg-white">
+              {angleTool}
+            </div>
           </OverlayPortal>
         )}
       </div>
