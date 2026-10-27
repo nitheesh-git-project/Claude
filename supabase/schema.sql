@@ -10242,10 +10242,15 @@ begin
     -- The patient diary (phase 4a, end of this file), append-only by
     -- trigger like the measurements beside it.
     patient_diary_entries,
+    -- What the clinic chose to show on one patient's Health Profile (end of
+    -- this file); the condition-kind settings are settings and stay.
+    patient_profile_widget_overrides,
     -- The guided video assessment (phase 7a, end of this file): the events
     -- are append-only by trigger and the runs refuse a delete, so they are
     -- named here rather than left to CASCADE; the live display goes with them.
     assessment_live_display,
+    -- The companion heartbeat (E12, end of this file) goes with its runs.
+    assessment_companion_seen,
     assessment_run_events,
     -- Home exercises (phase 7d, end of this file): the items and the
     -- teaching events are append-only by trigger and a plan refuses a
@@ -19872,6 +19877,280 @@ drop trigger if exists care_milestones_guard on care_milestones;
 create trigger care_milestones_guard
   before insert or update on care_milestones
   for each row execute function public.care_milestones_guard();
+
+-- ---------------------------------------------------------------------
+-- Health Profile layout (the owner's "admin decides what the profile
+-- shows"), the diary's "I saved this by mistake" correction, and the
+-- guided assessment's companion heartbeat.
+--
+-- 1. profile_widget_kind_settings: per condition kind (the six profile
+--    kinds), whether one section ("widget") of the Health Profile is shown.
+--    A row only exists where an admin chose; no row means the code's
+--    default (src/lib/profileWidgets.ts, the registry). Settings scope.
+-- 2. patient_profile_widget_overrides: the same choice for one patient,
+--    which beats the condition kind's. "Reset to condition default" deletes
+--    the row, so a row is always somebody's explicit choice. People scope.
+--
+-- Both are settings, not evidence: they are rewritten and deleted, and the
+-- history of who changed what is the admin log (profile_widgets.* rows).
+-- Their guard does three things: it stamps `set_at` with the database's
+-- time, never the caller's; it freezes the row's key (patient/kind and
+-- widget) so an "update" cannot quietly become a different choice; and it
+-- leaves `set_by`'s `on delete set null` alone. The `*_locked_shown` CHECK
+-- repeats the registry's `locked` list so no caller -- the service role
+-- included -- can hide a safety section (the status and its red flags, home
+-- exercises and their safety lines, the fall-risk level, standing blood
+-- pressure, the heart and lung safety box, the surgeon's precautions).
+-- Unlocking one later is a CHECK widened at the end of this file.
+--
+-- RLS: an admin reads; nobody writes from a browser session. The screens
+-- read them with the service role after their own auth check, because the
+-- page -- not the browser -- decides what renders. Foreign keys: the
+-- patient cascades and `set_by` is set null; neither is `restrict`, so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates the per-patient overrides (newest debug_reset_all_data()) and
+-- leaves the condition-kind settings alone, like every other setting.
+-- ---------------------------------------------------------------------
+create table if not exists profile_widget_kind_settings (
+  profile_kind text not null check (profile_kind in (
+    'ortho', 'neuro', 'neuro_parkinsons', 'pediatrics', 'geriatric', 'cardiopulmonary'
+  )),
+  widget_key text not null check (widget_key ~ '^[a-z0-9_.:]{1,80}$'),
+  visible boolean not null,
+  set_by uuid references profiles(id) on delete set null,
+  set_at timestamptz not null default now(),
+  primary key (profile_kind, widget_key),
+  constraint profile_widget_kind_settings_locked_shown check (
+    visible or widget_key not in ('status_header', 'home_exercises', 'fall_risk', 'orthostatic', 'cardio_safety', 'precautions')
+  )
+);
+
+create index if not exists profile_widget_kind_settings_set_by_idx
+  on profile_widget_kind_settings (set_by) where set_by is not null;
+
+alter table profile_widget_kind_settings enable row level security;
+
+drop policy if exists "profile_widget_kind_settings_select_admin" on profile_widget_kind_settings;
+create policy "profile_widget_kind_settings_select_admin" on profile_widget_kind_settings
+  for select using (is_admin());
+
+revoke insert, update, delete on profile_widget_kind_settings from anon, authenticated;
+
+create table if not exists patient_profile_widget_overrides (
+  patient_id uuid not null references profiles(id) on delete cascade,
+  widget_key text not null check (widget_key ~ '^[a-z0-9_.:]{1,80}$'),
+  visible boolean not null,
+  reason text check (reason is null or char_length(btrim(reason)) between 1 and 200),
+  set_by uuid references profiles(id) on delete set null,
+  set_at timestamptz not null default now(),
+  primary key (patient_id, widget_key),
+  constraint patient_profile_widget_overrides_locked_shown check (
+    visible or widget_key not in ('status_header', 'home_exercises', 'fall_risk', 'orthostatic', 'cardio_safety', 'precautions')
+  )
+);
+
+create index if not exists patient_profile_widget_overrides_set_by_idx
+  on patient_profile_widget_overrides (set_by) where set_by is not null;
+
+alter table patient_profile_widget_overrides enable row level security;
+
+drop policy if exists "patient_profile_widget_overrides_select_admin" on patient_profile_widget_overrides;
+create policy "patient_profile_widget_overrides_select_admin" on patient_profile_widget_overrides
+  for select using (is_admin());
+
+revoke insert, update, delete on patient_profile_widget_overrides from anon, authenticated;
+
+create or replace function public.profile_widget_choice_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'UPDATE' then
+    -- The key is the choice; changing it is a different choice, made by a
+    -- delete and an insert the admin log records as such.
+    if tg_table_name = 'patient_profile_widget_overrides' then
+      if (to_jsonb(new) ->> 'patient_id') is distinct from (to_jsonb(old) ->> 'patient_id') then
+        raise exception 'a Health Profile section choice belongs to one patient';
+      end if;
+    else
+      if (to_jsonb(new) ->> 'profile_kind') is distinct from (to_jsonb(old) ->> 'profile_kind') then
+        raise exception 'a Health Profile section choice belongs to one condition kind';
+      end if;
+    end if;
+    if new.widget_key is distinct from old.widget_key then
+      raise exception 'a Health Profile section choice belongs to one section';
+    end if;
+    -- The set-null of a deleted admin is not a new choice: keep its time.
+    if new.visible is not distinct from old.visible
+       and (to_jsonb(new) - 'set_by' - 'set_at') = (to_jsonb(old) - 'set_by' - 'set_at')
+       and new.set_by is null and old.set_by is not null then
+      new.set_at := old.set_at;
+      return new;
+    end if;
+  end if;
+  new.set_at := now();
+  return new;
+end;
+$$;
+
+revoke all on function public.profile_widget_choice_guard() from public, anon, authenticated;
+
+drop trigger if exists profile_widget_kind_settings_guard on profile_widget_kind_settings;
+create trigger profile_widget_kind_settings_guard
+  before insert or update on profile_widget_kind_settings
+  for each row execute function public.profile_widget_choice_guard();
+
+drop trigger if exists patient_profile_widget_overrides_guard on patient_profile_widget_overrides;
+create trigger patient_profile_widget_overrides_guard
+  before insert or update on patient_profile_widget_overrides
+  for each row execute function public.profile_widget_choice_guard();
+
+-- The Health Profile redraws when the clinic changes what it shows.
+do $$
+begin
+  alter publication supabase_realtime add table profile_widget_kind_settings;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table patient_profile_widget_overrides;
+exception when duplicate_object then null;
+end $$;
+
+-- 3. patient_diary_entries: "I saved this by mistake" (E1).
+--
+-- A diary entry is never edited or deleted, so a mistake is undone the
+-- exercise_teaching_events way: a NEW row, `kind = 'correction'`, pointing
+-- at the original through `corrects_entry_id` (no action: nothing here is
+-- deleted, so clean-e2e-residue.mjs has nothing to learn). Every count and
+-- the status read past a corrected entry (src/lib/patientDiary.ts,
+-- applyDiaryCorrections); the clinician still sees it, marked corrected.
+--
+-- The guard admits a correction only for the same patient's own,
+-- unconfirmed, non-correction entry, written by that patient, with the one
+-- reason the screen offers -- a fall the physiotherapist has confirmed is
+-- theirs to talk through, not the patient's to withdraw. A partial unique
+-- index makes it one correction per entry (race-safe: the second is a
+-- 23505 the route answers as already done). A corrected entry can no longer
+-- be confirmed, and a correction is never confirmed itself.
+--
+-- The kind CHECK is the inline column one (Postgres names it
+-- patient_diary_entries_kind_check), widened here by drop and re-add under
+-- its own name -- the first and only re-add, so a re-run has no narrower
+-- copy to trip over.
+alter table patient_diary_entries
+  add column if not exists corrects_entry_id uuid references patient_diary_entries(id);
+
+alter table patient_diary_entries drop constraint if exists patient_diary_entries_kind_check;
+alter table patient_diary_entries add constraint patient_diary_entries_kind_check
+  check (kind in ('freezing', 'fall', 'near_miss', 'active_minutes', 'correction'));
+
+alter table patient_diary_entries drop constraint if exists patient_diary_entries_correction_shape;
+alter table patient_diary_entries add constraint patient_diary_entries_correction_shape check (
+  (kind = 'correction') = (corrects_entry_id is not null)
+  and (kind <> 'correction' or (details = '{"reason": "saved_by_mistake"}'::jsonb and note is null))
+);
+
+create unique index if not exists patient_diary_entries_one_correction
+  on patient_diary_entries (corrects_entry_id) where corrects_entry_id is not null;
+
+create or replace function public.patient_diary_entries_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_original patient_diary_entries%rowtype;
+begin
+  if tg_op = 'INSERT' then
+    -- Confirmed is something that happens to an entry after it is written,
+    -- by somebody else; an entry cannot arrive already confirmed.
+    if new.confirmed_at is not null or new.confirmed_by is not null or new.confirmed_by_role is not null then
+      raise exception 'a diary entry is confirmed after it is written, never on insert';
+    end if;
+    if new.kind = 'correction' then
+      -- Locked, so a confirmation racing this correction waits for it and
+      -- then finds the correction (below), or wins and this one is refused.
+      select * into v_original from patient_diary_entries where id = new.corrects_entry_id for update;
+      if not found
+         or v_original.patient_id <> new.patient_id
+         or v_original.kind = 'correction'
+         or v_original.entered_by_role <> 'patient'
+         or new.entered_by_role <> 'patient'
+         or new.entered_by <> v_original.entered_by then
+        raise exception 'a diary correction is the same patient''s own word on their own entry';
+      end if;
+      if v_original.confirmed_at is not null then
+        raise exception 'a confirmed diary entry is not withdrawn by the patient: talk it through with the physiotherapist';
+      end if;
+    end if;
+    return new;
+  end if;
+  -- The single permitted change: the one-time confirmation stamp on a
+  -- patient's own entry, every other column untouched. The time is the
+  -- database's, not the caller's. A correction is never confirmed, and an
+  -- entry the patient has corrected is no longer there to confirm.
+  if tg_op = 'UPDATE'
+     and old.confirmed_at is null
+     and old.entered_by_role = 'patient'
+     and old.kind <> 'correction'
+     and new.confirmed_by is not null
+     and new.confirmed_by_role in ('therapist', 'admin')
+     and (to_jsonb(new) - 'confirmed_at' - 'confirmed_by' - 'confirmed_by_role')
+       = (to_jsonb(old) - 'confirmed_at' - 'confirmed_by' - 'confirmed_by_role') then
+    if exists (select 1 from patient_diary_entries c where c.corrects_entry_id = old.id) then
+      raise exception 'this diary entry was corrected by the patient as saved by mistake, so it is not confirmed';
+    end if;
+    new.confirmed_at := now();
+    return new;
+  end if;
+  raise exception 'patient_diary_entries is append-only: a diary entry is never edited; write a new one';
+end;
+$$;
+
+revoke all on function public.patient_diary_entries_guard() from public, anon, authenticated;
+
+drop trigger if exists patient_diary_entries_guard on patient_diary_entries;
+create trigger patient_diary_entries_guard
+  before insert or update or delete on patient_diary_entries
+  for each row execute function public.patient_diary_entries_guard();
+
+-- 4. assessment_companion_seen (E12): when the patient's companion screen
+-- last fetched its display during a guided run, so the cockpit can say
+-- "the patient's screen is open" honestly rather than guess. One row per
+-- run, a heartbeat rather than evidence (mutable, no guard), written only
+-- by the service role from the patient's display route after its own
+-- check; the run's own therapist reads it (and an admin). The run cascades
+-- (runs refuse a delete, so in practice only the data reset removes it,
+-- which names it).
+create table if not exists assessment_companion_seen (
+  run_id uuid primary key references assessment_runs(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  last_seen_at timestamptz not null
+);
+
+create index if not exists assessment_companion_seen_patient_idx
+  on assessment_companion_seen (patient_id);
+
+alter table assessment_companion_seen enable row level security;
+
+drop policy if exists "assessment_companion_seen_select_run_therapist" on assessment_companion_seen;
+create policy "assessment_companion_seen_select_run_therapist" on assessment_companion_seen
+  for select using (
+    is_active_therapist()
+    and exists (
+      select 1 from assessment_runs r
+      where r.id = assessment_companion_seen.run_id
+        and r.therapist_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists "assessment_companion_seen_select_admin" on assessment_companion_seen;
+create policy "assessment_companion_seen_select_admin" on assessment_companion_seen
+  for select using (is_admin());
+
+revoke insert, update, delete on assessment_companion_seen from anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.

@@ -1120,3 +1120,104 @@ begin
   raise notice 'PASS  exercise_teaching_events takes a correction chain of this run''s marks, refuses every other one, and keeps the correction columns from a browser';
 end $$;
 rollback;
+
+-- ---------------------------------------------------------------------
+-- patient_diary_entries' "I saved this by mistake" (E1) and the Health
+-- Profile layout choices. A correction is a new row on the patient's own,
+-- unconfirmed entry, once; it is never edited, deleted or confirmed, and the
+-- entry it corrects is no longer confirmable. A layout choice cannot hide a
+-- locked section, cannot move to another patient, and is stamped by the
+-- database. Both halves, as above.
+-- ---------------------------------------------------------------------
+begin;
+do $$
+declare
+  v_patient uuid;
+  v_patient2 uuid;
+  v_admin uuid;
+  v_fall uuid;
+  v_fall2 uuid;
+  v_other uuid;
+  v_ok boolean;
+begin
+  v_patient := gen_random_uuid();
+  v_patient2 := gen_random_uuid();
+  v_admin := gen_random_uuid();
+  insert into auth.users (id, email) values
+    (v_patient, 'probe-diaryfix@probe.test'), (v_patient2, 'probe-diaryfix2@probe.test'), (v_admin, 'probe-diaryfix-admin@probe.test');
+  insert into profiles (id, role, full_name, email, approved) values
+    (v_patient, 'patient', 'Probe Diary', 'probe-diaryfix@probe.test', true),
+    (v_patient2, 'patient', 'Probe Diary Two', 'probe-diaryfix2@probe.test', true),
+    (v_admin, 'admin', 'Probe Admin', 'probe-diaryfix-admin@probe.test', true)
+  on conflict (id) do nothing;
+
+  insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role)
+  values (v_patient, 'fall', now() - interval '2 hours', '{"injured": false}', v_patient, 'patient') returning id into v_fall;
+  insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role)
+  values (v_patient, 'fall', now() - interval '1 hour', '{"injured": true}', v_patient, 'patient') returning id into v_fall2;
+  insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role)
+  values (v_patient2, 'fall', now(), '{"injured": true}', v_patient2, 'patient') returning id into v_other;
+
+  -- The patient's own correction of their own unconfirmed fall lands.
+  insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role, corrects_entry_id)
+  values (v_patient, 'correction', now(), '{"reason": "saved_by_mistake"}', v_patient, 'patient', v_fall);
+
+  v_ok := false;
+  begin
+    insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role, corrects_entry_id)
+    values (v_patient, 'correction', now() + interval '1 second', '{"reason": "saved_by_mistake"}', v_patient, 'patient', v_fall);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: an entry took a second correction'; end if;
+
+  v_ok := false;
+  begin
+    insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role, corrects_entry_id)
+    values (v_patient, 'correction', now(), '{"reason": "saved_by_mistake"}', v_patient, 'patient', v_other);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a correction landed on another patient''s entry'; end if;
+
+  v_ok := false;
+  begin
+    update patient_diary_entries set confirmed_by = v_admin, confirmed_by_role = 'admin', confirmed_at = now() where id = v_fall;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a corrected entry was confirmed'; end if;
+
+  update patient_diary_entries set confirmed_by = v_admin, confirmed_by_role = 'admin', confirmed_at = now() where id = v_fall2;
+  v_ok := false;
+  begin
+    insert into patient_diary_entries (patient_id, kind, occurred_at, details, entered_by, entered_by_role, corrects_entry_id)
+    values (v_patient, 'correction', now(), '{"reason": "saved_by_mistake"}', v_patient, 'patient', v_fall2);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: the patient withdrew a confirmed entry'; end if;
+
+  v_ok := false;
+  begin delete from patient_diary_entries where corrects_entry_id = v_fall;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a correction was deletable'; end if;
+
+  -- The layout: a locked section cannot be hidden, by kind or for a patient.
+  v_ok := false;
+  begin
+    insert into patient_profile_widget_overrides (patient_id, widget_key, visible) values (v_patient, 'fall_risk', false);
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a locked section was hidden for a patient'; end if;
+  v_ok := false;
+  begin
+    insert into profile_widget_kind_settings (profile_kind, widget_key, visible) values ('cardiopulmonary', 'cardio_safety', false);
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a locked section was hidden for a condition kind'; end if;
+
+  insert into patient_profile_widget_overrides (patient_id, widget_key, visible, set_at) values (v_patient, 'measures_table', false, '2000-01-01');
+  if (select set_at from patient_profile_widget_overrides where patient_id = v_patient and widget_key = 'measures_table') < now() - interval '1 minute' then
+    raise exception 'FAIL: a layout choice kept the caller''s time';
+  end if;
+  v_ok := false;
+  begin update patient_profile_widget_overrides set patient_id = v_patient2 where patient_id = v_patient;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a layout choice moved to another patient'; end if;
+  -- Reset to the condition default is a delete, and it is allowed.
+  delete from patient_profile_widget_overrides where patient_id = v_patient;
+
+  raise notice 'PASS  a diary correction is once, own, unconfirmed and permanent; a layout choice never hides a locked section';
+end $$;
+rollback;
