@@ -1,5 +1,7 @@
 import { CLOCK_LABELS, LIVE_PHASES, clockReading, type ClockLabel, type LiveDisplayView } from "@/lib/assessmentRun";
 import { PATIENT_PICTURES, type PatientPicture } from "@/lib/sessionProtocols";
+import { EXERCISE_PICTURES } from "@/lib/exerciseLibrary";
+import type { LiveExerciseDemo } from "@/lib/assessmentRun";
 
 // The patient's companion screen, as functions (Health Profile redesign,
 // phase 7b): what the screen is showing at a moment, how the big clock reads,
@@ -91,6 +93,10 @@ export const PICTURE_DESCRIPTIONS: Record<PatientPicture, string> = {
 export function liveAnnouncement(moment: CompanionMoment): string {
   if (moment.kind === "waiting") return "Waiting for your physiotherapist.";
   const t = moment.view.text;
+  if (t.exercise) {
+    const steps = moment.view.phase === "demo" ? t.exercise.steps.map((s, i) => `${i + 1}. ${s}`) : [];
+    return [t.exercise.counter, t.title, t.line, ...steps, t.sub].filter(Boolean).join(". ");
+  }
   return [t.progress, t.title, t.line, t.sub].filter(Boolean).join(". ");
 }
 
@@ -103,6 +109,27 @@ export const WAITING_TEXT = {
 // --- Reading what the poll route sends ------------------------------------------------------------------
 
 const isText = (v: unknown): v is string => typeof v === "string";
+
+/** "Exercise 2 of 4", the only counter the server writes. */
+const EXERCISE_COUNTER_RE = /^Exercise ([1-9]\d?) of ([1-9]\d?)$/;
+
+/**
+ * The exercise a Home exercises display carries (phase 7d): the library's
+ * key, one of its 36 pictures, one to five short step lines and the
+ * "Exercise n of N" counter. Exactly that shape or null -- a view whose
+ * exercise cannot be vouched for is not drawn at all.
+ */
+export function asLiveExerciseDemo(raw: unknown): LiveExerciseDemo | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+  const e = raw as Record<string, unknown>;
+  if (Object.keys(e).some((k) => !["key", "picture", "steps", "counter"].includes(k))) return null;
+  if (!isText(e.key) || !isText(e.counter) || !isText(e.picture)) return null;
+  if (!(EXERCISE_PICTURES as readonly string[]).includes(e.picture)) return null;
+  const m = EXERCISE_COUNTER_RE.exec(e.counter);
+  if (!m || Number(m[1]) > Number(m[2])) return null;
+  if (!Array.isArray(e.steps) || e.steps.length < 1 || e.steps.length > 5 || !e.steps.every((s) => isText(s) && s.length > 0 && s.length <= 140)) return null;
+  return { key: e.key, picture: e.picture as LiveExerciseDemo["picture"], steps: [...(e.steps as string[])], counter: e.counter };
+}
 
 /**
  * The shape of a display view that came over the wire (the poll route sends
@@ -129,6 +156,8 @@ export function asLiveDisplayView(raw: unknown): LiveDisplayView | null {
     else return null;
   }
   if (!(PATIENT_PICTURES as readonly string[]).includes(text.picture)) return null;
+  const exercise = text.exercise === undefined ? undefined : asLiveExerciseDemo(text.exercise);
+  if (exercise === null) return null;
   if (text.clockLabel !== undefined && !(CLOCK_LABELS as readonly string[]).includes(text.clockLabel as string)) return null;
   return {
     runId: v.runId,
@@ -142,6 +171,7 @@ export function asLiveDisplayView(raw: unknown): LiveDisplayView | null {
       picture: text.picture as PatientPicture,
       ...(isText(text.sub) ? { sub: text.sub } : {}),
       ...(isText(text.clockLabel) ? { clockLabel: text.clockLabel as ClockLabel } : {}),
+      ...(exercise ? { exercise } : {}),
     },
     ended: v.ended,
     updatedAt: v.updatedAt,

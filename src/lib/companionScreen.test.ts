@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { LiveDisplayView } from "@/lib/assessmentRun";
+import { buildExerciseDisplay, type LiveDisplayView } from "@/lib/assessmentRun";
+import { exerciseByKey } from "@/lib/exerciseLibrary";
+import { protocolsForProfileKind, teachExercisesStep } from "@/lib/sessionProtocols";
 import {
   COMPANION_POLL_MS,
   ENDED_SCREEN_MAX_AGE_MS,
   LIVE_SCREEN_MAX_AGE_MS,
   PICTURE_DESCRIPTIONS,
   asLiveDisplayView,
+  asLiveExerciseDemo,
   clockIsRunning,
   clockShown,
   companionMoment,
@@ -129,5 +132,73 @@ describe("asLiveDisplayView", () => {
     const out = asLiveDisplayView(sneaky) as unknown as Record<string, unknown>;
     expect(out.score).toBeUndefined();
     expect((out.text as Record<string, unknown>).note).toBeUndefined();
+  });
+});
+
+describe("the exercise demo on the companion screen", () => {
+  const protocol = protocolsForProfileKind("ortho")[0];
+  const step = teachExercisesStep(protocol)!;
+  const exercise = exerciseByKey("heel_slide")!;
+  const built = (phase: "demo" | "go" | "done") => {
+    const b = buildExerciseDisplay({ protocol, step, exercise, phase, index: 1, total: 4 });
+    if (!b.ok) throw new Error("not built");
+    return b.write;
+  };
+  const asView = (phase: "demo" | "go" | "done"): LiveDisplayView => ({
+    runId: "r",
+    stepId: step.id,
+    phase,
+    clock: null,
+    text: built(phase).display,
+    ended: false,
+    updatedAt: new Date(NOW).toISOString(),
+  });
+
+  it("passes the exercise through for every phase, unchanged", () => {
+    for (const phase of ["demo", "go", "done"] as const) {
+      const v = asView(phase);
+      expect(v.text.exercise).toBeDefined();
+      const out = asLiveDisplayView(JSON.parse(JSON.stringify(v)));
+      expect(out).toEqual(v);
+      expect(out!.text.exercise!.counter).toBe("Exercise 2 of 4");
+      expect(out!.text.exercise!.steps).toEqual([...exercise.steps]);
+    }
+  });
+
+  it("says Your turn on the go phase and has no clock", () => {
+    const v = asView("go");
+    expect(v.text.line).toBe("Your turn. Show us how you do it.");
+    expect(v.clock).toBeNull();
+    expect(v.text.clockLabel).toBeUndefined();
+  });
+
+  it("keeps the patient-safe text patient-safe", () => {
+    const v = asView("demo");
+    for (const t of [v.text.title, v.text.line, v.text.sub ?? "", ...v.text.exercise!.steps]) expect(containsClinicWord(t)).toBeNull();
+  });
+
+  it("refuses a view whose exercise it cannot vouch for", () => {
+    const good = JSON.parse(JSON.stringify(asView("demo")));
+    const withExercise = (over: Record<string, unknown>) => ({ ...good, text: { ...good.text, exercise: { ...good.text.exercise, ...over } } });
+    expect(asLiveDisplayView(withExercise({ picture: "swimming" }))).toBeNull();
+    expect(asLiveDisplayView(withExercise({ counter: "Exercise 5 of 4" }))).toBeNull();
+    expect(asLiveDisplayView(withExercise({ counter: "Score 40" }))).toBeNull();
+    expect(asLiveDisplayView(withExercise({ steps: [] }))).toBeNull();
+    expect(asLiveDisplayView(withExercise({ steps: ["1", "2", "3", "4", "5", "6"] }))).toBeNull();
+    expect(asLiveDisplayView(withExercise({ steps: [42] }))).toBeNull();
+    expect(asLiveDisplayView(withExercise({ note: "LEFS 40" }))).toBeNull();
+    expect(asLiveDisplayView({ ...good, text: { ...good.text, exercise: "x" } })).toBeNull();
+  });
+
+  it("announces the counter, the name and, while it is shown, the steps", () => {
+    const demo = liveAnnouncement({ kind: "live", view: asView("demo") });
+    expect(demo).toContain("Exercise 2 of 4. Heel slide. Watch how it is done.");
+    expect(demo).toContain("1. ");
+    expect(liveAnnouncement({ kind: "live", view: asView("go") })).not.toContain("1. ");
+  });
+
+  it("reads a view with no exercise exactly as before", () => {
+    expect(asLiveDisplayView(JSON.parse(JSON.stringify(view())))!.text.exercise).toBeUndefined();
+    expect(asLiveExerciseDemo(undefined)).toBeNull();
   });
 });
