@@ -25,6 +25,8 @@ import {
   runPreExerciseCheck,
 } from "@/lib/assessmentRunServer";
 import { serverError } from "@/lib/apiError";
+import { allExercisesMarked } from "@/lib/exercisePlan";
+import { exercisesCouldNotCheck, exercisesNotMigrated, loadActiveExercisePlan, loadTeachingEvents } from "@/lib/exercisePlanServer";
 
 // One step event in a guided video assessment (phase 7a). The cockpit sends
 // what the physiotherapist did; the server re-derives the step from the
@@ -45,7 +47,9 @@ import { serverError } from "@/lib/apiError";
 //                    paediatric exam: the record that route wrote); measurementId
 //                    on a measurement step (normally written by the measurement
 //                    route itself -- this is the retry); nothing on the red-flag
-//                    and summary steps
+//                    and summary steps; nothing on the Home exercises step, which
+//                    is refused (exercises_not_marked) until every exercise in the
+//                    patient's active plan has a mark in this run (phase 7d)
 //   skipped          { reason?: SkipReason }              a skippable step only
 //   stopped          { reason?: StopReason }              Stop test: the reading is
 //                    thrown away; writes this event and nothing else
@@ -60,6 +64,7 @@ import { serverError } from "@/lib/apiError";
 //               setup_not_confirmed, helper_not_confirmed, cardio_check_not_recorded,
 //               cardio_red_flag, not_skippable, measure_not_in_step,
 //               run_not_in_progress, protocol_changed, session_not_started,
+//               exercises_not_marked,
 //           429 rate limited, 503 a check that could not be run.
 const ACTION_FOR: Record<RunEventKind, StepAction> = {
   step_opened: "open",
@@ -171,6 +176,23 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: "That record is not one you saved in this assessment.", code: "bad_request" }, { status: 400 });
         }
         details = v.details;
+      } else if (step.tool === "teach_exercises") {
+        const [active, marks] = await Promise.all([
+          loadActiveExercisePlan(gate.admin, gate.run.patientId),
+          loadTeachingEvents(gate.admin, gate.run.id),
+        ]);
+        if (active.status === "not_migrated" || marks.status === "not_migrated") return exercisesNotMigrated();
+        if (active.status !== "ok" || marks.status !== "ok") return exercisesCouldNotCheck();
+        const plan = active.plan ? { id: active.plan.id, exerciseKeys: active.plan.items.map((i) => i.exerciseKey) } : null;
+        if (!plan || !allExercisesMarked(plan, marks.events, gate.run.id)) {
+          return NextResponse.json(
+            {
+              error: "Mark every exercise in the plan first, or skip this step.",
+              code: "exercises_not_marked",
+            },
+            { status: 409 }
+          );
+        }
       } else if (step.measures.length > 0) {
         if (typeof body.measurementId !== "string") {
           return NextResponse.json(

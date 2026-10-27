@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { exerciseByKey } from "@/lib/exerciseLibrary";
+import { sessionProtocol, protocolStep } from "@/lib/sessionProtocols";
+import { runStateFromEvents, type RunEvent } from "@/lib/assessmentRun";
 import { CARDIO_CONDITION_OPEN_HEART } from "@/lib/intakeCardio";
 import { GERI_FALLS_TWO_PLUS } from "@/lib/intakeGeriatric";
 import {
   COACHING_CUES,
   EXERCISE_REFUSAL_TEXT,
+  allExercisesMarked,
   checkTeachExercise,
+  checkTeachStep,
+  teachAction,
   contraFlagsFromIntake,
   doseText,
   exercisePlanView,
@@ -240,5 +245,57 @@ describe("the summary and the session note", () => {
     expect(homeExerciseNotePrefill(PLAN)).toBe(
       "Home exercises, version 3: Sit to stand: 2 sets of 10. Once a day, 5 days a week (Use the kitchen chair); Heel-to-toe stand: Hold for 10 seconds, 3 times. Once a day, 3 days a week."
     );
+  });
+});
+
+describe("the Home exercises step's own gate", () => {
+  const knee = sessionProtocol("ortho_knee")!;
+  const cardio = sessionProtocol("cardiopulmonary")!;
+  const step = protocolStep(knee, "exercises")!;
+  let n = 0;
+  const ev = (stepId: string, kind: RunEvent["kind"], details: Record<string, unknown> = {}): RunEvent => ({
+    id: `e${++n}`,
+    runId: "run-1",
+    stepId,
+    kind,
+    measurementId: null,
+    details,
+    actor: "t",
+    createdAt: new Date(Date.parse("2026-10-27T09:00:00Z") + n * 1000).toISOString(),
+  });
+  const clear = ev("safety", "safety_confirmed", { gate: "red_flags", answers: {}, flagged: [] });
+  const flagged = ev("safety", "safety_confirmed", { gate: "red_flags", answers: { unwell_or_fever: true }, flagged: ["unwell_or_fever"] });
+  const setup = ev("exercises", "setup_confirmed", { items: ["whole_body_in_view", "clear_space"], helperPresent: false });
+  const gate = (events: RunEvent[], action: "demo" | "doing" | "not_attempted", protocol = knee, s = step) =>
+    checkTeachStep({ protocol, step: s, state: runStateFromEvents(events), action, preExercise: null })?.code ?? null;
+
+  it("follows the clinical order", () => {
+    expect(gate([], "demo")).toBe("red_flags_unanswered");
+    expect(gate([], "not_attempted")).toBe("red_flags_unanswered");
+    expect(gate([clear], "demo")).toBeNull();
+    expect(gate([clear], "doing")).toBe("setup_not_confirmed");
+    expect(gate([clear, setup], "doing")).toBeNull();
+    expect(gate([flagged], "demo")).toBe("red_flag_present");
+    expect(gate([flagged, setup], "doing")).toBe("red_flag_present");
+    expect(gate([flagged], "not_attempted")).toBeNull();
+    // Heart and lung: the patient's turn waits on the resting check.
+    expect(gate([clear, setup], "doing", cardio, protocolStep(cardio, "exercises")!)).toBe("cardio_check_not_recorded");
+  });
+
+  it("maps each request to its gate, and Save and next needs every exercise marked", () => {
+    const r = (raw: unknown) => {
+      const v = validateTeachRequest(raw);
+      if (!v.ok) throw new Error("bad");
+      return teachAction(v.request);
+    };
+    expect(r({ exerciseKey: "heel_raise", phase: "demo" })).toBe("demo");
+    expect(r({ exerciseKey: "heel_raise", phase: "go" })).toBe("doing");
+    expect(r({ exerciseKey: "heel_raise", outcome: "needs_practice", cueKey: "slow_down" })).toBe("doing");
+    expect(r({ exerciseKey: "heel_raise", outcome: "not_attempted", reasonKey: "out_of_time" })).toBe("not_attempted");
+    const plan = { id: "plan-1", exerciseKeys: ["sit_to_stand", "heel_raise"] };
+    expect(allExercisesMarked(plan, [event({ exerciseKey: "sit_to_stand" })], "run-1")).toBe(false);
+    expect(allExercisesMarked(plan, [event({ exerciseKey: "sit_to_stand" }), event({ id: "2", exerciseKey: "heel_raise", runId: "other" })], "run-1")).toBe(false);
+    expect(allExercisesMarked(plan, [event({ exerciseKey: "sit_to_stand" }), event({ id: "2", exerciseKey: "heel_raise" })], "run-1")).toBe(true);
+    expect(allExercisesMarked({ id: "plan-1", exerciseKeys: [] }, [], "run-1")).toBe(false);
   });
 });

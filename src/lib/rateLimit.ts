@@ -290,6 +290,22 @@ export const RATE_LIMITS = {
     windowSeconds: 3600,
     message: "This screen has asked for updates a lot just now.",
   },
+
+  /**
+   * Publishing a home exercise plan (/api/therapist/exercise-plans/publish,
+   * phase 7d). A session publishes one or two versions; a correction is a
+   * new version, so the ceiling only bounds a runaway client filling the
+   * patient's history. Its own scope on the one-scope-per-flow rule, keyed on
+   * the therapist's account, failing open (the default). Teaching marks and
+   * the demo display share the run's own limits (assessmentRun,
+   * assessmentDisplay).
+   */
+  exercisePlan: {
+    scope: "exercise-plan",
+    limit: 60,
+    windowSeconds: 3600,
+    message: "We've saved a lot of exercise plans from this account just now.",
+  },
 } as const satisfies Record<string, RateLimit>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

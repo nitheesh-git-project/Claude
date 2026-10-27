@@ -574,6 +574,7 @@ const SURFACE_LABELS: Record<string, string> = {
   care_status_reason: "Reason for a phase or status",
   patient_diary_note: "Patient's diary note",
   care_status_summary: "Where things stand (summary for the patient)",
+  exercise_plan_note: "Note on a home exercise",
 };
 
 /**

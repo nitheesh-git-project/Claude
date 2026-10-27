@@ -143,6 +143,11 @@ export const USER_ACTIVITY_META = {
     group: "clinical",
     verb: "ended a guided video assessment",
   },
+  "exercise_plan.published": {
+    label: "Published a home exercise plan",
+    group: "clinical",
+    verb: "published a home exercise plan",
+  },
   // feedback
   "feedback.submitted": { label: "Left session feedback", group: "feedback", verb: "left feedback on a session" },
   // referral

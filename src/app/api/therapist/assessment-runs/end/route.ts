@@ -6,6 +6,7 @@ import { ASSESSMENT_RUN_SELECT, endedLiveDisplay, parseRunRow, validateEndReques
 import { assessmentSummaryDraft } from "@/lib/assessmentSummaryDraft";
 import { loadRunMeasurements, refusalResponse, requireOpenRun, writeLiveDisplay } from "@/lib/assessmentRunServer";
 import { serverError } from "@/lib/apiError";
+import { loadTeachingEvents } from "@/lib/exercisePlanServer";
 
 // The physiotherapist ends a guided video assessment (phase 7a): completed,
 // or abandoned with one of the fixed reasons (END_REASONS; no free text).
@@ -15,7 +16,10 @@ import { serverError } from "@/lib/apiError";
 // the "Where things stand" DRAFT built from what was saved in the run
 // (assessmentSummaryDraft, in the patient's voice -- they are who a written
 // summary is for) for the cockpit's writing box; it is saved, if at all,
-// through the existing care-status `set_summary` action, never here.
+// through the existing care-status `set_summary` action, never here. Since
+// phase 7d the draft also says which home exercises were taught and how
+// they went (exercise_teaching_events of this run); a database without that
+// table drafts without it, and a read that fails gives no draft at all.
 //
 // Request:  { runId: string, outcome: "completed" | "abandoned", reason?: EndReason }
 // Response: 200 { success: true, run: AssessmentRun, summaryDraft: string | null }
@@ -47,9 +51,10 @@ export async function POST(request: NextRequest) {
   // Costs the patient's "All done" screen if it fails, never the end.
   await writeLiveDisplay(gate.admin, run, endedLiveDisplay(gate.protocol), { ended: true });
 
-  const measurements = await loadRunMeasurements(gate.admin, gate.events);
+  const [measurements, teaching] = await Promise.all([loadRunMeasurements(gate.admin, gate.events), loadTeachingEvents(gate.admin, run.id)]);
+  const draftReadable = measurements.status === "ok" && teaching.status !== "unreadable";
   const summaryDraft =
-    measurements.status === "ok"
+    measurements.status === "ok" && draftReadable
       ? assessmentSummaryDraft({
           run,
           protocol: gate.protocol,
@@ -57,6 +62,7 @@ export async function POST(request: NextRequest) {
           measurements: measurements.measurements,
           profileKind: run.profileKind,
           voice: "patient",
+          teaching: teaching.status === "ok" ? teaching.events : [],
         })
       : null;
 
@@ -69,5 +75,5 @@ export async function POST(request: NextRequest) {
     details: { runId: run.id, outcome: end.outcome, reason: end.reason },
   });
 
-  return NextResponse.json({ success: true, run, summaryDraft, summaryDraftReadable: measurements.status === "ok" });
+  return NextResponse.json({ success: true, run, summaryDraft, summaryDraftReadable: draftReadable });
 }

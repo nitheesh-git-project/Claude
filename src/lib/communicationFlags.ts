@@ -42,7 +42,10 @@ export type CommunicationSurface =
   | "patient_diary_note"
   /** The physiotherapist's written "Where things stand"; the patient
    *  reads it. */
-  | "care_status_summary";
+  | "care_status_summary"
+  /** The optional plain-words note on a home exercise's dose (phase 7d);
+   *  the patient reads it on their plan. */
+  | "exercise_plan_note";
 
 /** Longest fragment of the original text kept as evidence. */
 const MAX_EVIDENCE_CHARS = 2000;

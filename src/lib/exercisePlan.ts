@@ -1,7 +1,9 @@
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import { CARDIO_CONDITION_OPEN_HEART } from "@/lib/intakeCardio";
 import { GERI_FALLS_ONE_INJURED, GERI_FALLS_TWO_PLUS } from "@/lib/intakeGeriatric";
-import { sentenceCount } from "@/lib/sessionProtocols";
+import { sentenceCount, type ProtocolStep, type SessionProtocol } from "@/lib/sessionProtocols";
+import { checkStepAction, type RunRefusal, type RunState } from "@/lib/assessmentRun";
+import type { PreExerciseCheck } from "@/lib/cardioSafety";
 import {
   CONTRA_FLAG_TEXT,
   DOSE_LIMITS,
@@ -105,7 +107,8 @@ export type ExerciseRefusalCode =
   | "no_active_plan"
   | "not_in_plan"
   | "already_marked"
-  | "no_teach_step";
+  | "no_teach_step"
+  | "changed_elsewhere";
 
 export type ExerciseRefusal = { status: 400 | 403 | 404 | 409; code: ExerciseRefusalCode; error: string };
 
@@ -130,6 +133,7 @@ export const EXERCISE_REFUSAL_TEXT: Record<ExerciseRefusalCode, { message: strin
   not_in_plan: { message: "That exercise is not in the current plan.", fix: "Add it to the plan and save it first." },
   already_marked: { message: "This exercise is already marked for this session.", fix: "Carry on with the next one." },
   no_teach_step: { message: "This assessment has no Home exercises step.", fix: "End it and start a new one." },
+  changed_elsewhere: { message: "The plan or the assessment changed while you were saving.", fix: "Reload the page and try again." },
 };
 
 // --- Contraindications from the intake ---------------------------------------------------
@@ -431,6 +435,46 @@ export function checkTeachExercise(input: {
     return { ok: false, refusal: refuse(409, "helper_not_confirmed", `${exercise.name} needs another adult beside the patient. Tick that they are, first.`) };
   }
   return { ok: true, index, total: plan.exerciseKeys.length };
+}
+
+/**
+ * The run's own gate for the Home exercises step, in the clinical order
+ * (assessmentRun.ts checkStepAction): the red flags answered before
+ * anything; a demo is refused once one was answered yes (no exercise
+ * today); the patient's turn and a "performed" or "needs practice" mark are
+ * a save -- the step's required set-up ticked (its helper, for a child) and,
+ * on the heart and lung protocol, the pre-exercise check clear. "Not
+ * attempted" needs only the red flags answered: nothing was done.
+ */
+export function checkTeachStep(input: {
+  protocol: SessionProtocol;
+  step: ProtocolStep;
+  state: RunState;
+  action: "demo" | "doing" | "not_attempted";
+  preExercise?: PreExerciseCheck | null;
+}): RunRefusal | null {
+  const { protocol, step, state, action } = input;
+  if (action === "doing") return checkStepAction({ protocol, step, state, action: "save", preExercise: input.preExercise });
+  const answered = checkStepAction({ protocol, step, state, action: "skip" });
+  if (answered) return answered;
+  if (action === "demo" && state.redFlags && state.redFlags.flagged.length > 0) {
+    return { status: 409, code: "red_flag_present", error: "A safety question was answered yes, so no exercises today. Go to the summary." };
+  }
+  return null;
+}
+
+/** What a teach request does, for the gate above. */
+export function teachAction(request: TeachRequest): "demo" | "doing" | "not_attempted" {
+  if (request.kind === "display") return request.phase === "demo" ? "demo" : "doing";
+  return request.outcome === "not_attempted" ? "not_attempted" : "doing";
+}
+
+/** Whether every exercise in the plan has a mark in this run -- what Save
+ *  and next on the Home exercises step needs (the event route refuses it
+ *  otherwise, `exercises_not_marked`). */
+export function allExercisesMarked(plan: { id: string; exerciseKeys: readonly string[] }, events: readonly TeachingEvent[], runId: string): boolean {
+  const marked = new Set(events.filter((e) => e.runId === runId && e.planId === plan.id).map((e) => e.exerciseKey));
+  return plan.exerciseKeys.length > 0 && plan.exerciseKeys.every((k) => marked.has(k));
 }
 
 // --- Rows ---------------------------------------------------------------------------------------
