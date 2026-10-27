@@ -5,9 +5,9 @@
 // own thresholds (changeDirection -> MDC, isMeaningfulChange -> MCID), so the
 // pill can never say "Improving" on a change smaller than the measurement
 // error. The physiotherapist may override it with a reason; that override is
-// data stored beside the profile and is applied by the component (it is not
-// computed here), but its shape and wording live here so every screen reads
-// the same.
+// data stored beside the profile, and `effectiveStatus` applies it -- except
+// that it never hides a red flag or new fall later than the override. Its
+// shape and wording live here so every screen reads the same.
 //
 //   Improving        the main measure has moved the good way by at least its
 //                    meaningful change (MCID) since the first review, and
