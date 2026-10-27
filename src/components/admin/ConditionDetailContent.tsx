@@ -32,7 +32,9 @@ import {
 import { PAIN_MAP_REGIONS, type PainAssessmentRow, type QuestionOverrideRow } from "@/lib/painMap";
 import type { NeuroAssessmentRow } from "@/lib/neuroExam";
 import { getAdminContext } from "@/lib/supabase/requireAdmin";
-import { scopeCanManage } from "@/lib/adminScope";
+import { scopeCanManage, scopeCanOpen } from "@/lib/adminScope";
+import HomeExercisesChart from "@/components/therapist/HomeExercisesChart";
+import { loadHomeExercisesChartRead } from "@/lib/homeExercisesChartServer";
 import OrthoProfileTop from "@/components/profile/ortho/OrthoProfileTop";
 import NeuroProfileTop from "@/components/profile/neuro/NeuroProfileTop";
 import PedsProfileTop from "@/components/profile/peds/PedsProfileTop";
@@ -273,6 +275,20 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
   const orthoView =
     isOrthoProfile && orthoReads
       ? shapeOrthoView({ ...orthoReads, assessments: assessments ?? [] }, "clinician", orthoReads.nowMs)
+      : null;
+  // Home exercises (phase 7d): read-only, on the new layout's specialties only,
+  // and only for a scope that may open People (the section the neighbouring
+  // clinical reads use); without it the section is absent, not empty.
+  const onNewLayout = !!(
+    (isOrthoProfile && orthoView) ||
+    isPedsProfile ||
+    isGeriatricProfile ||
+    isCardioProfile ||
+    isNeuroProfile
+  );
+  const exercisesRead =
+    onNewLayout && adminContext && scopeCanOpen(adminContext.scope, "people")
+      ? await loadHomeExercisesChartRead(admin, id)
       : null;
   const orthoLicence =
     orthoView && canManagePeople ? await loadLicenceForRecording(admin) : { keys: [] as string[], unreadable: false };
@@ -725,6 +741,8 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           )}
         </section>
       )}
+
+      {exercisesRead && <HomeExercisesChart read={exercisesRead} />}
     </div>
   );
 }

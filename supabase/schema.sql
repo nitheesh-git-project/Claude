@@ -19532,6 +19532,134 @@ exception when duplicate_object then null;
 end $$;
 
 -- ---------------------------------------------------------------------
+-- Home exercises: correcting a mistaken teaching mark (phase 7d-3).
+--
+-- The owner's decision: a physiotherapist MAY correct a mark they made by
+-- mistake -- as a NEW row that references the one it corrects, with a
+-- reason from a fixed list. The original is kept; what the patient and the
+-- chart headline read is the latest per exercise; nothing else changes (no
+-- override of contraindications, the same gates as a mark).
+--
+--   kind               'mark' (every existing row, by the default) or 'correction'.
+--   corrects_event_id  the row it corrects: a mark, or the latest correction.
+--                      `on delete no action`, like the run and the actor: the
+--                      table is append-only, so nothing it points at is ever
+--                      deleted, and no fixture cleanup deletes a teaching
+--                      event (the patient cascade is refused by the guard) --
+--                      not `restrict`, so scripts/clean-e2e-residue.mjs has
+--                      nothing to learn.
+--   correction_reason  one of three fixed keys (teachTool.ts CORRECTION_REASONS):
+--                      wrong_button, tried_again_correctly, see_summary. Required
+--                      on a correction and absent on a mark (the shape CHECK).
+--                      No free text: "see_summary" points to the session summary.
+--
+-- Several corrections per exercise per run are allowed (a correction can be
+-- mistaken too), latest wins -- but they form ONE CHAIN: each correction
+-- references the then-latest row for its run, plan and exercise. The
+-- partial unique index on corrects_event_id makes that structural and
+-- race-safe: every row has at most one successor and there is one mark, so
+-- the only row a new correction can reference is the tail. A fork (two
+-- corrections of the same row, e.g. two tabs) is refused by the index, not
+-- resolved by a clock.
+--
+-- The one-mark index keeps its own name and becomes partial (`where kind =
+-- 'mark'`): the `create unique index if not exists` of the same name above
+-- is then a no-op on every re-run, rather than rebuilding a full index that
+-- a mark plus its correction would violate. It is dropped only while it is
+-- still the full one.
+--
+-- What the patient reads: RLS still gives them their own rows, but column
+-- privileges now give a browser session (anon, authenticated) only the
+-- original columns -- not kind, corrects_event_id or correction_reason. The
+-- patient's plan shows the latest outcome per exercise (newest row) and never
+-- that a correction happened or why. The therapist's cockpit and chart and
+-- the admin read with the service role after their own access checks
+-- (exercisePlanServer.ts), which column privileges do not touch.
+-- ---------------------------------------------------------------------
+alter table exercise_teaching_events add column if not exists kind text not null default 'mark';
+alter table exercise_teaching_events add column if not exists corrects_event_id uuid references exercise_teaching_events(id);
+alter table exercise_teaching_events add column if not exists correction_reason text;
+
+alter table exercise_teaching_events drop constraint if exists exercise_teaching_events_kind_check;
+alter table exercise_teaching_events add constraint exercise_teaching_events_kind_check
+  check (kind in ('mark', 'correction'));
+alter table exercise_teaching_events drop constraint if exists exercise_teaching_events_correction_reason_check;
+alter table exercise_teaching_events add constraint exercise_teaching_events_correction_reason_check
+  check (correction_reason is null or correction_reason in ('wrong_button', 'tried_again_correctly', 'see_summary'));
+alter table exercise_teaching_events drop constraint if exists exercise_teaching_events_correction_shape;
+alter table exercise_teaching_events add constraint exercise_teaching_events_correction_shape check (
+  (kind = 'mark' and corrects_event_id is null and correction_reason is null)
+  or (kind = 'correction' and corrects_event_id is not null and correction_reason is not null)
+);
+
+do $$
+begin
+  if exists (
+    select 1 from pg_index x join pg_class c on c.oid = x.indexrelid
+    where c.relname = 'exercise_teaching_events_one_per_exercise' and x.indpred is null
+  ) then
+    drop index exercise_teaching_events_one_per_exercise;
+  end if;
+end $$;
+create unique index if not exists exercise_teaching_events_one_per_exercise
+  on exercise_teaching_events (run_id, plan_id, exercise_key) where kind = 'mark';
+create unique index if not exists exercise_teaching_events_one_successor
+  on exercise_teaching_events (corrects_event_id) where corrects_event_id is not null;
+
+revoke select on exercise_teaching_events from anon, authenticated;
+grant select (id, run_id, plan_id, patient_id, exercise_key, outcome, cue_key, reason_key, helper_present, actor, created_at)
+  on exercise_teaching_events to authenticated;
+
+-- The guard, restated (this is the newest declaration): a mark as before;
+-- a correction only when it references a row of the SAME run, plan,
+-- exercise and patient, made by the same therapist -- and one that nothing
+-- corrects yet (the index above says it again under concurrency). Every
+-- UPDATE and DELETE is still refused.
+create or replace function public.exercise_teaching_events_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if not exists (
+      select 1 from assessment_runs r
+      where r.id = new.run_id and r.status = 'in_progress'
+        and r.patient_id = new.patient_id and r.therapist_id = new.actor
+    ) then
+      raise exception 'exercise_teaching_events: written only into this therapist''s run in progress for this patient';
+    end if;
+    if not exists (
+      select 1 from exercise_plans p
+      join exercise_plan_items i on i.plan_id = p.id
+      where p.id = new.plan_id and p.patient_id = new.patient_id and p.status = 'active'
+        and i.exercise_key = new.exercise_key
+    ) then
+      raise exception 'exercise_teaching_events: the exercise is not in the patient''s active plan';
+    end if;
+    if new.kind = 'correction' then
+      if not exists (
+        select 1 from exercise_teaching_events e
+        where e.id = new.corrects_event_id
+          and e.run_id = new.run_id and e.plan_id = new.plan_id
+          and e.exercise_key = new.exercise_key and e.patient_id = new.patient_id
+          and e.actor = new.actor
+      ) then
+        raise exception 'exercise_teaching_events: a correction references a mark of the same run, plan, exercise and therapist';
+      end if;
+      if exists (select 1 from exercise_teaching_events e where e.corrects_event_id = new.corrects_event_id) then
+        raise exception 'exercise_teaching_events: that mark is already corrected; correct the latest one';
+      end if;
+    end if;
+    return new;
+  end if;
+  raise exception 'exercise_teaching_events is append-only: what was watched in a session is history';
+end;
+$$;
+
+revoke all on function public.exercise_teaching_events_guard() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --
 -- Every RPC this application makes goes through the service-role client,

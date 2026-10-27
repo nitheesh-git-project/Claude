@@ -57,3 +57,18 @@ export function exerciseChartView(plans: readonly ExercisePlan[], events: readon
       }),
     }));
 }
+
+export type ChartRead = { status: "ok"; versions: ChartVersion[] } | { status: "not_migrated" } | { status: "unreadable" };
+type LoadState = { status: "ok" } | { status: "not_migrated" } | { status: "unreadable" };
+
+/** The two loads (plans, marks) as ONE answer for the chart: not set up if either says so, couldn't
+ *  read if either failed, and only then the shaped versions. Never "none yet" for a read that failed. */
+export function chartReadFrom(
+  history: LoadState & { plans?: ExercisePlan[] },
+  marks: LoadState & { events?: TeachingEvent[] },
+  names: ReadonlyMap<string, string>
+): ChartRead {
+  if (history.status === "not_migrated" || marks.status === "not_migrated") return { status: "not_migrated" };
+  if (history.status !== "ok" || marks.status !== "ok") return { status: "unreadable" };
+  return { status: "ok", versions: exerciseChartView(history.plans ?? [], marks.events ?? [], names) };
+}

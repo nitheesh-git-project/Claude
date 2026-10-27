@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { exerciseByKey } from "@/lib/exerciseLibrary";
 import type { ExercisePlan, TeachingEvent } from "@/lib/exercisePlan";
-import { chartMarkText, exerciseChartView } from "@/lib/exerciseChart";
+import { chartMarkText, chartReadFrom, exerciseChartView } from "@/lib/exerciseChart";
 
 const dose = (k: string) => ({ ...exerciseByKey(k)!.defaultDose });
 const plan = (id: string, version: number, status: "active" | "replaced", keys: string[]): ExercisePlan => ({
@@ -44,5 +44,23 @@ describe("exerciseChartView", () => {
   });
   it("words a mark in the clinician's terms", () => {
     expect(chartMarkText({ outcome: "performed_correctly", cueKey: null, reasonKey: null })).toBe("Performed correctly");
+  });
+});
+
+describe("chartReadFrom", () => {
+  const ok = { status: "ok" as const };
+  it("says not set up if either load says so, even when the other failed", () => {
+    expect(chartReadFrom({ status: "not_migrated" }, { status: "unreadable" }, new Map()).status).toBe("not_migrated");
+    expect(chartReadFrom(ok, { status: "not_migrated" }, new Map()).status).toBe("not_migrated");
+  });
+  it("says could not read when a load failed, never an empty chart", () => {
+    expect(chartReadFrom({ status: "unreadable" }, ok, new Map()).status).toBe("unreadable");
+    expect(chartReadFrom({ ...ok, plans: [] }, { status: "unreadable" }, new Map()).status).toBe("unreadable");
+  });
+  it("shapes the versions when both loads are fine, and no plans is an empty list", () => {
+    const r = chartReadFrom({ ...ok, plans: [plan("a", 1, "active", ["bridge"])] }, { ...ok, events: [] }, new Map());
+    expect(r.status === "ok" && r.versions).toHaveLength(1);
+    const none = chartReadFrom({ ...ok, plans: [] }, { ...ok, events: [] }, new Map());
+    expect(none).toEqual({ status: "ok", versions: [] });
   });
 });

@@ -66,6 +66,8 @@ export default function PatientDashboardShell({
         // The physiotherapist starting a guided video assessment offers the
         // companion screen without the patient reloading.
         "assessment_live_display",
+        // A plan published in the session shows its Overview row without a reload.
+        "exercise_plans",
       ]}
       headerTitle={title}
       headerSubtitle={subtitle}

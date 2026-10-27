@@ -1,7 +1,7 @@
 import { describeRefundForPatient } from "@/lib/refundState";
 import { ADMIN_ACTIVITY_LABELS } from "@/lib/adminActivityLog";
 import { adminScreenHref, type AdminSectionKey } from "@/lib/adminNav";
-import { formatClinicDateTime } from "@/lib/formatDateTime";
+import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { formatRupees } from "@/lib/formatMoney";
 // The notification feed every dashboard shows, derived rather than stored.
 //
@@ -146,6 +146,35 @@ export type FeedReferral = {
 
 const money = (paise: number) => `₹${formatRupees(paise)}`;
 
+export type HomeExercisesFeedInput = {
+  planId: string;
+  /** Exercises on the plan that the library still has. */
+  count: number;
+  publishedAt: string;
+  /** The newest time one was practised with the physiotherapist, if ever. */
+  lastPracticedAt: string | null;
+  /** A child's record reads in the parent's voice. */
+  parent: boolean;
+};
+
+/** "Your home exercises": neutral, not `needsYou`, linking to the card on the
+ *  Health Profile page. Null for no plan or an empty one. Dates in the clinic's zone. */
+export function homeExercisesFeedItem(input: HomeExercisesFeedInput | null | undefined): FeedItem | null {
+  if (!input || input.count <= 0) return null;
+  const n = `${input.count} ${input.count === 1 ? "exercise" : "exercises"}`;
+  const from = input.parent ? "your child's physiotherapist" : "your physiotherapist";
+  const last = input.lastPracticedAt ? `, last practised together on ${formatClinicDate(input.lastPracticedAt)}` : "";
+  return {
+    id: `home-exercises-${input.planId}`,
+    at: input.lastPracticedAt ?? input.publishedAt,
+    icon: "fa-person-walking",
+    tone: "neutral",
+    title: "Your home exercises",
+    detail: `${n} from ${from}${last}`,
+    href: "/patient/dashboard/health-profile#home-exercises",
+  };
+}
+
 /** A patient's own feed: their sessions, their intake submissions, their
  *  package purchases. */
 export function buildPatientFeed({
@@ -153,9 +182,14 @@ export function buildPatientFeed({
   conditionRequests,
   carePlan,
   unscheduled = [],
+  homeExercises = null,
 }: {
   appointments: FeedAppointment[];
   conditionRequests: FeedRequest[];
+  /** The patient's active Home exercises plan, summarised; null when there is
+   *  none OR it could not be read (an unreadable plan shows nothing, never a
+   *  false "none yet"). */
+  homeExercises?: HomeExercisesFeedInput | null;
   /** The live recommendation, when there is one. */
   carePlan?: { id: string; authoredAt: string; title: string } | null;
   /**
@@ -185,6 +219,10 @@ export function buildPatientFeed({
       needsYou: true,
     });
   }
+
+  // A calm row, never an alert: nothing here is waiting on the patient.
+  const exerciseRow = homeExercisesFeedItem(homeExercises);
+  if (exerciseRow) items.push(exerciseRow);
 
   // Several programmes with sessions left read as one item, not a stack of
   // near-identical rows.

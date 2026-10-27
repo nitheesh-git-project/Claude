@@ -17,7 +17,9 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { countAnswered, countedQuestions, patientIntakeGate, questionsForSpecialty } from "@/lib/conditionIntake";
 import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
-import { buildPatientFeed } from "@/lib/dashboardFeed";
+import { buildPatientFeed, type HomeExercisesFeedInput } from "@/lib/dashboardFeed";
+import { loadActiveExercisePlan } from "@/lib/exercisePlanServer";
+import { exercisePlanView } from "@/lib/exercisePlan";
 import { isBookedAwaitingTherapist } from "@/lib/sessionRowStatus";
 import { computePackageCounts } from "@/lib/packageProgress";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
@@ -948,6 +950,19 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       ];
     });
 
+  // Home exercises for the Overview row: the patient's OWN client, so RLS is
+  // the gate; its own call, and anything but a readable plan shows nothing.
+  let homeExercises: HomeExercisesFeedInput | null = null;
+  if (needFeed) {
+    const read = await loadActiveExercisePlan(supabase, user.id);
+    if (read.status === "ok" && read.plan) {
+      const parent = intakeSpecialty === "pediatrics";
+      const view = exercisePlanView(read.plan, read.teaching, { parent });
+      const practised = view.items.flatMap((i) => (i.practised ? [i.practised.at] : [])).sort();
+      homeExercises = { planId: view.planId, count: view.items.length, publishedAt: view.publishedAt, lastPracticedAt: practised.at(-1) ?? null, parent };
+    }
+  }
+
   const patientFeed = buildPatientFeed({
     appointments: appointments.map((a) => ({
       id: a.id,
@@ -997,6 +1012,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // other surface reads, so the feed cannot claim a balance the Packages
     // screen disagrees with.
     unscheduled,
+    homeExercises,
   });
 
   const overviewCells: StatCell[] = [

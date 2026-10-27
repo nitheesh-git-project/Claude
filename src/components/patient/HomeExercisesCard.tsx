@@ -24,7 +24,7 @@ export default function HomeExercisesCard({ read, voice }: { read: HomeExercises
 
   if (read.status !== "ok") {
     return (
-      <section className={shell} data-testid="home-exercises" data-state={read.status}>
+      <section id="home-exercises" className={`${shell} scroll-mt-24`} data-testid="home-exercises" data-state={read.status}>
         {head}
         <p role={read.status === "unreadable" ? "status" : undefined} className="text-sm text-slate-700">
           {read.status === "unreadable" ? copy.unreadable : copy.notMigrated}
@@ -34,7 +34,7 @@ export default function HomeExercisesCard({ read, voice }: { read: HomeExercises
   }
   if (!read.view || read.view.items.length === 0) {
     return (
-      <section className={shell} data-testid="home-exercises" data-state="empty">
+      <section id="home-exercises" className={`${shell} scroll-mt-24`} data-testid="home-exercises" data-state="empty">
         {head}
         <p className="text-sm text-slate-700">{copy.empty}</p>
       </section>
@@ -42,7 +42,7 @@ export default function HomeExercisesCard({ read, voice }: { read: HomeExercises
   }
   const { view } = read;
   return (
-    <section className={shell} data-testid="home-exercises" data-state="plan" aria-labelledby="home-exercises-heading">
+    <section id="home-exercises" className={`${shell} scroll-mt-24`} data-testid="home-exercises" data-state="plan" aria-labelledby="home-exercises-heading">
       <div className="mb-3">
         <h2 id="home-exercises-heading" className="font-display text-lg font-bold text-slate-800">
           {copy.heading}

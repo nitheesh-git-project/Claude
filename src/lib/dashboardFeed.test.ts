@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildPatientFeed,
+  homeExercisesFeedItem,
   buildAdminFeed,
   queueRollup,
   sortFeed,
@@ -311,5 +312,33 @@ describe("buildPatientFeed: a programme session waiting on the clinic", () => {
   it("keeps the old wording for a single consultation", () => {
     const items = buildPatientFeed({ appointments: [base], conditionRequests: [] });
     expect(items.find((i) => i.id === "appt-a1")?.title).toBe("Video session waiting for a therapist");
+  });
+});
+
+describe("the Home exercises row on a patient's Overview", () => {
+  const plan = { planId: "p1", count: 4, publishedAt: "2026-10-10T10:00:00Z", lastPracticedAt: "2026-10-12T13:00:00Z", parent: false };
+  it("is one calm row: neutral, never needs-you, linking to the card's anchor", () => {
+    const [row] = buildPatientFeed({ appointments: [], conditionRequests: [], homeExercises: plan });
+    expect(row).toMatchObject({ title: "Your home exercises", tone: "neutral", href: "/patient/dashboard/health-profile#home-exercises" });
+    expect(row.needsYou).toBeFalsy();
+    expect(row.detail).toBe("4 exercises from your physiotherapist, last practised together on 12 Oct 2026");
+  });
+  it("reads in the parent's voice for a child and says 1 exercise in the singular", () => {
+    const item = homeExercisesFeedItem({ ...plan, count: 1, parent: true });
+    expect(item?.detail).toBe("1 exercise from your child's physiotherapist, last practised together on 12 Oct 2026");
+  });
+  it("omits the practised clause when nothing was practised yet, and dates the row by publication", () => {
+    const item = homeExercisesFeedItem({ ...plan, lastPracticedAt: null });
+    expect(item?.detail).toBe("4 exercises from your physiotherapist");
+    expect(item?.at).toBe(plan.publishedAt);
+  });
+  it("is absent with no plan, an empty plan, or a read that gave nothing", () => {
+    expect(buildPatientFeed({ appointments: [], conditionRequests: [] })).toEqual([]);
+    expect(buildPatientFeed({ appointments: [], conditionRequests: [], homeExercises: null })).toEqual([]);
+    expect(homeExercisesFeedItem({ ...plan, count: 0 })).toBeNull();
+  });
+  it("renders the date in the clinic's zone, not the runtime's", () => {
+    const item = homeExercisesFeedItem({ ...plan, lastPracticedAt: "2026-10-12T20:00:00Z" });
+    expect(item?.detail).toContain("13 Oct 2026");
   });
 });
