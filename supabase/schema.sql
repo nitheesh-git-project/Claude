@@ -17269,17 +17269,31 @@ end $$;
 -- table has to accept its surface name. Widened by restating the whole
 -- list (the constraint has no `if not exists` form); every existing row
 -- satisfies the wider rule.
-alter table communication_flags drop constraint if exists communication_flags_surface_check;
-alter table communication_flags add constraint communication_flags_surface_check check (surface in (
-  'session_suggestion_note',
-  'care_plan_rationale',
-  'care_plan_instructions',
-  'pain_assessment_answer',
-  'appointment_notes',
-  'condition_answer',
-  'neuro_assessment_note',
-  'session_summary'
-));
+--
+-- Wrapped, and this is the one edit to an already-applied statement, made
+-- on purpose: the list is widened again at the END of the file (the Health
+-- Profile surfaces), and on a re-apply this narrower re-add runs first. Once
+-- any row uses a newer surface -- and communication_flags rows are evidence
+-- that is never deleted -- the bare add failed with check_violation and took
+-- the whole apply with it. The block is its own subtransaction, so on that
+-- failure the drop is undone with it and the wider constraint already there
+-- stands; the end-of-file re-add then restates it. A CHECK widened later
+-- must not be narrowed by an earlier re-add on re-apply.
+do $$
+begin
+  alter table communication_flags drop constraint if exists communication_flags_surface_check;
+  alter table communication_flags add constraint communication_flags_surface_check check (surface in (
+    'session_suggestion_note',
+    'care_plan_rationale',
+    'care_plan_instructions',
+    'pain_assessment_answer',
+    'appointment_notes',
+    'condition_answer',
+    'neuro_assessment_note',
+    'session_summary'
+  ));
+exception when check_violation then null;
+end $$;
 
 -- ---------------------------------------------------------------------
 -- The shared measurement layer: outcome_measurements.
@@ -17817,20 +17831,9 @@ alter table site_settings add constraint site_settings_enabled_licensed_measures
 -- measured), the patient's goal, and a milestone's title and criterion.
 -- Widened by restating the whole list, as the session_summary change above
 -- did; every existing row satisfies the wider rule.
-alter table communication_flags drop constraint if exists communication_flags_surface_check;
-alter table communication_flags add constraint communication_flags_surface_check check (surface in (
-  'session_suggestion_note',
-  'care_plan_rationale',
-  'care_plan_instructions',
-  'pain_assessment_answer',
-  'appointment_notes',
-  'condition_answer',
-  'neuro_assessment_note',
-  'session_summary',
-  'outcome_measurement_condition',
-  'care_goal_text',
-  'care_milestone_text'
-));
+-- (The re-add that sat here is now the single widened one near the end of
+-- the file, "communication_flags surfaces": a re-add here ran before rows
+-- naming the later surfaces existed and failed on a re-apply after them.)
 
 -- 3. care_milestone_events: a milestone marked reached by mistake.
 --
@@ -18091,21 +18094,9 @@ alter table site_settings add constraint site_settings_six_minute_walk_equation_
 -- so it goes through the contact scanner like the goal and milestone text.
 -- Widened by restating the whole list, as phase 2a did; every existing row
 -- satisfies the wider rule.
-alter table communication_flags drop constraint if exists communication_flags_surface_check;
-alter table communication_flags add constraint communication_flags_surface_check check (surface in (
-  'session_suggestion_note',
-  'care_plan_rationale',
-  'care_plan_instructions',
-  'pain_assessment_answer',
-  'appointment_notes',
-  'condition_answer',
-  'neuro_assessment_note',
-  'session_summary',
-  'outcome_measurement_condition',
-  'care_goal_text',
-  'care_milestone_text',
-  'care_status_reason'
-));
+-- (The re-add that sat here is now the single widened one near the end of
+-- the file, "communication_flags surfaces": a re-add here ran before rows
+-- naming the later surfaces existed and failed on a re-apply after them.)
 
 -- 3. care_status_events: the current phase and the status override, as
 -- history rather than a mutable cell.
@@ -18275,23 +18266,9 @@ end $$;
 
 -- 1. Restated in full, as phase 3a did; every existing row satisfies the
 -- wider rule.
-alter table communication_flags drop constraint if exists communication_flags_surface_check;
-alter table communication_flags add constraint communication_flags_surface_check check (surface in (
-  'session_suggestion_note',
-  'care_plan_rationale',
-  'care_plan_instructions',
-  'pain_assessment_answer',
-  'appointment_notes',
-  'condition_answer',
-  'neuro_assessment_note',
-  'session_summary',
-  'outcome_measurement_condition',
-  'care_goal_text',
-  'care_milestone_text',
-  'care_status_reason',
-  'patient_diary_note',
-  'care_status_summary'
-));
+-- (The re-add that sat here is now the single widened one near the end of
+-- the file, "communication_flags surfaces": a re-add here ran before rows
+-- naming the later surfaces existed and failed on a re-apply after them.)
 
 -- 2. "Where things stand", written by the physiotherapist (or an admin on
 -- their behalf, with an audit row) and read by the patient. A new kind on
@@ -18506,24 +18483,9 @@ end $$;
 
 -- 1. Restated in full, as phases 3a and 4a did; every existing row
 -- satisfies the wider rule.
-alter table communication_flags drop constraint if exists communication_flags_surface_check;
-alter table communication_flags add constraint communication_flags_surface_check check (surface in (
-  'session_suggestion_note',
-  'care_plan_rationale',
-  'care_plan_instructions',
-  'pain_assessment_answer',
-  'appointment_notes',
-  'condition_answer',
-  'neuro_assessment_note',
-  'session_summary',
-  'outcome_measurement_condition',
-  'care_goal_text',
-  'care_milestone_text',
-  'care_status_reason',
-  'patient_diary_note',
-  'care_status_summary',
-  'peds_assessment_note'
-));
+-- (The re-add that sat here is now the single widened one near the end of
+-- the file, "communication_flags surfaces": a re-add here ran before rows
+-- naming the later surfaces existed and failed on a re-apply after them.)
 
 -- 2. peds_assessments: the paediatric examination.
 --
@@ -19051,8 +19013,13 @@ end $$;
 -- Foreign keys: the patient cascade on all three, which the guards turn
 -- into a refusal (clinical history: /api/admin/delete-account names these
 -- "clinical"); the session `on delete set null` and the milestone `on
--- delete set null`, which the guards permit; the run, the author and the
--- actor no action (a run is never deleted). None is `restrict`, so
+-- delete set null`, which the guards permit; a plan's run, its author and
+-- a mark's actor no action; and the run and the plan on an item and on a
+-- teaching mark `on delete cascade` (exercise_plan_items.plan_id,
+-- exercise_teaching_events.run_id and plan_id) -- a cascade the guards
+-- refuse like the patient's, and never reached, since a run and a plan are
+-- never deleted. (An earlier version of this note called those no action.)
+-- None is `restrict`, so
 -- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
 -- truncates all three (newest debug_reset_all_data(), above). Realtime:
 -- exercise_plans is on the publication so the patient's dashboard follows a
@@ -19069,25 +19036,9 @@ end $$;
 
 -- 0. The note's scanner surface. Restated in full, as before; every
 -- existing row satisfies the wider rule.
-alter table communication_flags drop constraint if exists communication_flags_surface_check;
-alter table communication_flags add constraint communication_flags_surface_check check (surface in (
-  'session_suggestion_note',
-  'care_plan_rationale',
-  'care_plan_instructions',
-  'pain_assessment_answer',
-  'appointment_notes',
-  'condition_answer',
-  'neuro_assessment_note',
-  'session_summary',
-  'outcome_measurement_condition',
-  'care_goal_text',
-  'care_milestone_text',
-  'care_status_reason',
-  'patient_diary_note',
-  'care_status_summary',
-  'peds_assessment_note',
-  'exercise_plan_note'
-));
+-- (The re-add that sat here is now the single widened one near the end of
+-- the file, "communication_flags surfaces": a re-add here ran before rows
+-- naming the later surfaces existed and failed on a re-apply after them.)
 
 -- 1. exercise_plans
 create table if not exists exercise_plans (
@@ -19542,7 +19493,8 @@ end $$;
 --
 --   kind               'mark' (every existing row, by the default) or 'correction'.
 --   corrects_event_id  the row it corrects: a mark, or the latest correction.
---                      `on delete no action`, like the run and the actor: the
+--                      `on delete no action`, like the actor (the run and the
+--                      plan are `on delete cascade`, refused by the guard): the
 --                      table is append-only, so nothing it points at is ever
 --                      deleted, and no fixture cleanup deletes a teaching
 --                      event (the patient cascade is refused by the guard) --
@@ -19571,8 +19523,14 @@ end $$;
 -- What the patient reads: RLS still gives them their own rows, but column
 -- privileges now give a browser session (anon, authenticated) only the
 -- original columns -- not kind, corrects_event_id or correction_reason. The
--- patient's plan shows the latest outcome per exercise (newest row) and never
--- that a correction happened or why. The therapist's cockpit and chart and
+-- patient's plan shows the latest outcome per exercise (newest row) and does
+-- not say that a mark was corrected or why. That hides the reason and the
+-- link, not the fact: the original and the correction are both the
+-- patient's own rows, so a browser session reading the table directly sees
+-- two outcomes for one exercise in one run and can infer that one replaced
+-- the other. (reason_key, the not-attempted reason, stays in the grant: the
+-- patient's own read selects it -- EXERCISE_TEACHING_EVENT_SELECT -- though
+-- the plan does not show it.) The therapist's cockpit and chart and
 -- the admin read with the service role after their own access checks
 -- (exercisePlanServer.ts), which column privileges do not touch.
 -- ---------------------------------------------------------------------
@@ -19658,6 +19616,262 @@ end;
 $$;
 
 revoke all on function public.exercise_teaching_events_guard() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- communication_flags surfaces: the one widened list (Health Profile
+-- redesign, review fix).
+--
+-- Phases 2a, 3a, 4a, 5a and 7d each widened communication_flags_surface_check
+-- by dropping and re-adding it with a longer list. On a re-apply every one of
+-- those re-adds ran again in order, and the first that did not yet name a
+-- surface some row already used failed with check_violation -- and the rows
+-- cannot be removed to make room, because the table is evidence. So the five
+-- are one statement here, after everything that could narrow it, and the
+-- staging-era re-add above (session_summary) is wrapped so that, on a
+-- database already past it, it leaves the wider constraint in place. This one
+-- is deliberately NOT wrapped: a row naming a surface outside this list is a
+-- finding to reconcile, never a reason to skip the check.
+--
+-- A new surface is added HERE, to this list, never as another re-add further
+-- down -- and a CHECK widened later must not be narrowed by an earlier re-add
+-- on re-apply (docs/rules/data-schema.md).
+-- ---------------------------------------------------------------------
+alter table communication_flags drop constraint if exists communication_flags_surface_check;
+alter table communication_flags add constraint communication_flags_surface_check check (surface in (
+  'session_suggestion_note',
+  'care_plan_rationale',
+  'care_plan_instructions',
+  'pain_assessment_answer',
+  'appointment_notes',
+  'condition_answer',
+  'neuro_assessment_note',
+  'session_summary',
+  'outcome_measurement_condition',
+  'care_goal_text',
+  'care_milestone_text',
+  'care_status_reason',
+  'patient_diary_note',
+  'care_status_summary',
+  'peds_assessment_note',
+  'exercise_plan_note'
+));
+
+-- ---------------------------------------------------------------------
+-- Care goals and milestones: the update policies' WITH CHECK, and guards
+-- that freeze the author and stamp "reached" (Health Profile redesign,
+-- review fix).
+--
+-- 1. care_goals_update_assigned_therapist and
+--    care_milestones_update_assigned_therapist had a USING and no WITH
+--    CHECK, so a therapist's browser session that could see a row could
+--    rewrite it into anything the table accepts -- its author included. The
+--    WITH CHECK pins the new row the way the insert policies do: the caller
+--    is its author (on a goal, authored as a therapist), an active
+--    therapist, still under the clinical-access rule for that patient. With
+--    the author frozen (2, 3), a browser session edits only what it wrote.
+--    No route depends on these policies -- every write here is the service
+--    role after requireAssignedTherapist -- this is the half for a session
+--    that goes round the app.
+-- 2. care_goals_guard() (the newest declaration) also freezes authored_by
+--    and authored_by_role.
+-- 3. care_milestones_guard() (the newest declaration; it supersedes the 2a
+--    one with the reopen door, which it keeps unchanged) now also runs
+--    BEFORE INSERT, and:
+--      - refuses a milestone that ARRIVES reached: one is written planned or
+--        working, and "reached" is an observation made afterwards (the
+--        route's mark_reached), so the insert policy cannot be used to file
+--        one already reached at any time the caller likes;
+--      - stamps reached_at itself when a milestone becomes reached, ignoring
+--        the caller's value: the proving measurement's measured_at when
+--        there is one (what /api/therapist/care-milestones/save already
+--        wrote), the transaction's now() otherwise;
+--      - requires reached_measurement_id to be one of THIS patient's
+--        measurements, and keeps a reached milestone's proof as it was (the
+--        measurement's `on delete set null` and the reopen door still clear
+--        it);
+--      - freezes authored_by.
+-- Everything either guard refused before, it still refuses. Checked in
+-- scripts/append-only-sql-checks.sql.
+-- ---------------------------------------------------------------------
+drop policy if exists "care_goals_update_assigned_therapist" on care_goals;
+create policy "care_goals_update_assigned_therapist" on care_goals
+  for update using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_goals.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_goals.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  )
+  with check (
+    (select auth.uid()) = authored_by and authored_by_role = 'therapist'
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_goals.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_goals.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_milestones_update_assigned_therapist" on care_milestones;
+create policy "care_milestones_update_assigned_therapist" on care_milestones
+  for update using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  )
+  with check (
+    (select auth.uid()) = authored_by
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+create or replace function public.care_goals_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.patient_id is distinct from old.patient_id then
+    raise exception 'care_goals: a goal never moves to another patient';
+  end if;
+  if new.authored_by is distinct from old.authored_by or new.authored_by_role is distinct from old.authored_by_role then
+    raise exception 'care_goals: who wrote a goal is recorded once';
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+revoke all on function public.care_goals_guard() from public, anon, authenticated;
+
+create or replace function public.care_milestones_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_measure_patient uuid;
+  v_measured_at timestamptz;
+  v_becomes_reached boolean;
+begin
+  if tg_op = 'INSERT' then
+    if new.status = 'reached' or new.reached_at is not null then
+      raise exception 'care_milestones: a milestone is written planned or working; it is marked reached afterwards';
+    end if;
+    v_becomes_reached := false;
+  else
+    if new.patient_id is distinct from old.patient_id or new.goal_id is distinct from old.goal_id then
+      raise exception 'care_milestones: a milestone never moves to another patient or goal';
+    end if;
+    if new.authored_by is distinct from old.authored_by then
+      raise exception 'care_milestones: who planned a milestone is recorded once';
+    end if;
+    if old.reached_at is not null then
+      if new.reached_at is distinct from old.reached_at or new.status is distinct from 'reached' then
+        -- The one door: reached -> planned/working with reached_at cleared,
+        -- when the reopen event for exactly that reached_at was written in
+        -- this same transaction (reopen_care_milestone).
+        if not (
+          new.reached_at is null
+          and new.status in ('planned', 'working')
+          and exists (
+            select 1 from care_milestone_events e
+            where e.milestone_id = old.id
+              and e.kind = 'reopened'
+              and e.previous_reached_at = old.reached_at
+              and e.xact_id = txid_current()
+          )
+        ) then
+          raise exception 'care_milestones: a reached milestone stays reached; reached_at is recorded once';
+        end if;
+      elsif new.reached_measurement_id is not null
+            and new.reached_measurement_id is distinct from old.reached_measurement_id then
+        raise exception 'care_milestones: the measurement that proved a reached milestone is recorded once';
+      end if;
+    end if;
+    v_becomes_reached := new.status = 'reached' and old.status is distinct from 'reached';
+  end if;
+
+  if new.reached_measurement_id is not null
+     and (tg_op = 'INSERT' or v_becomes_reached or new.reached_measurement_id is distinct from old.reached_measurement_id) then
+    select m.patient_id, m.measured_at into v_measure_patient, v_measured_at
+    from outcome_measurements m
+    where m.id = new.reached_measurement_id;
+    if v_measure_patient is distinct from new.patient_id then
+      raise exception 'care_milestones: the proving measurement is one of this patient''s';
+    end if;
+  end if;
+
+  -- Reached is the server's time, never the caller's.
+  if v_becomes_reached then
+    new.reached_at := case when new.reached_measurement_id is not null then v_measured_at else now() end;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    new.updated_at := now();
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.care_milestones_guard() from public, anon, authenticated;
+
+drop trigger if exists care_milestones_guard on care_milestones;
+create trigger care_milestones_guard
+  before insert or update on care_milestones
+  for each row execute function public.care_milestones_guard();
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.

@@ -304,6 +304,134 @@ begin
 end $$;
 rollback;
 
+-- care_goals and care_milestones, the review fix: who wrote a goal or a
+-- milestone is frozen, a milestone cannot ARRIVE reached, "reached" takes the
+-- server's time (the proving measurement's measured_at, or now()) whatever
+-- the caller sends, the proof must be this patient's and stays as it was,
+-- and both UPDATE policies carry a WITH CHECK pinning the author. Both
+-- halves: the route's own writes -- create, edit, mark reached with and
+-- without a measurement, the reopen door -- still land.
+begin;
+do $$
+declare
+  v_actor uuid; v_other uuid; v_goal uuid; v_ms uuid; v_ms2 uuid; v_m uuid; v_m_other uuid; v_m2 uuid;
+  v_ok boolean; v_reached timestamptz; v_measured timestamptz; v_res jsonb;
+begin
+  select id into v_actor from profiles where role = 'admin' limit 1;
+  if v_actor is null then raise exception 'no admin profile to attribute the probe rows to'; end if;
+
+  insert into care_goals (patient_id, profile_kind, goal_text, authored_by, authored_by_role)
+  values (v_actor, 'ortho', 'Probe goal', v_actor, 'admin') returning id into v_goal;
+
+  -- The goal's author is recorded once; an ordinary edit still lands.
+  update care_goals set goal_text = 'Probe goal, edited' where id = v_goal;
+  v_ok := false;
+  begin update care_goals set authored_by_role = 'therapist' where id = v_goal;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_goals let authored_by_role change'; end if;
+  v_ok := false;
+  begin update care_goals set authored_by = gen_random_uuid() where id = v_goal;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_goals let authored_by change'; end if;
+
+  -- A milestone cannot arrive reached, with or without a time.
+  v_ok := false;
+  begin insert into care_milestones (goal_id, patient_id, title, criterion, status, reached_at, authored_by)
+    values (v_goal, v_actor, 'Probe', 'Probe criterion', 'reached', now() - interval '30 days', v_actor);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_milestones accepted a milestone that arrived reached'; end if;
+
+  insert into care_milestones (goal_id, patient_id, title, criterion, authored_by)
+  values (v_goal, v_actor, 'Probe', 'Probe criterion', v_actor) returning id into v_ms;
+
+  v_ok := false;
+  begin update care_milestones set authored_by = gen_random_uuid() where id = v_ms;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_milestones let authored_by change'; end if;
+
+  -- Reached on judgement: the caller's time is ignored, the server's is kept.
+  update care_milestones set status = 'reached', reached_at = now() - interval '30 days' where id = v_ms;
+  select reached_at into v_reached from care_milestones where id = v_ms;
+  if v_reached is distinct from now() then raise exception 'FAIL: reached_at took the caller''s time: %', v_reached; end if;
+  -- ...and a status-only update (no time at all) is stamped too.
+  insert into care_milestones (goal_id, patient_id, title, criterion, authored_by)
+  values (v_goal, v_actor, 'Probe 2', 'Probe criterion', v_actor) returning id into v_ms2;
+  update care_milestones set status = 'reached' where id = v_ms2;
+  select reached_at into v_reached from care_milestones where id = v_ms2;
+  if v_reached is distinct from now() then raise exception 'FAIL: a reached milestone with no time was not stamped: %', v_reached; end if;
+
+  -- Reached on a measurement: the measurement's own time, which must be this patient's.
+  insert into outcome_measurements (patient_id, measure_key, value, conditions, recorded_by, recorded_by_role, measured_at)
+  values (v_actor, 'tug', 9.5, '{"setting":"in_person"}', v_actor, 'admin', now() - interval '2 days')
+  returning id, measured_at into v_m, v_measured;
+  select id into v_other from profiles where id <> v_actor limit 1;
+  if v_other is not null then
+    insert into outcome_measurements (patient_id, measure_key, value, conditions, recorded_by, recorded_by_role, measured_at)
+    values (v_other, 'tug', 9.5, '{"setting":"in_person"}', v_actor, 'admin', now()) returning id into v_m_other;
+  end if;
+
+  v_res := reopen_care_milestone(v_ms, v_actor, v_actor, 'Ticked the wrong row by mistake', 'working');
+  if (v_res->>'ok')::boolean is not true then raise exception 'FAIL: the reopen door did not open: %', v_res; end if;
+
+  if v_m_other is not null then
+    v_ok := false;
+    begin update care_milestones set status = 'reached', reached_at = now(), reached_measurement_id = v_m_other where id = v_ms;
+    exception when others then v_ok := true; end;
+    if not v_ok then raise exception 'FAIL: care_milestones took another patient''s measurement as proof'; end if;
+  else
+    raise notice 'SKIP  another patient''s measurement: no second profile';
+  end if;
+
+  update care_milestones set status = 'reached', reached_at = now(), reached_measurement_id = v_m where id = v_ms;
+  select reached_at into v_reached from care_milestones where id = v_ms;
+  if v_reached is distinct from v_measured then raise exception 'FAIL: reached_at is % not the measurement''s %', v_reached, v_measured; end if;
+
+  -- The proof of a reached milestone is recorded once.
+  insert into outcome_measurements (patient_id, measure_key, value, conditions, recorded_by, recorded_by_role, measured_at)
+  values (v_actor, 'tug', 8.5, '{"setting":"in_person"}', v_actor, 'admin', now()) returning id into v_m2;
+  v_ok := false;
+  begin update care_milestones set reached_measurement_id = v_m2 where id = v_ms;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: care_milestones let a reached milestone''s proof change'; end if;
+
+  -- The policy half: both UPDATE policies pin the new row's author.
+  if exists (
+    select 1 from pg_policy p
+    where p.polname in ('care_goals_update_assigned_therapist', 'care_milestones_update_assigned_therapist')
+      and (p.polwithcheck is null or pg_get_expr(p.polwithcheck, p.polrelid) not like '%authored_by%')
+  ) or (select count(*) from pg_policy where polname in ('care_goals_update_assigned_therapist', 'care_milestones_update_assigned_therapist')) <> 2 then
+    raise exception 'FAIL: a care goal / milestone UPDATE policy has no WITH CHECK on the author';
+  end if;
+
+  raise notice 'PASS  care goals and milestones: the author is frozen, reached is the server''s time on this patient''s proof, and the update policies check the author';
+end $$;
+rollback;
+
+-- communication_flags_surface_check: every surface the app writes
+-- (communicationFlags.ts CommunicationSurface) is accepted, and an unknown
+-- one is refused. The constraint was re-added six times with growing lists,
+-- and a re-add that ran after rows used a later surface failed the whole
+-- re-apply; this asserts the live list is the widest one.
+begin;
+do $$
+declare v_surface text; v_ok boolean;
+begin
+  foreach v_surface in array array[
+    'session_suggestion_note', 'care_plan_rationale', 'care_plan_instructions', 'pain_assessment_answer',
+    'appointment_notes', 'condition_answer', 'neuro_assessment_note', 'session_summary',
+    'outcome_measurement_condition', 'care_goal_text', 'care_milestone_text', 'care_status_reason',
+    'patient_diary_note', 'care_status_summary', 'peds_assessment_note', 'exercise_plan_note'
+  ] loop
+    insert into communication_flags (surface, tier) values (v_surface, 'flag');
+  end loop;
+  v_ok := false;
+  begin insert into communication_flags (surface, tier) values ('not_a_surface', 'flag');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: communication_flags accepted an unknown surface'; end if;
+  raise notice 'PASS  communication_flags accepts every surface the app writes and refuses an unknown one';
+end $$;
+rollback;
+
 -- care_status_events: the phase and status-override history (Health
 -- Profile redesign, phase 3a). Append-only by trigger with no permitted
 -- mutation at all, so the "permitted half" is the inserts themselves: each

@@ -143,7 +143,18 @@ before.
   `drop policy if exists` under **its own** name (not just the name it
   replaces), and `alter publication ... add table` needs the
   `do $$ ... exception when duplicate_object then null; end $$` wrapper every
-  other publication line in the file uses. Re-apply the file twice after
+  other publication line in the file uses. **A CHECK widened later must not
+  be narrowed by an earlier re-add on re-apply**: a re-run executes every
+  drop-and-re-add of a constraint in file order, so once a row uses a value
+  only the later, wider list allows, the earlier narrower re-add fails with
+  `check_violation` and takes the whole apply with it - and on an evidence
+  table the row cannot be deleted to make room. `communication_flags_surface_check`
+  did exactly that (six re-adds, each a longer list): it is now **one**
+  re-add near the end of the file listing every surface, and the one
+  staging-era re-add before it is wrapped in `do $$ begin ... exception when
+  check_violation then null; end $$`, so it leaves the wider constraint in
+  place. A new surface goes into that last list, never into another re-add.
+  Re-apply the file twice after
   touching it - the schema-apply workflow runs it on every push to `main`,
   which is the **live** branch. A schema change merged to `staging`, the
   default branch, reaches staging's own database only when a person applies
@@ -168,6 +179,7 @@ before.
   must return no rows. Then apply, once per new project:
 
   ```sql
+  -- and afterwards re-apply schema.sql: see the note below
   grant usage on schema public to anon, authenticated, service_role;
   grant all on all tables in schema public to authenticated, service_role;
   grant select on all tables in schema public to anon;
@@ -177,6 +189,13 @@ before.
   alter default privileges in schema public grant all on sequences to authenticated, service_role;
   ```
 
+  **Then re-apply `schema.sql`.** `grant all on all tables ... to
+  authenticated` is a table-wide SELECT, which overrides the column-level
+  grants the file relies on - it re-opens `exercise_teaching_events`'
+  hidden correction columns (`kind`, `corrects_event_id`,
+  `correction_reason`) to every browser session. The file's own
+  `revoke select ... from anon, authenticated` and column grant put that
+  back, so the grants are only safe followed by a re-apply.
   Tables and sequences only: function EXECUTE for `anon` and
   `authenticated` is deliberately left alone, because the schema revokes it
   from `public`, `anon` and `authenticated` and re-granting it wholesale
@@ -237,7 +256,16 @@ before.
      allowance, or the parent's delete raises on the child's trigger. Its
      plan-side neighbour `care_milestones` is editable but freezes
      `reached_at` once set, the same "one fact in a plan" shape the care-plan
-     window stamp has. **When a frozen fact needs correcting, add a recorded
+     window stamp has. Its guard (the newest `care_milestones_guard()`) also
+     runs `before insert`, so a milestone cannot **arrive** reached; it
+     **stamps `reached_at` itself** when a milestone becomes reached - the
+     proving measurement's `measured_at` when there is one, `now()`
+     otherwise, never the caller's value; it requires
+     `reached_measurement_id` to be one of the same patient's measurements
+     and keeps a reached milestone's proof as it was; and it freezes
+     `authored_by` (`care_goals_guard()` freezes `authored_by` and
+     `authored_by_role`). Both tables' UPDATE policies carry a `with check`
+     pinning the new row's author to the caller, as their insert policies do. **When a frozen fact needs correcting, add a recorded
      door, never a looser guard.** A mistaken "reached" is undone only by
      `reopen_care_milestone()` (security definer, revoked from all three
      roles), which writes an append-only `care_milestone_events` row and
@@ -305,7 +333,14 @@ before.
      re-run. **Column privileges, not RLS, hide the correction columns from
      a browser session**: `select` on the table is revoked from `anon` and
      `authenticated` and granted back on the original columns only - RLS
-     chooses rows, never columns. The clinician's reads use the service role.
+     chooses rows, never columns. That hides the **reason and the link**,
+     not the fact of a correction: the original mark and its correction are
+     both the patient's own rows, so a browser session reading the table
+     directly sees two outcomes for one exercise in one run and can infer
+     that one replaced the other. `reason_key` (the not-attempted reason)
+     stays in the grant because the patient's own read selects it
+     (`EXERCISE_TEACHING_EVENT_SELECT`), though their plan does not show it.
+     The clinician's reads use the service role.
      Same file, same both-halves check, with a negative control.
 
      **`user_activity_log` is the same rule for everyone who is not an admin**
