@@ -116,7 +116,7 @@ describe("the Strength and balance care view", () => {
     expect(reported.statusInput.newFall).toBe(false);
     expect(reported.fallRisk.unconfirmedDiaryFalls).toBe(1);
     const confirmed = shapeGeriatricView({ ...r, diary: { status: "ok", entries: [diary("fall", after, { injured: false }, true)] } }, { intake: geriIntake, voice: "clinician" });
-    expect(confirmed.computed).toEqual({ status: "needs_attention", reason: "new_fall" });
+    expect(confirmed.computed).toMatchObject({ status: "needs_attention", reason: "new_fall" });
   });
 
   it("says when a read failed rather than reading as nothing", () => {
@@ -207,6 +207,18 @@ describe("the Heart and lung rehabilitation view", () => {
     const vitals = latestCardioVitals(points);
     const check = shapeCardioView({ ...reads({ measurements: { status: "ok", rows: later } }), equation }, { intake: cardioIntake, voice: "clinician" }).vitalsCheck;
     expect(vitalsRedFlagAtLatestReview(vitals, check, "2026-10-20T05:00:00.000Z")).toBe(false);
+  });
+
+  it("judges a stored top number even when the bottom number was never stored", () => {
+    const topOnly = [...rows.filter((r) => r.measure_key !== "blood_pressure"), row("blood_pressure", 196, "2026-10-12T04:51:00.000Z", { variant: "rest" })];
+    const view = shapeCardioView({ ...reads({ measurements: { status: "ok", rows: topOnly } }), equation }, { intake: cardioIntake, voice: "clinician" });
+    expect(view.vitalsCheck.status).toBe("stop");
+    expect(view.vitalsCheck.flags.map((f) => f.code)).toEqual(["blood_pressure_high"]);
+    expect(view.statusInput.redFlag).toBe(true);
+    expect(view.statusInput.redFlagAt).toBe("2026-10-12T04:51:00.000Z");
+    const fine = [...rows.filter((r) => r.measure_key !== "blood_pressure"), row("blood_pressure", 130, "2026-10-12T04:51:00.000Z", { variant: "rest" })];
+    const calm = shapeCardioView({ ...reads({ measurements: { status: "ok", rows: fine } }), equation }, { intake: cardioIntake, voice: "clinician" });
+    expect(calm.vitalsCheck.status).toBe("incomplete");
   });
 
   it("prints the limits and the vitals in the PDF section", () => {

@@ -204,17 +204,25 @@ export function latestCardioVitals(points: readonly MeasurementPoint[]): CardioV
 /** Whether a flagged pre-exercise reading belongs to the latest review (its
  *  clinic day): only then is it the status rule's red flag. */
 export function vitalsRedFlagAtLatestReview(vitals: CardioVitals, check: PreExerciseCheck, lastReviewAt: string | null): boolean {
-  if (check.status !== "stop" || !lastReviewAt) return false;
+  return vitalsRedFlagAt(vitals, check, lastReviewAt) !== null;
+}
+
+/** When the latest such flagged reading was taken, or null when none is. A
+ *  status override older than this does not hide the flag. */
+export function vitalsRedFlagAt(vitals: CardioVitals, check: PreExerciseCheck, lastReviewAt: string | null): string | null {
+  if (check.status !== "stop" || !lastReviewAt) return null;
   const day = clinicDateKey(lastReviewAt);
   const at = {
     resting_heart_rate_high: vitals.restingHeartRate?.measuredAt,
     blood_pressure_high: vitals.bloodPressureRest?.measuredAt,
     spo2_below_limit: vitals.spo2Rest?.measuredAt,
   };
-  return check.flags.some((f) => {
+  let best: string | null = null;
+  for (const f of check.flags) {
     const when = at[f.code];
-    return typeof when === "string" && clinicDateKey(when) === day;
-  });
+    if (typeof when === "string" && clinicDateKey(when) === day && (best === null || Date.parse(when) > Date.parse(best))) best = when;
+  }
+  return best;
 }
 
 /** "90% (default)" / "88% (set by your doctor)": the limit on one short
@@ -432,6 +440,7 @@ export function shapeCardioView(reads: CardioReads, ctx: { intake: Readonly<Reco
   const statusInput: StatusInput = {
     main: mainMeasureInput(base.series, CARDIO_MAIN_PREFERENCE, CARDIO_PROFILE_KIND),
     redFlag: vitalsRedFlagAtLatestReview(vitals, vitalsCheck, base.lastReviewAt),
+    redFlagAt: vitalsRedFlagAt(vitals, vitalsCheck, base.lastReviewAt),
   };
   const activeMinutes: CardioView["activeMinutes"] = base.diaryEntries
     ? { status: "ok", ...activeMinutesWeeklySeries(base.diaryEntries, { nowMs: reads.nowMs }) }

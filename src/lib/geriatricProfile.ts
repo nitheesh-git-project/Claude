@@ -1,7 +1,7 @@
 import { clinicDateKey } from "@/lib/clinicWeek";
 import { HOME_SAFETY_ITEMS } from "@/lib/outcomeMeasures";
 import { entriesAwaitingConfirmation, type DiaryEntry } from "@/lib/patientDiary";
-import { fallsInWindow, newConfirmedFall, type FallsWindow } from "@/lib/neuroProfile";
+import { fallsInWindow, latestNewConfirmedFallAt, type FallsWindow } from "@/lib/neuroProfile";
 import {
   ageInYears,
   geriatricFallRisk,
@@ -330,9 +330,11 @@ export function shapeGeriatricView(
     clinicDate: clinicDateKey,
   });
   const katz = latestKatz(base.points, intake);
+  const newFallAt = base.diaryEntries ? latestNewConfirmedFallAt(base.diaryEntries, base.lastReviewAt) : null;
   const statusInput: StatusInput = {
     main: mainMeasureInput(base.series, GERIATRIC_MAIN_PREFERENCE, GERIATRIC_PROFILE_KIND),
-    newFall: base.diaryEntries ? newConfirmedFall(base.diaryEntries, base.lastReviewAt) : false,
+    newFall: newFallAt !== null,
+    newFallAt,
   };
   const computed = computeProfileStatus(statusInput);
   const falls = base.diaryEntries ? fallsInWindow(base.diaryEntries, reads.nowMs) : null;

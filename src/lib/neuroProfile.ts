@@ -274,12 +274,24 @@ export function fallIsConfirmed(entry: Pick<DiaryEntry, "enteredByRole" | "confi
  * does (the owner's rule: the pill waits for a person to stand behind it).
  */
 export function newConfirmedFall(entries: readonly DiaryEntry[], lastReviewAt: string | null): boolean {
+  return latestNewConfirmedFallAt(entries, lastReviewAt) !== null;
+}
+
+/** When the latest such fall happened, or null when there is none. The status
+ *  override uses it to tell a fall it has already seen from a later one. */
+export function latestNewConfirmedFallAt(entries: readonly DiaryEntry[], lastReviewAt: string | null): string | null {
   const since = lastReviewAt ? Date.parse(lastReviewAt) : NaN;
-  return entries.some((e) => {
-    if (e.kind !== "fall" || !fallIsConfirmed(e)) return false;
+  let best: string | null = null;
+  let bestMs = -Infinity;
+  for (const e of entries) {
+    if (e.kind !== "fall" || !fallIsConfirmed(e)) continue;
     const at = Date.parse(e.occurredAt);
-    return Number.isFinite(at) && (!Number.isFinite(since) || at > since);
-  });
+    if (Number.isFinite(at) && (!Number.isFinite(since) || at > since) && at > bestMs) {
+      best = e.occurredAt;
+      bestMs = at;
+    }
+  }
+  return best;
 }
 
 export type FallsWindow = {
@@ -352,8 +364,9 @@ export function neuroStatusInput(input: {
     .map((k) => pickStateLine(input.series, k))
     .filter((s): s is MeasureSeries => s !== null && s.joinPoints && s.known);
   const main = candidates.find((s) => s.points.length >= 2) ?? candidates[0] ?? null;
-  const newFall = input.diary ? newConfirmedFall(input.diary, input.lastReviewAt) : false;
-  if (!main) return { main: null, newFall };
+  const newFallAt = input.diary ? latestNewConfirmedFallAt(input.diary, input.lastReviewAt) : null;
+  const newFall = newFallAt !== null;
+  if (!main) return { main: null, newFall, newFallAt };
   const tester = (p: SeriesPoint) => p.testerName ?? p.recordedBy;
   return {
     main: {
@@ -363,6 +376,7 @@ export function neuroStatusInput(input: {
       differentTester: tester(main.points[0]) !== tester(main.points[main.points.length - 1]),
     },
     newFall,
+    newFallAt,
   };
 }
 

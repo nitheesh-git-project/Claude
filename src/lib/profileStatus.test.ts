@@ -98,3 +98,58 @@ describe("override", () => {
     });
   });
 });
+
+describe("an override never hides a later safety signal", () => {
+  const steady = [0.6, 0.62];
+  const overridden = { status: "improving" as const, reason: "Doing well in clinic, ignore the old score", setAt: "2026-10-10T05:00:00.000Z" };
+
+  it("keeps a fall that happened after the override on top", () => {
+    const computed = computeProfileStatus({ main: speed(steady), newFall: true, newFallAt: "2026-10-12T05:00:00.000Z" });
+    expect(computed).toMatchObject({ status: "needs_attention", reason: "new_fall", signalAt: "2026-10-12T05:00:00.000Z" });
+    expect(effectiveStatus(computed, overridden)).toEqual({ status: "needs_attention", overridden: false, overrideSuperseded: true });
+  });
+
+  it("keeps a red flag that came after the override on top", () => {
+    const computed = computeProfileStatus({ main: speed(steady), redFlag: true, redFlagAt: "2026-10-11T05:00:00.000Z" });
+    expect(effectiveStatus(computed, overridden)).toMatchObject({ status: "needs_attention", overridden: false, overrideSuperseded: true });
+  });
+
+  it("honours an override made after the signal, because the physiotherapist has seen it", () => {
+    const computed = computeProfileStatus({ main: speed(steady), newFall: true, newFallAt: "2026-10-09T05:00:00.000Z" });
+    expect(effectiveStatus(computed, overridden)).toEqual({ status: "improving", overridden: true, reasonText: overridden.reason });
+  });
+
+  it("is decided by the LATEST signal when there are two", () => {
+    const computed = computeProfileStatus({
+      main: speed(steady),
+      redFlag: true,
+      redFlagAt: "2026-10-09T05:00:00.000Z",
+      newFall: true,
+      newFallAt: "2026-10-13T05:00:00.000Z",
+    });
+    expect(computed.signalAt).toBe("2026-10-13T05:00:00.000Z");
+    expect(effectiveStatus(computed, overridden).overridden).toBe(false);
+  });
+
+  it("takes the safe side when a time is not known", () => {
+    const noSignalTime = computeProfileStatus({ main: speed(steady), newFall: true });
+    expect(noSignalTime.signalAt).toBeUndefined();
+    expect(effectiveStatus(noSignalTime, overridden)).toMatchObject({ status: "needs_attention", overrideSuperseded: true });
+    // One of two signals with no time is still unknown.
+    const oneUnknown = computeProfileStatus({ main: speed(steady), redFlag: true, redFlagAt: "2026-10-01T05:00:00.000Z", newFall: true });
+    expect(oneUnknown.signalAt).toBeUndefined();
+    const dated = computeProfileStatus({ main: speed(steady), newFall: true, newFallAt: "2026-10-12T05:00:00.000Z" });
+    expect(effectiveStatus(dated, { status: "improving", reason: "no time recorded on this one" })).toMatchObject({ status: "needs_attention", overrideSuperseded: true });
+  });
+
+  it("still lets an override overrule a measure-based needs-attention", () => {
+    const worse = computeProfileStatus({ main: speed([0.8, 0.6]) });
+    expect(worse).toMatchObject({ status: "needs_attention", reason: "worse_than_first" });
+    expect(effectiveStatus(worse, { ...overridden, status: "steady" })).toMatchObject({ status: "steady", overridden: true });
+  });
+
+  it("does not need to supersede an override that already says needs attention", () => {
+    const computed = computeProfileStatus({ main: speed(steady), newFall: true, newFallAt: "2026-10-12T05:00:00.000Z" });
+    expect(effectiveStatus(computed, { ...overridden, status: "needs_attention" })).toMatchObject({ status: "needs_attention", overridden: true });
+  });
+});

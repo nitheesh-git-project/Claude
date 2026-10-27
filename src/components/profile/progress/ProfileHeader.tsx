@@ -107,7 +107,7 @@ export default function ProfileHeader({
             <div className="mt-3">
               <ProfileStatusPill
                 computed={computed}
-                override={override ? { status: override.status, reason: override.reason } : null}
+                override={override ? { status: override.status, reason: override.reason, setAt: override.setAt } : null}
                 voice={voice}
                 subject={subject}
                 showReason

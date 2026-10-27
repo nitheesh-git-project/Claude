@@ -756,7 +756,15 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     profile kind wins (a phase chosen under another kind is passed over),
     the latest override wins, a clear ends the one before it, and an
     override older than the latest review is `stale` so the screen asks the
-    physiotherapist to look again. `inferPhase()` is only the fallback when
+    physiotherapist to look again. **An override never hides a safety signal
+    that came after it:** a computed Needs attention for a red flag or a new
+    fall whose time (`StatusResult.signalAt`, the latest of the two) is later
+    than the override's `setAt` wins, `effectiveStatus()` says
+    `overrideSuperseded`, and the clinician is told why on the pill; a
+    signal or an override with no known time counts as newer (we could not
+    tell is not "already seen"). A measure-based Needs attention (worse than
+    the first or previous review) is exactly what an override is for, and
+    stays overridable. `inferPhase()` is only the fallback when
     no phase is set. The reason reaches the patient and is scanned
     (`care_status_reason`). Read by the patient, the clinical-access
     therapist and an admin; on the realtime publication.
@@ -1262,6 +1270,13 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      Rest, and tell your physiotherapist and your doctor about this
      reading.*; clinician: *Do not exercise or test today. Contact the
      patient's doctor.*); a reading not taken is "not checked", never clear.
+     **Each blood pressure number is judged on its own:** a top number over
+     180 or a bottom number over 100 is a stop even when the other was never
+     taken (the missing one is still listed as not checked, and a stored top
+     number with no bottom is judged the same way). A half-entered pair
+     cannot be saved as a reading, so the Safety check and the walk's
+     vitals say "not saved: needs both numbers" rather than toasting saved
+     (`walkMeasurements.unsavedBloodPressure`).
      Karvonen only for a patient recorded as **not** on a beta-blocker with
      an exercise-test maximum (never 220 minus age); "Yes", "Not sure" and
      no answer are the talk test. The surgeon's precautions are active
@@ -1549,8 +1564,11 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      therapist with a started or delivered session. The profile kind and what
      the intake rules out are re-derived on the server
      (`contraFlagsFromIntake`, "where available": sternal precautions after
-     open-heart surgery until the surgeon's date has passed, a high risk of
-     falling, cannot stand); the key must be the library's and offered for the
+     open-heart surgery until the surgeon's date has passed - read by the same
+     `parseClinicDate` and the clinic's `clinicDateKey` as the Cardio profile,
+     so the two agree on every input including the last day, and a date that
+     cannot be read keeps the precautions on - a high risk of falling, cannot
+     stand); the key must be the library's and offered for the
      kind, the dose inside its kind's bounds (`validateDose`); and **an
      exercise that needs another adult beside the patient is published only
      inside a run whose Home exercises step ticked that helper**

@@ -90,7 +90,7 @@ describe("shapeNeuroView", () => {
     expect(unconfirmed.computed.status).toBe("improving");
     expect(unconfirmed.diary.status === "ok" && unconfirmed.diary.awaiting).toHaveLength(1);
     const confirmed = shapeNeuroView(reads({ diary: { status: "ok", entries: [fall({ confirmedAt: "2026-10-16T05:00:00Z", confirmedBy: "t1", confirmedByRole: "therapist" })] } }), ctx);
-    expect(confirmed.computed).toEqual({ status: "needs_attention", reason: "new_fall" });
+    expect(confirmed.computed).toMatchObject({ status: "needs_attention", reason: "new_fall" });
   });
 
   it("says unreadable is not empty, source by source", () => {

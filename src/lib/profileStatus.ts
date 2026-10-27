@@ -46,8 +46,14 @@ export type StatusInput = {
   main: StatusMeasure | null;
   /** A fall recorded since the previous review. */
   newFall?: boolean;
+  /** When that fall happened (the latest, ISO). Lets a status override tell
+   *  whether it was made before or after the signal; absent means unknown,
+   *  which is treated as "after" (the safe side). */
+  newFallAt?: string | null;
   /** A red flag the physiotherapist has raised. */
   redFlag?: boolean;
+  /** When the flagged reading was taken (the latest, ISO); absent is unknown. */
+  redFlagAt?: string | null;
 };
 
 export type StatusReasonCode =
@@ -65,12 +71,33 @@ export type StatusReasonCode =
 export type StatusResult = {
   status: ProfileStatus;
   reason: StatusReasonCode;
+  /** For a safety signal (red flag, new fall) only: when the latest signal
+   *  happened. Left out when that is not known. */
+  signalAt?: string;
+};
+
+const latestIso = (...values: (string | null | undefined)[]): string | null => {
+  let best: string | null = null;
+  let bestMs = -Infinity;
+  for (const v of values) {
+    const t = v ? Date.parse(v) : NaN;
+    if (Number.isFinite(t) && t > bestMs) {
+      best = v ?? null;
+      bestMs = t;
+    }
+  }
+  return best;
 };
 
 export function computeProfileStatus(input: StatusInput): StatusResult {
   // Safety signals first, and they need no measure.
-  if (input.redFlag) return { status: "needs_attention", reason: "red_flag" };
-  if (input.newFall) return { status: "needs_attention", reason: "new_fall" };
+  // Both signals count towards `signalAt`: an override has to be newer than
+  // the LATEST one to have seen it. A signal with no known time leaves it out.
+  const unknownTime = (input.redFlag && !latestIso(input.redFlagAt)) || (input.newFall && !latestIso(input.newFallAt));
+  const latest = unknownTime ? null : latestIso(input.redFlag ? input.redFlagAt : null, input.newFall ? input.newFallAt : null);
+  const signalAt = latest ? { signalAt: latest } : {};
+  if (input.redFlag) return { status: "needs_attention", reason: "red_flag", ...signalAt };
+  if (input.newFall) return { status: "needs_attention", reason: "new_fall", ...signalAt };
 
   const main = input.main;
   const values = main ? main.values.filter((v) => Number.isFinite(v)) : [];
@@ -155,6 +182,9 @@ export const STATUS_OVERRIDE_REASON_MAX = 300;
 export type StatusOverride = {
   status: "improving" | "steady" | "needs_attention";
   reason: string;
+  /** When the override was made (ISO). Needed to tell whether a safety signal
+   *  came after it; absent means unknown. */
+  setAt?: string | null;
 };
 
 export function validateStatusOverride(raw: unknown): { ok: true; override: StatusOverride } | { ok: false; error: string } {
@@ -174,11 +204,30 @@ export function validateStatusOverride(raw: unknown): { ok: true; override: Stat
 }
 
 /** The status a screen shows: the override when there is one, else the
- *  computed one. `overridden` lets the pill say whose judgement it is. */
+ *  computed one. `overridden` lets the pill say whose judgement it is.
+ *
+ *  One exception, on the safe side: an override never hides a safety signal
+ *  (a red flag, a new fall) that happened AFTER it was made. The physiotherapist
+ *  overruled what they could see then; a later fall is news they have not
+ *  weighed. A signal with no known time, or an override with no known time, is
+ *  treated as newer -- "we could not tell" is not "it was already seen".
+ *  `overrideSuperseded` says so, so the screen can tell the physiotherapist. */
 export function effectiveStatus(
   computed: StatusResult,
   override: StatusOverride | null | undefined
-): { status: ProfileStatus; overridden: boolean; reasonText?: string } {
-  if (override) return { status: override.status, overridden: true, reasonText: override.reason };
-  return { status: computed.status, overridden: false };
+): { status: ProfileStatus; overridden: boolean; reasonText?: string; overrideSuperseded?: boolean } {
+  if (!override) return { status: computed.status, overridden: false };
+  const isSafetySignal = computed.status === "needs_attention" && (computed.reason === "red_flag" || computed.reason === "new_fall");
+  if (isSafetySignal && override.status !== "needs_attention" && signalIsNewer(computed.signalAt, override.setAt)) {
+    return { status: computed.status, overridden: false, overrideSuperseded: true };
+  }
+  return { status: override.status, overridden: true, reasonText: override.reason };
+}
+
+/** Whether a safety signal happened after the override was made. */
+export function signalIsNewer(signalAt: string | null | undefined, overrideSetAt: string | null | undefined): boolean {
+  const signal = signalAt ? Date.parse(signalAt) : NaN;
+  const set = overrideSetAt ? Date.parse(overrideSetAt) : NaN;
+  if (!Number.isFinite(signal) || !Number.isFinite(set)) return true;
+  return signal > set;
 }

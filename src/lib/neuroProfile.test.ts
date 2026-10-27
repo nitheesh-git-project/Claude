@@ -14,6 +14,7 @@ import {
   neuroSeries,
   neuroStandSummary,
   neuroStatusInput,
+  latestNewConfirmedFallAt,
   newConfirmedFall,
   parkinsonStage,
   pickStateLine,
@@ -215,7 +216,7 @@ describe("the status rule's main measure", () => {
   });
 
   it("does not claim a fall check it could not make", () => {
-    expect(neuroStatusInput({ series: [], kind: "neuro", barthelEnabled: false, diary: null, lastReviewAt: null })).toEqual({ main: null, newFall: false });
+    expect(neuroStatusInput({ series: [], kind: "neuro", barthelEnabled: false, diary: null, lastReviewAt: null })).toEqual({ main: null, newFall: false, newFallAt: null });
   });
 });
 
@@ -411,5 +412,19 @@ describe("filledInLine", () => {
     expect(filledInLine("admin", "clinician")).toBe("Filled in by the clinic");
     expect(filledInLine(null, "patient")).toBeNull();
     expect(filledInLine("", "clinician")).toBeNull();
+  });
+});
+
+describe("latestNewConfirmedFallAt", () => {
+  it("gives the time of the latest confirmed fall since the review, or null", () => {
+    const review = "2026-10-10T05:00:00Z";
+    expect(
+      latestNewConfirmedFallAt(
+        [confirmedFall({ occurredAt: "2026-10-12T05:00:00Z" }), confirmedFall({ occurredAt: "2026-10-14T05:00:00Z" }), confirmedFall({ occurredAt: "2026-10-01T05:00:00Z" })],
+        review
+      )
+    ).toBe("2026-10-14T05:00:00Z");
+    expect(latestNewConfirmedFallAt([confirmedFall({ occurredAt: "2026-10-05T05:00:00Z" })], review)).toBeNull();
+    expect(latestNewConfirmedFallAt([diaryEntry({ occurredAt: "2026-10-14T05:00:00Z" })], review)).toBeNull();
   });
 });
