@@ -268,6 +268,11 @@ test("GP-004: the guided six-minute walk cannot be started while a pre-exercise 
   await dialog.getByLabel("Blood pressure, top").first().fill("186");
   await expect(dialog.getByTestId("walk-refusal")).toContainText("Do not exercise or test today. Contact the patient's doctor.");
   await expect(start).toBeDisabled();
+  // ... even with the bottom number left empty: each number is judged alone.
+  await dialog.getByLabel("Blood pressure, bottom").first().fill("");
+  await expect(dialog.getByTestId("walk-refusal")).toContainText("Do not exercise or test today. Contact the patient's doctor.");
+  await expect(start).toBeDisabled();
+  await dialog.getByLabel("Blood pressure, bottom").first().fill("80");
   await dialog.getByLabel("Blood pressure, top").first().fill("128");
   await expect(dialog.getByTestId("walk-refusal")).toHaveCount(0);
   // Oxygen under the patient's own limit refuses it too.

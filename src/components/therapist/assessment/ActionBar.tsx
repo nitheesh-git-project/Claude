@@ -2,12 +2,16 @@
 
 import Spinner from "@/components/system/Spinner";
 
+const SKIP_REASON = "This step cannot be skipped";
+
 /**
  * The same three actions on every step, always on screen (sticky at the
  * bottom of a phone): Stop test throws this step's reading away, Skip leaves
  * the step out (only where the step may be left out), and one big Save and
  * next that stays disabled until the set-up is ticked and a result exists,
- * with the line underneath saying what is missing.
+ * with the line underneath saying what is missing. A Skip that is off says
+ * why in a line of its own (a title alone is read by neither a phone nor a
+ * screen reader, and a disabled button cannot be focused to find it).
  */
 export default function ActionBar({
   skippable,
@@ -50,7 +54,8 @@ export default function ActionBar({
           data-testid="action-skip"
           onClick={onSkip}
           disabled={busy || !skippable}
-          title={skippable ? undefined : "This step cannot be skipped"}
+          aria-describedby={skippable ? undefined : "action-skip-reason"}
+          title={skippable ? undefined : SKIP_REASON}
           className="min-h-[56px] flex-1 basis-[6.5rem] rounded-xl border border-slate-300 bg-white text-base font-semibold text-slate-900 transition hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Skip
@@ -67,6 +72,11 @@ export default function ActionBar({
           {saving ? "Saving…" : primaryLabel}
         </button>
       </div>
+      {!skippable && (
+        <p id="action-skip-reason" data-testid="action-skip-reason" className="px-1 text-center text-xs text-slate-700">
+          {SKIP_REASON}.
+        </p>
+      )}
       <p id="action-note" data-testid="action-note" aria-live="polite" className="px-1 text-center text-[13px] text-slate-700">
         {note}
       </p>

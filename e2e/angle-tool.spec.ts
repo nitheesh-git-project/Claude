@@ -182,6 +182,19 @@ test("AT-002: a drag and the arrow keys move a point and the readout follows; Un
   await tool.getByRole("button", { name: "Start again" }).click();
   await expect(readout).toHaveText(/[–-]/);
   await expect(tool.getByTestId("angle-point-0")).toHaveCount(0);
+
+  // A keyboard user places the points too: Tab to the photo, the arrow keys
+  // move a cross, Enter puts the next point there.
+  await page.getByTestId("angle-stage").focus();
+  await expect(page.getByTestId("angle-cross")).toBeVisible(SEEN);
+  await page.keyboard.press("Enter");
+  await expect(tool.getByTestId("angle-point-0")).toBeVisible(SEEN);
+  for (let i = 0; i < 6; i++) await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Space");
+  for (let i = 0; i < 6; i++) await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(tool.getByTestId("angle-point-2")).toBeVisible(SEEN);
+  await expect(page.getByTestId("angle-cross")).toHaveCount(0);
   await context.close();
 });
 

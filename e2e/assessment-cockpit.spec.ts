@@ -128,6 +128,9 @@ test("AC-002: the chart offers Start guided assessment, and the cockpit opens on
   await expect(bar.getByRole("button")).toHaveCount(3);
   await expect(bar.getByRole("button", { name: "Stop test" })).toBeEnabled();
   await expect(bar.getByRole("button", { name: "Skip" })).toBeDisabled(); // the safety check cannot be skipped
+  // ... and the reason is on the page and attached to the button, not only a hover title.
+  await expect(page.getByTestId("action-skip-reason")).toHaveText("This step cannot be skipped.");
+  await expect(bar.getByRole("button", { name: "Skip" })).toHaveAccessibleDescription("This step cannot be skipped.");
   await expect(bar.getByRole("button", { name: "Save and next" })).toBeDisabled();
 
   const run = await db.from("assessment_runs").select("id, status, protocol_key").eq("patient_id", patient!.id).eq("status", "in_progress").single();

@@ -2676,7 +2676,8 @@ everything else.
   large, shows one instruction, a picture of the position and a giant clock, has
   nothing to press, follows the physiotherapist live and polls every three
   seconds if the live connection is down. With no check running it says *Your
-  physiotherapist will start the guided check soon*. Rules:
+  physiotherapist will start the guided check soon*; if it cannot load the
+  screen it says *We couldn't load your screen. Trying again…* instead. Rules:
   `docs/rules/clinical.md`.
 
   **Home exercises (phase 7d).** After the checks, every guided

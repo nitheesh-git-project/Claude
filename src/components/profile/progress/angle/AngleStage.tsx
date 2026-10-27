@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ImageSize, Pt } from "@/lib/angleMeasure";
 import { displaySize, fitView, frameToPicture, pictureToFrame, zoomView, type Affine, type View } from "@/lib/angleView";
 
 // The picture, its draggable points and the lines between them. The picture is
 // painted on a canvas; the lines are an SVG over it; each point is a real
-// 44-pixel button so a finger, a mouse and the arrow keys all work. Points
+// 44-pixel button so a finger, a mouse and the arrow keys all work. A keyboard
+// user places points too: Tab to the photo, the arrow keys move a cross (with
+// the magnifier), Enter or Space puts the next point there. Points
 // live in the DISPLAYED picture's pixels (after any turn or flip), and this
 // component never keeps, sends or logs them.
 
@@ -42,6 +44,7 @@ export default function AngleStage({
   armIndices,
   referenceIndices,
   uprightFrom,
+  nextIndex = null,
   onBegin,
   onPlace,
   onMove,
@@ -59,6 +62,9 @@ export default function AngleStage({
   referenceIndices: [number, number] | null;
   /** A direction (picture upright) to draw from the vertex, for a rotation. */
   uprightFrom: Pt | null;
+  /** The point the next placement fills, or null when none is left. A
+   *  keyboard user can place only while there is one. */
+  nextIndex?: number | null;
   /** Called before any change, so the tool can keep an Undo step. */
   onBegin: () => void;
   onPlace: (pt: Pt) => void;
@@ -72,6 +78,10 @@ export default function AngleStage({
   const [userView, setUserView] = useState<View | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
   const [focused, setFocused] = useState<number | null>(null);
+  // The keyboard cross (picture pixels), shown while the photo itself has the
+  // keyboard focus and a point is still to be placed.
+  const [cursor, setCursor] = useState<Pt | null>(null);
+  const [announce, setAnnounce] = useState("");
   const pointers = useRef(new Map<number, Pt>());
   const gesture = useRef<Gesture>(null);
   const grab = useRef<Pt>({ x: 0, y: 0 });
@@ -104,7 +114,7 @@ export default function AngleStage({
 
   // The magnifier follows the point being moved or focused.
   const loupeIndex = dragging ?? focused;
-  const loupePt = loupeIndex !== null ? points[loupeIndex]?.pt ?? null : null;
+  const loupePt = loupeIndex !== null ? points[loupeIndex]?.pt ?? null : cursor;
   useEffect(() => {
     const canvas = loupeRef.current;
     if (!canvas || !loupePt) return;
@@ -223,6 +233,50 @@ export default function AngleStage({
     onMove(i, { x: pt.x + d.x / view.scale, y: pt.y + d.y / view.scale });
   }
 
+  const clampToPicture = (pt: Pt): Pt => ({
+    x: Math.min(Math.max(pt.x, 0), picture.width),
+    y: Math.min(Math.max(pt.y, 0), picture.height),
+  });
+
+  // The photo itself takes the keyboard focus. Only a keyboard arrival shows
+  // the cross; a click on the photo places a point as it always did.
+  function frameFocus(e: ReactFocusEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget || nextIndex === null) return;
+    let keyboard = true;
+    try {
+      keyboard = e.currentTarget.matches(":focus-visible");
+    } catch {
+      // No :focus-visible: show the cross.
+    }
+    if (!keyboard) return;
+    setCursor((c) => c ?? clampToPicture(frameToPicture(view, { x: size.width / 2, y: size.height / 2 })));
+  }
+
+  function frameKey(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget || nextIndex === null) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      const at = cursor ?? clampToPicture(frameToPicture(view, { x: size.width / 2, y: size.height / 2 }));
+      onBegin();
+      onPlace(at);
+      setCursor(at);
+      setAnnounce(`${points[nextIndex]?.label ?? "Point"} placed. Press Tab to adjust a placed point.`);
+      return;
+    }
+    const step = e.shiftKey ? 10 : 1;
+    const delta: Record<string, Pt> = {
+      ArrowLeft: { x: -step, y: 0 },
+      ArrowRight: { x: step, y: 0 },
+      ArrowUp: { x: 0, y: -step },
+      ArrowDown: { x: 0, y: step },
+    };
+    const d = delta[e.key];
+    if (!d) return;
+    e.preventDefault();
+    const from = cursor ?? clampToPicture(frameToPicture(view, { x: size.width / 2, y: size.height / 2 }));
+    setCursor(clampToPicture({ x: from.x + d.x / view.scale, y: from.y + d.y / view.scale }));
+  }
+
   const zoomBy = (factor: number) => setUserView(zoomView(view, factor, { x: size.width / 2, y: size.height / 2 }, fit));
   const f = (i: number): Pt | null => {
     const pt = points[i]?.pt;
@@ -257,7 +311,9 @@ export default function AngleStage({
     </g>
   );
 
-  const loupeLeft = loupePt && f(loupeIndex!) ? f(loupeIndex!)!.x > size.width / 2 : false;
+  const loupeFrame = loupePt ? pictureToFrame(view, loupePt) : null;
+  const loupeLeft = loupeFrame ? loupeFrame.x > size.width / 2 : false;
+  const crossAt = cursor && nextIndex !== null ? pictureToFrame(view, cursor) : null;
 
   return (
     <div
@@ -267,7 +323,19 @@ export default function AngleStage({
       onPointerMove={move}
       onPointerUp={up}
       onPointerCancel={up}
-      className="relative h-full w-full touch-none select-none overflow-hidden rounded-xl bg-slate-950"
+      tabIndex={nextIndex === null ? -1 : 0}
+      role="group"
+      aria-label={
+        nextIndex === null
+          ? "The photo with every point placed"
+          : `The photo. ${points[nextIndex]?.label ?? "The next point"} is next. Use the arrow keys to move the cross, Shift for bigger steps, and Enter to place the point.`
+      }
+      onFocus={frameFocus}
+      onBlur={(e) => {
+        if (e.target === e.currentTarget) setCursor(null);
+      }}
+      onKeyDown={frameKey}
+      className="relative h-full w-full touch-none select-none overflow-hidden rounded-xl bg-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
       style={{ cursor: dragging !== null ? "grabbing" : "crosshair" }}
     >
       <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" style={{ width: size.width, height: size.height }} />
@@ -277,7 +345,17 @@ export default function AngleStage({
         {arc && <path d={arc} fill="none" stroke="#fcd34d" strokeWidth="2.5" />}
         {vertex && uprightEnd && line(vertex, uprightEnd, "6 6", "upright")}
         {ref && ref[0] && ref[1] && line(ref[0], ref[1], "6 6", "ref")}
+        {crossAt && (
+          <g data-testid="angle-cross">
+            <circle cx={crossAt.x} cy={crossAt.y} r="13" fill="none" stroke="#0f172a" strokeOpacity="0.75" strokeWidth="5" />
+            <circle cx={crossAt.x} cy={crossAt.y} r="13" fill="none" stroke="#fcd34d" strokeWidth="2.5" />
+            <path d={`M ${crossAt.x - 22} ${crossAt.y} H ${crossAt.x + 22} M ${crossAt.x} ${crossAt.y - 22} V ${crossAt.y + 22}`} stroke="#fcd34d" strokeWidth="2" />
+          </g>
+        )}
       </svg>
+      <p className="sr-only" role="status" aria-live="polite">
+        {announce}
+      </p>
 
       {points.map((p, i) => {
         const at = f(i);

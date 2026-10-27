@@ -29,7 +29,10 @@ export const metadata: Metadata = {
 // when it can see the session has not begun. A read that could not be run is
 // said as "we couldn't check", never as "none" or "not allowed".
 
-// A clock read behind a function: the page reads "now" once per request.
+// A clock read behind a function: the page reads "now" once per request. It is
+// the real clock, like the chart's page: the debug bar's offset lives in the
+// browser and reaches the server only on a fetch (debugClock.ts), never on a
+// page navigation, so there is no simulated clock for a page to honour.
 function nowTimestamp() {
   return Date.now();
 }
@@ -68,12 +71,14 @@ export default async function AssessmentCockpitPage({
 
   const admin = createAdminClient();
   const chartHref = `/therapist/dashboard/health-profile/${patientId}`;
-  const [assigned, { data: patient }, { data: settingsRow }] = await Promise.all([
+  const [assigned, { data: patient, error: patientError }, { data: settingsRow }] = await Promise.all([
     isTherapistAssignedToPatient(admin, user.id, patientId),
     admin.from("profiles").select("id, full_name").eq("id", patientId).eq("role", "patient").maybeSingle(),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
   ]);
-  if (assigned === null) {
+  // A read that failed is not a patient who does not exist: only a clean read
+  // that finds nobody is a 404.
+  if (assigned === null || patientError) {
     return (
       <main className="min-h-screen bg-slate-50 p-3 sm:p-6">
         <Notice title="We couldn't check" back="/therapist/dashboard">

@@ -15,7 +15,9 @@ import {
   formatClockSeconds,
   liveAnnouncement,
   serverOffsetMs,
+  UNREADABLE_TEXT,
   WAITING_TEXT,
+  showsUnreadable,
 } from "@/lib/companionScreen";
 import { PATIENT_PICTURES, containsClinicWord } from "@/lib/sessionProtocols";
 
@@ -51,6 +53,23 @@ describe("companionMoment", () => {
   });
   it("treats an unreadable time as waiting", () => {
     expect(companionMoment(view({ updatedAt: "nonsense" }), NOW).kind).toBe("waiting");
+  });
+});
+
+describe("an unreadable screen", () => {
+  it("says it could not load, rather than that the physiotherapist will start soon", () => {
+    const waiting = companionMoment(null, NOW);
+    expect(showsUnreadable(waiting, true)).toBe(true);
+    expect(showsUnreadable(waiting, false)).toBe(false);
+    expect(showsUnreadable(companionMoment(view({ ended: true }), NOW), true)).toBe(true);
+    expect(liveAnnouncement(waiting, true)).toBe("We couldn't load your screen. Trying again…");
+    expect(liveAnnouncement(waiting)).toBe("Waiting for your physiotherapist.");
+    expect(UNREADABLE_TEXT.title).not.toMatch(/soon/i);
+  });
+  it("never takes a live check off the screen for a failed read", () => {
+    const live = companionMoment(view(), NOW);
+    expect(showsUnreadable(live, true)).toBe(false);
+    expect(liveAnnouncement(live, true)).toBe(liveAnnouncement(live));
   });
 });
 
@@ -104,7 +123,7 @@ describe("the rest", () => {
     expect(liveAnnouncement({ kind: "waiting" })).toContain("Waiting");
   });
   it("keeps clinic words off the waiting screen and the picture descriptions", () => {
-    for (const text of [...Object.values(WAITING_TEXT), ...Object.values(PICTURE_DESCRIPTIONS)]) {
+    for (const text of [...Object.values(WAITING_TEXT), ...Object.values(UNREADABLE_TEXT), ...Object.values(PICTURE_DESCRIPTIONS)]) {
       expect(containsClinicWord(text)).toBeNull();
     }
   });

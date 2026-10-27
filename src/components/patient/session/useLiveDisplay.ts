@@ -53,6 +53,10 @@ export function useLiveDisplay(patientId: string, initial: LiveDisplayInitial) {
       failures.current = 0;
       setFailing(false);
       if (body.display && !parsed) {
+        // A row that fails the patient-safe whitelist is never drawn, and the
+        // screen already showing is no longer known to be current: the screen
+        // says it could not load, and the poll tries again.
+        setView(null);
         setUnreadable(true);
         return;
       }

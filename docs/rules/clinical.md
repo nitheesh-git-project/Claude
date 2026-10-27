@@ -856,6 +856,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     at the same review is kept in front of it, and the route refuses the mark
     on anything but a joint range over video. Photo error is about 5 to 10
     degrees and grows off side-on, so never word it as equal to a goniometer.
+    Placing is not pointer-only: the photo is a tab stop, the arrow keys move
+    a cross (Shift for bigger steps, with the magnifier), Enter or Space puts
+    the next point there, and a placed point is moved with the arrow keys as
+    before.
     The screen shows one step, one big number and at most one warning at a time.
   - **"Where things stand" is the physiotherapist's written text** when
     there is one (phase 4a, below); the sentences generated from the numbers
@@ -1515,7 +1519,13 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      (`clockShown`), never a client-trusted timer, and it never announces
      itself per second to a screen reader. With no run it says *Your
      physiotherapist will start the guided check soon*; *All done* shows for
-     fifteen minutes after a run ends, then it waits again. Every patient screen
+     fifteen minutes after a run ends, then it waits again. **A read that
+     failed is not "nothing to show":** when the screen has no live check to
+     draw and the last read failed (or the row failed the patient-safe
+     whitelist, which also drops the row on screen), it says *We couldn't load
+     your screen. Trying again…* (`UNREADABLE_TEXT`, `showsUnreadable()`),
+     never *will start soon*; a live check already on screen is kept through
+     one failed read, and *Reconnecting* still shows after three. Every patient screen
      carries a bar to it while a check is live. The first-visit tour never opens
      over either live screen (`tutorialMayAutoStart`).
   `src/lib/sessionProtocols.test.ts`, `assessmentRun.test.ts`,

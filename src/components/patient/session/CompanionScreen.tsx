@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { clockShown, companionMoment, liveAnnouncement } from "@/lib/companionScreen";
+import { clockShown, companionMoment, liveAnnouncement, showsUnreadable } from "@/lib/companionScreen";
 import LiveScreen from "@/components/patient/session/LiveScreen";
 import WaitingState from "@/components/patient/session/WaitingState";
 import { useLiveDisplay, type LiveDisplayInitial } from "@/components/patient/session/useLiveDisplay";
@@ -15,7 +15,7 @@ import { useLiveDisplay, type LiveDisplayInitial } from "@/components/patient/se
  * appears only while nothing is in progress.
  */
 export default function CompanionScreen({ patientId, initial }: { patientId: string; initial: LiveDisplayInitial }) {
-  const { view, offsetMs, failing } = useLiveDisplay(patientId, initial);
+  const { view, offsetMs, failing, unreadable } = useLiveDisplay(patientId, initial);
 
   // "Now" starts as the server's own moment, so the first client render is the
   // server's render; from there it follows this device's clock, read in an
@@ -36,13 +36,13 @@ export default function CompanionScreen({ patientId, initial }: { patientId: str
   return (
     <main data-testid="companion" className="min-h-dvh bg-[#0f172a] text-white">
       <div role="status" aria-live="polite" className="sr-only">
-        {liveAnnouncement(moment)}
+        {liveAnnouncement(moment, unreadable)}
       </div>
       {moment.kind === "live" ? (
         <LiveScreen view={moment.view} clock={clock} />
       ) : (
         <>
-          <WaitingState ended={moment.kind === "ended"} />
+          <WaitingState ended={moment.kind === "ended"} unreadable={showsUnreadable(moment, unreadable)} />
           <p className="fixed inset-x-0 bottom-4 text-center">
             <Link
               href="/patient/dashboard"

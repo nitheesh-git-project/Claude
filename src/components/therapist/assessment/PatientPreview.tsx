@@ -9,6 +9,15 @@ import ExercisePicture from "@/components/exercises/ExercisePicture";
 
 export type PreviewStatus = "idle" | "sending" | "live" | "failed";
 
+/** "Live" is said only once the patient's screen has actually been sent
+ *  something; before that it is not live, whatever the preview card shows. */
+export const PREVIEW_STATUS_LABEL: Record<PreviewStatus, string> = {
+  idle: "Not sent yet",
+  sending: "Updating",
+  live: "Live",
+  failed: "Not updated",
+};
+
 const PATIENT_SCREEN_PATH = "/patient/dashboard/session";
 
 /**
@@ -76,7 +85,7 @@ export default function PatientPreview({
             status === "failed" ? "bg-red-900 text-red-100" : "bg-[#1e293b] text-blue-200"
           }`}
         >
-          {status === "sending" ? "Updating" : status === "failed" ? "Not updated" : "Live"}
+          {PREVIEW_STATUS_LABEL[status]}
         </span>
       </div>
 

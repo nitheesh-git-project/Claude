@@ -510,7 +510,7 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   reads the patient's own display row, `guidedCheckLive`, and the shell
   subscribes to `assessment_live_display` so the bar appears and goes by
   itself), and the cockpit tells the therapist the address to hand over
-  (*Open the patient screen*). The companion reads one row, `assessment_live_display`, with the
+  (*Open the patient screen*; its badge reads *Not sent yet* until the patient's screen has been sent something, never *Live*). A failed read on the companion says *We couldn't load your screen. Trying again…*, not *will start soon* (`clinical.md`). The companion reads one row, `assessment_live_display`, with the
   patient's own client (`loadLiveDisplay`; `assessment_live_display_select_own`
   is the gate) and subscribes to it on the realtime publication filtered to
   `patient_id=eq.<their id>` - RLS decides what the socket delivers, so the

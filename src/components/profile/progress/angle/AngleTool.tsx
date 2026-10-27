@@ -363,12 +363,17 @@ export default function AngleTool({
                   armIndices={armIndices}
                   referenceIndices={refDone ? refIndexes : null}
                   uprightFrom={upright ?? (def.rule === "from_vertical" && landmarksDone ? { x: 0, y: def.upright === "down" ? 1 : -1 } : null)}
+                  nextIndex={nextEmpty >= 0 ? nextEmpty : null}
                   onBegin={begin}
                   onPlace={place}
                   onMove={(i, pt) => setPoint(i, pt)}
                   onSelect={setActive}
                 />
               </div>
+              <p className="mt-2 text-xs text-slate-700">
+                With a keyboard: press Tab to reach the photo, move the cross with the arrow keys (Shift for bigger steps) and press Enter to place the point. Tab to a placed
+                point to move it.
+              </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <button type="button" onClick={turn} className={BTN}>
                   <i aria-hidden className="fa-solid fa-rotate-right" /> Turn the photo

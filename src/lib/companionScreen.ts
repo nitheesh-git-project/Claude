@@ -90,7 +90,8 @@ export const PICTURE_DESCRIPTIONS: Record<PatientPicture, string> = {
 };
 
 /** What the screen says to a screen reader when the moment changes. */
-export function liveAnnouncement(moment: CompanionMoment): string {
+export function liveAnnouncement(moment: CompanionMoment, unreadable = false): string {
+  if (showsUnreadable(moment, unreadable)) return `${UNREADABLE_TEXT.title}. ${UNREADABLE_TEXT.line}`;
   if (moment.kind === "waiting") return "Waiting for your physiotherapist.";
   const t = moment.view.text;
   if (t.exercise) {
@@ -98,6 +99,22 @@ export function liveAnnouncement(moment: CompanionMoment): string {
     return [t.exercise.counter, t.title, t.line, ...steps, t.sub].filter(Boolean).join(". ");
   }
   return [t.progress, t.title, t.line, t.sub].filter(Boolean).join(". ");
+}
+
+/** The screen has nothing it can draw because the read failed (or the row did
+ *  not pass the patient-safe whitelist). "Waiting for your physiotherapist"
+ *  would be a claim we cannot make, so this says what is true, calmly. */
+export const UNREADABLE_TEXT = {
+  title: "We couldn't load your screen",
+  line: "Trying again…",
+  calm: "You do not need to do anything. This screen will keep trying by itself.",
+} as const;
+
+/** Whether the screen shows the "couldn't load" state: only when there is no
+ *  live check to draw. A fresh live view that is already on screen is not
+ *  taken away by a later failed read. */
+export function showsUnreadable(moment: CompanionMoment, unreadable: boolean): boolean {
+  return unreadable && moment.kind !== "live";
 }
 
 export const WAITING_TEXT = {
