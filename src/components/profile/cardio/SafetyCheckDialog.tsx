@@ -9,7 +9,7 @@ import { debugNow, debugNowHeaders } from "@/lib/debugNow";
 import { validateMeasurement } from "@/lib/outcomeMeasures";
 import { NETWORK_ERROR_MESSAGE, progressErrorMessage, readProgressFailure } from "@/lib/progressErrors";
 import { vitalsProblems, type WalkVitals } from "@/lib/testTimers";
-import { restingReadings } from "@/lib/walkMeasurements";
+import { restingReadings, unsavedBloodPressure } from "@/lib/walkMeasurements";
 import { useDialogChrome } from "@/lib/useDialogChrome";
 import { useRouter } from "@/lib/useRouter";
 import { useToast } from "@/lib/toast";
@@ -71,7 +71,7 @@ export default function SafetyCheckDialog({ setup, onClose }: { setup: RecordSet
     const nowMs = debugNow();
     const conditions = video ? { setting: "video" as const, homeMeasured: true } : { setting: "in_person" as const };
     const readings = restingReadings(vitals, { measuredAt: new Date(nowMs).toISOString(), conditions });
-    const failed: string[] = [];
+    const failed: string[] = unsavedBloodPressure(vitals, "Blood pressure before the walk");
     try {
       for (const r of readings) {
         const checked = validateMeasurement(r.measurement, { profileKind: setup.profileKind, nowMs, enabledLicensed: new Set(setup.enabledLicensed) });

@@ -38,6 +38,18 @@ function conditionsFor(measureKey: string, base: MeasurementConditions): Measure
   return readFrom ? { ...base, readFrom } : base;
 }
 
+/** Blood pressure is stored as one reading with both numbers, so a half-entered
+ *  pair cannot be saved. This names it (in the same words as the reading's
+ *  label) so a screen can say "not saved" instead of toasting "saved" while the
+ *  number quietly vanished. Empty when nothing was dropped. The half-entered
+ *  number is still JUDGED by the safety check (cardioSafety.preExerciseCheck). */
+export function unsavedBloodPressure(v: WalkVitalsInput, label: string): string[] {
+  const sys = has(v.systolic);
+  const dia = has(v.diastolic);
+  if (sys === dia) return [];
+  return [`${label} (${sys ? "the bottom" : "the top"} number was missing, so it needs both)`];
+}
+
 /** The resting readings taken before exercise (the safety check, or the
  *  start of a walk). */
 export function restingReadings(v: WalkVitalsInput, base: { measuredAt: string; conditions: MeasurementConditions }): WalkReading[] {

@@ -75,6 +75,42 @@ describe("the pre-exercise check", () => {
   });
 });
 
+describe("a half-entered blood pressure", () => {
+  const ok = { restingHeartRate: 72, systolic: 124, diastolic: 78, spo2Rest: 97 };
+
+  it("stops on a top number over its limit even with no bottom number", () => {
+    const c = preExerciseCheck({ ...ok, systolic: 200, diastolic: null }, heart);
+    expect(c.status).toBe("stop");
+    expect(c.flags.map((f) => f.code)).toEqual(["blood_pressure_high"]);
+    expect(c.flags[0].clinicianText).toContain("200/?");
+    expect(c.refusal).not.toBeNull();
+    expect(preExerciseCheck({ ...ok, systolic: 200, diastolic: undefined }, heart).status).toBe("stop");
+  });
+
+  it("stops on a bottom number over its limit even with no top number", () => {
+    const c = preExerciseCheck({ ...ok, systolic: null, diastolic: 110 }, heart);
+    expect(c.status).toBe("stop");
+    expect(c.flags.map((f) => f.code)).toEqual(["blood_pressure_high"]);
+    expect(c.flags[0].clinicianText).toContain("?/110");
+  });
+
+  it("is not a pass when one number is fine and the other was not taken", () => {
+    const top = preExerciseCheck({ ...ok, systolic: 130, diastolic: null }, heart);
+    expect(top.status).toBe("incomplete");
+    expect(top.flags).toEqual([]);
+    expect(top.notChecked).toEqual(["diastolic (bottom) blood pressure number"]);
+    const bottom = preExerciseCheck({ ...ok, systolic: null, diastolic: 80 }, heart);
+    expect(bottom.status).toBe("incomplete");
+    expect(bottom.notChecked).toEqual(["systolic (top) blood pressure number"]);
+    // Both missing is still plain "blood pressure".
+    expect(preExerciseCheck({ ...ok, systolic: null, diastolic: null }, heart).notChecked).toEqual(["blood pressure"]);
+  });
+
+  it("still lists the missing number when the other one is over", () => {
+    expect(preExerciseCheck({ ...ok, systolic: 190, diastolic: null }, heart).notChecked).toEqual(["diastolic (bottom) blood pressure number"]);
+  });
+});
+
 describe("oxygen during exercise", () => {
   it("stops below the limit, and for a heart default at a 4-point drop from rest", () => {
     expect(duringExerciseOxygenCheck({ spo2Lowest: 87, limit: lung }).stop).toBe(true);

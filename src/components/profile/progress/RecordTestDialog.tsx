@@ -17,7 +17,7 @@ import CountdownCounter from "@/components/profile/progress/timers/CountdownCoun
 import SixMinuteWalkGuide, { type SixMinuteWalkResult } from "@/components/profile/progress/timers/SixMinuteWalkGuide";
 import { sixMinuteWalkEquationKeyFor, type SixMinuteWalkEquationRead } from "@/lib/sixMinuteWalkEquation";
 import type { OxygenStopLimit } from "@/lib/cardioSafety";
-import { afterWalkReadings, restingReadings } from "@/lib/walkMeasurements";
+import { afterWalkReadings, restingReadings, unsavedBloodPressure } from "@/lib/walkMeasurements";
 import AngleTool from "@/components/profile/progress/angle/AngleTool";
 import { canMeasureFromImage } from "@/lib/angleMeasure";
 import type { TimerClockEvent } from "@/lib/timerClock";
@@ -444,7 +444,11 @@ export default function RecordTestDialog({
           ...restingReadings({ ...best.before }, base),
           ...afterWalkReadings({ ...best.after }, best.talkTest, base),
         ];
-        vitalsFailed = await saveExtraReadings(extras.map((x) => ({ label: x.label, measurement: x.measurement })), nowMs);
+        vitalsFailed = [
+          ...unsavedBloodPressure(best.before, "Blood pressure before the walk"),
+          ...unsavedBloodPressure(best.after, "Blood pressure after the walk"),
+          ...(await saveExtraReadings(extras.map((x) => ({ label: x.label, measurement: x.measurement })), nowMs)),
+        ];
       }
       if (vitalsFailed.length > 0) {
         setError(`The walk was saved, but these readings were not: ${vitalsFailed.join("; ")}. Record them with Record a test.`);

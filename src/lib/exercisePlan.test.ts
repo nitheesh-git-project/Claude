@@ -3,6 +3,8 @@ import { exerciseByKey } from "@/lib/exerciseLibrary";
 import { sessionProtocol, protocolStep } from "@/lib/sessionProtocols";
 import { runStateFromEvents, type RunEvent } from "@/lib/assessmentRun";
 import { CARDIO_CONDITION_OPEN_HEART } from "@/lib/intakeCardio";
+import { sternalPrecautions } from "@/lib/cardioSafety";
+import { clinicDateKey } from "@/lib/clinicWeek";
 import { GERI_FALLS_TWO_PLUS } from "@/lib/intakeGeriatric";
 import {
   COACHING_CUES,
@@ -93,6 +95,49 @@ describe("contraindications from the intake", () => {
     expect(contraFlagsFromIntake({ geri_falls_12m: GERI_FALLS_TWO_PLUS }, NOW).has("high_fall_risk")).toBe(true);
     expect(contraFlagsFromIntake({ neuro_pd_freezing: "Most days" }, NOW).has("high_fall_risk")).toBe(true);
     expect(contraFlagsFromIntake({ neuro_mobility: "Use a wheelchair" }, NOW).has("cannot_stand")).toBe(true);
+  });
+});
+
+describe("sternal precautions agree with the Cardio profile for every input", () => {
+  const open = (until: string) => ({ cardio_condition: CARDIO_CONDITION_OPEN_HEART, cardio_sternal_precautions_until: until });
+  const at = (iso: string) => Date.parse(iso);
+  const holds = (until: string, nowMs: number) => contraFlagsFromIntake(open(until), nowMs).has("sternal_precautions");
+
+  it("reads a day-first date as day first, not as a month", () => {
+    // 05/09/2026 is 5 September; on 20 August it is still ahead.
+    expect(holds("05/09/2026", at("2026-08-20T10:00:00Z"))).toBe(true);
+    // ... and on 10 September it is over. Date.parse read it as 9 May, which is past on 1 June, so
+    // it lifted the precautions months early.
+    expect(holds("05/09/2026", at("2026-06-01T10:00:00Z"))).toBe(true);
+    expect(holds("05/09/2026", at("2026-09-10T10:00:00Z"))).toBe(false);
+  });
+
+  it("holds through the whole of the last day in the clinic's zone", () => {
+    // 2026-09-20 18:29 UTC is 23:59 IST on the 20th; 18:31 UTC is 00:01 on the 21st.
+    expect(holds("2026-09-20", at("2026-09-20T00:30:00Z"))).toBe(true);
+    expect(holds("2026-09-20", at("2026-09-20T18:29:00Z"))).toBe(true);
+    expect(holds("2026-09-20", at("2026-09-20T18:31:00Z"))).toBe(false);
+    // The ISO date used to lift at 05:30 IST on the day (UTC midnight).
+    expect(holds("2026-09-20", at("2026-09-20T00:01:00Z"))).toBe(true);
+    expect(holds("20 Sep 2026", at("2026-09-20T12:00:00Z"))).toBe(true);
+  });
+
+  it("keeps the precautions active for a date it cannot read", () => {
+    for (const raw of ["six weeks after surgery", "ask the surgeon", "31/02/2026", "", "   ", "2026-13-40"]) {
+      expect(holds(raw, at("2030-01-01T00:00:00Z"))).toBe(true);
+    }
+    expect(contraFlagsFromIntake({ cardio_condition: CARDIO_CONDITION_OPEN_HEART, cardio_sternal_precautions_until: 20260920 }, NOW).has("sternal_precautions")).toBe(true);
+  });
+
+  it("gives the same answer as sternalPrecautions for every input and instant", () => {
+    const inputs = ["2026-09-20", "20/09/2026", "05/09/2026", "20 Sep 2026", "September 20, 2026", "20th September 2026", "next month", ""];
+    const instants = ["2026-09-04T20:00:00Z", "2026-09-05T10:00:00Z", "2026-09-20T00:30:00Z", "2026-09-20T18:29:00Z", "2026-09-20T18:31:00Z", "2026-10-01T00:00:00Z"];
+    for (const raw of inputs) {
+      for (const iso of instants) {
+        const profile = sternalPrecautions({ ...open(raw), cardio_sternal_precautions: "No lifting" }, clinicDateKey(at(iso)));
+        expect(holds(raw, at(iso)), `${raw} @ ${iso}`).toBe(profile.status === "active" || profile.status === "end_date_unknown");
+      }
+    }
   });
 });
 

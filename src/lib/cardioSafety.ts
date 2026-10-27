@@ -174,15 +174,22 @@ export function preExerciseCheck(vitals: Vitals, limit: OxygenStopLimit): PreExe
       });
     }
   } else notChecked.push("resting heart rate");
-  if (finite(vitals.systolic) && finite(vitals.diastolic)) {
-    if (vitals.systolic > BP_SYSTOLIC_MAX || vitals.diastolic > BP_DIASTOLIC_MAX) {
-      flags.push({
-        code: "blood_pressure_high",
-        patientText: `Your blood pressure is ${vitals.systolic}/${vitals.diastolic}, over ${BP_SYSTOLIC_MAX}/${BP_DIASTOLIC_MAX}.`,
-        clinicianText: `Blood pressure ${vitals.systolic}/${vitals.diastolic} mmHg (over ${BP_SYSTOLIC_MAX}/${BP_DIASTOLIC_MAX}).`,
-      });
-    }
-  } else notChecked.push("blood pressure");
+  // Each number is judged on its own: a systolic over its limit is a stop
+  // even with no diastolic taken (and the other way round). A missing number
+  // is still listed as not checked, but never hides a number that IS over.
+  const sys = finite(vitals.systolic) ? vitals.systolic : null;
+  const dia = finite(vitals.diastolic) ? vitals.diastolic : null;
+  if ((sys !== null && sys > BP_SYSTOLIC_MAX) || (dia !== null && dia > BP_DIASTOLIC_MAX)) {
+    const shown = `${sys ?? "?"}/${dia ?? "?"}`;
+    flags.push({
+      code: "blood_pressure_high",
+      patientText: `Your blood pressure is ${shown}, over ${BP_SYSTOLIC_MAX}/${BP_DIASTOLIC_MAX}.`,
+      clinicianText: `Blood pressure ${shown} mmHg (over ${BP_SYSTOLIC_MAX}/${BP_DIASTOLIC_MAX}).`,
+    });
+  }
+  if (sys === null && dia === null) notChecked.push("blood pressure");
+  else if (sys === null) notChecked.push("systolic (top) blood pressure number");
+  else if (dia === null) notChecked.push("diastolic (bottom) blood pressure number");
   if (finite(vitals.spo2Rest)) {
     if (vitals.spo2Rest < limit.percent) {
       flags.push({

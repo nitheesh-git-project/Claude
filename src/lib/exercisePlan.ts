@@ -3,7 +3,8 @@ import { CARDIO_CONDITION_OPEN_HEART } from "@/lib/intakeCardio";
 import { GERI_FALLS_ONE_INJURED, GERI_FALLS_TWO_PLUS } from "@/lib/intakeGeriatric";
 import { sentenceCount, type ProtocolStep, type SessionProtocol } from "@/lib/sessionProtocols";
 import { checkStepAction, type RunRefusal, type RunState } from "@/lib/assessmentRun";
-import type { PreExerciseCheck } from "@/lib/cardioSafety";
+import { parseClinicDate, type PreExerciseCheck } from "@/lib/cardioSafety";
+import { clinicDateKey } from "@/lib/clinicWeek";
 import {
   CONTRA_FLAG_TEXT,
   DOSE_LIMITS,
@@ -173,8 +174,12 @@ export function contraFlagsFromIntake(intake: Readonly<Record<string, unknown>> 
   const flags = new Set<ContraFlag>();
   const a = intake ?? {};
   if (norm(a.cardio_condition) === norm(CARDIO_CONDITION_OPEN_HEART)) {
-    const until = typeof a.cardio_sternal_precautions_until === "string" ? Date.parse(a.cardio_sternal_precautions_until) : NaN;
-    if (!Number.isFinite(until) || until > nowMs) flags.add("sternal_precautions");
+    // The same reading of the surgeon's date as the Cardio profile uses
+    // (cardioSafety.sternalPrecautions): day-first "05/09/2026" is 5 September,
+    // and the precautions hold through the whole of the last day in the
+    // clinic's zone. A date that cannot be read keeps them on.
+    const until = typeof a.cardio_sternal_precautions_until === "string" ? parseClinicDate(a.cardio_sternal_precautions_until) : null;
+    if (!until || clinicDateKey(nowMs) <= until) flags.add("sternal_precautions");
   }
   const geriFalls = norm(a.geri_falls_12m);
   const neuroFalls = norm(a.neuro_falls);
