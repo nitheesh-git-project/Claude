@@ -6,6 +6,7 @@ import {
   SPLASH_FADE_MS,
   SPLASH_HIDDEN_AT_KEY,
   SPLASH_SHOWN_KEY,
+  splashSkipsPath,
   type SplashConfig,
 } from "@/lib/splashScreen";
 
@@ -102,6 +103,7 @@ export default function SplashScreen({ config }: { config: SplashConfig }) {
       }
 
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      if (splashSkipsPath(window.location.pathname)) return;
 
       // 0 is the admin saying "greet the first load only" - no amount of
       // time away earns a replay then.

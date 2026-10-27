@@ -105,6 +105,17 @@ export const DEFAULT_SPLASH_CONFIG: SplashConfig = {
 };
 
 /**
+ * Pages the greeting never covers. The patient's companion screen during a
+ * guided video assessment is display only and dark: a splash dissolving over
+ * it printed a ghost of the brand phrase behind the picture and the clock.
+ */
+export const SPLASH_SKIP_PATH = "/patient/dashboard/session";
+
+export function splashSkipsPath(pathname: string): boolean {
+  return pathname === SPLASH_SKIP_PATH || pathname.startsWith(`${SPLASH_SKIP_PATH}/`);
+}
+
+/**
  * Builds the script that runs in the document head, before the browser
  * paints anything.
  *
@@ -127,6 +138,8 @@ export function splashBootScript(config: SplashConfig): string {
   return `(function(){try{
 var m=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)");
 if(m&&m.matches)return;
+var p=location.pathname;
+if(p===${JSON.stringify(SPLASH_SKIP_PATH)}||p.indexOf(${JSON.stringify(SPLASH_SKIP_PATH + "/")})===0)return;
 var s=window.sessionStorage;
 var away=${awayMs};
 var greeted=s.getItem(${JSON.stringify(SPLASH_SHOWN_KEY)});

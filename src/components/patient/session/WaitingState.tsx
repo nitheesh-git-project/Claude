@@ -6,7 +6,7 @@ export default function WaitingState({ ended = false }: { ended?: boolean }) {
   return (
     <div
       data-testid="companion-waiting"
-      className="flex min-h-dvh flex-col items-center justify-center gap-[clamp(16px,3vw,32px)] px-[clamp(16px,4vw,48px)] py-[clamp(20px,4vw,48px)] text-center"
+      className="flex min-h-dvh flex-col items-center justify-center gap-[clamp(16px,3vw,32px)] px-[clamp(16px,4vw,48px)] pt-[clamp(20px,4vw,48px)] pb-24 text-center"
     >
       <span aria-hidden="true" className="relative grid h-[clamp(96px,18vw,160px)] w-[clamp(96px,18vw,160px)] place-items-center">
         <span className="absolute inset-0 rounded-full bg-[#5eead4]/15 motion-safe:animate-pulse" />
