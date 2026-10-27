@@ -322,6 +322,10 @@ const BY_RUN_CODE: Record<RunRefusalCode, { message: string; fix: string | null 
   unknown_step: { message: "That step is not part of this assessment.", fix: "Reload the page." },
   red_flags_unanswered: { message: "The safety questions have not all been answered.", fix: "Go to the Safety step and answer every question." },
   red_flag_present: { message: "A safety question was answered yes, so no tests today.", fix: "Go to the summary." },
+  red_flag_locked: {
+    message: "A safety question was already answered yes, and that answer stands for this assessment.",
+    fix: "Go to the summary.",
+  },
   setup_not_confirmed: { message: "The set-up for this step is not confirmed yet.", fix: "Tick every set-up item, then save again." },
   setup_incomplete: { message: "Part of the set-up is still unticked.", fix: "Tick every set-up item, then save again." },
   helper_not_confirmed: { message: "Nobody is confirmed as standing beside the patient.", fix: "Tick that another adult is beside the patient." },

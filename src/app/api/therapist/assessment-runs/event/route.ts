@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
-import { protocolStep, stepRecordsMeasure } from "@/lib/sessionProtocols";
+import { protocolStep } from "@/lib/sessionProtocols";
 import {
   RUN_EVENT_KINDS,
+  checkSavedRetry,
   checkStepAction,
   isUuid,
   preExerciseDetails,
@@ -46,7 +47,8 @@ import { exercisesCouldNotCheck, exercisesNotMigrated, loadActiveExercisePlan, l
 //   saved            { recordId } on a layer step (Pain Map, neurological or
 //                    paediatric exam: the record that route wrote); measurementId
 //                    on a measurement step (normally written by the measurement
-//                    route itself -- this is the retry); nothing on the red-flag
+//                    route itself -- this is the retry, held to the same
+//                    reading conditions: checkSavedRetry); nothing on the red-flag
 //                    and summary steps; nothing on the Home exercises step, which
 //                    is refused (exercises_not_marked) until every exercise in the
 //                    patient's active plan has a mark in this run (phase 7d)
@@ -60,9 +62,11 @@ import { exercisesCouldNotCheck, exercisesNotMigrated, loadActiveExercisePlan, l
 //                 preExercise?: { status, flags: string[], notChecked: string[] },
 //                 duplicate?: true }
 //           400 malformed, 403 not your run or patient, 404 no such run,
-//           409 { code } -- red_flags_unanswered, red_flag_present, setup_incomplete,
+//           409 { code } -- red_flags_unanswered, red_flag_present, red_flag_locked
+//               (a second red-flag answer after a yes), setup_incomplete,
 //               setup_not_confirmed, helper_not_confirmed, cardio_check_not_recorded,
-//               cardio_red_flag, not_skippable, measure_not_in_step,
+//               cardio_red_flag, not_skippable, measure_not_in_step, not_video,
+//               read_from_required,
 //               run_not_in_progress, protocol_changed, session_not_started,
 //               exercises_not_marked,
 //           429 rate limited, 503 a check that could not be run.
@@ -202,19 +206,36 @@ export async function POST(request: NextRequest) {
         }
         const { data: m, error } = await gate.admin
           .from("outcome_measurements")
-          .select("id, patient_id, recorded_by, measure_key, variant, created_at")
+          .select("id, patient_id, recorded_by, measure_key, variant, conditions, created_at")
           .eq("id", body.measurementId)
           .maybeSingle();
         if (error) return couldNotCheck();
-        if (
-          !m ||
-          m.patient_id !== gate.run.patientId ||
-          m.recorded_by !== gate.therapistId ||
-          Date.parse(m.created_at as string) < Date.parse(gate.run.startedAt) ||
-          !stepRecordsMeasure(step, m.measure_key as string, (m.variant as string | null) ?? null)
-        ) {
+        if (!m) {
           return NextResponse.json({ error: "That reading is not one you saved for this step.", code: "measure_not_in_step" }, { status: 409 });
         }
+        // The same conditions the measurement route applied when it saved
+        // the reading (checkSavedRetry -> checkRunSave): a retry is not a
+        // second door. The pre-exercise check is worked out for the
+        // reading's own measure, as that route does.
+        const pre = await preExerciseFor(gate.admin, gate, step, typeof m.measure_key === "string" ? m.measure_key : undefined);
+        if (!pre.ok) return pre.response;
+        const retry = checkSavedRetry({
+          protocol: gate.protocol,
+          stepId: step.id,
+          state: gate.state,
+          run: gate.run,
+          therapistId: gate.therapistId,
+          reading: {
+            patientId: m.patient_id,
+            recordedBy: m.recorded_by,
+            measureKey: m.measure_key,
+            variant: m.variant,
+            conditions: m.conditions,
+            createdAt: m.created_at,
+          },
+          preExercise: pre.check,
+        });
+        if (!retry.ok) return refusalResponse(retry.refusal);
         measurementId = m.id as string;
       }
       break;

@@ -11,6 +11,7 @@ import {
   ASSESSMENT_LIVE_DISPLAY_SELECT,
   ASSESSMENT_RUN_EVENT_SELECT,
   ASSESSMENT_RUN_SELECT,
+  checkRunAbandon,
   checkRunOpen,
   checkRunSave,
   orderRunEvents,
@@ -27,6 +28,8 @@ import {
   type RunState,
 } from "@/lib/assessmentRun";
 import { requireAssignedTherapist, requireSignedInUser, requireStartedSession } from "@/lib/therapistClinicalGate";
+import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
+import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 
 // The server half of the guided video assessment (phase 7a): the reads every
 // screen uses and the gate every run route shares. The shapes and the rules
@@ -286,6 +289,83 @@ export async function requireOpenRun(
       events,
       protocol: protocol!,
       state: runStateFromEvents(events),
+    },
+  };
+}
+
+export type AbandonGate = {
+  admin: AdminClient;
+  therapistId: string;
+  run: AssessmentRun;
+  events: RunEvent[];
+  /** The run's protocol when it is still the version the run started on;
+   *  null when the steps changed (or the protocol is gone), so nothing is
+   *  drafted from steps the run never had. */
+  protocol: SessionProtocol | null;
+  /** The current protocol of the run's key, whatever its version: enough to
+   *  move the patient's screen to "All done". */
+  displayProtocol: SessionProtocol | null;
+};
+
+/**
+ * The gate for ABANDONING a run (the end route with outcome "abandoned"):
+ * signed in, an active approved therapist, the run in progress, and the
+ * caller its own physiotherapist or one assigned to the patient now
+ * (checkRunAbandon). Deliberately NOT the protocol-version or started-session
+ * checks requireOpenRun makes: those are what leave a run stuck -- the steps
+ * changed, the assignment moved, the session is over -- and "End it and
+ * start a new one" has to be something the physiotherapist can do.
+ */
+export async function requireRunToAbandon(
+  rawRunId: unknown
+): Promise<{ ok: true; gate: AbandonGate } | { ok: false; response: NextResponse }> {
+  const who = await requireSignedInUser();
+  if (!who.ok) return who;
+  if (typeof rawRunId !== "string" || !rawRunId.trim()) {
+    return { ok: false, response: NextResponse.json({ error: "Missing runId", code: "bad_request" }, { status: 400 }) };
+  }
+  const standing = await isProfileActiveAndApproved(who.userId);
+  if (standing === null) return { ok: false, response: profileCheckUnavailable() };
+  if (!standing) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Your account is not active - it is either awaiting admin approval or has been suspended." },
+        { status: 403 }
+      ),
+    };
+  }
+  const admin = createAdminClient();
+  const { data: profile, error: profileError } = await admin.from("profiles").select("role").eq("id", who.userId).maybeSingle();
+  if (profileError) return { ok: false, response: profileCheckUnavailable() };
+  if (profile?.role !== "therapist") return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+
+  const read = await loadRun(admin, rawRunId.trim());
+  if (read.status === "not_migrated") return { ok: false, response: databaseNotReady() };
+  if (read.status === "unreadable") return { ok: false, response: couldNotCheck() };
+  const run = read.status === "ok" ? read.run : null;
+
+  // Assignment is asked only of somebody else's run: the owner may always
+  // close their own, even after the patient moved to a colleague.
+  let assignedToPatient = false;
+  if (run && run.therapistId !== who.userId) {
+    const assigned = await isTherapistAssignedToPatient(admin, who.userId, run.patientId);
+    if (assigned === null) return { ok: false, response: profileCheckUnavailable() };
+    assignedToPatient = assigned;
+  }
+  const refused = checkRunAbandon(run, { therapistId: who.userId, assignedToPatient });
+  if (refused) return { ok: false, response: refusalResponse(refused) };
+  if (!run || read.status !== "ok") return { ok: false, response: couldNotCheck() }; // unreachable: checkRunAbandon refuses no run
+  const current = sessionProtocol(run.protocolKey);
+  return {
+    ok: true,
+    gate: {
+      admin,
+      therapistId: who.userId,
+      run,
+      events: read.events,
+      protocol: current && current.version === run.protocolVersion ? current : null,
+      displayProtocol: current,
     },
   };
 }

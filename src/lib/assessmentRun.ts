@@ -162,6 +162,9 @@ export type RunRefusalCode =
   | "unknown_step"
   | "red_flags_unanswered"
   | "red_flag_present"
+  /** A second answer to the red-flag questions after one was answered yes:
+   *  the flag stands until the run ends. */
+  | "red_flag_locked"
   | "setup_not_confirmed"
   | "setup_incomplete"
   | "helper_not_confirmed"
@@ -294,7 +297,11 @@ export function validateLayerSavedDetails(step: ProtocolStep, raw: unknown): { o
 export type StepOutcome = "saved" | "skipped" | "stopped" | "opened" | "not_reached";
 
 export type RunState = {
-  /** The latest red-flag answers, or null when the check has not been answered. */
+  /** The latest red-flag answers, or null when the check has not been
+   *  answered -- except that once any answer was a yes, that answer stands:
+   *  a later "all no" never clears a flag (the route refuses one too,
+   *  `red_flag_locked`; this is the half that holds for a history written
+   *  before that refusal existed). */
   redFlags: RedFlagDetails | null;
   setupConfirmed: ReadonlySet<string>;
   helperConfirmed: ReadonlySet<string>;
@@ -324,7 +331,7 @@ export function runStateFromEvents(events: readonly RunEvent[]): RunState {
     switch (e.kind) {
       case "safety_confirmed": {
         const rf = parseRedFlagDetails(e.details);
-        if (rf) redFlags = rf;
+        if (rf && !(redFlags && redFlags.flagged.length > 0)) redFlags = rf;
         break;
       }
       case "setup_confirmed":
@@ -407,8 +414,19 @@ export function checkStepAction(input: {
     ) {
       return refuse(409, "red_flag_present", "A safety question was answered yes, so no tests today. Go to the summary.");
     }
-  } else if (action === "save" && !state.redFlags) {
-    return refuse(409, "red_flags_unanswered", "Answer every safety question first.");
+  } else {
+    if (action === "save" && !state.redFlags) {
+      return refuse(409, "red_flags_unanswered", "Answer every safety question first.");
+    }
+    // A yes is not taken back by answering again: what the patient said is
+    // the reason there are no tests today, and it stands until the run ends.
+    if (action === "safety" && state.redFlags && state.redFlags.flagged.length > 0) {
+      return refuse(
+        409,
+        "red_flag_locked",
+        "A safety question was already answered yes. That answer stands for this assessment; go to the summary."
+      );
+    }
   }
 
   if (action === "save") {
@@ -483,6 +501,58 @@ export function checkRunSave(input: {
   return { ok: true, step };
 }
 
+/**
+ * The event route's `saved` with a measurementId -- the retry of a link the
+ * measurement route normally writes itself. The stored reading has to be
+ * one this run could have saved: this patient's, recorded by this therapist
+ * since the run started -- and then exactly the checks the measurement route
+ * made (checkRunSave: the step's measure, over video, a vital sign read off
+ * the patient's own device, the helper where the step needs one, and the
+ * clinical order). Without the second half a reading recorded outside the
+ * run's conditions could be claimed for the run afterwards.
+ */
+export function checkSavedRetry(input: {
+  protocol: SessionProtocol;
+  stepId: string;
+  state: RunState;
+  run: { patientId: string; startedAt: string };
+  therapistId: string;
+  reading: {
+    patientId: unknown;
+    recordedBy: unknown;
+    measureKey: unknown;
+    variant: unknown;
+    conditions: unknown;
+    createdAt: unknown;
+  };
+  preExercise?: PreExerciseCheck | null;
+}): { ok: true; step: ProtocolStep } | { ok: false; refusal: RunRefusal } {
+  const r = input.reading;
+  const created = typeof r.createdAt === "string" ? Date.parse(r.createdAt) : NaN;
+  if (
+    r.patientId !== input.run.patientId ||
+    r.recordedBy !== input.therapistId ||
+    typeof r.measureKey !== "string" ||
+    !Number.isFinite(created) ||
+    created < Date.parse(input.run.startedAt)
+  ) {
+    return { ok: false, refusal: refuse(409, "measure_not_in_step", "That reading is not one you saved for this step.") };
+  }
+  return checkRunSave({
+    protocol: input.protocol,
+    stepId: input.stepId,
+    state: input.state,
+    measurement: {
+      measureKey: r.measureKey,
+      variant: typeof r.variant === "string" ? r.variant : null,
+      // A stored row with no conditions object has no setting, so it is
+      // refused as not taken over video rather than waved through.
+      conditions: (isObject(r.conditions) ? r.conditions : {}) as MeasurementConditions,
+    },
+    preExercise: input.preExercise,
+  });
+}
+
 // --- The heart and lung pre-exercise check, from the run's own readings ---------------
 
 export type RunMeasurementLite = {
@@ -523,6 +593,28 @@ export function preExerciseVitalsFromRun(
 }
 
 // --- Ending a run ------------------------------------------------------------------------
+
+/**
+ * Who may ABANDON a run. Completing one keeps every gate (checkRunOpen and a
+ * started session): it says the assessment was done. Abandoning is the way
+ * out of a run that can no longer be finished -- the steps changed since it
+ * started, its physiotherapist is no longer assigned, no session is running
+ * -- and without it that run stays in progress for ever and every new start
+ * is a 409. So it asks only that the run is still in progress and that the
+ * caller is its own physiotherapist or one assigned to the patient now (the
+ * caller is already known to be an active, approved therapist).
+ */
+export function checkRunAbandon(
+  run: AssessmentRun | null,
+  ctx: { therapistId: string; assignedToPatient: boolean }
+): RunRefusal | null {
+  if (!run) return refuse(404, "run_not_found", "That assessment could not be found.");
+  if (run.therapistId !== ctx.therapistId && !ctx.assignedToPatient) {
+    return refuse(403, "run_not_yours", "This assessment is being run by another physiotherapist.");
+  }
+  if (run.status !== "in_progress") return refuse(409, "run_not_in_progress", "This assessment has already ended. Start a new one.");
+  return null;
+}
 
 export function validateEndRequest(raw: unknown): { ok: true; outcome: "completed" | "abandoned"; reason: EndReason | null } | { ok: false; refusal: RunRefusal } {
   if (!isObject(raw)) return { ok: false, refusal: refuse(400, "bad_request", "Nothing to end.") };

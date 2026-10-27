@@ -114,6 +114,11 @@ test("AR-002: an unassigned therapist is refused at every door and reads nothing
   expect(ev.status()).toBe(403);
   const display = await post(request, "/api/therapist/assessment-runs/display", QA_EMAILS.therapistB, { runId: kneeRunId, stepId: "safety", phase: "ready" });
   expect(display.status()).toBe(403);
+  // Abandoning asks only "the run's own physiotherapist, or assigned to the
+  // patient now" -- and an unassigned colleague is neither.
+  const abandon = await post(request, "/api/therapist/assessment-runs/end", QA_EMAILS.therapistB, { runId: kneeRunId, outcome: "abandoned", reason: "other" });
+  expect(abandon.status()).toBe(403);
+  expect((await abandon.json()).code).toBe("run_not_yours");
   const outsider = await rlsClientFor(QA_EMAILS.therapistB);
   const { data: runs } = await outsider.from("assessment_runs").select("id").eq("id", kneeRunId);
   expect(runs ?? []).toHaveLength(0);

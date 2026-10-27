@@ -5,8 +5,10 @@ import { exerciseByKey } from "./exerciseLibrary";
 import {
   buildExerciseDisplay,
   buildLiveDisplay,
+  checkRunAbandon,
   checkRunOpen,
   checkRunSave,
+  checkSavedRetry,
   checkStepAction,
   clockReading,
   endedLiveDisplay,
@@ -139,6 +141,24 @@ describe("the run gate", () => {
     expect(checkStepAction({ protocol: knee, step: protocolStep(knee, "walk")!, state, action: "skip" })).toBeNull();
   });
 
+  it("a yes stands until the run ends: a second answer is refused, and a later all-clear never clears it", () => {
+    const yes = () => ev("safety", "safety_confirmed", { gate: "red_flags", answers: { ...allClear(), unwell_or_fever: true }, flagged: ["unwell_or_fever"] });
+    const safety = protocolStep(knee, "safety")!;
+    const flaggedState = runStateFromEvents([setup(knee, "safety"), yes()]);
+    expect(checkStepAction({ protocol: knee, step: safety, state: flaggedState, action: "safety" })?.code).toBe("red_flag_locked");
+    // Before any yes, answering again is allowed (a no can become a yes).
+    const clearState = runStateFromEvents([setup(knee, "safety"), redFlagsClear()]);
+    expect(checkStepAction({ protocol: knee, step: safety, state: clearState, action: "safety" })).toBeNull();
+    expect(checkStepAction({ protocol: knee, step: safety, state: runStateFromEvents([]), action: "safety" })).toBeNull();
+    // A history with an all-clear written after the yes (before the route
+    // refused one) still reads as flagged, so every test stays shut.
+    const rewritten = runStateFromEvents([setup(knee, "safety"), yes(), redFlagsClear()]);
+    expect(rewritten.redFlags?.flagged).toEqual(["unwell_or_fever"]);
+    expect(checkStepAction({ protocol: knee, step: protocolStep(knee, "knee_bend")!, state: rewritten, action: "setup" })?.code).toBe("red_flag_present");
+    // ...whereas an all-clear followed by a yes is the yes.
+    expect(runStateFromEvents([redFlagsClear(), yes()]).redFlags?.flagged).toEqual(["unwell_or_fever"]);
+  });
+
   it("a save needs the step's own set-up, and a helper where one is needed", () => {
     const base = [setup(knee, "safety"), redFlagsClear()];
     const measurement = { measureKey: "chair_stand_30s", variant: null, conditions: video };
@@ -181,6 +201,54 @@ describe("the run gate", () => {
     expect(checkRunSave({ protocol: knee, stepId: "nope", state, measurement: { measureKey: "lefs", variant: null, conditions: video } }).ok).toBe(false);
     const layer = checkRunSave({ protocol: knee, stepId: "pain", state, measurement: { measureKey: "pain_nprs", variant: "now", conditions: video } });
     expect(!layer.ok && layer.refusal.code).toBe("measure_not_in_step");
+  });
+});
+
+describe("the saved retry (the event route with a measurementId)", () => {
+  const state = () => runStateFromEvents([setup(knee, "safety"), redFlagsClear(), setup(knee, "chair_stand")]);
+  const reading = (over: Record<string, unknown> = {}) => ({
+    patientId: "pat-1",
+    recordedBy: "ther-1",
+    measureKey: "chair_stand_30s",
+    variant: null,
+    conditions: { setting: "video", helperPresent: true },
+    createdAt: "2026-10-26T09:10:00.000Z",
+    ...over,
+  });
+  const retry = (r: ReturnType<typeof reading>, st = state(), protocol = knee, stepId = "chair_stand") =>
+    checkSavedRetry({ protocol, stepId, state: st, run: RUN, therapistId: "ther-1", reading: r });
+  const code = (r: ReturnType<typeof checkSavedRetry>) => (r.ok ? null : r.refusal.code);
+
+  it("links a reading the measurement route would have saved", () => {
+    expect(retry(reading()).ok).toBe(true);
+  });
+
+  it("refuses a reading that is not this run's own", () => {
+    expect(code(retry(reading({ patientId: "pat-2" })))).toBe("measure_not_in_step");
+    expect(code(retry(reading({ recordedBy: "ther-2" })))).toBe("measure_not_in_step");
+    expect(code(retry(reading({ createdAt: "2026-10-26T08:59:00.000Z" })))).toBe("measure_not_in_step");
+    expect(code(retry(reading({ createdAt: "not a time" })))).toBe("measure_not_in_step");
+    expect(code(retry(reading({ measureKey: "lefs" })))).toBe("measure_not_in_step");
+  });
+
+  it("holds the reading to the conditions the measurement route applies", () => {
+    // Recorded in person, or with no conditions at all: not a video reading.
+    expect(code(retry(reading({ conditions: { setting: "in_person", helperPresent: true } })))).toBe("not_video");
+    expect(code(retry(reading({ conditions: null })))).toBe("not_video");
+    // A step that needs a helper needs one in the reading too.
+    expect(code(retry(reading({ conditions: { setting: "video" } })))).toBe("helper_not_confirmed");
+    // A vital sign says it was read off the patient's own device.
+    const cardioState = runStateFromEvents([setup(cardio, "safety"), redFlagsClear(cardio), setup(cardio, "resting_check")]);
+    const spo2 = reading({ measureKey: "resting_spo2", conditions: { setting: "video" } });
+    expect(code(retry(spo2, cardioState, cardio, "resting_check"))).toBe("read_from_required");
+    const spo2Ok = reading({ measureKey: "resting_spo2", conditions: { setting: "video", readFrom: "patient_device_on_video" } });
+    expect(retry(spo2Ok, cardioState, cardio, "resting_check").ok).toBe(true);
+  });
+
+  it("keeps the clinical order: no link without the step's set-up, none after a red flag", () => {
+    expect(code(retry(reading(), runStateFromEvents([setup(knee, "safety"), redFlagsClear()])))).toBe("setup_not_confirmed");
+    const flagged = ev("safety", "safety_confirmed", { gate: "red_flags", answers: { ...allClear(), unwell_or_fever: true }, flagged: ["unwell_or_fever"] });
+    expect(code(retry(reading(), runStateFromEvents([setup(knee, "safety"), flagged, setup(knee, "chair_stand")])))).toBe("red_flag_present");
   });
 });
 
@@ -256,6 +324,20 @@ describe("ending", () => {
     expect(validateEndRequest({ outcome: "abandoned", reason: "connection_lost" }).ok).toBe(true);
     expect(validateEndRequest({ outcome: "completed", reason: "other" }).ok).toBe(false);
     expect(validateEndRequest({ outcome: "paused" }).ok).toBe(false);
+  });
+
+  it("lets a run that can no longer be finished be abandoned by its owner or an assigned colleague", () => {
+    // Its own physiotherapist, assigned or not, and whatever version the
+    // steps are now (checkRunOpen would say protocol_changed here).
+    const stale = { ...RUN, protocolVersion: 0 };
+    expect(checkRunOpen(stale, { therapistId: "ther-1", protocol: knee })?.code).toBe("protocol_changed");
+    expect(checkRunAbandon(stale, { therapistId: "ther-1", assignedToPatient: false })).toBeNull();
+    // A colleague assigned to the patient now.
+    expect(checkRunAbandon(RUN, { therapistId: "ther-2", assignedToPatient: true })).toBeNull();
+    // Nobody else, and never a run that has ended or does not exist.
+    expect(checkRunAbandon(RUN, { therapistId: "ther-2", assignedToPatient: false })?.code).toBe("run_not_yours");
+    expect(checkRunAbandon({ ...RUN, status: "completed" }, { therapistId: "ther-1", assignedToPatient: true })?.code).toBe("run_not_in_progress");
+    expect(checkRunAbandon(null, { therapistId: "ther-1", assignedToPatient: true })?.status).toBe(404);
   });
 });
 
