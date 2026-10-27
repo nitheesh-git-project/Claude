@@ -4,9 +4,9 @@
   "shards": {
     "patient": 2,
     "money": 2,
-    "therapist": 2,
+    "therapist": 3,
     "session": 1,
-    "admin": 7,
+    "admin": 6,
     "hospital": 1,
     "platform": 3,
     "integrity": 1

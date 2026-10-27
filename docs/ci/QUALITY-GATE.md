@@ -403,7 +403,7 @@ export CRON_SECRET="local-$(openssl rand -hex 16)"          # for admin-maintena
 GITHUB_ENV=.gate.env scripts/ci/provision-local-stack.sh
 set -a; . ./.gate.env; set +a
 node scripts/ci/run-runner.mjs hospital           # or any runner (all its shards' files)
-node scripts/ci/run-runner.mjs admin --shard 2/7  # one shard, exactly as CI ran it
+node scripts/ci/run-runner.mjs admin --shard 2/6  # one shard, exactly as CI ran it
 npx playwright test e2e/hospital-isolation.spec.ts   # one spec, same stack
 supabase stop --no-backup                         # throw the stack away
 ```
