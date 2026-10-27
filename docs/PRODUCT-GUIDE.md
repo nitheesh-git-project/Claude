@@ -2709,7 +2709,9 @@ everything else.
   demo*, *Your turn* and one row of three marks), the 36 line pictures, the
   companion's demo, the patient's read-only *Your home exercises* card on the
   Health Profile page (parent's voice for a child) and a read-only *Home
-  exercises* section on the therapist's chart. A mark is not corrected in the
+  exercises* section on the therapist's chart and, read only, on the admin's
+  patient detail (People scope), plus one calm *Your home exercises* row on
+  the patient's Overview linking to the card. A mark is not corrected in the
   app yet (it needs a schema change).
 
 Both question banks (Health Profile and Pain Map) are managed from

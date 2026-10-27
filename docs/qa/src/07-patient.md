@@ -798,6 +798,13 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 **Preconditions.** A freshly approved patient with nothing at all.
 **Expected Result.** The sidebar shows only **Overview**, **Book a Session**, **Health Profile**, **Edit Profile**, plus **Back to Home** at the foot of the nav. Sessions, Packages, Payments and Suggested Sessions are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.
 
+#### `PAT-HP-009` - Overview: the Your home exercises row · P2
+**Preconditions.** Patient A has an active Home exercises plan with four exercises, one practised with the physiotherapist.
+1. Open the patient dashboard Overview.
+2. Tap the row **Your home exercises**.
+3. Repeat for a child's (paediatric) record, then for a patient with no plan.
+**Expected Result.** 1: one calm, neutral row (never red or amber, not counted under *need you*): *4 exercises from your physiotherapist, last practised together on* the date in the clinic's zone. 2: the Health Profile opens at the *Your home exercises* card. 3: a child's row says *your child's physiotherapist*; with no plan, or when the plan cannot be read, there is no row at all.
+
 #### `PAT-HP-008` - Companion screen: the exercise demo · P1
 **Preconditions.** Patient A has the companion open (`/patient/dashboard/session`) while Therapist A teaches (`THR-HP-005t`).
 1. Therapist A taps **Show the demo** on an exercise.

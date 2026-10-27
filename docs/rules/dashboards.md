@@ -557,7 +557,15 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   exercises in your video session*), not set up, could not load - and a
   child's record reads in the parent's voice (`parent`). The therapist's
   chart has the same data read only, every version, as *Home exercises*. It is called **Home exercises** on every screen,
-  never a care plan, which is the programme recommendation. During the
+  never a care plan, which is the programme recommendation. The patient's
+  **Overview** has one calm row, *Your home exercises* (`homeExercisesFeedItem`
+  in `dashboardFeed.ts`: "4 exercises from your physiotherapist, last
+  practised together on <date>", "your child's physiotherapist" for a
+  paediatric record), neutral and never `needsYou`, linking to
+  `/patient/dashboard/health-profile#home-exercises` (the card's anchor). It
+  reads the plan with the patient's own client in its own call; no plan, or
+  a read that fails, shows no row (never a false "none yet"), and
+  `exercise_plans` is in the patient shell's `realtimeTables`. During the
   session the demo itself is on the companion (`assessment_live_display`,
   above), not on the dashboard. Detail: `clinical.md`, "Home exercises".
 - **A patient nobody has onboarded is said in three places on the

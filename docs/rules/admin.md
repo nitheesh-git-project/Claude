@@ -920,6 +920,13 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   *Log* nor *Confirm* is mounted - while its test, phase and status, summary and
   milestone-reopen controls need `scopeCanManage(scope, "people")`, as the
   orthopaedic layout's do.
+- **The admin's condition detail shows Home exercises read only.** The same
+  `HomeExercisesChart` as the therapist's chart (one shared read,
+  `loadHomeExercisesChartRead`), on the new-layout specialties only, rendered
+  only when `scopeCanOpen(scope, "people")` (absent otherwise, not empty). The
+  page is server-rendered, so there is no client-fetched route and no write
+  door: the plan is set in a guided assessment. Not set up, could not load
+  and none yet are three different sentences.
 - **Checkout speed is the one check that measures the product rather than
   a backlog.** The booking wizards time each Pay tap in the browser until the
   Razorpay sheet opens (`src/lib/checkoutTiming.ts`), report once,

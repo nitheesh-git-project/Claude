@@ -4381,7 +4381,7 @@
     {
       "id": "patient.home-exercises-screens",
       "runner": "therapist",
-      "title": "Home exercises on the screens: before any plan the patient's Health Profile card is calm and has nothing to fill in; a published plan shows each exercise with its picture, dose in words and steps (collapsed under the name) with nothing to tick, type or press; the companion shows the exercise demo (the counter, the name, the numbered steps and the picture) with no button and no clock",
+      "title": "Home exercises on the screens: before any plan the patient's Health Profile card is calm and has nothing to fill in; a published plan shows each exercise with its picture, dose in words and steps (collapsed under the name) with nothing to tick, type or press; the companion shows the exercise demo (the counter, the name, the numbered steps and the picture) with no button and no clock; the Overview has one calm 'Your home exercises' row linking to the card; the admin's patient detail shows the same chart read only",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4390,7 +4390,9 @@
           "tests": [
             "ES-001",
             "ES-002",
-            "ES-003"
+            "ES-003",
+            "ES-004",
+            "ES-005"
           ],
           "level": "browser"
         }

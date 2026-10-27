@@ -144,3 +144,29 @@ test("ES-003: the companion shows the exercise demo, with no controls and no clo
 
   await context.close();
 });
+
+test("ES-004: the Overview has one calm 'Your home exercises' row linking to the card", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  await context.addCookies(await browserCookiesFor(patient!.email));
+  const page = await context.newPage();
+  await page.goto(`${BASE}/patient/dashboard`);
+  const row = page.getByRole("link", { name: /Your home exercises/ });
+  await expect(row).toBeVisible(SEEN);
+  await expect(row).toContainText(/\d+ exercises? from your physiotherapist/);
+  await expect(row).toHaveAttribute("href", "/patient/dashboard/health-profile#home-exercises");
+  await row.click();
+  await expect(page).toHaveURL(/health-profile#home-exercises$/);
+  await expect(page.getByTestId("home-exercises")).toBeVisible();
+  await context.close();
+});
+
+test("ES-005: the admin's patient detail shows Home exercises read only", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+  const page = await context.newPage();
+  await page.goto(`${BASE}/admin/dashboard/conditions/${patient!.id}`);
+  await expect(page.getByTestId("chart-exercises")).toBeVisible(SEEN);
+  await expect(page.getByTestId("chart-exercise-sit_to_stand")).toContainText("Sit to stand");
+  await expect(page.getByTestId("chart-exercises").locator("input, textarea, select, button")).toHaveCount(0);
+  await context.close();
+});

@@ -570,6 +570,13 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 **Steps.** Approve a therapist's access-grant request. Then approve a patient's condition change request. Then approve a **therapist-submitted** edit for a re-triaged patient.
 **Expected Result.** The grant lets the therapist edit that patient's record. **Approving a change MERGES; it never replaces** - see `THR-HP-004`. Revoking a grant that is not approved is refused with `Only an approved grant can be revoked`. A stale decision returns `Someone else reviewed this. Refresh to see what they said.`
 
+#### `ADM-PEOP-004a` - Home exercises on the patient's detail, read only · P1
+**Preconditions.** A Strength and balance, Heart and lung, Orthopaedic, Neurological or Paediatric patient with a published Home exercises plan.
+1. Open the patient's detail as Master Admin (**People → Patient conditions**).
+2. Open **Earlier versions** if there is one.
+3. Repeat as an admin whose scope cannot open People.
+**Expected Result.** 1: **Home exercises** shows the current version with who set it and when, each exercise with its dose and its latest mark (who and when), and no control to change anything. 2: replaced versions read only. 3: the section is absent. A database without the tables says *not set up*; a failed read says *couldn't load*; neither reads as *No home exercises yet*.
+
 #### `ADM-PEOP-005` - Therapists directory · P1
 **Expected Result.** A paged list with approval state, active state, leave state, team visibility, revenue share and rating visibility.
 
