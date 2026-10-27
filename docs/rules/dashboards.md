@@ -538,6 +538,25 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   nobody has touched for six hours is not a run in progress. The live display
   is the one realtime table this feature adds. Detail: `clinical.md` rules 9
   and 10.
+- **Home exercises reach the patient's dashboard live, read-only (phase
+  7d-1 server side; the plan card and the cockpit's teaching screen are
+  7d-2).** The patient's plan is read with their **own** client through
+  `loadActiveExercisePlan` (`src/lib/exercisePlanServer.ts`; RLS
+  `exercise_plans_select_own_active` and friends are the gate, so they get
+  their one active version, its items in order and their own teaching
+  marks, never another patient's and never a replaced version) and drawn
+  through `exercisePlanView` - the library's picture and steps, the dose in
+  plain words (`doseText`), the physiotherapist's note, the safety line, a
+  "do this with another adult beside you" line where needed, and *practised
+  with your physiotherapist on <date>* with the one cue to remember, the
+  date through `formatDateTime.ts`. Nothing on it is a control the patient
+  fills in. `exercise_plans` is on the realtime publication, so a version
+  published in the session appears on the patient's dashboard without a
+  reload once the page subscribes (`realtimeTables`, 7d-2; RLS decides what
+  the socket delivers). It is called **Home exercises** on every screen,
+  never a care plan, which is the programme recommendation. During the
+  session the demo itself is on the companion (`assessment_live_display`,
+  above), not on the dashboard. Detail: `clinical.md`, "Home exercises".
 - **A patient nobody has onboarded is said in three places on the
   therapist's side**, because until it is done the patient's own Health
   Profile is locked: the Home feed row, a banner above the greeting

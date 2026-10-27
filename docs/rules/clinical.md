@@ -2,7 +2,7 @@
 
 Per-specialty intake, the Pain Map, care plans and their review, session notes, patient files, who may read a record, and the vocabulary all three roles share.
 
-**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · outcomeMeasures.ts · milestones.ts · patientDiary.ts · careStatus.ts · geriatricRisk.ts · cardioSafety.ts · sessionProtocols.ts · assessmentRun.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
+**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · outcomeMeasures.ts · milestones.ts · patientDiary.ts · careStatus.ts · geriatricRisk.ts · cardioSafety.ts · sessionProtocols.ts · assessmentRun.ts · exerciseLibrary.ts · exercisePlan.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
 
 > Part of `docs/rules/`. `CLAUDE.md` says which file a task needs; this one
 > is the detail. Keep it current in the same change that makes it wrong --
@@ -1375,7 +1375,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      helper measure on a step not marked as needing one (or a helper step with
      no helper item to tick), an exertion measure on a step not marked
      exertion, a first step that is not the red-flag check, a last that is not
-     the summary, a heart and lung exertion step before the resting check, or
+     the summary, a protocol without exactly one Home exercises step just
+     before the summary (phase 7d, version 2 - see "Home exercises" below), an
+     optional set-up item that is not that step's helper, a heart and lung
+     exertion step before the resting check, or
      a clinic word ("triage", "case", "patient", "geriatric"...) in what the
      patient sees. The six-minute walk is in person only, so the heart and lung
      protocol uses the one-minute sit-to-stand (the handbook's video stand-in);
@@ -1506,6 +1509,115 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   `e2e/assessment-run.spec.ts` and `e2e/assessment-cockpit.spec.ts` (written,
   not run); `scripts/append-only-sql-checks.sql`; QA `THR-HP-005q`,
   `THR-HP-005r`, `PAT-HP-006`.
+- **Home exercises are taught live on video, watched, and only read by the
+  patient (Health Profile redesign, phase 7d-1: the server side; the
+  cockpit's teaching screen and the patient's plan card are 7d-2).** The
+  owner's decisions: everything happens in the session, led by the
+  physiotherapist; nothing relies on the patient reporting back. **Home
+  exercises is its own word**: `exercise_plans` is not a care plan -
+  `care_plans` / `care_plan_versions` are the programme-purchase
+  recommendation above and keep that name; a screen never calls one the
+  other. Nine rules:
+  1. **The library is code, typed and checked at load.**
+     `src/lib/exerciseLibrary.ts`: starter exercises for all six profile
+     kinds (at least eight each - knee, back and shoulder basics,
+     neurological, Parkinson's big steps and wide turns, play-based
+     paediatric, Otago-style strength and balance, heart and lung walking and
+     breathing), each with a plain name, body area, demo picture key (a fixed
+     set, drawn in 7d-2), three to five one-sentence patient steps, a dose
+     kind and default dose, a safety line, contraindication flags, a *needs
+     helper* flag and easier / harder keys, optionally the milestone
+     templates it works towards. The module throws on a duplicate key, a
+     clinic word in anything the patient reads, a default dose its own
+     validator would refuse, a level or milestone that does not exist, or a
+     child's exercise without a parent beside them. **Every exercise is
+     marked "to be verified by a senior physiotherapist".** Code-only by
+     decision: the type carries `source` so a clinic-added (admin, DB-backed)
+     exercise can join the same lookups later; nothing reads one today.
+  2. **A plan is versions; the patient reads the active one.** One
+     `exercise_plans` row per version, at most one `active` per patient
+     (partial unique index); a new version turns the old one `replaced`
+     (history kept) in **one transaction** - `publish_exercise_plan()`
+     retires, inserts and fills the version under a per-patient lock, or
+     changes nothing (the `publish_care_plan_version` pattern). Items are
+     append-only and written only in the transaction that publishes their
+     plan, so nothing is slipped onto a version the patient already reads.
+  3. **Publishing is the server's judgement, not the screen's.**
+     `/api/therapist/exercise-plans/publish`: inside a guided run (the run's
+     patient, this therapist's run in progress) or, outside one, the assigned
+     therapist with a started or delivered session. The profile kind and what
+     the intake rules out are re-derived on the server
+     (`contraFlagsFromIntake`, "where available": sternal precautions after
+     open-heart surgery until the surgeon's date has passed, a high risk of
+     falling, cannot stand); the key must be the library's and offered for the
+     kind, the dose inside its kind's bounds (`validateDose`); and **an
+     exercise that needs another adult beside the patient is published only
+     inside a run whose Home exercises step ticked that helper**
+     (`helper_needs_run`, `helper_not_confirmed`). The dose's optional note
+     is the physiotherapist's own words to the patient, at most two short
+     sentences, contact-scanned (surface `exercise_plan_note`). No admin
+     door.
+  4. **Teaching is a protocol step, and keeps the three actions.** Every
+     protocol (version 2) has a *Home exercises* step (tool
+     `teach_exercises`) just before the summary: exertion (so on the heart
+     and lung protocol the pre-exercise check stands in front of it),
+     skippable with a fixed reason, its set-up the whole body in view, a
+     clear space and **an optional helper item** - the only optional set-up
+     item anywhere, and required on the paediatric step, where a parent is
+     beside the child for every exercise. Stop test, Skip and Save and next
+     stay the only three actions; **Save and next is refused until every
+     exercise in the active plan is marked in this run**
+     (`exercises_not_marked`).
+  5. **One mark per exercise, from what was watched.**
+     `/api/therapist/assessment-runs/teach` records *performed correctly*,
+     *needs practice* (exactly one cue from `COACHING_CUES`) or *not
+     attempted* (exactly one reason from `NOT_ATTEMPTED_REASONS`) - keys
+     only, no free text - into `exercise_teaching_events`, append-only by
+     trigger and written only into **that therapist's run in progress** for
+     an exercise in the patient's **active** plan (the trigger checks all of
+     it again). A retry of the same mark is a success; a different one is
+     409 `already_marked` - what was watched is not changed afterwards. The
+     gates: the red flags answered (none raised, for a demo or a mark of
+     something done), the step's set-up ticked and the pre-exercise check
+     clear for the patient's turn and a performed / needs-practice mark, and
+     the helper ticked for an exercise that needs one. Teaching happens only
+     inside a run; there is no other door.
+  6. **The demo is the library's, never the therapist's text.** The same
+     route with a phase (`demo`: watch how it is done; `go`: your turn) puts
+     one exercise on the companion: its name as the title, the library's
+     picture key and steps, *Exercise n of N*, and the fixed phase lines
+     (`buildExerciseDisplay`). `validateLiveDisplay` refuses any other key
+     inside `exercise`, steps that are not that exercise's, or a title that is
+     not its name, and the table's CHECK holds the key whitelist too. The
+     generic display route refuses `demo`. No clock: the physiotherapist
+     counts with the patient.
+  7. **The patient reads, and fills in nothing.** RLS gives the patient
+     their own **active** plan and its items, and their own teaching marks -
+     a deliberate choice: every mark is a fixed-list key, the patient was
+     there, and the plan can say *Practised with your physiotherapist on
+     <date>. Remember: <the cue>* (`exercisePlanView`, `practisedLine`),
+     which is coaching rather than a record to defend. The not-attempted
+     reason is the clinician's wording and the patient's plan does not show
+     it. The clinical-access therapist and an admin read every version and
+     mark. Nothing on the patient's side writes to any of the three tables.
+  8. **The run's draft says what was taught, honestly.** The summary draft
+     (rule 7 above) adds one sentence from this run's marks - *We practised
+     2 home exercises together: sit to stand went well, and heel raise needs
+     more practice. We will try heel-to-toe stand next time.* - and says so
+     when the step was skipped; the step is never counted as one of the
+     checks. A failed read of the marks gives no draft rather than one
+     missing them.
+  9. **Session notes keep their free-text "Home exercise prescribed".** The
+     structured plan does not supersede the field: old text is never
+     touched, and for a **new** note the dialog may prefill an **empty** field
+     from the active plan (`homeExerciseNotePrefill`, 7d-2) for the
+     physiotherapist to edit or clear - what is saved is their own text. The
+     plan is what the patient reads; the note stays the clinicians' working
+     copy and keeps no patient policy.
+  `src/lib/exerciseLibrary.test.ts`, `exercisePlan.test.ts`,
+  `assessmentRun.test.ts`, `assessmentSummaryDraft.test.ts`;
+  `e2e/exercise-teaching.spec.ts` (written, not run);
+  `scripts/append-only-sql-checks.sql`; QA `THR-HP-005s`, `PAT-HP-007`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate
@@ -1546,7 +1658,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   delivered session the therapist writes what was treated, how the patient
   responded, the home exercise and the plan for next time
   (`session_notes`, fields in `src/lib/sessionNotes.ts`, written through
-  `SessionNoteDialog` from the session card itself). `session_notes` has
+  `SessionNoteDialog` from the session card itself). The free-text home
+  exercise field stays beside the structured Home exercises plan (rule 9 of
+  the Home exercises rule above): prefilled on a new note, never replaced. `session_notes` has
   **no patient select policy and must never get one** - these are working
   notes written in the register clinicians use with each other, and the
   patient's data export (`/api/patient/condition-profile/export`) and

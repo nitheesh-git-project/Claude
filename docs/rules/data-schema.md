@@ -280,6 +280,20 @@ before.
      `assessment_live_display` is mutable (a screen, not evidence) and holds
      its patient-safe guarantee in a CHECK on its jsonb keys. Checked in
      `scripts/append-only-sql-checks.sql`.
+     Home exercises (phase 7d) add three more. `exercise_plans` is a version
+     record: it lands `active` (its own `created_at` stamped by the guard), the
+     one change is `active` to `replaced` with `replaced_at` set by the
+     trigger (plus the session's `on delete set null`), and it is never
+     deleted; a partial unique index keeps one active per patient.
+     `exercise_plan_items` is append-only and **written only in the
+     transaction that publishes its plan** - the guard compares the plan's
+     `created_at` with `now()`, the transaction's own time - so the one
+     writer is `publish_exercise_plan()`, which retires, inserts and fills a
+     version under a per-patient advisory lock (security definer, revoked
+     from all three roles, fixed `search_path`). `exercise_teaching_events`
+     is append-only and written only into the run's own therapist's run **in
+     progress**, for an exercise in the patient's **active** plan. Same file,
+     same both-halves check, with a negative control.
 
      **`user_activity_log` is the same rule for everyone who is not an admin**
      -- patients, therapists, hospitals and the system (All Logs is both

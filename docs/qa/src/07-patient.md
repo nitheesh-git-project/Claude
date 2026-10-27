@@ -569,6 +569,13 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 6. Tab through it with a keyboard; use a screen reader.
 **Expected Result.** 1: *Your physiotherapist will start the guided check soon*, one calm line and a small *Back to your dashboard* link - nothing else to press. 2: the screen follows without a reload: the step counter and name small, **one** big instruction, a simple picture of the position, and a giant clock only where the step has one (*Starting in 3, 2, 1*, then *Time left*, counting down in amber then white, *Finished* at 0); **Done** says *Well done. You can rest now.*; **Rest** says *Have a rest.*; ending it shows *All done* for a while, then the waiting screen again. It never shows a result, a score, a number other than the clock and the step count, a clinic word or the physiotherapist's notes. 3: every patient screen shows a *Happening now* bar to the check while it runs and loses it when it ends. 4: the clock is the same as the physiotherapist's within a second even with the device's own clock set wrong, and with live updates blocked the screen still follows within about three seconds; if reads keep failing it says *Reconnecting* rather than freezing silently. 5: the instruction and clock read from three metres; nothing is cut off at 360 px, and nothing scrolls sideways. 6: during a live check there is nothing to tab to (no button, link or field); the step changes are announced once each, never the clock every second. The first-visit tour does not open over it.
 
+#### `PAT-HP-007` - Home exercises: the patient reads their plan and fills nothing in · P1 **[API]**
+**Preconditions.** Phase 7d-1 ships the server side only (the plan card on the dashboard is 7d-2), so this case reads the rows with Patient A's own signed-in client. Therapist A has published two versions of Patient A's home exercises and marked them in a guided assessment (`THR-HP-005s`). Patient B exists.
+1. As Patient A, read `exercise_plans`, `exercise_plan_items` and `exercise_teaching_events`.
+2. As Patient A, try to insert, update or delete a row in each.
+3. As Patient B, read Patient A's rows.
+**Expected Result.** 1: exactly one plan - the active version - its items in order with their doses, and Patient A's own marks (fixed keys only: an outcome and, for *needs practice*, a cue); never the replaced version. 2: every write is refused. 3: nothing. Nowhere is the word *care plan* used for these: they are *Home exercises*.
+
 #### `PAT-DOC-001` - Upload a report · P0
 
 **Steps.** On the Health Profile, open the reports panel. Tap the upload control. Choose `Spine_Report_E2E.pdf`. Pick the type `Scan or X-ray`. Submit.

@@ -1668,6 +1668,22 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "exercise-teaching.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -4312,6 +4328,33 @@
         }
       ],
       "limitation": "Written, not run, in phase 7b (no test project reachable). Writes append-only run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. A saved step, the timers, the score sheet, the angle tool and the exam dialogs are not driven here (a test does not time itself in a browser test, and each is the existing recorder embedded): the readiness, the step order, every refusal sentence, the patient-screen clock against server time and the polling and entry rules are pure modules unit-tested in src/lib/cockpit.test.ts, companionScreen.test.ts, latestWins.test.ts and guidedAssessmentEntry.test.ts; the server's gates are assessment-run.spec.ts. The realtime delivery and the three-second polling fallback are checked by hand on two devices (PAT-HP-006), and the light and dark rendering and the 390, 834 and 1280 widths by screenshot in the phase's review, not here.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "therapist.exercise-teaching",
+      "runner": "therapist",
+      "title": "Home exercises taught live in the guided video session, server side: the assigned therapist publishes a plan of library exercises with doses (a new version replaces the old, history kept); an exercise from another condition type, one the intake rules out, a bad dose, and a helper exercise outside a run or without the step's helper ticked are refused; teaching happens only inside the therapist's run in progress, behind the red flags; the companion's demo is the library's picture and steps, never request text; each exercise is marked once (performed correctly, needs practice with one fixed cue, not attempted with one fixed reason) and Save and next waits for every mark; the patient reads their own active plan and marks and not another patient's; an unassigned therapist is refused and reads nothing; the end's draft says what was taught",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "exercise-teaching.spec.ts",
+          "tests": [
+            "ET-001",
+            "ET-002",
+            "ET-003",
+            "ET-004",
+            "ET-005",
+            "ET-006",
+            "ET-007"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Written, not run, in phase 7d-1 (no test project reachable). Writes append-only plan items, teaching events and run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit's teaching screen and the patient's plan card are phase 7d-2; the realtime delivery of a new version is not driven here. The library, the dose and teach validators, the contraindications, the demo display whitelist and the summary sentence are pure modules unit-tested in src/lib/exerciseLibrary.test.ts, exercisePlan.test.ts, assessmentRun.test.ts and assessmentSummaryDraft.test.ts; the triggers and publish_exercise_plan() in scripts/append-only-sql-checks.sql.",
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/dashboards.md"

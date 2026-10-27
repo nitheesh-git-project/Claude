@@ -175,7 +175,7 @@ flowchart TB
     P[Public site] --- D[Patient · Therapist · Hospital · Admin dashboards]
   end
   Browser -->|HTTPS| PX[src/proxy.ts<br/>auth proxy + rate limits]
-  PX --> APP[Next.js 16 App Router<br/>Server Components + 214 route handlers]
+  PX --> APP[Next.js 16 App Router<br/>Server Components + 216 route handlers]
   APP -->|service role, after route checks| SB[(Supabase Postgres<br/>RLS · triggers · security-definer functions)]
   Browser -->|anon key, RLS| SB
   SB -->|Realtime| D
@@ -243,7 +243,7 @@ One file, `supabase/schema.sql` (~17k lines, 74 tables), defines everything: tab
 ## Project layout
 
 ```
-src/app/            pages, layouts and 214 API route handlers (admin/, appointments/, patient/,
+src/app/            pages, layouts and 216 API route handlers (admin/, appointments/, patient/,
                     therapist/, hospital/, packages/, razorpay/, care-plan/, medical-documents/)
 src/components/     UI by area: admin, auth, booking, catalog, dashboard, home, hospital,
                     marketing, packages, profile, tutorial, motion, system, visuals

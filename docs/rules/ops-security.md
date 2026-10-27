@@ -373,6 +373,12 @@ client is the only writer and the log is append-only from any session.
   client. It has its own scope so a busy session never spends the allowance
   the run's saves need; refusing it mid-test would cost the patient their
   screen, which is why it fails open.
+- **Publishing home exercises has its own limit** (phase 7d,
+  `exercisePlan`: 60 an hour, keyed on the therapist's account, failing
+  open). A session publishes one or two versions and a correction is a new
+  version, so the ceiling only bounds a runaway client filling a patient's
+  history. The teach route shares the run's limits - `assessmentDisplay` for
+  a demo or the patient's turn, `assessmentRun` for a mark.
 - **A flag is never an accusation, and never carries a penalty.** The
   detectors (`src/lib/riskDetectors.ts`, vocabulary in
   `src/lib/riskSignals.ts`) run as a bounded lazy sweep after the admin

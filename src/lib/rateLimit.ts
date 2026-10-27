@@ -250,7 +250,7 @@ export const RATE_LIMITS = {
    *
    * Called on every step and phase change -- get ready, go, done, rest --
    * but never once a second (the screen runs the clock itself from a start
-   * time), so a whole eight-step assessment is a few dozen calls. Its own
+   * time), so a whole assessment is a few dozen calls. Its own
    * scope on the one-scope-per-flow rule, so a busy session can never spend
    * the allowance the run's saves need. Keyed on the therapist's account;
    * generous, and fails open: refusing it costs the patient their screen in

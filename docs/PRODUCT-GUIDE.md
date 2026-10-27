@@ -2679,6 +2679,34 @@ everything else.
   physiotherapist will start the guided check soon*. Rules:
   `docs/rules/clinical.md`.
 
+  **Home exercises (phase 7d-1, server side; the cockpit's teaching screen
+  and the patient's plan card are 7d-2).** After the checks, every guided
+  video assessment has a *Home exercises* step, just before the summary. The
+  physiotherapist picks exercises from the clinic's library
+  (`src/lib/exerciseLibrary.ts`: a starter set for each condition type, each
+  with a plain name, a demo picture, three to five short steps, a default dose
+  and a safety line, every one marked to be verified by a senior
+  physiotherapist), sets the dose (sets, repetitions or a hold, times a day,
+  days a week, an optional two-sentence note), shows the patient a demo on the
+  companion screen - the library's picture and steps, never typed text -
+  watches them do each one on camera and marks it *performed correctly*,
+  *needs practice* (with one coaching cue from a fixed list) or *not
+  attempted* (with a reason). The server refuses an exercise not offered for
+  the patient's condition type, one their Health Profile rules out (a high
+  falls risk, the surgeon's precautions after open-heart surgery, not being
+  able to stand), and an exercise that needs another adult beside the patient
+  unless that helper was ticked on the step. Saving makes a new version of the
+  plan that replaces the last one (history kept); the patient reads their
+  current plan on their dashboard - the picture, the steps, the dose in plain
+  words and when they practised it with their physiotherapist - and never has
+  to fill anything in. The session's draft *Where things stand* says what was
+  taught and what needs more practice. This is **Home exercises**, not a
+  *care plan* (the programme recommendation). The session note keeps its own
+  free-text home exercise field. Routes:
+  `/api/therapist/exercise-plans/publish` and
+  `/api/therapist/assessment-runs/teach`. Rules: `docs/rules/clinical.md`,
+  "Home exercises".
+
 Both question banks (Health Profile and Pain Map) are managed from
 one place - a **Manage Questions** section at the top of the admin's
 **Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient -
