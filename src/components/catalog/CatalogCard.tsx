@@ -188,7 +188,7 @@ export default function CatalogCard({
               type="button"
               onClick={onOpenDetails}
               aria-haspopup="dialog"
-              className="cursor-pointer rounded text-left transition hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              className="inline-flex min-h-11 cursor-pointer items-center rounded text-left transition hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
             >
               {data.title}
             </button>
@@ -199,7 +199,7 @@ export default function CatalogCard({
           </h3>
         )}
         {data.summary && (
-          <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{data.summary}</p>
+          <p className="mt-1 text-[15px] leading-relaxed text-slate-600">{data.summary}</p>
         )}
 
         {meta.length > 0 && (
@@ -207,7 +207,7 @@ export default function CatalogCard({
             {meta.map((m) => (
               <span
                 key={m}
-                className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-medium text-slate-600"
+                className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
               >
                 {m}
               </span>
@@ -218,7 +218,7 @@ export default function CatalogCard({
         {points.length > 0 && (
           <ul className="mt-3 grid grid-cols-2 gap-x-2.5 gap-y-1.5 border-t border-slate-100 pt-3">
             {points.map((pt) => (
-              <li key={pt} className="flex items-start gap-1.5 text-[11.5px] leading-snug text-slate-600">
+              <li key={pt} className="flex items-start gap-1.5 text-[13px] leading-snug text-slate-600">
                 <i aria-hidden className="fa-solid fa-check mt-0.5 shrink-0 text-[10px] text-teal-600" />
                 {pt}
               </li>
@@ -245,7 +245,7 @@ export default function CatalogCard({
               )}
             </span>
           )}
-          <span className="text-[11.5px] text-slate-500">{data.priceUnit}</span>
+          <span className="text-xs text-slate-600">{data.priceUnit}</span>
         </div>
       </div>
 
@@ -271,7 +271,7 @@ export default function CatalogCard({
         ) : (
           <Link
             href={data.bookHref as string}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2.5 text-[13.5px] font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
           >
             <i aria-hidden className="fa-solid fa-calendar-check text-xs" />
             {data.bookLabel}
@@ -282,7 +282,7 @@ export default function CatalogCard({
             type="button"
             onClick={onOpenDetails}
             aria-haspopup="dialog"
-            className="cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+            className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg px-3 text-sm font-semibold text-teal-800 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
           >
             View full details →
           </button>

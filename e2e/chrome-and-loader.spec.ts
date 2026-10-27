@@ -2,7 +2,8 @@
 // wears the same light sidebar.
 //
 // Four complaints, each something only a browser shows:
-//  - tapping Sign In removed Sign In / Get Started / Book from the nav;
+//  - tapping Sign In removed Sign In / Book from the nav (Get Started is no
+//    longer in the header: the hub's doors live in the footer);
 //  - tapping a dashboard tab flashed a dark sidebar (the old loading
 //    skeleton) until the page arrived;
 //  - the admin dashboard still had the dark blue sidebar;
@@ -12,17 +13,21 @@ import { BASE, QA_EMAILS, browserCookiesFor, markDashboardTourSeen, waitForSplas
 
 const SHOT = "/tmp/claude-0/-home-user-Claude/92352852-44c7-581f-b775-ee8d1b4f4c9d/scratchpad/shots";
 
-test("CHROME-001: the sign-in page keeps Sign In, Get Started and Book in the nav", async ({ page }) => {
-  // Wide enough that Get Started shows at all (it is 2xl-only by design).
+test("CHROME-001: the sign-in page keeps Sign In and Book in the nav, and Get Started is gone", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto(`${BASE}/conditions`);
   await waitForSplashToClear(page);
   const nav = page.getByRole("navigation").filter({ has: page.getByRole("link", { name: "Sign In" }) }).first();
   await nav.getByRole("link", { name: "Sign In" }).click();
   await expect(page).toHaveURL(/\/patient\/login/);
-  for (const name of ["Sign In", "Get Started", /Book a video session/]) {
+  for (const name of ["Sign In", /Book a video session/]) {
     await expect(nav.getByRole("link", { name })).toBeVisible();
   }
+  await expect(nav.getByRole("link", { name: "Get Started" })).toHaveCount(0);
+  // The therapist and partner doors moved to the footer, under their own heading.
+  const footer = page.getByRole("contentinfo");
+  await expect(footer.getByRole("heading", { name: "For clinicians and partners" })).toBeVisible();
+  await expect(footer.getByRole("link", { name: /Therapist sign in/ })).toBeVisible();
   await page.screenshot({ path: `${SHOT}/chrome-login-nav.png` });
 });
 

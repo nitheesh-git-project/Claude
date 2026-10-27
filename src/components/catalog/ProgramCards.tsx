@@ -15,6 +15,7 @@ import {
   type StatTile,
 } from "@/components/catalog/CatalogVisuals";
 import { knownMinutes, programmeOpensWithLine } from "@/lib/sessionLengthCopy";
+import { patientConditionTitles } from "@/lib/patientConditionLabels";
 
 export type PublicProgram = {
   id: string;
@@ -72,6 +73,11 @@ export default function ProgramCards({
   const [selected, setSelected] = useState<{ program: PublicProgram; index: number } | null>(
     null
   );
+  // The patient's words for each condition, mapped here and never stored:
+  // "Spine & Posture Rehabilitation" reads as "Back, neck & joint pain" on
+  // the card and in its dialog, while the row, its price and its photograph
+  // are untouched (src/lib/patientConditionLabels.ts).
+  const titles = patientConditionTitles(programs.map((p) => p.title));
 
   if (programs.length === 0) return null;
 
@@ -97,7 +103,7 @@ export default function ProgramCards({
               <CatalogCard
                 data={{
                   id: program.id,
-                  title: program.title,
+                  title: titles[i],
                   summary,
                   imageUrl: program.image_url ?? null,
                   focalX: program.image_focal_x,
@@ -120,6 +126,7 @@ export default function ProgramCards({
 
       <ProgramDetail
         selection={selected}
+        title={selected ? titles[selected.index] : null}
         onClose={() => setSelected(null)}
       />
     </>
@@ -128,11 +135,17 @@ export default function ProgramCards({
 
 function ProgramDetail({
   selection,
+  title,
   onClose,
 }: {
   selection: { program: PublicProgram; index: number } | null;
+  /** The patient-words title for the selected row. */
+  title: string | null;
   onClose: () => void;
 }) {
+  // Held through the close animation with the selection, like everything else
+  // in the dialog.
+  const heldTitle = useLastNonNull(title);
   // Held through the close animation so the panel does not empty out mid-fade.
   const held = useLastNonNull(selection);
   const program = held?.program ?? null;
@@ -185,7 +198,7 @@ function ProgramDetail({
               depending on whether the catalogue has been filled in yet. */}
           <CatalogDialogHeader
             titleId="program-modal-title"
-            title={program.title}
+            title={heldTitle ?? program.title}
             eyebrow="Structured programme"
             subtitle={program.description}
             imageUrl={program.image_url}

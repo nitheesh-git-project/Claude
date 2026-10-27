@@ -51,8 +51,8 @@ export function durationRangeLabel(rows: DurationRow[]): string | null {
 export function programmesLede(rows: DurationRow[]): string {
   const shared = sharedDurationMinutes(rows);
   return shared !== null
-    ? `Same ${shared}-minute assessment. Different protocol.`
-    : "One assessment to start. Different protocol.";
+    ? `Same ${shared}-minute assessment. A different plan for each.`
+    : "One assessment to start. A different plan for each.";
 }
 
 /** The home page's closing band body (12-word budget). */

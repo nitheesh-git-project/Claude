@@ -134,9 +134,9 @@ export const DEFAULT_BOOKING_LANGUAGES = ["English"];
 // Footer, and checkout previously hardcoded, kept here as the fallback for
 // a database that hasn't run the migration adding these columns yet.
 export const DEFAULT_SITE_NAME = "MoveRestore Physiotherapy";
-export const DEFAULT_SITE_TAGLINE = "Global Telehealth Platform";
+export const DEFAULT_SITE_TAGLINE = "Physiotherapy at home or by video";
 export const DEFAULT_SITE_DESCRIPTION =
-  "Certified global telehealth physical therapy practice, restoring mobility from home.";
+  "Licensed physiotherapists, by video or at your home, helping you move well again.";
 export const DEFAULT_CONTACT_EMAIL = "hello@drpoojaphysio.com";
 export const DEFAULT_WHATSAPP_NUMBER = "+91 XXXXX XXXXX";
 export const DEFAULT_CONTACT_PHONE = "+91 XXXXX XXXXX";
@@ -148,7 +148,7 @@ export const DEFAULT_FOOTER_COPYRIGHT_TEXT = "MoveRestore Physiotherapy. All rig
 // suddenly start advertising home visits it cannot staff.
 export const DEFAULT_HOME_VISIT_PAGE_HEADING = "Physiotherapy at your doorstep";
 export const DEFAULT_HOME_VISIT_PAGE_SUBHEADING =
-  "A certified physiotherapist visits you at home, with the same assessment and recovery plan you would get in clinic.";
+  "A licensed physiotherapist visits you at home, with the same assessment and recovery plan you would get over video.";
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   // Off until reconciliation has been clean over real traffic.

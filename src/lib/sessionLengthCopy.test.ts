@@ -14,7 +14,7 @@ const rows = (...m: (number | null | undefined)[]) => m.map((duration_minutes) =
 
 describe("session length copy", () => {
   it("names the length the catalogue sets, not a fixed 60", () => {
-    expect(programmesLede(rows(30, 30))).toBe("Same 30-minute assessment. Different protocol.");
+    expect(programmesLede(rows(30, 30))).toBe("Same 30-minute assessment. A different plan for each.");
     expect(closingSessionLine(rows(30))).toBe("One 30-minute session. Leave with a plan.");
     expect(programmeOpensWithLine(30)).toBe(
       "Every programme opens with an assessment - 30 minutes, one-to-one."
@@ -23,7 +23,7 @@ describe("session length copy", () => {
 
   it("claims no shared length when the categories differ", () => {
     expect(sharedDurationMinutes(rows(30, 60))).toBeNull();
-    expect(programmesLede(rows(30, 60))).toBe("One assessment to start. Different protocol.");
+    expect(programmesLede(rows(30, 60))).toBe("One assessment to start. A different plan for each.");
     expect(closingSessionLine(rows(30, 60))).toBe("One session. Leave with a plan.");
     expect(durationRangeLabel(rows(60, 30, 45))).toBe("30-60 min");
   });

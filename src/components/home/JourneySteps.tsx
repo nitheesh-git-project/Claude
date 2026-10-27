@@ -67,10 +67,10 @@ const STEPS: Step[] = [
     title: "Get assessed on camera",
     short: "One-to-one with a licensed specialist",
     detail:
-      "A full movement assessment over HD video - range-of-motion testing, posture screening and pain-response checks, measured in the room where your pain actually happens.",
+      "A full movement assessment over video. We check how far you can bend and walk, how you sit and stand, and what sets the pain off - in the room where it actually happens.",
     bullets: [
-      "Guided range-of-motion testing",
-      "Posture and gait screening",
+      "We check how far you can bend and walk",
+      "How you sit, stand and move",
       "Written findings you keep",
     ],
     illustration: "assessment",
@@ -78,7 +78,7 @@ const STEPS: Step[] = [
   {
     id: "recover",
     num: "03",
-    title: "Rehab from your room",
+    title: "Exercise from your own room",
     short: "A plan built for your space",
     detail:
       "Video-guided exercises prescribed around the chair, bed and floor space you actually have - then reviewed and progressed at every follow-up rather than handed over once.",

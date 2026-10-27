@@ -136,7 +136,7 @@ export default async function ConditionsPage() {
       <ClosingCta
         id="not-sure"
         title="Not sure which one fits?"
-        body="Book the standard assessment. Your therapist picks the protocol."
+        body="Book one assessment. Your physiotherapist chooses the plan."
         primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
         secondary={{ href: "/faq", label: "Read the FAQ" }}
         photoId="cta-conditions"
