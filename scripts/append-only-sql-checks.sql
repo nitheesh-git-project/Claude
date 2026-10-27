@@ -838,3 +838,157 @@ begin
   raise notice 'PASS  exercise plans publish in one transaction and replace, items and teaching events are append-only, the demo display takes library keys only';
 end $$;
 rollback;
+
+-- Home exercises: correcting a mark (phase 7d-3), both halves:
+--   a correction of this run's mark lands, and a second one of the latest
+--     (the chain) lands too -- the originals stay;
+--   a correction with no reason, a reason off the list, a mark that carries
+--     a reason, a correction of a row already corrected (a fork), and one
+--     that references another exercise, another run, another patient or
+--     another therapist all raise;
+--   a second plain mark is still refused (the partial unique index), and an
+--     edit and a delete of a correction raise;
+--   a browser session cannot read the correction columns (column privileges).
+begin;
+do $$
+declare
+  v_patient uuid; v_patient2 uuid; v_therapist uuid; v_run uuid; v_run2 uuid; v_res jsonb; v_plan uuid;
+  v_ok boolean; v_n integer; v_mark uuid; v_other uuid; v_fix1 uuid; v_fix2 uuid; v_run2_mark uuid;
+  v_items jsonb := '[
+    {"exercise_key": "sit_to_stand", "dose": {"sets": 2, "reps": 10, "holdSeconds": null, "minutes": null, "timesPerDay": 1, "daysPerWeek": 5, "note": null}, "milestone_id": null},
+    {"exercise_key": "heel_raise", "dose": {"sets": 2, "reps": 10, "holdSeconds": null, "minutes": null, "timesPerDay": 1, "daysPerWeek": 3, "note": null}, "milestone_id": null}
+  ]'::jsonb;
+begin
+  select id into v_patient from profiles where role = 'patient' limit 1;
+  select id into v_therapist from profiles where role = 'therapist' limit 1;
+  if v_patient is null or v_therapist is null then raise exception 'no patient and therapist to attribute the probe rows to'; end if;
+
+  insert into assessment_runs (patient_id, therapist_id, protocol_key, protocol_version, profile_kind)
+  values (v_patient, v_therapist, 'geriatric', 2, 'geriatric') returning id into v_run;
+  v_res := publish_exercise_plan(v_patient, v_therapist, v_run, null, 'geriatric', v_items);
+  v_plan := (v_res ->> 'id')::uuid;
+
+  insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor)
+  values (v_run, v_plan, v_patient, 'sit_to_stand', 'performed_correctly', v_therapist) returning id into v_mark;
+  insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, cue_key, actor)
+  values (v_run, v_plan, v_patient, 'heel_raise', 'needs_practice', 'hold_support', v_therapist) returning id into v_other;
+  if (select kind from exercise_teaching_events where id = v_mark) <> 'mark' then raise exception 'FAIL: a mark did not default to kind mark'; end if;
+
+  -- The permitted half: a correction, then a correction of that correction.
+  insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, cue_key, actor, kind, corrects_event_id, correction_reason)
+  values (v_run, v_plan, v_patient, 'sit_to_stand', 'needs_practice', 'slow_down', v_therapist, 'correction', v_mark, 'wrong_button')
+  returning id into v_fix1;
+  insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor, kind, corrects_event_id, correction_reason)
+  values (v_run, v_plan, v_patient, 'sit_to_stand', 'performed_correctly', v_therapist, 'correction', v_fix1, 'tried_again_correctly')
+  returning id into v_fix2;
+  select count(*) into v_n from exercise_teaching_events where run_id = v_run and exercise_key = 'sit_to_stand';
+  if v_n <> 3 then raise exception 'FAIL: the original mark and its two corrections are not all kept (% rows)', v_n; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor, kind, corrects_event_id)
+    values (v_run, v_plan, v_patient, 'sit_to_stand', 'performed_correctly', v_therapist, 'correction', v_fix2);
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a correction with no reason landed'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor, kind, corrects_event_id, correction_reason)
+    values (v_run, v_plan, v_patient, 'sit_to_stand', 'performed_correctly', v_therapist, 'correction', v_fix2, 'patient_said_so');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a correction reason that is not on the list landed'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor, correction_reason)
+    values (v_run, v_plan, v_patient, 'heel_raise', 'performed_correctly', v_therapist, 'wrong_button');
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a plain mark carried a correction reason'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, reason_key, actor, kind, corrects_event_id, correction_reason)
+    values (v_run, v_plan, v_patient, 'sit_to_stand', 'not_attempted', 'out_of_time', v_therapist, 'correction', v_mark, 'see_summary');
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a second correction of the original (a fork) landed'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor, kind, corrects_event_id, correction_reason)
+    values (v_run, v_plan, v_patient, 'heel_raise', 'performed_correctly', v_therapist, 'correction', v_fix2, 'wrong_button');
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a correction landed against another exercise''s mark'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, cue_key, actor)
+    values (v_run, v_plan, v_patient, 'heel_raise', 'needs_practice', 'slow_down', v_therapist);
+  exception when unique_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a second plain mark for one exercise landed beside its correction rule'; end if;
+
+  v_ok := false;
+  begin update exercise_teaching_events set correction_reason = 'see_summary' where id = v_fix1;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a correction accepted an UPDATE'; end if;
+
+  v_ok := false;
+  begin delete from exercise_teaching_events where id = v_fix2;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a correction was deletable'; end if;
+
+  -- Another run (the first ends; a new one starts): its own mark, and a
+  -- correction of it that references the FIRST run's row, raises.
+  update assessment_runs set status = 'completed' where id = v_run;
+  insert into assessment_runs (patient_id, therapist_id, protocol_key, protocol_version, profile_kind)
+  values (v_patient, v_therapist, 'geriatric', 2, 'geriatric') returning id into v_run2;
+  insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor)
+  values (v_run2, v_plan, v_patient, 'heel_raise', 'performed_correctly', v_therapist) returning id into v_run2_mark;
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, cue_key, actor, kind, corrects_event_id, correction_reason)
+    values (v_run2, v_plan, v_patient, 'heel_raise', 'needs_practice', 'slow_down', v_therapist, 'correction', v_other, 'wrong_button');
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a correction landed against another run''s mark'; end if;
+
+  -- Another patient's run correcting this patient's mark raises (the run
+  -- check and the reference check both refuse it).
+  select id into v_patient2 from profiles where role = 'patient' and id <> v_patient limit 1;
+  if v_patient2 is null then
+    v_patient2 := gen_random_uuid();
+    insert into auth.users (id, email) values (v_patient2, 'probe-correction@probe.test');
+    insert into profiles (id, role, full_name, email, approved) values (v_patient2, 'patient', 'Probe Two', 'probe-correction@probe.test', true)
+    on conflict (id) do nothing;
+  end if;
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor, kind, corrects_event_id, correction_reason)
+    values (v_run2, v_plan, v_patient2, 'heel_raise', 'performed_correctly', v_therapist, 'correction', v_run2_mark, 'wrong_button');
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a correction landed for another patient'; end if;
+
+  -- Another therapist correcting this therapist's mark raises.
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor, kind, corrects_event_id, correction_reason)
+    values (v_run2, v_plan, v_patient, 'heel_raise', 'performed_correctly', v_patient, 'correction', v_run2_mark, 'wrong_button');
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: a correction landed from someone other than the run''s therapist'; end if;
+
+  -- And the correction of this run's own mark lands.
+  insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, cue_key, actor, kind, corrects_event_id, correction_reason)
+  values (v_run2, v_plan, v_patient, 'heel_raise', 'needs_practice', 'slow_down', v_therapist, 'correction', v_run2_mark, 'see_summary');
+
+  -- What a browser session may read: the original columns, not the correction ones.
+  if has_column_privilege('authenticated', 'exercise_teaching_events', 'correction_reason', 'select')
+     or has_column_privilege('authenticated', 'exercise_teaching_events', 'kind', 'select')
+     or has_column_privilege('authenticated', 'exercise_teaching_events', 'corrects_event_id', 'select')
+     or has_column_privilege('anon', 'exercise_teaching_events', 'outcome', 'select') then
+    raise exception 'FAIL: a browser session can read a correction column';
+  end if;
+  if not has_column_privilege('authenticated', 'exercise_teaching_events', 'cue_key', 'select') then
+    raise exception 'FAIL: the patient can no longer read their own marks';
+  end if;
+
+  raise notice 'PASS  exercise_teaching_events takes a correction chain of this run''s marks, refuses every other one, and keeps the correction columns from a browser';
+end $$;
+rollback;
