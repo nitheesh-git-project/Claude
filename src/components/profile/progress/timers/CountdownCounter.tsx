@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTimerClockEvents } from "@/components/profile/progress/timers/useTimerClockEvents";
+import type { TimerClockEvent } from "@/lib/timerClock";
 import { readClock, useRunClock } from "@/components/profile/progress/timers/useRunClock";
 import {
   CHAIR_STAND_MAX,
@@ -46,7 +48,7 @@ export default function CountdownCounter({
   description,
   armsRule = true,
   onUse,
-  onStart,
+  onClock,
   disabled = false,
 }: {
   seconds?: number;
@@ -57,8 +59,8 @@ export default function CountdownCounter({
   /** Offer the "used arms" tick (the chair stand's CDC rule). */
   armsRule?: boolean;
   onUse: (result: CountdownCounterResult) => void;
-  /** The clock was started (the session cockpit starts the patient's clock too). */
-  onStart?: () => void;
+  /** Started, finished or thrown away (the session cockpit runs the patient's clock from it). */
+  onClock?: (event: TimerClockEvent) => void;
   disabled?: boolean;
 }) {
   const [countdown, setCountdown] = useState<CountdownState>(() => createCountdown(seconds * 1000));
@@ -67,6 +69,7 @@ export default function CountdownCounter({
   const [interrupted, setInterrupted] = useState(false);
   const running = countdown.status === "running";
   const clock = useRunClock(running);
+  const announceAbort = useTimerClockEvents(running, onClock);
 
   // Time up: settle the state once the clock says so, and carry the
   // "background" flag across, since the clock hook resets with the run.
@@ -87,7 +90,6 @@ export default function CountdownCounter({
     setArmsUsed(false);
     setInterrupted(false);
     setCountdown(startCountdown(createCountdown(seconds * 1000), readClock()));
-    onStart?.();
   }
 
   function tap() {
@@ -135,7 +137,10 @@ export default function CountdownCounter({
             </button>
             <button
               type="button"
-              onClick={() => setCountdown(abortCountdown(countdown))}
+              onClick={() => {
+                announceAbort();
+                setCountdown(abortCountdown(countdown));
+              }}
               className="min-h-[48px] flex-1 rounded-xl border border-red-300 text-sm font-semibold text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
             >
               Stop and discard

@@ -519,6 +519,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   holds the clock's start time and length and the screen counts, correcting
   for its own clock with the loader's `serverNow` (it reads once as soon as it
   opens, since the page's own `serverNow` is as old as the page load).
+  **Every timer in a guided step drives that clock** (`src/lib/timerClock.ts`):
+  a trial, hold, count or walk starting sends Go with the clock (count-up for
+  trials, the step's countdown for holds and counts), finishing sends Done,
+  throwing it away or **Stop test** sends Rest, which clears it - the
+  physiotherapist never starts it a second time. The brand splash never
+  covers this page (`splashSkipsPath`): it printed a ghost of the greeting
+  behind the picture.
   **Realtime is not trusted to be there:** until the channel reports
   `SUBSCRIBED` (after a four-second grace), and again whenever it reports an
   error, a timeout or a close, the screen polls

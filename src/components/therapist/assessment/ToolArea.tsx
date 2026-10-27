@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { EmbeddedHandle, EmbeddedStatus } from "@/components/profile/progress/RecordTestDialog";
 import { outcomeMeasure, READ_FROM_LABELS, type ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasureSeries } from "@/lib/outcomeSeries";
+import type { TimerClockEvent } from "@/lib/timerClock";
 import { toolMode, toolSlots } from "@/lib/cockpit";
 import type { ProtocolStep } from "@/lib/sessionProtocols";
 import LayerTool from "@/components/therapist/assessment/LayerTool";
@@ -16,8 +17,8 @@ const TOOL_HINT: Partial<Record<ProtocolStep["tool"], string>> = {
   angle: "Camera side-on to the joint, whole limb in view. The photo stays on this device.",
   counter_30s: "Arms crossed on the chest. If the patient uses their arms, tick it after: that stand scores 0.",
   counter_60s: "Count every full stand. Stop the patient at once if they feel unwell.",
-  timed_trials: "Time each trial from your own screen. Press Go on the patient screen when you say Go.",
-  balance_holds: "Hold each position for ten seconds. Stay ready to help.",
+  timed_trials: "Start each trial when you say Go: the patient's clock starts with it and stops when you stop.",
+  balance_holds: "Hold each position for ten seconds. The patient's ten-second clock starts with each hold. Stay ready to help.",
 };
 
 /**
@@ -54,7 +55,7 @@ export default function ToolArea({
     appointmentId: string | null;
     onRegister: (slotKey: string, handle: EmbeddedHandle | null) => void;
     onStatus: (slotKey: string, status: EmbeddedStatus) => void;
-    onTimerStart: () => void;
+    onTimerEvent: (event: TimerClockEvent) => void;
   };
   layer: { patientId: string; patientName: string; runStartedAt: string; onRecord: (recordId: string | null, missing: string | null) => void };
   summaryLine: string;
@@ -126,7 +127,7 @@ export default function ToolArea({
               appointmentId={measure.appointmentId}
               onRegister={measure.onRegister}
               onStatus={measure.onStatus}
-              onTimerStart={measure.onTimerStart}
+              onTimerEvent={measure.onTimerEvent}
             />
           </div>
         );

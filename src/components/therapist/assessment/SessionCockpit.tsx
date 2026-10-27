@@ -1,5 +1,6 @@
 "use client";
 
+import { displayForTimerEvent, type TimerClockEvent } from "@/lib/timerClock";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { EmbeddedHandle, EmbeddedSaveResult, EmbeddedStatus } from "@/components/profile/progress/RecordTestDialog";
@@ -425,9 +426,10 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     router.refresh();
   }
 
-  function startPatientClock() {
-    const go = patientControls(step).find((c) => c.key === "go");
-    if (go) pushDisplay(step.id, go, true);
+  // An embedded timer started, finished or was thrown away: the patient's
+  // clock follows (Go with the clock, Done, or Rest, which clears it).
+  function onTimerEvent(event: TimerClockEvent) {
+    pushDisplay(step.id, displayForTimerEvent(step, event), true);
   }
 
   const flagged = redFlagsRaised(state);
@@ -529,7 +531,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     appointmentId: run.appointmentId,
                     onRegister: registerSlot,
                     onStatus: statusSlot,
-                    onTimerStart: startPatientClock,
+                    onTimerEvent: onTimerEvent,
                   }}
                   layer={{ patientId: patient.id, patientName: patient.name, runStartedAt: run.startedAt, onRecord: recordLayer }}
                   summaryLine={summaryLine}

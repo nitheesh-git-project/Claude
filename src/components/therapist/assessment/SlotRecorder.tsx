@@ -1,5 +1,6 @@
 "use client";
 
+import type { TimerClockEvent } from "@/lib/timerClock";
 import { useCallback } from "react";
 import RecordTestDialog, { type EmbeddedHandle, type EmbeddedStatus } from "@/components/profile/progress/RecordTestDialog";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
@@ -28,7 +29,7 @@ export default function SlotRecorder({
   appointmentId,
   onRegister,
   onStatus,
-  onTimerStart,
+  onTimerEvent,
 }: {
   slotKey: string;
   measureKey: string;
@@ -45,7 +46,7 @@ export default function SlotRecorder({
   appointmentId: string | null;
   onRegister: (slotKey: string, handle: EmbeddedHandle | null) => void;
   onStatus: (slotKey: string, status: EmbeddedStatus) => void;
-  onTimerStart: () => void;
+  onTimerEvent: (event: TimerClockEvent) => void;
 }) {
   const register = useCallback((handle: EmbeddedHandle | null) => onRegister(slotKey, handle), [onRegister, slotKey]);
   const status = useCallback((s: EmbeddedStatus) => onStatus(slotKey, s), [onStatus, slotKey]);
@@ -67,7 +68,7 @@ export default function SlotRecorder({
         helperPresent,
         register,
         onStatus: status,
-        onTimerStart,
+        onTimerEvent,
       }}
     />
   );

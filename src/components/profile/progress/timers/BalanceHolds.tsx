@@ -1,5 +1,7 @@
 "use client";
 
+import { useTimerClockEvents } from "@/components/profile/progress/timers/useTimerClockEvents";
+import type { TimerClockEvent } from "@/lib/timerClock";
 import { useEffect, useState } from "react";
 import { readClock, useRunClock } from "@/components/profile/progress/timers/useRunClock";
 import {
@@ -37,10 +39,13 @@ export type BalanceHoldsResult = {
  */
 export default function BalanceHolds({
   onUse,
+  onClock,
   helperRequired = false,
   disabled = false,
 }: {
   onUse: (result: BalanceHoldsResult) => void;
+  /** A hold started or ended (the cockpit runs the patient's ten-second clock from it). */
+  onClock?: (event: TimerClockEvent) => void;
   /** Over video: another adult must be standing beside the patient. */
   helperRequired?: boolean;
   disabled?: boolean;
@@ -49,6 +54,7 @@ export default function BalanceHolds({
   const [interrupted, setInterrupted] = useState(false);
   const running = state.stages.some((s) => s.state === "running");
   const clock = useRunClock(running);
+  useTimerClockEvents(running, onClock);
 
   const settled = settleBalance(state, clock.now);
   useEffect(() => {

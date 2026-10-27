@@ -1,5 +1,7 @@
 "use client";
 
+import { useTimerClockEvents } from "@/components/profile/progress/timers/useTimerClockEvents";
+import type { TimerClockEvent } from "@/lib/timerClock";
 import { useEffect, useId, useState } from "react";
 import { readClock, useRunClock } from "@/components/profile/progress/timers/useRunClock";
 import type { SixMinuteWalkEquationKey } from "@/lib/clinicalCalculators";
@@ -146,6 +148,7 @@ export default function SixMinuteWalkGuide({
   equationUnreadable = false,
   oxygenLimit,
   onUse,
+  onClock,
   disabled = false,
 }: {
   patient: PatientFacts | null;
@@ -158,6 +161,8 @@ export default function SixMinuteWalkGuide({
   /** That setting could not be read: says "we couldn't check". */
   equationUnreadable?: boolean;
   onUse: (result: SixMinuteWalkResult) => void;
+  /** The walk started or ended (the cockpit runs the patient's clock from it). */
+  onClock?: (event: TimerClockEvent) => void;
   disabled?: boolean;
 }) {
   const [step, setStep] = useState<"check" | "walk" | "after">("check");
@@ -174,6 +179,7 @@ export default function SixMinuteWalkGuide({
 
   const running = countdown.status === "running";
   const clock = useRunClock(running);
+  useTimerClockEvents(running, onClock);
   const settled = settleCountdown(countdown, clock.now);
   useEffect(() => {
     if (settled !== countdown) {

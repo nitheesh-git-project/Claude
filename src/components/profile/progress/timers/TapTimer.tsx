@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTimerClockEvents } from "@/components/profile/progress/timers/useTimerClockEvents";
+import type { TimerClockEvent } from "@/lib/timerClock";
 import { readClock, useRunClock } from "@/components/profile/progress/timers/useRunClock";
 import { roundTo } from "@/lib/clinicalCalculators";
 import { formatReading } from "@/lib/progressChart";
@@ -62,6 +64,7 @@ export default function TapTimer({
   distanceMetres,
   requireAll = false,
   onUse,
+  onClock,
   disabled = false,
 }: {
   label: string;
@@ -80,6 +83,8 @@ export default function TapTimer({
   /** The record needs every trial (Parkinson's). */
   requireAll?: boolean;
   onUse: (result: TapTimerResult) => void;
+  /** A trial started, stopped or was thrown away (the cockpit runs the patient's clock from it). */
+  onClock?: (event: TimerClockEvent) => void;
   disabled?: boolean;
 }) {
   const [watch, setWatch] = useState<StopwatchState>(IDLE_STOPWATCH);
@@ -87,6 +92,7 @@ export default function TapTimer({
   const [interrupted, setInterrupted] = useState(false);
   const running = watch.status === "running";
   const clock = useRunClock(running);
+  const announceAbort = useTimerClockEvents(running, onClock);
 
   const counted = trials.filter((t) => !t.practice);
   const nextIsPractice = trials.filter((t) => t.practice).length < practice;
@@ -160,7 +166,10 @@ export default function TapTimer({
       {running && (
         <button
           type="button"
-          onClick={() => setWatch(IDLE_STOPWATCH)}
+          onClick={() => {
+            announceAbort();
+            setWatch(IDLE_STOPWATCH);
+          }}
           className="mt-2 min-h-[44px] w-full rounded-xl text-sm font-semibold text-slate-700 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
         >
           Throw this attempt away

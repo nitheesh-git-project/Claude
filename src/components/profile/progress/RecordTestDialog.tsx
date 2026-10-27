@@ -20,6 +20,7 @@ import type { OxygenStopLimit } from "@/lib/cardioSafety";
 import { afterWalkReadings, restingReadings } from "@/lib/walkMeasurements";
 import AngleTool from "@/components/profile/progress/angle/AngleTool";
 import { canMeasureFromImage } from "@/lib/angleMeasure";
+import type { TimerClockEvent } from "@/lib/timerClock";
 import TapTimer from "@/components/profile/progress/timers/TapTimer";
 import { useDialogChrome } from "@/lib/useDialogChrome";
 import { useRouter } from "@/lib/useRouter";
@@ -104,8 +105,8 @@ export type EmbeddedRecorder = {
   /** Hands the cockpit the dialog's save; called with null when it unmounts. */
   register: (handle: EmbeddedHandle | null) => void;
   onStatus: (status: EmbeddedStatus) => void;
-  /** The test's own countdown was started (the cockpit starts the patient's clock). */
-  onTimerStart?: () => void;
+  /** The timer started, finished or was thrown away (the cockpit runs the patient's clock from it). */
+  onTimerEvent?: (event: TimerClockEvent) => void;
 };
 
 /** "How it was done": a section in the dialog, and a folded-away one inside a
@@ -650,6 +651,7 @@ export default function RecordTestDialog({
               practice={timer.practice}
               distanceMetres={timer.distanceMetres}
               requireAll={trialsOnly}
+              onClock={embedded?.onTimerEvent}
               onUse={(r) => {
                 flag(r.interrupted);
                 patchEditor({ timer: { value: r.value, items: r.trials } });
@@ -665,7 +667,7 @@ export default function RecordTestDialog({
               title={timer.title}
               description={timer.description}
               armsRule={timer.armsRule}
-              onStart={embedded?.onTimerStart}
+              onClock={embedded?.onTimerEvent}
               onUse={(r) => {
                 flag(r.interrupted);
                 // The CDC rule: arms used scores 0, and the count with the
@@ -684,6 +686,7 @@ export default function RecordTestDialog({
             <BalanceHolds
               key={timerRun}
               helperRequired={cond.setting === "video"}
+              onClock={embedded?.onTimerEvent}
               onUse={(r) => {
                 flag(r.interrupted);
                 patchEditor({ timer: { value: r.stage, items: null } });
@@ -698,6 +701,7 @@ export default function RecordTestDialog({
               equationKey={walkEquation ? sixMinuteWalkEquationKeyFor(walkEquation) : undefined}
               equationUnreadable={walkEquation?.status === "unreadable"}
               oxygenLimit={oxygenLimit}
+              onClock={embedded?.onTimerEvent}
               onUse={(walk) => {
                 flag(walk.interrupted);
                 const next = [...walks, walk];
