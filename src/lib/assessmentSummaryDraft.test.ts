@@ -4,6 +4,7 @@ import { assessmentSummaryDraft, type SummaryMeasurement } from "./assessmentSum
 import { validateMeasurementConditions } from "./outcomeMeasures";
 import { readFromLabel } from "./outcomeSeries";
 import type { AssessmentRun, RunEvent } from "./assessmentRun";
+import type { TeachingEvent } from "./exercisePlan";
 
 const knee = sessionProtocol("ortho_knee")!;
 const RUN: AssessmentRun = {
@@ -12,7 +13,7 @@ const RUN: AssessmentRun = {
   appointmentId: null,
   therapistId: "t",
   protocolKey: "ortho_knee",
-  protocolVersion: 1,
+  protocolVersion: 2,
   profileKind: "ortho",
   status: "completed",
   startedAt: "2026-10-26T09:00:00.000Z",
@@ -85,6 +86,43 @@ describe("assessmentSummaryDraft", () => {
     const text = assessmentSummaryDraft({ run: abandoned, protocol: knee, events: [clear, ev("function", "saved", {}, "m-lefs")], measurements: ROWS, profileKind: "ortho", voice: "patient" })!;
     expect(text).toContain("We finished early because the video call dropped.");
     expect(assessmentSummaryDraft({ run: RUN, protocol: knee, events: [], measurements: [], profileKind: "ortho", voice: "patient" })).toBeNull();
+  });
+});
+
+describe("assessmentSummaryDraft: home exercises (phase 7d)", () => {
+  const taught = (exerciseKey: string, outcome: TeachingEvent["outcome"], extra: Partial<TeachingEvent> = {}): TeachingEvent => ({
+    id: `t-${exerciseKey}`,
+    runId: "run-1",
+    planId: "plan-1",
+    patientId: "p",
+    exerciseKey,
+    outcome,
+    cueKey: null,
+    reasonKey: null,
+    helperPresent: false,
+    actor: "t",
+    createdAt: "2026-10-26T09:30:00.000Z",
+    ...extra,
+  });
+
+  it("says what was taught and never counts the step as a test", () => {
+    const events = [clear, ev("function", "saved", {}, "m-lefs"), ev("exercises", "saved")];
+    const teaching = [
+      taught("sit_to_stand", "performed_correctly"),
+      taught("heel_raise", "needs_practice", { cueKey: "hold_support" }),
+      taught("walking", "performed_correctly", { runId: "another-run" }),
+    ];
+    const text = assessmentSummaryDraft({ run: RUN, protocol: knee, events, measurements: ROWS, profileKind: "ortho", voice: "patient", teaching })!;
+    expect(text).toContain("1 of the 6 checks");
+    expect(text).toContain("We practised 2 home exercises together: sit to stand went well, and heel raise needs more practice.");
+    expect(text).not.toContain("daily walk");
+  });
+
+  it("says when the exercises were skipped", () => {
+    const events = [clear, ev("function", "saved", {}, "m-lefs"), ev("exercises", "skipped", { reason: "out_of_time" })];
+    expect(assessmentSummaryDraft({ run: RUN, protocol: knee, events, measurements: ROWS, profileKind: "ortho", voice: "clinician" })).toContain(
+      "Home exercises skipped."
+    );
   });
 });
 

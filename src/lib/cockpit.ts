@@ -111,13 +111,16 @@ export function isLastStep(protocol: SessionProtocol, stepId: string): boolean {
 
 // --- Set-up and what is missing --------------------------------------------------------
 
+/** An optional item (the Home exercises step's helper) never holds Save and
+ *  next back; it is counted only once ticked. */
 export function setupProgress(step: ProtocolStep, ticked: ReadonlySet<string>): { total: number; done: number; remaining: number; helperMissing: boolean } {
-  const done = step.setup.filter((s) => ticked.has(s.id)).length;
+  const required = step.setup.filter((s) => s.optional !== true);
+  const done = required.filter((s) => ticked.has(s.id)).length;
   return {
-    total: step.setup.length,
+    total: required.length,
     done,
-    remaining: step.setup.length - done,
-    helperMissing: step.setup.some((s) => s.helper === true && !ticked.has(s.id)),
+    remaining: required.length - done,
+    helperMissing: required.some((s) => s.helper === true && !ticked.has(s.id)),
   };
 }
 
@@ -161,11 +164,14 @@ export const READY_NOTE = "Stop test throws this reading away. Nothing is saved 
 
 // --- Which tool a step shows ---------------------------------------------------------------
 
-export type ToolMode = "red_flags" | "measure" | "layer" | "summary";
+/** `teach` is the Home exercises step (phase 7d): pick, dose, demo, watch,
+ *  mark -- its screen is phase 7d-2. */
+export type ToolMode = "red_flags" | "measure" | "layer" | "teach" | "summary";
 
 export function toolMode(step: ProtocolStep): ToolMode {
   if (step.tool === "red_flags") return "red_flags";
   if (step.tool === "summary") return "summary";
+  if (step.tool === "teach_exercises") return "teach";
   if (step.layer) return "layer";
   return "measure";
 }
@@ -333,6 +339,10 @@ const BY_RUN_CODE: Record<RunRefusalCode, { message: string; fix: string | null 
   not_skippable: { message: "This step cannot be skipped.", fix: "Finish it, or end the assessment." },
   not_a_layer_step: { message: "This step is saved as a reading, not as an exam record.", fix: "Enter the reading and save again." },
   no_clock: { message: "This step has no clock.", fix: "Use Get ready or Go without the clock." },
+  exercises_not_marked: {
+    message: "Not every exercise in the plan is marked yet.",
+    fix: "Mark each one performed correctly, needs practice or not attempted, or skip the step.",
+  },
 };
 
 export const RUN_REFUSAL_CODES = Object.keys(BY_RUN_CODE) as RunRefusalCode[];

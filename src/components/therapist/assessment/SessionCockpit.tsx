@@ -244,7 +244,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   }
   const blocked = !availability.available
     ? availability.reason
-    : mode === "measure" || mode === "layer"
+    : mode === "measure" || mode === "layer" || mode === "teach"
       ? exertionBlock(protocol, step, preExercise)
       : null;
   const readiness = saveReadiness({

@@ -127,7 +127,7 @@ describe("what is missing before Save and next", () => {
 
 describe("tools", () => {
   it("picks the tool mode from the step", () => {
-    expect(knee.steps.map((s) => toolMode(s))).toEqual(["red_flags", "layer", "measure", "measure", "measure", "measure", "measure", "summary"]);
+    expect(knee.steps.map((s) => toolMode(s))).toEqual(["red_flags", "layer", "measure", "measure", "measure", "measure", "measure", "teach", "summary"]);
   });
   it("gives a vitals step one slot per reading and keeps the variant limits", () => {
     const rest = protocolStep(cardio, "resting_check")!;
@@ -232,7 +232,7 @@ describe("every protocol", () => {
       const state = runStateFromEvents([]);
       expect(stepNav(p, state, p.steps[0].id)).toHaveLength(p.steps.length);
       for (const s of p.steps) {
-        expect(["red_flags", "measure", "layer", "summary"]).toContain(toolMode(s));
+        expect(["red_flags", "measure", "layer", "teach", "summary"]).toContain(toolMode(s));
         expect(patientControls(s).length).toBeGreaterThanOrEqual(4);
       }
     }

@@ -111,13 +111,13 @@ test("AC-002: the chart offers Start guided assessment, and the cockpit opens on
   await page.getByTestId("start-assessment").click(SEEN);
   await expect(page.getByTestId("session-cockpit")).toBeVisible(SEEN);
 
-  // The steps across the top: eight, the first the current one.
+  // The steps across the top: nine (Home exercises is the eighth), the first the current one.
   const steps = page.getByTestId("step-bar").getByRole("button");
-  await expect(steps).toHaveCount(8);
+  await expect(steps).toHaveCount(9);
   await expect(steps.first()).toHaveAttribute("aria-current", "step");
 
   // The card: where we are, what to say, the set-up, the helper rule only where it applies.
-  await expect(page.getByTestId("step-card")).toContainText("Step 1 of 8");
+  await expect(page.getByTestId("step-card")).toContainText("Step 1 of 9");
   await expect(page.getByTestId("step-title")).toHaveText("Safety check");
   await expect(page.getByTestId("step-script")).not.toBeEmpty();
   await expect(page.getByTestId("step-card").getByRole("checkbox").first()).toBeVisible();
@@ -184,7 +184,7 @@ test("AC-005: the patient's screen shows only the step counter, its name and one
   await page.goto(`${BASE}/patient/dashboard/session`);
   const live = page.getByTestId("companion-live");
   await expect(live).toBeVisible(SEEN);
-  await expect(page.getByTestId("companion-step")).toContainText("Step 1 of 8");
+  await expect(page.getByTestId("companion-step")).toContainText("Step 1 of 9");
   await expect(page.getByTestId("companion-step")).toContainText("Safety check");
   await expect(page.getByTestId("companion-line")).not.toBeEmpty();
 

@@ -1,9 +1,11 @@
 import { isProfileKind, isVitalsMeasure, type MeasurementConditions, type ProfileKind } from "@/lib/outcomeMeasures";
 import type { PreExerciseCheck, Vitals } from "@/lib/cardioSafety";
+import { exerciseByKey, EXERCISE_PICTURES, type Exercise, type ExercisePicture } from "@/lib/exerciseLibrary";
 import {
   STOP_REASONS,
   SKIP_REASONS,
   needsPreExerciseCheck,
+  requiredSetupItems,
   protocolStep,
   redFlagStep,
   stepIndex,
@@ -43,8 +45,10 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "step_opened",
 ];
 
-export type LivePhase = "ready" | "go" | "done" | "rest" | "paused";
-export const LIVE_PHASES: readonly LivePhase[] = ["ready", "go", "done", "rest", "paused"];
+/** `demo` (phase 7d) is the Home exercises step's "watch how it is done":
+ *  only the teach route writes it, never the display route. */
+export type LivePhase = "ready" | "go" | "done" | "rest" | "paused" | "demo";
+export const LIVE_PHASES: readonly LivePhase[] = ["ready", "go", "done", "rest", "paused", "demo"];
 
 /** Why a run ended early. Fixed words, no free text (nothing to scan). */
 export const END_REASONS = {
@@ -168,7 +172,10 @@ export type RunRefusalCode =
   | "cardio_red_flag"
   | "not_skippable"
   | "not_a_layer_step"
-  | "no_clock";
+  | "no_clock"
+  /** A save on the Home exercises step before every exercise in the active
+   *  plan was marked in this run (phase 7d). */
+  | "exercises_not_marked";
 
 export type RunRefusal = { status: 400 | 403 | 404 | 409; code: RunRefusalCode; error: string };
 
@@ -194,7 +201,9 @@ export function isUuid(value: unknown): value is string {
 }
 
 /** Every set-up item ticked, by id. Ticking is all-or-nothing: Save and next
- *  unlocks only when the whole list is ticked, so a partial list is refused. */
+ *  unlocks only when the whole list is ticked, so a partial list is refused.
+ *  The one exception is an optional helper item (the Home exercises step):
+ *  it may be left unticked, and `helperPresent` says whether it was ticked. */
 export function validateSetupDetails(step: ProtocolStep, raw: unknown): { ok: true; details: SetupDetails } | { ok: false; refusal: RunRefusal } {
   const items = isObject(raw) ? raw.items : undefined;
   if (!Array.isArray(items) || items.some((i) => typeof i !== "string")) {
@@ -204,7 +213,7 @@ export function validateSetupDetails(step: ProtocolStep, raw: unknown): { ok: tr
   const unknown = (items as string[]).filter((i) => !known.has(i));
   if (unknown.length) return { ok: false, refusal: refuse(400, "bad_request", `Unknown set-up item: ${unknown.join(", ")}.`) };
   const ticked = new Set(items as string[]);
-  const missing = step.setup.filter((s) => !ticked.has(s.id));
+  const missing = requiredSetupItems(step).filter((s) => !ticked.has(s.id));
   if (missing.length) {
     return {
       ok: false,
@@ -213,7 +222,10 @@ export function validateSetupDetails(step: ProtocolStep, raw: unknown): { ok: tr
   }
   return {
     ok: true,
-    details: { items: step.setup.map((s) => s.id), helperPresent: step.setup.some((s) => s.helper === true) },
+    details: {
+      items: step.setup.filter((s) => ticked.has(s.id)).map((s) => s.id),
+      helperPresent: step.setup.some((s) => s.helper === true && ticked.has(s.id)),
+    },
   };
 }
 
@@ -547,12 +559,28 @@ export const PHASE_TEXT: Record<LivePhase, { line: string | null; sub: string | 
   done: { line: "Well done. You can rest now.", sub: "Take a slow breath. We will talk about it together." },
   rest: { line: "Have a rest.", sub: "We will carry on when you are ready." },
   paused: { line: "Please wait a moment.", sub: "Your physiotherapist will be with you shortly." },
+  demo: { line: "Watch how it is done.", sub: "Then you will try it while we watch." },
 };
+
+/** The Home exercises step's own lines for the patient's turn (the generic
+ *  "go" falls back to the step's line, which says nothing about the
+ *  exercise). "demo" and "done" use PHASE_TEXT. */
+export const TEACH_GO_TEXT = { line: "Your turn. Show us how you do it.", sub: "Go at your own pace." } as const;
 
 export const ENDED_TEXT = { title: "All done", line: "That is everything for today. Thank you.", picture: "talking" as PatientPicture };
 
 export const CLOCK_LABELS = ["Starting in", "Time left", "Time"] as const;
 export type ClockLabel = (typeof CLOCK_LABELS)[number];
+
+/** The exercise being taught, drawn on the companion as a demo: the
+ *  library's own picture and steps (never the therapist's text), and which
+ *  one of the plan it is. */
+export type LiveExerciseDemo = {
+  key: string;
+  picture: ExercisePicture;
+  steps: string[];
+  counter: string;
+};
 
 export type LiveDisplayText = {
   progress: string;
@@ -561,6 +589,8 @@ export type LiveDisplayText = {
   sub?: string;
   picture: PatientPicture;
   clockLabel?: ClockLabel;
+  /** Only on the Home exercises step (phase 7d). */
+  exercise?: LiveExerciseDemo;
 };
 
 export type LiveClock = { mode: "countdown"; seconds: number } | { mode: "count_up" };
@@ -615,7 +645,78 @@ export function endedLiveDisplay(protocol: SessionProtocol): LiveDisplayWrite {
   };
 }
 
-const DISPLAY_KEYS = new Set(["progress", "title", "line", "sub", "picture", "clockLabel"]);
+export type TeachPhase = "demo" | "go" | "done";
+export const TEACH_PHASES: readonly TeachPhase[] = ["demo", "go", "done"];
+
+export const EXERCISE_COUNTER_MAX = 12;
+
+export function exerciseCounterText(index: number, total: number): string {
+  return `Exercise ${index + 1} of ${total}`;
+}
+
+function parseExerciseCounter(text: unknown): { n: number; total: number } | null {
+  if (typeof text !== "string") return null;
+  const m = /^Exercise (\d{1,2}) of (\d{1,2})$/.exec(text);
+  if (!m) return null;
+  const n = Number(m[1]);
+  const total = Number(m[2]);
+  if (n < 1 || total < 1 || n > total || total > EXERCISE_COUNTER_MAX) return null;
+  return { n, total };
+}
+
+/**
+ * The companion's demo of one exercise on the Home exercises step: the
+ * exercise's name as the title, the phase's fixed line, and the library's
+ * own picture and steps. `index` and `total` are its place in the plan.
+ * No clock -- the physiotherapist counts with the patient.
+ */
+export function buildExerciseDisplay(input: {
+  protocol: SessionProtocol;
+  step: ProtocolStep;
+  exercise: Exercise;
+  phase: TeachPhase;
+  index: number;
+  total: number;
+}): { ok: true; write: LiveDisplayWrite } | { ok: false; refusal: RunRefusal } {
+  const { protocol, step, exercise, phase, index, total } = input;
+  if (step.tool !== "teach_exercises") return { ok: false, refusal: refuse(400, "unknown_step", "Exercises are shown on the Home exercises step.") };
+  if (!Number.isInteger(index) || !Number.isInteger(total) || index < 0 || index >= total || total > EXERCISE_COUNTER_MAX) {
+    return { ok: false, refusal: refuse(400, "bad_request", "That exercise is not in the plan.") };
+  }
+  const text = phase === "go" ? TEACH_GO_TEXT : PHASE_TEXT[phase];
+  const display: LiveDisplayText = {
+    progress: progressText(protocol, step),
+    title: exercise.name,
+    line: text.line ?? step.patientLine,
+    picture: step.patientPicture,
+    exercise: { key: exercise.key, picture: exercise.picture, steps: [...exercise.steps], counter: exerciseCounterText(index, total) },
+  };
+  if (text.sub) display.sub = text.sub;
+  return { ok: true, write: { currentStepId: step.id, phase, clock: null, display } };
+}
+
+function validateExerciseDemo(raw: unknown): { ok: true; demo: LiveExerciseDemo; exercise: Exercise } | { ok: false; error: string } {
+  if (!isObject(raw)) return { ok: false, error: "The exercise is not readable." };
+  const extra = Object.keys(raw).filter((k) => !["key", "picture", "steps", "counter"].includes(k));
+  if (extra.length) return { ok: false, error: `Not patient-safe: exercise.${extra.join(", exercise.")}.` };
+  const exercise = typeof raw.key === "string" ? exerciseByKey(raw.key) : null;
+  if (!exercise) return { ok: false, error: "Unknown exercise." };
+  if (raw.picture !== exercise.picture || !(EXERCISE_PICTURES as readonly unknown[]).includes(raw.picture)) {
+    return { ok: false, error: "The picture is not this exercise's." };
+  }
+  const steps = raw.steps;
+  if (!Array.isArray(steps) || steps.length !== exercise.steps.length || steps.some((s, i) => s !== exercise.steps[i])) {
+    return { ok: false, error: "The steps are not this exercise's." };
+  }
+  if (!parseExerciseCounter(raw.counter)) return { ok: false, error: "The exercise counter is not readable." };
+  return {
+    ok: true,
+    exercise,
+    demo: { key: exercise.key, picture: exercise.picture, steps: [...exercise.steps], counter: raw.counter as string },
+  };
+}
+
+const DISPLAY_KEYS = new Set(["progress", "title", "line", "sub", "picture", "clockLabel", "exercise"]);
 
 /**
  * The stored display jsonb is patient-safe: only the known keys, and every
@@ -634,9 +735,30 @@ export function validateLiveDisplay(
   const extra = Object.keys(raw).filter((k) => !DISPLAY_KEYS.has(k));
   if (extra.length) return { ok: false, error: `Not patient-safe: ${extra.join(", ")}.` };
   if (raw.progress !== progressText(protocol, step)) return { ok: false, error: "The step counter does not match the step." };
+  // The Home exercises step may carry one exercise's demo; its title is then
+  // that exercise's name, and the patient's-turn lines are allowed too.
+  let demo: LiveExerciseDemo | undefined;
   const titles = new Set([step.title, ENDED_TEXT.title]);
-  const lines = new Set([step.patientLine, ENDED_TEXT.line, ...Object.values(PHASE_TEXT).map((p) => p.line).filter((l): l is string => !!l)]);
-  const subs = new Set(Object.values(PHASE_TEXT).map((p) => p.sub).filter((l): l is string => !!l));
+  const teachLines: string[] = [];
+  if (raw.exercise !== undefined) {
+    if (step.tool !== "teach_exercises") return { ok: false, error: "Only the Home exercises step shows an exercise." };
+    const checked = validateExerciseDemo(raw.exercise);
+    if (!checked.ok) return checked;
+    demo = checked.demo;
+    titles.clear();
+    titles.add(checked.exercise.name);
+    teachLines.push(TEACH_GO_TEXT.line);
+  }
+  const lines = new Set([
+    step.patientLine,
+    ENDED_TEXT.line,
+    ...teachLines,
+    ...Object.values(PHASE_TEXT).map((p) => p.line).filter((l): l is string => !!l),
+  ]);
+  const subs = new Set([
+    ...(demo ? [TEACH_GO_TEXT.sub] : []),
+    ...Object.values(PHASE_TEXT).map((p) => p.sub).filter((l): l is string => !!l),
+  ]);
   if (typeof raw.title !== "string" || !titles.has(raw.title)) return { ok: false, error: "The title is not this step's." };
   if (typeof raw.line !== "string" || !lines.has(raw.line)) return { ok: false, error: "The line is not this step's." };
   if (raw.sub !== undefined && (typeof raw.sub !== "string" || !subs.has(raw.sub))) return { ok: false, error: "The second line is not a phase line." };
@@ -644,9 +766,11 @@ export function validateLiveDisplay(
   if (raw.clockLabel !== undefined && !(CLOCK_LABELS as readonly unknown[]).includes(raw.clockLabel)) {
     return { ok: false, error: "Unknown clock label." };
   }
+  if (demo && raw.clockLabel !== undefined) return { ok: false, error: "An exercise demo has no clock." };
   const display: LiveDisplayText = { progress: raw.progress, title: raw.title, line: raw.line, picture: raw.picture as PatientPicture };
   if (typeof raw.sub === "string") display.sub = raw.sub;
   if (typeof raw.clockLabel === "string") display.clockLabel = raw.clockLabel as ClockLabel;
+  if (demo) display.exercise = demo;
   return { ok: true, display };
 }
 
@@ -703,6 +827,9 @@ export function validateDisplayRequest(
   const step = typeof raw.stepId === "string" ? protocolStep(protocol, raw.stepId) : null;
   if (!step) return { ok: false, refusal: refuse(400, "unknown_step", "That step is not part of this assessment.") };
   if (!(LIVE_PHASES as readonly unknown[]).includes(raw.phase)) return { ok: false, refusal: refuse(400, "bad_request", "Unknown phase.") };
+  if (raw.phase === "demo") {
+    return { ok: false, refusal: refuse(400, "bad_request", "An exercise demo is shown from the Home exercises step.") };
+  }
   if (raw.startClock !== undefined && typeof raw.startClock !== "boolean") {
     return { ok: false, refusal: refuse(400, "bad_request", "startClock must be true or false.") };
   }

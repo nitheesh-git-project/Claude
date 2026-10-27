@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { preExerciseCheck, resolveOxygenStopLimit } from "./cardioSafety";
 import { protocolStep, sessionProtocol, SESSION_PROTOCOLS } from "./sessionProtocols";
+import { exerciseByKey } from "./exerciseLibrary";
 import {
+  buildExerciseDisplay,
   buildLiveDisplay,
   checkRunOpen,
   checkRunSave,
@@ -33,7 +35,7 @@ const RUN: AssessmentRun = {
   appointmentId: null,
   therapistId: "ther-1",
   protocolKey: "ortho_knee",
-  protocolVersion: 1,
+  protocolVersion: 2,
   profileKind: "ortho",
   status: "in_progress",
   startedAt: "2026-10-26T09:00:00.000Z",
@@ -69,7 +71,7 @@ const video = { setting: "video" as const, helperPresent: true };
 describe("rows", () => {
   it("parses a run and an event, refusing a malformed one", () => {
     const run = parseRunRow({
-      id: "r", patient_id: "p", appointment_id: null, therapist_id: "t", protocol_key: "ortho_knee", protocol_version: 1,
+      id: "r", patient_id: "p", appointment_id: null, therapist_id: "t", protocol_key: "ortho_knee", protocol_version: 2,
       profile_kind: "ortho", status: "in_progress", started_at: "2026-10-26T09:00:00Z", ended_at: null, ended_reason: null,
     });
     expect(run?.status).toBe("in_progress");
@@ -263,7 +265,7 @@ describe("the live display", () => {
     const go = buildLiveDisplay({ protocol: knee, step, phase: "go", startClock: true });
     expect(go.ok && go.write.clock).toEqual({ mode: "countdown", seconds: 30 });
     expect(go.ok && go.write.display).toEqual({
-      progress: "Step 6 of 8",
+      progress: "Step 6 of 9",
       title: step.title,
       line: step.patientLine,
       picture: "chair_stand",
@@ -331,5 +333,76 @@ describe("the live display", () => {
     expect(clockReading(view!.clock!, Date.parse("2026-10-26T09:00:11.500Z"))).toBe(19);
     expect(clockReading(view!.clock!, Date.parse("2026-10-26T09:01:00.000Z"))).toBe(0);
     expect(parseLiveDisplayRow({ run_id: "run-1", protocol_key: "ortho_knee", current_step_id: "chair_stand", phase: "go", display: { line: "9 stands" }, updated_at: "x" }, () => knee)).toBeNull();
+  });
+});
+
+describe("the Home exercises step (phase 7d)", () => {
+  const teach = protocolStep(knee, "exercises")!;
+  const peds = sessionProtocol("pediatrics")!;
+  const sit = exerciseByKey("sit_to_stand")!;
+
+  it("sits just before the summary in every protocol, with an optional helper except for a child", () => {
+    for (const p of SESSION_PROTOCOLS) {
+      expect(p.steps[p.steps.length - 2].tool).toBe("teach_exercises");
+      expect(p.version).toBe(2);
+    }
+    expect(teach.setup.find((i) => i.helper)?.optional).toBe(true);
+    expect(protocolStep(peds, "exercises")!.needsHelper).toBe(true);
+    expect(protocolStep(peds, "exercises")!.setup.find((i) => i.helper)?.optional).toBeUndefined();
+  });
+
+  it("lets the optional helper be left unticked, and says whether it was ticked", () => {
+    const without = validateSetupDetails(teach, { items: ["whole_body_in_view", "clear_space"] });
+    expect(without).toEqual({ ok: true, details: { items: ["whole_body_in_view", "clear_space"], helperPresent: false } });
+    const withHelper = validateSetupDetails(teach, { items: ["whole_body_in_view", "clear_space", "helper_beside"] });
+    expect(withHelper.ok && withHelper.details.helperPresent).toBe(true);
+    expect(validateSetupDetails(teach, { items: ["clear_space"] }).ok).toBe(false);
+    const pedsTeach = protocolStep(peds, "exercises")!;
+    expect(validateSetupDetails(pedsTeach, { items: ["whole_body_in_view", "clear_space"] }).ok).toBe(false);
+  });
+
+  it("is exertion: the heart and lung pre-exercise check stands in front of it", () => {
+    const step = protocolStep(cardio, "exercises")!;
+    const state = runStateFromEvents([redFlagsClear(cardio), ev("exercises", "setup_confirmed", { items: [], helperPresent: false })]);
+    expect(checkStepAction({ protocol: cardio, step, state, action: "go", preExercise: null })?.code).toBe("cardio_check_not_recorded");
+  });
+
+  it("shows a demo from the library only, and the validator refuses anything else", () => {
+    const built = buildExerciseDisplay({ protocol: knee, step: teach, exercise: sit, phase: "demo", index: 0, total: 3 });
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(built.write.clock).toBeNull();
+    expect(built.write.phase).toBe("demo");
+    expect(built.write.display).toEqual({
+      progress: "Step 8 of 9",
+      title: "Sit to stand",
+      line: "Watch how it is done.",
+      sub: "Then you will try it while we watch.",
+      picture: "standing",
+      exercise: { key: "sit_to_stand", picture: "sit_to_stand", steps: [...sit.steps], counter: "Exercise 1 of 3" },
+    });
+    const d = built.write.display;
+    expect(validateLiveDisplay(knee, "exercises", d).ok).toBe(true);
+    for (const phase of ["go", "done"] as const) {
+      const b = buildExerciseDisplay({ protocol: knee, step: teach, exercise: sit, phase, index: 2, total: 3 });
+      expect(b.ok && validateLiveDisplay(knee, "exercises", b.write.display).ok).toBe(true);
+    }
+    const bad = (display: unknown) => validateLiveDisplay(knee, "exercises", display).ok;
+    expect(bad({ ...d, exercise: { ...d.exercise!, steps: ["Do 50 of them, you did great."] } })).toBe(false);
+    expect(bad({ ...d, exercise: { ...d.exercise!, picture: "walking" } })).toBe(false);
+    expect(bad({ ...d, exercise: { ...d.exercise!, note: "hi" } })).toBe(false);
+    expect(bad({ ...d, exercise: { ...d.exercise!, counter: "Exercise 4 of 3" } })).toBe(false);
+    expect(bad({ ...d, exercise: { ...d.exercise!, key: "heel_raise" } })).toBe(false);
+    expect(bad({ ...d, title: "Heel raise" })).toBe(false);
+    expect(bad({ ...d, clockLabel: "Time" })).toBe(false);
+    // Only the Home exercises step carries an exercise.
+    expect(validateLiveDisplay(knee, "chair_stand", { ...d, progress: "Step 6 of 9" }).ok).toBe(false);
+    expect(buildExerciseDisplay({ protocol: knee, step: protocolStep(knee, "walk")!, exercise: sit, phase: "demo", index: 0, total: 1 }).ok).toBe(false);
+    expect(buildExerciseDisplay({ protocol: knee, step: teach, exercise: sit, phase: "demo", index: 3, total: 3 }).ok).toBe(false);
+  });
+
+  it("keeps demo off the generic display route", () => {
+    expect(validateDisplayRequest(knee, { runId: "r", stepId: "exercises", phase: "demo" }).ok).toBe(false);
+    expect(validateDisplayRequest(knee, { runId: "r", stepId: "exercises", phase: "ready" }).ok).toBe(true);
   });
 });

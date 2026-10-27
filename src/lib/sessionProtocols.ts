@@ -29,7 +29,10 @@ import { CARDIO_DO_NOT_EXERCISE_SYMPTOMS } from "@/lib/cardioSafety";
 // thresholds come from the registry (outcomeMeasures.ts), which carries the
 // same mark; nothing here adds a threshold.
 
-export const SESSION_PROTOCOLS_VERSION = 1;
+/** Version 2 (phase 7d): every protocol gained the Home exercises step
+ *  before the summary. A run started on version 1 is refused as
+ *  `protocol_changed` and started again. */
+export const SESSION_PROTOCOLS_VERSION = 2;
 
 export const CLINICAL_REVIEW_MARK = "to be verified by a senior physiotherapist" as const;
 
@@ -65,6 +68,9 @@ export type StepTool =
   | "milestone_check"
   | "peds_exam"
   | "neuro_exam"
+  /** Phase 7d: teach the home exercises -- pick, dose, demo, watch, mark
+   *  (exercisePlan.ts; the teach and publish routes). */
+  | "teach_exercises"
   | "summary";
 
 /** A layer that owns what a step records, instead of outcome_measurements:
@@ -87,6 +93,11 @@ export type SetupItem = {
   /** Ticking it says another adult is standing beside the patient (a
    *  parent, for a child). A step that needs a helper has one. */
   helper?: boolean;
+  /** Not every save needs it ticked. Only a helper item may be optional:
+   *  on the Home exercises step another adult is needed only for the
+   *  exercises flagged "needs helper", so ticking it is what lets those be
+   *  taught (and published), and leaving it unticked still lets the rest. */
+  optional?: boolean;
 };
 
 /** A red-flag question the therapist asks aloud. "Yes" means the flag is
@@ -249,6 +260,36 @@ function summaryStep(): ProtocolStep {
   };
 }
 
+/** The Home exercises step (phase 7d), the last before the summary in every
+ *  protocol. Exertion, so on the heart and lung protocol the pre-exercise
+ *  check stands in front of it like any other exercise; skippable, with a
+ *  fixed reason. A child is always taught with the parent beside them, so
+ *  the paediatric step needs its helper; elsewhere the helper item is
+ *  optional and gates only the exercises that need one. */
+function teachStep(input: { helperRequired: boolean }): ProtocolStep {
+  return {
+    id: "exercises",
+    title: "Home exercises",
+    short: "Exercises",
+    script: "Now I will show you some exercises to do at home. Then I will watch you do each one.",
+    patientLine: "We will learn some exercises for home together.",
+    patientPicture: "standing",
+    setup: [
+      { id: "whole_body_in_view", label: "The patient's whole body is in view" },
+      { id: "clear_space", label: "The patient is in a clear space" },
+      input.helperRequired
+        ? { id: "parent_close", label: "A parent is beside the child for every exercise", helper: true }
+        : { ...HELPER, label: "Another adult is beside the patient (only for exercises that need one)", optional: true },
+    ],
+    tool: "teach_exercises",
+    measures: [],
+    needsHelper: input.helperRequired,
+    exertion: true,
+    skippable: true,
+    review: R,
+  };
+}
+
 const HELPER: SetupItem = { id: "helper_beside", label: "Another adult is standing beside the patient", helper: true };
 const CLEAR_SPACE: SetupItem = { id: "clear_space", label: "The patient is in a clear space" };
 const CAN_HEAR: SetupItem = { id: "can_hear", label: "The patient can hear you clearly" };
@@ -258,7 +299,7 @@ const MEDICATION_NOTED: SetupItem = { id: "medication_noted", label: "ON or OFF,
 
 const ORTHO_KNEE: SessionProtocol = {
   key: "ortho_knee",
-  version: 1,
+  version: 2,
   profileKind: "ortho",
   title: "Knee pain: video assessment",
   patientTitle: "Your knee check",
@@ -388,13 +429,14 @@ const ORTHO_KNEE: SessionProtocol = {
       clock: { kind: "count_up" },
       review: R,
     },
+    teachStep({ helperRequired: false }),
     summaryStep(),
   ],
 };
 
 const ORTHO_GENERAL: SessionProtocol = {
   key: "ortho_general",
-  version: 1,
+  version: 2,
   profileKind: "ortho",
   title: "Joint or back pain: video assessment",
   patientTitle: "Your movement check",
@@ -461,13 +503,14 @@ const ORTHO_GENERAL: SessionProtocol = {
       skippable: true,
       review: R,
     },
+    teachStep({ helperRequired: false }),
     summaryStep(),
   ],
 };
 
 const NEURO: SessionProtocol = {
   key: "neuro",
-  version: 1,
+  version: 2,
   profileKind: "neuro",
   title: "Neurological: video assessment",
   patientTitle: "Your walking and balance check",
@@ -521,13 +564,14 @@ const NEURO: SessionProtocol = {
       skippable: true,
       review: R,
     },
+    teachStep({ helperRequired: false }),
     summaryStep(),
   ],
 };
 
 const NEURO_PARKINSONS: SessionProtocol = {
   key: "neuro_parkinsons",
-  version: 1,
+  version: 2,
   profileKind: "neuro_parkinsons",
   title: "Parkinson's: video assessment",
   patientTitle: "Your walking and balance check",
@@ -600,13 +644,14 @@ const NEURO_PARKINSONS: SessionProtocol = {
       clock: { kind: "count_up" },
       review: R,
     },
+    teachStep({ helperRequired: false }),
     summaryStep(),
   ],
 };
 
 const PEDIATRICS: SessionProtocol = {
   key: "pediatrics",
-  version: 1,
+  version: 2,
   profileKind: "pediatrics",
   title: "Paediatric: video assessment",
   patientTitle: "Your child's movement check",
@@ -679,13 +724,14 @@ const PEDIATRICS: SessionProtocol = {
       skippable: true,
       review: R,
     },
+    teachStep({ helperRequired: true }),
     summaryStep(),
   ],
 };
 
 const GERIATRIC: SessionProtocol = {
   key: "geriatric",
-  version: 1,
+  version: 2,
   profileKind: "geriatric",
   title: "Falls and strength: video assessment",
   patientTitle: "Your strength and balance check",
@@ -786,13 +832,14 @@ const GERIATRIC: SessionProtocol = {
       skippable: true,
       review: R,
     },
+    teachStep({ helperRequired: false }),
     summaryStep(),
   ],
 };
 
 const CARDIOPULMONARY: SessionProtocol = {
   key: "cardiopulmonary",
-  version: 1,
+  version: 2,
   profileKind: "cardiopulmonary",
   title: "Heart and lung: video assessment",
   patientTitle: "Your heart and lung check",
@@ -890,6 +937,7 @@ const CARDIOPULMONARY: SessionProtocol = {
       skippable: true,
       review: R,
     },
+    teachStep({ helperRequired: false }),
     summaryStep(),
   ],
 };
@@ -998,6 +1046,16 @@ export function helperSetupItems(step: ProtocolStep): SetupItem[] {
   return step.setup.filter((s) => s.helper === true);
 }
 
+/** The set-up items a save needs ticked (every item but an optional helper). */
+export function requiredSetupItems(step: ProtocolStep): SetupItem[] {
+  return step.setup.filter((s) => s.optional !== true);
+}
+
+/** The Home exercises step: one per protocol, just before the summary. */
+export function teachExercisesStep(protocol: SessionProtocol): ProtocolStep | null {
+  return protocol.steps.find((s) => s.tool === "teach_exercises") ?? null;
+}
+
 // --- Module-load assertions ---------------------------------------------------------
 //
 // Thrown at load, the posture outcomeMeasures.ts and conditionIntake.ts take:
@@ -1020,6 +1078,7 @@ export function protocolProblems(protocols: readonly SessionProtocol[]): string[
     if (p.steps.length < 3) problems.push(`${p.key}: too few steps`);
     if (p.steps[0]?.tool !== "red_flags") problems.push(`${p.key}: the first step must be the red-flag check`);
     if (p.steps[p.steps.length - 1]?.tool !== "summary") problems.push(`${p.key}: the last step must be the summary`);
+    if (p.steps.filter((s) => s.tool === "teach_exercises").length !== 1) problems.push(`${p.key}: needs exactly one Home exercises step`);
 
     const stepIds = new Set<string>();
     let restingVitalsSeenAt = -1;
@@ -1056,8 +1115,20 @@ export function protocolProblems(protocols: readonly SessionProtocol[]): string[
       }
       if (s.tool === "summary" && s.skippable) problems.push(`${where}: the summary cannot be skipped`);
       if (s.layer && s.measures.length > 0) problems.push(`${where}: a layer step records nothing in the measurement table`);
-      if (s.needsHelper && helperSetupItems(s).length === 0) problems.push(`${where}: needs a helper but has no helper item to tick`);
-      if (!s.needsHelper && helperSetupItems(s).length > 0) problems.push(`${where}: has a helper item but is not marked as needing one`);
+      const requiredHelpers = helperSetupItems(s).filter((i) => i.optional !== true);
+      if (s.needsHelper && requiredHelpers.length === 0) problems.push(`${where}: needs a helper but has no helper item to tick`);
+      if (!s.needsHelper && requiredHelpers.length > 0) problems.push(`${where}: has a helper item but is not marked as needing one`);
+      for (const item of s.setup) {
+        if (item.optional && !item.helper) problems.push(`${where}: only a helper item may be optional ("${item.id}")`);
+        if (item.optional && s.tool !== "teach_exercises") problems.push(`${where}: only the Home exercises step has an optional item`);
+      }
+      if (requiredSetupItems(s).length < 1) problems.push(`${where}: no required set-up item`);
+      if (s.tool === "teach_exercises") {
+        if (index !== p.steps.length - 2) problems.push(`${where}: Home exercises must come just before the summary`);
+        if (!s.exertion) problems.push(`${where}: Home exercises are exercise and the step must say so`);
+        if (!s.skippable) problems.push(`${where}: Home exercises can be skipped`);
+        if (s.measures.length > 0 || s.layer) problems.push(`${where}: Home exercises record no measurement`);
+      }
       if (s.clock?.kind === "countdown" && (!Number.isInteger(s.clock.seconds) || s.clock.seconds < 1 || s.clock.seconds > 600)) {
         problems.push(`${where}: countdown out of range`);
       }

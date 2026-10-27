@@ -3,9 +3,11 @@ import { formatReading } from "@/lib/progressChart";
 import { CARE_STATUS_SUMMARY_MAX } from "@/lib/careStatus";
 import { SKIP_REASONS, STOP_REASONS, type ProtocolStep, type SessionProtocol } from "@/lib/sessionProtocols";
 import { END_REASONS, runStateFromEvents, type AssessmentRun, type EndReason, type RunEvent } from "@/lib/assessmentRun";
+import { teachingSummarySentence, type TeachingEvent } from "@/lib/exercisePlan";
 
 // The "Where things stand" draft a guided video assessment leaves behind
-// (phase 7a): two to four plain sentences built ONLY from what was saved in
+// (phase 7a; the home exercises taught were added in phase 7d): two to four
+// plain sentences, five when exercises were taught, built ONLY from what was saved in
 // the run -- a reading that was stopped is never a result, a skipped or
 // stopped step is named honestly, a red flag or an early end is said. It is a
 // draft: the physiotherapist edits it and saves it through the existing
@@ -90,11 +92,18 @@ export function assessmentSummaryDraft(input: {
   measurements: readonly SummaryMeasurement[];
   profileKind: ProfileKind;
   voice: SummaryVoice;
+  /** What the physiotherapist marked while teaching the home exercises in
+   *  this run (exercise_teaching_events); rows of another run are ignored. */
+  teaching?: readonly TeachingEvent[];
 }): string | null {
   const { run, protocol, voice } = input;
   const state = runStateFromEvents(input.events.filter((e) => e.runId === run.id));
   const byId = new Map(input.measurements.map((m) => [m.id, m]));
-  const testSteps = protocol.steps.filter((s) => s.tool !== "red_flags" && s.tool !== "summary");
+  // The Home exercises step is teaching, not a check: it is said in its own
+  // sentence below, never counted as one of the tests.
+  const testSteps = protocol.steps.filter((s) => s.tool !== "red_flags" && s.tool !== "summary" && s.tool !== "teach_exercises");
+  const teachStep = protocol.steps.find((s) => s.tool === "teach_exercises");
+  const teaching = (input.teaching ?? []).filter((e) => e.runId === run.id);
 
   const readings: string[] = [];
   const recordedElsewhere: string[] = [];
@@ -121,7 +130,8 @@ export function assessmentSummaryDraft(input: {
   }
 
   const flagged = (state.redFlags?.flagged.length ?? 0) > 0;
-  const reachedAnything = done + skipped.length + stopped.length > 0;
+  const teachSkipped = !!teachStep && state.outcomes.get(teachStep.id) === "skipped" && teaching.length === 0;
+  const reachedAnything = done + skipped.length + stopped.length + teaching.length > 0 || teachSkipped;
   if (!reachedAnything && !flagged && !state.redFlags) return null;
 
   const sentences: string[] = [];
@@ -139,6 +149,10 @@ export function assessmentSummaryDraft(input: {
     const list = listWords(more > 0 ? [...results, `${more} more`] : results);
     sentences.push(voice === "patient" ? `Your results: ${list}.` : `Results: ${list}.`);
   }
+
+  const exercises = teachingSummarySentence(teaching, voice);
+  if (exercises) sentences.push(exercises);
+  else if (teachSkipped) sentences.push(voice === "patient" ? "We did not go through home exercises today." : "Home exercises skipped.");
 
   const gaps: string[] = [];
   if (skipped.length) gaps.push(voice === "patient" ? `we left out ${listWords(skipped)}` : `skipped ${listWords(skipped)}`);
@@ -164,7 +178,7 @@ export function assessmentSummaryDraft(input: {
     );
   }
 
-  let text = sentences.slice(0, 4).join(" ");
+  let text = sentences.slice(0, exercises || teachSkipped ? 5 : 4).join(" ");
   if (text.length > CARE_STATUS_SUMMARY_MAX) text = `${text.slice(0, CARE_STATUS_SUMMARY_MAX - 1).trimEnd()}…`;
   return text;
 }

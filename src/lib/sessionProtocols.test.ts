@@ -33,6 +33,7 @@ describe("session protocols", () => {
       "Straightening",
       "Chair stand",
       "Walking",
+      "Exercises",
       "Summary",
     ]);
     expect(protocolStep(knee, "pain")?.layer).toBe("pain_map");
