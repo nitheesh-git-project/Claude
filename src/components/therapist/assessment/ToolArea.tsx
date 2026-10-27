@@ -10,6 +10,8 @@ import type { ProtocolStep } from "@/lib/sessionProtocols";
 import LayerTool from "@/components/therapist/assessment/LayerTool";
 import RedFlagsTool from "@/components/therapist/assessment/RedFlagsTool";
 import SlotRecorder from "@/components/therapist/assessment/SlotRecorder";
+import TeachTool from "@/components/therapist/assessment/teach/TeachTool";
+import type { ComponentProps } from "react";
 
 // What the physiotherapist is told before the tool, by the kind of tool.
 const TOOL_HINT: Partial<Record<ProtocolStep["tool"], string>> = {
@@ -35,6 +37,7 @@ export default function ToolArea({
   redFlags,
   measure,
   layer,
+  teach,
   summaryLine,
 }: {
   step: ProtocolStep;
@@ -58,6 +61,8 @@ export default function ToolArea({
     onTimerEvent: (event: TimerClockEvent) => void;
   };
   layer: { patientId: string; patientName: string; runStartedAt: string; onRecord: (recordId: string | null, missing: string | null) => void };
+  /** The Home exercises step's tool: everything the cockpit holds for it. */
+  teach: ComponentProps<typeof TeachTool>;
   summaryLine: string;
 }): ReactNode {
   const mode = toolMode(step);
@@ -83,6 +88,8 @@ export default function ToolArea({
       />
     );
   }
+
+  if (mode === "teach") return <TeachTool {...teach} />;
 
   if (mode === "summary") {
     return (

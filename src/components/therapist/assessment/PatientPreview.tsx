@@ -5,6 +5,7 @@ import type { LiveDisplayText, LiveDisplayView } from "@/lib/assessmentRun";
 import { clockShown } from "@/lib/companionScreen";
 import type { PatientControl } from "@/lib/cockpit";
 import { useToast } from "@/lib/toast";
+import ExercisePicture from "@/components/exercises/ExercisePicture";
 
 export type PreviewStatus = "idle" | "sending" | "live" | "failed";
 
@@ -80,7 +81,14 @@ export default function PatientPreview({
       </div>
 
       <div data-testid="preview-card" className="rounded-xl bg-[#1e293b] p-4 text-center">
-        <div className="text-xs font-bold uppercase tracking-wider text-slate-300">{text.progress}</div>
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-300">
+          {text.exercise ? `${text.exercise.counter} · ${text.title}` : text.progress}
+        </div>
+        {text.exercise && (
+          <div className="mx-auto mt-2 w-28" data-testid="preview-exercise">
+            <ExercisePicture picture={text.exercise.picture} name={text.title} tone="dark" />
+          </div>
+        )}
         <div className="mt-1.5 font-display text-xl font-bold leading-snug">{text.line}</div>
         {text.sub && <div className="mt-1 text-sm text-slate-300">{text.sub}</div>}
         {clock && (

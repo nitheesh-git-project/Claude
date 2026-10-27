@@ -31,6 +31,7 @@ import {
   redFlagsRaised,
   resultRows,
   saveReadiness,
+  setupProgress,
   stepAvailability,
   stepNav,
   toolMode,
@@ -40,6 +41,10 @@ import {
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasurementPoint, MeasureSeries } from "@/lib/outcomeSeries";
 import { sessionProtocol } from "@/lib/sessionProtocols";
+import type { ContraFlag } from "@/lib/exerciseLibrary";
+import type { TeachingEvent } from "@/lib/exercisePlan";
+import { teachMissing } from "@/lib/teachTool";
+import type { TeachPlan } from "@/components/therapist/assessment/teach/TeachTool";
 import ActionBar from "@/components/therapist/assessment/ActionBar";
 import FinishedPanel from "@/components/therapist/assessment/FinishedPanel";
 import PatientPreview from "@/components/therapist/assessment/PatientPreview";
@@ -91,6 +96,13 @@ export type CockpitProps = {
   enabledLicensed: string[];
   licenceUnreadable: boolean;
   chartHref: string;
+  /** The patient's active home exercise plan and this run's marks (phase 7d). */
+  exercises: {
+    loadStatus: "ok" | "not_migrated" | "unreadable";
+    plan: TeachPlan | null;
+    marks: TeachingEvent[];
+    contraFlags: ContraFlag[];
+  };
 };
 
 /**
@@ -146,6 +158,11 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
       ...extra,
     });
   }
+
+  // --- The Home exercises step: the plan and the marks, as last said plus what this page has done ---
+  const [teachPlan, setTeachPlan] = useState<TeachPlan | null>(props.exercises.plan);
+  const [teachMarks, setTeachMarks] = useState<TeachingEvent[]>(props.exercises.marks);
+  const [teachPreview, setTeachPreview] = useState<LiveDisplayText | null>(null);
 
   // --- Where the person is and what they have entered --------------------------------------
   const [currentId, setCurrentId] = useState(() => firstOpenStepId(protocol, state));
@@ -213,6 +230,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     setCurrentId(id);
     setFailure(null);
     setNotice(null);
+    setTeachPreview(null);
     pushDisplay(id, patientControls(target)[0], true);
     if (!state.outcomes.has(id)) {
       void postEvent({ runId: run.id, stepId: id, kind: "step_opened" }).then((r) => {
@@ -241,6 +259,11 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     const rec = layerRecord && layerRecord.stepId === step.id ? layerRecord : null;
     resultReady = !!rec?.id;
     resultMissing = rec?.missing ?? null;
+  } else if (mode === "teach") {
+    const planKeys = teachPlan ? teachPlan.items.map((i) => i.exerciseKey) : [];
+    const marked = new Set(teachMarks.filter((m) => teachPlan && m.planId === teachPlan.id && m.runId === run.id).map((m) => m.exerciseKey));
+    resultMissing = teachMissing(!!teachPlan, planKeys, marked);
+    resultReady = resultMissing === null;
   }
   const blocked = !availability.available
     ? availability.reason
@@ -277,6 +300,19 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     return OFFLINE_FAILURE;
   }
 
+  /** The Home exercises tool needs the ticked set-up on the run before the
+   *  patient's turn, a mark or a plan with a helper exercise. Null when it
+   *  stands; otherwise why not. */
+  async function ensureSetup(): Promise<CockpitFailure | null> {
+    const items = step.setup.filter((i) => tickedSet.has(i.id)).map((i) => i.id);
+    const helperTicked = step.setup.some((i) => i.helper === true && tickedSet.has(i.id));
+    if (state.setupConfirmed.has(step.id) && (!helperTicked || state.helperConfirmed.has(step.id))) return null;
+    const r = await postEvent({ runId: run.id, stepId: step.id, kind: "setup_confirmed", details: { items } });
+    if (!r.ok) return r.failure;
+    addEvent(r.data.event);
+    return null;
+  }
+
   async function save() {
     if (busy) return;
     if (justMoveOn && upcoming) {
@@ -290,7 +326,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     try {
       // 1. The set-up, ticked in full, is a fact the run keeps.
       if (!state.setupConfirmed.has(step.id)) {
-        const r = await postEvent({ runId: run.id, stepId: step.id, kind: "setup_confirmed", details: { items: step.setup.map((i) => i.id) } });
+        const r = await postEvent({ runId: run.id, stepId: step.id, kind: "setup_confirmed", details: { items: step.setup.filter((i) => tickedSet.has(i.id)).map((i) => i.id) } });
         if (!r.ok) return setFailure(r.failure);
         addEvent(r.data.event);
       }
@@ -368,6 +404,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
       if (target) {
         const targetStep = currentStep(protocol, target);
         setCurrentId(target);
+        setTeachPreview(null);
         pushDisplay(target, patientControls(targetStep)[0], true);
         void postEvent({ runId: run.id, stepId: target, kind: "step_opened" }).then((r) => {
           if (r.ok) addEvent(r.data.event);
@@ -393,6 +430,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     setResetKeys((prev) => ({ ...prev, [step.id]: (prev[step.id] ?? 0) + 1 }));
     setSlotStatus((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${step.id}|`))));
     if (mode === "red_flags") setAnswers({});
+    setTeachPreview(null);
     setDialog(null);
     setNotice("Stopped. Nothing from that attempt was kept.");
     pushDisplay(step.id, patientControls(step).find((c) => c.key === "rest")!, true);
@@ -534,6 +572,23 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     onTimerEvent: onTimerEvent,
                   }}
                   layer={{ patientId: patient.id, patientName: patient.name, runStartedAt: run.startedAt, onRecord: recordLayer }}
+                  teach={{
+                    runId: run.id,
+                    protocol,
+                    step,
+                    profileKind,
+                    contraFlags: props.exercises.contraFlags,
+                    loadStatus: props.exercises.loadStatus,
+                    plan: teachPlan,
+                    marks: teachMarks,
+                    helperTicked: step.setup.some((i) => i.helper === true && tickedSet.has(i.id)),
+                    setupReady: setupProgress(step, tickedSet).remaining === 0,
+                    exertionBlocked: blocked,
+                    ensureSetup,
+                    onPlan: setTeachPlan,
+                    onMark: (e) => setTeachMarks((prev) => (prev.some((p) => p.id === e.id || (p.planId === e.planId && p.exerciseKey === e.exerciseKey)) ? prev : [...prev, e])),
+                    onPreview: setTeachPreview,
+                  }}
                   summaryLine={summaryLine}
                 />
               </StepCard>
@@ -585,7 +640,9 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                 text={
                   ended
                     ? { progress: patientScreen.text.progress, title: "All done", line: "That is everything for today. Thank you.", picture: "talking" }
-                    : patientScreen.text
+                    : mode === "teach" && teachPreview
+                      ? teachPreview
+                      : patientScreen.text
                 }
                 view={ended ? null : patientScreen.view}
                 serverOffsetMs={patientScreen.offsetMs}

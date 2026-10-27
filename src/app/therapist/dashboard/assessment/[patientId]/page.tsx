@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasStartedSessionWithPatient, isTherapistAssignedToPatient } from "@/lib/conditionAccess";
@@ -11,6 +11,8 @@ import { loadEnabledLicensedMeasures, loadMeasurements, loadPatientProfileKind }
 import { parseMeasurementRows, buildMeasureSeries } from "@/lib/outcomeSeries";
 import { protocolsForProfileKind, sessionProtocol } from "@/lib/sessionProtocols";
 import { loadActiveRun, loadRunMeasurements } from "@/lib/assessmentRunServer";
+import { loadActiveExercisePlan, loadPatientExerciseContext, loadTeachingEvents } from "@/lib/exercisePlanServer";
+import { CONTRA_FLAGS } from "@/lib/exerciseLibrary";
 import SessionCockpit from "@/components/therapist/assessment/SessionCockpit";
 import StartPanel from "@/components/therapist/assessment/StartPanel";
 
@@ -107,11 +109,29 @@ export default async function AssessmentCockpitPage({
   } else if (active.run) {
     const run = active.run;
     const protocol = sessionProtocol(run.protocolKey);
-    const [measurementsRead, savedRead, licensed] = await Promise.all([
+    const [measurementsRead, savedRead, licensed, planRead, marksRead, exerciseContext] = await Promise.all([
       loadMeasurements(admin, patientId),
       loadRunMeasurements(admin, active.events),
       loadEnabledLicensedMeasures(admin),
+      loadActiveExercisePlan(admin, patientId),
+      loadTeachingEvents(admin, run.id),
+      loadPatientExerciseContext(admin, patientId, nowTimestamp()),
     ]);
+    // The Home exercises step: a read that could not be run is said as such,
+    // never as "no plan yet".
+    const exercises: ComponentProps<typeof SessionCockpit>["exercises"] =
+      planRead.status === "not_migrated" || marksRead.status === "not_migrated"
+        ? { loadStatus: "not_migrated", plan: null, marks: [], contraFlags: [] }
+        : planRead.status !== "ok" || marksRead.status !== "ok" || exerciseContext.status !== "ok"
+          ? { loadStatus: "unreadable", plan: null, marks: [], contraFlags: [] }
+          : {
+              loadStatus: "ok",
+              plan: planRead.plan
+                ? { id: planRead.plan.id, version: planRead.plan.version, items: planRead.plan.items.map((i) => ({ exerciseKey: i.exerciseKey, dose: i.dose })) }
+                : null,
+              marks: marksRead.events,
+              contraFlags: CONTRA_FLAGS.filter((f) => exerciseContext.contraFlags.has(f)),
+            };
     // The session this run is filed against, for the header line.
     const apptId = run.appointmentId ?? appointmentParam;
     const { data: appt } = apptId
@@ -141,6 +161,7 @@ export default async function AssessmentCockpitPage({
         enabledLicensed={licensed.status === "ok" ? licensed.keys : []}
         licenceUnreadable={licensed.status !== "ok"}
         chartHref={chartHref}
+        exercises={exercises}
       />
     );
     if (savedRead.status !== "ok" || measurementsRead.status !== "ok") {

@@ -1,6 +1,9 @@
 import { debugNowHeaders } from "@/lib/debugNow";
 import { OFFLINE_FAILURE, cockpitFailure, type CockpitFailure } from "@/lib/cockpit";
-import { readProgressFailure } from "@/lib/progressErrors";
+import { readProgressFailure, type ProgressApiFailure } from "@/lib/progressErrors";
+import { teachFailure } from "@/lib/teachTool";
+import type { TeachingEvent } from "@/lib/exercisePlan";
+import type { ExerciseDose } from "@/lib/exerciseLibrary";
 import type { AssessmentRun, EndReason, LiveDisplayView, LivePhase, RunEvent, RunEventKind } from "@/lib/assessmentRun";
 
 // The cockpit's calls to the four run routes, each answering a discriminated
@@ -9,7 +12,7 @@ import type { AssessmentRun, EndReason, LiveDisplayView, LivePhase, RunEvent, Ru
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; failure: CockpitFailure };
 
-async function post<T>(url: string, body: Record<string, unknown>): Promise<ApiResult<T>> {
+async function post<T>(url: string, body: Record<string, unknown>, words: (f: ProgressApiFailure) => CockpitFailure = cockpitFailure): Promise<ApiResult<T>> {
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -17,7 +20,7 @@ async function post<T>(url: string, body: Record<string, unknown>): Promise<ApiR
       headers: { "Content-Type": "application/json", ...debugNowHeaders() },
       body: JSON.stringify(body),
     });
-    if (!res.ok) return { ok: false, failure: cockpitFailure(await readProgressFailure(res)) };
+    if (!res.ok) return { ok: false, failure: words(await readProgressFailure(res)) };
     return { ok: true, data: (await res.json().catch(() => ({}))) as T };
   } catch {
     return { ok: false, failure: OFFLINE_FAILURE };
@@ -86,4 +89,22 @@ export type EndResponse = { success: true; run: AssessmentRun; summaryDraft: str
 
 export function postEnd(input: { runId: string; outcome: "completed" | "abandoned"; reason?: EndReason }): Promise<ApiResult<EndResponse>> {
   return post<EndResponse>("/api/therapist/assessment-runs/end", input);
+}
+
+export type PublishResponse = {
+  success: true;
+  plan: { id: string; version: number };
+  items: { exerciseKey: string; dose: ExerciseDose; doseText: string }[];
+};
+
+/** Publishes the draft as the patient's home exercises (a new version). */
+export function postPublish(body: Record<string, unknown>): Promise<ApiResult<PublishResponse>> {
+  return post<PublishResponse>("/api/therapist/exercise-plans/publish", body, teachFailure);
+}
+
+export type TeachResponse = { success: true; display?: LiveDisplayView; event?: TeachingEvent; duplicate?: true; displayWritten?: boolean };
+
+/** Shows one exercise on the patient's screen ({ phase }) or marks it ({ outcome }). */
+export function postTeach(body: Record<string, unknown>): Promise<ApiResult<TeachResponse>> {
+  return post<TeachResponse>("/api/therapist/assessment-runs/teach", body, teachFailure);
 }
