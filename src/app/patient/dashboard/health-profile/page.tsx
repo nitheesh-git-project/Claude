@@ -58,6 +58,9 @@ import { loadPedsReads } from "@/lib/pedsProfileServer";
 import { shapePedsView } from "@/lib/pedsProfileView";
 import { pedsEquipmentChips } from "@/lib/pedsProfile";
 import { profileKindFor } from "@/lib/profileKind";
+import { loadActiveExercisePlan } from "@/lib/exercisePlanServer";
+import { exercisePlanView } from "@/lib/exercisePlan";
+import HomeExercisesCard, { type HomeExercisesRead } from "@/components/patient/HomeExercisesCard";
 
 export const metadata: Metadata = {
   title: "Health Profile | MoveRestore",
@@ -362,6 +365,15 @@ export default async function PatientHealthProfilePage() {
   const milestoneCount =
     questions.find((q) => q.key === "peds_milestones")?.options?.length ?? 0;
 
+  // Home exercises (phase 7d): read with the patient's OWN client, so RLS is
+  // the gate (their one active plan and their own marks). "Could not read"
+  // and "not set up" are said as such, never as "nothing yet".
+  const exercisesRead = await loadActiveExercisePlan(supabase, user.id);
+  const homeExercises: HomeExercisesRead =
+    exercisesRead.status === "ok"
+      ? { status: "ok", view: exercisesRead.plan ? exercisePlanView(exercisesRead.plan, exercisesRead.teaching, { parent: isPeds }) : null }
+      : { status: exercisesRead.status };
+
   const showDebugNav = isDebugNavVisible();
 
   // Read with the admin client: a patient can select their own care_plans
@@ -432,6 +444,7 @@ export default async function PatientHealthProfilePage() {
         "pain_assessments",
         "neuro_assessments",
         "intake_question_templates",
+        "exercise_plans",
         ...(isOrtho || neuroView || pedsView || geriView || cardioView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
         ...(neuroView || geriView || cardioView ? ["patient_diary_entries"] : []),
         ...(pedsView ? ["peds_assessments", "appointments"] : []),
@@ -766,6 +779,8 @@ export default async function PatientHealthProfilePage() {
           )}
           </>
         )}
+
+        {gate.reason !== "awaiting_therapist" && <HomeExercisesCard read={homeExercises} voice={isPeds ? "parent" : "patient"} />}
 
         {/* Full width under both columns: reports belong to the whole
             chart rather than to either side of it, and a list of files

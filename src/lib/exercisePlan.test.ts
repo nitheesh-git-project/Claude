@@ -212,6 +212,11 @@ describe("the patient's plan", () => {
       "Practised with your physiotherapist on 27 Oct. Remember: Keep a hand on the support."
     );
     expect(practisedLine(null, "")).toMatch(/go through this with you/);
+    expect(practisedLine(null, "", { parent: true })).toMatch(/with your child/);
+    const parentLine = practisedLine({ at: "x", outcome: "needs_practice", cue: "Go slower and keep it smooth." }, "27 Oct", { parent: true });
+    expect(parentLine).toBe("Practised with the physiotherapist on 27 Oct. Remember: Go slower and keep it smooth.");
+    expect(practisedLine({ at: "x", outcome: "performed_correctly", cue: null }, "27 Oct", { parent: true })).toMatch(/^Your child did this well/);
+    expect(practisedLine({ at: "x", outcome: "not_attempted", cue: null }, "", { parent: true })).toMatch(/Your child will practise/);
   });
   it("parses rows and refuses a malformed one", () => {
     expect(parsePlanRow({ id: "x" })).toBeNull();

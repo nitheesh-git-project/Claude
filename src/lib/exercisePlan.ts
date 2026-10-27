@@ -644,11 +644,13 @@ export function exercisePlanView(plan: ExercisePlan, events: readonly TeachingEv
 
 /** The patient's line under an exercise, with the date already formatted in
  *  the clinic's zone by the caller (formatDateTime.ts). */
-export function practisedLine(practised: PlanItemView["practised"], dateText: string): string {
-  if (!practised) return "Your physiotherapist will go through this with you.";
-  if (practised.outcome === "performed_correctly") return `You did this well with your physiotherapist on ${dateText}.`;
-  if (practised.outcome === "needs_practice") return `Practised with your physiotherapist on ${dateText}. Remember: ${practised.cue ?? "take it slowly."}`;
-  return "You will practise this together next time.";
+export function practisedLine(practised: PlanItemView["practised"], dateText: string, opts: { parent?: boolean } = {}): string {
+  const who = opts.parent ? "Your child" : "You";
+  const physio = opts.parent ? "the physiotherapist" : "your physiotherapist";
+  if (!practised) return opts.parent ? "Your physiotherapist will go through this with your child." : "Your physiotherapist will go through this with you.";
+  if (practised.outcome === "performed_correctly") return `${who} did this well with ${physio} on ${dateText}.`;
+  if (practised.outcome === "needs_practice") return `Practised with ${physio} on ${dateText}. Remember: ${practised.cue ?? "take it slowly."}`;
+  return opts.parent ? "Your child will practise this together with the physiotherapist next time." : "You will practise this together next time.";
 }
 
 // --- The session's summary draft and the session note --------------------------------------------
