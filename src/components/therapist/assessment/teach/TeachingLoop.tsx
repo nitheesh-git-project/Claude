@@ -290,7 +290,7 @@ export default function TeachingLoop({
                       if (b.outcome === "performed_correctly") void record({ outcome: "performed_correctly" });
                       else setPicking(open ? null : (b.outcome as "needs_practice" | "not_attempted"));
                     }}
-                    className={`flex min-h-[64px] items-center justify-center rounded-xl border px-2 text-center text-base font-bold leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    className={`flex min-h-[64px] items-center justify-center rounded-xl border px-2 text-center text-base font-bold leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${
                       open ? "border-teal-700 bg-teal-700 text-white" : phase === "go" || b.outcome === "not_attempted" ? "border-teal-700 bg-white text-teal-900 hover:bg-teal-50" : "border-slate-300 bg-white text-slate-900"
                     }`}
                   >

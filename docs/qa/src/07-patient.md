@@ -570,11 +570,11 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 **Expected Result.** 1: *Your physiotherapist will start the guided check soon*, one calm line and a small *Back to your dashboard* link - nothing else to press. 2: the screen follows without a reload: the step counter and name small, **one** big instruction, a simple picture of the position, and a giant clock only where the step has one (*Starting in 3, 2, 1*, then *Time left*, counting down in amber then white, *Finished* at 0); **Done** says *Well done. You can rest now.*; **Rest** says *Have a rest.*; ending it shows *All done* for a while, then the waiting screen again. It never shows a result, a score, a number other than the clock and the step count, a clinic word or the physiotherapist's notes. 3: every patient screen shows a *Happening now* bar to the check while it runs and loses it when it ends. 4: the clock is the same as the physiotherapist's within a second even with the device's own clock set wrong, and with live updates blocked the screen still follows within about three seconds; if reads keep failing it says *Reconnecting* rather than freezing silently. 5: the instruction and clock read from three metres; nothing is cut off at 360 px, and nothing scrolls sideways. 6: during a live check there is nothing to tab to (no button, link or field); the step changes are announced once each, never the clock every second. The first-visit tour does not open over it.
 
 #### `PAT-HP-007` - Home exercises: the patient reads their plan and fills nothing in · P1 **[API]**
-**Preconditions.** Phase 7d-1 ships the server side only (the plan card on the dashboard is 7d-2), so this case reads the rows with Patient A's own signed-in client. Therapist A has published two versions of Patient A's home exercises and marked them in a guided assessment (`THR-HP-005s`). Patient B exists.
-1. As Patient A, read `exercise_plans`, `exercise_plan_items` and `exercise_teaching_events`.
+**Preconditions.** Therapist A has published two versions of Patient A's home exercises and marked them in a guided assessment (`THR-HP-005s`). Patient B exists.
+1. As Patient A, open **Health Profile**: the **Your home exercises** card. Then, with their own signed-in client, read `exercise_plans`, `exercise_plan_items` and `exercise_teaching_events`.
 2. As Patient A, try to insert, update or delete a row in each.
 3. As Patient B, read Patient A's rows.
-**Expected Result.** 1: exactly one plan - the active version - its items in order with their doses, and Patient A's own marks (fixed keys only: an outcome and, for *needs practice*, a cue); never the replaced version. 2: every write is refused. 3: nothing. Nowhere is the word *care plan* used for these: they are *Home exercises*.
+**Expected Result.** 1: exactly one plan - the active version - its items in order with their doses, and Patient A's own marks (fixed keys only: an outcome and, for *needs practice*, a cue); never the replaced version. 2: every write is refused. 3: nothing. On the card: each exercise with its picture, plain name, the dose in words (*2 sets of 10. Twice a day, every day.*), the steps under the name (tap to open) and *Practised with your physiotherapist on <date>. Remember: <cue>*; nothing to tick, type or report; a new version appears without a reload; before any plan it says *Your physiotherapist will teach you your exercises in your video session*; a database without the tables says so and a failed read says *We couldn't load your home exercises just now* - neither reads as empty. A child's record says *Home exercises for your child*. Nowhere is the word *care plan* used for these: they are *Home exercises*.
 
 #### `PAT-DOC-001` - Upload a report · P0
 
@@ -797,3 +797,10 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 #### `PAT-EMPTY-001` - Empty states across the patient portal · P2
 **Preconditions.** A freshly approved patient with nothing at all.
 **Expected Result.** The sidebar shows only **Overview**, **Book a Session**, **Health Profile**, **Edit Profile**, plus **Back to Home** at the foot of the nav. Sessions, Packages, Payments and Suggested Sessions are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.
+
+#### `PAT-HP-008` - Companion screen: the exercise demo · P1
+**Preconditions.** Patient A has the companion open (`/patient/dashboard/session`) while Therapist A teaches (`THR-HP-005t`).
+1. Therapist A taps **Show the demo** on an exercise.
+2. Therapist A taps **Your turn**.
+3. Therapist A marks it.
+**Expected Result.** 1: the dark screen says *Exercise 2 of 4* and the exercise's name, *Watch how it is done.*, the picture and the steps as large numbered lines, and the calm line; no clock, no button. 2: *Your turn. Show us how you do it.* with the picture and no steps. 3: the screen says *Well done. You can rest now.* Nothing on it can be pressed; at 390 px the picture, the lines and the steps all fit without sideways scrolling; a screen reader hears the counter, the name and the steps.

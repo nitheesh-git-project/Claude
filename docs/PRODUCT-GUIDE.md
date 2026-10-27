@@ -2679,8 +2679,7 @@ everything else.
   physiotherapist will start the guided check soon*. Rules:
   `docs/rules/clinical.md`.
 
-  **Home exercises (phase 7d-1, server side; the cockpit's teaching screen
-  and the patient's plan card are 7d-2).** After the checks, every guided
+  **Home exercises (phase 7d).** After the checks, every guided
   video assessment has a *Home exercises* step, just before the summary. The
   physiotherapist picks exercises from the clinic's library
   (`src/lib/exerciseLibrary.ts`: a starter set for each condition type, each
@@ -2705,7 +2704,13 @@ everything else.
   free-text home exercise field. Routes:
   `/api/therapist/exercise-plans/publish` and
   `/api/therapist/assessment-runs/teach`. Rules: `docs/rules/clinical.md`,
-  "Home exercises".
+  "Home exercises". The screens: the cockpit's teach tool (pick from the
+  library, set the dose with big steppers, *Use this plan*, then *Show the
+  demo*, *Your turn* and one row of three marks), the 36 line pictures, the
+  companion's demo, the patient's read-only *Your home exercises* card on the
+  Health Profile page (parent's voice for a child) and a read-only *Home
+  exercises* section on the therapist's chart. A mark is not corrected in the
+  app yet (it needs a schema change).
 
 Both question banks (Health Profile and Pain Map) are managed from
 one place - a **Manage Questions** section at the top of the admin's

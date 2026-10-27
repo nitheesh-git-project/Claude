@@ -539,8 +539,7 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   is the one realtime table this feature adds. Detail: `clinical.md` rules 9
   and 10.
 - **Home exercises reach the patient's dashboard live, read-only (phase
-  7d-1 server side; the plan card and the cockpit's teaching screen are
-  7d-2).** The patient's plan is read with their **own** client through
+  7d; the card is `HomeExercisesCard` on the Health Profile page).** The patient's plan is read with their **own** client through
   `loadActiveExercisePlan` (`src/lib/exercisePlanServer.ts`; RLS
   `exercise_plans_select_own_active` and friends are the gate, so they get
   their one active version, its items in order and their own teaching
@@ -552,8 +551,12 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   date through `formatDateTime.ts`. Nothing on it is a control the patient
   fills in. `exercise_plans` is on the realtime publication, so a version
   published in the session appears on the patient's dashboard without a
-  reload once the page subscribes (`realtimeTables`, 7d-2; RLS decides what
-  the socket delivers). It is called **Home exercises** on every screen,
+  reload (`exercise_plans` is in the Health Profile pages' `realtimeTables`;
+  RLS decides what the socket delivers). The card has three states apart
+  from the plan - nothing yet (*Your physiotherapist will teach you your
+  exercises in your video session*), not set up, could not load - and a
+  child's record reads in the parent's voice (`parent`). The therapist's
+  chart has the same data read only, every version, as *Home exercises*. It is called **Home exercises** on every screen,
   never a care plan, which is the programme recommendation. During the
   session the demo itself is on the companion (`assessment_live_display`,
   above), not on the dashboard. Detail: `clinical.md`, "Home exercises".

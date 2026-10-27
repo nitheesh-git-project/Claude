@@ -91,7 +91,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - The paediatric Health Profile is the milestone-window chart (Health Profile redesign, phase 5b)
 - Strength and balance care and Heart and lung rehabilitation are condition types of their own (Health Profile redesign, phase 6a: the server side and the data; phase 6b draws the screens)
 - The guided video assessment is live, therapist-led, and gated by the server (Health Profile redesign, phase 7a: the server side; phase 7b: the therapist's session cockpit and the patient's companion screen)
-- Home exercises are taught live on video, watched, and only read by the patient (Health Profile redesign, phase 7d-1: the server side; the cockpit's teaching screen and the patient's plan card are 7d-2)
+- Home exercises are taught live on video, watched, and only read by the patient (Health Profile redesign, phase 7d: the server side, then the screens: the cockpit's teach tool, the 36 pictures, the companion demo, the patient's card and the chart section)
 - Patient-uploaded reports live in Storage; the database holds only metadata
 - An uploaded report is typed by its bytes, not its label, and only a patient uploads one
 - Session notes are clinician-only, and they are the prep loop
@@ -125,7 +125,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - The dashboard tutorial is told with dummy data, and its (i) explains the thing it sits beside
 - The orthopaedic, the neurological and the paediatric Health Profile are each one layout in three places
 - The guided video assessment's two screens (phase 7b): the cockpit is a standalone second screen, the companion follows it live
-- Home exercises reach the patient's dashboard live, read-only (phase 7d-1 server side; the plan card and the cockpit's teaching screen are 7d-2)
+- Home exercises reach the patient's dashboard live, read-only (phase 7d; the card is `HomeExercisesCard` on the Health Profile page)
 - A patient nobody has onboarded is said in three places on the therapist's side
 - From `2xl` the dashboards use the width by moving blocks, never by adding them
 - The phone's More button carries the Suggested badge

@@ -1684,6 +1684,24 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "exercise-screens.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true,
+      "limitation": "Written, not run, in phase 7d-2 (no test project reachable). Writes append-only plans and run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit's teach tool (pick, dose, demo, your turn, marks) is not clicked here: its readiness, steppers, request bodies and every refusal sentence are the pure module src/lib/teachTool.ts (teachTool.test.ts), and it is checked by hand (THR-HP-005t) and by screenshot at 390, 834 and 1280 in the phase's review. The 36 pictures are tested as data and rendered (exercisePictureLabels.test.ts)."
     }
   },
   "flows": [
@@ -4355,6 +4373,29 @@
         }
       ],
       "limitation": "Written, not run, in phase 7d-1 (no test project reachable). Writes append-only plan items, teaching events and run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit's teaching screen and the patient's plan card are phase 7d-2; the realtime delivery of a new version is not driven here. The library, the dose and teach validators, the contraindications, the demo display whitelist and the summary sentence are pure modules unit-tested in src/lib/exerciseLibrary.test.ts, exercisePlan.test.ts, assessmentRun.test.ts and assessmentSummaryDraft.test.ts; the triggers and publish_exercise_plan() in scripts/append-only-sql-checks.sql.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "patient.home-exercises-screens",
+      "runner": "therapist",
+      "title": "Home exercises on the screens: before any plan the patient's Health Profile card is calm and has nothing to fill in; a published plan shows each exercise with its picture, dose in words and steps (collapsed under the name) with nothing to tick, type or press; the companion shows the exercise demo (the counter, the name, the numbered steps and the picture) with no button and no clock",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "exercise-screens.spec.ts",
+          "tests": [
+            "ES-001",
+            "ES-002",
+            "ES-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Written, not run, in phase 7d-2 (no test project reachable). Writes append-only plans and run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit's teach tool (pick, dose, demo, your turn, marks) is not clicked here: its readiness, steppers, request bodies and every refusal sentence are the pure module src/lib/teachTool.ts (teachTool.test.ts), and it is checked by hand (THR-HP-005t) and by screenshot at 390, 834 and 1280 in the phase's review. The 36 pictures are tested as data and rendered (exercisePictureLabels.test.ts).",
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/dashboards.md"

@@ -1510,8 +1510,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   not run); `scripts/append-only-sql-checks.sql`; QA `THR-HP-005q`,
   `THR-HP-005r`, `PAT-HP-006`.
 - **Home exercises are taught live on video, watched, and only read by the
-  patient (Health Profile redesign, phase 7d-1: the server side; the
-  cockpit's teaching screen and the patient's plan card are 7d-2).** The
+  patient (Health Profile redesign, phase 7d: the server side, then the
+  screens: the cockpit's teach tool, the 36 pictures, the companion demo,
+  the patient's card and the chart section).** The
   owner's decisions: everything happens in the session, led by the
   physiotherapist; nothing relies on the patient reporting back. **Home
   exercises is its own word**: `exercise_plans` is not a care plan -
@@ -1610,13 +1611,31 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   9. **Session notes keep their free-text "Home exercise prescribed".** The
      structured plan does not supersede the field: old text is never
      touched, and for a **new** note the dialog may prefill an **empty** field
-     from the active plan (`homeExerciseNotePrefill`, 7d-2) for the
+     from the active plan (`homeExerciseNotePrefill`, via
+     `homeExerciseInitialValue`: never over existing text) for the
      physiotherapist to edit or clear - what is saved is their own text. The
      plan is what the patient reads; the note stays the clinicians' working
      copy and keeps no patient policy.
+  10. **The screens (7d-2) add no new authority.** The cockpit's teach tool
+  (`src/components/therapist/assessment/teach/`, pure half
+  `src/lib/teachTool.ts`) only calls the two routes: Show the demo, Your turn,
+  then ONE row of three marks (*Did it correctly*, *Needs practice* with one
+  cue, *Not attempted* with one reason), and Save and next stays locked until
+  every exercise is marked. The set-up is recorded on the run from what was
+  ticked, never "all items" (the optional helper item counts only when
+  ticked). The 36 pictures (`ExercisePicture`) carry no text; the companion
+  draws the library's own steps. The patient's card and the chart section
+  say "could not read" and "not set up" apart from "nothing yet". **A mark is
+  not corrected in the app**: `exercise_teaching_events` has one mark per
+  exercise per plan per run and its outcome CHECK has no "correction" kind, so
+  a mistaken mark is said in the session summary until a schema change adds a
+  `correction` event referencing the earlier one (latest wins in
+  `exercisePlanView`, the original kept).
   `src/lib/exerciseLibrary.test.ts`, `exercisePlan.test.ts`,
-  `assessmentRun.test.ts`, `assessmentSummaryDraft.test.ts`;
-  `e2e/exercise-teaching.spec.ts` (written, not run);
+  `assessmentRun.test.ts`, `assessmentSummaryDraft.test.ts`,
+  `teachTool.test.ts`, `exerciseChart.test.ts`, `exercisePictureLabels.test.ts`,
+  `homeExercisesCopy.test.ts`; `e2e/exercise-teaching.spec.ts`,
+  `e2e/exercise-screens.spec.ts` (written, not run);
   `scripts/append-only-sql-checks.sql`; QA `THR-HP-005s`, `PAT-HP-007`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
