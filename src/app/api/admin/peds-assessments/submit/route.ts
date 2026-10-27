@@ -39,8 +39,9 @@ export async function POST(request: NextRequest) {
     .eq("id", patientId)
     .eq("role", "patient")
     .maybeSingle();
-  // "We couldn't check" is not "no such patient".
-  if (patientError) {
+  // "We couldn't check" is not "no such patient": a malformed id (22P02) is
+  // the latter, as on /api/admin/measurements/submit.
+  if (patientError && patientError.code !== "22P02") {
     return NextResponse.json({ error: "We couldn't check this patient just now. Please try again." }, { status: 503 });
   }
   if (!patient) {

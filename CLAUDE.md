@@ -205,7 +205,7 @@ Other reference, read on demand: `docs/PRODUCT-GUIDE.md` (the product and setup 
 ## Layout
 
 ```
-src/app/                 pages, layouts, API route handlers (209 of them)
+src/app/                 pages, layouts, API route handlers (216 of them)
 src/app/api/**           grouped by audience: admin/, appointments/, patient/,
                          therapist/, hospital/, packages/, razorpay/, and
                          medical-documents/ (the one route every role shares,
@@ -213,7 +213,7 @@ src/app/api/**           grouped by audience: admin/, appointments/, patient/,
 src/components/          UI by area: admin/ auth/ booking/ catalog/ dashboard/
                          home/ hospital/ marketing/ profile/ motion/ system/
                          visuals/
-src/lib/                 domain logic, formatting, Supabase clients (556 files)
+src/lib/                 domain logic, formatting, Supabase clients (589 files)
 src/lib/supabase/        client / server / admin / public, the bounded fetch,
                          the proxy session refresh, and the auth guards
 src/proxy.ts             auth proxy over the four dashboard route trees
@@ -237,7 +237,7 @@ the ones that matter for that area.
 npm run dev                  # Next dev server
 npm run verify               # lint + unit tests + build -- run before pushing
 npm run lint                 # 5 schema/asset checks, then eslint
-npm run test                 # Vitest, 2,880 tests over dependency-free src/lib
+npm run test                 # Vitest, 3,101 tests over dependency-free src/lib
 npm run build
 npm run start:cluster        # production on several Node workers
 
