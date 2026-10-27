@@ -1451,7 +1451,14 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      a linked session must be this therapist's video session; a second start
      is 409 `run_in_progress` with the open run), `/event`, `/display`, `/end`
      (completed, or abandoned with a fixed reason). All take the
-     assigned-therapist and started-session gate on the debug clock, every body
+     assigned-therapist and started-session gate on the debug clock - except
+     **abandoning**, which only asks for the run's owner or a therapist now
+     assigned and skips the protocol-version and started-session checks
+     (`checkRunAbandon`), so a run left open across a protocol change or a
+     cancelled session can always be ended. A red-flag answer of yes **stands
+     until the run ends**: a second answer is 409 `red_flag_locked`. A reading
+     attached to a step after the fact (`saved` with a `measurementId`) passes
+     the same conditions as a save inside the run (`checkSavedRetry`). Every body
      through `parseJsonBody`, rate limited (`assessmentRun`,
      `assessmentDisplay`). **No admin door**: the admin measurement route
      refuses a `runId` (`run_is_therapist_only`). Reads: `loadRun`,
@@ -1631,7 +1638,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      it. **Column privileges** give a browser session only the original
      columns (`EXERCISE_TEACHING_EVENT_SELECT`): never `kind`,
      `corrects_event_id` or `correction_reason` - the patient's plan shows the
-     latest outcome and never that a mark was corrected, or why. The clinical-access therapist and an admin read every version and
+     latest outcome and never why a mark was corrected. The rows themselves
+     stay readable to the patient over the API (the original and its
+     correction both), so the guarantee is the reason and the link, not that
+     a correction is invisible. The clinical-access therapist and an admin read every version and
      mark. Nothing on the patient's side writes to any of the three tables.
   8. **The run's draft says what was taught, honestly.** The summary draft
      (rule 7 above) adds one sentence from this run's marks - *We practised
