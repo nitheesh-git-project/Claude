@@ -151,6 +151,7 @@ import { SOCIAL_LINKS_SELECT, SOCIAL_LINK_COLUMNS } from "@/lib/socialLinks";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import PagedList from "@/components/dashboard/PagedList";
+import ReadOnlyDeskNote from "@/components/admin/ReadOnlyDeskNote";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
@@ -904,6 +905,12 @@ export default async function AdminDashboardPage({
   // refuses them regardless -- the flag is what stops a 403 being the way
   // they find out.
   const canManageSessions = scopeCanManage(viewerScope, "sessions");
+  // People is held at `view` by Finance, and every control that changes a
+  // person, an application or a partner is requireAdminScope("people"). The
+  // Approvals and Partners screens key their buttons off this so a read-only
+  // desk sees the queue as text and a sentence saying who can act, not a
+  // button that answers 403.
+  const canManagePeople = scopeCanManage(viewerScope, "people");
   // Programmes: every recommendation and the purchase it became, joined into
   // one row each with one ID and its progress (PED_PKG001-2/6). Started here
   // and awaited where it is used, so its reads run inside the rest of the
@@ -2015,6 +2022,7 @@ export default async function AdminDashboardPage({
   // Sessions now, and nowhere else.
   const approvalsTab = (
     <>
+      {!canManagePeople && <ReadOnlyDeskNote className="mb-6" />}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
           Pending Approvals
@@ -2105,6 +2113,7 @@ export default async function AdminDashboardPage({
                       })()}
                     </div>
                   </div>
+                  {canManagePeople ? (
                   <div className="flex items-center gap-2">
                     <DeclineAccountButton
                       userId={p.id}
@@ -2128,6 +2137,9 @@ export default async function AdminDashboardPage({
                       canOpenRoster={scopeCanOpen(viewerScope, "sessions")}
                     />
                   </div>
+                  ) : (
+                    <p className="text-[11px] font-semibold text-amber-700">Waiting for approval</p>
+                  )}
                 </div>
               ),
               };
@@ -2190,7 +2202,11 @@ export default async function AdminDashboardPage({
                       })}
                     </ul>
                   </div>
-                  <ProfileChangeRequestActions requestId={r.id} />
+                  {canManagePeople ? (
+                    <ProfileChangeRequestActions requestId={r.id} />
+                  ) : (
+                    <p className="text-[11px] font-semibold text-amber-700">Waiting for a decision</p>
+                  )}
                 </div>
               ),
               };
@@ -2202,8 +2218,50 @@ export default async function AdminDashboardPage({
     </>
   );
 
+  // The three counts a partner desk opens People -> Partners to find, ahead of
+  // three long lists: new leads, partners, and referrals nobody has triaged.
+  // The two that are work link to the rows they counted (?view=); the screen's
+  // lists apply the preset on arrival.
+  const newLeadCount = b2bLeads?.filter((l) => l.status === "new").length ?? 0;
+  const referralsToTriageCount =
+    referrals?.filter((r) => r.status === "pending_review").length ?? 0;
+  const partnersSummaryStrip = (
+    <div className="mb-6" data-testid="partners-summary">
+      <StatStrip
+        cells={[
+          {
+            label: "Referrals to triage",
+            value: String(referralsToTriageCount),
+            accent: referralsToTriageCount > 0 ? "bg-amber-500" : "bg-slate-300",
+            note: "Hospitals waiting on an answer",
+            href:
+              referralsToTriageCount > 0
+                ? adminScreenHref("people", "partners", "triage")
+                : undefined,
+          },
+          {
+            label: "New leads",
+            value: String(newLeadCount),
+            accent: newLeadCount > 0 ? "bg-amber-500" : "bg-slate-300",
+            note: "Organisations that asked about partnering",
+            href:
+              newLeadCount > 0 ? adminScreenHref("people", "partners", "new_leads") : undefined,
+          },
+          {
+            label: "Partners",
+            value: String(hospitals.length),
+            accent: "bg-teal-500",
+            note: `${hospitals.filter((h) => h.active !== false).length} active`,
+          },
+        ]}
+      />
+    </div>
+  );
+
   const b2bPartners = (
     <>
+      {partnersSummaryStrip}
+      {!canManagePeople && <ReadOnlyDeskNote className="mb-6" />}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
           B2B Leads
@@ -2222,6 +2280,7 @@ export default async function AdminDashboardPage({
           <PagedList
             noun="lead"
             storageKey="admin-leads"
+            viewPresets={{ new_leads: "new" }}
             className="space-y-3"
             filters={[
               { key: "new", label: "New" },
@@ -2295,7 +2354,7 @@ export default async function AdminDashboardPage({
                       : null;
                     return prior ? <PriorDeclineChip decline={prior} /> : null;
                   })()}
-                {lead.status !== "onboarded" && (
+                {lead.status !== "onboarded" && canManagePeople && (
                   <div className="flex items-center gap-3 flex-wrap">
                     <OnboardHospitalForm
                       lead={{
@@ -2467,7 +2526,7 @@ export default async function AdminDashboardPage({
                         userName={h.full_name ?? "this hospital"}
                       />
                     )}
-                    <ResetHospitalPasswordButton hospitalId={h.id} />
+                    {canManagePeople && <ResetHospitalPasswordButton hospitalId={h.id} />}
                     {/* Same rule as the button above: Master Admin only,
                         re-checked by the route. A partner with referrals on
                         file is refused and offered the suspend toggle
@@ -2479,11 +2538,17 @@ export default async function AdminDashboardPage({
                         compact
                       />
                     )}
-                    <HospitalActiveToggle
-                      hospitalId={h.id}
-                      active={h.active !== false}
-                      sharePercent={sharePercent}
-                    />
+                    {canManagePeople ? (
+                      <HospitalActiveToggle
+                        hospitalId={h.id}
+                        active={h.active !== false}
+                        sharePercent={sharePercent}
+                      />
+                    ) : (
+                      <span className="text-xs font-semibold text-slate-600">
+                        {h.active === false ? "Suspended" : "Active"}
+                      </span>
+                    )}
                   </div>
                   </div>
                 ),
@@ -2514,9 +2579,11 @@ export default async function AdminDashboardPage({
             noun="referral"
             storageKey="admin-referrals"
             className="space-y-3"
+            viewPresets={{ triage: "pending_review" }}
             filters={[
               { key: "pending_review", label: "Needs triage" },
               { key: "therapist_assigned", label: "Therapist assigned" },
+              { key: "invite_sent", label: "Invite sent" },
               { key: "converted", label: "Booked" },
               { key: "declined", label: "Declined" },
               { key: "withdrawn", label: "Withdrawn" },
@@ -2537,6 +2604,10 @@ export default async function AdminDashboardPage({
               const referralPhone = referralPhoneMap.get(r.id) ?? null;
               return {
                 id: r.id,
+                // The status is the group, which is what makes the chips
+                // above this list appear at all: the filters were declared
+                // and no row carried a group, so they never rendered.
+                group: r.status,
                 node: (
                 <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
@@ -2606,11 +2677,11 @@ export default async function AdminDashboardPage({
                           </span>
                         )}
                       </p>
-                      {r.status === "invite_sent" && r.invite_token && (
+                      {r.status === "invite_sent" && r.invite_token && canManagePeople && (
                         <CopyInviteLinkButton inviteToken={r.invite_token} />
                       )}
                     </div>
-                  ) : (
+                  ) : canManagePeople ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-3 flex-wrap">
                         <AssignReferralForm
@@ -2629,6 +2700,8 @@ export default async function AdminDashboardPage({
                         />
                       )}
                     </div>
+                  ) : (
+                    <p className="text-slate-500">Not assigned to a therapist yet.</p>
                   )}
                 </div>
               ),
@@ -4975,6 +5048,9 @@ export default async function AdminDashboardPage({
           count: pendingAccounts?.length ?? 0,
           section: "today",
           tab: "approvals",
+          // Today opens it, People:manage works it (approve-account,
+          // approve-profile-change): a read-only desk is not waiting on it.
+          workSection: "people",
           hint: "Patients and therapists who signed up themselves.",
         },
         {
@@ -4982,6 +5058,9 @@ export default async function AdminDashboardPage({
           count: pendingProfileChanges?.length ?? 0,
           section: "today",
           tab: "approvals",
+          // Today opens it, People:manage works it (approve-account,
+          // approve-profile-change): a read-only desk is not waiting on it.
+          workSection: "people",
           hint: "Someone wants a detail on their profile changed.",
         },
       ],
@@ -5035,6 +5114,9 @@ export default async function AdminDashboardPage({
           count: referrals?.filter((r) => r.status === "pending_review").length ?? 0,
           section: "people",
           tab: "partners",
+          // Opens the referral list on "Needs triage" -- exactly the rows
+          // this figure counted, not the leads and partners above them.
+          view: "triage",
           hint: "A hospital sent a patient and is waiting on an answer.",
         },
       ],
@@ -5149,10 +5231,11 @@ export default async function AdminDashboardPage({
       domain: "growth",
       items: [
         {
-          label: "New B2B leads",
+          label: "New hospital leads",
           count: b2bLeads?.filter((l) => l.status === "new").length ?? 0,
           section: "people",
           tab: "partners",
+          view: "new_leads",
           hint: "An organisation asked about partnering.",
         },
         {

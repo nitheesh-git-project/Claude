@@ -636,7 +636,8 @@ export function buildAdminHome(scope: AdminScope, counts: AdminHomeCounts): Admi
 export function visibleQueueTotal(groups: InboxGroup[], workable: AdminSectionKey[]): number {
   return groups.reduce(
     (sum, g) =>
-      sum + g.items.reduce((s, i) => s + (workable.includes(i.section) ? i.count : 0), 0),
+      sum +
+      g.items.reduce((s, i) => s + (workable.includes(i.workSection ?? i.section) ? i.count : 0), 0),
     0
   );
 }
@@ -644,8 +645,11 @@ export function visibleQueueTotal(groups: InboxGroup[], workable: AdminSectionKe
 // Which queues a scope reads first. Ordering only -- nothing is removed
 // here, because what a scope may work is the routes' decision and a UI that
 // hid a reachable queue would be a second, disagreeing permission model.
-// A finance admin may well approve a signup; they should just not have to
-// scroll past the clinical queue to find the payout requests.
+// Finance holds People at `view` (adminScope.ts), so it cannot approve a
+// signup or a profile change -- approve-account and approve-profile-change
+// are requireAdminScope("people"), and Approvals counts as workable only for
+// a desk with people:manage (InboxItem.workSection). What Finance reads
+// first is its own queue: the payout requests, ahead of the clinical one.
 const QUEUE_ORDER: Record<AdminScope, AdminQueueDomain[]> = {
   // Page order already reads correctly for a full admin, so nothing moves.
   full: [],

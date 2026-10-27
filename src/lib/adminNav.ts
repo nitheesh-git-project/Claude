@@ -605,6 +605,12 @@ export type InboxItem = {
   count: number;
   section: AdminSectionKey;
   tab: string;
+  /** The section whose `manage` level it takes to WORK this row, when that is
+   *  not the section the row opens. Approvals live on Today (the screen every
+   *  desk opens) but approving is `people`, so a Finance desk -- which holds
+   *  People at `view` -- would otherwise be told two accounts are waiting on
+   *  it that nothing it can click would ever clear. Defaults to `section`. */
+  workSection?: AdminSectionKey;
   /** Filter preset the target screen applies on arrival, so the row opens
    *  the rows it counted rather than the unfiltered list. */
   view?: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import FilterChips from "@/components/dashboard/FilterChips";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
@@ -32,6 +33,7 @@ export default function PagedList({
   filters,
   filterLabel,
   allLabel = "All",
+  viewPresets,
 }: {
   items: PagedListItem[];
   noun?: string;
@@ -49,14 +51,31 @@ export default function PagedList({
   filters?: { key: string; label: string }[];
   filterLabel?: string;
   allLabel?: string;
+  /** `?view=` values (adminScreenHref's third part) that open this list on a
+   *  chip: `{ triage: "pending_review" }`. One-shot and applied during
+   *  render, the way AdminAllSessionsTab applies its own presets, so a count
+   *  on another screen opens exactly the rows it counted. Unknown values
+   *  leave the list as it was. */
+  viewPresets?: Record<string, string>;
 }) {
+  const viewParam = useSearchParams()?.get("view") ?? null;
   const [group, setGroup] = useState("all");
+  const [appliedView, setAppliedView] = useState<string | null>(null);
+  if (viewParam !== appliedView) {
+    setAppliedView(viewParam);
+    const preset = viewPresets && viewParam ? viewPresets[viewParam] : undefined;
+    if (preset) setGroup(preset);
+  }
 
   const visible = useMemo(
     () => (group === "all" ? items : items.filter((item) => item.group === group)),
     [items, group]
   );
-  const { rows, pager } = usePagedList(visible, { storageKey, defaultPageSize });
+  const { rows, pager } = usePagedList(visible, {
+    storageKey,
+    defaultPageSize,
+    resetKey: viewPresets && appliedView && viewPresets[appliedView] ? appliedView : undefined,
+  });
 
   // A filter nobody can act on is noise: chips only appear when more than
   // one of them would actually have rows behind it.
