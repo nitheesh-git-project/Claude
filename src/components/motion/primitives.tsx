@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { motion, type Variants, type HTMLMotionProps } from "motion/react";
+import { motion, useInView, type Variants, type HTMLMotionProps } from "motion/react";
 
 /**
  * Shared motion primitives used across the public marketing pages.
@@ -12,8 +13,44 @@ import { motion, type Variants, type HTMLMotionProps } from "motion/react";
 
 const EASE = [0.16, 1, 0.3, 1] as const; // expo-out - snappy but smooth
 
+/**
+ * Scroll-reveal is an enhancement laid over content that is already there.
+ *
+ * It used to start every block at `opacity: 0` in the server HTML and wait for
+ * JavaScript to bring it in view, so with scripts slow, blocked or failing the
+ * whole marketing site was a blank page, and a crawler or a screenshot of the
+ * HTML saw nothing. Now the server (and the first client render) draws every
+ * block visible. Only after mount, and only for a block that is still below
+ * the fold, is the hidden state armed -- instantly, off screen, so nothing
+ * flashes -- and scrolling it into view plays the entrance. Above-the-fold
+ * blocks are never hidden at all, and a visitor who asked for reduced motion
+ * never has anything hidden: `MotionConfig reducedMotion="user"` (root layout)
+ * additionally drops the travel from any entrance that does play.
+ *
+ * `hidden` has a zero-length transition on purpose: arming happens after the
+ * block has already been painted visible, and a fade-out there would be a
+ * flicker on every page load.
+ */
+function useArmedOnce(): { ref: React.RefObject<HTMLDivElement | null>; hidden: boolean } {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    // Already on screen (or above it, after a refresh restored the scroll
+    // position): leave it visible rather than hide and re-show it.
+    if (el.getBoundingClientRect().top < window.innerHeight - 60) return;
+    setArmed(true);
+  }, []);
+
+  return { ref, hidden: armed && !inView };
+}
+
 const fadeUpVariants: Variants = {
-  hidden: { opacity: 0, y: 24 },
+  hidden: { opacity: 0, y: 24, transition: { duration: 0 } },
   show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
 };
 
@@ -29,12 +66,13 @@ export function Reveal({
   as?: "div" | "section";
 }) {
   const Comp = motion[as];
+  const { ref, hidden } = useArmedOnce();
   return (
     <Comp
+      ref={ref}
       className={className}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, margin: "-60px" }}
+      initial={false}
+      animate={hidden ? "hidden" : "show"}
       variants={fadeUpVariants}
       transition={{ duration: 0.6, ease: EASE, delay }}
     >
@@ -44,7 +82,7 @@ export function Reveal({
 }
 
 const staggerContainer: Variants = {
-  hidden: {},
+  hidden: { transition: { duration: 0 } },
   show: {
     transition: { staggerChildren: 0.09, delayChildren: 0.05 },
   },
@@ -57,12 +95,13 @@ export function Stagger({
   children: React.ReactNode;
   className?: string;
 }) {
+  const { ref, hidden } = useArmedOnce();
   return (
     <motion.div
+      ref={ref}
       className={className}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, margin: "-60px" }}
+      initial={false}
+      animate={hidden ? "hidden" : "show"}
       variants={staggerContainer}
     >
       {children}

@@ -66,7 +66,60 @@ export const MAX_SPLASH_REVISIT_MINUTES = 1440;
  * of the two would either cut the fade short or leave an invisible sheet
  * swallowing clicks - a fade length is a design decision, not a policy.
  */
-export const SPLASH_FADE_MS = 550;
+export const SPLASH_FADE_MS = 350;
+
+/**
+ * The most a public page spends under the greeting, hold and fade together.
+ *
+ * A patient arriving from a search result is there to find a physiotherapist,
+ * not to be welcomed for a second and a half -- on a slow phone connection
+ * the sheet was most of what they saw. The admin's hold is still honoured
+ * where it is shorter, and still honoured in full on the dashboards (a
+ * signed-in person opening their own workspace), but on the public pages the
+ * hold is clipped so the sheet is gone by ~600ms.
+ */
+export const SPLASH_PUBLIC_TOTAL_MS = 600;
+
+/** Trees that keep the admin's full hold: the signed-in workspaces. */
+export const SPLASH_UNCAPPED_PREFIXES = [
+  "/admin",
+  "/patient/dashboard",
+  "/therapist/dashboard",
+  "/hospital/dashboard",
+];
+
+function underPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+/** Whether this path is a public page, where the hold is clipped. */
+export function splashIsCapped(pathname: string): boolean {
+  return !SPLASH_UNCAPPED_PREFIXES.some((prefix) => underPrefix(pathname, prefix));
+}
+
+/**
+ * The hold and fade this path gets. The CSS animation reads both as custom
+ * properties on <html> (set by the boot script before first paint, and again
+ * by the component on a replay), so the greeting's whole timeline is decided
+ * by the stylesheet from the first frame rather than by a timer that starts
+ * only after hydration -- on a slow connection the old timer started late and
+ * the sheet simply stayed.
+ */
+export function splashTimings(
+  holdMs: number,
+  pathname: string
+): { holdMs: number; fadeMs: number } {
+  const hold = Number.isFinite(holdMs) ? Math.max(0, Math.round(holdMs)) : DEFAULT_SPLASH_CONFIG.holdMs;
+  const cap = Math.max(0, SPLASH_PUBLIC_TOTAL_MS - SPLASH_FADE_MS);
+  return {
+    holdMs: splashIsCapped(pathname) ? Math.min(hold, cap) : hold,
+    fadeMs: SPLASH_FADE_MS,
+  };
+}
+
+/** The custom properties the stylesheet's animation reads. */
+export const SPLASH_HOLD_VAR = "--splash-hold";
+export const SPLASH_FADE_VAR = "--splash-fade";
 
 /** Marks that this tab has already been greeted, so a reload stays quiet. */
 export const SPLASH_SHOWN_KEY = "dpp.splash.shown";
@@ -76,7 +129,9 @@ export const SPLASH_HIDDEN_AT_KEY = "dpp.splash.hiddenAt";
 
 /**
  * The attribute on <html> that drives the whole thing. "on" is holding,
- * "leaving" is fading out, absent is gone. Kept in CSS rather than React
+ * absent is gone. ("leaving" is no longer written: the stylesheet's own
+ * animation does the fade, started by "on" and timed by the two custom
+ * properties below, so nothing waits on hydration.) Kept in CSS rather than React
  * state so the markup the server sends and the markup React hydrates are
  * identical - the overlay is in the HTML from the first byte, and only
  * this attribute decides whether it is painted.
@@ -126,8 +181,8 @@ export function splashSkipsPath(pathname: string): boolean {
  * is pure decoration over content that is already there, so the honest
  * answer to "don't animate" is not to show it at all.
  *
- * Only the away threshold is interpolated, and it goes through Number() on
- * the way in - the phrase is rendered by React as text and never reaches
+ * Only the away threshold and the hold are interpolated, and both go through
+ * Number() on the way in - the phrase is rendered by React as text and never reaches
  * this script, so nothing admin-typed is ever spliced into executable
  * source.
  */
@@ -135,6 +190,9 @@ export function splashBootScript(config: SplashConfig): string {
   const awayMs = Number.isFinite(config.revisitAwayMs)
     ? Math.max(0, Math.round(config.revisitAwayMs))
     : DEFAULT_SPLASH_CONFIG.revisitAwayMs;
+  const holdMs = Number.isFinite(config.holdMs)
+    ? Math.max(0, Math.round(config.holdMs))
+    : DEFAULT_SPLASH_CONFIG.holdMs;
   return `(function(){try{
 var m=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)");
 if(m&&m.matches)return;
@@ -145,6 +203,16 @@ var away=${awayMs};
 var greeted=s.getItem(${JSON.stringify(SPLASH_SHOWN_KEY)});
 var hiddenAt=Number(s.getItem(${JSON.stringify(SPLASH_HIDDEN_AT_KEY)})||0);
 var returning=away>0&&hiddenAt>0&&Date.now()-hiddenAt>=away;
-if(!greeted||returning){document.documentElement.setAttribute(${JSON.stringify(SPLASH_ATTR)},"on");}
+if(!greeted||returning){
+var cap=${Math.max(0, SPLASH_PUBLIC_TOTAL_MS - SPLASH_FADE_MS)};
+var hold=${holdMs};
+var uncapped=${JSON.stringify(SPLASH_UNCAPPED_PREFIXES)};
+var capped=true;
+for(var i=0;i<uncapped.length;i++){if(p===uncapped[i]||p.indexOf(uncapped[i]+"/")===0){capped=false;break;}}
+if(capped&&hold>cap)hold=cap;
+var st=document.documentElement.style;
+st.setProperty(${JSON.stringify(SPLASH_HOLD_VAR)},hold+"ms");
+st.setProperty(${JSON.stringify(SPLASH_FADE_VAR)},${SPLASH_FADE_MS}+"ms");
+document.documentElement.setAttribute(${JSON.stringify(SPLASH_ATTR)},"on");}
 }catch(e){}})();`;
 }

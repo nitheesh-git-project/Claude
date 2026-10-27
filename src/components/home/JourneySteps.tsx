@@ -251,7 +251,7 @@ export default function JourneySteps({
 
       {/* Detail panel */}
       <div className={compact ? "relative min-h-[19rem]" : "relative min-h-[21rem]"}>
-        <AnimatePresence mode="wait">
+        <AnimatePresence initial={false} mode="wait">
           <motion.div
             key={step.id}
             role="tabpanel"

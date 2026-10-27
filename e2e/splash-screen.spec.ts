@@ -82,7 +82,10 @@ test.describe("brand splash", () => {
     // Set by the inline boot script, so it is true at first paint - the
     // greeting is never seen arriving on top of a page already on screen.
     expect(await splashState(page)).toBe("on");
-    await expect(page.getByText(DEFAULTS.splash_phrase)).toBeVisible();
+    // In the page, not "visible": the hold is a CSS animation clipped to
+    // ~600ms on a public page, and under `next dev` domcontentloaded can
+    // arrive after the sheet has already begun to leave.
+    await expect(page.getByText(DEFAULTS.splash_phrase)).toBeAttached();
 
     await settle(page);
 
@@ -116,6 +119,25 @@ test.describe("brand splash", () => {
     await settle(page);
   });
 
+  test("SP-009 the hold is the stylesheet's, clipped to ~600ms on a public page", async ({ page }) => {
+    // 6s is the longest an admin can set; a public page still leaves in ~600ms.
+    await setSplash({ splash_hold_seconds: 6 });
+    const started = Date.now();
+    await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    const vars = await page.evaluate(() => ({
+      hold: document.documentElement.style.getPropertyValue("--splash-hold"),
+      fade: document.documentElement.style.getPropertyValue("--splash-fade"),
+    }));
+    // Written by the boot script before first paint, not by an effect.
+    expect(parseInt(vars.hold, 10) + parseInt(vars.fade, 10)).toBeLessThanOrEqual(600);
+    // Visually gone (the animation ended on visibility:hidden) well inside
+    // the admin's 6s, whether or not hydration has cleared the attribute yet.
+    await expect(page.locator(".splash-screen")).toBeHidden({ timeout: 4_000 });
+    expect(Date.now() - started).toBeLessThan(5_000);
+    await settle(page);
+    await setSplash({ splash_hold_seconds: DEFAULTS.splash_hold_seconds });
+  });
+
   test("SP-004 does not run at all under reduced motion", async ({ browser }) => {
     const context = await browser.newContext({ reducedMotion: "reduce" });
     const page = await context.newPage();
@@ -131,7 +153,7 @@ test.describe("brand splash", () => {
   test("SP-005 honours the admin's wording, hold and off switch", async ({ page }) => {
     await setSplash({ splash_phrase: "Care that meets you at home", splash_hold_seconds: 0.6 });
     await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByText("Care that meets you at home")).toBeVisible();
+    await expect(page.getByText("Care that meets you at home")).toBeAttached();
     await settle(page);
 
     // Off means the overlay is not in the page at all, and neither is the

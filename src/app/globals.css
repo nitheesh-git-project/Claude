@@ -112,10 +112,9 @@ h6 {
    be painted on the browser's first frame - before any component has run.
    The inline boot script in the root layout sets data-splash="on" on
    <html>, this stylesheet paints it, and the component only moves the
-   attribute along to "leaving" and then removes it. Keep the fade duration
-   in step with SPLASH_FADE_MS in src/lib/splashScreen.ts: that timer is
-   what removes the sheet from the page, so the two drifting apart either
-   cuts the fade short or leaves an invisible sheet eating clicks.
+   attribute once the animation has finished. The fade length comes from
+   SPLASH_FADE_MS in src/lib/splashScreen.ts (written to --splash-fade by the
+   boot script), so the CSS and the clearing timer cannot drift apart.
    --------------------------------------------------------------------- */
 .splash-screen {
   position: fixed;
@@ -136,25 +135,32 @@ h6 {
   pointer-events: none;
 }
 
+/* The whole timeline is this one animation: full opacity for the hold
+   (the animation's delay), then the fade. Both lengths are custom
+   properties the inline boot script writes on <html> before first paint --
+   the hold is clipped to ~600ms in total on public pages (splashScreen.ts),
+   the fade is SPLASH_FADE_MS. Because the stylesheet runs it, the sheet
+   leaves on schedule even if hydration is slow or never happens; the
+   component's timer only clears the attribute afterwards. */
 html[data-splash="on"] .splash-screen {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
+  animation: splash-leave var(--splash-fade, 350ms) cubic-bezier(0.4, 0, 0.2, 1)
+    var(--splash-hold, 250ms) forwards;
 }
 
-html[data-splash="leaving"] .splash-screen {
-  opacity: 0;
-  visibility: visible;
-  transform: scale(1.04);
-  transition:
-    opacity 550ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 550ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* The page behind is fully rendered the whole time; locking the scroll
-   just stops a stray wheel event moving it while it cannot be seen. */
-html[data-splash] body {
-  overflow: hidden;
+@keyframes splash-leave {
+  from {
+    opacity: 1;
+    transform: none;
+    visibility: visible;
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.04);
+    visibility: hidden;
+  }
 }
 
 /* Local prices: a visitor outside India gets prices hidden for the moment
@@ -171,7 +177,7 @@ html[data-pricing-pending] [data-price] {
   height: 60rem;
   border-radius: 9999px;
   background: radial-gradient(circle, rgba(45, 212, 191, 0.35) 0%, rgba(45, 212, 191, 0) 65%);
-  animation: splash-glow 2600ms ease-out forwards;
+  animation: splash-glow 500ms ease-out forwards;
 }
 
 .splash-screen__inner {
@@ -194,7 +200,7 @@ html[data-pricing-pending] [data-price] {
   background: rgba(240, 253, 250, 0.12);
   border: 1px solid rgba(240, 253, 250, 0.25);
   font-size: 1.5rem;
-  animation: splash-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: splash-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .splash-screen__brand {
@@ -203,7 +209,7 @@ html[data-pricing-pending] [data-price] {
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: rgba(153, 246, 228, 0.9);
-  animation: splash-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both;
+  animation: splash-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) 30ms both;
 }
 
 .splash-screen__phrase {
@@ -211,7 +217,7 @@ html[data-pricing-pending] [data-price] {
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.02em;
-  animation: splash-rise 800ms cubic-bezier(0.22, 1, 0.36, 1) 160ms both;
+  animation: splash-rise 340ms cubic-bezier(0.22, 1, 0.36, 1) 60ms both;
 }
 
 .splash-screen__rule {
@@ -220,7 +226,7 @@ html[data-pricing-pending] [data-price] {
   border-radius: 9999px;
   background: rgba(94, 234, 212, 0.85);
   transform-origin: center;
-  animation: splash-rule 900ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both;
+  animation: splash-rule 360ms cubic-bezier(0.22, 1, 0.36, 1) 90ms both;
 }
 
 @keyframes splash-rise {
@@ -260,6 +266,11 @@ html[data-pricing-pending] [data-price] {
    motion, so this is a backstop for a preference changed mid-session:
    whatever the attribute says, nothing moves. */
 @media (prefers-reduced-motion: reduce) {
+  /* Not "stay put with no animation": that would leave the sheet up until a
+     timer cleared it. Under reduced motion it is simply not there. */
+  html[data-splash] .splash-screen {
+    display: none;
+  }
   .splash-screen,
   .splash-screen * {
     animation: none !important;
