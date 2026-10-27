@@ -60,6 +60,8 @@ import ResultsPanel from "@/components/therapist/assessment/ResultsPanel";
 import StepBar from "@/components/therapist/assessment/StepBar";
 import StepCard from "@/components/therapist/assessment/StepCard";
 import ToolArea from "@/components/therapist/assessment/ToolArea";
+import BeforeYouStart from "@/components/therapist/assessment/BeforeYouStart";
+import type { Briefing } from "@/lib/cockpitBriefing";
 import { postEnd, postEvent } from "@/components/therapist/assessment/api";
 import type { QuickPainSave } from "@/components/therapist/assessment/LayerTool";
 import { useDisplaySender } from "@/components/therapist/assessment/useDisplaySender";
@@ -104,6 +106,8 @@ export type CockpitProps = {
   enabledLicensed: string[];
   licenceUnreadable: boolean;
   chartHref: string;
+  /** "Before you start": one line in the header that opens to the list. */
+  briefing?: Briefing;
   /** The areas the patient marked in their intake (orthopaedic): the pain step starts on the worst. */
   intakeAreas?: AreaPainEntry[];
   /** The patient's active home exercise plan and this run's marks (phase 7d). */
@@ -208,7 +212,8 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     });
   }
   // ON/OFF and the last dose, the side, active or passive: asked once, carried to the next step.
-  const [carried, setCarried] = useState<CarriedFacts>(NO_CARRIED_FACTS);
+  // The intake's affected side, when it is one side, is where a test starts.
+  const [carried, setCarried] = useState<CarriedFacts>(() => ({ ...NO_CARRIED_FACTS, side: props.briefing?.startSide ?? "" }));
   const onCarry = useCallback((facts: CarriedFacts) => setCarried((prev) => mergeCarried(prev, facts)), []);
   const [layerRecord, setLayerRecord] = useState<{ stepId: string; id: string | null; missing: string | null } | null>(null);
   // The pain step's quick score (B4): its save, run by Save and next, and
@@ -594,6 +599,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
             </button>
           )}
         </div>
+        {props.briefing && !ended && <BeforeYouStart briefing={props.briefing} compact />}
       </header>
 
       {!ended && <StepBar items={nav} onPick={openStep} />}

@@ -28,6 +28,11 @@ import {
   type RunState,
 } from "@/lib/assessmentRun";
 import { requireAssignedTherapist, requireSignedInUser, requireStartedSession } from "@/lib/therapistClinicalGate";
+import type { IntakeRead, LastNoteRead } from "@/lib/cockpitBriefing";
+import { contraFlagsFromIntake } from "@/lib/exercisePlan";
+import type { ContraFlag } from "@/lib/exerciseLibrary";
+import { parseAreaPain, type AreaPainEntry } from "@/lib/conditionIntake";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 
@@ -484,4 +489,65 @@ export async function checkMeasurementInRun(
   });
   if (!checked.ok) return { ok: false, response: refusalResponse(checked.refusal) };
   return { ok: true, run: read.run, step: checked.step };
+}
+
+// --- "Before you start" (B5) ------------------------------------------------------------------
+
+export type BriefingReads = {
+  lastNote: LastNoteRead;
+  intake: IntakeRead;
+  contraFlags: ContraFlag[] | null;
+  /** The orthopaedic intake's painful areas (the pain step starts on the worst). */
+  intakeAreas: AreaPainEntry[];
+};
+
+/**
+ * The reads behind "Before you start": the newest session note for this
+ * patient (any treating clinician's: the clinical-access rule already lets
+ * the assigned therapist read it) and the intake. Each is its own call and
+ * answers "unreadable" on a failure, which the strip says as "couldn't check".
+ */
+export async function loadBriefingReads(admin: AdminClient, patientId: string, nowMs: number): Promise<BriefingReads> {
+  const [noteRes, profileRes] = await Promise.all([
+    admin
+      .from("session_notes")
+      .select("data, created_at")
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(
+        (r) => r,
+        () => ({ data: null, error: { message: "failed" } })
+      ),
+    admin
+      .from("patient_condition_profiles")
+      .select("data")
+      .eq("patient_id", patientId)
+      .maybeSingle()
+      .then(
+        (r) => r,
+        () => ({ data: null, error: { message: "failed" } })
+      ),
+  ]);
+  const lastNote: LastNoteRead = noteRes.error
+    ? { status: "unreadable" }
+    : {
+        status: "ok",
+        note: noteRes.data
+          ? {
+              data: ((noteRes.data as { data?: unknown }).data ?? {}) as Record<string, unknown>,
+              dateLabel: formatClinicDate((noteRes.data as { created_at: string }).created_at),
+            }
+          : null,
+      };
+  if (profileRes.error) return { lastNote, intake: { status: "unreadable" }, contraFlags: null, intakeAreas: [] };
+  if (!profileRes.data) return { lastNote, intake: { status: "no_profile" }, contraFlags: [], intakeAreas: [] };
+  const data = ((profileRes.data as { data?: unknown }).data ?? {}) as Record<string, unknown>;
+  return {
+    lastNote,
+    intake: { status: "ok", data },
+    contraFlags: [...contraFlagsFromIntake(data, nowMs)],
+    intakeAreas: parseAreaPain(typeof data.area_pain === "string" ? data.area_pain : null),
+  };
 }

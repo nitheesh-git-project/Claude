@@ -6,6 +6,8 @@ import Spinner from "@/components/system/Spinner";
 import { useRouter } from "@/lib/useRouter";
 import { failureText, type CockpitFailure } from "@/lib/cockpit";
 import { postEnd, startRun } from "@/components/therapist/assessment/api";
+import BeforeYouStart from "@/components/therapist/assessment/BeforeYouStart";
+import type { Briefing } from "@/lib/cockpitBriefing";
 
 /**
  * Before a run exists: what is about to start, and one big button. The start
@@ -20,6 +22,7 @@ export default function StartPanel({
   protocols,
   sessionNote,
   chartHref,
+  briefing,
 }: {
   patientId: string;
   patientName: string;
@@ -28,6 +31,7 @@ export default function StartPanel({
   /** Said when the page could tell the session has not started; the route still decides. */
   sessionNote: string | null;
   chartHref: string;
+  briefing: Briefing;
 }) {
   const router = useRouter();
   const [protocolKey, setProtocolKey] = useState(protocols[0]?.key ?? "");
@@ -80,6 +84,7 @@ export default function StartPanel({
           {sessionNote}
         </p>
       )}
+      <BeforeYouStart briefing={briefing} />
       {protocols.length > 1 && (
         <fieldset>
           <legend className="text-sm font-semibold text-slate-900">Which assessment?</legend>

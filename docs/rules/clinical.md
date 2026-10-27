@@ -1511,7 +1511,14 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      Stop test - never while typing, with a dialog open, on a key repeat or
      with a modifier (`cockpitShortcut`) - and the counter takes the focus
      when it starts, so Space or Enter counts a stand; a one-line hint sits
-     under the bar. **The pain step is a quick score:** the area starts on the
+     under the bar. **"Before you start"** (`cockpitBriefing.ts`,
+     `loadBriefingReads`): the last session note's *Plan for the next session*
+     and *Anything to watch*, the intake's precautions (sternal, a high risk of
+     falling, cannot stand), the affected side and, on a Parkinson's run, the
+     usual medicine times with "ask ON or OFF" - in full on the Start panel,
+     one line in the cockpit's header that opens to the list; a failed read is
+     "couldn't check", and a one-sided affected side is where tests start.
+     Read only: it gates nothing. **The pain step is a quick score:** the area starts on the
      latest exam's, else the worst intake area, else the protocol's joint
      (`painStepStartArea`), the side where it has two, then the eleven 0-10
      buttons; Save and next records it as a Pain Map reading and names it in
